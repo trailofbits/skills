@@ -254,14 +254,12 @@ semgrep --test --config rule.yaml test-file
 
 ## Documentation
 
-**REQUIRED**: Before creating any rule, use WebFetch to read the official Semgrep documentation:
+**REQUIRED**: Before creating any rule, use WebFetch to read this Semgrep documentation:
 
 - [Rule Syntax](https://semgrep.dev/docs/writing-rules/rule-syntax) - YAML structure, operators, and rule options
 - [Pattern Syntax](https://semgrep.dev/docs/writing-rules/pattern-syntax) - Pattern matching, metavariables, and ellipsis usage
 - [Testing Rules](https://semgrep.dev/docs/writing-rules/testing-rules) - Testing rules to properly catch code patterns and avoid false positives
 - [Writing Rules Index](https://github.com/semgrep/semgrep-docs/tree/main/docs/writing-rules/) - Full documentation index (browse for taint mode, testing, etc.)
-
-**Additional resources** - fetch as needed:
 - [Trail of Bits Testing Handbook - Semgrep](https://appsec.guide/docs/static-analysis/semgrep/advanced/) - Advanced patterns, taint tracking, and practical examples
 
 ## Next Steps
