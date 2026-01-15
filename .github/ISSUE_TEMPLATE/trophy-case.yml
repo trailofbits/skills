@@ -29,8 +29,8 @@ body:
   - type: input
     id: title
     attributes:
-      label: Short Description
-      description: Brief title for the trophy case table
+      label: Bug Title
+      description: Short description of the vulnerability (this will be the link text in the trophy case table)
       placeholder: Timing side-channel in ECDSA verification
     validations:
       required: true
