@@ -1,0 +1,42 @@
+name: Trophy Case Submission
+description: Found a bug using one of our skills? Add it to the trophy case!
+title: "[Trophy] "
+labels: ["trophy-case"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing your find! We love seeing these skills help discover real bugs.
+
+  - type: input
+    id: bug-link
+    attributes:
+      label: Bug Link
+      description: Link to the bug report, PR, advisory, or writeup
+      placeholder: https://github.com/org/repo/issues/123
+    validations:
+      required: true
+
+  - type: input
+    id: skill
+    attributes:
+      label: Skill Used
+      description: Which skill helped you find it?
+      placeholder: constant-time-analysis
+    validations:
+      required: true
+
+  - type: input
+    id: title
+    attributes:
+      label: Short Description
+      description: Brief title for the trophy case table
+      placeholder: Timing side-channel in ECDSA verification
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context (optional)
+      description: Anything else you'd like to share about the find?

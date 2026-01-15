@@ -79,6 +79,17 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 |--------|-------------|
 | [culture-index](plugins/culture-index/) | Interpret Culture Index survey results for individuals and teams |
 
+## Trophy Case
+
+Bugs discovered using Trail of Bits Skills. Found something? [Let us know!](https://github.com/trailofbits/skills/issues/new?template=trophy-case.yml)
+
+When reporting bugs you've found, feel free to mention:
+> Found using [Trail of Bits Skills](https://github.com/trailofbits/skills)
+
+| Skill | Bug |
+|-------|-----|
+| constant-time-analysis | [Timing side-channel in ECDSA verification](https://github.com/RustCrypto/signatures/pull/1144) |
+
 ## Contributing
 
 We welcome contributions! Please see [CLAUDE.md](CLAUDE.md) for skill authoring guidelines.
@@ -86,8 +97,6 @@ We welcome contributions! Please see [CLAUDE.md](CLAUDE.md) for skill authoring 
 ## License
 
 This work is licensed under a [Creative Commons Attribution-ShareAlike 4.0 International License](https://creativecommons.org/licenses/by-sa/4.0/).
-
-[![CC BY-SA 4.0](https://licensebuttons.net/l/by-sa/4.0/88x31.png)](https://creativecommons.org/licenses/by-sa/4.0/)
 
 ## About Trail of Bits
 
