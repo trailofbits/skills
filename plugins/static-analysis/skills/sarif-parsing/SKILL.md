@@ -66,7 +66,7 @@ Without stable fingerprints, you can't track findings across runs:
 - **Regression detection**: "Did this PR introduce new vulnerabilities?"
 - **Suppression**: "Ignore this known false positive in future runs"
 
-Tools report different paths (`/home/user/proj/` vs `/github/workspace/`), so path-based matching fails. Fingerprints hash the *content* (code snippet, rule ID, relative location) to create stable identifiers regardless of environment.
+Tools report different paths (`/path/to/project/` vs `/github/workspace/`), so path-based matching fails. Fingerprints hash the *content* (code snippet, rule ID, relative location) to create stable identifiers regardless of environment.
 
 ## Tool Selection Guide
 
