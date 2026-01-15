@@ -1,0 +1,402 @@
+---
+description: ">"
+globs: "*.go, *.js, *.jsx, *.move, *.py, *.ts, *.tsx"
+alwaysApply: false
+---
+
+# burp-suite
+
+*From Trail of Bits Skills - Author: Paweł Płatek*
+
+# Burp Suite Professional
+
+Burp Suite Professional is an HTTP interception proxy with numerous security testing features. It allows you to view and manipulate the HTTP requests and responses flowing between a client (usually a web application loaded in a browser) and a server.
+
+With the increased traffic of today's websites, Burp stands out for its ability to handle parallel requests. Its interactive tools allow you to formulate and test hypotheses about how the site will behave, even when there is a lot of traffic to sort through—a feat that is difficult for most browser development tools. In addition, Burp includes advanced search and filtering mechanisms that greatly increase user productivity when dealing with high traffic. Burp's UI also significantly outperforms browser development tools when it comes to editing requests.
+
+## When to Use
+
+**Use Burp Suite when:**
+- Testing web applications for security vulnerabilities during audits
+- Identifying server-side issues and unexpected behaviors
+- Identifying client-side vulnerabilities (with DOM Invader extension)
+- Understanding data flow between client and server in obfuscated applications
+- Fuzzing multiple query parameters or header values simultaneously
+- Testing applications under different scenarios (geographical locations, user preferences)
+
+**Consider alternatives when:**
+- You need fully automated scanning without manual interaction → Consider OWASP ZAP
+- Testing mobile applications that don't use HTTP/HTTPS → Consider mobile-specific tools
+- Analyzing binary protocols → Consider specialized protocol analyzers
+
+## Quick Reference
+
+| Task | Action |
+|------|--------|
+| Intercept requests | Proxy tab → Intercept is on |
+| Send to Repeater | Right-click request → Send to Repeater (Ctrl+R) |
+| Send to Intruder | Right-click request → Send to Intruder (Ctrl+I) |
+| Active scan | Right-click request → Scan |
+| Search all traffic | Proxy → HTTP history → Filter/Search |
+| Test race condition | Repeater → Send group in parallel |
+| Add payload positions | Intruder → Positions → Add § markers |
+
+## Core Features
+
+Burp contains four major features:
+
+1. **Burp Proxy**. The Proxy tab lets you view, sort, and filter proxied requests and responses.
+2. **Burp Scanner (both active and passive)**. The passive Burp Scanner analyzes requests and responses and informs users about potential issues. The active Burp Scanner generates requests to send to the server, testing it for potential vulnerabilities, and displays the results.
+3. **Burp Repeater**. Burp Repeater allows you to edit and conveniently send requests.
+4. **Burp Intruder**. Burp Intruder allows you to populate portions of requests (e.g., query strings, POST parameters, URL paths, headers) with sets of predefined fuzzing payloads and send them to a target server automatically. Burp Intruder then displays the server's responses to help you identify bugs or vulnerabilities resulting from unexpected input.
+
+## Installation
+
+### Prerequisites
+
+- Java Runtime Environment (JRE)
+- Burp Suite Professional license
+
+### Install Steps
+
+1. Download Burp Suite Professional from https://portswigger.net/burp/pro
+2. Follow the official installation guide: https://portswigger.net/burp/documentation/desktop/getting-started/download-and-install
+3. Launch Burp and configure your license
+
+### Verification
+
+Open Burp Suite and verify that the license is active. Test the proxy by launching the embedded Chromium browser.
+
+## Core Workflow
+
+### Step 1: Installation and Setup
+
+For the first steps, refer to the official documentation on installing and licensing Burp Suite Professional on your system.
+
+### Step 2: Preparing the Proxy
+
+To launch Burp's embedded browser based on Chromium, select the **Proxy** > **Intercept** tab and click the **Open browser** button. Before proceeding, get familiar with Proxy intercept.
+
+If you want to configure an external browser other than Chromium (e.g., Firefox or Safari), refer to the official documentation.
+
+### Step 3: First Run of Your Target Web Application
+
+1. Open your web application using the embedded Burp browser. Go through the largest number of functionalities you want to cover, such as logging in, signing up, and visiting possible features and panels.
+2. Add your targets to your scope. Narrowing down specific domains in the **Target** tab allows you to control what's tested.
+
+   a. Consider stopping Burp from sending out-of-scope items to the history. A pop-up will be shown with the text, "Do you want Burp Proxy to stop sending out-of-scope items to the history or other Burp tools?" Choose one of the following options:
+
+   - Click **Yes** if you are sure you have chosen all possible domains. This will help you avoid sending potentially malicious requests to unforeseen hosts. This way, you can configure Burp Scanner to actively attack targets only from the configured scope.
+   - Click **No** if it's your first run and you are unsure about potential underlying requests to the specific domains. This will help you gain a more thorough overview of what's going on in your application.
+
+   b. For more information on configuring the scope, see the Scope documentation.
+
+3. Once you configure the scope, briefly look at Burp Proxy and what's happening in the intercepted traffic.
+
+   a. When you go through the application with Burp attached, many unwanted requests (e.g., to `fonts.googleapis.com`) can crop up in the **Intercept** tab.
+
+   b. To turn off intercepting the uninteresting host, click on the intercepted request in the **Interception** tab, right-click, and then choose **Don't intercept requests** > **To this host**. Burp will then automatically forward requests to the marked host.
+
+   c. Keep in mind that if you selected **No** when asked in the previous step, you could see a lot of out-of-scope ("unwanted") items.
+
+**Important hot key:** By default, **Ctrl+F** forwards the current HTTP request in the Burp Intercept feature.
+
+### Step 4: Enabling Extensions
+
+Extensions can be added to Burp to enhance its capabilities in finding bugs and automating various tasks. Some extensions fall under the category of "turn on and forget." They are mostly designed to automatically run on each Burp Scanner task without user interaction, with results appearing in the **Issue activity** pane of the **Dashboard** tab.
+
+We generally recommend the following extensions:
+
+1. **Active Scan++** enhances the default active and passive scanning capabilities of Burp Suite. It adds checks for vulnerabilities that the default Burp Scanner might miss.
+2. **Backslash Powered Scanner** extends the active scanning capability by trying to identify known and unknown classes of server-side injection vulnerabilities.
+3. **Software Vulnerability Scanner** integrates with Burp Suite to automatically identify known software vulnerabilities in web applications.
+4. **Freddy, Deserialization Bug Finder** helps detect and exploit serialization issues in libraries and APIs (e.g., .NET and Java).
+5. **J2EEScan** improves the test coverage during web application penetration tests on J2EE applications.
+6. **403 Bypasser** attempts to bypass HTTP 403 Forbidden responses by changing request methods and altering headers.
+
+Some of the above extensions need Jython or JRuby configured in Burp.
+
+**Warning:** Because of the performance impact of enabling too many extensions, you should enable only extensions that you are actively using. We encourage you to periodically review your enabled extensions and unload any that you don't currently use.
+
+### Step 5: First Run with Live Task
+
+Live tasks process traffic from specific Burp Suite tools (e.g., Burp Proxy, Burp Repeater, Burp Intruder) and perform defined actions. In the live task strategy, we set up the live active Burp Scanner task to grab the proxied traffic when we visit the website and automatically send it to Burp Scanner.
+
+Follow these steps to set up Burp to automatically scan proxied requests:
+
+1. Open **Dashboard** and click **New live task**.
+2. Under **Tools scope**, select **Proxy**.
+3. In **URL scope**, select **Suite scope**.
+4. Check the **Ignore duplicate items based on URL and parameter names** box. This option ensures that Burp Suite avoids scanning the same request multiple times.
+5. Go to **Scan configuration**, click on the **Select from library** button, and select **Audit coverage - maximum** to have the most comprehensive scan possible.
+6. Optionally, you can adjust the number of concurrent requests on the target at any time.
+
+Then, open the embedded Burp browser and go through your website carefully; try to visit every nook and cranny of your website. You can see detailed information and specific requests in **Tasks** > **Live audit from Proxy (suite)**.
+
+Use the **Logger** tab and observe how the scanning works under the hood and how your application reacts to potentially malicious requests.
+
+**Remember:** Using an active Burp Scanner can have disruptive effects on the website, such as data loss.
+
+### Step 6: Working Manually with Burp Repeater
+
+Burp Repeater allows you to manually manipulate and modify HTTP requests and analyze their responses. Similar to Burp Intruder, there is no golden recipe for successfully finding bugs when using Burp Repeater—it depends on the target and an operator's skill in identifying web app vulnerabilities.
+
+**Set up a keyboard shortcut to issue requests:** To streamline the testing process, Burp Suite allows you to set up a keyboard shortcut for issuing requests in Burp Repeater. Assign the **Issue Repeater request** to **Ctrl+R** in Hotkey settings.
+
+**Sending requests to Burp Scanner:** When you interact with your application, make a habit of sending requests to Burp Scanner. Even if it's a small change in your request, sending it to Burp Scanner increases the chances of identifying a bug.
+
+### Step 7: Working Manually with Burp Intruder
+
+Burp Intruder is a tool for automating customized attacks against web applications and serves as an HTTP request fuzzer. It provides the functionality to configure attacks involving numerous iterations of a base request. Burp Intruder can change the base request by inserting various payloads into predefined positions, making it a versatile tool for discovering vulnerabilities that particularly rely on unexpected or malicious input.
+
+To send a request to Burp Intruder, right-click on the request and select **Send to Intruder**.
+
+## Features vs Security Issues
+
+The following table answers questions about how to use Burp beyond the regular passive and active Burp Scanner checks for specific security issues:
+
+| Security Issue | Burp Feature | Notes |
+|---|---|---|
+| Authorization issues | Autorize extension, AutoRepeater extension, 403 Bypasser extension | For automating authorization testing across different user roles |
+| Cross-site scripting (XSS) | DOM Invader, Intruder with XSS wordlists, Hackvertor tags | For Blind XSS, use Burp Collaborator payloads or Taborator with `$collabplz` placeholder |
+| Cross-site request forgery (CSRF) | AutoRepeater extension (base replacements for CSRF-related parameters) | Generate CSRF PoC from context menu |
+| Denial of service (DoS) | Observe responses, response time, application logs | Use denial-of-service mode in Burp Intruder |
+| Edge Side Inclusion (ESI) injection | Active Scan++ extension | |
+| File upload issues | Upload Scanner extension | |
+| HTTP request smuggling | HTTP Request Smuggler extension | |
+| Insecure direct object references (IDOR) | Backslash Powered Scanner extension, Manual interaction in Burp Repeater, Burp Intruder with numbers payload type | |
+| Insecure deserialization | Freddy Deserialization Bug Finder extension, Java Serial Killer extension, Java Deserialization Scanner extension | |
+| IP spoofing | Collaborator Everywhere extension, Manual interaction in Burp Repeater | |
+| JWT issues | JSON Web Tokens extension, JWT Editor extension, JSON Web Token Attacker (JOSEPH) extension | |
+| OAuth/OpenID issues | OAUTH Scan extension | |
+| Open redirection | Burp Intruder with appropriate wordlists and analysis of the `Location` response | |
+| Race conditions | Backslash Powered Scanner extension, Turbo Intruder extension, Burp Repeater with requests sent parallelly in a group | |
+| Rate-limiting bypass | Turbo Intruder extension, IP Rotate extension, Burp Intruder when using differentiated headers/parameters, Bypass WAF extension | |
+| SAML-based authentication | SAML Raider extension | |
+| Server-side prototype pollution | Server-Side Prototype Pollution Scanner extension | |
+| SQL Injection | Backslash Powered Scanner extension, The specific Burp request saved to a text file and passed to sqlmap tool using the `-r` argument | |
+| Server-side request forgery (SSRF) | Burp Intruder with appropriate wordlists, Manual interaction with Burp Collaborator payloads or Taborator with the `$collabplz` placeholder | |
+| Server-side template injection (SSTI) | Active Scan++ extension | |
+
+## Advanced Usage
+
+### Tips and Tricks
+
+| Tip | Why It Helps |
+|-----|--------------|
+| Use global search (**Burp** > **Search**) | Find strings across all Burp tools when you can't remember where you saw something |
+| Test for race conditions using Burp Repeater groups | Send multiple requests in parallel using last-byte technique (HTTP/1) or single-packet attack (HTTP/2) |
+| Use Autorize extension for access control testing | Automatically modifies and resends intercepted requests with substituted session identifiers to reveal authorization issues |
+| Run Collaborator Everywhere | Adds noninvasive headers designed to reveal back-end systems by triggering pingbacks to Burp Collaborator |
+| Intercept and modify responses | Unhide hidden form fields, enable disabled form fields, remove input field length limits, remove CSP headers |
+| Use BChecks for custom scan checks | Automate passive and active hunts without extensive coding |
+| Use Bambdas for filtering HTTP history | Customize your Burp tools with small snippets of Java |
+| Use custom Hackvertor tags | Configure your own tags based on Python or JavaScript for custom encoding/escaping |
+| Configure upstream proxy | Chain Burp with other tools like ZAP or mitmproxy |
+| Use Easy Auto Refresh Chrome extension | Extend your session and prevent automatic logout |
+
+### Testing for Race Conditions
+
+Race conditions occur when the timing or ordering of events affects a system's behavior. Burp allows you to group multiple requests and send them in a short time window.
+
+**Using Burp Repeater:**
+1. Click the **+** sign and select **Add tab**
+2. Click on **Create new group** and select tabs (previously prepared requests) for the group
+3. Select **Send group (parallel)**
+
+Burp will send all grouped requests using last-byte technique (HTTP/1) or single-packet attack (HTTP/2).
+
+**Using Turbo Intruder:**
+1. Select the specific request in Burp
+2. Right-click and choose **Extensions** > **Turbo Intruder** > **Send to Turbo Intruder**
+3. Select the example script, `examples/race-single-packet-attack.py`
+4. Adjust the engine and number of queued requests
+5. Click **Attack** and observe the results
+
+### Testing for Access Control Issues
+
+The Autorize extension is tailored to make testing access controls in web applications flexible and efficient.
+
+The general rule for using Autorize:
+1. Add the authorization cookie or headers of another application role to the extension
+2. Configure optional detectors
+3. Browse the application
+
+Autorize automatically modifies and resends intercepted requests with these substituted session identifiers. This allows us to investigate whether the server appropriately authorizes each incoming request, revealing any discrepancies in access controls.
+
+**Useful tips:**
+- Don't forget to use the **Check Unauthenticated** functionality
+- Narrow down the source of the request sent to Autorize by setting up interception filters
+- Always adjust the **Enforcement Detector** and **Detector Unauthenticated** functionalities accordingly
+- Use Hackvertor tags in the original request sent to Autorize to handle unique parameters
+
+### BChecks
+
+BChecks are custom scan checks that you can create and import. Burp Scanner runs these checks in addition to its built-in scanning routine, helping you to target your scans and make your testing workflow as efficient as possible.
+
+BChecks are written in a `.bcheck` file extension with a plaintext, custom definition language to declare the behavior of the check.
+
+**Example BCheck structure:**
+
+```yaml
+metadata:
+    language: v1-beta
+    name: "Insertion-point-level"
+    description: "Inserts a calculation into each parameter to detect suspicious input transformation"
+    author: "Carlos Montoya"
+
+define:
+    calculation = "{{1337*1337}}"
+    answer = "1787569"
+
+given insertion point then
+    if not({answer} in {base.response}) then
+        send payload:
+            appending: {calculation}
+
+        if {answer} in {latest.response} then
+            report issue:
+                severity: high
+                confidence: tentative
+                detail: "The application transforms input in a way that suggests it might be
+                         vulnerable to some kind of server-side code injection."
+                remediation: "Manual investigation is advised."
+        end if
+    end if
+```
+
+### Bambdas
+
+Bambda mode allows you to use small snippets of Java to customize your Burp tools. For example, Bambdas can allow you to find JSON responses with the wrong `Content-Type` in the HTTP history.
+
+### Wordlists for Burp Intruder
+
+A wordlist is a file containing a collection of payloads (i.e., input strings) that Burp populates requests with during an attack.
+
+**Popular public wordlists:**
+- SecLists
+- Payloads All The Things
+
+**Configure a custom wordlist location:** Burp Intruder comes with basic predefined payload lists. You can load your own directory of custom wordlists in the Intruder settings. This allows your custom wordlists to be easily accessible.
+
+**Use the Taborator extension:** Add the `$collabplz` placeholder to a wordlist. When processing the request, Taborator will automatically change it to a valid Burp Collaborator payload.
+
+### Useful Extensions in Burp Repeater
+
+You can run a specific extension when you work on a specific request. Right-click on the request, then select **Extensions**, and choose the specific one:
+
+- **Param Miner** (the **guess everything** option) is designed to discover hidden parameters and headers and could reveal hidden functionality.
+- **HTTP Request Smuggler** (the **Launch all scans** option) launches HTTP request smuggling attacks.
+- **403 Bypasser** launches permutations of requests to identify authorization issues.
+- **Server-Side Prototype Pollution Scanner** tries to identify server-side prototype pollution issues in Node applications.
+
+### Various Burp Repeater Tips
+
+- **Non-printable characters:** Burp Repeater can show non-printable characters, which can be beneficial when exploiting specific issues (e.g., bypassing WAFs). You can turn it on using the **\n** button.
+- **Minimize requests:** Use Request Minimizer to perform HTTP request minimization. The extension removes unnecessary headers or parameters.
+- **Use Content Type Converter:** The Content Type Converter extension allows you to convert data submitted in a request between JSON to XML, XML to JSON, Body parameters to JSON, Body parameters to XML.
+- **Auto-scroll:** When you manually try to bypass server-side sanitization, use **Auto-scroll to match when text changes** and add custom text both in your payload and in the search form.
+- **Show response in the browser:** Right-click on the specific response, select **Show response in browser**, and paste the produced URL in the browser that is proxied through Burp.
+- **Generating a CSRF PoC:** To automatically generate HTML for a CSRF attack PoC in Burp, right-click on the specific request, then choose **Engagement tools** > **Generate CSRF PoC**.
+
+### Various Burp Intruder Tips
+
+1. Create a specific resource pool for Burp Intruder attacks so that Burp Scanner and Burp Intruder are not competing against each other for workers to issue the requests.
+2. By default, a Burp Intruder URL encodes specific characters within the final payload. Consider running the attack twice—with enabled and disabled payload encoding.
+3. The Hackvertor extension allows you to use tags that will escape and encode input in various ways. You can place `§§` characters inside a Hackvertor tag—for example, `<@jwt('HS256','secret')>§payload§<@/jwt>`.
+4. Extension-generated payload types exist (e.g., from Freddy, Deserialization Bug Finder). You can choose them in the **Payloads** tab in Burp Intruder.
+5. You can use the Recursive grep payload type to extract text from the response to the previous request and use that text as the payload for the current request.
+6. Always run attacks in temporary project mode, and then click **Save the attack to the project file** if you want to preserve the results afterward.
+7. Intruder can automatically generate collaborator payloads in both a payload source and post-payload processing. If interactions are found after the attack has finished, it will update the results with the interaction count and raise the issue in the Event log.
+
+### Performance Optimization
+
+- Adjust the number of concurrent requests in the resource pool settings
+- Enable automatic throttling to prevent excessive traffic
+- Configure payload list location for faster access to custom wordlists
+- Disable unused extensions to reduce performance impact
+
+### Proxying Docker Traffic Through Burp Suite
+
+First, export Burp's CA certificate. Convert the PKCS#12 CA bundle to PEM formatting:
+
+```bash
+openssl pkcs12 -in /path/to/burp.pkcs12 -nodes -out /path/to/burp.pem
+```
+
+Test Burp's proxying with curl:
+
+```bash
+docker run \
+    --volume /path/to/burp.pem:/tmp/burp.pem \
+    curlimages/curl:latest \
+    --proxy host.docker.internal:8080 \
+    --cacert /tmp/burp.pem \
+    https://www.google.com
+```
+
+For Go applications:
+
+```bash
+docker run \
+    --env SSL_CERT_DIR=/usr/local/share/ca-certificates \
+    --volume /path/to/burp.pem:/usr/local/share/ca-certificates/burp.pem \
+    --env HTTPS_PROXY=host.docker.internal:8080 \
+    --volume $(pwd)/req.go:/go/req.go \
+    golang:latest go run req.go
+```
+
+Note: `host.docker.internal` is Docker Desktop's special domain for referencing the host machine, and `8080` is Burp's default proxy listener port.
+
+## Common Mistakes
+
+| Mistake | Why It's Wrong | Correct Approach |
+|---------|----------------|------------------|
+| Not configuring scope properly | Scanning out-of-scope targets wastes time and may cause unintended harm | Always configure Target scope and decide whether to stop sending out-of-scope items to history |
+| Enabling too many extensions | Performance impact and potential conflicts | Only enable extensions actively being used; periodically review and unload unused extensions |
+| Not monitoring Logger tab | Missing important error responses and unexpected behaviors | Regularly check Logger tab for nonstandard responses, errors, and stack traces |
+| Scanning logout endpoints | Terminates session causing 401 Unauthorized errors | Exclude logout/signout endpoints from active scanning |
+| Not handling session tokens properly | Tests fail with authentication errors | Use Easy Auto Refresh extension or custom Authorization Bearer Detector for session management |
+| Using default Burp Intruder wordlists | Limited coverage and generic payloads | Prepare custom wordlists based on target technology stack and vulnerability types |
+| Not analyzing Burp Intruder results thoroughly | Missing subtle vulnerabilities | Sort by Length, HTTP codes, Response time; use Extract grep; watch Collaborator interactions |
+| Saving all attacks to project file | Large file sizes and performance degradation | Run attacks in temporary project mode; save only important results afterward |
+
+## Limitations
+
+- **Active scanning can be disruptive:** Active Burp Scanner can have disruptive effects on the website, such as data loss. Always test in appropriate environments.
+- **Requires manual expertise:** Burp Suite is most effective when used by someone with knowledge of web application vulnerabilities. Automated scanning alone may miss complex issues.
+- **Performance with high traffic:** While Burp handles parallel requests well, extremely high traffic applications may require careful resource pool configuration and throttling.
+- **Limited to HTTP/HTTPS:** Burp Suite is designed for HTTP-based applications and doesn't support non-HTTP protocols without significant workarounds.
+- **Extension compatibility:** Some extensions require Jython or JRuby configuration, and enabling too many extensions can impact performance.
+
+## Related Skills
+
+| Skill | When to Use Together |
+|-------|---------------------|
+| **dom-invader** | For identifying client-side vulnerabilities in browser-based applications alongside Burp's server-side testing |
+| **sqlmap** | For advanced SQL injection testing; export Burp requests to sqlmap using the `-r` argument |
+| **web-security-testing** | For understanding the broader context of web security vulnerabilities that Burp helps identify |
+
+## Resources
+
+### Key External Resources
+
+**[Mastering Web Research with Burp Suite](https://www.youtube.com/watch?v=0PV5QEQTmPg)**
+Trail of Bits Webinar diving into advanced web research techniques using Burp Suite with James Kettle, including how to discover ideas and targets, optimize your setup, and utilize Burp tools in various scenarios. Explores the future of Burp with the introduction of BChecks and compares dynamic and static analysis through real-world examples.
+
+**[NSEC2023 - Burp Suite Pro tips and tricks, the sequel](https://www.youtube.com/watch?app=desktop&v=N7BN--CMOMI)**
+Advanced tips and tricks for Burp Suite Professional users.
+
+**[Burp Suite Essentials YouTube Playlist](https://www.youtube.com/watch?v=ouDe5sJ_uC8&list=PLoX0sUafNGbH9bmbIANk3D50FNUmuJIF3)**
+Comprehensive video series covering Burp Suite essentials.
+
+**[The official BChecks developed by Portswigger and community](https://github.com/PortSwigger/BChecks)**
+Collection of custom scan checks that you can create and import into Burp Scanner.
+
+**[The official Bambdas collection developed by Portswigger and community](https://github.com/PortSwigger/bambdas)**
+Collection of Java snippets to customize your Burp tools.
+
+### Social Media Resources
+
+- [@MasteringBurp on X](https://twitter.com/MasteringBurp): Tips and tricks for Burp Suite Pro
+- [@Burp_Suite on X](https://twitter.com/Burp_Suite): The official Portswigger profile with tips and the latest and upcoming features

@@ -1,0 +1,907 @@
+---
+description: "Create custom Semgrep rules for detecting bug patterns and security vulnerabilities. This skill should be used when the user explicitly asks to \"create a Semgrep rule\", \"write a Semgrep rule\", \"make a Semgrep rule\", \"build a Semgrep rule\", or requests detection of a specific bug pattern, vulnerability, or insecure code pattern using Semgrep."
+globs: "*.go, *.move, *.py, *.rs"
+alwaysApply: false
+---
+
+# semgrep-rule-creator
+
+*From Trail of Bits Skills - Author: Maciej Domanski*
+
+# Semgrep Rule Creator
+
+Create production-quality Semgrep rules with proper testing and validation.
+
+## When to Use
+
+**Ideal scenarios:**
+- Creating custom detection rules for specific bug patterns
+- Building security vulnerability detectors for your codebase
+- Writing taint-mode rules for data flow vulnerabilities
+- Developing rules to enforce coding standards
+
+## When NOT to Use
+
+Do NOT use this skill for:
+- Running existing Semgrep rulesets (use the `semgrep` skill instead)
+- General static analysis without custom rules (use `static-analysis` plugin)
+- One-off scans where existing rules suffice
+- Non-Semgrep pattern matching needs
+
+## Rationalizations to Reject
+
+When creating Semgrep rules, reject these common shortcuts:
+
+- **"The pattern looks complete"** → Still run `semgrep --test --config rule.yaml test-file` to verify. Untested rules have hidden false positives/negatives.
+- **"It matches the vulnerable case"** → Matching vulnerabilities is half the job. Verify safe cases don't match (false positives break trust).
+- **"Taint mode is overkill for this"** → If data flows from user input to a dangerous sink, taint mode gives better precision than pattern matching.
+- **"One test case is enough"** → Include edge cases: different coding styles, sanitized inputs, safe alternatives, and boundary conditions.
+- **"I'll optimize the patterns first"** → Write correct patterns first, optimize after all tests pass. Premature optimization causes regressions.
+- **"The AST dump is too complex"** → The AST reveals exactly how Semgrep sees code. Skipping it leads to patterns that miss syntactic variations.
+
+## Anti-Patterns
+
+**Too broad** - matches everything, useless for detection:
+```yaml
+# BAD: Matches any function call
+pattern: $FUNC(...)
+
+# GOOD: Specific dangerous function
+pattern: eval(...)
+```
+
+**Missing safe cases in tests** - leads to undetected false positives:
+```python
+# BAD: Only tests vulnerable case
+# ruleid: my-rule
+dangerous(user_input)
+
+# GOOD: Include safe cases to verify no false positives
+# ruleid: my-rule
+dangerous(user_input)
+
+# ok: my-rule
+dangerous(sanitize(user_input))
+
+# ok: my-rule
+dangerous("hardcoded_safe_value")
+```
+
+**Overly specific patterns** - misses variations:
+```yaml
+# BAD: Only matches exact format
+pattern: os.system("rm " + $VAR)
+
+# GOOD: Matches all os.system calls with taint tracking
+mode: taint
+pattern-sinks:
+  - pattern: os.system(...)
+```
+
+## Strictness Level
+
+This workflow is **strict** - do not skip steps:
+- **Test-first is mandatory**: Never write a rule without test cases
+- **100% test pass is required**: "Most tests pass" is not acceptable
+- **Optimization comes last**: Only simplify patterns after all tests pass
+- **Documentation reading is required**: Fetch external docs before writing complex rules
+
+## Overview
+
+This skill guides creation of Semgrep rules that detect security vulnerabilities and bug patterns. Rules are created iteratively: write test cases first, analyze AST structure, write the rule, then iterate until all tests pass.
+
+**Approach selection:**
+- **Taint mode** (prioritize): Data flow issues where untrusted input reaches dangerous sinks
+- **Pattern matching**: Simple syntactic patterns without data flow requirements
+
+**Why prioritize taint mode?** Pattern matching finds syntax but misses context. A pattern `eval($X)` matches both `eval(user_input)` (vulnerable) and `eval("safe_literal")` (safe). Taint mode tracks data flow, so it only alerts when untrusted data actually reaches the sink—dramatically reducing false positives for injection vulnerabilities.
+
+**Iterating between approaches:** It's okay to experiment. If you start with taint mode and it's not working well (e.g., taint doesn't propagate as expected, too many false positives/negatives), switch to pattern matching. Conversely, if pattern matching produces too many false positives on safe code, try taint mode instead. The goal is a working rule—not rigid adherence to one approach.
+
+**Output structure** - exactly two files in a directory named after the rule ID:
+```
+<rule-id>/
+├── <rule-id>.yaml     # Semgrep rule
+└── <rule-id>.<ext>    # Test file with ruleid/ok annotations
+```
+
+## Quick Start
+
+```yaml
+rules:
+  - id: insecure-eval
+    languages: [python]
+    severity: ERROR
+    message: User input passed to eval() allows code execution
+    mode: taint
+    pattern-sources:
+      - pattern: request.args.get(...)
+    pattern-sinks:
+      - pattern: eval(...)
+```
+
+Test file (`insecure-eval.py`):
+```python
+# ruleid: insecure-eval
+eval(request.args.get('code'))
+
+# ok: insecure-eval
+eval("print('safe')")
+```
+
+Run tests: `semgrep --test --config rule.yaml test-file`
+
+## Quick Reference
+
+| Task | Command |
+|------|---------|
+| Run tests | `semgrep --test --config rule.yaml test-file` |
+| Validate YAML | `semgrep --validate --config rule.yaml` |
+| Dump AST | `semgrep --dump-ast -l <lang> <file>` |
+| Debug taint flow | `semgrep --dataflow-traces -f rule.yaml file` |
+| Run single rule | `semgrep -f rule.yaml <file>` |
+
+| Pattern Operator | Purpose |
+|------------------|---------|
+| `pattern` | Match single pattern |
+| `patterns` | AND - all must match |
+| `pattern-either` | OR - any can match |
+| `pattern-not` | Exclude matches |
+| `pattern-inside` | Must be inside scope |
+| `metavariable-regex` | Filter by regex |
+| `focus-metavariable` | Report on specific part |
+
+| Taint Component | Purpose |
+|-----------------|---------|
+| `pattern-sources` | Where tainted data originates |
+| `pattern-sinks` | Dangerous functions receiving taint |
+| `pattern-sanitizers` | Functions that clean taint |
+| `pattern-propagators` | Custom taint propagation |
+
+## Workflow
+
+### 1. Analyze the Problem
+
+Understand the bug pattern, identify target language, determine if taint mode applies.
+
+Before writing complex rules, see [Documentation](#documentation) for required reading.
+
+### 2. Create Test Cases First
+
+**Why test-first?** Writing tests before the rule forces you to think about both vulnerable AND safe patterns. Rules written without tests often have hidden false positives (matching safe code) or false negatives (missing vulnerable variants). Tests make these visible immediately.
+
+Create directory and test file with annotations:
+- `// ruleid: <id>` - Line BEFORE code that SHOULD match
+- `// ok: <id>` - Line BEFORE code that should NOT match
+
+### 3. Analyze AST Structure
+
+**Why analyze AST?** Semgrep matches against the Abstract Syntax Tree, not raw text. Code that looks similar may parse differently (e.g., `foo.bar()` vs `foo().bar`). The AST dump shows exactly what Semgrep sees, preventing patterns that fail due to unexpected tree structure.
+
+```bash
+semgrep --dump-ast -l <language> <test-file>
+```
+
+### 4. Write the Rule
+
+See [workflow.md](plugins/semgrep-rule-creator/references/workflow.md) for detailed patterns and examples.
+
+### 5. Iterate Until Tests Pass
+
+```bash
+semgrep --test --config rule.yaml test-file
+```
+
+**Verification checkpoint**: Output MUST show `✓ All tests passed`. Do not proceed to optimization until this is achieved.
+
+For debugging taint rules:
+```bash
+semgrep --dataflow-traces -f rule.yaml test-file
+```
+
+### 6. Optimize the Rule
+
+**After all tests pass**, analyze the rule for redundant or unnecessary patterns:
+
+**Common optimizations:**
+- **Quote variants**: Semgrep treats `"` and `'` as equivalent - remove duplicate patterns
+- **Subset patterns**: `func(...)` already matches `func()` - remove the more specific one
+- **Redundant ellipsis**: `func($X, ...)` covers `func($X)` - keep only the general form
+
+**Example - Before optimization:**
+```yaml
+pattern-either:
+  - pattern: hashlib.md5(...)
+  - pattern: md5(...)
+  - pattern: hashlib.new("md5", ...)
+  - pattern: hashlib.new('md5', ...)    # Redundant - quotes equivalent
+  - pattern: hashlib.new("md5")         # Redundant - covered by ... variant
+  - pattern: hashlib.new('md5')         # Redundant - quotes + covered
+```
+
+**After optimization:**
+```yaml
+pattern-either:
+  - pattern: hashlib.md5(...)
+  - pattern: md5(...)
+  - pattern: hashlib.new("md5", ...)    # Covers all quote/argument variants
+```
+
+**Optimization checklist:**
+1. Remove patterns differing only in quote style (`"` vs `'`)
+2. Remove patterns that are subsets of more general patterns (with `...`)
+3. Consolidate similar patterns using metavariables where possible
+4. **Re-run tests after optimization** to ensure no regressions
+
+```bash
+semgrep --test --config rule.yaml test-file
+```
+
+**Final verification**: Output MUST show `✓ All tests passed` after optimization. If any test fails, revert the optimization that caused it.
+
+**Task complete ONLY when**: All tests pass after optimization.
+
+## Key Requirements
+
+- **Read documentation first**: Fetch official Semgrep docs before creating rules
+- **Tests must pass 100%**: Do not finish until all tests pass
+- **`ruleid:` placement**: Comment goes on line IMMEDIATELY BEFORE the flagged code
+- **Avoid generic patterns**: Rules must be specific, not match broad patterns
+- **Prioritize taint mode**: For data flow vulnerabilities
+
+## Documentation
+
+**REQUIRED**: Before creating any rule, use WebFetch to read the official Semgrep documentation:
+
+- [Rule Syntax](https://semgrep.dev/docs/writing-rules/rule-syntax) - YAML structure, operators, and rule options
+- [Pattern Syntax](https://semgrep.dev/docs/writing-rules/pattern-syntax) - Pattern matching, metavariables, and ellipsis usage
+- [Testing Rules](https://semgrep.dev/docs/writing-rules/testing-rules) - Testing rules to properly catch code patterns and avoid false positives
+- [Writing Rules Index](https://github.com/semgrep/semgrep-docs/tree/main/docs/writing-rules/) - Full documentation index (browse for taint mode, testing, etc.)
+
+**Additional resources** - fetch as needed:
+- [Trail of Bits Testing Handbook - Semgrep](https://appsec.guide/docs/static-analysis/semgrep/advanced/) - Advanced patterns, taint tracking, and practical examples
+
+## Next Steps
+
+- For detailed workflow and examples, see [workflow.md](plugins/semgrep-rule-creator/references/workflow.md)
+- For pattern syntax quick reference, see [quick-reference.md](plugins/semgrep-rule-creator/references/quick-reference.md)
+
+---
+
+## Additional References
+
+### Quick Reference
+
+# Semgrep Rule Quick Reference
+
+## Required Rule Fields
+
+```yaml
+rules:
+  - id: rule-id-here          # Unique identifier (lowercase, hyphens)
+    languages:                 # Target language(s)
+      - python
+    severity: ERROR           # LOW, MEDIUM, HIGH, CRITICAL (ERROR/WARNING/INFO are legacy)
+    message: Description      # Shown when rule matches
+    pattern: code(...)        # OR use patterns/pattern-either/mode:taint
+```
+
+## Language Keys
+
+Common: `python`, `javascript`, `typescript`, `jsx`, `java`, `go`, `ruby`, `c`, `cpp`, `csharp`, `php`, `rust`, `kotlin`, `swift`, `scala`, `terraform`, `solidity`, `generic`, `json`, `yaml`, `html`, `bash`, `dockerfile`
+
+## Pattern Operators
+
+### Basic Matching
+```yaml
+pattern: foo(...)              # Match function call
+patterns:                      # AND - all must match
+  - pattern: $X
+  - pattern-not: safe($X)
+pattern-either:                # OR - any can match
+  - pattern: foo(...)
+  - pattern: bar(...)
+pattern-regex: ^foo.*bar$      # PCRE2 regex matching (multiline mode)
+```
+
+### Metavariables
+- `$VAR` - Match any single expression
+  - **Must be uppercase**: `$X`, `$FUNC`, `$VAR_1` (NOT `$x`, `$var`)
+- `$_` - Anonymous metavariable (matches but doesn't bind)
+- `$...VAR` - Match zero or more arguments (ellipsis metavariable)
+- `...` - Ellipsis, match anything in between
+
+### Deep Expression Matching
+```yaml
+<... $EXPR ...>               # Recursively match pattern in nested expressions
+```
+
+### Scope Operators
+```yaml
+pattern-inside: |              # Must be inside this pattern
+  def $FUNC(...):
+    ...
+pattern-not-inside: |          # Must NOT be inside this pattern
+  with $CTX:
+    ...
+```
+
+### Negation
+```yaml
+pattern-not: safe(...)         # Exclude this pattern
+pattern-not-regex: ^test_      # Exclude by regex
+```
+
+### Metavariable Filters
+```yaml
+metavariable-regex:
+  metavariable: $FUNC
+  regex: (unsafe|dangerous).*
+
+metavariable-pattern:
+  metavariable: $ARG
+  pattern: request.$X
+
+metavariable-comparison:
+  metavariable: $NUM
+  comparison: $NUM > 1024
+```
+
+### Focus
+```yaml
+focus-metavariable: $TARGET    # Report finding on this metavariable only
+```
+
+## Taint Mode
+
+```yaml
+rules:
+  - id: taint-rule
+    mode: taint
+    languages: [python]
+    severity: ERROR
+    message: Tainted data reaches sink
+    pattern-sources:
+      - pattern: user_input()
+      - pattern: request.args.get(...)
+    pattern-sinks:
+      - pattern: eval(...)
+      - pattern: os.system(...)
+    pattern-sanitizers:           # Optional
+      - pattern: sanitize(...)
+      - pattern: escape(...)
+    pattern-propagators:          # Pro feature - intraprocedural only
+      - pattern: $DST.append($SRC)
+        from: $SRC
+        to: $DST
+```
+
+### Taint Options
+```yaml
+pattern-sources:
+  - pattern: source(...)
+    exact: true                   # Only exact match is source (default: false)
+    by-side-effect: true          # Taints variable by side effect
+    control: true                 # Pro: control flow source
+
+pattern-sanitizers:
+  - pattern: sanitize($X)
+    exact: true                   # Only exact match (default: false)
+    by-side-effect: true          # Sanitizes by side effect
+
+pattern-sinks:
+  - pattern: sink(...)
+    exact: false                  # Subexpressions also sinks (default: true)
+    at-exit: true                 # Pro: only match at function exit points
+```
+
+## Rule Options
+
+```yaml
+options:
+  constant_propagation: true      # Default: true
+  symbolic_propagation: true      # Track symbolic values
+  taint_assume_safe_functions: false
+  taint_assume_safe_indexes: false
+  taint_assume_safe_booleans: false
+  taint_assume_safe_numbers: false
+```
+
+## Test File Annotations
+
+```python
+# ruleid: my-rule-id
+vulnerable_code()              # This line MUST match
+
+# ok: my-rule-id
+safe_code()                    # This line must NOT match
+
+# todoruleid: my-rule-id
+future_detection()             # Known limitation, should match later
+
+# todook: my-rule-id
+future_fp_fix()                # Known FP, should not match later
+```
+
+## Common Patterns by Language
+
+### Python
+```yaml
+pattern: os.system($CMD)
+pattern: subprocess.call($CMD, shell=True, ...)
+pattern: eval($CODE)
+pattern: pickle.loads($DATA)
+pattern: $CURSOR.execute($QUERY, ...)
+```
+
+### JavaScript
+```yaml
+pattern: eval($CODE)
+pattern: document.innerHTML = $DATA
+pattern: $EL.innerHTML = $DATA
+pattern: new Function($CODE)
+pattern: $DB.query($SQL)
+```
+
+### Java
+```yaml
+pattern: Runtime.getRuntime().exec($CMD)
+pattern: (Statement $S).executeQuery($SQL)
+pattern: new ProcessBuilder($CMD, ...)
+```
+
+### Go
+```yaml
+pattern: exec.Command($CMD, ...)
+pattern: template.HTML($DATA)
+pattern: $DB.Query($SQL, ...)
+```
+
+## Debugging Commands
+
+```bash
+# Test rules
+semgrep --test --config rule.yaml test-file
+
+# Validate YAML syntax
+semgrep --validate --config rule.yaml
+
+# Run with dataflow traces (for taint rules)
+semgrep --dataflow-traces -f rule.yaml test-file.py
+
+# Dump AST to understand code structure
+semgrep --dump-ast -l python test-file.py
+
+# Run single rule
+semgrep -f rule.yaml test-file.py
+```
+
+## Common Pitfalls
+
+1. **Wrong annotation line**: `ruleid:` must be on the line IMMEDIATELY BEFORE the finding
+2. **Too generic patterns**: Avoid `pattern: $X` without constraints
+3. **Missing ellipsis**: Use `...` to match variable arguments
+4. **Taint not flowing**: Check if sanitizer is too broad
+5. **YAML syntax errors**: Validate with `semgrep --validate`
+
+
+### Workflow
+
+# Semgrep Rule Creation Workflow
+
+Detailed workflow for creating production-quality Semgrep rules.
+
+## Step 1: Analyze the Problem
+
+Before writing any code:
+
+1. **Fetch external documentation** - Read https://appsec.guide/docs/static-analysis/semgrep/advanced/
+2. **Understand the exact bug pattern** - What vulnerability or issue should be detected?
+3. **Identify the target language** - Python, JavaScript, Java, Go, etc.
+4. **Determine the approach**:
+   - **Taint mode**: Data flows from untrusted source to dangerous sink
+   - **Pattern matching**: Syntactic patterns without data flow
+
+### When to Use Taint Mode
+
+Use `mode: taint` when detecting:
+- SQL injection (user input → database query)
+- Command injection (user input → shell execution)
+- XSS (user input → HTML output)
+- Path traversal (user input → file operations)
+- SSRF (user input → HTTP requests)
+
+### When to Use Pattern Matching
+
+Use basic patterns when detecting:
+- Use of deprecated/dangerous functions
+- Hardcoded credentials
+- Missing security headers
+- Configuration issues
+- Code style violations
+
+## Step 2: Create Test Cases First
+
+**Always write tests before the rule.**
+
+### Directory Structure
+
+```
+<rule-id>/
+├── <rule-id>.yaml
+└── <rule-id>.<ext>
+```
+
+### Test Annotations
+
+```python
+# ruleid: my-rule-id
+vulnerable_code_here()  # This line MUST be flagged
+
+# ok: my-rule-id
+safe_code_here()  # This line must NOT be flagged
+
+# todoruleid: my-rule-id
+known_limitation()  # Should match but doesn't yet
+
+# todook: my-rule-id
+known_false_positive()  # Matches but shouldn't
+```
+
+**CRITICAL**: The comment must be on the line IMMEDIATELY BEFORE the code. Semgrep reports findings on the line after the annotation.
+
+### Test Case Design
+
+Include test cases for:
+- ✅ Clear vulnerable patterns (must match)
+- ✅ Clear safe patterns (must not match)
+- ✅ Edge cases and variations
+- ✅ Different coding styles
+- ✅ Sanitized/validated input (must not match)
+
+## Step 3: Analyze AST Structure
+
+Understanding how Semgrep parses code helps write precise patterns.
+
+```bash
+semgrep --dump-ast -l python test_file.py
+```
+
+Example output helps understand:
+- How function calls are represented
+- How variables are bound
+- How control flow is structured
+
+## Step 4: Choose Pattern Operators
+
+### Basic Pattern Matching
+
+```yaml
+# Single pattern
+pattern: dangerous_function(...)
+
+# All must match (AND)
+patterns:
+  - pattern: $FUNC(...)
+  - metavariable-regex:
+      metavariable: $FUNC
+      regex: ^(eval|exec)$
+
+# Any can match (OR)
+pattern-either:
+  - pattern: eval(...)
+  - pattern: exec(...)
+```
+
+### Scope Operators
+
+```yaml
+patterns:
+  - pattern-inside: |
+      def $FUNC(...):
+        ...
+  - pattern: return $SENSITIVE
+  - pattern-not-inside: |
+      if $CHECK:
+        ...
+```
+
+### Metavariable Filters
+
+```yaml
+patterns:
+  - pattern: $OBJ.$METHOD(...)
+  - metavariable-regex:
+      metavariable: $METHOD
+      regex: ^(execute|query|run)$
+  - metavariable-pattern:
+      metavariable: $OBJ
+      pattern: db
+```
+
+### Focus Metavariable
+
+Report finding on specific part of match:
+
+```yaml
+patterns:
+  - pattern: $FUNC($ARG, ...)
+  - focus-metavariable: $ARG
+```
+
+## Step 5: Write Taint Rules
+
+### Basic Taint Structure
+
+```yaml
+rules:
+  - id: sql-injection
+    mode: taint
+    languages: [python]
+    severity: ERROR
+    message: User input flows to SQL query
+    pattern-sources:
+      - pattern: request.args.get(...)
+      - pattern: request.form[...]
+    pattern-sinks:
+      - pattern: cursor.execute($QUERY, ...)
+      - focus-metavariable: $QUERY
+    pattern-sanitizers:
+      - pattern: sanitize(...)
+      - pattern: int(...)
+```
+
+### Taint Source Options
+
+```yaml
+pattern-sources:
+  - pattern: source(...)
+    exact: true           # Only exact match is source
+    by-side-effect: true  # Taints variable by side effect
+```
+
+### Taint Sanitizer Options
+
+```yaml
+pattern-sanitizers:
+  - patterns:
+      - pattern: validate($X)
+      - focus-metavariable: $X
+    by-side-effect: true  # Sanitizes variable for subsequent use
+```
+
+### Taint Sink with Focus
+
+```yaml
+# NOTE: Sinks default to exact: true (unlike sources/sanitizers which default to false)
+pattern-sinks:
+  - patterns:
+      - pattern: query($SQL, $PARAMS)
+      - focus-metavariable: $SQL
+```
+
+## Step 6: Validate and Test
+
+### Validate YAML Syntax
+
+```bash
+semgrep --validate --config rule.yaml
+```
+
+### Run Tests
+
+```bash
+cd <rule-directory>
+semgrep --test --config rule.yaml test-file
+```
+
+### Expected Output
+
+```
+1/1: ✓ All tests passed
+```
+
+### Debug Failures
+
+If tests fail, check:
+1. **Missed lines**: Rule didn't match when it should
+   - Pattern too specific
+   - Missing pattern variant
+2. **Incorrect lines**: Rule matched when it shouldn't
+   - Pattern too broad
+   - Need `pattern-not` exclusion
+
+### Debug Taint Rules
+
+```bash
+semgrep --dataflow-traces -f rule.yaml test_file.py
+```
+
+Shows:
+- Source locations
+- Sink locations
+- Data flow path
+- Why taint didn't propagate (if applicable)
+
+## Step 7: Iterate Until Pass
+
+**The task is complete ONLY when:**
+- "All tests passed"
+- No "missed lines" (false negatives)
+- No "incorrect lines" (false positives)
+
+### Common Fixes
+
+| Problem | Solution |
+|---------|----------|
+| Too many matches | Add `pattern-not` exclusions |
+| Missing matches | Add `pattern-either` variants |
+| Wrong line matched | Adjust `focus-metavariable` |
+| Taint not flowing | Check sanitizers aren't too broad |
+| Taint false positive | Add sanitizer pattern |
+
+## Example: Complete Taint Rule
+
+**Rule** (`command-injection.yaml`):
+```yaml
+rules:
+  - id: command-injection
+    mode: taint
+    languages: [python]
+    severity: ERROR
+    message: >-
+      User input from $SOURCE flows to shell command.
+      This allows command injection attacks.
+    pattern-sources:
+      - pattern: request.args.get(...)
+      - pattern: request.form.get(...)
+      - pattern: request.data
+    pattern-sinks:
+      - pattern: os.system(...)
+      - pattern: subprocess.call($CMD, shell=True, ...)
+        focus-metavariable: $CMD
+      - pattern: subprocess.Popen($CMD, shell=True, ...)
+        focus-metavariable: $CMD
+    pattern-sanitizers:
+      - pattern: shlex.quote(...)
+      - pattern: pipes.quote(...)
+```
+
+**Test** (`command-injection.py`):
+```python
+import os
+import subprocess
+import shlex
+from flask import request
+
+def vulnerable1():
+    cmd = request.args.get('cmd')
+    # ruleid: command-injection
+    os.system(cmd)
+
+def vulnerable2():
+    user_input = request.form.get('input')
+    # ruleid: command-injection
+    subprocess.call(user_input, shell=True)
+
+def safe_quoted():
+    cmd = request.args.get('cmd')
+    safe_cmd = shlex.quote(cmd)
+    # ok: command-injection
+    os.system(f"echo {safe_cmd}")
+
+def safe_no_shell():
+    cmd = request.args.get('cmd')
+    # ok: command-injection
+    subprocess.call(['echo', cmd])  # No shell=True
+
+def safe_hardcoded():
+    # ok: command-injection
+    os.system("ls -la")
+```
+
+## Step 8: Optimize the Rule
+
+After all tests pass, analyze and optimize the rule to remove redundant patterns.
+
+### Semgrep Pattern Equivalences
+
+Semgrep treats certain patterns as equivalent:
+
+| Written | Also Matches | Reason |
+|---------|--------------|--------|
+| `"string"` | `'string'` | Quote style normalized (in languages where both are equivalent) |
+| `func(...)` | `func()`, `func(a)`, `func(a,b)` | Ellipsis matches zero or more |
+| `func($X, ...)` | `func($X)`, `func($X, a, b)` | Trailing ellipsis is optional |
+
+### Common Redundancies to Remove
+
+**1. Quote Variants**
+
+Before:
+```yaml
+pattern-either:
+  - pattern: hashlib.new("md5", ...)
+  - pattern: hashlib.new('md5', ...)
+```
+
+After:
+```yaml
+pattern-either:
+  - pattern: hashlib.new("md5", ...)
+```
+
+**2. Ellipsis Subsets**
+
+Before:
+```yaml
+pattern-either:
+  - pattern: dangerous($X, ...)
+  - pattern: dangerous($X)
+  - pattern: dangerous($X, $Y)
+```
+
+After:
+```yaml
+pattern: dangerous($X, ...)
+```
+
+**3. Consolidate with Metavariables**
+
+Before:
+```yaml
+pattern-either:
+  - pattern: md5($X)
+  - pattern: sha1($X)
+  - pattern: sha256($X)
+```
+
+After:
+```yaml
+patterns:
+  - pattern: $FUNC($X)
+  - metavariable-regex:
+      metavariable: $FUNC
+      regex: ^(md5|sha1|sha256)$
+```
+
+### Optimization Checklist
+
+1. ✅ Remove patterns differing only in quote style
+2. ✅ Remove patterns that are subsets of `...` patterns
+3. ✅ Consolidate similar patterns using metavariable-regex
+4. ✅ Remove duplicate patterns in pattern-either
+5. ✅ Simplify nested pattern-either when possible
+6. ✅ **Re-run tests after each optimization**
+
+### Verify After Optimization
+
+```bash
+semgrep --test --config rule.yaml test-file
+```
+
+**Critical**: Always re-run tests after optimization. Some "redundant" patterns may actually be necessary due to AST structure differences.
+
+## Troubleshooting
+
+### Pattern Not Matching
+
+1. Check AST structure: `semgrep --dump-ast -l <lang> file`
+2. Verify metavariable binding
+3. Check for whitespace/formatting differences
+4. Try more general pattern first, then narrow down
+
+### Taint Not Propagating
+
+1. Use `--dataflow-traces` to see flow
+2. Check if sanitizer is too broad
+3. Verify source pattern matches
+4. Check sink focus-metavariable
+
+### Too Many False Positives
+
+1. Add `pattern-not` for safe patterns
+2. Add sanitizers for validation functions
+3. Use `pattern-inside` to limit scope
+4. Use `metavariable-regex` to filter
+

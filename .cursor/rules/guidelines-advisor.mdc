@@ -1,0 +1,1020 @@
+---
+description: "Comprehensive smart contract development advisor based on Trail of Bits' best practices. Analyzes codebase to generate documentation/specifications, review architecture, check upgradeability patterns, assess implementation quality, identify pitfalls, review dependencies, and evaluate testing. Provides actionable recommendations. (project, gitignored)"
+globs: "*.cairo, *.go, *.rs, *.sol"
+alwaysApply: false
+---
+
+# guidelines-advisor
+
+*From Trail of Bits Skills - Author: Omar Inuwa*
+
+# Guidelines Advisor
+
+## Purpose
+
+I will systematically analyze your codebase and provide comprehensive guidance based on Trail of Bits' development guidelines. I'll help you:
+
+1. **Generate documentation and specifications** (plain English descriptions, architectural diagrams, code documentation)
+2. **Optimize on-chain/off-chain architecture** (only if applicable)
+3. **Review upgradeability patterns** (if your project has upgrades)
+4. **Check delegatecall/proxy implementations** (if present)
+5. **Assess implementation quality** (functions, inheritance, events)
+6. **Identify common pitfalls**
+7. **Review dependencies**
+8. **Evaluate test suite and suggest improvements**
+
+**Framework**: Building Secure Contracts - Development Guidelines
+
+---
+
+## How This Works
+
+### Phase 1: Discovery & Context
+I'll explore the codebase to understand:
+- Project structure and platform
+- Contract/module files and their purposes
+- Existing documentation
+- Architecture patterns (proxies, upgrades, etc.)
+- Testing setup
+- Dependencies
+
+### Phase 2: Documentation Generation
+I'll help create:
+- Plain English system description
+- Architectural diagrams (using Slither printers for Solidity)
+- Code documentation recommendations (NatSpec for Solidity)
+
+### Phase 3: Architecture Analysis
+I'll analyze:
+- On-chain vs off-chain component distribution (if applicable)
+- Upgradeability approach (if applicable)
+- Delegatecall proxy patterns (if present)
+
+### Phase 4: Implementation Review
+I'll assess:
+- Function composition and clarity
+- Inheritance structure
+- Event logging practices
+- Common pitfalls presence
+- Dependencies quality
+- Testing coverage and techniques
+
+### Phase 5: Recommendations
+I'll provide:
+- Prioritized improvement suggestions
+- Best practice guidance
+- Actionable next steps
+
+---
+
+## Assessment Areas
+
+I analyze 11 comprehensive areas covering all aspects of smart contract development. For detailed criteria, best practices, and specific checks, see [ASSESSMENT_AREAS.md](resources/ASSESSMENT_AREAS.md).
+
+### Quick Reference:
+
+1. **Documentation & Specifications**
+   - Plain English system descriptions
+   - Architectural diagrams
+   - NatSpec completeness (Solidity)
+   - Documentation gaps identification
+
+2. **On-Chain vs Off-Chain Computation**
+   - Complexity analysis
+   - Gas optimization opportunities
+   - Verification vs computation patterns
+
+3. **Upgradeability**
+   - Migration vs upgradeability trade-offs
+   - Data separation patterns
+   - Upgrade procedure documentation
+
+4. **Delegatecall Proxy Pattern**
+   - Storage layout consistency
+   - Initialization patterns
+   - Function shadowing risks
+   - Slither upgradeability checks
+
+5. **Function Composition**
+   - Function size and clarity
+   - Logical grouping
+   - Modularity assessment
+
+6. **Inheritance**
+   - Hierarchy depth/width
+   - Diamond problem risks
+   - Inheritance visualization
+
+7. **Events**
+   - Critical operation coverage
+   - Event naming consistency
+   - Indexed parameters
+
+8. **Common Pitfalls**
+   - Reentrancy patterns
+   - Integer overflow/underflow
+   - Access control issues
+   - Platform-specific vulnerabilities
+
+9. **Dependencies**
+   - Library quality assessment
+   - Version management
+   - Dependency manager usage
+   - Copied code detection
+
+10. **Testing & Verification**
+    - Coverage analysis
+    - Fuzzing techniques
+    - Formal verification
+    - CI/CD integration
+
+11. **Platform-Specific Guidance**
+    - Solidity version recommendations
+    - Compiler warning checks
+    - Inline assembly warnings
+    - Platform-specific tools
+
+For complete details on each area including what I'll check, analyze, and recommend, see [ASSESSMENT_AREAS.md](resources/ASSESSMENT_AREAS.md).
+
+---
+
+## Example Output
+
+When the analysis is complete, you'll receive comprehensive guidance covering:
+
+- System documentation with plain English descriptions
+- Architectural diagrams and documentation gaps
+- Architecture analysis (on-chain/off-chain, upgradeability, proxies)
+- Implementation review (functions, inheritance, events, pitfalls)
+- Dependencies and testing evaluation
+- Prioritized recommendations (CRITICAL, HIGH, MEDIUM, LOW)
+- Overall assessment and path to production
+
+For a complete example analysis report, see [EXAMPLE_REPORT.md](resources/EXAMPLE_REPORT.md).
+
+---
+
+## Deliverables
+
+I provide four comprehensive deliverable categories:
+
+### 1. System Documentation
+- Plain English descriptions
+- Architectural diagrams
+- Documentation gaps analysis
+
+### 2. Architecture Analysis
+- On-chain/off-chain assessment
+- Upgradeability review
+- Proxy pattern security review
+
+### 3. Implementation Review
+- Function composition analysis
+- Inheritance assessment
+- Events coverage
+- Pitfall identification
+- Dependencies evaluation
+- Testing analysis
+
+### 4. Prioritized Recommendations
+- CRITICAL (address immediately)
+- HIGH (address before deployment)
+- MEDIUM (address for production quality)
+- LOW (nice to have)
+
+For detailed templates and examples of each deliverable, see [DELIVERABLES.md](resources/DELIVERABLES.md).
+
+---
+
+## Assessment Process
+
+When invoked, I will:
+
+1. **Explore the codebase**
+   - Identify all contract/module files
+   - Find existing documentation
+   - Locate test files
+   - Check for proxies/upgrades
+   - Identify dependencies
+
+2. **Generate documentation**
+   - Create plain English system description
+   - Generate architectural diagrams (if tools available)
+   - Identify documentation gaps
+
+3. **Analyze architecture**
+   - Assess on-chain/off-chain distribution (if applicable)
+   - Review upgradeability approach (if applicable)
+   - Audit proxy patterns (if present)
+
+4. **Review implementation**
+   - Analyze functions, inheritance, events
+   - Check for common pitfalls
+   - Assess dependencies
+   - Evaluate testing
+
+5. **Provide recommendations**
+   - Present findings with file references
+   - Ask clarifying questions about design decisions
+   - Suggest prioritized improvements
+   - Offer actionable next steps
+
+---
+
+## Rationalizations (Do Not Skip)
+
+| Rationalization | Why It's Wrong | Required Action |
+|-----------------|----------------|-----------------|
+| "System is simple, description covers everything" | Plain English descriptions miss security-critical details | Complete all 5 phases: documentation, architecture, implementation, dependencies, recommendations |
+| "No upgrades detected, skip upgradeability section" | Upgradeability can be implicit (ownable patterns, delegatecall) | Search for proxy patterns, delegatecall, storage collisions before declaring N/A |
+| "Not applicable" without verification | Premature scope reduction misses vulnerabilities | Verify with explicit codebase search before skipping any guideline section |
+| "Architecture is straightforward, no analysis needed" | Obvious architectures have subtle trust boundaries | Analyze on-chain/off-chain distribution, access control flow, external dependencies |
+| "Common pitfalls don't apply to this codebase" | Every codebase has common pitfalls | Systematically check all guideline pitfalls with grep/code search |
+| "Tests exist, testing guideline is satisfied" | Test existence ≠ test quality | Check coverage, property-based tests, integration tests, failure cases |
+| "I can provide generic best practices" | Generic advice isn't actionable | Provide project-specific findings with file:line references |
+| "User knows what to improve from findings" | Findings without prioritization = no action plan | Generate prioritized improvement roadmap with specific next steps |
+
+---
+
+## Notes
+
+- I'll only analyze relevant sections (won't hallucinate about upgrades if not present)
+- I'll adapt to your platform (Solidity, Rust, Cairo, etc.)
+- I'll use available tools (Slither, etc.) but work without them if unavailable
+- I'll provide file references and line numbers for all findings
+- I'll ask questions about design decisions I can't infer from code
+
+---
+
+## Ready to Begin
+
+**What I'll need**:
+- Access to your codebase
+- Context about your project goals
+- Any existing documentation or specifications
+- Information about deployment plans
+
+Let's analyze your codebase and improve it using Trail of Bits' best practices!
+
+---
+
+## Additional References
+
+### Assessment Areas
+
+## Assessment Areas
+
+### 1. DOCUMENTATION & SPECIFICATIONS
+
+**What I'll do**:
+- Read existing documentation (README, specs, comments)
+- Analyze contract/module purposes and interactions
+- Identify undocumented assumptions
+- For Solidity projects: check NatSpec completeness
+- Generate architectural diagrams using Slither printers (if available)
+
+**I'll generate**:
+- Plain English system description
+- Contract interaction diagrams
+- State machine diagrams (where applicable)
+- Documentation gaps list
+
+**Best practices**:
+- Every contract should have a clear purpose statement
+- All assumptions should be explicitly documented
+- Critical functions should have detailed documentation
+- System interactions should be visualized
+- State transitions should be clear
+
+---
+
+### 2. ON-CHAIN vs OFF-CHAIN COMPUTATION
+
+**What I'll analyze**:
+- Current on-chain logic complexity
+- Data processing patterns
+- Verification vs computation patterns
+
+**I'll look for**:
+- Complex computations that could move off-chain
+- Sorting/ordering operations done on-chain
+- Data preprocessing opportunities
+- Gas optimization potential
+
+**I'll suggest**:
+- Off-chain preprocessing with on-chain verification
+- Data structure optimizations
+- Gas-efficient architectural changes
+
+**Note**: Only applicable if your project has off-chain components or could benefit from them. I won't hallucinate this if it's not relevant.
+
+---
+
+### 3. UPGRADEABILITY
+
+**What I'll check**:
+- Does the project support upgrades?
+- What upgradeability pattern is used?
+- Is the approach documented?
+
+**I'll analyze**:
+- Migration vs upgradeability trade-offs
+- Data separation vs delegatecall proxy patterns
+- Upgrade/migration procedure documentation
+- Deployment and initialization scripts
+
+**I'll recommend**:
+- Whether migration might be better than upgradeability
+- Data separation pattern if suitable
+- Documenting the upgrade procedure before deployment
+
+**Best practices**:
+- Favor contract migration over upgradeability
+- Use data separation instead of delegatecall proxy when possible
+- Document migration/upgrade procedure including:
+  - Calls to initiate new contracts
+  - Key storage locations and access methods
+  - Deployment verification scripts
+
+**Note**: Only applicable if your project has or plans upgradeability. I'll skip this if not relevant.
+
+---
+
+### 4. DELEGATECALL PROXY PATTERN
+
+**What I'll check**:
+- Is delegatecall used for proxies?
+- Storage layout consistency
+- Inheritance order implications
+- Initialization patterns
+
+**I'll analyze for**:
+
+**Storage Layout**:
+- Proxy and implementation storage compatibility
+- Shared base contract for state variables
+- Storage slot conflicts
+
+**Inheritance**:
+- Inheritance order consistency
+- Storage layout effects from inheritance changes
+
+**Initialization**:
+- Implementation initialization status
+- Front-running risks
+- Factory pattern usage
+
+**Function Shadowing**:
+- Same methods on proxy and implementation
+- Administrative function shadowing
+- Call routing correctness
+
+**Direct Implementation Usage**:
+- Implementation state protection
+- Direct usage prevention mechanisms
+- Self-destruct risks
+
+**Immutable/Constant Variables**:
+- Sync between proxy and implementation
+- Bytecode embedding issues
+
+**Contract Existence Checks**:
+- Low-level call protections
+- Empty bytecode handling
+- Constructor execution considerations
+
+**Tools I'll use**:
+- Slither's `slither-check-upgradeability` (if available)
+- Manual pattern analysis
+
+**Note**: Only applicable if delegatecall proxies are present. I'll skip this if not relevant.
+
+---
+
+### 5. FUNCTION COMPOSITION
+
+**What I'll analyze**:
+- System logic organization
+- Function sizes and purposes
+- Code modularity
+
+**I'll look for**:
+- Large functions doing too many things
+- Unclear function purposes
+- Logic that could be better separated
+- Grouping opportunities (authentication, arithmetic, etc.)
+
+**I'll recommend**:
+- Function splitting for clarity
+- Logical grouping strategies
+- Component isolation for testing
+
+**Best practices**:
+- Divide system logic through contracts or function groups
+- Write small functions with clear purposes
+- Make code easy to review and test
+
+---
+
+### 6. INHERITANCE
+
+**What I'll check**:
+- Inheritance tree depth and width
+- Inheritance complexity
+
+**I'll analyze**:
+- Inheritance hierarchy using Slither (if available)
+- Diamond problem risks
+- Override patterns
+- Virtual function usage
+
+**I'll recommend**:
+- Simplifying complex hierarchies
+- Flattening when appropriate
+- Clear inheritance documentation
+
+**Best practices**:
+- Keep inheritance manageable
+- Minimize depth and width
+- Use Slither's inheritance printer to visualize
+
+---
+
+### 7. EVENTS
+
+**What I'll check**:
+- Events for critical operations
+- Event completeness
+- Event naming consistency
+
+**I'll look for**:
+- Critical operations without events
+- Inconsistent event patterns
+- Missing indexed parameters
+- Event documentation
+
+**I'll recommend**:
+- Adding events for critical operations:
+  - State changes
+  - Transfers
+  - Access control changes
+  - Parameter updates
+- Event naming conventions
+- Indexed parameters for filtering
+
+**Best practices**:
+- Log all critical operations
+- Events facilitate debugging during development
+- Events enable monitoring after deployment
+
+---
+
+### 8. COMMON PITFALLS
+
+**What I'll check**:
+- Known vulnerability patterns
+- Platform-specific issues
+- Language-specific gotchas
+
+**I'll analyze for**:
+- Reentrancy patterns
+- Integer overflow/underflow (pre-0.8 Solidity)
+- Access control issues
+- Front-running vulnerabilities
+- Oracle manipulation risks
+- Timestamp dependence
+- Uninitialized variables
+- Delegatecall risks
+- Platform-specific pitfalls
+
+**Resources I reference**:
+- Not So Smart Contracts (Trail of Bits)
+- Solidity documentation warnings
+- Platform-specific vulnerability databases
+
+**I'll recommend**:
+- Specific fixes for identified issues
+- Prevention patterns
+- Security review resources
+
+---
+
+### 9. DEPENDENCIES
+
+**What I'll analyze**:
+- External libraries used
+- Library versions
+- Dependency management approach
+- Copy-pasted code
+
+**I'll check for**:
+- Well-tested libraries (OpenZeppelin, etc.)
+- Dependency manager usage
+- Outdated dependencies
+- Copied code instead of imports
+- Custom implementations of standard functionality
+
+**I'll recommend**:
+- Using established libraries
+- Dependency manager setup
+- Updating outdated dependencies
+- Replacing copied code with imports
+
+**Best practices**:
+- Use well-tested libraries
+- Use dependency manager (npm, forge, cargo, etc.)
+- Keep external sources up-to-date
+- Avoid reinventing the wheel
+
+---
+
+### 10. TESTING & VERIFICATION
+
+**What I'll analyze**:
+- Test files and coverage
+- Testing techniques used
+- CI/CD setup
+- Automated security testing
+
+**I'll check for**:
+- Unit test completeness
+- Integration tests
+- Edge case testing
+- Slither checks
+- Fuzzing (Echidna, Foundry, AFL, etc.)
+- Formal verification
+- CI/CD configuration
+
+**I'll recommend**:
+- Test coverage improvements
+- Advanced testing techniques:
+  - Fuzzing with Echidna or Foundry
+  - Custom Slither detectors
+  - Formal verification properties
+  - Mutation testing
+- CI/CD integration
+- Pre-deployment verification scripts
+
+**Best practices**:
+- Create thorough unit tests
+- Develop custom Slither and Echidna checks
+- Automate security testing in CI
+
+---
+
+### 11. PLATFORM-SPECIFIC GUIDANCE
+
+#### Solidity Projects
+
+**I'll check**:
+- Solidity version used
+- Compiler warnings
+- Inline assembly usage
+
+**I'll recommend**:
+- Stable Solidity versions (per Slither recommendations)
+- Compiling with stable version
+- Checking warnings with latest version
+- Avoiding inline assembly without EVM expertise
+
+**Best practices**:
+- Favor Solidity 0.8.x for overflow protection
+- Compile with stable release
+- Check for warnings with latest release
+- Avoid inline assembly unless absolutely necessary
+
+#### Other Platforms
+
+**I'll provide**:
+- Platform-specific best practices
+- Tool recommendations
+- Security considerations
+
+---
+
+
+### Example Report
+
+## Example Output
+
+When the analysis is complete, you'll receive comprehensive guidance like this:
+
+```
+=== DEVELOPMENT GUIDELINES ANALYSIS ===
+
+Project: NFT Marketplace
+Platform: Solidity (Ethereum)
+Analysis Date: March 15, 2024
+
+---
+
+## 1. DOCUMENTATION & SPECIFICATIONS
+
+### Generated System Description
+
+**Plain English Overview:**
+The NFT Marketplace allows users to list, buy, and auction ERC721 tokens.
+The system uses a decentralized orderbook where sellers create listings with
+price and duration. Buyers can purchase instantly or place bids for auctions.
+A 2.5% platform fee is collected on each sale.
+
+**Key Assumptions:**
+- All NFTs follow ERC721 standard
+- Prices denominated in ETH only
+- No token whitelisting (any ERC721 accepted)
+- Platform fee immutable after deployment
+
+### Architectural Diagrams Generated
+
+✓ contract-interactions.png - Shows Marketplace, OrderBook, FeeCollector flow
+✓ state-machine.png - Listing states (Created → Active → Sold/Cancelled/Expired)
+✓ auction-flow.png - Bid placement and finalization sequence
+
+### Documentation Gaps Identified
+
+⚠ Missing NatSpec:
+- OrderBook.cancelOrder() - No @notice or @param
+- FeeCollector.withdrawFees() - Missing @dev implementation notes
+
+⚠ Undocumented Assumptions:
+- What happens if NFT transfer fails during purchase?
+- Are listings automatically cleaned up after expiration?
+- Fee distribution mechanism not explained
+
+**Recommendation:** Add comprehensive NatSpec to all public functions
+and document error handling for external calls.
+
+---
+
+## 2. ARCHITECTURE ANALYSIS
+
+### On-Chain vs Off-Chain Components
+
+**Current Distribution:**
+- On-Chain: Listing creation, order execution, fee collection
+- Off-Chain: Order discovery, price indexing, user notifications
+
+**Optimization Opportunities:**
+✓ Order matching is efficient (on-chain orderbook)
+✗ Listing enumeration is gas-intensive
+
+**Recommendation:**
+Consider moving listing discovery off-chain using event indexing.
+Keep core execution on-chain. Estimated gas savings: 40% for browse operations.
+
+### Upgradeability Review
+
+**Current Pattern:** TransparentUpgradeableProxy (OpenZeppelin)
+
+**Assessment:**
+✓ Proxy and implementation use shared storage base
+✓ Initialization properly handled
+✓ No function shadowing detected
+✗ No timelock on upgrades (admin can upgrade immediately)
+
+**Critical Issue:**
+File: contracts/Marketplace.sol
+The marketplace uses delegatecall proxy but admin is EOA without timelock.
+
+**Recommendation:**
+- Deploy TimelockController (48-hour delay)
+- Transfer proxy admin to timelock
+- Add emergency pause for critical bugs
+
+### Proxy Pattern Security
+
+**Findings:**
+✓ Storage layout consistent (inherits MarketplaceStorage)
+✓ No constructors in implementation
+✓ Initialize function has initializer modifier
+⚠ Immutable variables in proxy (PLATFORM_FEE)
+
+**Issue:** PLATFORM_FEE defined as immutable in proxy will not update
+if implementation changes this value.
+
+**Fix:** Move PLATFORM_FEE to storage or accept it's immutable forever.
+
+---
+
+## 3. IMPLEMENTATION REVIEW
+
+### Function Composition
+
+**Complex Functions Identified:**
+⚠ executePurchase() - 45 lines, cyclomatic complexity: 12
+  - Handles payment, NFT transfer, fee calc, event emission
+  - Recommendation: Extract _validatePurchase(), _processPayment(), _transferNFT()
+
+⚠ finalizeAuction() - 38 lines, cyclomatic complexity: 10
+  - Multiple nested conditionals for winner determination
+  - Recommendation: Extract _determineWinner(), _refundLosers()
+
+✓ Other functions well-scoped (average 15 lines)
+
+### Inheritance
+
+**Hierarchy Analysis:**
+```
+Marketplace
+├─ Ownable
+├─ ReentrancyGuard
+├─ Pausable
+└─ MarketplaceStorage
+```
+
+✓ Shallow inheritance (depth: 2)
+✓ No diamond problem
+✓ Clear separation of concerns
+
+**Slither Inheritance Graph:** contracts/inheritance.png (generated)
+
+### Events
+
+**Event Coverage:**
+✓ 12 events defined
+✓ All state changes emit events
+✓ Consistent naming (ListingCreated, OrderFulfilled, BidPlaced)
+✓ Indexed parameters for filtering (tokenId, seller, buyer)
+
+⚠ Missing Events:
+- Platform fee updates (if ever made variable)
+- Pause/unpause operations
+
+**Recommendation:** Add PlatformPaused/Unpaused events for monitoring.
+
+### Common Pitfalls
+
+**Issues Found:**
+
+❌ CRITICAL: Reentrancy in executePurchase()
+File: contracts/Marketplace.sol:234
+```solidity
+function executePurchase(uint256 listingId) external payable {
+    Listing memory listing = listings[listingId];
+    IERC721(listing.nftContract).transferFrom(listing.seller, msg.sender, listing.tokenId);
+    // State update AFTER external call!
+    listing.status = Status.Sold;
+}
+```
+**Fix:** Follow checks-effects-interactions. Update state before external calls.
+
+⚠ HIGH: Unvalidated external call return
+File: contracts/Marketplace.sol:245
+```solidity
+payable(seller).transfer(amount);  // Can fail silently
+```
+**Fix:** Use call{value}() and check return value or use Address.sendValue().
+
+✓ No timestamp dependence
+✓ No tx.origin usage
+✓ Integer overflow protected (Solidity 0.8+)
+
+---
+
+## 4. DEPENDENCIES
+
+**Current Dependencies:**
+✓ @openzeppelin/contracts@4.9.0 - Well-tested, good choice
+✗ Custom ERC721 implementation (contracts/CustomERC721.sol)
+
+**Issues:**
+⚠ CustomERC721 reinvents OpenZeppelin's ERC721
+   - 234 lines of duplicate code
+   - No added functionality
+   - Increases audit surface
+
+**Recommendation:**
+Replace CustomERC721 with OpenZeppelin's implementation.
+Saves 234 lines, reduces risk, improves maintainability.
+
+**Dependency Management:**
+✓ Using npm for dependencies
+✓ Package versions pinned
+⚠ Dependencies not updated in 8 months
+
+**Action:** Update @openzeppelin/contracts to latest 5.x (breaking changes, test thoroughly)
+
+---
+
+## 5. TESTING EVALUATION
+
+**Current Test Suite:**
+- 45 unit tests (forge test)
+- 12 integration tests
+- Coverage: 78%
+
+**Gaps Identified:**
+✗ No fuzzing (Echidna/Foundry)
+✗ No formal verification
+✗ Edge cases not covered:
+  - Auction with zero bids
+  - Listing with expired timestamp
+  - Purchase during contract pause
+
+**Recommendations:**
+1. Add Foundry invariant tests:
+   - Total fees collected == sum of individual sales * 0.025
+   - Active listings count matches actual active listings
+   - No NFT can be in multiple active listings
+
+2. Increase coverage to 95%+ by testing:
+   - Pausable functions during pause state
+   - Reentrancy attack scenarios
+   - Failed NFT transfers
+
+3. Add integration tests:
+   - End-to-end auction flow with multiple bidders
+   - Platform fee collection and withdrawal
+   - Upgrade and data migration
+
+**Estimated Effort:** 1-2 weeks to reach 95% coverage with invariant testing
+
+---
+
+## PRIORITIZED RECOMMENDATIONS
+
+### CRITICAL (Fix Immediately)
+1. **Fix reentrancy in executePurchase()** [HIGH IMPACT]
+   - Risk: Funds can be drained
+   - Effort: 1 day
+   - File: contracts/Marketplace.sol:234
+
+2. **Validate external call returns** [HIGH IMPACT]
+   - Risk: Failed transfers not detected
+   - Effort: 1 day
+   - Files: Multiple payment operations
+
+3. **Add timelock to upgrades** [HIGH IMPACT]
+   - Risk: Instant malicious upgrade
+   - Effort: 2 days
+
+### HIGH (Before Mainnet)
+4. **Remove CustomERC721, use OpenZeppelin** [MEDIUM IMPACT]
+   - Benefit: Reduce code, increase security
+   - Effort: 3 days
+
+5. **Increase test coverage to 95%** [MEDIUM IMPACT]
+   - Benefit: Catch edge case bugs
+   - Effort: 1-2 weeks
+
+6. **Add comprehensive NatSpec** [LOW IMPACT]
+   - Benefit: Better documentation
+   - Effort: 2-3 days
+
+### MEDIUM (Post-Launch V2)
+7. **Optimize listing enumeration** [MEDIUM IMPACT]
+   - Benefit: 40% gas savings on reads
+   - Effort: 1 week
+
+8. **Add invariant fuzzing** [HIGH IMPACT]
+   - Benefit: Discover hidden bugs
+   - Effort: 1 week
+
+---
+
+## SUMMARY
+
+**Overall Assessment:** MODERATE MATURITY
+
+The codebase follows many best practices with good use of OpenZeppelin
+libraries and clear architecture. Critical issues are reentrancy vulnerability
+and lack of upgrade timelock. Testing needs improvement.
+
+**Path to Production:**
+1. Fix CRITICAL items (reentrancy, timelock) - Week 1
+2. Address HIGH items (dependencies, testing) - Week 2-3
+3. External audit - Week 4-5
+4. Mainnet deployment with documented limitations
+5. MEDIUM items in V2 - Month 2-3
+
+**Estimated Timeline:** 3-4 weeks to production-ready state.
+
+---
+
+Analysis completed using Trail of Bits Development Guidelines
+```
+
+
+
+### Deliverables
+
+
+## Deliverables
+
+### 1. System Documentation
+
+**Plain English Description**:
+```
+[Project Name] System Overview
+
+Purpose:
+[Clear description of what the system does]
+
+Components:
+[List of contracts/modules and their roles]
+
+Assumptions:
+[Explicit assumptions about the codebase, environment, users]
+
+Interactions:
+[How components interact with each other]
+
+Critical Operations:
+[Key operations and their purposes]
+```
+
+**Architectural Diagrams**:
+- Contract inheritance graph
+- Contract interaction graph
+- State machine diagram (if applicable)
+
+**Code Documentation Gaps**:
+- List of undocumented functions
+- Missing NatSpec/documentation
+- Unclear assumptions
+
+---
+
+### 2. Architecture Analysis
+
+**On-Chain/Off-Chain Assessment**:
+- Current distribution
+- Optimization opportunities
+- Gas savings potential
+- Complexity reduction suggestions
+
+**Upgradeability Review**:
+- Current approach assessment
+- Alternative patterns consideration
+- Procedure documentation status
+- Recommendations
+
+**Proxy Pattern Review** (if applicable):
+- Security assessment
+- Slither-check-upgradeability findings
+- Specific risks identified
+- Mitigation recommendations
+
+---
+
+### 3. Implementation Review
+
+**Function Composition**:
+- Complex functions requiring splitting
+- Logic grouping suggestions
+- Modularity improvements
+
+**Inheritance**:
+- Hierarchy visualization
+- Complexity assessment
+- Simplification recommendations
+
+**Events**:
+- Missing events list
+- Event improvements
+- Monitoring setup suggestions
+
+**Pitfalls**:
+- Identified vulnerabilities
+- Severity assessment
+- Fix recommendations
+
+**Dependencies**:
+- Library assessment
+- Update recommendations
+- Dependency management suggestions
+
+**Testing**:
+- Coverage analysis
+- Testing gaps
+- Advanced technique recommendations
+- CI/CD suggestions
+
+---
+
+### 4. Prioritized Recommendations
+
+**CRITICAL** (address immediately):
+- Security vulnerabilities
+- Proxy implementation issues
+- Missing critical events
+- Broken upgrade paths
+
+**HIGH** (address before deployment):
+- Documentation gaps
+- Testing improvements
+- Dependency updates
+- Architecture optimizations
+
+**MEDIUM** (address for production quality):
+- Code organization
+- Event completeness
+- Function clarity
+- Inheritance simplification
+
+**LOW** (nice to have):
+- Additional tests
+- Documentation enhancements
+- Gas optimizations
+
+

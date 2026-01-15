@@ -1,0 +1,1968 @@
+---
+description: "Detects timing side-channel vulnerabilities in cryptographic code. Use when implementing or reviewing crypto code, encountering division on secrets, secret-dependent branches, or constant-time programming questions in C, C++, Go, Rust, Swift, Java, Kotlin, C#, PHP, JavaScript, TypeScript, Python, or Ruby."
+globs: "*.c, *.cpp, *.go, *.h, *.hpp, *.js, *.jsx, *.py, *.rs, *.ts, *.tsx"
+alwaysApply: false
+---
+
+# constant-time-analysis
+
+*From Trail of Bits Skills - Author: Scott Arciszewski*
+
+# Constant-Time Analysis
+
+Analyze cryptographic code to detect operations that leak secret data through execution timing variations.
+
+## When to Use
+
+```text
+User writing crypto code? ──yes──> Use this skill
+         │
+         no
+         │
+         v
+User asking about timing attacks? ──yes──> Use this skill
+         │
+         no
+         │
+         v
+Code handles secret keys/tokens? ──yes──> Use this skill
+         │
+         no
+         │
+         v
+Skip this skill
+```
+
+**Concrete triggers:**
+
+- User implements signature, encryption, or key derivation
+- Code contains `/` or `%` operators on secret-derived values
+- User mentions "constant-time", "timing attack", "side-channel", "KyberSlash"
+- Reviewing functions named `sign`, `verify`, `encrypt`, `decrypt`, `derive_key`
+
+## When NOT to Use
+
+- Non-cryptographic code (business logic, UI, etc.)
+- Public data processing where timing leaks don't matter
+- Code that doesn't handle secrets, keys, or authentication tokens
+- High-level API usage where timing is handled by the library
+
+## Language Selection
+
+Based on the file extension or language context, refer to the appropriate guide:
+
+| Language   | File Extensions                   | Guide                                                    |
+| ---------- | --------------------------------- | -------------------------------------------------------- |
+| C, C++     | `.c`, `.h`, `.cpp`, `.cc`, `.hpp` | [references/compiled.md](references/compiled.md)         |
+| Go         | `.go`                             | [references/compiled.md](references/compiled.md)         |
+| Rust       | `.rs`                             | [references/compiled.md](references/compiled.md)         |
+| Swift      | `.swift`                          | [references/swift.md](references/swift.md)               |
+| Java       | `.java`                           | [references/vm-compiled.md](references/vm-compiled.md)   |
+| Kotlin     | `.kt`, `.kts`                     | [references/kotlin.md](references/kotlin.md)             |
+| C#         | `.cs`                             | [references/vm-compiled.md](references/vm-compiled.md)   |
+| PHP        | `.php`                            | [references/php.md](references/php.md)                   |
+| JavaScript | `.js`, `.mjs`, `.cjs`             | [references/javascript.md](references/javascript.md)     |
+| TypeScript | `.ts`, `.tsx`                     | [references/javascript.md](references/javascript.md)     |
+| Python     | `.py`                             | [references/python.md](references/python.md)             |
+| Ruby       | `.rb`                             | [references/ruby.md](references/ruby.md)                 |
+
+## Quick Start
+
+```bash
+# Analyze any supported file type
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py <source_file>
+
+# Include conditional branch warnings
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --warnings <source_file>
+
+# Filter to specific functions
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --func 'sign|verify' <source_file>
+
+# JSON output for CI
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --json <source_file>
+```
+
+### Native Compiled Languages Only (C, C++, Go, Rust)
+
+```bash
+# Cross-architecture testing (RECOMMENDED)
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --arch x86_64 crypto.c
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --arch arm64 crypto.c
+
+# Multiple optimization levels
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --opt-level O0 crypto.c
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --opt-level O3 crypto.c
+```
+
+### VM-Compiled Languages (Java, Kotlin, C#)
+
+```bash
+# Analyze Java bytecode
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py CryptoUtils.java
+
+# Analyze Kotlin bytecode (Android/JVM)
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py CryptoUtils.kt
+
+# Analyze C# IL
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py CryptoUtils.cs
+```
+
+Note: Java, Kotlin, and C# compile to bytecode (JVM/CIL) that runs on a virtual machine with JIT compilation. The analyzer examines the bytecode directly, not the JIT-compiled native code. The `--arch` and `--opt-level` flags do not apply to these languages.
+
+### Swift (iOS/macOS)
+
+```bash
+# Analyze Swift for native architecture
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py crypto.swift
+
+# Analyze for specific architecture (iOS devices)
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --arch arm64 crypto.swift
+
+# Analyze with different optimization levels
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --opt-level O0 crypto.swift
+```
+
+Note: Swift compiles to native code like C/C++/Go/Rust, so it uses assembly-level analysis and supports `--arch` and `--opt-level` flags.
+
+### Prerequisites
+
+| Language               | Requirements                                              |
+| ---------------------- | --------------------------------------------------------- |
+| C, C++, Go, Rust       | Compiler in PATH (`gcc`/`clang`, `go`, `rustc`)           |
+| Swift                  | Xcode or Swift toolchain (`swiftc` in PATH)               |
+| Java                   | JDK with `javac` and `javap` in PATH                      |
+| Kotlin                 | Kotlin compiler (`kotlinc`) + JDK (`javap`) in PATH       |
+| C#                     | .NET SDK + `ilspycmd` (`dotnet tool install -g ilspycmd`) |
+| PHP                    | PHP with VLD extension or OPcache                         |
+| JavaScript/TypeScript  | Node.js in PATH                                           |
+| Python                 | Python 3.x in PATH                                        |
+| Ruby                   | Ruby with `--dump=insns` support                          |
+
+**macOS users**: Homebrew installs Java and .NET as "keg-only". You must add them to your PATH:
+
+```bash
+# For Java (add to ~/.zshrc)
+export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"
+
+# For .NET tools (add to ~/.zshrc)
+export PATH="$HOME/.dotnet/tools:$PATH"
+```
+
+See [references/vm-compiled.md](references/vm-compiled.md) for detailed setup instructions and troubleshooting.
+
+## Quick Reference
+
+| Problem                | Detection                       | Fix                                          |
+| ---------------------- | ------------------------------- | -------------------------------------------- |
+| Division on secrets    | DIV, IDIV, SDIV, UDIV           | Barrett reduction or multiply-by-inverse     |
+| Branch on secrets      | JE, JNE, BEQ, BNE               | Constant-time selection (cmov, bit masking)  |
+| Secret comparison      | Early-exit memcmp               | Use `crypto/subtle` or constant-time compare |
+| Weak RNG               | rand(), mt_rand, Math.random    | Use crypto-secure RNG                        |
+| Table lookup by secret | Array subscript on secret index | Bit-sliced lookups                           |
+
+## Interpreting Results
+
+**PASSED** - No variable-time operations detected.
+
+**FAILED** - Dangerous instructions found. Example:
+
+```text
+[ERROR] SDIV
+  Function: decompose_vulnerable
+  Reason: SDIV has early termination optimization; execution time depends on operand values
+```
+
+## Verifying Results (Avoiding False Positives)
+
+**CRITICAL**: Not every flagged operation is a vulnerability. The tool has no data flow analysis - it flags ALL potentially dangerous operations regardless of whether they involve secrets.
+
+For each flagged violation, ask: **Does this operation's input depend on secret data?**
+
+1. **Identify the secret inputs** to the function (private keys, plaintext, signatures, tokens)
+
+2. **Trace data flow** from the flagged instruction back to inputs
+
+3. **Common false positive patterns**:
+
+   ```c
+   // FALSE POSITIVE: Division uses public constant, not secret
+   int num_blocks = data_len / 16;  // data_len is length, not content
+
+   // TRUE POSITIVE: Division involves secret-derived value
+   int32_t q = secret_coef / GAMMA2;  // secret_coef from private key
+   ```
+
+4. **Document your analysis** for each flagged item
+
+### Quick Triage Questions
+
+| Question                                          | If Yes                | If No                 |
+| ------------------------------------------------- | --------------------- | --------------------- |
+| Is the operand a compile-time constant?           | Likely false positive | Continue              |
+| Is the operand a public parameter (length, count)?| Likely false positive | Continue              |
+| Is the operand derived from key/plaintext/secret? | **TRUE POSITIVE**     | Likely false positive |
+| Can an attacker influence the operand value?      | **TRUE POSITIVE**     | Likely false positive |
+
+## Limitations
+
+1. **Static Analysis Only**: Analyzes assembly/bytecode, not runtime behavior. Cannot detect cache timing or microarchitectural side-channels.
+
+2. **No Data Flow Analysis**: Flags all dangerous operations regardless of whether they process secrets. Manual review required.
+
+3. **Compiler/Runtime Variations**: Different compilers, optimization levels, and runtime versions may produce different output.
+
+## Real-World Impact
+
+- **KyberSlash (2023)**: Division instructions in post-quantum ML-KEM implementations allowed key recovery
+- **Lucky Thirteen (2013)**: Timing differences in CBC padding validation enabled plaintext recovery
+- **RSA Timing Attacks**: Early implementations leaked private key bits through division timing
+
+## References
+
+- [Cryptocoding Guidelines](https://github.com/veorq/cryptocoding) - Defensive coding for crypto
+- [KyberSlash](https://kyberslash.cr.yp.to/) - Division timing in post-quantum crypto
+- [BearSSL Constant-Time](https://www.bearssl.org/constanttime.html) - Practical constant-time techniques
+
+---
+
+## Additional References
+
+### Javascript
+
+# Constant-Time Analysis: JavaScript and TypeScript
+
+Analysis guidance for JavaScript and TypeScript. Uses V8 bytecode output from Node.js to detect timing-unsafe operations.
+
+## Prerequisites
+
+- **Node.js** (v14+) - for JavaScript analysis
+- **TypeScript compiler** (tsc) - for TypeScript files (optional, uses npx fallback)
+
+## Running the Analyzer
+
+```bash
+# Analyze JavaScript
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py crypto.js
+
+# Analyze TypeScript (transpiles first)
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py crypto.ts
+
+# Include warning-level violations
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --warnings crypto.js
+
+# Filter to specific functions
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --func 'encrypt|sign' crypto.js
+
+# JSON output for CI
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --json crypto.js
+```
+
+## Dangerous Operations
+
+### Bytecodes (Errors)
+
+| Bytecode | Issue |
+|----------|-------|
+| Div | Variable-time execution based on operand values |
+| Mod | Variable-time execution based on operand values |
+| DivSmi | Division by small integer has variable-time execution |
+| ModSmi | Modulo by small integer has variable-time execution |
+
+### Functions (Errors)
+
+| Function | Issue | Safe Alternative |
+|----------|-------|------------------|
+| `Math.sqrt()` | Variable latency based on operand values | Avoid in crypto |
+| `Math.pow()` | Variable latency based on operand values | Avoid in crypto |
+| `Math.random()` | Predictable | `crypto.getRandomValues()` |
+| `eval()` | Unpredictable timing | Avoid entirely |
+
+### Functions (Warnings)
+
+| Function | Issue | Safe Alternative |
+|----------|-------|------------------|
+| `===` (strings) | Early-terminating | `crypto.timingSafeEqual()` |
+| `indexOf()` | Early-terminating | Constant-time search |
+| `includes()` | Early-terminating | Constant-time search |
+| `startsWith()` | Early-terminating | `crypto.timingSafeEqual()` on prefix |
+| `endsWith()` | Early-terminating | `crypto.timingSafeEqual()` on suffix |
+| `JSON.stringify()` | Variable-length output | Fixed-length padding |
+| `JSON.parse()` | Variable-time based on input | Fixed-length input |
+| `btoa()` / `atob()` | Variable-length output | Fixed-length padding |
+
+## Safe Patterns
+
+### String Comparison (Node.js)
+
+```javascript
+// VULNERABLE: Early exit on mismatch
+if (userToken === storedToken) { ... }
+
+// SAFE: Constant-time comparison (Node.js)
+const crypto = require('crypto');
+if (crypto.timingSafeEqual(Buffer.from(userToken), Buffer.from(storedToken))) { ... }
+```
+
+### Random Number Generation
+
+```javascript
+// VULNERABLE: Predictable
+const token = Math.random().toString(36);
+
+// SAFE: Cryptographically secure (Node.js)
+const crypto = require('crypto');
+const token = crypto.randomBytes(16).toString('hex');
+
+// SAFE: Browser
+const array = new Uint8Array(16);
+crypto.getRandomValues(array);
+```
+
+### Division Operations
+
+```javascript
+// VULNERABLE: Division has variable timing
+const quotient = secret / divisor;
+
+// SAFE: Use multiplication by inverse (if divisor is constant)
+// Precompute: inverse = 1/divisor as fixed-point
+const quotient = Math.floor(secret * inverse);
+```
+
+## TypeScript Notes
+
+The analyzer:
+1. Looks for `tsconfig.json` in parent directories
+2. Transpiles TypeScript to JavaScript in a temp directory
+3. Analyzes the transpiled JavaScript
+4. Reports violations against the original TypeScript file
+
+If tsc is not installed, the analyzer tries `npx tsc` as a fallback.
+
+## Limitations
+
+### V8 Bytecode Analysis
+
+The analyzer uses `node --print-bytecode` to get V8 bytecode. This has limitations:
+
+1. **JIT Compilation**: V8 may JIT-compile hot functions to native code with different timing characteristics
+2. **Function Inlining**: Inlined functions may not appear in bytecode
+3. **Deoptimization**: Code can be deoptimized back to bytecode
+
+### Source-Level Detection
+
+The analyzer also performs source-level pattern matching to detect:
+- Division (`/`) and modulo (`%`) operators
+- Dangerous function calls (`Math.random()`, etc.)
+
+This catches issues that bytecode analysis might miss due to parsing limitations.
+
+## Browser Considerations
+
+The analyzer targets Node.js V8 bytecode. Browser JavaScript engines (SpiderMonkey, JavaScriptCore) have different bytecode formats and timing characteristics.
+
+For browser-targeted code:
+- The V8 analysis is still valuable as a baseline
+- Consider additional testing in target browsers
+- Use Web Crypto API for cryptographic operations
+
+
+### Vm Compiled
+
+# Constant-Time Analysis: VM-Compiled Languages
+
+Analysis guidance for Java and C#. These languages compile to bytecode (JVM bytecode / CIL) that runs on a virtual machine with Just-In-Time (JIT) compilation to native code.
+
+## Understanding VM-Compiled Languages
+
+Unlike native-compiled languages (C, Rust, Go), Java and C# add an intermediate layer:
+
+```text
+Source Code (.java/.cs)
+        |
+        v
+    Compiler (javac/csc)
+        |
+        v
+Bytecode (.class/.dll)
+        |
+        v
+    JIT Compiler (HotSpot/RyuJIT)
+        |
+        v
+   Native Code (at runtime)
+```
+
+**Security implications:**
+
+1. **Bytecode is deterministic** - Same source always produces same bytecode
+2. **JIT is non-deterministic** - Native code varies by runtime, version, and warmup state
+3. **Analysis target** - We analyze bytecode since JIT output is impractical to capture
+
+**Limitations:**
+
+- JIT may introduce timing variations not visible in bytecode
+- Runtime optimizations can convert safe bytecode to unsafe native code
+- Different JVM/CLR implementations may behave differently
+
+## Running the Analyzer
+
+```bash
+# Java
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py CryptoUtils.java
+
+# C#
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py CryptoUtils.cs
+
+# Include conditional branch warnings
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --warnings CryptoUtils.java
+
+# Filter to specific methods
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --func 'sign|verify' CryptoUtils.java
+
+# CI-friendly JSON output
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --json CryptoUtils.java
+```
+
+Note: The `--arch` and `--opt-level` flags do not apply to VM-compiled languages.
+
+## Dangerous Bytecode Instructions
+
+### JVM Bytecode
+
+| Category | Instructions | Risk |
+|----------|--------------|------|
+| Integer Division | `idiv`, `ldiv`, `irem`, `lrem` | Variable-time based on operand values |
+| Floating Division | `fdiv`, `ddiv`, `frem`, `drem` | Variable latency |
+| Conditional Branches | `ifeq`, `ifne`, `iflt`, `ifge`, `ifgt`, `ifle`, `if_icmp*`, `if_acmp*` | Timing leak if condition depends on secrets |
+| Table Lookups | `*aload`, `*astore`, `tableswitch`, `lookupswitch` | Cache timing if index depends on secrets |
+
+### CIL (C# / .NET)
+
+| Category | Instructions | Risk |
+|----------|--------------|------|
+| Integer Division | `div`, `div.un`, `rem`, `rem.un` | Variable-time based on operand values |
+| Floating Division | (uses same `div`/`rem` opcodes) | Variable latency |
+| Conditional Branches | `beq`, `bne`, `blt`, `bgt`, `ble`, `bge`, `brfalse`, `brtrue` | Timing leak if condition depends on secrets |
+| Table Lookups | `ldelem.*`, `stelem.*`, `switch` | Cache timing if index depends on secrets |
+
+## Constant-Time Patterns
+
+### Java
+
+#### Replace Division
+
+```java
+// VULNERABLE: Division instruction emitted
+int q = secretValue / divisor;
+
+// SAFE: Barrett reduction (for fixed divisor)
+// Precompute: mu = (1L << 32) / divisor
+long mu = 0x100000000L / divisor;
+int q = (int) ((secretValue * mu) >>> 32);
+```
+
+#### Replace Branches
+
+```java
+// VULNERABLE: Branch timing reveals secret
+int result;
+if (secret != 0) {
+    result = a;
+} else {
+    result = b;
+}
+
+// SAFE: Constant-time selection using bitwise ops
+int mask = -(secret != 0 ? 1 : 0);  // All 1s if true, all 0s if false
+// Better: compute mask without branch
+int mask = (secret | -secret) >> 31;  // -1 if secret != 0, else 0
+int result = (a & mask) | (b & ~mask);
+```
+
+#### Replace Comparisons
+
+```java
+// VULNERABLE: Arrays.equals() may early-terminate
+if (Arrays.equals(computed, expected)) { ... }
+
+// SAFE: Use MessageDigest.isEqual() for constant-time comparison
+import java.security.MessageDigest;
+if (MessageDigest.isEqual(computed, expected)) { ... }
+```
+
+#### Secure Random
+
+```java
+// VULNERABLE: Predictable PRNG
+Random rand = new Random();
+int value = rand.nextInt();
+
+// SAFE: Cryptographically secure
+SecureRandom secureRand = new SecureRandom();
+int value = secureRand.nextInt();
+```
+
+### C# / .NET
+
+#### Replace Division
+
+```csharp
+// VULNERABLE: Division instruction emitted
+int q = secretValue / divisor;
+
+// SAFE: Barrett reduction (for fixed divisor)
+// Precompute: mu = (1UL << 32) / divisor
+ulong mu = 0x100000000UL / (ulong)divisor;
+int q = (int)((secretValue * mu) >> 32);
+```
+
+#### Replace Branches
+
+```csharp
+// VULNERABLE: Branch timing reveals secret
+int result = secret != 0 ? a : b;
+
+// SAFE: Constant-time selection
+int mask = -(secret != 0 ? 1 : 0);
+int result = (a & mask) | (b & ~mask);
+
+// Or use Vector<T> for SIMD constant-time ops (.NET 7+)
+```
+
+#### Replace Comparisons
+
+```csharp
+// VULNERABLE: SequenceEqual may early-terminate
+if (computed.SequenceEqual(expected)) { ... }
+
+// SAFE: Use CryptographicOperations.FixedTimeEquals (.NET Core 2.1+)
+using System.Security.Cryptography;
+if (CryptographicOperations.FixedTimeEquals(computed, expected)) { ... }
+```
+
+#### Secure Random
+
+```csharp
+// VULNERABLE: Predictable PRNG
+Random rand = new Random();
+int value = rand.Next();
+
+// SAFE: Cryptographically secure
+using System.Security.Cryptography;
+int value = RandomNumberGenerator.GetInt32(int.MaxValue);
+// Or for bytes:
+byte[] bytes = RandomNumberGenerator.GetBytes(32);
+```
+
+## Platform-Specific Considerations
+
+### Java
+
+- **Bouncy Castle**: Use `org.bouncycastle.util.Arrays.constantTimeAreEqual()` for constant-time comparison
+- **JEP 329 (Java 12+)**: ChaCha20 and Poly1305 implementations are designed to be constant-time
+- **BigInteger**: Operations like `modPow()` may have timing leaks; consider using Bouncy Castle's constant-time implementations
+
+### C# / .NET
+
+- **Span<T>**: Use `CryptographicOperations.FixedTimeEquals(ReadOnlySpan<byte>, ReadOnlySpan<byte>)` for best performance
+- **NSec**: Consider using NSec library for constant-time cryptographic primitives
+- **BigInteger**: .NET's BigInteger has potential timing leaks; use specialized crypto libraries
+
+## JIT Compiler Caveats
+
+Even if bytecode appears safe, JIT compilers can introduce timing vulnerabilities:
+
+1. **Speculative optimization** - JIT may convert constant-time bytecode to branching native code
+2. **Escape analysis** - May inline and optimize in ways that introduce timing
+3. **Tiered compilation** - Code behavior may change as it "warms up"
+
+**Mitigations:**
+
+- Test with production JVM/CLR versions
+- Consider ahead-of-time (AOT) compilation (GraalVM Native Image, .NET Native AOT)
+- For critical code, verify native code output with JIT logging:
+
+```bash
+# Java: Print JIT compilation
+java -XX:+PrintCompilation -XX:+UnlockDiagnosticVMOptions -XX:+PrintAssembly MyClass
+
+# .NET: Enable tiered compilation diagnostics
+DOTNET_TieredCompilation=0 dotnet run  # Disable tiered compilation for consistent behavior
+```
+
+## Setup Requirements
+
+### Java
+
+**Required:** JDK 8+ with `javac` and `javap` available.
+
+**Installation:**
+
+```bash
+# macOS (Homebrew)
+brew install openjdk@21
+
+# Ubuntu/Debian
+sudo apt install openjdk-21-jdk
+
+# Windows (via winget)
+winget install Microsoft.OpenJDK.21
+```
+
+**PATH Configuration (macOS):**
+
+On macOS, Homebrew installs OpenJDK as "keg-only" (not linked to `/usr/local/bin`). You must add it to your PATH:
+
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export PATH="/opt/homebrew/opt/openjdk@21/bin:$PATH"  # Apple Silicon
+# or
+export PATH="/usr/local/opt/openjdk@21/bin:$PATH"     # Intel Mac
+```
+
+**Verification:**
+
+```bash
+javac --version  # Should show: javac 21.x.x
+javap -version   # Should show version info
+```
+
+**Common Issues:**
+
+- **"Unable to locate a Java Runtime"** on macOS: The system `/usr/bin/javac` is a stub that requires a real JDK. Install OpenJDK via Homebrew.
+- **Wrong Java version**: If you have multiple JDKs, use `JAVA_HOME` or ensure the correct one is first in PATH.
+
+### C#
+
+**Required:** .NET SDK 8.0+ with `dotnet` available, plus `ilspycmd` for IL disassembly.
+
+**Installation:**
+
+```bash
+# macOS (Homebrew)
+brew install dotnet-sdk
+
+# Ubuntu/Debian
+sudo apt install dotnet-sdk-8.0
+
+# Windows
+winget install Microsoft.DotNet.SDK.8
+```
+
+**Install IL Disassembler:**
+
+```bash
+dotnet tool install -g ilspycmd
+```
+
+**PATH Configuration:**
+
+Ensure the .NET tools directory is in your PATH:
+
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export PATH="$HOME/.dotnet/tools:$PATH"
+```
+
+**Verification:**
+
+```bash
+dotnet --version    # Should show: 8.x.x or higher
+ilspycmd --version  # Should show: ilspycmd: 9.x.x
+```
+
+**Common Issues:**
+
+- **"ilspycmd requires .NET 8.0 but you have .NET 10.0"**: This happens when ilspycmd targets an older .NET version than your installed SDK. The analyzer automatically handles this on macOS by detecting Homebrew's dotnet@8 installation. Install the compatible runtime:
+
+  ```bash
+  # macOS
+  brew install dotnet@8
+
+  # Other platforms: install .NET 8.0 runtime alongside your SDK
+  ```
+
+- **"IL disassembly tools not found"**: Ensure `ilspycmd` is installed globally and `~/.dotnet/tools` is in your PATH.
+
+- **Source-only fallback**: If IL disassembly fails, the analyzer falls back to source-level analysis. This still detects division operators and dangerous function calls but misses bytecode-level issues.
+
+### Alternative: Mono (Linux/macOS)
+
+For environments without .NET SDK, you can use Mono:
+
+```bash
+# macOS
+brew install mono
+
+# Ubuntu/Debian
+sudo apt install mono-complete
+
+# Verify
+mcs --version
+monodis --help
+```
+
+Note: Mono's `monodis` produces different IL output than `ilspycmd`. The analyzer supports both formats.
+
+## Common Mistakes
+
+1. **Trusting high-level APIs** - `Arrays.equals()` in Java and `SequenceEqual()` in C# are NOT constant-time
+
+2. **Ignoring JIT behavior** - Bytecode analysis is necessary but not sufficient; JIT can introduce leaks
+
+3. **BigInteger operations** - Both platforms' BigInteger implementations may leak timing; use crypto libraries
+
+4. **String comparisons** - Never compare secrets as strings; use byte arrays with constant-time comparison
+
+5. **Exception timing** - Try/catch blocks around secret operations may leak timing through exception handling
+
+## Further Reading
+
+- [Java Cryptography Architecture Guide](https://docs.oracle.com/en/java/javase/17/security/java-cryptography-architecture-jca-reference-guide.html)
+- [.NET Cryptography Model](https://docs.microsoft.com/en-us/dotnet/standard/security/cryptography-model)
+- [Bouncy Castle Java](https://www.bouncycastle.org/java.html) - Constant-time crypto primitives
+- [NSec](https://nsec.rocks/) - Modern cryptographic library for .NET
+
+
+### Python
+
+# Constant-Time Analysis: Python
+
+Analysis guidance for Python scripts. Uses the `dis` module to analyze CPython bytecode for timing-unsafe operations.
+
+## Prerequisites
+
+- Python 3.10+ (bytecode format varies by version)
+
+## Running the Analyzer
+
+```bash
+# Analyze Python file
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py crypto.py
+
+# Include warning-level violations
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --warnings crypto.py
+
+# Filter to specific functions
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --func 'encrypt|sign' crypto.py
+
+# JSON output for CI
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --json crypto.py
+```
+
+## Dangerous Operations
+
+### Bytecodes (Errors)
+
+**Python < 3.11:**
+
+| Bytecode | Issue |
+|----------|-------|
+| BINARY_TRUE_DIVIDE | Variable-time execution |
+| BINARY_FLOOR_DIVIDE | Variable-time execution |
+| BINARY_MODULO | Variable-time execution |
+| INPLACE_TRUE_DIVIDE | Variable-time execution |
+| INPLACE_FLOOR_DIVIDE | Variable-time execution |
+| INPLACE_MODULO | Variable-time execution |
+
+**Python 3.11+:**
+
+| BINARY_OP Oparg | Operation | Issue |
+|-----------------|-----------|-------|
+| 11 | `/` | Variable-time execution |
+| 12 | `//` | Variable-time execution |
+| 6 | `%` | Variable-time execution |
+| 24 | `/=` | Variable-time execution |
+| 25 | `//=` | Variable-time execution |
+| 19 | `%=` | Variable-time execution |
+
+### Functions (Errors)
+
+| Function | Issue | Safe Alternative |
+|----------|-------|------------------|
+| `random.random()` | Predictable | `secrets.token_bytes()` |
+| `random.randint()` | Predictable | `secrets.randbelow()` |
+| `random.randrange()` | Predictable | `secrets.randbelow()` |
+| `random.choice()` | Predictable | `secrets.choice()` |
+| `random.shuffle()` | Predictable | Custom with `secrets` |
+| `random.sample()` | Predictable | Custom with `secrets` |
+| `math.sqrt()` | Variable latency | Avoid in crypto |
+| `math.pow()` | Variable latency | Avoid in crypto |
+| `eval()` | Unpredictable timing | Avoid entirely |
+| `exec()` | Unpredictable timing | Avoid entirely |
+
+### Functions (Warnings)
+
+| Function | Issue | Safe Alternative |
+|----------|-------|------------------|
+| `str.find()` | Early-terminating | Constant-time search |
+| `str.index()` | Early-terminating | Constant-time search |
+| `str.startswith()` | Early-terminating | `hmac.compare_digest()` |
+| `str.endswith()` | Early-terminating | `hmac.compare_digest()` |
+| `in` (strings) | Early-terminating | Constant-time search |
+| `json.dumps()` | Variable-length output | Fixed-length padding |
+| `json.loads()` | Variable-time | Fixed-length input |
+| `base64.b64encode()` | Variable-length output | Fixed-length padding |
+| `pickle.dumps()` | Variable-length output | Avoid for secrets |
+| `pickle.loads()` | Variable-time, security risk | Avoid for secrets |
+
+## Safe Patterns
+
+### String Comparison
+
+```python
+# VULNERABLE: Early exit on mismatch
+if user_token == stored_token:
+    ...
+
+# SAFE: Constant-time comparison
+import hmac
+if hmac.compare_digest(user_token, stored_token):
+    ...
+
+# SAFE: For bytes
+import secrets
+if secrets.compare_digest(user_bytes, stored_bytes):
+    ...
+```
+
+### Random Number Generation
+
+```python
+# VULNERABLE: Predictable
+import random
+token = random.randint(0, 2**128)
+
+# SAFE: Cryptographically secure
+import secrets
+token = secrets.token_bytes(16)
+token_int = secrets.randbits(128)
+random_index = secrets.randbelow(len(items))
+```
+
+### Division Operations
+
+```python
+# VULNERABLE: Division has variable timing
+quotient = secret // divisor
+
+# SAFE: Barrett reduction for constant divisors
+# Precompute: mu = (1 << (2 * BITS)) // divisor
+def barrett_reduce(value: int, divisor: int, mu: int, bits: int) -> int:
+    q = (value * mu) >> (2 * bits)
+    r = value - q * divisor
+    # Constant-time correction
+    mask = -(r >= divisor)
+    return r - (divisor & mask)
+```
+
+## Python Version Notes
+
+### Python 3.11+ Changes
+
+Python 3.11 introduced the `BINARY_OP` bytecode that replaces individual binary operation bytecodes. The analyzer detects division/modulo by checking the oparg:
+
+```
+BINARY_OP               11 (/)    # True division
+BINARY_OP               12 (//)   # Floor division
+BINARY_OP                6 (%)    # Modulo
+```
+
+### Python 3.10 and Earlier
+
+Uses separate bytecodes:
+```
+BINARY_TRUE_DIVIDE
+BINARY_FLOOR_DIVIDE
+BINARY_MODULO
+```
+
+## Cryptography Library Considerations
+
+When using the `cryptography` library:
+
+```python
+# The cryptography library handles constant-time internally
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+# SAFE: Library handles timing protection
+aesgcm = AESGCM(key)
+ciphertext = aesgcm.encrypt(nonce, plaintext, associated_data)
+```
+
+For custom cryptographic code, ensure you:
+1. Use `hmac.compare_digest()` for comparisons
+2. Use `secrets` module for randomness
+3. Avoid division/modulo on secret-derived values
+4. Use fixed-length data representations
+
+## Limitations
+
+### CPython Bytecode Only
+
+The analyzer targets CPython bytecode. Alternative implementations (PyPy, Jython, etc.) have different bytecode formats and timing characteristics.
+
+### JIT Compilation
+
+PyPy and Numba can JIT-compile Python to native code with potentially different timing behavior. Consider additional analysis for JIT-compiled code paths.
+
+
+### Swift
+
+# Constant-Time Analysis: Swift
+
+Analysis guidance for Swift targeting iOS, macOS, watchOS, and tvOS. Swift compiles to native code, making it subject to the same CPU-level timing side-channels as C, C++, Go, and Rust.
+
+## Understanding Swift Compilation
+
+Swift compiles directly to native machine code:
+
+```text
+Source Code (.swift)
+        |
+        v
+    swiftc (Swift Compiler / LLVM)
+        |
+        v
+   Native Assembly
+        |
+        v
+   Machine Code (binary)
+```
+
+**Key implications:**
+
+1. **Same vulnerabilities as C** - Division, branches, and table lookups have data-dependent timing
+2. **LLVM backend** - Swift uses LLVM, so analysis is similar to clang-compiled code
+3. **Architecture matters** - x86_64 (Mac) and arm64 (iOS devices, Apple Silicon) have different instruction sets
+
+## Running the Analyzer
+
+```bash
+# Analyze Swift for native architecture
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py crypto.swift
+
+# Analyze for iOS device (arm64)
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --arch arm64 crypto.swift
+
+# Analyze for Intel Mac
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --arch x86_64 crypto.swift
+
+# Test multiple optimization levels (RECOMMENDED)
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --opt-level O0 crypto.swift
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --opt-level O2 crypto.swift
+
+# Include conditional branch warnings
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --warnings crypto.swift
+
+# CI-friendly JSON output
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --json crypto.swift
+```
+
+## Dangerous Instructions by Architecture
+
+### ARM64 (iOS devices, Apple Silicon Macs)
+
+| Category | Instructions | Risk |
+|----------|--------------|------|
+| Division | `UDIV`, `SDIV` | Early termination optimization; variable-time |
+| Floating-Point | `FDIV`, `FSQRT` | Variable latency based on operand values |
+| Conditional Branches | `B.EQ`, `B.NE`, `CBZ`, `CBNZ`, etc. | Timing leak if condition depends on secrets |
+
+### x86_64 (Intel Macs)
+
+| Category | Instructions | Risk |
+|----------|--------------|------|
+| Division | `DIV`, `IDIV`, `DIVQ`, `IDIVQ` | Data-dependent timing |
+| Floating-Point | `DIVSS`, `DIVSD`, `SQRTSS`, `SQRTSD` | Variable latency |
+| Conditional Branches | `JE`, `JNE`, `JZ`, `JNZ`, etc. | Timing leak if condition depends on secrets |
+
+## Constant-Time Patterns
+
+### Replace Division
+
+```swift
+// VULNERABLE: Division instruction emitted
+let q = secretValue / divisor
+
+// SAFE: Barrett reduction (for fixed divisor)
+// Precompute: mu = (1 << 32) / divisor
+let mu: UInt64 = (1 << 32) / UInt64(divisor)
+let q = Int32((UInt64(secretValue) &* mu) >> 32)
+```
+
+### Replace Branches
+
+```swift
+// VULNERABLE: Branch timing reveals secret
+let result = secret != 0 ? a : b
+
+// SAFE: Constant-time selection using bitwise ops
+let mask = Int32(bitPattern: UInt32(bitPattern: -Int32(secret != 0 ? 1 : 0)))
+// Better approach with no branch:
+let nonZero = (secret | -secret) >> 31  // -1 if secret != 0, else 0
+let result = (a & nonZero) | (b & ~nonZero)
+```
+
+### Replace Comparisons
+
+```swift
+// VULNERABLE: Standard equality may early-terminate
+if computed == expected { ... }
+
+// SAFE: Constant-time comparison
+import CryptoKit  // Available on iOS 13+, macOS 10.15+
+
+// Use Data's built-in constant-time comparison for crypto
+if computed.withUnsafeBytes({ cPtr in
+    expected.withUnsafeBytes { ePtr in
+        timingSafeCompare(cPtr, ePtr)
+    }
+}) { ... }
+
+// Manual constant-time comparison
+func constantTimeCompare(_ a: [UInt8], _ b: [UInt8]) -> Bool {
+    guard a.count == b.count else { return false }
+    var result: UInt8 = 0
+    for i in 0..<a.count {
+        result |= a[i] ^ b[i]
+    }
+    return result == 0
+}
+```
+
+### Secure Random
+
+```swift
+// VULNERABLE: Don't use for cryptographic purposes
+import Foundation
+let value = Int.random(in: 0..<100)  // Uses arc4random, generally OK but not verified
+
+// SAFE: Use CryptoKit (iOS 13+, macOS 10.15+)
+import CryptoKit
+
+// Generate secure random bytes
+var randomBytes = [UInt8](repeating: 0, count: 32)
+let status = SecRandomCopyBytes(kSecRandomDefault, randomBytes.count, &randomBytes)
+guard status == errSecSuccess else { /* handle error */ }
+
+// Or use SymmetricKey for key generation
+let key = SymmetricKey(size: .bits256)
+```
+
+## Apple Platform Considerations
+
+### Using CryptoKit (Recommended)
+
+CryptoKit provides constant-time implementations for common operations:
+
+```swift
+import CryptoKit
+
+// HMAC (constant-time internally)
+let key = SymmetricKey(size: .bits256)
+let signature = HMAC<SHA256>.authenticationCode(for: data, using: key)
+
+// AES-GCM encryption
+let sealedBox = try AES.GCM.seal(plaintext, using: key)
+
+// Curve25519 key agreement
+let privateKey = Curve25519.KeyAgreement.PrivateKey()
+let sharedSecret = try privateKey.sharedSecretFromKeyAgreement(with: peerPublicKey)
+```
+
+### Security Framework
+
+```swift
+import Security
+
+// Generate cryptographically secure random data
+func secureRandomBytes(count: Int) -> Data? {
+    var bytes = [UInt8](repeating: 0, count: count)
+    let status = SecRandomCopyBytes(kSecRandomDefault, count, &bytes)
+    return status == errSecSuccess ? Data(bytes) : nil
+}
+
+// Keychain for secure storage
+func storeInKeychain(key: Data, account: String) -> Bool {
+    let query: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrAccount as String: account,
+        kSecValueData as String: key
+    ]
+    return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
+}
+```
+
+## Swift-Specific Pitfalls
+
+### Optional Unwrapping
+
+```swift
+// Branching on optionals
+if let secret = maybeSecret {  // Introduces branch
+    process(secret)
+}
+
+// Guard statements also branch
+guard let secret = maybeSecret else { return }
+```
+
+### Pattern Matching
+
+```swift
+// Switch/case compiles to branching code
+switch secretEnum {
+case .optionA: handleA()  // Branch
+case .optionB: handleB()  // Branch
+}
+```
+
+### Array Subscripting
+
+```swift
+// Array access indexed by secret leaks via cache timing
+let value = lookupTable[secretIndex]  // Cache timing side-channel
+```
+
+### String Operations
+
+```swift
+// String comparison is NOT constant-time
+if secretString == expectedString { ... }  // Variable-time
+
+// Character iteration may also have timing variations
+for char in secretString { ... }
+```
+
+## Setup Requirements
+
+### Xcode (Recommended)
+
+Install Xcode from the Mac App Store. The Swift compiler is included.
+
+```bash
+# Verify installation
+swiftc --version
+```
+
+### Swift Toolchain (Alternative)
+
+Download from [swift.org](https://swift.org/download/) for standalone installation.
+
+```bash
+# Verify
+swiftc --version
+```
+
+### Cross-Compilation
+
+For analyzing code targeting different architectures:
+
+```bash
+# Analyze for iOS device
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --arch arm64 crypto.swift
+
+# Analyze for iOS simulator
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --arch x86_64 crypto.swift
+```
+
+## Common Mistakes
+
+1. **Using Swift's == for byte comparison** - Standard equality comparison may early-terminate; use constant-time comparison
+
+2. **Trusting CryptoKit for all operations** - CryptoKit provides constant-time primitives, but combining them incorrectly can introduce vulnerabilities
+
+3. **String manipulation on secrets** - Swift strings have complex internal representations; timing varies with content
+
+4. **Ignoring optimization levels** - Swift's optimizer can transform safe source code into unsafe assembly; test at multiple -O levels
+
+5. **Platform availability** - CryptoKit requires iOS 13+/macOS 10.15+; older platforms need alternative implementations
+
+## Testing on Different Architectures
+
+Always test your cryptographic code on actual target architectures:
+
+```bash
+# Apple Silicon Mac (arm64)
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py crypto.swift
+
+# Cross-compile for Intel
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --arch x86_64 crypto.swift
+```
+
+## Further Reading
+
+- [Apple CryptoKit Documentation](https://developer.apple.com/documentation/cryptokit)
+- [Apple Security Framework](https://developer.apple.com/documentation/security)
+- [Swift.org Security](https://swift.org/blog/swift-5-release/)
+- [OWASP iOS Security Guide](https://owasp.org/www-project-mobile-security-testing-guide/)
+
+
+### Php
+
+# Constant-Time Analysis: PHP
+
+Analysis guidance for PHP scripts. Uses the VLD extension or OPcache debug output to analyze Zend opcodes.
+
+## Prerequisites
+
+### Installing VLD Extension
+
+The VLD (Vulcan Logic Dumper) extension is required for detailed opcode analysis. OPcache fallback is available but provides less detail.
+
+**Option 1: PECL Install (Recommended)**
+
+```bash
+# Query latest version from PECL
+VLD_VERSION=$(curl -s https://pecl.php.net/package/vld | grep -oP 'vld-\K[0-9.]+(?=\.tgz)' | head -1)
+echo "Latest VLD version: $VLD_VERSION"
+
+# Install via PECL channel URL (avoids version detection issues)
+pecl install channel://pecl.php.net/vld-${VLD_VERSION}
+
+# Or if above fails, install with explicit channel:
+pecl install https://pecl.php.net/get/vld-${VLD_VERSION}.tgz
+```
+
+**Option 2: Build from Source**
+
+```bash
+# Clone and build from GitHub
+git clone https://github.com/derickr/vld.git
+cd vld
+phpize
+./configure
+make
+sudo make install
+
+# Add to php.ini
+echo "extension=vld.so" | sudo tee -a $(php --ini | grep "Loaded Configuration" | cut -d: -f2 | tr -d ' ')
+```
+
+**Verify Installation**
+
+```bash
+php -m | grep -i vld
+# Should output: vld
+```
+
+### macOS with Homebrew PHP
+
+```bash
+# Homebrew PHP may need manual extension directory setup
+PHP_EXT_DIR=$(php -i | grep extension_dir | awk '{print $3}')
+echo "PHP extension directory: $PHP_EXT_DIR"
+
+# After building VLD, copy the extension
+sudo cp modules/vld.so "$PHP_EXT_DIR/"
+```
+
+## Running the Analyzer
+
+```bash
+# Analyze PHP file
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py crypto.php
+
+# Include warning-level violations
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --warnings crypto.php
+
+# Filter to specific functions
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --func 'encrypt|decrypt' crypto.php
+
+# JSON output for CI
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --json crypto.php
+```
+
+## Dangerous Operations
+
+### Opcodes (Errors)
+
+| Opcode | Issue |
+|--------|-------|
+| DIV | Variable-time execution based on operand values |
+| MOD | Variable-time execution based on operand values |
+| POW | Variable-time execution |
+
+### Functions (Errors)
+
+| Function | Issue | Safe Alternative |
+|----------|-------|------------------|
+| `chr()` | Table lookup indexed by secret data | `pack('C', $int)` |
+| `ord()` | Table lookup indexed by secret data | `unpack('C', $char)[1]` |
+| `bin2hex()` | Table lookups indexed on secret data | Custom constant-time implementation |
+| `hex2bin()` | Table lookups indexed on secret data | Custom constant-time implementation |
+| `base64_encode()` | Table lookups indexed on secret data | Custom constant-time implementation |
+| `base64_decode()` | Table lookups indexed on secret data | Custom constant-time implementation |
+| `rand()` | Predictable | `random_int()` |
+| `mt_rand()` | Predictable | `random_int()` |
+| `array_rand()` | Uses mt_rand internally | `random_int()` |
+| `uniqid()` | Predictable | `random_bytes()` |
+| `shuffle()` | Uses mt_rand internally | Fisher-Yates with `random_int()` |
+
+### Functions (Warnings)
+
+| Function | Issue | Safe Alternative |
+|----------|-------|------------------|
+| `strcmp()` | Variable-time | `hash_equals()` |
+| `strcasecmp()` | Variable-time | `hash_equals()` |
+| `strncmp()` | Variable-time | `hash_equals()` |
+| `substr_compare()` | Variable-time | `hash_equals()` |
+| `serialize()` | Variable-length output | Fixed-length output |
+| `json_encode()` | Variable-length output | Fixed-length output |
+
+## Safe Patterns
+
+### String Comparison
+
+```php
+// VULNERABLE: Early exit on mismatch
+if ($user_token === $stored_token) { ... }
+
+// SAFE: Constant-time comparison
+if (hash_equals($stored_token, $user_token)) { ... }
+```
+
+### Random Number Generation
+
+```php
+// VULNERABLE: Predictable
+$token = bin2hex(random_bytes(16));  // OK - random_bytes is secure
+$index = mt_rand(0, count($array) - 1);  // VULNERABLE
+
+// SAFE: Cryptographically secure
+$token = bin2hex(random_bytes(16));
+$index = random_int(0, count($array) - 1);
+```
+
+### Character Operations
+
+```php
+// VULNERABLE: Table lookup timing
+$byte = ord($secret_char);
+$char = chr($secret_byte);
+
+// SAFE: No table lookup
+$byte = unpack('C', $secret_char)[1];
+$char = pack('C', $secret_byte);
+```
+
+## Troubleshooting
+
+### VLD Not Loading
+
+```bash
+# Check if extension is enabled
+php -i | grep vld
+
+# Check for loading errors
+php -d display_errors=1 -d vld.active=1 -r "echo 'test';" 2>&1
+
+# Common issue: wrong extension directory
+php -i | grep extension_dir
+ls $(php -r "echo ini_get('extension_dir');") | grep vld
+```
+
+### OPcache Fallback
+
+If VLD is unavailable, the analyzer falls back to OPcache debug output:
+
+```bash
+# Manually test OPcache output
+php -d opcache.enable_cli=1 -d opcache.opt_debug_level=0x10000 crypto.php 2>&1
+```
+
+OPcache provides less detailed output than VLD but still detects division/modulo opcodes.
+
+
+### Compiled
+
+# Constant-Time Analysis: Compiled Languages
+
+Analysis guidance for C, C++, Go, and Rust. These languages compile to native assembly, where timing side-channels are detected by scanning for variable-time CPU instructions.
+
+## Running the Analyzer
+
+```bash
+# C/C++ (default: clang, native architecture)
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py crypto.c
+
+# Go
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py crypto.go
+
+# Rust
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py crypto.rs
+
+# Cross-architecture testing (RECOMMENDED)
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --arch x86_64 crypto.c
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --arch arm64 crypto.c
+
+# Multiple optimization levels
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --opt-level O0 crypto.c
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --opt-level O3 crypto.c
+
+# Include conditional branch warnings
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --warnings crypto.c
+
+# Filter to specific functions
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --func 'sign|verify|decrypt' crypto.c
+
+# CI-friendly JSON output
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --json crypto.c
+```
+
+## Supported Compilers
+
+| Language | Compiler | Flag |
+|----------|----------|------|
+| C/C++ | gcc | `--compiler gcc` |
+| C/C++ | clang (default) | `--compiler clang` |
+| Go | go | `--compiler go` |
+| Rust | rustc | `--compiler rustc` |
+
+## Supported Architectures
+
+x86_64, arm64, arm, riscv64, ppc64le, s390x, i386
+
+## Dangerous Instructions by Architecture
+
+| Architecture | Division | Floating-Point |
+|-------------|----------|----------------|
+| x86_64 | DIV, IDIV, DIVQ, IDIVQ | DIVSS, DIVSD, SQRTSS, SQRTSD |
+| ARM64 | UDIV, SDIV | FDIV, FSQRT |
+| ARM | UDIV, SDIV | VDIV, VSQRT |
+| RISC-V | DIV, DIVU, REM, REMU | FDIV.S, FDIV.D, FSQRT |
+| PowerPC | DIVW, DIVD | FDIV, FSQRT |
+| s390x | D, DR, DL, DLG, DSG | DDB, SQDB |
+
+## Constant-Time Patterns
+
+### Replace Division
+
+```c
+// VULNERABLE: Compiler emits DIV instruction
+int32_t q = a / divisor;
+
+// SAFE: Barrett reduction (precompute mu = ceil(2^32 / divisor))
+uint32_t q = (uint32_t)(((uint64_t)a * mu) >> 32);
+```
+
+### Replace Branches
+
+```c
+// VULNERABLE: Branch timing reveals secret
+if (secret) { result = a; } else { result = b; }
+
+// SAFE: Constant-time selection
+uint32_t mask = -(uint32_t)(secret != 0);
+result = (a & mask) | (b & ~mask);
+```
+
+### Replace Comparisons
+
+```c
+// VULNERABLE: memcmp returns early on mismatch
+if (memcmp(a, b, len) == 0) { ... }
+
+// SAFE: Constant-time comparison
+if (CRYPTO_memcmp(a, b, len) == 0) { ... }  // OpenSSL
+if (subtle.ConstantTimeCompare(a, b) == 1) { ... }  // Go
+```
+
+## Common Mistakes
+
+1. **Testing only one optimization level** - Compilers make different decisions at O0 vs O3. A clean O2 build may have divisions at O0.
+
+2. **Testing only one architecture** - ARM and x86 have different division behavior. Test your deployment targets.
+
+3. **Ignoring warnings** - Conditional branches on secrets are exploitable. Use `--warnings` and review each branch.
+
+4. **Assuming the tool catches everything** - This tool detects instruction-level issues only. It cannot detect:
+   - Cache timing from memory access patterns
+   - Microarchitectural attacks (Spectre, etc.)
+   - Whether flagged code actually processes secrets
+
+5. **Fixing symptoms, not causes** - If compiler introduces division, understand why. Sometimes the algorithm itself needs redesign.
+
+## Go-Specific Notes
+
+Go compiles to native code, so the analyzer builds a binary and disassembles it using `go tool objdump`. The analyzer:
+- Sets `CGO_ENABLED=0` for pure Go analysis
+- Supports cross-compilation via `GOARCH` environment variable
+- Uses `-N -l` gcflags for O0 (disable optimizations)
+
+## Rust-Specific Notes
+
+Rust uses `rustc --emit=asm` for assembly generation. The analyzer:
+- Maps optimization levels to rustc's `-C opt-level` flag
+- Supports cross-compilation via `--target` flag
+- Analyzes the emitted assembly for timing-unsafe instructions
+
+## CI Integration
+
+```yaml
+- name: Check constant-time properties
+  run: |
+    uv run ct_analyzer/analyzer.py --json src/crypto/*.c
+    # Exit code 1 = violations found
+```
+
+
+### Ruby
+
+# Constant-Time Analysis: Ruby
+
+Analysis guidance for Ruby scripts. Uses YARV (Yet Another Ruby VM) instruction sequence dump to analyze bytecode for timing-unsafe operations.
+
+## Prerequisites
+
+- Ruby 2.0+ (uses `ruby --dump=insns`)
+
+## Running the Analyzer
+
+```bash
+# Analyze Ruby file
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py crypto.rb
+
+# Include warning-level violations
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --warnings crypto.rb
+
+# Filter to specific functions
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --func 'encrypt|sign' crypto.rb
+
+# JSON output for CI
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --json crypto.rb
+```
+
+## Dangerous Operations
+
+### Bytecodes (Errors)
+
+| Bytecode | Issue |
+|----------|-------|
+| opt_div | Variable-time execution based on operand values |
+| opt_mod | Variable-time execution based on operand values |
+
+### Bytecodes (Warnings)
+
+| Bytecode | Issue |
+|----------|-------|
+| opt_eq | May early-terminate on secret data |
+| opt_neq | May early-terminate on secret data |
+| opt_lt, opt_le, opt_gt, opt_ge | Comparison may leak timing |
+| branchif, branchunless | Conditional branch on secrets |
+| opt_aref | Array access may leak timing via cache |
+| opt_aset | Array store may leak timing via cache |
+| opt_lshift, opt_rshift | Bit shift timing may vary |
+
+### Functions (Errors)
+
+| Function | Issue | Safe Alternative |
+|----------|-------|------------------|
+| `rand()` | Predictable | `SecureRandom.random_bytes()` |
+| `Random.new` | Predictable | `SecureRandom` |
+| `srand()` | Sets predictable seed | `SecureRandom` |
+| `Math.sqrt()` | Variable latency | Avoid in crypto |
+
+### Functions (Warnings)
+
+| Function | Issue | Safe Alternative |
+|----------|-------|------------------|
+| `include?()` | Early-terminating | Constant-time search |
+| `index()` | Early-terminating | Constant-time search |
+| `start_with?()` | Early-terminating | `Rack::Utils.secure_compare()` |
+| `end_with?()` | Early-terminating | `Rack::Utils.secure_compare()` |
+| `match()` | Variable-time | Avoid on secrets |
+| `=~` | Variable-time regex | Avoid on secrets |
+| `to_json()` | Variable-length output | Fixed-length padding |
+| `Marshal.dump()` | Variable-length output | Avoid for secrets |
+| `Marshal.load()` | Variable-time, security risk | Avoid for secrets |
+
+## Safe Patterns
+
+### String Comparison
+
+```ruby
+# VULNERABLE: Early exit on mismatch
+if user_token == stored_token
+  # ...
+end
+
+# SAFE: Constant-time comparison (Rails/Rack)
+require 'rack/utils'
+if Rack::Utils.secure_compare(user_token, stored_token)
+  # ...
+end
+
+# SAFE: ActiveSupport (Rails)
+require 'active_support/security_utils'
+if ActiveSupport::SecurityUtils.secure_compare(user_token, stored_token)
+  # ...
+end
+
+# SAFE: OpenSSL (stdlib)
+require 'openssl'
+if OpenSSL.secure_compare(user_token, stored_token)
+  # ...
+end
+```
+
+### Random Number Generation
+
+```ruby
+# VULNERABLE: Predictable
+token = rand(2**128)
+random_bytes = Random.new.bytes(16)
+
+# SAFE: Cryptographically secure
+require 'securerandom'
+token = SecureRandom.random_bytes(16)
+token_hex = SecureRandom.hex(16)
+token_base64 = SecureRandom.base64(16)
+random_number = SecureRandom.random_number(2**128)
+```
+
+### Division Operations
+
+```ruby
+# VULNERABLE: Division has variable timing
+quotient = secret / divisor
+
+# SAFE: Barrett reduction for constant divisors
+def barrett_reduce(value, divisor, mu, bits)
+  q = (value * mu) >> (2 * bits)
+  r = value - q * divisor
+  # Constant-time correction using bitwise operations
+  mask = -(r >= divisor ? 1 : 0)
+  r - (divisor & mask)
+end
+```
+
+## Rails/Rack Integration
+
+### Secure Compare
+
+Rails and Rack provide constant-time comparison:
+
+```ruby
+# Rack (standalone)
+Rack::Utils.secure_compare(a, b)
+
+# Rails/ActiveSupport
+ActiveSupport::SecurityUtils.secure_compare(a, b)
+
+# OpenSSL (Ruby 2.5+)
+OpenSSL.secure_compare(a, b)
+```
+
+### CSRF Token Comparison
+
+```ruby
+# Rails automatically uses secure_compare for CSRF tokens
+# For custom token validation:
+class ApplicationController < ActionController::Base
+  def verify_api_token
+    provided = request.headers['X-API-Token']
+    expected = current_user.api_token
+
+    # SAFE: Constant-time comparison
+    unless ActiveSupport::SecurityUtils.secure_compare(provided, expected)
+      head :unauthorized
+    end
+  end
+end
+```
+
+## YARV Bytecode Notes
+
+The analyzer uses `ruby --dump=insns` to get YARV instruction sequences. Example output:
+
+```
+== disasm: #<ISeq:vulnerable_function@test.rb:1 (1,0)-(5,3)>
+local table (size: 2, argc: 2)
+[ 2] value@0    [ 1] modulus@1
+0000 getlocal_WC_0     value@0
+0002 getlocal_WC_0     modulus@1
+0004 opt_div           <calldata!mid:/, argc:1>
+0006 leave
+```
+
+The `opt_div` instruction at offset 0004 is flagged as a timing vulnerability.
+
+## Limitations
+
+### MRI Ruby Only
+
+The analyzer targets MRI (Matz's Ruby Interpreter) YARV bytecode. Alternative implementations (JRuby, TruffleRuby) have different bytecode formats:
+
+- **JRuby**: Compiles to JVM bytecode
+- **TruffleRuby**: Uses GraalVM intermediate representation
+
+### Method Caching
+
+Ruby's method dispatch involves caching that can affect timing. Even with constant-time operations, method lookup timing may leak information about code paths.
+
+### Gem Dependencies
+
+When auditing gems:
+1. Check if the gem uses `SecureRandom` instead of `rand`
+2. Verify string comparisons use `secure_compare`
+3. Look for division/modulo operations on sensitive data
+
+
+### Kotlin
+
+# Constant-Time Analysis: Kotlin
+
+Analysis guidance for Kotlin targeting Android and JVM platforms. Kotlin compiles to JVM bytecode, sharing the same runtime characteristics as Java.
+
+## Understanding Kotlin Compilation
+
+Kotlin compiles to JVM bytecode that runs on the same virtual machine as Java:
+
+```text
+Source Code (.kt/.kts)
+        |
+        v
+    kotlinc (Kotlin Compiler)
+        |
+        v
+Bytecode (.class files)
+        |
+        v
+    JIT Compiler (HotSpot/ART)
+        |
+        v
+   Native Code (at runtime)
+```
+
+**Key implications for Android:**
+
+1. **Android Runtime (ART)** - Android uses ART instead of HotSpot JVM
+2. **AOT compilation** - ART compiles bytecode to native code at install time
+3. **Same bytecode vulnerabilities** - Division/branch timing issues persist regardless of runtime
+
+## Running the Analyzer
+
+```bash
+# Analyze Kotlin source
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py CryptoUtils.kt
+
+# Include conditional branch warnings
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --warnings CryptoUtils.kt
+
+# Filter to specific functions
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --func 'sign|verify' CryptoUtils.kt
+
+# CI-friendly JSON output
+uv run plugins/constant-time-analysis/ct_analyzer/analyzer.py --json CryptoUtils.kt
+```
+
+Note: The `--arch` and `--opt-level` flags do not apply to Kotlin as it compiles to JVM bytecode.
+
+## Dangerous Bytecode Instructions
+
+Kotlin compiles to the same JVM bytecode as Java:
+
+| Category | Instructions | Risk |
+|----------|--------------|------|
+| Integer Division | `idiv`, `ldiv`, `irem`, `lrem` | Variable-time based on operand values |
+| Floating Division | `fdiv`, `ddiv`, `frem`, `drem` | Variable latency |
+| Conditional Branches | `ifeq`, `ifne`, `iflt`, `ifge`, `ifgt`, `ifle`, `if_icmp*` | Timing leak if condition depends on secrets |
+| Table Lookups | `*aload`, `*astore`, `tableswitch`, `lookupswitch` | Cache timing if index depends on secrets |
+
+## Constant-Time Patterns
+
+### Replace Division
+
+```kotlin
+// VULNERABLE: Division instruction emitted
+val q = secretValue / divisor
+
+// SAFE: Barrett reduction (for fixed divisor)
+// Precompute: mu = (1L shl 32) / divisor
+val mu = (1L shl 32) / divisor
+val q = ((secretValue.toLong() * mu) ushr 32).toInt()
+```
+
+### Replace Branches
+
+```kotlin
+// VULNERABLE: Branch timing reveals secret
+val result = if (secret != 0) a else b
+
+// SAFE: Constant-time selection using bitwise ops
+val mask = -(if (secret != 0) 1 else 0)
+// Better: compute mask without branch
+val mask = (secret or -secret) shr 31  // -1 if secret != 0, else 0
+val result = (a and mask) or (b and mask.inv())
+```
+
+### Replace Comparisons
+
+```kotlin
+// VULNERABLE: contentEquals() may early-terminate
+if (computed.contentEquals(expected)) { ... }
+
+// SAFE: Use MessageDigest.isEqual() for constant-time comparison
+import java.security.MessageDigest
+if (MessageDigest.isEqual(computed, expected)) { ... }
+```
+
+### Secure Random
+
+```kotlin
+// VULNERABLE: kotlin.random.Random is predictable
+import kotlin.random.Random
+val value = Random.nextInt()
+
+// SAFE: Cryptographically secure
+import java.security.SecureRandom
+val secureRand = SecureRandom()
+val value = secureRand.nextInt()
+
+// Or use Kotlin's secure wrapper (requires kotlin-stdlib-jdk8)
+import kotlin.random.asKotlinRandom
+val secureKotlinRandom = SecureRandom().asKotlinRandom()
+```
+
+## Android-Specific Considerations
+
+### Keystore Operations
+
+```kotlin
+// Use Android Keystore for cryptographic key storage
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+
+val keyGenerator = KeyGenerator.getInstance(
+    KeyProperties.KEY_ALGORITHM_AES,
+    "AndroidKeyStore"
+)
+keyGenerator.init(
+    KeyGenParameterSpec.Builder(
+        "my_key",
+        KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+    )
+    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+    .build()
+)
+```
+
+### Constant-Time Comparison on Android
+
+```kotlin
+// Android provides MessageDigest.isEqual()
+import java.security.MessageDigest
+
+fun constantTimeEquals(a: ByteArray, b: ByteArray): Boolean {
+    return MessageDigest.isEqual(a, b)
+}
+```
+
+### Secure Random on Android
+
+```kotlin
+// SecureRandom works the same on Android
+import java.security.SecureRandom
+
+fun generateSecureToken(length: Int): ByteArray {
+    val random = SecureRandom()
+    val token = ByteArray(length)
+    random.nextBytes(token)
+    return token
+}
+```
+
+## Kotlin-Specific Pitfalls
+
+### Extension Functions on Primitives
+
+```kotlin
+// DANGEROUS: Division in extension function
+fun Int.divideBy(divisor: Int) = this / divisor  // Emits IDIV
+
+// The inline modifier doesn't change bytecode behavior
+inline fun Int.divideByInline(divisor: Int) = this / divisor  // Still IDIV
+```
+
+### When Expressions
+
+```kotlin
+// VULNERABLE: when compiles to tableswitch/lookupswitch
+when (secretValue) {
+    0 -> handleZero()
+    1 -> handleOne()
+    else -> handleOther()
+}
+
+// Consider constant-time alternatives for secret-dependent dispatch
+```
+
+### Null Safety Checks
+
+```kotlin
+// Nullable operations may introduce branches
+val result = secretNullable?.process()  // Introduces null check branch
+
+// Be aware of null-check timing when handling secrets
+```
+
+## Setup Requirements
+
+### Kotlin Compiler
+
+**macOS:**
+```bash
+brew install kotlin
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo snap install kotlin --classic
+```
+
+**Windows:**
+```bash
+scoop install kotlin
+# or
+choco install kotlinc
+```
+
+### Android Development
+
+For Android projects, the Kotlin compiler is typically bundled with Android Studio. Ensure your project's Kotlin version is up to date in `build.gradle.kts`:
+
+```kotlin
+plugins {
+    kotlin("jvm") version "1.9.0"
+}
+```
+
+### Verification
+
+```bash
+kotlinc -version  # Should show: kotlinc-jvm X.X.X
+javap -version    # Required for bytecode disassembly
+```
+
+## Common Mistakes
+
+1. **Using kotlin.random.Random** - The default Random is not cryptographically secure; use `java.security.SecureRandom`
+
+2. **Relying on == for byte arrays** - `==` compares references in Kotlin; use `contentEquals()` for value comparison, but neither is constant-time
+
+3. **Infix functions for crypto** - Custom operators don't change timing characteristics of underlying operations
+
+4. **Coroutines timing** - Suspending functions add scheduling overhead that may mask or introduce timing variations
+
+5. **Sealed classes for dispatch** - Pattern matching on sealed classes compiles to switches that may leak timing
+
+## Further Reading
+
+- [Kotlin/JVM Interoperability](https://kotlinlang.org/docs/java-interop.html)
+- [Android Keystore System](https://developer.android.com/training/articles/keystore)
+- [Bouncy Castle for Kotlin](https://www.bouncycastle.org/java.html) - Constant-time crypto primitives
+

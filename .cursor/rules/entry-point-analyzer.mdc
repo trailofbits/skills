@@ -1,0 +1,1216 @@
+---
+description: "Analyzes smart contract codebases to identify state-changing entry points for security auditing. Detects externally callable functions that modify state, categorizes them by access level (public, admin, role-restricted, contract-only), and generates structured audit reports. Excludes view/pure/read-only functions. Use when auditing smart contracts (Solidity, Vyper, Solana/Rust, Move, TON, CosmWasm) or when asked to find entry points, audit flows, external functions, access control patterns, or privileged operations."
+globs: "*.go, *.move, *.rs, *.sol, *.vy"
+alwaysApply: false
+---
+
+# entry-point-analyzer
+
+*From Trail of Bits Skills - Author: Nicolas Donboly*
+
+# Entry Point Analyzer
+
+Systematically identify all **state-changing** entry points in a smart contract codebase to guide security audits.
+
+## When to Use
+
+Use this skill when:
+- Starting a smart contract security audit to map the attack surface
+- Asked to find entry points, external functions, or audit flows
+- Analyzing access control patterns across a codebase
+- Identifying privileged operations and role-restricted functions
+- Building an understanding of which functions can modify contract state
+
+## When NOT to Use
+
+Do NOT use this skill for:
+- Vulnerability detection (use audit-context-building or domain-specific-audits)
+- Writing exploit POCs (use solidity-poc-builder)
+- Code quality or gas optimization analysis
+- Non-smart-contract codebases
+- Analyzing read-only functions (this skill excludes them)
+
+## Scope: State-Changing Functions Only
+
+This skill focuses exclusively on functions that can modify state. **Excluded:**
+
+| Language | Excluded Patterns |
+|----------|-------------------|
+| Solidity | `view`, `pure` functions |
+| Vyper | `@view`, `@pure` functions |
+| Solana | Functions without `mut` account references |
+| Move | Non-entry `public fun` (module-callable only) |
+| TON | `get` methods (FunC), read-only receivers (Tact) |
+| CosmWasm | `query` entry point and its handlers |
+
+**Why exclude read-only functions?** They cannot directly cause loss of funds or state corruption. While they may leak information, the primary audit focus is on functions that can change state.
+
+## Workflow
+
+1. **Detect Language** - Identify contract language(s) from file extensions and syntax
+2. **Use Tooling (if available)** - For Solidity, check if Slither is available and use it
+3. **Locate Contracts** - Find all contract/module files (apply directory filter if specified)
+4. **Extract Entry Points** - Parse each file for externally callable, state-changing functions
+5. **Classify Access** - Categorize each function by access level
+6. **Generate Report** - Output structured markdown report
+
+## Slither Integration (Solidity)
+
+For Solidity codebases, Slither can automatically extract entry points. Before manual analysis:
+
+### 1. Check if Slither is Available
+
+```bash
+which slither
+```
+
+### 2. If Slither is Detected, Run Entry Points Printer
+
+```bash
+slither . --print entry-points
+```
+
+This outputs a table of all state-changing entry points with:
+- Contract name
+- Function name
+- Visibility
+- Modifiers applied
+
+### 3. Use Slither Output as Foundation
+
+- Parse the Slither output table to populate your analysis
+- Cross-reference with manual inspection for access control classification
+- Slither may miss some patterns (callbacks, dynamic access control)—supplement with manual review
+- If Slither fails (compilation errors, unsupported features), fall back to manual analysis
+
+### 4. When Slither is NOT Available
+
+If `which slither` returns nothing, proceed with manual analysis using the language-specific reference files.
+
+## Language Detection
+
+| Extension | Language | Reference |
+|-----------|----------|-----------|
+| `.sol` | Solidity | [plugins/entry-point-analyzer/references/solidity.md](plugins/entry-point-analyzer/references/solidity.md) |
+| `.vy` | Vyper | [plugins/entry-point-analyzer/references/vyper.md](plugins/entry-point-analyzer/references/vyper.md) |
+| `.rs` + `Cargo.toml` with `solana-program` | Solana (Rust) | [plugins/entry-point-analyzer/references/solana.md](plugins/entry-point-analyzer/references/solana.md) |
+| `.move` | Move (Aptos/Sui) | [plugins/entry-point-analyzer/references/move.md](plugins/entry-point-analyzer/references/move.md) |
+| `.fc`, `.func`, `.tact` | TON (FunC/Tact) | [plugins/entry-point-analyzer/references/ton.md](plugins/entry-point-analyzer/references/ton.md) |
+| `.rs` + `Cargo.toml` with `cosmwasm-std` | CosmWasm | [plugins/entry-point-analyzer/references/cosmwasm.md](plugins/entry-point-analyzer/references/cosmwasm.md) |
+
+Load the appropriate reference file(s) based on detected language before analysis.
+
+## Access Classification
+
+Classify each state-changing entry point into one of these categories:
+
+### 1. Public (Unrestricted)
+Functions callable by anyone without restrictions.
+
+### 2. Role-Restricted
+Functions limited to specific roles. Common patterns to detect:
+- Explicit role names: `admin`, `owner`, `governance`, `guardian`, `operator`, `manager`, `minter`, `pauser`, `keeper`, `relayer`, `lender`, `borrower`
+- Role-checking patterns: `onlyRole`, `hasRole`, `require(msg.sender == X)`, `assert_owner`, `#[access_control]`
+- When role is ambiguous, flag as **"Restricted (review required)"** with the restriction pattern noted
+
+### 3. Contract-Only (Internal Integration Points)
+Functions callable only by other contracts, not by EOAs. Indicators:
+- Callbacks: `onERC721Received`, `uniswapV3SwapCallback`, `flashLoanCallback`
+- Interface implementations with contract-caller checks
+- Functions that revert if `tx.origin == msg.sender`
+- Cross-contract hooks
+
+## Output Format
+
+Generate a markdown report with this structure:
+
+```markdown
+# Entry Point Analysis: [Project Name]
+
+**Analyzed**: [timestamp]
+**Scope**: [directories analyzed or "full codebase"]
+**Languages**: [detected languages]
+**Focus**: State-changing functions only (view/pure excluded)
+
+## Summary
+
+| Category | Count |
+|----------|-------|
+| Public (Unrestricted) | X |
+| Role-Restricted | X |
+| Restricted (Review Required) | X |
+| Contract-Only | X |
+| **Total** | **X** |
+
+---
+
+## Public Entry Points (Unrestricted)
+
+State-changing functions callable by anyone—prioritize for attack surface analysis.
+
+| Function | File | Notes |
+|----------|------|-------|
+| `functionName(params)` | `path/to/file.sol:L42` | Brief note if relevant |
+
+---
+
+## Role-Restricted Entry Points
+
+### Admin / Owner
+| Function | File | Restriction |
+|----------|------|-------------|
+| `setFee(uint256)` | `Config.sol:L15` | `onlyOwner` |
+
+### Governance
+| Function | File | Restriction |
+|----------|------|-------------|
+
+### Guardian / Pauser
+| Function | File | Restriction |
+|----------|------|-------------|
+
+### Other Roles
+| Function | File | Restriction | Role |
+|----------|------|-------------|------|
+
+---
+
+## Restricted (Review Required)
+
+Functions with access control patterns that need manual verification.
+
+| Function | File | Pattern | Why Review |
+|----------|------|---------|------------|
+| `execute(bytes)` | `Executor.sol:L88` | `require(trusted[msg.sender])` | Dynamic trust list |
+
+---
+
+## Contract-Only (Internal Integration Points)
+
+Functions only callable by other contracts—useful for understanding trust boundaries.
+
+| Function | File | Expected Caller |
+|----------|------|-----------------|
+| `onFlashLoan(...)` | `Vault.sol:L200` | Flash loan provider |
+
+---
+
+## Files Analyzed
+
+- `path/to/file1.sol` (X state-changing entry points)
+- `path/to/file2.sol` (X state-changing entry points)
+```
+
+## Filtering
+
+When user specifies a directory filter:
+- Only analyze files within that path
+- Note the filter in the report header
+- Example: "Analyze only `src/core/`" → scope = `src/core/`
+
+## Analysis Guidelines
+
+1. **Be thorough**: Don't skip files. Every state-changing externally callable function matters.
+2. **Be conservative**: When uncertain about access level, flag for review rather than miscategorize.
+3. **Skip read-only**: Exclude `view`, `pure`, and equivalent read-only functions.
+4. **Note inheritance**: If a function's access control comes from a parent contract, note this.
+5. **Track modifiers**: List all access-related modifiers/decorators applied to each function.
+6. **Identify patterns**: Look for common patterns like:
+   - Initializer functions (often unrestricted on first call)
+   - Upgrade functions (high-privilege)
+   - Emergency/pause functions (guardian-level)
+   - Fee/parameter setters (admin-level)
+   - Token transfers and approvals (often public)
+
+## Common Role Patterns by Protocol Type
+
+| Protocol Type | Common Roles |
+|---------------|--------------|
+| DEX | `owner`, `feeManager`, `pairCreator` |
+| Lending | `admin`, `guardian`, `liquidator`, `oracle` |
+| Governance | `proposer`, `executor`, `canceller`, `timelock` |
+| NFT | `minter`, `admin`, `royaltyReceiver` |
+| Bridge | `relayer`, `guardian`, `validator`, `operator` |
+| Vault/Yield | `strategist`, `keeper`, `harvester`, `manager` |
+
+## Rationalizations to Reject
+
+When analyzing entry points, reject these shortcuts:
+- "This function looks standard" → Still classify it; standard functions can have non-standard access control
+- "The modifier name is clear" → Verify the modifier's actual implementation
+- "This is obviously admin-only" → Trace the actual restriction; "obvious" assumptions miss subtle bypasses
+- "I'll skip the callbacks" → Callbacks define trust boundaries; always include them
+- "It doesn't modify much state" → Any state change can be exploited; include all non-view functions
+
+## Error Handling
+
+If a file cannot be parsed:
+1. Note it in the report under "Analysis Warnings"
+2. Continue with remaining files
+3. Suggest manual review for unparsable files
+
+---
+
+## Additional References
+
+### Move
+
+# Move Entry Point Detection (Aptos/Sui)
+
+## Entry Point Identification (State-Changing Only)
+
+In Move, `entry` functions are designed for transactions and typically modify state. **Include all entry functions** by default, as they represent the attack surface. Pure `public fun` (non-entry) functions are module-callable only and excluded.
+
+### Aptos Move
+```move
+// Public entry functions are entry points
+public entry fun transfer(from: &signer, to: address, amount: u64) { }
+
+// Public functions callable by other modules
+public fun helper(): u64 { }
+
+// Entry-only functions (can't be called by other modules)
+entry fun private_entry(account: &signer) { }
+```
+
+### Sui Move
+```move
+// Entry functions in Sui
+public entry fun transfer(ctx: &mut TxContext) { }
+
+// Public functions
+public fun compute(): u64 { }
+```
+
+### Visibility Rules
+| Visibility | Include? | Notes |
+|------------|----------|-------|
+| `public entry fun` | **Yes** | Transaction entry point (state-changing) |
+| `entry fun` | **Yes** | Transaction-only entry point |
+| `public fun` | No | Module-callable only, not direct entry |
+| `fun` (private) | No | Not externally callable |
+| `public(friend) fun` | No | Friend modules only |
+
+## Access Control Patterns
+
+### Signer-Based Control (Aptos)
+```move
+// Admin check via signer
+public entry fun admin_action(admin: &signer) {
+    assert!(signer::address_of(admin) == @admin_address, E_NOT_ADMIN);
+}
+
+// Owner check via resource
+public entry fun owner_action(owner: &signer) acquires Config {
+    let config = borrow_global<Config>(@module_addr);
+    assert!(signer::address_of(owner) == config.owner, E_NOT_OWNER);
+}
+```
+
+### Capability Pattern (Aptos)
+```move
+// Capability resource
+struct AdminCap has key, store {}
+
+// Requires capability
+public entry fun admin_action(admin: &signer) acquires AdminCap {
+    assert!(exists<AdminCap>(signer::address_of(admin)), E_NO_CAP);
+}
+```
+
+### Sui Object Ownership
+```move
+// Object ownership provides access control
+public entry fun use_owned_object(obj: &mut MyObject, ctx: &mut TxContext) {
+    // Only owner of obj can call this
+}
+
+// Shared objects - anyone can access
+public entry fun use_shared(obj: &mut SharedObject) { }
+```
+
+### Access Control Classification
+| Pattern | Classification |
+|---------|----------------|
+| `signer::address_of(s) == @admin` | Admin |
+| `signer::address_of(s) == config.owner` | Owner |
+| `exists<AdminCap>(addr)` | Admin (capability) |
+| `exists<GovernanceCap>(addr)` | Governance |
+| `exists<GuardianCap>(addr)` | Guardian |
+| Owned object parameter | Owner of object |
+| Shared object, no signer check | Public (Unrestricted) |
+| `&signer` with no checks | Review Required |
+
+## Contract-Only Detection
+
+### Friend Functions
+```move
+// Only callable by friend modules
+public(friend) fun internal_callback() { }
+
+// Friend declaration
+friend other_module;
+```
+
+### Module-to-Module Patterns
+```move
+// Functions designed for other modules
+public fun on_transfer_hook(amount: u64): bool {
+    // Called by token module
+}
+```
+
+## Extraction Strategy
+
+### Aptos
+1. Parse all `.move` files
+2. Find `module` declarations
+3. Extract functions with `public entry` or `entry` visibility
+4. Check function body for:
+   - `signer::address_of` comparisons → Role-based
+   - `exists<*Cap>` checks → Capability-based
+   - No access checks → Public (Unrestricted)
+
+### Sui
+1. Parse all `.move` files
+2. Find `module` declarations
+3. Extract `public entry` and `entry` functions
+4. Analyze parameters:
+   - Owned object types → Owner-restricted
+   - Shared objects without signer → Public
+   - `&signer`/`&mut TxContext` with checks → Role-based
+
+## Move-Specific Considerations
+
+1. **Resource Model**: Access control often through resource ownership
+2. **Capabilities**: `Cap` suffix typically indicates capability pattern
+3. **Acquires**: `acquires Resource` shows what global resources are accessed
+4. **Generic Types**: Type parameters may carry capability constraints
+5. **Friend Visibility**: `public(friend)` limits callers to declared friends
+
+## Common Gotchas
+
+1. **Init Functions**: `init` or `initialize` often create initial capabilities
+2. **Object Wrapping (Sui)**: Wrapped objects transfer ownership
+3. **Shared vs Owned (Sui)**: Shared objects have different access semantics
+4. **Module Upgrades**: Check upgrade capability ownership
+5. **Phantom Types**: Type parameters with `phantom` don't affect runtime
+
+
+### Ton
+
+# TON Entry Point Detection (FunC/Tact)
+
+## Entry Point Identification (State-Changing Only)
+
+Focus on message handlers that modify state. **Exclude** read-only patterns:
+- `get` methods in FunC (pure getters)
+- Receivers that only return data without state changes
+
+### FunC Entry Points
+```func
+;; Main entry point - receives all external messages
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    ;; Dispatch based on op code
+    int op = in_msg_body~load_uint(32);
+    if (op == op::transfer) { handle_transfer(); }
+}
+
+;; External messages (from outside blockchain)
+() recv_external(slice in_msg) impure {
+    ;; Usually for wallet operations
+}
+
+;; Tick-tock for special contracts
+() run_ticktock(cell full_state, int is_tock) impure {
+}
+```
+
+### Tact Entry Points
+```tact
+contract MyContract {
+    // Receivers are entry points
+    receive(msg: Transfer) {
+        // Handle Transfer message
+    }
+    
+    receive("increment") {
+        // Handle text message
+    }
+    
+    // External receiver
+    external(msg: Deploy) {
+        // Handle external message
+    }
+    
+    // Bounce handler
+    bounced(src: bounced<Transfer>) {
+        // Handle bounced message
+    }
+}
+```
+
+### Entry Point Types
+| Pattern | Include? | Notes |
+|---------|----------|-------|
+| `recv_internal` | **Yes** | All internal messages (state-changing) |
+| `recv_external` | **Yes** | External (off-chain) messages |
+| `receive(MsgType)` | **Yes** | Tact message handler |
+| `external(MsgType)` | **Yes** | Tact external handler |
+| `bounced(...)` | **Yes** | Bounce handler |
+| `get` methods (FunC) | No | EXCLUDE - read-only getters |
+| `get fun` (Tact) | No | EXCLUDE - read-only getters |
+| Helper functions | No | Internal only |
+
+## Access Control Patterns
+
+### FunC Access Control
+```func
+;; Owner check
+() check_owner() impure inline {
+    throw_unless(401, equal_slices(sender_address, owner_address));
+}
+
+;; Admin check via stored address
+() require_admin() impure inline {
+    var ds = get_data().begin_parse();
+    slice admin = ds~load_msg_addr();
+    throw_unless(403, equal_slices(sender_address, admin));
+}
+```
+
+### Tact Access Control
+```tact
+contract Owned {
+    owner: Address;
+    
+    receive(msg: AdminAction) {
+        require(sender() == self.owner, "Not owner");
+        // ...
+    }
+    
+    // Using traits
+    receive(msg: Transfer) {
+        self.requireOwner();  // From Ownable trait
+        // ...
+    }
+}
+```
+
+### Op Code Dispatch Pattern (FunC)
+```func
+() recv_internal(...) impure {
+    int op = in_msg_body~load_uint(32);
+    
+    ;; Public operations
+    if (op == op::transfer) { return handle_transfer(); }
+    if (op == op::swap) { return handle_swap(); }
+    
+    ;; Admin operations
+    if (op == op::set_fee) {
+        check_owner();
+        return handle_set_fee();
+    }
+}
+```
+
+### Access Control Classification
+| Pattern | Classification |
+|---------|----------------|
+| `equal_slices(sender, owner)` | Owner |
+| `equal_slices(sender, admin)` | Admin |
+| `require(sender() == self.owner)` | Owner |
+| `self.requireOwner()` | Owner |
+| `throw_unless(X, equal_slices(...))` | Check error code context |
+| No sender check for op code | Public (Unrestricted) |
+
+## Contract-Only Detection
+
+### Callback Patterns
+```func
+;; Jetton transfer notification
+() on_jetton_transfer(...) impure {
+    ;; Should verify sender is jetton wallet
+}
+
+;; NFT callbacks
+() on_nft_transfer(...) impure {
+}
+```
+
+### Contract Verification
+```func
+;; Verify caller is expected contract
+() verify_caller(slice expected) impure inline {
+    throw_unless(402, equal_slices(sender_address, expected));
+}
+```
+
+## Extraction Strategy
+
+### FunC
+1. Parse `.fc` / `.func` files
+2. Find `recv_internal` and `recv_external` functions
+3. Extract op code dispatch table:
+   - Map op codes to handler functions
+   - Check each handler for owner/admin checks
+4. Classify:
+   - Op codes with no access check → Public
+   - Op codes with `check_owner`/similar → Role-based
+   - Callbacks → Contract-Only
+
+### Tact
+1. Parse `.tact` files
+2. Find `contract` declarations
+3. Extract all `receive`, `external`, `bounced` handlers
+   - **Skip** `get fun` declarations (read-only getters)
+4. Check handler body for:
+   - `require(sender() == self.X)` → Role-based
+   - `self.requireOwner()` → Owner
+   - No sender validation → Public (Unrestricted)
+
+## TON-Specific Considerations
+
+1. **Message-Based**: All interactions are via messages with op codes
+2. **Workchains**: Check if contract operates on specific workchain
+3. **Bounced Messages**: Handle bounced messages appropriately
+4. **Gas Management**: `accept_message()` in FunC accepts gas payment
+5. **State Init**: Initial deployment may set owner/admin
+
+## Common Gotchas
+
+1. **Op Code Collisions**: Different contracts may use same op codes
+2. **Proxy Patterns**: Some contracts forward messages
+3. **Wallet Contracts**: Special access control for wallet operations
+4. **Masterchain**: Some operations require masterchain deployment
+5. **Query ID**: Track request/response with query_id
+
+
+### Cosmwasm
+
+# CosmWasm Entry Point Detection
+
+## Entry Point Identification (State-Changing Only)
+
+### Include: State-Changing Entry Points
+```rust
+// Instantiate - called once on deployment
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> { }
+
+// Execute - main entry point for state changes
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> { }
+
+// Query - read-only entry point
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(
+    deps: Deps,
+    env: Env,
+    msg: QueryMsg,
+) -> StdResult<Binary> { }
+
+// Migrate - called on contract migration
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    env: Env,
+    msg: MigrateMsg,
+) -> Result<Response, ContractError> { }
+
+// Reply - handles submessage responses
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(
+    deps: DepsMut,
+    env: Env,
+    msg: Reply,
+) -> Result<Response, ContractError> { }
+
+// Sudo - privileged operations (governance)
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn sudo(
+    deps: DepsMut,
+    env: Env,
+    msg: SudoMsg,
+) -> Result<Response, ContractError> { }
+```
+
+### Entry Point Types
+| Entry Point | Include? | Classification | Notes |
+|-------------|----------|----------------|-------|
+| `instantiate` | **Yes** | One-time setup | Sets initial state |
+| `execute` | **Yes** | Main dispatcher | Contains multiple operations |
+| `query` | No | Read-only | EXCLUDE - no state changes |
+| `migrate` | **Yes** | Admin/Governance | Requires migration permission |
+| `reply` | **Yes** | Contract-Only | Submessage callback |
+| `sudo` | **Yes** | Governance | Chain-level privileged |
+
+### ExecuteMsg Variants (Primary Focus)
+```rust
+#[cw_serde]
+pub enum ExecuteMsg {
+    Transfer { recipient: String, amount: Uint128 },     // Usually public
+    UpdateConfig { admin: Option<String> },              // Admin only
+    Pause {},                                            // Guardian
+    Withdraw { amount: Uint128 },                        // Public or restricted
+}
+```
+
+## Access Control Patterns
+
+### Cw-Ownable Pattern
+```rust
+use cw_ownable::{assert_owner, initialize_owner};
+
+pub fn execute_admin_action(deps: DepsMut, info: MessageInfo) -> Result<...> {
+    assert_owner(deps.storage, &info.sender)?;
+    // ...
+}
+```
+
+### Manual Owner Check
+```rust
+pub fn execute_update_config(deps: DepsMut, info: MessageInfo) -> Result<...> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+    // ...
+}
+```
+
+### Role-Based Access
+```rust
+// Common patterns
+if info.sender != state.admin { return Err(Unauthorized); }
+if info.sender != state.governance { return Err(Unauthorized); }
+if !state.operators.contains(&info.sender) { return Err(Unauthorized); }
+
+// Using cw-controllers
+use cw_controllers::Admin;
+ADMIN.assert_admin(deps.as_ref(), &info.sender)?;
+```
+
+### Access Control Classification
+| Pattern | Classification |
+|---------|----------------|
+| `assert_owner(storage, &sender)` | Owner |
+| `ADMIN.assert_admin(deps, &sender)` | Admin |
+| `info.sender != config.owner` | Owner |
+| `info.sender != config.admin` | Admin |
+| `info.sender != config.governance` | Governance |
+| `!operators.contains(&sender)` | Operator |
+| `!guardians.contains(&sender)` | Guardian |
+| No sender check | Public (Unrestricted) |
+
+## Contract-Only Detection
+
+### Reply Handler
+```rust
+#[entry_point]
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg.id {
+        INSTANTIATE_REPLY_ID => handle_instantiate_reply(deps, msg),
+        _ => Err(ContractError::UnknownReplyId { id: msg.id }),
+    }
+}
+```
+
+### Callback Messages
+```rust
+// Messages expected from other contracts
+ExecuteMsg::Callback { ... } => {
+    // Should verify sender is expected contract
+    if info.sender != expected_contract {
+        return Err(ContractError::Unauthorized {});
+    }
+}
+```
+
+## Extraction Strategy
+
+1. **Find Message Enums**:
+   - `ExecuteMsg` - main operations (INCLUDE)
+   - `QueryMsg` - read operations (EXCLUDE)
+   - `SudoMsg` - governance operations (INCLUDE)
+
+2. **For Each ExecuteMsg Variant**:
+   - Find handler function (usually `execute_<variant_name>`)
+   - Check for access control at start of function
+   - Classify by access pattern
+
+3. **Map Entry Points**:
+   - `execute` dispatcher → enumerate variants (state-changing)
+   - `query` → **SKIP** (read-only, no state changes)
+   - `sudo` → all variants are governance-level
+   - `reply` → contract-only callbacks
+
+## CosmWasm-Specific Considerations
+
+1. **Message Info**: `info.sender` is the caller address
+2. **Query Has No Sender**: Queries are stateless, no access control
+3. **Sudo Is Privileged**: Only callable by chain governance
+4. **Submessages**: `reply` handles responses from submessages
+5. **IBC**: IBC entry points for cross-chain messages
+
+## Common Gotchas
+
+1. **Instantiate Race**: First caller sets owner if not careful
+2. **Migration Admin**: Separate from contract admin
+3. **Cw20 Callbacks**: `Cw20ReceiveMsg` is a callback pattern
+4. **IBC Callbacks**: `ibc_packet_receive` etc. are entry points
+5. **Admin vs Owner**: May be different addresses
+
+
+### Solana
+
+# Solana Entry Point Detection
+
+## Entry Point Identification (State-Changing Only)
+
+In Solana, most program instructions modify state. **Exclude** view-only patterns:
+- Instructions that only read account data without `mut` references
+- Pure computation functions that don't write to accounts
+
+### Native Solana Programs
+```rust
+// Single entrypoint macro
+entrypoint!(process_instruction);
+
+pub fn process_instruction(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    instruction_data: &[u8],
+) -> ProgramResult {
+    // Dispatch to handlers based on instruction_data
+}
+```
+
+### Anchor Framework
+```rust
+#[program]
+mod my_program {
+    use super::*;
+    
+    // Each pub fn is an entry point
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> { }
+    pub fn transfer(ctx: Context<Transfer>, amount: u64) -> Result<()> { }
+}
+```
+
+### Entry Point Detection Rules
+| Pattern | Include? | Notes |
+|---------|----------|-------|
+| `entrypoint!(fn_name)` | **Yes** | Native program entry |
+| `pub fn` inside `#[program]` mod with `mut` accounts | **Yes** | Anchor state-changing |
+| `pub fn` inside `#[program]` mod (view-only) | No | Exclude if no `mut` accounts |
+| Functions in `processor.rs` matching instruction enum | **Yes** | Native pattern |
+| Internal helper functions | No | Not externally callable |
+
+## Access Control Patterns
+
+### Anchor Constraints
+```rust
+#[derive(Accounts)]
+pub struct AdminOnly<'info> {
+    #[account(mut)]
+    pub admin: Signer<'info>,
+    
+    #[account(
+        constraint = config.admin == admin.key() @ ErrorCode::Unauthorized
+    )]
+    pub config: Account<'info, Config>,
+}
+```
+
+### Common Access Control Patterns
+| Pattern | Classification |
+|---------|----------------|
+| `constraint = X.admin == signer.key()` | Admin |
+| `constraint = X.owner == signer.key()` | Owner |
+| `constraint = X.authority == signer.key()` | Authority (Admin-level) |
+| `constraint = X.governance == signer.key()` | Governance |
+| `constraint = X.guardian == signer.key()` | Guardian |
+| `has_one = admin` | Admin |
+| `has_one = owner` | Owner |
+| `has_one = authority` | Authority |
+| `Signer` account with no constraints | Review Required |
+
+### Native Access Control
+```rust
+// Check signer
+if !accounts[0].is_signer {
+    return Err(ProgramError::MissingRequiredSignature);
+}
+
+// Check specific authority
+if accounts[0].key != &expected_authority {
+    return Err(ProgramError::InvalidAccountData);
+}
+```
+
+### Access Control Macros (Anchor)
+```rust
+#[access_control(is_admin(&ctx))]
+pub fn admin_function(ctx: Context<AdminAction>) -> Result<()> { }
+
+fn is_admin(ctx: &Context<AdminAction>) -> Result<()> {
+    require!(ctx.accounts.admin.key() == ADMIN_PUBKEY, Unauthorized);
+    Ok(())
+}
+```
+
+## Contract-Only Detection (CPI Patterns)
+
+### Cross-Program Invocation Sources
+```rust
+// Functions expected to be called via CPI
+pub fn on_token_transfer(ctx: Context<TokenCallback>, amount: u64) -> Result<()> {
+    // Should verify calling program
+    require!(
+        ctx.accounts.calling_program.key() == expected_program::ID,
+        ErrorCode::InvalidCaller
+    );
+}
+```
+
+### CPI Verification Patterns
+```rust
+// Verify CPI caller
+let calling_program = ctx.accounts.calling_program.key();
+require!(calling_program == &spl_token::ID, InvalidCaller);
+
+// Check instruction sysvar for CPI
+let ix = load_current_index_checked(&ctx.accounts.instruction_sysvar)?;
+```
+
+## Extraction Strategy
+
+1. **Detect Framework**:
+   - Check `Cargo.toml` for `anchor-lang` → Anchor
+   - Check for `entrypoint!` macro → Native
+   
+2. **For Anchor**:
+   - Find `#[program]` module
+   - Extract all `pub fn` within it
+   - Parse `#[derive(Accounts)]` structs for constraints
+   
+3. **For Native**:
+   - Find instruction enum (usually in `instruction.rs`)
+   - Map variants to handler functions in `processor.rs`
+   - Check each handler for signer/authority checks
+
+4. **Classify**:
+   - No authority constraints → Public (Unrestricted)
+   - `has_one`, `constraint` with authority → Role-based
+   - CPI-only patterns → Contract-Only
+
+## Solana-Specific Considerations
+
+1. **Account Validation**: Access control often via account constraints, not function-level
+2. **PDA Authority**: Program Derived Addresses can act as authorities
+3. **Signer vs Authority**: `Signer` alone doesn't mean admin—check what the signer controls
+4. **Instruction Data**: Native programs dispatch based on instruction discriminator
+
+## Common Gotchas
+
+1. **Initialize Patterns**: `is_initialized` checks—first caller may set authority
+2. **Upgrade Authority**: Programs can be upgraded—check upgrade authority
+3. **Multisig**: Some operations require multiple signers
+4. **CPI Safety**: Functions callable via CPI should verify calling program
+5. **Freeze Authority**: Token accounts may have freeze authority
+
+
+### Solidity
+
+# Solidity Entry Point Detection
+
+## Entry Point Identification (State-Changing Only)
+
+### Include: State-Changing Functions
+```solidity
+function name() external { }           // State-changing entry point
+function name() external payable { }   // State-changing, receives ETH
+function name() public { }             // State-changing entry point
+```
+
+### Exclude: Read-Only Functions
+```solidity
+function name() external view { }      // EXCLUDE - cannot modify state
+function name() external pure { }      // EXCLUDE - no state access
+function name() public view { }        // EXCLUDE - cannot modify state
+```
+
+### Visibility and Mutability Matrix
+| Visibility | Mutability | Include? | Notes |
+|------------|------------|----------|-------|
+| `external` | (none) | **Yes** | State-changing entry point |
+| `external` | `payable` | **Yes** | State-changing, receives ETH |
+| `external` | `view` | No | Read-only, exclude |
+| `external` | `pure` | No | No state access, exclude |
+| `public` | (none) | **Yes** | State-changing entry point |
+| `public` | `payable` | **Yes** | State-changing, receives ETH |
+| `public` | `view` | No | Read-only, exclude |
+| `public` | `pure` | No | No state access, exclude |
+| `internal` | any | No | Not externally callable |
+| `private` | any | No | Not externally callable |
+
+### Special Entry Points
+- `receive() external payable` — Receives plain ETH transfers
+- `fallback() external` — Catches unmatched function calls
+- `constructor()` — One-time initialization (not recurring entry point)
+
+## Access Control Patterns
+
+### OpenZeppelin Patterns
+```solidity
+// Ownable
+modifier onlyOwner() { require(msg.sender == owner); }
+
+// AccessControl
+modifier onlyRole(bytes32 role) { require(hasRole(role, msg.sender)); }
+
+// Common role constants
+bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+```
+
+### Common Modifier Names → Role Classification
+| Modifier Pattern | Classification |
+|------------------|----------------|
+| `onlyOwner` | Admin/Owner |
+| `onlyAdmin` | Admin |
+| `onlyRole(ADMIN_ROLE)` | Admin |
+| `onlyRole(GOVERNANCE_ROLE)` | Governance |
+| `onlyGovernance` | Governance |
+| `onlyGuardian` | Guardian |
+| `onlyPauser`, `whenNotPaused` | Guardian/Pauser |
+| `onlyMinter` | Minter |
+| `onlyOperator` | Operator |
+| `onlyKeeper` | Keeper |
+| `onlyRelayer` | Relayer |
+| `onlyStrategy`, `onlyStrategist` | Strategist |
+| `onlyVault` | Contract-Only |
+
+### Inline Access Control (Flag for Review)
+```solidity
+require(msg.sender == someAddress, "...");      // Check who someAddress is
+require(authorized[msg.sender], "...");         // Dynamic authorization
+require(whitelist[msg.sender], "...");          // Whitelist pattern
+if (msg.sender != admin) revert();              // Inline admin check
+```
+
+## Contract-Only Detection
+
+### Callback Functions
+```solidity
+// ERC token callbacks
+function onERC721Received(...) external returns (bytes4)
+function onERC1155Received(...) external returns (bytes4)
+function onERC1155BatchReceived(...) external returns (bytes4)
+
+// DeFi callbacks
+function uniswapV3SwapCallback(...) external
+function uniswapV3MintCallback(...) external
+function pancakeV3SwapCallback(...) external
+function algebraSwapCallback(...) external
+
+// Flash loan callbacks
+function onFlashLoan(...) external returns (bytes32)
+function executeOperation(...) external returns (bool)  // Aave
+function receiveFlashLoan(...) external                 // Balancer
+```
+
+### Contract-Caller Checks
+```solidity
+require(msg.sender == address(pool), "...");    // Specific contract
+require(msg.sender != tx.origin, "...");        // Must be contract
+require(tx.origin != msg.sender);               // No EOA calls
+```
+
+## Extraction Strategy
+
+1. Parse all `.sol` files
+2. For each contract/interface/abstract:
+   - Extract `external` and `public` functions
+   - **Skip** functions with `view` or `pure` modifiers
+   - Record function signature: `name(paramTypes)`
+   - Record line number
+   - Extract all modifiers applied
+3. Classify by modifiers:
+   - No access modifiers → Public (Unrestricted)
+   - Known role modifier → Appropriate role category
+   - Inline `require(msg.sender...)` → Review Required
+   - Callback pattern → Contract-Only
+
+## Inheritance Considerations
+
+- Check parent contracts for modifier definitions
+- A function may inherit access control from overridden function
+- Abstract contracts may define modifiers used by children
+- Interfaces define signatures but not access control
+
+## Common Gotchas
+
+1. **Initializers**: `initialize()` often has `initializer` modifier but may be unrestricted on first call
+2. **Proxies**: Implementation contracts may have different access patterns than proxies
+3. **Upgrades**: `upgradeTo()`, `upgradeToAndCall()` are high-privilege
+4. **Multicall**: `multicall(bytes[])` allows batching—check what it can call
+5. **Permit**: `permit()` functions enable gasless approvals—check EIP-2612 compliance
+
+
+### Vyper
+
+# Vyper Entry Point Detection
+
+## Entry Point Identification (State-Changing Only)
+
+### Include: State-Changing Functions
+```vyper
+@external                    # State-changing entry point
+def function_name():
+    pass
+
+@external
+@payable                     # State-changing, receives ETH
+def payable_function():
+    pass
+
+@external
+@nonreentrant("lock")        # State-changing with reentrancy protection
+def protected():
+    pass
+```
+
+### Exclude: Read-Only Functions
+```vyper
+@external
+@view                        # EXCLUDE - cannot modify state
+def read_only():
+    pass
+
+@external
+@pure                        # EXCLUDE - no state access
+def pure_function():
+    pass
+```
+
+### Decorator Matrix
+| Decorators | Include? | Notes |
+|------------|----------|-------|
+| `@external` | **Yes** | State-changing entry point |
+| `@external @payable` | **Yes** | State-changing, receives ETH |
+| `@external @nonreentrant` | **Yes** | State-changing with protection |
+| `@external @view` | No | Read-only, exclude |
+| `@external @pure` | No | No state access, exclude |
+| `@internal` | No | Not externally callable |
+| `@deploy` | No | Constructor (Vyper 0.4+) |
+
+### Special Entry Points
+```vyper
+@external
+@payable
+def __default__():           # Fallback function (receives ETH + unmatched calls)
+    pass
+```
+
+## Access Control Patterns
+
+### Owner Pattern
+```vyper
+owner: public(address)
+
+@external
+def restricted_function():
+    assert msg.sender == self.owner, "Not owner"
+    # ...
+```
+
+### Role-Based Patterns
+```vyper
+# Common patterns
+admin: public(address)
+governance: public(address)
+guardian: public(address)
+operator: public(address)
+
+# Mapping-based roles
+authorized: public(HashMap[address, bool])
+minters: public(HashMap[address, bool])
+
+@external
+def mint(to: address, amount: uint256):
+    assert self.minters[msg.sender], "Not minter"
+    # ...
+```
+
+### Access Control Classification
+| Pattern | Classification |
+|---------|----------------|
+| `assert msg.sender == self.owner` | Admin/Owner |
+| `assert msg.sender == self.admin` | Admin |
+| `assert msg.sender == self.governance` | Governance |
+| `assert msg.sender == self.guardian` | Guardian |
+| `assert self.authorized[msg.sender]` | Review Required |
+| `assert self.whitelist[msg.sender]` | Review Required |
+
+## Contract-Only Detection
+
+### Callback Functions
+```vyper
+@external
+def onERC721Received(...) -> bytes4:
+    return method_id("onERC721Received(address,address,uint256,bytes)")
+
+@external
+def uniswapV3SwapCallback(amount0: int256, amount1: int256, data: Bytes[...]):
+    # Must verify caller is the pool
+    pass
+```
+
+### Contract-Caller Checks
+```vyper
+assert msg.sender == self.pool, "Only pool"
+assert msg.sender != tx.origin, "No EOA"  # Vyper 0.3.7+
+```
+
+## Extraction Strategy
+
+1. Parse all `.vy` files
+2. For each function:
+   - Check for `@external` decorator
+   - **Skip** functions with `@view` or `@pure` decorators
+   - Record function name and parameters
+   - Record line number
+   - Check for access control assertions in function body
+3. Classify:
+   - No access assertions → Public (Unrestricted)
+   - `msg.sender == self.X` → Check what X is
+   - `self.mapping[msg.sender]` → Review Required
+   - Known callback name → Contract-Only
+
+## Vyper-Specific Considerations
+
+1. **No Modifiers**: Vyper doesn't have modifiers—access control is inline `assert` statements
+2. **No Inheritance**: Each contract is standalone (interfaces only)
+3. **Explicit is Better**: All visibility must be declared explicitly
+4. **Default Internal**: Functions without decorators are internal
+
+## Common Gotchas
+
+1. **Initializer Pattern**: Look for `initialized: bool` flag with one-time setup
+2. **Raw Calls**: `raw_call()` can delegate to other contracts
+3. **Create Functions**: `create_minimal_proxy_to()`, `create_copy_of()` are factory patterns
+4. **Reentrancy**: `@nonreentrant` protects against reentrancy but function is still entry point
+

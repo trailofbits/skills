@@ -1,0 +1,195 @@
+---
+description: "Provides expertise for analyzing DWARF debug files and understanding the DWARF debug format/standard (v3-v5). Triggers when understanding DWARF information, interacting with DWARF files, answering DWARF-related questions, or working with code that parses DWARF data."
+globs: "*.c, *.cpp, *.go, *.h, *.hpp"
+alwaysApply: false
+---
+
+# dwarf-expert
+
+*From Trail of Bits Skills - Author: Evan Hellman*
+
+# Overview
+This skill provides technical knowledge and expertise about the DWARF standard and how to interact with DWARF files. Tasks include answering questions about the DWARF standard, providing examples of various DWARF features, parsing and/or creating DWARF files, and writing/modifying/analyzing code that interacts with DWARF data.
+
+## When to Use This Skill
+- Understanding or parsing DWARF debug information from compiled binaries
+- Answering questions about the DWARF standard (v3, v4, v5)
+- Writing or reviewing code that interacts with DWARF data
+- Using `dwarfdump` or `readelf` to extract debug information
+- Verifying DWARF data integrity with `llvm-dwarfdump --verify`
+- Working with DWARF parsing libraries (libdwarf, pyelftools, gimli, etc.)
+
+## When NOT to Use This Skill
+- **DWARF v1/v2 Analysis**: Expertise limited to versions 3, 4, and 5.
+- **General ELF Parsing**: Use standard ELF tools if DWARF data isn't needed.
+- **Executable Debugging**: Use dedicated debugging tools (gdb, lldb, etc) for debugging executable code/runtime behavior.
+- **Binary Reverse Engineering**: Use dedicated RE tools (Ghidra, IDA) unless specifically analyzing DWARF sections.
+- **Compiler Debugging**: DWARF generation issues are compiler-specific, not covered here.
+
+# Authoritative Sources
+When specific DWARF standard information is needed, use these authoritative sources:
+
+1. **Official DWARF Standards (dwarfstd.org)**: Use web search to find specific sections of the official DWARF specification at dwarfstd.org. Search queries like "DWARF5 DW_TAG_subprogram attributes site:dwarfstd.org" are effective.
+
+2. **LLVM DWARF Implementation**: The LLVM project's DWARF handling code at `llvm/lib/DebugInfo/DWARF/` serves as a reliable reference implementation. Key files include:
+   - `DWARFDie.cpp` - DIE handling and attribute access
+   - `DWARFUnit.cpp` - Compilation unit parsing
+   - `DWARFDebugLine.cpp` - Line number information
+   - `DWARFVerifier.cpp` - Validation logic
+
+3. **libdwarf**: The reference C implementation at github.com/davea42/libdwarf-code provides detailed handling of DWARF data structures.
+
+# Verification Workflows
+Use `llvm-dwarfdump` verification options to validate DWARF data integrity:
+
+## Structural Validation
+```bash
+# Verify DWARF structure (compile units, DIE relationships, address ranges)
+llvm-dwarfdump --verify <binary>
+
+# Detailed error output with summary
+llvm-dwarfdump --verify --error-display=full <binary>
+
+# Machine-readable JSON error summary
+llvm-dwarfdump --verify --verify-json=errors.json <binary>
+```
+
+## Quality Metrics
+```bash
+# Output debug info quality metrics as JSON
+llvm-dwarfdump --statistics <binary>
+```
+
+The `--statistics` output helps compare debug info quality across compiler versions and optimization levels.
+
+## Common Verification Patterns
+- **After compilation**: Verify binaries have valid DWARF before distribution
+- **Comparing builds**: Use `--statistics` to detect debug info quality regressions
+- **Debugging debuggers**: Identify malformed DWARF causing debugger issues
+- **DWARF tool development**: Validate parser output against known-good binaries
+
+# Parsing DWARF Debug Information
+## readelf
+ELF files can be parsed via the `readelf` command (plugins/dwarf-expert/reference/readelf.md). Use this for general ELF information, but prefer `dwarfdump` for DWARF-specific parsing.
+
+## dwarfdump
+DWARF files can be parsed via the `dwarfdump` command, which is more effective at parsing and displaying complex DWARF information than `readelf` and should be used for most DWARF parsing tasks (plugins/dwarf-expert/reference/dwarfdump.md).
+
+# Working With Code
+This skill supports writing, modifying, and reviewing code that interacts with DWARF data. This may involve code that parses DWARF debug data from scratch or code that leverages libraries to parse and interact with DWARF data (plugins/dwarf-expert/reference/coding.md).
+
+# Choosing Your Approach
+```
+┌─ Need to verify DWARF data integrity?
+│   └─ Use `llvm-dwarfdump --verify` (see Verification Workflows above)
+├─ Need to answer questions about the DWARF standard?
+│   └─ Search dwarfstd.org or reference LLVM/libdwarf source
+├─ Need simple section dump or general ELF info?
+│   └─ Use `readelf` (plugins/dwarf-expert/reference/readelf.md)
+├─ Need to parse, search, and/or dump DWARF DIE nodes?
+│   └─ Use `dwarfdump` (plugins/dwarf-expert/reference/dwarfdump.md)
+└─ Need to write, modify, or review code that interacts with DWARF data?
+    └─ Refer to the coding reference (plugins/dwarf-expert/reference/coding.md)
+```
+
+---
+
+## Additional References
+
+### Coding
+
+# Writing, Modifying, or Reviewing Code That Interacts With DWARF Data.
+You may be tasked with writing, modifying, or reviewing code that handles, parses, or otherwise interacts with DWARF data. 
+
+## General Guidelines
+- **Rely on Authoritative Sources**: For ground-truth information about DWARF sections, DIE nodes, and attributes, use web search for dwarfstd.org specifications or reference LLVM/libdwarf source code implementations.
+- **Using DWARF Expertise**: Use your DWARF-specific expertise to work with code that interacts with DWARF data, but do NOT use it when working with unrelated code.
+
+## Writing Code
+- **Prefer Python for Scripting**: Prefer to use Python for simpler DWARF code (such as scripts that filter for specific DIE nodes) unless another language is specified.
+- **Leverage Existing Libraries**: Prefer to use existing libraries to parse/handle DWARF data if they exist for the selected language (see `Common DWARF Libraries`).
+- **Refer to Library Documentation**: If using a library, refer to it's documentation as needed (both in-code and online references if available).
+
+## Modifying Code
+- **Follow Existing Styles**: Adhere to existing code styles, formatting, naming conventions, etc wherever possible.
+- **Group Changes**: Perform logically related changes together and separate out unrelated groups of changes into individual steps.
+- **Describe Changes**: Clearly describe the purpose of each group of changes and what each individual change achieves to the user.
+- **Advise on Complex Changes**: Suggest especially large or complex changes to the user before making them. For example, if a significant amount of code needs to be added or modified to handle a particular type of DIE node or attribute.
+
+## Reviewing Code
+- **Only Suggest Changes**: Suggest changes or advise on refactors but do NOT modify the code.
+- **Consider Edge Cases**: Consider edge cases that may be unhandled, such as special DIE node types, abstract base DIE nodes, specification DIE nodes, optional attributes, etc.
+
+# Common DWARF Libraries
+There are a number of libraries that can be leveraged to parse and interact with DWARF data. Prefer to use these when writing new code (if the chosen language has a compatible library).
+| Library | Language | URL | Notes |
+|---------|----------|-----|-------|
+| `libdwarf` | C/C++ | https://github.com/davea42/libdwarf-code | Offers a simpler, lower-level interface. Used to implement `dwarfdump`. |
+| `pyelftools` | Python | https://github.com/eliben/pyelftools | Also supports parsing of ELF files in general. |
+| `gimli` | Rust | https://github.com/gimli-rs/gimli | Designed for performant access to DWARF data. May require other dependencies (such as `object`) to open and parse entire DWARF files. |
+| `debug/dwarf` | Go | https://github.com/golang/go/tree/master/src/debug/dwarf | Standard library built-in. |
+| `LibObjectFile` | .NET | https://github.com/xoofx/LibObjectFile | Also supports interfacing with object files (ELF, PE/COFF, etc) in general. |
+
+### Readelf
+
+# Parsing ELF Files With readelf
+`readelf` is a utility used to parse and dump ELF information from ELF files. It can be used to dump various ELF sections including DWARF sections.
+
+## Commonly Used Options
+- `readelf --help`: Display available options.
+- `readelf --debug-dump [debug_section]`: Dump a particular DWARF section (e.g. `addr`, `pubnames`, etc). Can be specified multiple times to dump multiple sections.
+- `readelf --dwarf-depth=N`: Do not display DIEs at depth N or greater.
+- `readelf --dwarf-start=N`: Display DIE nodes starting at offset N.
+
+### Dwarfdump
+
+# Parsing DWARF Files With dwarfdump
+`dwarfdump` is a utility used to parse and dump DWARF information from DWARF files. It can be used to dump individual DWARF sections, display DIE node trees (both parents and children), search for DIE nodes by name or address, and verify that DWARF files are well-formed.
+
+## dwarfdump vs llvm-dwarfdump
+Two slightly different flavors of the `dwarfdump` utility exist:
+- libdwarf's implementation, typically called `dwarfdump`
+- LLVM's implementation, typically called `llvm-dwarfdump`
+
+Both can be used interchangeably, albeit with slightly different command-line options. Both accept options to modify the dumped output and the path to the object file containing the DWARF information to dump. The actual `dwarfdump` command my refer to either of the utilities depending on the system; Use `dwarfdump --version` to determine which implementation is used.
+
+## Commonly Used Options for LLVM dwarfdump
+These options are specific to LLVM's implementation of `dwarfdump`.
+- `dwarfdump --version`: Display version information. Use to determine whether the system uses libdwarf's or LLVM's implementation.
+- `dwarfdump --help`: Display available options.
+- `dwarfdump --all`: Dump all DWARF sections.
+- `dwarfdump --<debug_section>`: Dump a particular DWARF section (e.g. `--debug-addr`, `--debug-names`, etc). Can be specified multiple times to dump multiple sections.
+- `dwarfdump --show-children [--recurse-depth=<n>]`: Show a debug info entry's children when selectively printing entries. Optionally, provide `--recurse-depth` to limit the depth of children to diplay. Use in cases where information about parent DIE nodes is especially relevant or requested. Commonly used when displaying DIE nodes for functions and data types as child DIE nodes contain info about parameters, local variables, structure members, etc.
+- `dwarfdump --show-parents [--parent-recurse-depth=<n>]`: Show a debug info entry's parents when selectively printing entries. Optionally provide `--parent-recurse-depth` to limit the depth of parents to display. Use in cases where information about parent DIE nodes is especially relevant or requested.
+- `dwarfdump --show-form`: Show DWARF form types after the DWARF attribute types. Use to display more verbose DWARF information about the type of DWARF attributes.
+- `dwarfdump --find=<pattern>`: Search for an exact match of the given name in the accelerator tables. This will not perform an exhaustive search over all DIE node. Use as an initial lookup for DIE nodes with specific names, but fall back to using `--name <pattern>` to perform an exhaustive search if `find` does not find any DIE nodes with the given name.
+- `dwarfdump --name <pattern> [--ignore-case] [--regex]`: Search for any DIE nodes whose name matches the given pattern. Optionally use `--ignore-case` to perform a case-insensitive search and/or `--regex` to interpret the pattern as a regex for more complex searches. Performs an exhaustive search over all DIE nodes. Use to perform exhaustive lookup for exact name matches where `--find=<pattern>` fails or to search for more complex name via regex.
+- `dwarfdump --lookup=<address>`: Find the DIE node at a specific address. Use to search for specific DIE nodes when their address is known, such as when gathering information about a DIE node referenced by some previously dumped DIE node.
+- `dwarfdump --verify`: Verify a DWARF file. Use to check whether a DWARF file is well-formed.
+- `dwarfdump --verbose`: Print more low-level encoding details. Use in cases where extra information is helpful for debugging.
+
+## Verification Options (llvm-dwarfdump)
+These options are useful for validating DWARF data integrity:
+- `llvm-dwarfdump --verify <binary>`: Verify DWARF structure including compile unit chains, DIE relationships, and address ranges.
+- `llvm-dwarfdump --verify --error-display=<mode>`: Control verification output detail. Modes: `quiet` (errors only), `summary`, `details`, `full` (errors with summary).
+- `llvm-dwarfdump --verify --verify-json=<path>`: Output JSON-formatted error summary to file. Useful for CI integration.
+- `llvm-dwarfdump --statistics <binary>`: Output debug info quality metrics as single-line JSON. Useful for comparing builds.
+- `llvm-dwarfdump --verify --quiet`: Run verification without output to stdout (exit code indicates success/failure).
+
+## Searching DIE Nodes
+In many cases it is necessary to search for specific DIE nodes (and their children and/or parents).
+
+### Simple Search
+For simple cases such as name matches or exact address matches, prefer using `dwarfdump` with `--lookup`, `--find`, or `--name`.
+
+### Complex Search
+In more complex cases cases, it may be necessary to perform custom searching over the output. For example, finding all DWARF parameter DIE nodes that have a particular type necessitates manually searching the `dwarfdump` output. In cases such a these, follow these steps:
+| Step | Description | Example |
+|------|-------------|---------|
+| Initial Filtering | Dump the entire DWARF file and use filtering tools, such as `grep`, to perform more complex filtering of the data. | `dwarfdump <file> \| grep "float \*"` to search for the `float *` type. |
+| Get DIE Address |  Get the address of any DIE node that match the search. This may require refinining the previous command to print more than just the matching line, such as using the `grep -B <n>` option to print `n` lines before the matching one to get the line with the address. | `dwarfdump <file> \| grep -B 5 "float \*"` to print 5 preceding lines for each match. This will print the line with the DIE node type and address. |
+| Refine Filtering | Additional filtering may be required to narrow the search to DIE nodes of the desired type. In this case, additional filtering tools can be used to narrow the search further. | `dwarfdump <file> \| grep -B 5 "float \*" \| grep "DW_TAG_formal_parameter` to search only for parameter DIE nodes. |
+| Print Complete DWARF Info | Use `dwarfdump --lookup=<address>` (potentially with `--show-children` and/or `--show-parents`) for each matching DIE node's address to print information about them in a uniform format. |
+
+### Scripted Search
+Sometimes, searching with filtering tools is too complex or produces inconsistent or incomplete results. In highly complex cases, such as searching for DIE nodes with multiple exact attribute values. In these cases, it is easiest to write a Python script leveraging the `pyelftools` package to parse and search DWARF files. Resort to this only if the filtering approach fails or becomes to complex.

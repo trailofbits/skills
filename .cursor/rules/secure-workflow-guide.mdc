@@ -1,0 +1,590 @@
+---
+description: "Guide you through Trail of Bits' 5-step secure development workflow. Runs Slither scans, checks special features (upgradeability/ERC conformance/token integration), generates visual security diagrams, helps document security properties for fuzzing/verification, and reviews manual security areas. (project, gitignored)"
+globs: "*.go, *.sol"
+alwaysApply: false
+---
+
+# secure-workflow-guide
+
+*From Trail of Bits Skills - Author: Omar Inuwa*
+
+# Secure Workflow Guide
+
+## Purpose
+
+I'll guide you through Trail of Bits' secure development workflow - a 5-step process to enhance smart contract security throughout development.
+
+**Use this**: On every check-in, before deployment, or when you want a security review
+
+---
+
+## The 5-Step Workflow
+
+I'll guide you through a comprehensive security workflow covering:
+
+### Step 1: Check for Known Security Issues
+Run Slither with 70+ built-in detectors to find common vulnerabilities:
+- Parse findings by severity
+- Explain each issue with file references
+- Recommend fixes
+- Help triage false positives
+
+**Goal**: Clean Slither report or documented triages
+
+### Step 2: Check Special Features
+Detect and validate applicable features:
+- **Upgradeability**: slither-check-upgradeability (17 upgrade risks)
+- **ERC conformance**: slither-check-erc (6 common specs)
+- **Token integration**: Recommend token-integration-analyzer skill
+- **Security properties**: slither-prop for ERC20
+
+**Note**: Only runs checks that apply to your codebase
+
+### Step 3: Visual Security Inspection
+Generate 3 security diagrams:
+- **Inheritance graph**: Identify shadowing and C3 linearization issues
+- **Function summary**: Show visibility and access controls
+- **Variables and authorization**: Map who can write to state variables
+
+Review each diagram for security concerns
+
+### Step 4: Document Security Properties
+Help document critical security properties:
+- State machine transitions and invariants
+- Access control requirements
+- Arithmetic constraints and precision
+- External interaction safety
+- Standards conformance
+
+Then set up testing:
+- **Echidna**: Property-based fuzzing with invariants
+- **Manticore**: Formal verification with symbolic execution
+- **Custom Slither checks**: Project-specific business logic
+
+**Note**: Most important activity for security
+
+### Step 5: Manual Review Areas
+Analyze areas automated tools miss:
+- **Privacy**: On-chain secrets, commit-reveal needs
+- **Front-running**: Slippage protection, ordering risks, MEV
+- **Cryptography**: Weak randomness, signature issues, hash collisions
+- **DeFi interactions**: Oracle manipulation, flash loans, protocol assumptions
+
+Search codebase for these patterns and flag risks
+
+For detailed instructions, commands, and explanations for each step, see [WORKFLOW_STEPS.md](resources/WORKFLOW_STEPS.md).
+
+---
+
+## How I Work
+
+When invoked, I will:
+
+1. **Explore your codebase** to understand structure
+2. **Run Step 1**: Slither security scan
+3. **Detect and run Step 2**: Special feature checks (only what applies)
+4. **Generate Step 3**: Visual security diagrams
+5. **Guide Step 4**: Security property documentation
+6. **Analyze Step 5**: Manual review areas
+7. **Provide action plan**: Prioritized fixes and next steps
+
+I'll adapt based on:
+- What tools you have installed
+- What's applicable to your project
+- Where you are in development
+
+---
+
+## Rationalizations (Do Not Skip)
+
+| Rationalization | Why It's Wrong | Required Action |
+|-----------------|----------------|-----------------|
+| "Slither not available, I'll check manually" | Manual checking misses 70+ detector patterns | Install and run Slither, or document why it's blocked |
+| "Can't generate diagrams, I'll describe the architecture" | Descriptions aren't visual - diagrams reveal patterns text misses | Execute slither --print commands, generate actual visual outputs |
+| "No upgrades detected, skip upgradeability checks" | Proxies and upgrades are often implicit or planned | Verify with codebase search before skipping Step 2 checks |
+| "Not a token, skip ERC checks" | Tokens can be integrated without obvious ERC inheritance | Check for token interactions, transfers, balances before skipping |
+| "Can't set up Echidna now, suggesting it for later" | Property-based testing is Step 4, not optional | Document properties now, set up fuzzing infrastructure |
+| "No DeFi interactions, skip oracle/flash loan checks" | DeFi patterns appear in unexpected places (price feeds, external calls) | Complete Step 5 manual review, search codebase for patterns |
+| "This step doesn't apply to my project" | "Not applicable" without verification = missed vulnerabilities | Verify with explicit codebase search before declaring N/A |
+| "I'll provide generic security advice instead of running workflow" | Generic advice isn't actionable, workflow finds specific issues | Execute all 5 steps, generate project-specific findings with file:line references |
+
+---
+
+## Example Output
+
+When I complete the workflow, you'll get a comprehensive security report covering:
+
+- **Step 1**: Slither findings with severity, file references, and fix recommendations
+- **Step 2**: Special feature validation results (upgradeability, ERC conformance, etc.)
+- **Step 3**: Visual diagrams analyzing inheritance, functions, and state variable authorization
+- **Step 4**: Documented security properties and testing setup (Echidna/Manticore)
+- **Step 5**: Manual review findings (privacy, front-running, cryptography, DeFi risks)
+- **Action plan**: Critical/high/medium priority tasks with effort estimates
+- **Workflow checklist**: Progress on all 5 steps
+
+For a complete example workflow report, see [EXAMPLE_REPORT.md](resources/EXAMPLE_REPORT.md).
+
+---
+
+## What You'll Get
+
+**Security Report**:
+- Slither findings with severity and fixes
+- Special feature validation results
+- Visual diagrams (PNG/PDF)
+- Manual review findings
+
+**Action Plan**:
+- [ ] Critical issues to fix immediately
+- [ ] Security properties to document
+- [ ] Testing to set up (Echidna/Manticore)
+- [ ] Manual areas to review
+
+**Workflow Checklist**:
+- [ ] Clean Slither report
+- [ ] Special features validated
+- [ ] Visual inspection complete
+- [ ] Properties documented
+- [ ] Manual review done
+
+---
+
+## Getting Help
+
+**Trail of Bits Resources**:
+- Office Hours: Every Tuesday ([schedule](https://meetings.hubspot.com/trailofbits/office-hours))
+- Empire Hacking Slack: #crytic and #ethereum channels
+
+**Other Security**:
+- Remember: Security is about more than smart contracts
+- Off-chain security (owner keys, infrastructure) equally critical
+
+---
+
+## Ready to Start
+
+Let me know when you're ready and I'll run through the workflow with your codebase!
+
+---
+
+## Additional References
+
+### Workflow Steps
+
+## The 5-Step Workflow
+
+### Step 1: Check for Known Security Issues
+
+I'll run Slither with 70+ built-in detectors:
+
+```bash
+slither . --exclude-dependencies
+```
+
+Then I'll:
+- Parse findings by severity
+- Explain each issue with file references
+- Recommend fixes
+- Help you triage false positives
+
+**Goal**: Clean Slither report or documented triages
+
+---
+
+### Step 2: Check Special Features
+
+I'll detect what's applicable and run the right tools:
+
+**If upgradeable contracts**:
+```bash
+slither-check-upgradeability . ContractName --proxy-name ProxyName
+```
+Checks 17 ways upgrades can go wrong
+
+**If ERC tokens (ERC20, ERC721, etc.)**:
+```bash
+slither-check-erc . ContractName --erc erc20
+```
+Validates conformance to 6 common specs
+
+**If Truffle tests exist**:
+```bash
+slither-prop . --contract ContractName
+```
+Generates security properties for ERC20
+
+**If integrating third-party tokens**:
+I'll recommend using the `token-integration-analyzer` skill
+
+**Note**: I'll only run checks that apply to your codebase
+
+---
+
+### Step 3: Visual Security Inspection
+
+I'll generate 3 security diagrams:
+
+**Inheritance Graph**:
+```bash
+slither . --print inheritance-graph
+```
+Identifies shadowing and C3 linearization issues
+
+**Function Summary**:
+```bash
+slither . --print function-summary
+```
+Shows function visibility and access controls
+
+**Variables and Authorization**:
+```bash
+slither . --print vars-and-auth
+```
+Maps who can write to state variables
+
+I'll review each diagram with you and highlight security concerns
+
+---
+
+### Step 4: Document Security Properties
+
+I'll help you document critical security properties:
+
+**Properties to Define**:
+- **State machine**: Valid transitions, invariants
+- **Access controls**: Who can call what
+- **Arithmetic**: Overflow protection, precision
+- **External interactions**: Reentrancy, failed calls
+- **Standards conformance**: ERC requirements
+
+**Then Set Up Testing**:
+
+**Echidna (fuzzing)**:
+- Create property test contract
+- Define invariants in Solidity
+- Configure echidna.yaml
+- Run fuzzing campaign
+
+**Manticore (formal verification)**:
+- Define properties in Solidity or Python
+- Set up symbolic execution
+- Validate critical paths
+
+**Custom Slither Checks**:
+- Use Slither Python API for project-specific patterns
+- Focus on business logic
+
+**Note**: This is the most important activity for security but requires learning
+
+---
+
+### Step 5: Manual Review Areas
+
+I'll analyze areas automated tools miss:
+
+**Privacy Considerations**:
+- Are secrets stored on-chain?
+- Is commit-reveal needed?
+- Are assumptions about privacy documented?
+
+**Front-Running Risks**:
+- Price-sensitive transactions without slippage protection?
+- Ordering-dependent logic?
+- MEV opportunities?
+
+**Cryptographic Operations**:
+- Weak randomness (block.timestamp, blockhash)?
+- Signature verification issues (ecrecover misuse)?
+- Hash collision vulnerabilities?
+
+**DeFi Interactions**:
+- Oracle manipulation risks?
+- Flash loan attack vectors?
+- Protocol assumption violations?
+
+I'll search your codebase for these patterns and flag risks
+
+
+
+### Example Report
+
+## Example Output
+
+When I complete the workflow, you'll get a comprehensive security report:
+
+```
+=== SECURE DEVELOPMENT WORKFLOW REPORT ===
+
+Project: DeFi Staking Contract
+Platform: Solidity 0.8.19
+Workflow Date: March 15, 2024
+
+---
+
+## STEP 1: KNOWN SECURITY ISSUES
+
+### Slither Security Scan
+
+Command: slither . --exclude-dependencies
+Status: ✓ CLEAN (after fixes)
+
+**Issues Found & Resolved:**
+✓ HIGH: Reentrancy in withdraw() - FIXED (added ReentrancyGuard)
+✓ MEDIUM: Unprotected selfdestruct - FIXED (removed function)
+✓ LOW: Missing zero-address checks - FIXED (added require statements)
+✓ INFO: 5 optimization suggestions - DOCUMENTED
+
+**Current Status:** All high/medium issues resolved. Ready for next steps.
+
+---
+
+## STEP 2: SPECIAL FEATURES
+
+### Upgradeability Check
+
+Pattern Detected: UUPS Proxy (ERC1967)
+
+**slither-check-upgradeability Results:**
+✓ Storage layout compatible
+✓ No function collisions
+✓ Initialize function protected
+✓ _authorizeUpgrade restricted to owner
+⚠ No timelock on upgrades
+
+**Recommendation:** Add 48-hour timelock before Step 3 (Critical)
+
+### ERC20 Conformance
+
+**slither-check-erc Results:**
+✓ All required functions present
+✓ transfer/transferFrom return bool
+✓ decimals returns uint8
+✓ approve race condition mitigated (increaseAllowance/decreaseAllowance)
+✓ No external calls in transfer functions
+
+**Status:** FULLY COMPLIANT with ERC20 standard
+
+---
+
+## STEP 3: VISUAL SECURITY INSPECTION
+
+### Inheritance Graph
+
+File: inheritance-graph.png
+
+**Analysis:**
+```
+StakingToken
+├─ ERC20Upgradeable
+│  ├─ IERC20
+│  └─ Context
+├─ OwnableUpgradeable
+└─ UUPSUpgradeable
+```
+
+✓ Shallow hierarchy (depth: 3)
+✓ No shadowing detected
+✓ C3 linearization correct
+✓ No diamond inheritance issues
+
+### Function Summary
+
+| Function           | Visibility | Modifiers          | Mutability  | Risk  |
+|--------------------|------------|--------------------|-------------|-------|
+| stake()            | external   | nonReentrant       | non-payable | Low   |
+| withdraw()         | external   | nonReentrant       | non-payable | Low   |
+| claimRewards()     | external   | nonReentrant       | non-payable | Low   |
+| setRewardRate()    | external   | onlyOwner          | non-payable | Med   |
+| pause()            | external   | onlyOwner          | non-payable | Med   |
+| _authorizeUpgrade()| internal   | onlyOwner          | view        | High  |
+
+✓ All privileged functions have access controls
+✓ External functions have reentrancy protection
+⚠ setRewardRate() allows owner to set arbitrary rate (no bounds)
+
+**Recommendation:** Add min/max bounds to setRewardRate()
+
+### Variables and Authorization
+
+**State Variable Access:**
+
+totalStaked (uint256)
+├─ Written by: stake() [external, nonReentrant]
+├─ Written by: withdraw() [external, nonReentrant]
+└─ Read by: calculateRewards() [internal]
+
+rewardRate (uint256)
+├─ Written by: setRewardRate() [external, onlyOwner]
+└─ Read by: calculateRewards() [internal]
+⚠ No bounds checking - can be set to extreme values
+
+userStakes (mapping)
+├─ Written by: stake() [external, nonReentrant]
+├─ Written by: withdraw() [external, nonReentrant]
+└─ Protected by access controls ✓
+
+**Critical Finding:** rewardRate modification needs validation
+
+---
+
+## STEP 4: SECURITY PROPERTIES DOCUMENTED
+
+### Properties Defined
+
+**State Machine Invariants:**
+1. totalStaked == sum of all userStakes[user]
+2. contract balance >= totalStaked + totalRewards
+3. User cannot withdraw more than staked
+
+**Access Control Properties:**
+4. Only owner can modify rewardRate
+5. Only owner can pause/unpause
+6. Only owner can authorize upgrades
+
+**Arithmetic Properties:**
+7. calculateRewards() cannot overflow
+8. Staking amount must be > 0
+9. Reward calculation precision loss < 0.01%
+
+### Testing Setup
+
+**Echidna Configuration Created:**
+File: echidna.yaml
+```yaml
+testMode: assertion
+testLimit: 50000
+deployer: "0x10000"
+sender: ["0x10000", "0x20000", "0x30000"]
+```
+
+**Invariants Implemented:**
+File: test/echidna/StakingInvariants.sol
+```solidity
+contract StakingInvariants {
+    function echidna_total_staked_matches_sum() public returns (bool) {
+        return staking.totalStaked() == calculateExpectedTotal();
+    }
+
+    function echidna_balance_sufficient() public returns (bool) {
+        return address(staking).balance >= staking.totalStaked();
+    }
+}
+```
+
+**Fuzzing Results:**
+✓ All 3 invariants hold after 50,000 runs
+✓ No violations found
+✓ Coverage: 94% of contract code
+
+**Next Step:** Run Manticore for formal verification (optional, 2-3 days)
+
+---
+
+## STEP 5: MANUAL REVIEW AREAS
+
+### Privacy Analysis
+
+✓ No secrets stored on-chain
+✓ All state variables appropriately public/internal
+✓ No commit-reveal needed for current design
+⚠ User staking amounts are publicly visible
+
+**Note:** Public visibility of stakes is acceptable for this use case.
+
+### Front-Running Risks
+
+**Identified Risks:**
+⚠ setRewardRate() can be front-run by users to claim before rate decrease
+
+**Scenario:**
+1. Owner submits tx to decrease rewardRate from 10% to 5%
+2. Users see pending tx in mempool
+3. Users front-run with claimRewards() at old 10% rate
+
+**Mitigation:**
+- Add timelock to rewardRate changes (48-hour delay)
+- Implement gradual rate transitions
+
+### Cryptography Review
+
+✓ No custom cryptography used
+✓ No randomness requirements
+✓ No signature verification
+N/A - Contract doesn't use cryptographic operations
+
+### DeFi Interaction Risks
+
+**External Dependencies:**
+- None (self-contained staking contract)
+
+✓ No oracle dependencies
+✓ No flash loan risks (uses snapshots)
+✓ No external protocol calls
+
+**Assessment:** Low DeFi interaction risk
+
+---
+
+## ACTION PLAN
+
+### Critical (Fix Before Deployment - Week 1)
+
+1. ✅ **Add timelock to upgrades** [COMPLETED]
+   - Deployed TimelockController
+   - 48-hour delay configured
+   - Owner transferred to timelock
+
+2. ⚠ **Add bounds to setRewardRate()** [IN PROGRESS]
+   - Add MIN_REWARD_RATE = 1%
+   - Add MAX_REWARD_RATE = 50%
+   - Estimated completion: 1 day
+
+3. ⚠ **Add timelock to rewardRate changes** [PENDING]
+   - Use same timelock as upgrades
+   - Estimated effort: 2 days
+
+### High Priority (Before Audit - Week 2)
+
+4. **Document all security properties** [80% COMPLETE]
+   - 9/12 properties documented
+   - Need to document upgrade invariants
+   - Estimated completion: 2 days
+
+5. **Increase test coverage to 95%** [CURRENT: 89%]
+   - Add pause state tests
+   - Add edge case tests (zero amounts, etc.)
+   - Estimated effort: 3 days
+
+### Medium Priority (Nice to Have)
+
+6. **Add Manticore formal verification**
+   - Verify critical properties formally
+   - Estimated effort: 1 week
+   - Impact: High confidence
+
+---
+
+## WORKFLOW CHECKLIST
+
+✅ Step 1: Slither scan clean
+✅ Step 2: Special features validated (upgradeability, ERC20)
+✅ Step 3: Visual inspection complete (diagrams generated)
+✅ Step 4: Properties documented, Echidna configured
+✅ Step 5: Manual review complete
+
+🎯 **WORKFLOW STATUS: 95% COMPLETE**
+
+**Remaining Tasks:**
+- Add setRewardRate() bounds validation
+- Complete timelock integration
+- Document 3 remaining properties
+
+**Estimated Time to Full Completion:** 3-4 days
+
+---
+
+Ready for external audit after critical tasks completed.
+
+Trail of Bits Secure Development Workflow - v0.1.0
+```
+

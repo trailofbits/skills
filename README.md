@@ -1,22 +1,26 @@
 # Trail of Bits Skills Marketplace
 
-A Claude Code plugin marketplace from Trail of Bits providing skills to enhance AI-assisted security analysis, testing, and development workflows.
+A plugin marketplace from Trail of Bits providing skills to enhance AI-assisted security analysis, testing, and development workflows.
+
+**Supports both Claude Code and Cursor IDE.**
 
 ## Installation
 
-### Add the Marketplace
+### Claude Code
+
+#### Add the Marketplace
 
 ```
 /plugin marketplace add trailofbits/skills
 ```
 
-### Browse and Install Plugins
+#### Browse and Install Plugins
 
 ```
 /plugin menu
 ```
 
-### Local Development
+#### Local Development
 
 To add the marketplace locally (e.g., for testing or development), navigate to the **parent directory** of this repository:
 
@@ -24,6 +28,50 @@ To add the marketplace locally (e.g., for testing or development), navigate to t
 cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 /plugins marketplace add ./skills
 ```
+
+### Cursor IDE
+
+#### Quick Start
+
+1. Copy the `.cursor/` folder to your target project:
+   ```bash
+   cd /path/to/your/project
+   cp -r /path/to/trailofbits_ai_tool/.cursor ./
+   ```
+
+2. Restart Cursor or reload the window
+
+3. Ask the AI naturally - rules activate automatically based on file types:
+   ```
+   "Review the Cairo contracts in contract/ for security vulnerabilities"
+   ```
+
+#### How Rules Work in Cursor
+
+Rules are **NOT commands you run**. They provide methodology and patterns to the AI:
+
+- **Auto-attached**: Rules like `cairo-vulnerability-scanner` activate when you reference `.cairo` files
+- **Manual**: Use `@ruleName` to explicitly include a rule (e.g., `@sharp-edges check this code`)
+- **Agent-requested**: AI may pull in relevant rules based on context
+
+Browse available rules in `.cursor/rules/index.md`
+
+#### Regenerating Rules
+
+If you update skills or want to refresh the Cursor rules:
+
+```bash
+# Convert all plugins to Cursor rules
+python scripts/convert_to_cursor.py
+
+# Convert a specific plugin
+python scripts/convert_to_cursor.py --plugin constant-time-analysis
+
+# List available plugins
+python scripts/convert_to_cursor.py --list
+```
+
+See [CURSOR.md](CURSOR.md) for detailed Cursor usage and contributing guidelines.
 
 ## Available Plugins
 

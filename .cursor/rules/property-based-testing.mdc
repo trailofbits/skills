@@ -1,0 +1,1177 @@
+---
+description: "Provides guidance for property-based testing across multiple languages and smart contracts. Use when writing tests, reviewing code with serialization/validation/parsing patterns, designing features, or when property-based testing would provide stronger coverage than example-based tests."
+globs: "*.go, *.move, *.sol, *.vy"
+alwaysApply: false
+---
+
+# property-based-testing
+
+*From Trail of Bits Skills - Author: Henrik Brodin*
+
+# Property-Based Testing Guide
+
+Use this skill proactively during development when you encounter patterns where PBT provides stronger coverage than example-based tests.
+
+## When to Invoke (Automatic Detection)
+
+**Invoke this skill when you detect:**
+
+- **Serialization pairs**: `encode`/`decode`, `serialize`/`deserialize`, `toJSON`/`fromJSON`, `pack`/`unpack`
+- **Parsers**: URL parsing, config parsing, protocol parsing, string-to-structured-data
+- **Normalization**: `normalize`, `sanitize`, `clean`, `canonicalize`, `format`
+- **Validators**: `is_valid`, `validate`, `check_*` (especially with normalizers)
+- **Data structures**: Custom collections with `add`/`remove`/`get` operations
+- **Mathematical/algorithmic**: Pure functions, sorting, ordering, comparators
+- **Smart contracts**: Solidity/Vyper contracts, token operations, state invariants, access control
+
+**Priority by pattern:**
+
+| Pattern | Property | Priority |
+|---------|----------|----------|
+| encode/decode pair | Roundtrip | HIGH |
+| Pure function | Multiple | HIGH |
+| Validator | Valid after normalize | MEDIUM |
+| Sorting/ordering | Idempotence + ordering | MEDIUM |
+| Normalization | Idempotence | MEDIUM |
+| Builder/factory | Output invariants | LOW |
+| Smart contract | State invariants | HIGH |
+
+## When NOT to Use
+
+Do NOT use this skill for:
+- Simple CRUD operations without transformation logic
+- One-off scripts or throwaway code
+- Code with side effects that cannot be isolated (network calls, database writes)
+- Tests where specific example cases are sufficient and edge cases are well-understood
+- Integration or end-to-end testing (PBT is best for unit/component testing)
+
+## Property Catalog (Quick Reference)
+
+| Property | Formula | When to Use |
+|----------|---------|-------------|
+| **Roundtrip** | `decode(encode(x)) == x` | Serialization, conversion pairs |
+| **Idempotence** | `f(f(x)) == f(x)` | Normalization, formatting, sorting |
+| **Invariant** | Property holds before/after | Any transformation |
+| **Commutativity** | `f(a, b) == f(b, a)` | Binary/set operations |
+| **Associativity** | `f(f(a,b), c) == f(a, f(b,c))` | Combining operations |
+| **Identity** | `f(x, identity) == x` | Operations with neutral element |
+| **Inverse** | `f(g(x)) == x` | encrypt/decrypt, compress/decompress |
+| **Oracle** | `new_impl(x) == reference(x)` | Optimization, refactoring |
+| **Easy to Verify** | `is_sorted(sort(x))` | Complex algorithms |
+| **No Exception** | No crash on valid input | Baseline property |
+
+**Strength hierarchy** (weakest to strongest):
+No Exception → Type Preservation → Invariant → Idempotence → Roundtrip
+
+## Decision Tree
+
+Based on the current task, read the appropriate section:
+
+```
+TASK: Writing new tests
+  → Read [plugins/property-based-testing/references/generating.md](plugins/property-based-testing/references/generating.md) (test generation patterns and examples)
+  → Then [plugins/property-based-testing/references/strategies.md](plugins/property-based-testing/references/strategies.md) if input generation is complex
+
+TASK: Designing a new feature
+  → Read [plugins/property-based-testing/references/design.md](plugins/property-based-testing/references/design.md) (Property-Driven Development approach)
+
+TASK: Code is difficult to test (mixed I/O, missing inverses)
+  → Read [plugins/property-based-testing/references/refactoring.md](plugins/property-based-testing/references/refactoring.md) (refactoring patterns for testability)
+
+TASK: Reviewing existing PBT tests
+  → Read [plugins/property-based-testing/references/reviewing.md](plugins/property-based-testing/references/reviewing.md) (quality checklist and anti-patterns)
+
+TASK: Need library reference
+  → Read [plugins/property-based-testing/references/libraries.md](plugins/property-based-testing/references/libraries.md) (PBT libraries by language, includes smart contract tools)
+```
+
+## How to Suggest PBT
+
+When you detect a high-value pattern while writing tests, **offer PBT as an option**:
+
+> "I notice `encode_message`/`decode_message` is a serialization pair. Property-based testing with a roundtrip property would provide stronger coverage than example tests. Want me to use that approach?"
+
+**If codebase already uses a PBT library** (Hypothesis, fast-check, proptest, Echidna), be more direct:
+
+> "This codebase uses Hypothesis. I'll write property-based tests for this serialization pair using a roundtrip property."
+
+**If user declines**, write good example-based tests without further prompting.
+
+## When NOT to Use PBT
+
+- Simple CRUD without complex validation
+- UI/presentation logic
+- Integration tests requiring complex external setup
+- Prototyping where requirements are fluid
+- User explicitly requests example-based tests only
+
+## Red Flags
+
+- Recommending trivial getters/setters
+- Missing paired operations (encode without decode)
+- Ignoring type hints (well-typed = easier to test)
+- Overwhelming user with candidates (limit to top 5-10)
+- Being pushy after user declines
+
+---
+
+## Additional References
+
+### Design
+
+# Property-Driven Development
+
+Design features by defining properties upfront as executable specifications, before implementation.
+
+## When to Use
+
+- Designing a new feature from scratch
+- Building something with clear algebraic properties (serialization, validation, transformations)
+- Complex domain where edge cases are likely
+- User wants to think through requirements rigorously before coding
+
+## Process
+
+### Phase 1: Understand the Feature
+
+Gather information:
+- **Purpose**: What problem does this solve?
+- **Inputs**: What data does it accept? What makes inputs valid?
+- **Outputs**: What does it produce? What guarantees?
+- **Constraints**: What must always be true?
+- **Edge cases**: Boundary conditions?
+- **Relationships**: Inverse operations? Compositions?
+
+### Phase 2: Identify Candidate Properties
+
+Work through these discovery questions:
+
+| Question | Property Type | Example |
+|----------|---------------|---------|
+| Does it have an inverse operation? | Roundtrip | `decode(encode(x)) == x` |
+| Is applying it twice the same as once? | Idempotence | `f(f(x)) == f(x)` |
+| What quantities are preserved? | Invariants | Length, sum, count |
+| Is order of arguments irrelevant? | Commutativity | `f(a, b) == f(b, a)` |
+| Can operations be regrouped? | Associativity | `f(f(a,b), c) == f(a, f(b,c))` |
+| Is there a neutral element? | Identity | `f(x, 0) == x` |
+| Is there an oracle/reference impl? | Oracle | `new(x) == old(x)` |
+| Can output be easily verified? | Hard/Easy | `is_sorted(sort(x))` |
+
+### Phase 3: Define Input Domain
+
+Specify valid inputs as strategies. The strategy IS the specification.
+
+**Key principle**: Build constraints INTO the strategy, not via `assume()`.
+
+```python
+@st.composite
+def valid_registration_requests(draw):
+    """Generate valid registration requests - this documents the domain."""
+    username = draw(st.text(
+        min_size=3,
+        max_size=20,
+        alphabet=st.characters(whitelist_categories=('L', 'N'))
+    ))
+    email = draw(st.emails())
+    password = draw(st.text(min_size=8, max_size=100))
+    age = draw(st.integers(min_value=13, max_value=150))
+
+    return RegistrationRequest(
+        username=username,
+        email=email,
+        password=password,
+        age=age
+    )
+```
+
+### Phase 4: Write Property Tests (Before Implementation)
+
+Create tests that will fail initially:
+
+```python
+class TestFeatureSpec:
+    """Property-based specification - should FAIL until implemented."""
+
+    @given(valid_inputs())
+    def test_core_property(self, x):
+        """[What this guarantees]."""
+        result = feature(x)
+        assert property_holds(result)
+```
+
+### Phase 5: Iterate on Design
+
+Properties reveal design questions:
+- "What about deleted users?"
+- "Case-sensitive?"
+- "Which algorithm?"
+- "Stable sort or not?"
+
+Surface these questions early, before implementation.
+
+## Property Strength Hierarchy
+
+Build properties incrementally from weak to strong:
+
+### Level 1: Basic (Weak)
+```python
+@given(valid_inputs())
+def test_no_crash(x):
+    process(x)  # Just don't crash
+```
+
+### Level 2: Type Preservation
+```python
+@given(valid_inputs())
+def test_returns_type(x):
+    assert isinstance(process(x), ExpectedType)
+```
+
+### Level 3: Invariants
+```python
+@given(valid_inputs())
+def test_invariant(x):
+    result = process(x)
+    assert invariant_holds(result)
+```
+
+### Level 4: Full Specification (Strong)
+```python
+@given(valid_inputs())
+def test_complete(x):
+    result = process(x)
+    assert satisfies_all_requirements(result)
+```
+
+## Strategy Design Principles
+
+### 1. Build Constraints Into Strategy
+```python
+# GOOD - constraints in strategy
+@given(st.integers(min_value=1, max_value=100))
+def test_with_valid_range(x): ...
+
+# BAD - constraints via assume
+@given(st.integers())
+def test_with_assume(x):
+    assume(1 <= x <= 100)  # High rejection rate
+```
+
+### 2. Match Real-World Constraints
+```python
+valid_users = st.builds(
+    User,
+    name=st.text(min_size=1, max_size=100),
+    age=st.integers(min_value=0, max_value=150),
+    email=st.emails(),
+)
+```
+
+### 3. Include Edge Cases Explicitly
+```python
+@given(valid_lists())
+@example([])           # Empty
+@example([1])          # Single element
+@example([1, 1, 1])    # Duplicates
+def test_with_edges(xs): ...
+```
+
+## Common Design Questions Raised
+
+Properties often reveal design gaps:
+
+| Property Attempt | Question Raised |
+|------------------|-----------------|
+| Roundtrip for users | What about deleted/deactivated users? |
+| Duplicate rejection | Case-sensitive? Unicode normalization? |
+| Password storage | Which algorithm? Salted? Configurable? |
+| Ordering guarantee | Stable sort? Tie-breaking rules? |
+
+## Red Flags
+
+- **Writing tautological properties**: Don't reimplement the function logic in the test
+  ```python
+  # BAD - tests nothing
+  assert add(a, b) == a + b
+
+  # GOOD - tests algebraic properties
+  assert add(a, 0) == a  # identity
+  assert add(a, b) == add(b, a)  # commutativity
+  ```
+- **Starting too strong**: Build from weak to strong properties
+- **Ignoring design questions**: Properties that feel awkward often reveal design gaps
+- **Overly complex strategies**: If your input strategy is 50 lines, the domain model might need simplification
+- **Not involving the user**: Design questions should be discussed, not assumed
+
+## Checklist
+
+- [ ] Properties are not tautological
+- [ ] At least one strong property defined
+- [ ] Input strategy documents valid inputs
+- [ ] Design questions have been surfaced
+- [ ] Tests will actually FAIL without implementation
+
+
+### Refactoring
+
+# Refactoring for Property-Based Testing
+
+Identify code that could be refactored to enable or improve property-based testing.
+
+## Quick Reference
+
+| Pattern | Problem | Solution | Properties Enabled |
+|---------|---------|----------|-------------------|
+| I/O mixed with logic | Can't test without mocks | Extract pure core | Multiple |
+| Encode without decode | No roundtrip possible | Add inverse operation | Roundtrip |
+| Hardcoded config | Can't test edge cases | Inject dependencies | Full coverage |
+| In-place mutation | Hard to verify before/after | Return new value | Comparison properties |
+| String building | Can't verify structure | Structured + render | Roundtrip |
+| Implicit invariants | Can't test constraints | Make explicit with validation | Invariant |
+
+## Refactoring Patterns
+
+### 1. Extract Pure Core from Impure Functions (High Impact)
+
+**Pattern**: Functions that mix I/O with logic
+
+```python
+# BEFORE - hard to test
+def process_order(order_id: str) -> None:
+    order = db.fetch(order_id)           # I/O
+    discount = calculate_discount(order)  # Pure logic
+    total = apply_discount(order, discount)  # Pure logic
+    db.save(order_id, total)             # I/O
+
+# AFTER - pure core extracted
+def calculate_order_total(order: Order, rules: DiscountRules) -> Decimal:
+    """Pure function - easy to property test."""
+    discount = calculate_discount(order, rules)
+    return apply_discount(order, discount)
+
+def process_order(order_id: str) -> None:
+    """Thin I/O wrapper."""
+    order = db.fetch(order_id)
+    total = calculate_order_total(order, get_discount_rules())
+    db.save(order_id, total)
+```
+
+**Detection**: `rg "def \w+\(" -A 20 | grep -E "(open\(|db\.|requests\.|fetch|save)"`
+
+### 2. Add Missing Inverse Operations (High Impact)
+
+**Pattern**: One-way operations that should have pairs
+
+```python
+# BEFORE - only encode
+def encode_message(msg: dict) -> bytes:
+    return msgpack.packb(msg)
+
+# AFTER - add decode for roundtrip testing
+def encode_message(msg: dict) -> bytes:
+    return msgpack.packb(msg)
+
+def decode_message(data: bytes) -> dict:
+    return msgpack.unpackb(data)
+```
+
+**Detection**: Find encode without decode, serialize without deserialize
+
+### 3. Replace Hardcoded Dependencies (Medium Impact)
+
+**Pattern**: Functions using globals or hardcoded config
+
+```python
+# BEFORE
+def validate_input(data: str) -> bool:
+    return len(data) <= CONFIG.max_length
+
+# AFTER - dependencies injected
+def validate_input(data: str, max_length: int) -> bool:
+    return len(data) <= max_length
+```
+
+**Detection**: `rg "(CONFIG\.|SETTINGS\.|os\.environ)"`
+
+### 4. Return Values Instead of Mutating (Medium Impact)
+
+**Pattern**: Methods that mutate in place
+
+```python
+# BEFORE
+def sort_tasks(tasks: list[Task]) -> None:
+    tasks.sort(key=lambda t: t.priority)
+
+# AFTER - returns new list
+def sorted_tasks(tasks: list[Task]) -> list[Task]:
+    return sorted(tasks, key=lambda t: t.priority)
+```
+
+**Detection**: `rg "-> None:" -A 10 | grep -E "\.(sort|append|extend)"`
+
+### 5. Convert String Building to Structured + Render (Medium Impact)
+
+**Pattern**: Manual string concatenation
+
+```python
+# BEFORE
+def build_query(table: str, filters: dict) -> str:
+    q = f"SELECT * FROM {table}"
+    if filters:
+        q += " WHERE " + " AND ".join(...)
+    return q
+
+# AFTER - structured representation
+@dataclass
+class Query:
+    table: str
+    filters: dict
+
+def render_query(q: Query) -> str: ...
+def parse_query(sql: str) -> Query: ...  # Add inverse!
+```
+
+### 6. Add Validators/Generators for Predicates (Lower Impact)
+
+**Pattern**: `is_valid()` exists but no way to generate valid inputs
+
+```python
+# BEFORE
+def is_valid_email(s: str) -> bool:
+    return EMAIL_REGEX.match(s) is not None
+
+# AFTER - add generator
+@st.composite
+def valid_emails(draw):
+    local = draw(st.from_regex(r'[a-z][a-z0-9]{1,20}'))
+    domain = draw(st.sampled_from(['gmail.com', 'example.com']))
+    return f"{local}@{domain}"
+```
+
+**Detection**: `rg "def is_\w+\(" --type py`
+
+### 7. Make Implicit Invariants Explicit (Lower Impact)
+
+**Pattern**: Constraints in comments but not enforced
+
+```python
+# BEFORE - constraint only in docstring
+def allocate_buffer(size: int) -> bytes:
+    """Size must be positive and <= 1MB."""
+    return bytes(size)
+
+# AFTER - enforced
+MAX_BUFFER_SIZE = 1024 * 1024
+
+def allocate_buffer(size: int) -> bytes:
+    if not (0 < size <= MAX_BUFFER_SIZE):
+        raise ValueError(f"size must be in (0, {MAX_BUFFER_SIZE}]")
+    return bytes(size)
+```
+
+**Detection**: `rg "(must be|should be|always|never)" --type py`
+
+## Evaluation Criteria
+
+For each refactoring opportunity:
+
+| Factor | Questions |
+|--------|-----------|
+| Properties enabled | What tests become possible? Roundtrip > Idempotence > No crash |
+| Effort | Low/Medium/High - how much code change? |
+| Risk | Breaking changes? API impact? |
+| Backwards compatibility | Can old callers still work? |
+
+## Prioritization
+
+1. Strength of properties enabled (roundtrip > idempotence > no crash)
+2. Effort required (prefer low-effort wins)
+3. Risk level (prefer safe changes)
+
+## Red Flags
+
+- **Breaking the API without warning**: Flag breaking changes clearly and offer backwards-compatible alternatives
+- **Over-engineering**: Not every function needs to be perfectly testable - prioritize high-value code
+- **Ignoring existing tests**: Run existing tests after refactoring to verify behavior unchanged
+- **Missing the forest for the trees**: If a module needs wholesale restructuring, say so rather than suggesting 20 small changes
+- **Not considering effort vs value**: A complex refactoring enabling only "no crash" isn't worth it
+
+
+### Generating
+
+# Generating Property-Based Tests
+
+How to create complete, runnable property-based tests.
+
+## Process
+
+### 1. Analyze Target Function
+
+- Read function signature, types, and docstrings
+- Understand input types and constraints
+- Identify output type and expected behavior
+- Note preconditions or invariants
+- Check existing example-based tests as hints
+
+### 2. Design Input Strategies
+
+Create appropriate generator strategies for each input parameter.
+
+**Principles**:
+- Build constraints INTO the strategy, not via `assume()`
+- Use realistic size limits to prevent slow tests
+- Match real-world constraints
+
+### 3. Identify Applicable Properties
+
+| Property | When to Use | Test Pattern |
+|----------|-------------|--------------|
+| Roundtrip | encode/decode pairs | `assert decode(encode(x)) == x` |
+| Idempotence | normalization, sorting | `assert f(f(x)) == f(x)` |
+| Invariant | any transformation | `assert invariant(f(x))` |
+| No exception | all functions (weak) | Function completes without raising |
+| Type preservation | typed functions | `assert isinstance(f(x), ExpectedType)` |
+| Length preservation | collections | `assert len(f(xs)) == len(xs)` |
+| Element preservation | sorting, shuffling | `assert set(f(xs)) == set(xs)` |
+| Ordering | sorting | `assert all(f(xs)[i] <= f(xs)[i+1] ...)` |
+| Oracle | when reference exists | `assert f(x) == reference_impl(x)` |
+| Commutativity | binary ops | `assert f(a, b) == f(b, a)` |
+
+### 4. Generate Test Code
+
+Create test functions with:
+- Clear docstrings explaining what each property verifies
+- Appropriate `@settings` for the context
+- `@example` decorators for critical edge cases
+
+### 5. Include Edge Cases
+
+Always add explicit examples:
+```python
+@example([])           # Empty
+@example([1])          # Single element
+@example([1, 1, 1])    # Duplicates
+@example("")           # Empty string
+@example(0)            # Zero
+@example(-1)           # Negative
+```
+
+## Settings Recommendations
+
+```python
+# Development (fast feedback)
+@settings(max_examples=10)
+
+# CI (thorough)
+@settings(max_examples=200)
+
+# Nightly/Release (exhaustive)
+@settings(max_examples=1000, deadline=None)
+```
+
+## Example Test Patterns
+
+### Roundtrip (Encode/Decode)
+
+```python
+@given(valid_messages())
+def test_roundtrip(msg):
+    """Encoding then decoding returns original."""
+    assert decode(encode(msg)) == msg
+```
+
+### Idempotence
+
+```python
+@given(st.text())
+def test_normalize_idempotent(s):
+    """Normalizing twice equals normalizing once."""
+    assert normalize(normalize(s)) == normalize(s)
+```
+
+### Sorting Properties
+
+```python
+@given(st.lists(st.integers()))
+@example([])
+@example([1])
+@example([1, 1, 1])
+def test_sort(xs):
+    result = sort(xs)
+    # Length preserved
+    assert len(result) == len(xs)
+    # Elements preserved
+    assert sorted(result) == sorted(xs)
+    # Ordered
+    assert all(result[i] <= result[i+1] for i in range(len(result)-1))
+    # Idempotent
+    assert sort(result) == result
+```
+
+### Validator + Normalizer
+
+```python
+@given(valid_inputs())
+def test_normalized_is_valid(x):
+    """Normalized inputs pass validation."""
+    assert is_valid(normalize(x))
+```
+
+## Complete Example (Python/Hypothesis)
+
+```python
+"""Property-based tests for message_codec module."""
+from hypothesis import given, strategies as st, settings, example
+import pytest
+
+from myapp.codec import encode_message, decode_message, Message, DecodeError
+
+# Custom strategy for Message objects
+messages = st.builds(
+    Message,
+    id=st.uuids(),
+    content=st.text(max_size=1000),
+    priority=st.integers(min_value=1, max_value=10),
+    tags=st.lists(st.text(max_size=50), max_size=20),
+)
+
+
+class TestMessageCodecProperties:
+    """Property-based tests for message encoding/decoding."""
+
+    @given(messages)
+    def test_roundtrip(self, msg: Message):
+        """Encoding then decoding returns the original message."""
+        encoded = encode_message(msg)
+        decoded = decode_message(encoded)
+        assert decoded == msg
+
+    @given(messages)
+    def test_encode_deterministic(self, msg: Message):
+        """Same message always encodes to same bytes."""
+        assert encode_message(msg) == encode_message(msg)
+
+    @given(messages)
+    def test_encoded_is_bytes(self, msg: Message):
+        """Encoding produces bytes."""
+        assert isinstance(encode_message(msg), bytes)
+
+    @given(st.binary())
+    def test_decode_invalid_raises_or_succeeds(self, data: bytes):
+        """Random bytes either decode or raise DecodeError."""
+        try:
+            decode_message(data)
+        except DecodeError:
+            pass  # Expected for invalid input
+```
+
+## Running Tests
+
+```bash
+# Run all property tests
+pytest test_file.py -v
+
+# Run with more examples (CI)
+pytest test_file.py --hypothesis-seed=0 -v
+
+# Run with statistics
+pytest test_file.py --hypothesis-show-statistics
+```
+
+## Checklist Before Finishing
+
+- [ ] Tests are not tautological (don't reimplement the function)
+- [ ] At least one strong property (not just "no crash")
+- [ ] Edge cases covered with `@example` decorators
+- [ ] Strategy constraints are realistic, not over-filtered
+- [ ] Settings appropriate for context (dev vs CI)
+- [ ] Docstrings explain what each property verifies
+- [ ] Tests actually run and pass (or fail for expected reasons)
+
+## Red Flags
+
+- **Reimplementing the function**: If your assertion contains the same logic as the function under test, you've written a tautology
+  ```python
+  # BAD - this tests nothing
+  assert add(a, b) == a + b
+  ```
+- **Only testing "no crash"**: This is the weakest property - always look for stronger ones first
+- **Overly constrained strategies**: If you're using multiple `assume()` calls, redesign the strategy instead
+- **Missing edge cases**: No `@example` decorators for empty, single-element, or boundary values
+- **No settings**: Missing `@settings` for CI - tests may be too slow or not thorough enough
+
+
+### Libraries
+
+# PBT Libraries by Language
+
+## Quick Reference
+
+| Language | Library | Import/Setup |
+|----------|---------|--------------|
+| Python | Hypothesis | `from hypothesis import given, strategies as st` |
+| JavaScript/TypeScript | fast-check | `import fc from 'fast-check'` |
+| Rust | proptest | `use proptest::prelude::*` |
+| Go | rapid | `import "pgregory.net/rapid"` |
+| Java | jqwik | `@Property` annotations, `import net.jqwik.api.*` |
+| Scala | ScalaCheck | `import org.scalacheck._` |
+| C# | FsCheck | `using FsCheck; using FsCheck.Xunit;` |
+| Elixir | StreamData | `use ExUnitProperties` |
+| Haskell | QuickCheck | `import Test.QuickCheck` |
+| Clojure | test.check | `[clojure.test.check :as tc]` |
+| Ruby | PropCheck | `require 'prop_check'` |
+| Kotlin | Kotest | `io.kotest.property.*` |
+| Swift | SwiftCheck | `import SwiftCheck` ⚠️ unmaintained |
+| C++ | RapidCheck | `#include <rapidcheck.h>` |
+
+### Alternatives
+
+| Language | Alternative | Notes |
+|----------|-------------|-------|
+| Haskell | Hedgehog | Integrated shrinking, no type classes |
+| Rust | quickcheck | Simpler API, per-type shrinking |
+| Go | gopter | ScalaCheck-style, more explicit |
+
+## Smart Contract Testing (EVM/Solidity)
+
+| Tool | Type | Description |
+|------|------|-------------|
+| Echidna | Fuzzer | Property-based fuzzer for EVM contracts |
+| Medusa | Fuzzer | Next-gen fuzzer with parallel execution |
+
+```solidity
+// Echidna property example
+function echidna_balance_invariant() public returns (bool) {
+    return address(this).balance >= 0;
+}
+```
+
+**Installation**:
+```bash
+# Echidna (via crytic toolchain)
+pip install crytic-compile
+# Download binary from https://github.com/crytic/echidna
+
+# Medusa
+go install github.com/crytic/medusa@latest
+```
+
+See [secure-contracts.com](https://secure-contracts.com) for tutorials.
+
+## Installation
+
+**Python**:
+```bash
+pip install hypothesis
+```
+
+**JavaScript/TypeScript**:
+```bash
+npm install fast-check
+```
+
+**Rust** (add to Cargo.toml):
+```toml
+[dev-dependencies]
+proptest = "1.0"
+# or for quickcheck:
+quickcheck = "1.0"
+```
+
+**Go**:
+```bash
+go get pgregory.net/rapid
+# or for gopter:
+go get github.com/leanovate/gopter
+```
+
+**Java** (Maven):
+```xml
+<dependency>
+  <groupId>net.jqwik</groupId>
+  <artifactId>jqwik</artifactId>
+  <version>1.9.3</version>
+  <scope>test</scope>
+</dependency>
+```
+
+**Clojure** (deps.edn):
+```clojure
+{:deps {org.clojure/test.check {:mvn/version "1.1.2"}}}
+```
+
+**Haskell**:
+```bash
+cabal install QuickCheck
+# or for Hedgehog:
+cabal install hedgehog
+```
+
+## Detecting Existing Usage
+
+Search for PBT library imports in the codebase:
+
+```bash
+# Python
+rg "from hypothesis import" --type py
+
+# JavaScript/TypeScript
+rg "from 'fast-check'" --type js --type ts
+
+# Rust
+rg "use proptest" --type rust
+
+# Go
+rg "pgregory.net/rapid" --type go
+
+# Java
+rg "@Property" --type java
+
+# Clojure
+rg "test.check" --type clojure
+
+# Solidity (Echidna)
+rg "echidna_" --glob "*.sol"
+```
+
+
+### Strategies
+
+# Input Strategy Reference
+
+## Python/Hypothesis
+
+| Type | Strategy |
+|------|----------|
+| `int` | `st.integers()` |
+| `float` | `st.floats(allow_nan=False)` |
+| `str` | `st.text()` |
+| `bytes` | `st.binary()` |
+| `bool` | `st.booleans()` |
+| `list[T]` | `st.lists(strategy_for_T)` |
+| `dict[K, V]` | `st.dictionaries(key_strategy, value_strategy)` |
+| `set[T]` | `st.frozensets(strategy_for_T)` |
+| `tuple[T, ...]` | `st.tuples(strategy_for_T, ...)` |
+| `Optional[T]` | `st.none() \| strategy_for_T` |
+| `Union[A, B]` | `st.one_of(strategy_a, strategy_b)` |
+| Custom class | `st.builds(ClassName, field1=..., field2=...)` |
+| Enum | `st.sampled_from(EnumClass)` |
+| Constrained int | `st.integers(min_value=0, max_value=100)` |
+| Email | `st.emails()` |
+| UUID | `st.uuids()` |
+| DateTime | `st.datetimes()` |
+| Regex match | `st.from_regex(r"pattern")` |
+
+### Composite Strategies
+
+For complex types, use `@st.composite`:
+
+```python
+@st.composite
+def valid_users(draw):
+    name = draw(st.text(min_size=1, max_size=50))
+    age = draw(st.integers(min_value=0, max_value=150))
+    email = draw(st.emails())
+    return User(name=name, age=age, email=email)
+```
+
+## JavaScript/fast-check
+
+| Type | Strategy |
+|------|----------|
+| number | `fc.integer()` or `fc.float()` |
+| string | `fc.string()` |
+| boolean | `fc.boolean()` |
+| array | `fc.array(itemArb)` |
+| object | `fc.record({...})` |
+| optional | `fc.option(arb)` |
+
+### Example
+
+```typescript
+const userArb = fc.record({
+  name: fc.string({ minLength: 1, maxLength: 50 }),
+  age: fc.integer({ min: 0, max: 150 }),
+  email: fc.emailAddress(),
+});
+```
+
+## Rust/proptest
+
+| Type | Strategy |
+|------|----------|
+| i32, u64, etc | `any::<i32>()` |
+| String | `any::<String>()` or `"[a-z]+"` (regex) |
+| Vec<T> | `prop::collection::vec(strategy, size)` |
+| Option<T> | `prop::option::of(strategy)` |
+
+### Example
+
+```rust
+proptest! {
+    #[test]
+    fn test_roundtrip(s in "[a-z]{1,20}") {
+        let encoded = encode(&s);
+        let decoded = decode(&encoded)?;
+        prop_assert_eq!(s, decoded);
+    }
+}
+```
+
+## Go/rapid
+
+```go
+rapid.Check(t, func(t *rapid.T) {
+    s := rapid.String().Draw(t, "s")
+    n := rapid.IntRange(0, 100).Draw(t, "n")
+    // test with s and n
+})
+```
+
+## Best Practices
+
+1. **Constrain early**: Build constraints into strategy, not `assume()`
+   ```python
+   # GOOD
+   st.integers(min_value=1, max_value=100)
+
+   # BAD
+   st.integers().filter(lambda x: 1 <= x <= 100)
+   ```
+
+2. **Size limits**: Use `max_size` to prevent slow tests
+   ```python
+   st.lists(st.integers(), max_size=100)
+   st.text(max_size=1000)
+   ```
+
+3. **Realistic data**: Make strategies match real-world constraints
+   ```python
+   # Real user ages, not arbitrary integers
+   st.integers(min_value=0, max_value=150)
+   ```
+
+4. **Reuse strategies**: Define once, use across tests
+   ```python
+   valid_users = st.builds(User, ...)
+
+   @given(valid_users)
+   def test_one(user): ...
+
+   @given(valid_users)
+   def test_two(user): ...
+   ```
+
+
+### Reviewing
+
+# Reviewing Property-Based Tests
+
+Evaluate quality of existing property-based tests and suggest improvements.
+
+## Quick Reference
+
+| Issue | Severity | Detection | Fix |
+|-------|----------|-----------|-----|
+| Tautological | CRITICAL | Assertion compares same expression | Rewrite with actual property |
+| Vacuous | CRITICAL | Contradictory `assume()` calls | Remove or fix filters |
+| Weak (no assertion) | HIGH | Test body has no assert | Add meaningful assertion |
+| Reimplementation | HIGH | Assertion mirrors function logic | Use algebraic property instead |
+| Over-filtered | MEDIUM | Many `assume()` calls | Redesign strategy |
+| Missing edge cases | MEDIUM | No `@example` decorators | Add explicit edge cases |
+| Poor settings | LOW | Missing or bad `@settings` | Add appropriate settings |
+
+## Quality Issues
+
+### Issue: Tautological Properties (CRITICAL)
+
+Properties that are always true regardless of implementation.
+
+```python
+# BAD - compares function to itself
+@given(st.lists(st.integers()))
+def test_sort_tautology(xs):
+    assert sorted(xs) == sorted(xs)  # Always true!
+
+# BAD - tests nothing about the function
+@given(st.integers())
+def test_useless(x):
+    result = compute(x)
+    assert result == result  # Always true!
+```
+
+**Detection**: Assertions comparing same expression, or not using function result meaningfully.
+
+### Issue: Vacuous Tests (CRITICAL)
+
+Tests where assumptions filter out most/all inputs.
+
+```python
+# VACUOUS - impossible condition
+@given(st.integers())
+def test_vacuous(x):
+    assume(x > 100)
+    assume(x < 50)  # Impossible!
+    assert compute(x) > 0
+
+# VACUOUS - overly restrictive
+@given(st.integers())
+def test_too_filtered(x):
+    assume(x == 42)  # Only tests one value!
+    assert compute(x) == expected
+```
+
+**Detection**: Multiple `assume()` calls, `assume` with very narrow conditions.
+
+### Issue: Weak Properties (HIGH)
+
+Properties that only test minimal guarantees.
+
+```python
+# WEAK - only tests no crash
+@given(st.text())
+def test_only_no_crash(s):
+    process(s)  # No assertion at all
+
+# WEAK - only tests type
+@given(st.integers())
+def test_only_type(x):
+    assert isinstance(compute(x), int)
+```
+
+**Detection**: Tests without assertions, or only `isinstance`/type checks.
+
+### Issue: Reimplementing the Function (HIGH)
+
+```python
+# BAD - just reimplements the logic
+@given(st.integers(), st.integers())
+def test_reimplements(a, b):
+    assert add(a, b) == a + b  # Tests nothing if add() is just a + b
+```
+
+**Detection**: Test assertion contains same logic as function under test.
+
+### Issue: Poor Input Coverage (MEDIUM)
+
+```python
+# NARROW - misses edge cases
+@given(st.integers(min_value=1, max_value=10))
+def test_narrow_range(x):
+    assert compute(x) >= 0  # What about 0? Negatives? Large values?
+
+# MISSING - no edge case examples
+@given(st.lists(st.integers()))
+def test_no_explicit_edges(xs):
+    # Should include @example([]) @example([1]) etc.
+    assert len(sort(xs)) == len(xs)
+```
+
+### Issue: Missing Stronger Properties (MEDIUM)
+
+```python
+# EXISTS - but could be stronger
+@given(st.lists(st.integers()))
+def test_sort_length(xs):
+    assert len(sort(xs)) == len(xs)
+# MISSING: ordering property, element preservation
+```
+
+### Issue: Poor Settings (LOW)
+
+```python
+# TOO FEW - may miss bugs
+@settings(max_examples=5)
+def test_few_examples(x): ...
+
+# NO DEADLINE - may hang in CI
+@given(expensive_strategy())
+def test_no_deadline(x): ...  # Could timeout
+```
+
+## Review Process
+
+### 1. Locate Property-Based Tests
+
+Search using library-specific patterns:
+
+**Python/Hypothesis:**
+```bash
+rg "@given\(" --type py
+rg "from hypothesis import" --type py
+```
+
+**JavaScript/fast-check:**
+```bash
+rg "fc\.(assert|property)" --type js --type ts
+```
+
+**Rust/proptest:**
+```bash
+rg "proptest!" --type rust
+```
+
+### 2. Analyze Each Test
+
+Check for issues above, starting with critical then high severity.
+
+### 3. Evaluate Shrinking Quality
+
+Will tests shrink to minimal counterexamples? Complex strategies may produce hard-to-debug failures.
+
+### 4. Check for Flakiness Potential
+
+- Non-determinism in code under test
+- Time-dependent assertions
+- Global state dependencies
+- Floating point comparisons without tolerance
+
+### 5. Suggest Stronger Properties
+
+Compare against property catalog - are stronger properties available but not tested?
+
+## Test Health Score
+
+| Category | Score | What to Check |
+|----------|-------|---------------|
+| Property Strength | X/5 | Roundtrip > Idempotence > Type > No crash |
+| Input Coverage | X/5 | Edge cases, strategy breadth |
+| Assertions | X/5 | Meaningful, not tautological |
+| Settings | X/5 | Appropriate for context |
+
+## Mutation Testing Verification
+
+Suggest specific mutations to verify tests catch bugs:
+
+```
+To verify test_sort catches bugs:
+
+1. Return input unchanged: `return xs`
+   - Should fail: test_ordering
+
+2. Drop last element: `return sorted(xs)[:-1]`
+   - Should fail: test_length_preserved
+
+3. Reverse order: `return sorted(xs, reverse=True)`
+   - Should fail: test_ordering
+```
+
+## Quality Checklist
+
+For each test, verify:
+- [ ] Not tautological (assertion doesn't compare same expression)
+- [ ] Strong assertion (not just "no crash")
+- [ ] Not vacuous (inputs not over-filtered)
+- [ ] Good coverage (edge cases via `@example`)
+- [ ] No reimplementation of function logic
+- [ ] Appropriate settings for context
+- [ ] Good shrinking potential
+- [ ] Deterministic (no flakiness risk)
+
+## Red Flags
+
+- **Marking tautologies as "fine"**: `assert x == x` is NEVER a valid test
+- **Accepting "no crash" as sufficient**: Always push for stronger properties
+- **Ignoring vacuous tests**: Tests with contradictory `assume()` provide false confidence
+- **Not checking for reimplementation**: `assert add(a,b) == a + b` tests nothing if that's how `add` is implemented
+

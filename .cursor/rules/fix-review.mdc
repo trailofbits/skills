@@ -1,0 +1,1377 @@
+---
+description: ">"
+globs: "*.go, *.move, *.rs"
+alwaysApply: false
+---
+
+# fix-review
+
+*From Trail of Bits Skills - Author: Trail of Bits*
+
+# Fix Review
+
+Differential analysis to verify commits address security findings without introducing bugs.
+
+## When to Use
+
+- Reviewing fix branches against security audit reports
+- Validating that remediation commits actually address findings
+- Checking if specific findings (TOB-XXX format) have been fixed
+- Analyzing commit ranges for bug introduction patterns
+- Cross-referencing code changes with audit recommendations
+
+## When NOT to Use
+
+- Initial security audits (use audit-context-building or differential-review)
+- Code review without a specific baseline or finding set
+- Greenfield development with no prior audit
+- Documentation-only changes
+
+---
+
+## Rationalizations (Do Not Skip)
+
+| Rationalization | Why It's Wrong | Required Action |
+|-----------------|----------------|-----------------|
+| "The commit message says it fixes TOB-XXX" | Messages lie; code tells truth | Verify the actual code change addresses the finding |
+| "Small fix, no new bugs possible" | Small changes cause big bugs | Analyze all changes for anti-patterns |
+| "I'll check the important findings" | All findings matter | Systematically check every finding |
+| "The tests pass" | Tests may not cover the fix | Verify fix logic, not just test status |
+| "Same developer, they know the code" | Familiarity breeds blind spots | Fresh analysis of every change |
+
+---
+
+## Quick Reference
+
+### Input Requirements
+
+| Input | Required | Format |
+|-------|----------|--------|
+| Source commit | Yes | Git commit hash or ref (baseline before fixes) |
+| Target commit(s) | Yes | One or more commit hashes to analyze |
+| Security report | No | Local path, URL, or Google Drive link |
+
+### Finding Status Values
+
+| Status | Meaning |
+|--------|---------|
+| FIXED | Code change directly addresses the finding |
+| PARTIALLY_FIXED | Some aspects addressed, others remain |
+| NOT_ADDRESSED | No relevant changes found |
+| CANNOT_DETERMINE | Insufficient context to verify |
+
+---
+
+## Workflow
+
+### Phase 1: Input Gathering
+
+Collect required inputs from user:
+
+```
+Source commit:  [hash/ref before fixes]
+Target commit:  [hash/ref to analyze]
+Report:         [optional: path, URL, or "none"]
+```
+
+If user provides multiple target commits, process each separately with the same source.
+
+### Phase 2: Report Retrieval
+
+When a security report is provided, retrieve it based on format:
+
+**Local file (PDF, MD, JSON, HTML):**
+Read the file directly using the Read tool. Claude processes PDFs natively.
+
+**URL:**
+Fetch web content using the WebFetch tool.
+
+**Google Drive URL that fails:**
+See `references/report-parsing.md` for Google Drive fallback logic using `gdrive` CLI.
+
+### Phase 3: Finding Extraction
+
+Parse the report to extract findings:
+
+**Trail of Bits format:**
+- Look for "Detailed Findings" section
+- Extract findings matching pattern: `TOB-[A-Z]+-[0-9]+`
+- Capture: ID, title, severity, description, affected files
+
+**Other formats:**
+- Numbered findings (Finding 1, Finding 2)
+- Severity-based sections (Critical, High, Medium, Low)
+- JSON with `findings` array
+
+See `references/report-parsing.md` for detailed parsing strategies.
+
+### Phase 4: Commit Analysis
+
+For each target commit, analyze the commit range:
+
+```bash
+# Get commit list from source to target
+git log <source>..<target> --oneline
+
+# Get full diff
+git diff <source>..<target>
+
+# Get changed files
+git diff <source>..<target> --name-only
+```
+
+For each commit in the range:
+1. Examine the diff for bug introduction patterns
+2. Check for security anti-patterns (see `references/bug-detection.md`)
+3. Map changes to relevant findings
+
+### Phase 5: Finding Verification
+
+For each finding in the report:
+
+1. **Identify relevant commits** - Match by:
+   - File paths mentioned in finding
+   - Function/variable names in finding description
+   - Commit messages referencing the finding ID
+
+2. **Verify the fix** - Check that:
+   - The root cause is addressed (not just symptoms)
+   - The fix follows the report's recommendation
+   - No new vulnerabilities are introduced
+
+3. **Assign status** - Based on evidence:
+   - FIXED: Clear code change addresses the finding
+   - PARTIALLY_FIXED: Some aspects fixed, others remain
+   - NOT_ADDRESSED: No relevant changes
+   - CANNOT_DETERMINE: Need more context
+
+4. **Document evidence** - For each finding:
+   - Commit hash(es) that address it
+   - Specific file and line changes
+   - How the fix addresses the root cause
+
+See `references/finding-matching.md` for detailed matching strategies.
+
+### Phase 6: Output Generation
+
+Generate two outputs:
+
+**1. Report file (`FIX_REVIEW_REPORT.md`):**
+
+```markdown
+# Fix Review Report
+
+**Source:** <commit>
+**Target:** <commit>
+**Report:** <path or "none">
+**Date:** <date>
+
+## Executive Summary
+
+[Brief overview: X findings reviewed, Y fixed, Z concerns]
+
+## Finding Status
+
+| ID | Title | Severity | Status | Evidence |
+|----|-------|----------|--------|----------|
+| TOB-XXX-1 | Finding title | High | FIXED | abc123 |
+| TOB-XXX-2 | Another finding | Medium | NOT_ADDRESSED | - |
+
+## Bug Introduction Concerns
+
+[Any potential bugs or regressions detected in the changes]
+
+## Per-Commit Analysis
+
+### Commit abc123: "Fix reentrancy in withdraw()"
+
+**Files changed:** contracts/Vault.sol
+**Findings addressed:** TOB-XXX-1
+**Concerns:** None
+
+[Detailed analysis]
+
+## Recommendations
+
+[Any follow-up actions needed]
+```
+
+**2. Conversation summary:**
+
+Provide a concise summary in the conversation:
+- Total findings: X
+- Fixed: Y
+- Not addressed: Z
+- Concerns: [list any bug introduction risks]
+
+---
+
+## Bug Detection
+
+Analyze commits for security anti-patterns. Key patterns to watch:
+- Access control weakening (modifiers removed)
+- Validation removal (require/assert deleted)
+- Error handling reduction (try/catch removed)
+- External call reordering (state after call)
+- Integer operation changes (SafeMath removed)
+- Cryptographic weakening
+
+See `references/bug-detection.md` for comprehensive detection patterns and examples.
+
+---
+
+## Integration with Other Skills
+
+**differential-review:** For initial security review of changes (before audit)
+
+**issue-writer:** To format findings into formal audit reports
+
+**audit-context-building:** For deep context when analyzing complex fixes
+
+---
+
+## Tips for Effective Reviews
+
+**Do:**
+- Verify the actual code change, not just commit messages
+- Check that fixes address root causes, not symptoms
+- Look for unintended side effects in adjacent code
+- Cross-reference multiple findings that may interact
+- Document evidence for every status assignment
+
+**Don't:**
+- Trust commit messages as proof of fix
+- Skip findings because they seem minor
+- Assume passing tests mean correct fixes
+- Ignore changes outside the "fix" scope
+- Mark FIXED without clear evidence
+
+---
+
+## Reference Files
+
+For detailed guidance, consult:
+
+- **`references/finding-matching.md`** - Strategies for matching commits to findings
+- **`references/bug-detection.md`** - Comprehensive anti-pattern detection
+- **`references/report-parsing.md`** - Parsing different report formats, Google Drive fallback
+
+---
+
+## Additional References
+
+### Bug Detection
+
+# Bug Detection Patterns
+
+Anti-patterns to detect when analyzing commits for bug introduction.
+
+## Overview
+
+When reviewing fix commits, look for changes that may introduce new bugs or security vulnerabilities. These patterns represent common ways that "fixes" can make things worse.
+
+---
+
+## Security Anti-Patterns
+
+### Access Control Weakening
+
+**Pattern:** Removal or weakening of access restrictions
+
+**Detection:**
+```bash
+# Search for removed access modifiers
+git diff <source>..<target> | grep "^-" | grep -E "(onlyOwner|onlyAdmin|require\(msg\.sender|auth|access)"
+
+# Search for visibility changes
+git diff <source>..<target> | grep -E "^[-+].*(public|external|internal|private)"
+```
+
+**Examples:**
+```diff
+- function withdraw() external onlyOwner {
++ function withdraw() external {
+```
+
+```diff
+- require(msg.sender == owner, "Not owner");
++ // Removed for gas optimization
+```
+
+**Risk:** Privilege escalation, unauthorized access
+
+---
+
+### Validation Removal
+
+**Pattern:** Removal of input validation or precondition checks
+
+**Detection:**
+```bash
+# Search for removed require/assert statements
+git diff <source>..<target> | grep "^-" | grep -E "(require|assert|revert|throw)"
+
+# Search for removed if-checks
+git diff <source>..<target> | grep "^-" | grep -E "if\s*\("
+```
+
+**Examples:**
+```diff
+- require(amount > 0, "Zero amount");
+- require(amount <= balance, "Insufficient balance");
+  balance -= amount;
+```
+
+```diff
+- if (input == null) throw new IllegalArgumentException();
+  process(input);
+```
+
+**Risk:** Input bypass, unexpected states, crashes
+
+---
+
+### Error Handling Reduction
+
+**Pattern:** Removal or weakening of error handling
+
+**Detection:**
+```bash
+# Search for removed try/catch
+git diff <source>..<target> | grep "^-" | grep -E "(try|catch|except|finally)"
+
+# Search for removed error checks
+git diff <source>..<target> | grep "^-" | grep -E "(error|Error|err|Err)"
+```
+
+**Examples:**
+```diff
+- try {
+    result = riskyOperation();
+- } catch (Exception e) {
+-   logger.error("Operation failed", e);
+-   return fallbackValue;
+- }
++ result = riskyOperation();
+```
+
+**Risk:** Silent failures, unhandled exceptions, crashes
+
+---
+
+### External Call Reordering
+
+**Pattern:** State updates moved after external calls (reentrancy risk)
+
+**Detection:**
+```bash
+# Search for external calls followed by state changes
+git diff <source>..<target> | grep -A10 "\.call\|\.transfer\|\.send"
+```
+
+**Examples:**
+```diff
+- balance[msg.sender] = 0;
+- (bool success,) = msg.sender.call{value: amount}("");
++ (bool success,) = msg.sender.call{value: amount}("");
++ balance[msg.sender] = 0;  // State change after external call!
+```
+
+**Risk:** Reentrancy attacks
+
+---
+
+### Integer Operation Changes
+
+**Pattern:** Removal of overflow/underflow protection
+
+**Detection:**
+```bash
+# Search for SafeMath removal
+git diff <source>..<target> | grep "^-" | grep -E "(SafeMath|safeAdd|safeSub|safeMul|safeDiv)"
+
+# Search for unchecked blocks
+git diff <source>..<target> | grep -E "unchecked\s*\{"
+```
+
+**Examples:**
+```diff
+- using SafeMath for uint256;
+- balance = balance.sub(amount);
++ balance = balance - amount;  // No overflow protection
+```
+
+```diff
+- total = total + amount;  // Solidity 0.8 has built-in checks
++ unchecked {
++   total = total + amount;  // Disabled overflow check
++ }
+```
+
+**Risk:** Integer overflow/underflow
+
+---
+
+### Cryptographic Weakening
+
+**Pattern:** Changes to cryptographic operations that reduce security
+
+**Detection:**
+```bash
+# Search for crypto-related changes
+git diff <source>..<target> | grep -E "(hash|Hash|encrypt|decrypt|sign|verify|random|nonce|salt|key|Key)"
+
+# Search for algorithm names
+git diff <source>..<target> | grep -E "(SHA|MD5|AES|RSA|ECDSA|keccak)"
+```
+
+**Examples:**
+```diff
+- bytes32 hash = keccak256(abi.encodePacked(nonce, data));
++ bytes32 hash = keccak256(abi.encodePacked(data));  // Removed nonce!
+```
+
+```diff
+- return crypto.createHash('sha256').update(data).digest();
++ return crypto.createHash('md5').update(data).digest();  // Weak hash!
+```
+
+**Risk:** Hash collisions, signature bypass, predictability
+
+---
+
+### Memory Safety Issues
+
+**Pattern:** Changes that introduce memory safety bugs
+
+**Detection:**
+```bash
+# Search for buffer/array operations
+git diff <source>..<target> | grep -E "(malloc|free|memcpy|strcpy|buffer|array\[)"
+
+# Search for bounds checks
+git diff <source>..<target> | grep "^-" | grep -E "(length|size|bounds|index)"
+```
+
+**Examples:**
+```diff
+- if (index < array.length) {
+    return array[index];
+- }
+```
+
+```diff
+- strncpy(dest, src, sizeof(dest) - 1);
++ strcpy(dest, src);  // No bounds check!
+```
+
+**Risk:** Buffer overflow, use-after-free, out-of-bounds access
+
+---
+
+### Concurrency Issues
+
+**Pattern:** Removal of synchronization or race condition introduction
+
+**Detection:**
+```bash
+# Search for lock/synchronization changes
+git diff <source>..<target> | grep -E "(lock|Lock|mutex|synchronized|atomic|volatile)"
+
+# Search for removed synchronization
+git diff <source>..<target> | grep "^-" | grep -E "(lock|synchronized)"
+```
+
+**Examples:**
+```diff
+- synchronized (this) {
+    counter++;
+- }
++ counter++;  // No synchronization!
+```
+
+**Risk:** Race conditions, data corruption
+
+---
+
+## General Bug Patterns
+
+### Logic Inversion
+
+**Pattern:** Boolean logic changed incorrectly
+
+**Detection:**
+```bash
+# Search for condition changes
+git diff <source>..<target> | grep -E "^[-+].*if\s*\(|^[-+].*\?|^[-+].*&&|^[-+].*\|\|"
+```
+
+**Examples:**
+```diff
+- if (isValid) {
++ if (!isValid) {
+    process();
+  }
+```
+
+```diff
+- return a && b;
++ return a || b;
+```
+
+---
+
+### Off-by-One Errors
+
+**Pattern:** Boundary conditions changed incorrectly
+
+**Detection:**
+```bash
+# Search for comparison operators
+git diff <source>..<target> | grep -E "^[-+].*(<=|>=|<|>|==)"
+```
+
+**Examples:**
+```diff
+- for (i = 0; i < length; i++)
++ for (i = 0; i <= length; i++)  // Off-by-one!
+```
+
+```diff
+- if (index < array.length)
++ if (index <= array.length)  // Off-by-one!
+```
+
+---
+
+### Null/Undefined Handling
+
+**Pattern:** Removal of null checks
+
+**Detection:**
+```bash
+# Search for null checks
+git diff <source>..<target> | grep "^-" | grep -E "(null|NULL|nil|None|undefined)"
+```
+
+**Examples:**
+```diff
+- if (obj == null) return defaultValue;
+  return obj.getValue();  // Potential NPE
+```
+
+---
+
+### Resource Leaks
+
+**Pattern:** Removal of cleanup code
+
+**Detection:**
+```bash
+# Search for resource management
+git diff <source>..<target> | grep "^-" | grep -E "(close|Close|dispose|Dispose|free|Free|release|Release)"
+```
+
+**Examples:**
+```diff
+  file = open(path)
+- try:
+    data = file.read()
+- finally:
+-   file.close()
+```
+
+---
+
+## Analysis Workflow
+
+### Step 1: Get the Diff
+
+```bash
+git diff <source>..<target> > changes.diff
+```
+
+### Step 2: Scan for Anti-Patterns
+
+Run detection commands for each pattern category:
+
+```bash
+# Security patterns
+grep "^-" changes.diff | grep -E "(require|assert|onlyOwner|auth)"
+grep "^-" changes.diff | grep -E "(try|catch|except)"
+
+# Logic patterns
+grep -E "^[-+].*if\s*\(" changes.diff
+grep -E "^[-+].*(<=|>=|<|>)" changes.diff
+```
+
+### Step 3: Manual Review
+
+For each detected pattern:
+1. Read the surrounding context
+2. Understand the intent of the change
+3. Determine if the pattern indicates a bug
+4. Document findings
+
+### Step 4: Rate Severity
+
+| Severity | Criteria |
+|----------|----------|
+| Critical | Exploitable security vulnerability |
+| High | Security regression or data loss risk |
+| Medium | Logic error with limited impact |
+| Low | Code smell, minor issue |
+| Info | Observation, no immediate risk |
+
+---
+
+## False Positive Handling
+
+Not every detected pattern is a bug. Consider:
+
+**Intentional changes:**
+- Removing redundant validation
+- Simplifying error handling
+- Refactoring for clarity
+
+**Context matters:**
+- Is the removed check truly necessary?
+- Is there equivalent protection elsewhere?
+- Does the surrounding code handle the case?
+
+**Verify with:**
+1. Read the full commit context
+2. Check commit message for explanation
+3. Look for replacement logic
+4. Consider the broader codebase
+
+---
+
+## Reporting Format
+
+For each detected concern:
+
+```markdown
+### Bug Introduction Concern
+
+**Pattern:** [Pattern name]
+**Commit:** [hash]
+**File:** [path:line]
+**Severity:** [Critical/High/Medium/Low/Info]
+
+**Change:**
+```diff
+[relevant diff snippet]
+```
+
+**Analysis:**
+[Explanation of why this is concerning]
+
+**Recommendation:**
+[Suggested action]
+```
+
+
+### Report Parsing
+
+# Report Parsing Strategies
+
+Parsing security audit reports in various formats.
+
+## Overview
+
+Security reports come in multiple formats. This guide covers parsing strategies for each format and handling special cases like Google Drive URLs.
+
+---
+
+## Trail of Bits Format
+
+Trail of Bits reports follow a consistent structure.
+
+### Structure
+
+```
+1. Executive Summary
+2. Project Dashboard
+3. Engagement Goals
+4. Coverage
+5. Automated Testing
+6. Findings Overview
+7. Detailed Findings
+   - Each finding starts on new page
+   - Header table with ID, title, severity, type, target
+   - Description, Exploit Scenario, Recommendations
+8. Appendices
+```
+
+### Finding Identification
+
+Each finding has a header table:
+
+| Field | Format |
+|-------|--------|
+| ID | `TOB-[CLIENT]-[NUMBER]` (e.g., TOB-ACME-1) |
+| Title | Descriptive title |
+| Severity | Informational, Low, Medium, High |
+| Difficulty | Low, Medium, High, Undetermined |
+| Type | Access Controls, Cryptography, Data Validation, etc. |
+| Target | File path(s) |
+
+### Extraction Pattern
+
+```
+1. Locate "Detailed Findings" section
+2. For each finding, extract:
+   - ID: Match pattern /TOB-[A-Z]+-[0-9]+/
+   - Title: Text following ID in header
+   - Severity: From header table
+   - Target: File paths from header table
+   - Description: Content after "Description" heading
+   - Recommendations: Content after "Recommendations" heading
+```
+
+### Example Finding
+
+```markdown
+## TOB-ACME-1: Missing access control in withdraw function
+
+| Field | Value |
+|-------|-------|
+| ID | TOB-ACME-1 |
+| Severity | High |
+| Difficulty | Low |
+| Type | Access Controls |
+| Target | contracts/Vault.sol |
+
+### Description
+
+The `withdraw` function in `Vault.sol` lacks access control...
+
+### Recommendations
+
+Short term, add the `onlyOwner` modifier...
+```
+
+---
+
+## Generic Report Formats
+
+### Numbered Findings
+
+Reports with numbered findings (Finding 1, Finding 2, etc.):
+
+```
+Pattern: /Finding\s+[0-9]+:?\s+(.+)/
+         /[0-9]+\.\s+(.+)/
+         /#[0-9]+\s+(.+)/
+```
+
+Extract:
+- Number as ID
+- Following text as title
+- Look for severity keywords nearby
+
+### Severity-Based Sections
+
+Reports organized by severity:
+
+```
+## Critical
+### Finding title
+...
+
+## High
+### Another finding
+...
+```
+
+Extract:
+- Section heading as severity
+- Sub-headings as finding titles
+- Generate IDs (CRITICAL-1, HIGH-1, etc.)
+
+### Table-Based Findings
+
+Reports with findings in tables:
+
+```markdown
+| ID | Title | Severity | Status |
+|----|-------|----------|--------|
+| V-01 | SQL Injection | High | Open |
+| V-02 | XSS in search | Medium | Open |
+```
+
+Extract by parsing table structure.
+
+### JSON Format
+
+Reports in JSON structure:
+
+```json
+{
+  "findings": [
+    {
+      "id": "VULN-001",
+      "title": "SQL Injection",
+      "severity": "high",
+      "description": "...",
+      "files": ["app/db.py"]
+    }
+  ]
+}
+```
+
+Parse directly from JSON structure.
+
+---
+
+## Format Detection
+
+When report format is unknown:
+
+### Step 1: Check for TOB Format
+
+```
+Search for: "TOB-" followed by letters and numbers
+If found: Use TOB parsing
+```
+
+### Step 2: Check for JSON
+
+```
+If file extension is .json or content starts with '{':
+  Parse as JSON
+  Look for "findings" array
+```
+
+### Step 3: Check for Markdown Structure
+
+```
+Search for: "## Finding" or "### Finding"
+Search for: Severity headings (Critical, High, Medium, Low)
+Search for: Numbered patterns (1., 2., or Finding 1, Finding 2)
+```
+
+### Step 4: Fall Back to Keyword Extraction
+
+```
+Search for severity keywords: critical, high, medium, low, informational
+Search for vulnerability keywords: vulnerability, issue, bug, flaw
+Extract surrounding context as findings
+```
+
+---
+
+## Google Drive Handling
+
+When a Google Drive URL is provided and WebFetch fails (permissions, redirect):
+
+### Step 1: Detect Google Drive URL
+
+```
+Pattern: https://drive.google.com/file/d/[FILE_ID]/...
+         https://docs.google.com/document/d/[DOC_ID]/...
+         https://drive.google.com/open?id=[FILE_ID]
+```
+
+### Step 2: Extract File ID
+
+```bash
+# From /file/d/ URLs
+FILE_ID=$(echo "$URL" | grep -oP 'file/d/\K[^/]+')
+
+# From /document/d/ URLs
+FILE_ID=$(echo "$URL" | grep -oP 'document/d/\K[^/]+')
+
+# From ?id= URLs
+FILE_ID=$(echo "$URL" | grep -oP 'id=\K[^&]+')
+```
+
+### Step 3: Check for gdrive CLI
+
+```bash
+# Check if gdrive is installed
+if command -v gdrive &> /dev/null; then
+    # Check if gdrive is configured (has auth)
+    if gdrive about &> /dev/null; then
+        echo "gdrive available and configured"
+    else
+        echo "gdrive installed but not configured"
+    fi
+else
+    echo "gdrive not installed"
+fi
+```
+
+### Step 4: Download with gdrive
+
+If gdrive is available and configured:
+
+```bash
+# Download to temp directory
+gdrive files download "$FILE_ID" --path /tmp/
+
+# Find the downloaded file
+DOWNLOADED=$(ls -t /tmp/ | head -1)
+
+# Read the file
+cat "/tmp/$DOWNLOADED"
+```
+
+### Step 5: User Instructions (if gdrive unavailable)
+
+If gdrive is not available or not configured:
+
+```
+Unable to access the Google Drive URL directly. Please:
+
+1. Open the URL in your browser
+2. Download the file:
+   - For Google Docs: File → Download → Markdown (.md)
+   - For PDFs: Click download button
+3. Provide the local file path
+
+Alternatively, install and configure gdrive:
+   brew install gdrive
+   gdrive about  # Follow auth prompts
+```
+
+---
+
+## File Format Handling
+
+### PDF Files
+
+Claude can read PDFs directly using the Read tool:
+
+```
+Read /path/to/report.pdf
+```
+
+For large PDFs, process section by section:
+1. Read table of contents/overview
+2. Locate "Findings" section
+3. Read findings section in detail
+
+### Markdown Files
+
+Read directly:
+
+```
+Read /path/to/report.md
+```
+
+### HTML Files
+
+Read and parse:
+
+```
+Read /path/to/report.html
+```
+
+Extract text content, ignoring HTML tags.
+
+### JSON Files
+
+Read and parse as structured data:
+
+```
+Read /path/to/report.json
+```
+
+Access fields directly from JSON structure.
+
+---
+
+## Extraction Output Format
+
+Regardless of input format, normalize findings to:
+
+```json
+{
+  "findings": [
+    {
+      "id": "TOB-ACME-1",
+      "title": "Missing access control in withdraw",
+      "severity": "High",
+      "difficulty": "Low",
+      "type": "Access Controls",
+      "files": ["contracts/Vault.sol"],
+      "description": "The withdraw function lacks...",
+      "recommendation": "Add onlyOwner modifier..."
+    }
+  ],
+  "metadata": {
+    "client": "ACME",
+    "date": "2024-01-15",
+    "format": "tob"
+  }
+}
+```
+
+This normalized format enables consistent processing regardless of source format.
+
+---
+
+## Handling Incomplete Reports
+
+When report lacks standard structure:
+
+### Missing Finding IDs
+
+Generate IDs based on:
+- Severity + sequence: `HIGH-1`, `HIGH-2`, `MEDIUM-1`
+- Position: `FINDING-1`, `FINDING-2`
+- File path: `VAULT-1`, `TOKEN-1`
+
+### Missing Severity
+
+Infer from:
+- Keywords: "critical", "severe", "important" → High
+- Impact description: "attacker can steal" → High
+- Default to "Undetermined" if unclear
+
+### Missing File References
+
+Search report for:
+- File paths: `/path/to/file`, `src/module/file.py`
+- Function names: `function()`, `method()`
+- Contract names: `Contract.function`
+
+---
+
+## Error Handling
+
+### File Not Found
+
+```
+Unable to read report at [path].
+Please verify the file exists and provide the correct path.
+```
+
+### Unsupported Format
+
+```
+Unable to parse report format.
+Supported formats: PDF, Markdown, JSON, HTML
+Please convert to a supported format or provide as Markdown.
+```
+
+### Empty Findings
+
+```
+No findings detected in the report.
+Please verify this is a security audit report with findings.
+If findings exist but weren't detected, provide them manually.
+```
+
+### Partial Parse
+
+```
+Parsed [N] findings, but some content may have been missed.
+Detected findings: [list IDs]
+Please verify all expected findings are included.
+```
+
+
+### Finding Matching
+
+# Finding Matching Strategies
+
+Techniques for matching security findings to code commits.
+
+## Overview
+
+Matching findings to commits requires multiple approaches since:
+- Commit messages may not reference finding IDs
+- Findings may span multiple files
+- Multiple commits may partially address a single finding
+- A single commit may address multiple findings
+
+---
+
+## Matching Approaches
+
+### 1. Direct ID Reference
+
+Search commit messages for finding IDs:
+
+```bash
+# Search for TOB-style IDs in commit messages
+git log <source>..<target> --grep="TOB-" --oneline
+
+# Search for generic finding references
+git log <source>..<target> --grep="[Ff]inding" --oneline
+git log <source>..<target> --grep="[Ff]ix" --oneline
+```
+
+**Confidence:** High when found, but many commits lack explicit references.
+
+### 2. File Path Matching
+
+Match findings by affected files:
+
+```bash
+# Get files changed in commit range
+git diff <source>..<target> --name-only
+
+# Compare with files mentioned in finding
+# Finding: "The vulnerability exists in contracts/Vault.sol"
+# Check: Does any commit modify contracts/Vault.sol?
+```
+
+**Workflow:**
+1. Extract file paths from finding description
+2. List changed files in commit range
+3. Identify commits touching those files
+4. Analyze those commits in detail
+
+### 3. Function/Symbol Matching
+
+Match by function or variable names:
+
+```bash
+# Search for function name in diffs
+git log <source>..<target> -p | grep -A5 -B5 "function withdraw"
+
+# Search for specific patterns
+git log <source>..<target> -S "functionName" --oneline
+```
+
+**Extract symbols from findings:**
+- Function names: `withdraw()`, `transfer()`, `validateInput()`
+- Variable names: `balance`, `owner`, `allowance`
+- Contract/class names: `Vault`, `TokenManager`
+
+### 4. Code Pattern Matching
+
+Match by vulnerability pattern:
+
+```bash
+# Finding mentions "missing require statement"
+# Search for added require statements
+git diff <source>..<target> | grep "^+" | grep "require"
+
+# Finding mentions "reentrancy"
+# Search for state changes and external calls
+git diff <source>..<target> | grep -E "(\.call|\.transfer|\.send)"
+```
+
+---
+
+## Matching Workflow
+
+### Step 1: Extract Finding Metadata
+
+For each finding, extract:
+
+| Field | Example |
+|-------|---------|
+| ID | TOB-CLIENT-1 |
+| Title | Missing access control in withdraw() |
+| Severity | High |
+| Files | contracts/Vault.sol:L45-L67 |
+| Functions | withdraw(), _validateCaller() |
+| Pattern | Access control |
+| Recommendation | Add onlyOwner modifier |
+
+### Step 2: Search for Direct Matches
+
+```bash
+# Check for ID in commit messages
+git log <source>..<target> --grep="TOB-CLIENT-1" --oneline
+
+# Check for title keywords
+git log <source>..<target> --grep="access control" --oneline
+git log <source>..<target> --grep="withdraw" --oneline
+```
+
+### Step 3: Identify Relevant Commits
+
+For each file mentioned in the finding:
+
+```bash
+# Get commits that modified the file
+git log <source>..<target> --oneline -- contracts/Vault.sol
+
+# Get the diff for that file
+git diff <source>..<target> -- contracts/Vault.sol
+```
+
+### Step 4: Analyze Fix Quality
+
+For each potentially matching commit:
+
+1. **Read the full diff** - Understand what changed
+2. **Compare with recommendation** - Does the fix follow the suggested approach?
+3. **Check completeness** - Are all instances of the vulnerability fixed?
+4. **Verify correctness** - Is the fix itself correct (no logic errors)?
+
+---
+
+## Status Assignment Criteria
+
+### FIXED
+
+Assign when:
+- Code change directly addresses the root cause
+- Fix follows the report's recommendation (or equivalent)
+- All instances of the vulnerability are addressed
+- No obvious issues with the fix itself
+
+**Evidence required:**
+- Commit hash
+- File and line numbers
+- Brief explanation of how fix addresses the finding
+
+### PARTIALLY_FIXED
+
+Assign when:
+- Some instances fixed, others remain
+- Fix addresses symptoms but not root cause
+- Fix is incomplete (missing edge cases)
+- Fix works but doesn't follow best practice
+
+**Evidence required:**
+- What was fixed (with commit hash)
+- What remains unfixed
+- Specific gaps in the fix
+
+### NOT_ADDRESSED
+
+Assign when:
+- No commits modify relevant files
+- Changes to relevant files don't address the finding
+- Finding relates to architecture/design not changed
+
+**Evidence required:**
+- Confirmation that relevant files were checked
+- Brief explanation of why no fix was found
+
+### CANNOT_DETERMINE
+
+Assign when:
+- Finding is ambiguous
+- Code changes are unclear
+- Requires runtime analysis to verify
+- Need additional context from developers
+
+**Evidence required:**
+- What was analyzed
+- Specific questions that need answers
+- Suggested next steps
+
+---
+
+## Complex Scenarios
+
+### Multiple Commits for One Finding
+
+When several commits contribute to fixing a single finding:
+
+1. List all relevant commits
+2. Analyze each contribution
+3. Determine if combined effect is FIXED or PARTIALLY_FIXED
+4. Document each commit's contribution
+
+**Example:**
+```
+TOB-XXX-1: Access control vulnerability in withdraw()
+
+Commits:
+- abc123: Added onlyOwner modifier
+- def456: Added balance check
+- ghi789: Added event emission
+
+Combined: FIXED
+- abc123 addresses the core access control issue
+- def456 adds defense in depth
+- ghi789 improves auditability
+```
+
+### One Commit for Multiple Findings
+
+When a single commit addresses multiple findings:
+
+1. Analyze the commit once
+2. Map specific changes to each finding
+3. Assign status to each finding individually
+4. Reference the same commit in multiple findings
+
+### Interacting Findings
+
+When findings are related and fixes may interact:
+
+1. Identify the relationship
+2. Analyze fixes together
+3. Check for conflicts or regressions
+4. Document the interaction
+
+**Example:**
+```
+TOB-XXX-1: Reentrancy in withdraw()
+TOB-XXX-2: Missing balance validation
+
+These interact: A reentrancy fix might break the balance check
+Analysis: Commit abc123 uses checks-effects-interactions pattern
+Result: Both findings addressed without conflict
+```
+
+---
+
+## Handling Ambiguity
+
+### When Finding Description is Vague
+
+1. Search for related patterns in the codebase
+2. Look for commit messages mentioning the issue
+3. Check if any changes seem security-related
+4. Mark as CANNOT_DETERMINE if unclear
+
+### When Multiple Interpretations Exist
+
+1. Document both interpretations
+2. Analyze against both
+3. Note which interpretation the fix addresses
+4. Flag for developer clarification if needed
+
+### When Fix Differs from Recommendation
+
+The fix may be valid even if different from the recommendation:
+
+1. Understand the recommended approach
+2. Analyze the actual fix
+3. Determine if it addresses the root cause
+4. Mark as FIXED if effective, note the difference
+
+---
+
+## Git Commands Reference
+
+```bash
+# List commits in range
+git log <source>..<target> --oneline
+
+# Search commit messages
+git log <source>..<target> --grep="pattern" --oneline
+
+# Get files changed
+git diff <source>..<target> --name-only
+
+# Get full diff
+git diff <source>..<target>
+
+# Get diff for specific file
+git diff <source>..<target> -- path/to/file
+
+# Search for code changes
+git log <source>..<target> -S "code_pattern" --oneline
+
+# Get commit details
+git show <commit> --stat
+git show <commit> -p
+
+# Blame specific lines
+git blame <commit> -- path/to/file
+```
+

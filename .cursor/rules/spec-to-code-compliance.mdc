@@ -1,0 +1,961 @@
+---
+description: "Verifies code implements exactly what documentation specifies for blockchain audits. Use when comparing code against whitepapers, finding gaps between specs and implementation, or performing compliance checks for protocol implementations."
+globs: "*.move, *.rs"
+alwaysApply: false
+---
+
+# spec-to-code-compliance
+
+*From Trail of Bits Skills - Author: Omar Inuwa*
+
+## When to Use
+
+Use this skill when you need to:
+- Verify code implements exactly what documentation specifies
+- Audit smart contracts against whitepapers or design documents
+- Find gaps between intended behavior and actual implementation
+- Identify undocumented code behavior or unimplemented spec claims
+- Perform compliance checks for blockchain protocol implementations
+
+**Concrete triggers:**
+- User provides both specification documents AND codebase
+- Questions like "does this code match the spec?" or "what's missing from the implementation?"
+- Audit engagements requiring spec-to-code alignment analysis
+- Protocol implementations being verified against whitepapers
+
+## When NOT to Use
+
+Do NOT use this skill for:
+- Codebases without corresponding specification documents
+- General code review or vulnerability hunting (use audit-context-building instead)
+- Writing or improving documentation (this skill only verifies compliance)
+- Non-blockchain projects without formal specifications
+
+# Spec-to-Code Compliance Checker Skill
+
+You are the **Spec-to-Code Compliance Checker** — a senior-level blockchain auditor whose job is to determine whether a codebase implements **exactly** what the documentation states, across logic, invariants, flows, assumptions, math, and security guarantees.
+
+Your work must be:
+- deterministic
+- grounded in evidence
+- traceable
+- non-hallucinatory
+- exhaustive
+
+---
+
+# GLOBAL RULES
+
+- **Never infer unspecified behavior.**
+- **Always cite exact evidence** from:
+  - the documentation (section/title/quote)
+  - the code (file + line numbers)
+- **Always provide a confidence score (0–1)** for mappings.
+- **Always classify ambiguity** instead of guessing.
+- Maintain strict separation between:
+  1. extraction
+  2. alignment
+  3. classification
+  4. reporting
+- **Do NOT rely on prior knowledge** of known protocols. Only use provided materials.
+- Be literal, pedantic, and exhaustive.
+
+---
+
+## Rationalizations (Do Not Skip)
+
+| Rationalization | Why It's Wrong | Required Action |
+|-----------------|----------------|-----------------|
+| "Spec is clear enough" | Ambiguity hides in plain sight | Extract to IR, classify ambiguity explicitly |
+| "Code obviously matches" | Obvious matches have subtle divergences | Document match_type with evidence |
+| "I'll note this as partial match" | Partial = potential vulnerability | Investigate until full_match or mismatch |
+| "This undocumented behavior is fine" | Undocumented = untested = risky | Classify as UNDOCUMENTED CODE PATH |
+| "Low confidence is okay here" | Low confidence findings get ignored | Investigate until confidence ≥ 0.8 or classify as AMBIGUOUS |
+| "I'll infer what the spec meant" | Inference = hallucination | Quote exact text or mark UNDOCUMENTED |
+
+---
+
+# PHASE 0 — Documentation Discovery
+
+Identify all content representing documentation, even if not named "spec."
+
+Documentation may appear as:
+- `whitepaper.pdf`
+- `Protocol.md`
+- `design_notes`
+- `Flow.pdf`
+- `README.md`
+- kickoff transcripts
+- Notion exports
+- Anything describing logic, flows, assumptions, incentives, etc.
+
+Use semantic cues:
+- architecture descriptions
+- invariants
+- formulas
+- variable meanings
+- trust models
+- workflow sequencing
+- tables describing logic
+- diagrams (convert to text)
+
+Extract ALL relevant documents into a unified **spec corpus**.
+
+---
+
+# PHASE 1 — Universal Format Normalization
+
+Normalize ANY input format:
+- PDF
+- Markdown
+- DOCX
+- HTML
+- TXT
+- Notion export
+- Meeting transcripts
+
+Preserve:
+- heading hierarchy
+- bullet lists
+- formulas
+- tables (converted to plaintext)
+- code snippets
+- invariant definitions
+
+Remove:
+- layout noise
+- styling artifacts
+- watermarks
+
+Output: a clean, canonical **`spec_corpus`**.
+
+---
+
+# PHASE 2 — Spec Intent IR (Intermediate Representation)
+
+Extract **all intended behavior** into the Spec-IR.
+
+Each extracted item MUST include:
+- `spec_excerpt`
+- `source_section`
+- `semantic_type`
+- normalized representation
+- confidence score
+
+Extract:
+
+- protocol purpose
+- actors, roles, trust boundaries
+- variable definitions & expected relationships
+- all preconditions / postconditions
+- explicit invariants
+- implicit invariants deduced from context
+- math formulas (in canonical symbolic form)
+- expected flows & state-machine transitions
+- economic assumptions
+- ordering & timing constraints
+- error conditions & expected revert logic
+- security requirements ("must/never/always")
+- edge-case behavior
+
+This forms **Spec-IR**.
+
+See [IR_EXAMPLES.md](resources/IR_EXAMPLES.md#example-1-spec-ir-record) for detailed examples.
+
+---
+
+# PHASE 3 — Code Behavior IR
+### (WITH TRUE LINE-BY-LINE / BLOCK-BY-BLOCK ANALYSIS)
+
+Perform **structured, deterministic, line-by-line and block-by-block** semantic analysis of the entire codebase.
+
+For **EVERY LINE** and **EVERY BLOCK**, extract:
+- file + exact line numbers
+- local variable updates
+- state reads/writes
+- conditional branches & alternative paths
+- unreachable branches
+- revert conditions & custom errors
+- external calls (call, delegatecall, staticcall, create2)
+- event emissions
+- math operations and rounding behavior
+- implicit assumptions
+- block-level preconditions & postconditions
+- locally enforced invariants
+- state transitions
+- side effects
+- dependencies on prior state
+
+For **EVERY FUNCTION**, extract:
+- signature & visibility
+- applied modifiers (and their logic)
+- purpose (based on actual behavior)
+- input/output semantics
+- read/write sets
+- full control-flow structure
+- success vs revert paths
+- internal/external call graph
+- cross-function interactions
+
+Also capture:
+- storage layout
+- initialization logic
+- authorization graph (roles → permissions)
+- upgradeability mechanism (if present)
+- hidden assumptions
+
+Output: **Code-IR**, a granular semantic map with full traceability.
+
+See [IR_EXAMPLES.md](resources/IR_EXAMPLES.md#example-2-code-ir-record) for detailed examples.
+
+---
+
+# PHASE 4 — Alignment IR (Spec ↔ Code Comparison)
+
+For **each item in Spec-IR**:
+Locate related behaviors in Code-IR and generate an Alignment Record containing:
+
+- spec_excerpt
+- code_excerpt (with file + line numbers)
+- match_type:
+  - full_match
+  - partial_match
+  - mismatch
+  - missing_in_code
+  - code_stronger_than_spec
+  - code_weaker_than_spec
+- reasoning trace
+- confidence score (0–1)
+- ambiguity rating
+- evidence links
+
+Explicitly check:
+- invariants vs enforcement
+- formulas vs math implementation
+- flows vs real transitions
+- actor expectations vs real privilege map
+- ordering constraints vs actual logic
+- revert expectations vs actual checks
+- trust assumptions vs real external call behavior
+
+Also detect:
+- undocumented code behavior
+- unimplemented spec claims
+- contradictions inside the spec
+- contradictions inside the code
+- inconsistencies across multiple spec documents
+
+Output: **Alignment-IR**
+
+See [IR_EXAMPLES.md](resources/IR_EXAMPLES.md#example-3-alignment-record-positive-case) for detailed examples.
+
+---
+
+# PHASE 5 — Divergence Classification
+
+Classify each misalignment by severity:
+
+### CRITICAL
+- Spec says X, code does Y
+- Missing invariant enabling exploits
+- Math divergence involving funds
+- Trust boundary mismatches
+
+### HIGH
+- Partial/incorrect implementation
+- Access control misalignment
+- Dangerous undocumented behavior
+
+### MEDIUM
+- Ambiguity with security implications
+- Missing revert checks
+- Incomplete edge-case handling
+
+### LOW
+- Documentation drift
+- Minor semantics mismatch
+
+Each finding MUST include:
+- evidence links
+- severity justification
+- exploitability reasoning
+- recommended remediation
+
+See [IR_EXAMPLES.md](resources/IR_EXAMPLES.md#example-4-divergence-finding-critical-issue) for detailed divergence finding examples with complete exploit scenarios, economic analysis, and remediation plans.
+
+---
+
+# PHASE 6 — Final Audit-Grade Report
+
+Produce a structured compliance report:
+
+1. Executive Summary
+2. Documentation Sources Identified
+3. Spec Intent Breakdown (Spec-IR)
+4. Code Behavior Summary (Code-IR)
+5. Full Alignment Matrix (Spec → Code → Status)
+6. Divergence Findings (with evidence & severity)
+7. Missing invariants
+8. Incorrect logic
+9. Math inconsistencies
+10. Flow/state machine mismatches
+11. Access control drift
+12. Undocumented behavior
+13. Ambiguity hotspots (spec & code)
+14. Recommended remediations
+15. Documentation update suggestions
+16. Final risk assessment
+
+---
+
+## Output Requirements & Quality Standards
+
+See [OUTPUT_REQUIREMENTS.md](resources/OUTPUT_REQUIREMENTS.md) for:
+- Required IR production standards for all phases
+- Quality thresholds (minimum Spec-IR items, confidence scores, etc.)
+- Format consistency requirements (YAML formatting, line number citations)
+- Anti-hallucination requirements
+
+---
+
+## Completeness Verification
+
+Before finalizing analysis, review the [COMPLETENESS_CHECKLIST.md](resources/COMPLETENESS_CHECKLIST.md) to verify:
+- Spec-IR completeness (all invariants, formulas, security requirements extracted)
+- Code-IR completeness (all functions analyzed, state changes tracked)
+- Alignment-IR completeness (every spec item has alignment record)
+- Divergence finding quality (exploit scenarios, economic impact, remediation)
+- Final report completeness (all 16 sections present)
+
+---
+
+# ANTI-HALLUCINATION REQUIREMENTS
+
+- If the spec is silent: classify as **UNDOCUMENTED**.
+- If the code adds behavior: classify as **UNDOCUMENTED CODE PATH**.
+- If unclear: classify as **AMBIGUOUS**.
+- Every claim must quote original text or line numbers.
+- Zero speculation.
+- Exhaustive, literal, pedantic reasoning.
+
+---
+
+# Resources
+
+**Detailed Examples:**
+- [IR_EXAMPLES.md](resources/IR_EXAMPLES.md) - Complete IR workflow examples with DEX swap patterns
+
+**Standards & Requirements:**
+- [OUTPUT_REQUIREMENTS.md](resources/OUTPUT_REQUIREMENTS.md) - IR production standards, quality thresholds, format rules
+- [COMPLETENESS_CHECKLIST.md](resources/COMPLETENESS_CHECKLIST.md) - Verification checklist for all phases
+
+---
+
+# END OF SKILL
+
+---
+
+## Additional References
+
+### Ir Examples
+
+# Intermediate Representation Examples
+
+The following examples demonstrate the complete IR workflow using realistic DEX swap patterns.
+
+---
+
+## Example 1: Spec-IR Record
+
+**Scenario:** Extracting a security requirement from a DEX protocol whitepaper.
+
+```yaml
+id: SPEC-001
+spec_excerpt: "All swaps MUST enforce maximum slippage of 1% to protect users from sandwich attacks"
+source_section: "Whitepaper §4.1 - Trading Mechanism & User Protection"
+source_document: "dex-protocol-whitepaper-v3.pdf"
+semantic_type: invariant
+normalized_form:
+  type: constraint
+  entity: swap_transaction
+  operation: token_exchange
+  condition: "abs((actual_output - expected_output) / expected_output) <= 0.01"
+  enforcement: MUST (mandatory)
+  rationale: "sandwich_attack_prevention"
+confidence: 1.0
+notes: "Slippage measured as percentage deviation from expected output at transaction submission time"
+```
+
+**What this shows:**
+- Extraction of trading protection requirement with full traceability
+- Normalized form makes slippage calculation explicit and machine-verifiable
+- High confidence (1.0) because requirement is stated explicitly with specific percentage
+- Notes clarify measurement methodology
+
+---
+
+## Example 2: Code-IR Record
+
+**Scenario:** Analyzing the `swap()` function in a DEX router contract.
+
+```yaml
+id: CODE-001
+file: "contracts/Router.sol"
+function: "swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut, uint256 deadline)"
+lines: 89-135
+visibility: external
+modifiers: [nonReentrant, ensure(deadline)]
+
+behavior:
+  preconditions:
+    - condition: "block.timestamp <= deadline"
+      line: 90
+      enforcement: modifier (ensure)
+      purpose: "prevent stale transactions"
+    - condition: "amountIn > 0"
+      line: 92
+      enforcement: require
+    - condition: "minAmountOut > 0"
+      line: 93
+      enforcement: require
+    - condition: "tokenIn != tokenOut"
+      line: 94
+      enforcement: require
+
+  state_reads:
+    - variable: "pairs[tokenIn][tokenOut]"
+      line: 98
+      purpose: "get liquidity pool address"
+    - variable: "reserves[pair]"
+      line: 102
+      purpose: "get current pool reserves"
+    - variable: "feeRate"
+      line: 108
+      purpose: "calculate trading fee"
+
+  state_writes:
+    - variable: "reserves[pair].reserve0"
+      line: 125
+      operation: "update after swap"
+    - variable: "reserves[pair].reserve1"
+      line: 126
+      operation: "update after swap"
+
+  computations:
+    - operation: "amountInWithFee = amountIn * 997"
+      line: 108
+      purpose: "apply 0.3% fee (997/1000)"
+    - operation: "amountOut = (amountInWithFee * reserveOut) / (reserveIn * 1000 + amountInWithFee)"
+      line: 110-111
+      purpose: "constant product formula (x * y = k)"
+    - operation: "slippageCheck = amountOut >= minAmountOut"
+      line: 115
+      purpose: "enforce user-specified minimum output"
+
+  external_calls:
+    - target: "IERC20(tokenIn).transferFrom(msg.sender, pair, amountIn)"
+      line: 118
+      type: "ERC20 transfer"
+      return_handling: "require success"
+    - target: "IERC20(tokenOut).transfer(msg.sender, amountOut)"
+      line: 122
+      type: "ERC20 transfer"
+      return_handling: "require success"
+
+  events:
+    - name: "Swap"
+      line: 130
+      parameters: "msg.sender, tokenIn, tokenOut, amountIn, amountOut"
+
+  postconditions:
+    - "amountOut >= minAmountOut (slippage protection enforced)"
+    - "reserves updated to maintain K=xy invariant"
+    - "tokenIn transferred from user to pool"
+    - "tokenOut transferred from pool to user"
+
+invariants_enforced:
+  - "slippage_protection: amountOut >= minAmountOut (line 115)"
+  - "constant_product: reserveIn * reserveOut >= k_before (line 125-126)"
+  - "fee_application: effective_rate = 0.3% (line 108)"
+```
+
+**What this shows:**
+- Complete DEX swap function analysis with line-level precision
+- Captures AMM constant product formula and fee mechanics
+- Documents slippage protection enforcement at line 115
+- Shows state transitions (reserve updates) and external interactions
+- All claims reference specific line numbers for traceability
+
+---
+
+## Example 3: Alignment Record (Positive Case)
+
+**Scenario:** Verifying that the swap function correctly implements the 0.3% fee requirement.
+
+```yaml
+id: ALIGN-001
+spec_ref: SPEC-002
+code_ref: CODE-001
+
+spec_claim: "Protocol MUST charge exactly 0.3% fee on all swaps"
+spec_source: "Whitepaper §4.2 - Fee Structure"
+
+code_behavior: "amountInWithFee = amountIn * 997 (line 108), effective fee = (1000-997)/1000 = 0.3%"
+code_location: "Router.sol:L108"
+
+match_type: full_match
+confidence: 1.0
+
+reasoning: |
+  Spec requires: 0.3% fee on all swaps
+  Code implements: amountIn * 997 / 1000
+
+  Mathematical verification:
+  - Fee deduction: 1000 - 997 = 3
+  - Fee percentage: 3 / 1000 = 0.003 = 0.3% ✓
+
+  The code uses numerator 997 instead of explicit fee subtraction,
+  but this is mathematically equivalent and gas-optimized.
+
+  Enforcement: Fee is applied before price calculation (line 108-111),
+  ensuring it affects the swap output. Cannot be bypassed.
+
+evidence:
+  spec_quote: "The protocol charges a fixed 0.3% fee on the input amount for every swap transaction"
+  spec_location: "Whitepaper §4.2, page 8, paragraph 1"
+  code_quote: "uint256 amountInWithFee = amountIn * 997; // 0.3% fee: (1000-997)/1000"
+  code_location: "Router.sol:L108"
+
+  verification_steps:
+    - "Checked numerator 997 is used consistently"
+    - "Verified denominator 1000 matches in formula at L110-111"
+    - "Confirmed fee applies to all swap paths (no conditional logic)"
+    - "Validated fee is not configurable (hardcoded = guaranteed)"
+
+ambiguity_notes: null
+```
+
+**What this shows:**
+- Successful alignment between spec requirement and code implementation
+- Mathematical proof that 997/1000 = 0.3% fee
+- Reasoning explains WHY implementation is correct (gas optimization via numerator)
+- Evidence provides exact quotes and line numbers
+- High confidence (1.0) due to clear mathematical equivalence
+
+---
+
+## Example 4: Divergence Finding (Critical Issue)
+
+**Scenario:** Identifying that the critical slippage protection requirement is completely missing.
+
+```yaml
+id: DIV-001
+severity: CRITICAL
+title: "Missing slippage protection enables unlimited sandwich attacks"
+
+spec_claim:
+  excerpt: "All swaps MUST enforce maximum slippage of 1% to protect users from sandwich attacks"
+  source: "Whitepaper §4.1 - Trading Mechanism & User Protection"
+  source_location: "Page 7, paragraph 3"
+  semantic_type: security_constraint
+  enforcement_level: MUST (mandatory)
+
+code_finding:
+  file: "contracts/RouterV1.sol"
+  function: "swap(address tokenIn, address tokenOut, uint256 amountIn)"
+  lines: 45-78
+  observation: "Function signature lacks minAmountOut parameter; no slippage validation exists"
+
+match_type: missing_in_code
+confidence: 1.0
+
+reasoning: |
+  Specification Analysis:
+  - Spec explicitly requires: "MUST enforce maximum slippage of 1%"
+  - Requirement scope: "All swaps" (no exceptions)
+  - Purpose stated: "protect users from sandwich attacks"
+
+  Code Analysis:
+  - Function signature: swap(tokenIn, tokenOut, amountIn)
+  - Missing parameter: minAmountOut (required for slippage check)
+  - Line-by-line review of function body (L45-L78):
+    * L50-55: Price calculation from reserves
+    * L58-60: Fee deduction (0.3%)
+    * L62-65: Output amount calculation
+    * L68: Transfer tokenIn from user
+    * L72: Transfer tokenOut to user
+    * L75: Emit Swap event
+  - NO slippage validation found anywhere in function
+
+  Gap: Spec requires slippage protection → Code provides zero protection
+
+  Additional verification:
+  - Searched entire RouterV1.sol for "slippage", "minAmount", "minOutput": 0 results
+  - Checked if validation exists in called functions: None found
+  - Verified no modifiers perform slippage check: Confirmed absent
+
+evidence:
+  spec_evidence:
+    quote: "To protect users from front-running and sandwich attacks, all swap operations MUST enforce a maximum slippage of 1% between the expected and actual output amounts"
+    location: "Whitepaper §4.1, page 7, paragraph 3"
+    emphasis: "MUST" indicates mandatory requirement
+
+  code_evidence:
+    function_signature: "function swap(address tokenIn, address tokenOut, uint256 amountIn) external"
+    signature_location: "RouterV1.sol:L45"
+    missing_parameter: "uint256 minAmountOut"
+
+    function_body_summary: |
+      L50: uint256 amountOut = calculateSwapOutput(tokenIn, tokenOut, amountIn);
+      L68: IERC20(tokenIn).transferFrom(msg.sender, pair, amountIn);
+      L72: IERC20(tokenOut).transfer(msg.sender, amountOut);
+
+      CRITICAL ISSUE: No validation that amountOut meets user expectations
+
+    search_results:
+      - pattern: "minAmountOut" → 0 occurrences in RouterV1.sol
+      - pattern: "slippage" → 0 occurrences in RouterV1.sol
+      - pattern: "require.*amountOut" → 0 occurrences in RouterV1.sol
+      - pattern: "amountOut >=" → 0 occurrences in RouterV1.sol
+
+exploitability: |
+  Attack Vector: Classic Sandwich Attack
+
+  Prerequisites:
+  - Attacker monitors public mempool for pending swap transactions
+  - Attacker has capital to move market price (typically 10-50x target trade size)
+  - Target trade is on-chain (not private mempool)
+
+  Attack Sequence:
+
+  1. Detection Phase
+     - Victim submits swap: 100 ETH → USDC
+     - Expected output at current price: 200,000 USDC (price = $2,000/ETH)
+     - Transaction appears in mempool with no slippage protection
+
+  2. Front-Run Transaction
+     - Attacker submits swap: 500 ETH → USDC (higher gas to execute first)
+     - Large buy moves price: $2,000 → $2,100 (+5%)
+     - Pool reserves now imbalanced
+
+  3. Victim Transaction Executes
+     - Victim's 100 ETH swap executes at manipulated price
+     - Actual output: 195,122 USDC (effective price $1,951/ETH)
+     - Victim loses: 4,878 USDC vs expected 200,000
+     - Loss percentage: 2.4% of trade value
+     - NO PROTECTION: Transaction succeeds despite 2.4% slippage (exceeds 1% spec limit)
+
+  4. Back-Run Transaction
+     - Attacker sells USDC → ETH at inflated price
+     - Profits from price impact: ~$4,500
+     - Price returns toward equilibrium
+
+  Economic Analysis:
+  - Victim trade size: $200,000
+  - Attacker cost: Gas fees (~$50-100)
+  - Attacker profit: ~$4,500 (net ~$4,400)
+  - Victim loss: $4,878 (2.4% slippage)
+  - Attack ROI: 4400% in single block
+
+  Impact Scale:
+  - Per transaction: $500 - $10,000 extractable (depending on trade size)
+  - Daily volume: $10M → potential $100K-500K daily extraction
+  - Unlimited because: No slippage check = no upper bound on extraction
+
+  Real-World Precedent:
+  - SushiSwap (2020): Suffered sandwich attacks before slippage protection
+  - Average loss per victim: 1-5% of trade value
+  - Specification exists specifically to prevent this attack class
+
+remediation:
+  immediate_fix: |
+    Add minAmountOut parameter and enforce slippage protection:
+
+    ```solidity
+    function swap(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 minAmountOut,  // NEW: User-specified minimum output
+        uint256 deadline        // NEW: Prevent stale transactions
+    ) external ensure(deadline) nonReentrant {
+        require(amountIn > 0, "Invalid input amount");
+        require(minAmountOut > 0, "Invalid minimum output");  // NEW
+
+        // Existing price calculation
+        uint256 amountOut = calculateSwapOutput(tokenIn, tokenOut, amountIn);
+
+        // NEW: Enforce slippage protection
+        require(amountOut >= minAmountOut, "Slippage exceeded");
+
+        // Rest of swap logic...
+    }
+    ```
+
+    This allows users to specify maximum acceptable slippage:
+    - User calculates expected output: 200,000 USDC
+    - User sets minAmountOut: 198,000 USDC (1% slippage tolerance)
+    - Sandwich attack moves price 2.4% → transaction reverts
+    - User protected from excessive value extraction
+
+  long_term_improvements: |
+    1. Add helper function for slippage calculation:
+       ```solidity
+       function calculateMinOutput(
+           uint256 expectedOutput,
+           uint256 slippageBps  // basis points, e.g., 100 = 1%
+       ) public pure returns (uint256) {
+           return expectedOutput * (10000 - slippageBps) / 10000;
+       }
+       ```
+
+    2. Implement deadline parameter (as shown in immediate fix)
+       - Prevents stale transactions from executing at unexpected prices
+       - Standard in Uniswap V2/V3
+
+    3. Add price impact warnings in UI:
+       - Show estimated price impact before transaction
+       - Warn if impact exceeds 1% (spec threshold)
+       - Suggest splitting large trades
+
+    4. Consider TWAP (Time-Weighted Average Price) validation:
+       - Compare spot price vs 30-min TWAP
+       - Reject if deviation exceeds threshold
+       - Prevents oracle manipulation attacks
+
+    5. Add events for slippage monitoring:
+       ```solidity
+       event SlippageApplied(
+           address indexed user,
+           uint256 expectedOutput,
+           uint256 actualOutput,
+           uint256 slippageBps
+       );
+       ```
+
+  testing_requirements: |
+    1. Unit test: Swap with 0.5% slippage succeeds
+    2. Unit test: Swap with 1.5% slippage reverts
+    3. Integration test: Simulate sandwich attack, verify protection
+    4. Fuzz test: Random minAmountOut values, verify correct revert behavior
+    5. Mainnet fork test: Replay historical sandwich attacks, verify prevention
+
+  breaking_changes: |
+    YES - This is a breaking change to the swap() function signature.
+
+    Migration path:
+    1. Deploy RouterV2 with new signature
+    2. Update frontend to calculate and pass minAmountOut
+    3. Deprecate RouterV1 after 30-day migration period
+    4. Add wrapper function in RouterV1 for backward compatibility:
+       ```solidity
+       function swapLegacy(address tokenIn, address tokenOut, uint256 amountIn) external {
+           uint256 expectedOutput = getExpectedOutput(tokenIn, tokenOut, amountIn);
+           uint256 minOutput = expectedOutput * 99 / 100;  // 1% default slippage
+           swap(tokenIn, tokenOut, amountIn, minOutput, block.timestamp + 300);
+       }
+       ```
+
+  specification_update: |
+    If slippage protection is intentionally omitted (NOT recommended):
+
+    Update whitepaper §4.1 to:
+    "Swaps execute at current market price without slippage protection.
+    Users are responsible for sandwich attack mitigation via:
+    - Private transaction channels (Flashbots, MEV-Blocker)
+    - Off-chain price monitoring and transaction cancellation
+    - External slippage calculation and manual validation
+
+    WARNING: On-chain swaps are vulnerable to MEV extraction."
+```
+
+**What this shows:**
+- Complete divergence finding with CRITICAL severity
+- Evidence-based: Shows exhaustive search for slippage protection (0 results)
+- Detailed exploit scenario with concrete numbers ($200k trade → $4,878 loss)
+- Economic impact quantification (ROI, daily volume, extraction potential)
+- Comprehensive remediation with code examples, testing requirements, migration path
+- Distinguishes between fixing code vs updating spec (if intentional)
+
+
+### Output Requirements
+
+# Output Requirements & Quality Thresholds
+
+When performing spec-to-code compliance analysis, Claude MUST produce structured IR following the formats demonstrated in [IR_EXAMPLES.md](IR_EXAMPLES.md).
+
+---
+
+## Required IR Production
+
+For EACH phase, output MUST include:
+
+### Phase 2 - Spec-IR (mandatory)
+- MUST extract ALL intended behavior into Spec-IR records
+- Each record MUST include: `id`, `spec_excerpt`, `source_section`, `source_document`, `semantic_type`, `normalized_form`, `confidence`
+- MUST use YAML format matching Example 1
+- MUST extract minimum 10 Spec-IR items for any non-trivial specification (5+ pages of documentation)
+- MUST include confidence scores (0-1) for all extractions
+- MUST document both explicit and implicit invariants
+
+### Phase 3 - Code-IR (mandatory)
+- MUST analyze EVERY function with structured extraction
+- Each record MUST include: `id`, `file`, `function`, `lines`, `visibility`, `modifiers`, `behavior` (preconditions, state_reads, state_writes, computations, external_calls, events, postconditions), `invariants_enforced`
+- MUST use YAML format matching Example 2
+- MUST document line numbers for ALL claims (every precondition, state read/write, computation, external call)
+- MUST capture full control flow (all conditional branches, revert paths)
+- MUST identify all external interactions with risk analysis
+
+### Phase 4 - Alignment-IR (mandatory)
+- MUST compare EVERY Spec-IR item against Code-IR
+- Each record MUST include: `id`, `spec_ref`, `code_ref`, `spec_claim`, `code_behavior`, `match_type`, `confidence`, `reasoning`, `evidence`
+- MUST classify using exactly one of: `full_match`, `partial_match`, `mismatch`, `missing_in_code`, `code_stronger_than_spec`, `code_weaker_than_spec`
+- MUST use YAML format matching Example 3
+- MUST provide reasoning trace explaining WHY classification was chosen
+- MUST include evidence with exact quotes and locations from both spec and code
+- Every Spec-IR item MUST have corresponding Alignment record (no gaps)
+
+### Phase 5 - Divergence Findings (when applicable)
+- MUST create detailed finding for EVERY `mismatch`, `missing_in_code`, or `code_weaker_than_spec`
+- Each finding MUST include: `id`, `severity`, `title`, `spec_claim`, `code_finding`, `match_type`, `confidence`, `reasoning`, `evidence`, `exploitability`, `remediation`
+- MUST use YAML format matching Example 4
+- MUST quantify impact with concrete numbers (not "could be exploited" but "attacker gains $X, victim loses $Y")
+- MUST provide exploitability analysis with attack scenarios (prerequisites, sequence, impact)
+- MUST include remediation with code examples and testing requirements
+
+### Phase 6 - Final Report (mandatory)
+- MUST produce structured report following 16-section format defined in Phase 6
+- MUST include all IR artifacts (Spec-IR, Code-IR, Alignment-IR, Divergence Findings)
+- MUST provide Full Alignment Matrix showing all spec→code mappings
+- MUST quantify risk and prioritize remediations
+
+---
+
+## Quality Thresholds
+
+A complete spec-to-code compliance analysis MUST achieve:
+
+### Spec-IR minimum standards:
+- Minimum 10 Spec-IR items for non-trivial specifications
+- At least 3 invariants extracted (explicit or implicit)
+- At least 2 security requirements identified (MUST/NEVER/ALWAYS keywords)
+- At least 1 math formula or economic assumption documented
+- Confidence scores for all extractions (no missing scores)
+
+### Code-IR minimum standards:
+- EVERY public/external function analyzed (no gaps in coverage)
+- Minimum 3 invariants documented per analyzed function
+- ALL external calls identified with return handling documented
+- ALL state modifications tracked (reads and writes)
+- Line number citations for ALL claims (100% traceability)
+
+### Alignment-IR minimum standards:
+- EVERY Spec-IR item has corresponding Alignment record (complete matrix)
+- Reasoning provided for all match_type classifications
+- Evidence includes exact quotes from both spec and code
+- Ambiguities explicitly flagged (never guessed or inferred)
+- Confidence scores reflect actual certainty (not placeholder 1.0 for everything)
+
+### Divergence Finding minimum standards:
+- EVERY CRITICAL/HIGH finding has exploit scenario with concrete attack sequence
+- Economic impact quantified with dollar amounts or percentages
+- Remediation includes code examples (not just "add validation")
+- Testing requirements specified (unit tests, integration tests, fuzz tests)
+- Breaking changes documented with migration path
+
+---
+
+## Format Consistency
+
+- MUST use YAML for all IR records (Spec-IR, Code-IR, Alignment-IR, Divergence)
+- MUST use consistent field names across all records (e.g., `spec_excerpt` not `specification_text`)
+- MUST reference line numbers in format: `L45`, `lines: 89-135`, `line 108`
+- MUST cite spec locations: `"Section §4.1"`, `"Page 7, paragraph 3"`, `"Whitepaper section 2.3"`
+- MUST use markdown code blocks with language tags: ` ```yaml `, ` ```solidity `
+- MUST separate major sections with `---` horizontal rules
+
+---
+
+## Anti-Hallucination Requirements
+
+- NEVER infer behavior not present in spec or code
+- ALWAYS quote exact text (spec_quote, code_quote in evidence)
+- ALWAYS provide line numbers for code claims
+- ALWAYS provide section/page for spec claims
+- If uncertain: Set confidence < 0.8 and document ambiguity
+- If spec is silent: Classify as `UNDOCUMENTED`, never guess
+- If code adds behavior: Classify as `code_stronger_than_spec`, document in Alignment-IR
+
+
+### Completeness Checklist
+
+# Completeness Checklist
+
+Before finalizing spec-to-code compliance analysis, verify:
+
+---
+
+## Spec-IR Completeness
+
+- [ ] Extracted ALL explicit invariants from specification
+- [ ] Extracted ALL implicit invariants (deduced from context, examples, diagrams)
+- [ ] Extracted ALL formulas and mathematical relationships
+- [ ] Extracted ALL actor definitions, roles, and trust boundaries
+- [ ] Extracted ALL state machine transitions and workflows
+- [ ] Extracted ALL security requirements (MUST/NEVER/ALWAYS keywords)
+- [ ] Extracted ALL preconditions and postconditions
+- [ ] Every Spec-IR item has `source_section` citation
+- [ ] Every Spec-IR item has confidence score (0-1)
+- [ ] Minimum threshold met: 10+ items for non-trivial spec
+
+---
+
+## Code-IR Completeness
+
+- [ ] Analyzed ALL public and external functions (no gaps)
+- [ ] Analyzed ALL internal functions called by public/external functions
+- [ ] Documented ALL state reads with variable names and line numbers
+- [ ] Documented ALL state writes with operations and line numbers
+- [ ] Documented ALL external calls with target, type, return handling, line numbers
+- [ ] Documented ALL revert conditions with exact require/revert statements
+- [ ] Documented ALL modifiers and their enforcement logic
+- [ ] Captured storage layout, initialization logic, authorization graph
+- [ ] Every Code-IR claim has line number citation
+- [ ] Minimum threshold met: 3+ invariants per function
+
+---
+
+## Alignment-IR Completeness
+
+- [ ] EVERY Spec-IR item has corresponding Alignment record (complete 1:1 mapping)
+- [ ] EVERY Alignment record has match_type classification (one of 6 types)
+- [ ] EVERY match_type has reasoning explaining WHY classification was chosen
+- [ ] EVERY Alignment record has evidence with exact quotes (spec_quote AND code_quote)
+- [ ] EVERY divergence (`mismatch`, `missing_in_code`, `code_weaker_than_spec`) has Divergence Finding
+- [ ] Undocumented code behavior explicitly flagged as `code_stronger_than_spec`
+- [ ] Ambiguities classified (not guessed): confidence < 0.8 or ambiguity_notes populated
+- [ ] No placeholder confidence scores (1.0 for everything) - scores reflect actual certainty
+
+---
+
+## Divergence Finding Quality
+
+- [ ] EVERY CRITICAL/HIGH finding has detailed exploit scenario (prerequisites, sequence, impact)
+- [ ] Economic impact quantified with concrete numbers ($X loss, Y% ROI, Z transactions/day)
+- [ ] Remediation includes code examples (not just "fix this")
+- [ ] Testing requirements specified (unit, integration, fuzz, fork tests)
+- [ ] Breaking changes documented (migration path, backward compatibility)
+- [ ] Evidence includes exhaustive search results (e.g., "searched for 'slippage' → 0 results")
+- [ ] Severity justified with exploitability reasoning (not just "this is critical because...")
+
+---
+
+## Phase 6 Final Report
+
+- [ ] All 16 sections present (Executive Summary through Final Risk Assessment)
+- [ ] Full Alignment Matrix included (table showing all spec→code mappings with status)
+- [ ] All IR artifacts embedded or linked (Spec-IR, Code-IR, Alignment-IR, Divergence Findings)
+- [ ] Divergence Findings prioritized by severity (CRITICAL → HIGH → MEDIUM → LOW)
+- [ ] Recommended remediations prioritized by risk reduction
+- [ ] Documentation update suggestions provided (if spec needs clarification)
+
