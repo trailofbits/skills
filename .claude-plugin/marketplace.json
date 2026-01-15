@@ -137,6 +137,15 @@
       "source": "./plugins/sharp-edges"
     },
     {
+      "name": "static-analysis",
+      "version": "1.0.1",
+      "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
+      "author": {
+        "name": "Axel Mierczuk"
+      },
+      "source": "./plugins/static-analysis"
+    },
+    {
       "name": "spec-to-code-compliance",
       "description": "Specification-to-code compliance checker for blockchain audits with evidence-based alignment analysis",
       "version": "1.0.0",
