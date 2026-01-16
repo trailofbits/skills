@@ -4,9 +4,24 @@
 
 set -e
 
-# Default paths for macOS Burp Suite Professional
-JAVA_PATH="${BURP_JAVA:-/Applications/Burp Suite Professional.app/Contents/Resources/jre.bundle/Contents/Home/bin/java}"
-BURP_JAR="${BURP_JAR:-/Applications/Burp Suite Professional.app/Contents/Resources/app/burpsuite_pro.jar}"
+# Platform-specific default paths
+case "$(uname -s)" in
+    Darwin)
+        _default_java="/Applications/Burp Suite Professional.app/Contents/Resources/jre.bundle/Contents/Home/bin/java"
+        _default_jar="/Applications/Burp Suite Professional.app/Contents/Resources/app/burpsuite_pro.jar"
+        ;;
+    Linux)
+        _default_java="/opt/BurpSuiteProfessional/jre/bin/java"
+        _default_jar="/opt/BurpSuiteProfessional/burpsuite_pro.jar"
+        ;;
+    *)
+        _default_java=""
+        _default_jar=""
+        ;;
+esac
+
+JAVA_PATH="${BURP_JAVA:-$_default_java}"
+BURP_JAR="${BURP_JAR:-$_default_jar}"
 
 usage() {
     cat << EOF
