@@ -2,7 +2,7 @@
 # burp-search.sh - Search Burp Suite project files using burpsuite-project-file-parser
 # Requires: burpsuite-project-file-parser extension installed in Burp Suite
 
-set -e
+set -euo pipefail
 
 # Platform-specific default paths
 case "$(uname -s)" in
@@ -15,6 +15,7 @@ case "$(uname -s)" in
         _default_jar="/opt/BurpSuiteProfessional/burpsuite_pro.jar"
         ;;
     *)
+        echo "Warning: Unsupported platform '$(uname -s)'. Set BURP_JAVA and BURP_JAR environment variables." >&2
         _default_java=""
         _default_jar=""
         ;;
@@ -72,13 +73,21 @@ if [ ! -f "$PROJECT_FILE" ]; then
     exit 1
 fi
 
-if [ ! -f "$JAVA_PATH" ]; then
+if [ -z "$JAVA_PATH" ]; then
+    echo "Error: No default Java path for this platform." >&2
+    echo "Set BURP_JAVA environment variable to your Java path" >&2
+    exit 1
+elif [ ! -f "$JAVA_PATH" ]; then
     echo "Error: Java not found at: $JAVA_PATH" >&2
     echo "Set BURP_JAVA environment variable to your Java path" >&2
     exit 1
 fi
 
-if [ ! -f "$BURP_JAR" ]; then
+if [ -z "$BURP_JAR" ]; then
+    echo "Error: No default Burp JAR path for this platform." >&2
+    echo "Set BURP_JAR environment variable to your burpsuite_pro.jar path" >&2
+    exit 1
+elif [ ! -f "$BURP_JAR" ]; then
     echo "Error: Burp Suite JAR not found at: $BURP_JAR" >&2
     echo "Set BURP_JAR environment variable to your burpsuite_pro.jar path" >&2
     exit 1
