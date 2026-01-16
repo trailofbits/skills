@@ -253,9 +253,7 @@ def _parse_name_from_filename(stem: str) -> str:
     return stem
 
 
-def _extract_header_info(
-    img_rgb: np.ndarray, height: int, width: int
-) -> dict[str, str]:
+def _extract_header_info(img_rgb: np.ndarray, height: int, width: int) -> dict[str, str]:
     """Extract name, archetype, company, and all metadata from landscape layout.
 
     Args:
@@ -411,9 +409,7 @@ def _extract_chart(
     Returns:
         Dict with trait values, arrow, and EU.
     """
-    result: dict[str, int | float | None] = {
-        "a": 0, "b": 0, "c": 0, "d": 0, "l": 0, "i": 0
-    }
+    result: dict[str, int | float | None] = {"a": 0, "b": 0, "c": 0, "d": 0, "l": 0, "i": 0}
 
     for dot in dots:
         trait, val = map_dot_to_trait(dot, x_start, x_end)
@@ -422,9 +418,7 @@ def _extract_chart(
 
     if arrows:
         sorted_arrows = sorted(arrows, key=lambda a: a["area"], reverse=True)
-        result["arrow"] = pixel_to_scale(
-            sorted_arrows[0]["x"], x_start, x_end, as_float=True
-        )
+        result["arrow"] = pixel_to_scale(sorted_arrows[0]["x"], x_start, x_end, as_float=True)
 
     eu = _extract_eu(img_rgb, eu_region)
     if eu is not None:
@@ -454,9 +448,7 @@ def extract_with_opencv(pdf_path: Path) -> dict[str, object]:
 
     # Detect colored elements
     sat, val = img_hsv[:, :, 1], img_hsv[:, :, 2]
-    mask = (((sat > OPENCV_SATURATION_MIN) & (val > OPENCV_VALUE_MIN)) * 255).astype(
-        np.uint8
-    )
+    mask = (((sat > OPENCV_SATURATION_MIN) & (val > OPENCV_VALUE_MIN)) * 255).astype(np.uint8)
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     header_dot_y_max = int(height * OPENCV_HEADER_DOT_Y_MAX)
@@ -482,12 +474,8 @@ def extract_with_opencv(pdf_path: Path) -> dict[str, object]:
     job_dots = [d for d in dots if job_y[0] < d["y"] < job_y[1]]
     job_arrows = [a for a in arrows if job_y[0] < a["y"] < job_y[1]]
 
-    survey_eu_region = (
-        OPENCV_EU_REGION_X_START, survey_y[0], OPENCV_EU_REGION_X_END, survey_y[1]
-    )
-    job_eu_region = (
-        OPENCV_EU_REGION_X_START, job_y[0], OPENCV_EU_REGION_X_END, job_y[1]
-    )
+    survey_eu_region = (OPENCV_EU_REGION_X_START, survey_y[0], OPENCV_EU_REGION_X_END, survey_y[1])
+    job_eu_region = (OPENCV_EU_REGION_X_START, job_y[0], OPENCV_EU_REGION_X_END, job_y[1])
 
     survey_data = _extract_chart(
         survey_dots,

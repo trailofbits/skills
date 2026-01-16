@@ -40,7 +40,6 @@ from typing import Literal
 
 import yaml
 
-
 # Configuration
 MAX_LINES = 500
 MAX_NAME_LENGTH = 64
@@ -365,9 +364,7 @@ def validate_escaped_backticks(content: str, result: ValidationResult) -> None:
     """
     matches = ESCAPED_BACKTICKS_PATTERN.findall(content)
     if matches:
-        result.add_error(
-            f"Found {len(matches)} escaped backticks (\\```) that should be unescaped"
-        )
+        result.add_error(f"Found {len(matches)} escaped backticks (\\```) that should be unescaped")
 
 
 def validate_internal_links(
@@ -431,7 +428,9 @@ def validate_related_skills(
 
     # Check which exist (excluding the generator itself)
     existing_skills = {
-        d.name for d in skills_dir.iterdir() if d.is_dir() and d.name != "testing-handbook-generator"
+        d.name
+        for d in skills_dir.iterdir()
+        if d.is_dir() and d.name != "testing-handbook-generator"
     }
 
     missing_refs = [ref for ref in skill_refs if ref not in existing_skills]
@@ -542,8 +541,10 @@ def print_result(result: ValidationResult, verbose: bool = False) -> None:
             print(f"  WARNING: {warning}")
 
     if verbose and result.info:
-        print(f"  Info: lines={result.info.get('line_count', '?')}, "
-              f"type={result.info.get('skill_type', '?')}")
+        print(
+            f"  Info: lines={result.info.get('line_count', '?')}, "
+            f"type={result.info.get('skill_type', '?')}"
+        )
 
 
 def print_report(report: ValidationReport, verbose: bool = False) -> None:

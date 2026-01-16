@@ -15,10 +15,7 @@ import subprocess
 import sys
 import tempfile
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 # Import shared types from main analyzer
 try:
@@ -61,7 +58,7 @@ DANGEROUS_PHP_OPCODES = {
         "sl": "Left shift may leak timing if shift amount depends on secrets",
         "zend_sr": "Right shift may leak timing if shift amount depends on secrets",
         "sr": "Right shift may leak timing if shift amount depends on secrets",
-    }
+    },
 }
 
 # Functions with timing side-channels (based on Paragonie research)
@@ -97,7 +94,7 @@ DANGEROUS_PHP_FUNCTIONS = {
         "unpack": "unpack() may leak data length via timing; ensure fixed-length input",
         "serialize": "serialize() produces variable-length output that may leak information",
         "json_encode": "json_encode() produces variable-length output that may leak information",
-    }
+    },
 }
 
 
@@ -138,7 +135,7 @@ DANGEROUS_JS_BYTECODES = {
         "bitwiseand": "Bitwise AND timing may vary based on operands",
         "bitwiseor": "Bitwise OR timing may vary based on operands",
         "bitwisexor": "Bitwise XOR timing may vary based on operands",
-    }
+    },
 }
 
 DANGEROUS_JS_FUNCTIONS = {
@@ -169,7 +166,7 @@ DANGEROUS_JS_FUNCTIONS = {
         "atob": "atob() timing may vary based on input length",
         "encodeuricomponent": "encodeURIComponent() produces variable-length output",
         "decodeuricomponent": "decodeURIComponent() timing may vary based on input",
-    }
+    },
 }
 
 
@@ -201,7 +198,7 @@ DANGEROUS_PYTHON_BYTECODES = {
         "binary_rshift": "Right shift may leak timing if shift amount depends on secrets",
         "inplace_lshift": "Inplace left shift may leak timing if shift amount depends on secrets",
         "inplace_rshift": "Inplace right shift may leak timing if shift amount depends on secrets",
-    }
+    },
 }
 
 DANGEROUS_PYTHON_FUNCTIONS = {
@@ -238,7 +235,7 @@ DANGEROUS_PYTHON_FUNCTIONS = {
         "pickle.loads": "pickle.loads() timing varies based on input; also a security risk",
         "base64.b64encode": "base64.b64encode() produces variable-length output",
         "base64.b64decode": "base64.b64decode() timing may vary based on input length",
-    }
+    },
 }
 
 
@@ -270,7 +267,7 @@ DANGEROUS_RUBY_BYTECODES = {
         "opt_rshift": "Right shift may leak timing if shift amount depends on secrets",
         "opt_and": "Bitwise AND timing may vary based on operands",
         "opt_or": "Bitwise OR timing may vary based on operands",
-    }
+    },
 }
 
 DANGEROUS_RUBY_FUNCTIONS = {
@@ -299,7 +296,7 @@ DANGEROUS_RUBY_FUNCTIONS = {
         "marshal.load": "Marshal.load() timing varies based on input; also a security risk",
         "base64.encode64": "Base64.encode64() produces variable-length output",
         "base64.decode64": "Base64.decode64() timing may vary based on input length",
-    }
+    },
 }
 
 
@@ -357,7 +354,7 @@ DANGEROUS_JAVA_BYTECODES = {
         "sastore": "array store may leak timing via cache if index depends on secrets",
         "tableswitch": "switch statement may leak timing based on case value",
         "lookupswitch": "switch statement may leak timing based on case value",
-    }
+    },
 }
 
 DANGEROUS_JAVA_FUNCTIONS = {
@@ -378,7 +375,7 @@ DANGEROUS_JAVA_FUNCTIONS = {
         # Variable-length encoding
         "base64.getencoder": "Base64 encoding produces variable-length output",
         "base64.getdecoder": "Base64 decoding timing may vary based on input",
-    }
+    },
 }
 
 
@@ -414,7 +411,7 @@ DANGEROUS_KOTLIN_FUNCTIONS = {
         "compareto": "compareTo() has variable-time execution",
         # Arrays
         "arrays.equals": "Arrays.equals() may early-terminate; use MessageDigest.isEqual()",
-        "contentequals": "contentEquals() may early-terminate on array comparison",
+        "arrays.contentequals": "contentEquals() may early-terminate on array comparison",
         # String operations
         "string.equals": "String.equals() may early-terminate on secret data",
         "string.compareto": "String.compareTo() has variable-time execution",
@@ -423,7 +420,7 @@ DANGEROUS_KOTLIN_FUNCTIONS = {
         "base64.getdecoder": "Base64 decoding timing may vary based on input",
         "encodetobytearray": "encodeToByteArray() produces variable-length output",
         "decodetostring": "decodeToString() timing may vary based on input",
-    }
+    },
 }
 
 
@@ -489,7 +486,7 @@ DANGEROUS_CSHARP_BYTECODES = {
         "stelem.r8": "array store may leak timing via cache if index depends on secrets",
         "stelem.ref": "array store may leak timing via cache if index depends on secrets",
         "switch": "switch statement may leak timing based on case value",
-    }
+    },
 }
 
 DANGEROUS_CSHARP_FUNCTIONS = {
@@ -509,13 +506,14 @@ DANGEROUS_CSHARP_FUNCTIONS = {
         # Variable-length encoding
         "convert.tobase64string": "Base64 encoding produces variable-length output",
         "convert.frombase64string": "Base64 decoding timing may vary based on input",
-    }
+    },
 }
 
 
 # =============================================================================
 # ScriptAnalyzer Base Class
 # =============================================================================
+
 
 class ScriptAnalyzer(ABC):
     """Base class for scripting language analyzers."""
@@ -532,7 +530,7 @@ class ScriptAnalyzer(ABC):
         self,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> AnalysisReport:
         """
         Analyze source for timing violations.
@@ -552,6 +550,7 @@ class ScriptAnalyzer(ABC):
 # PHP Analyzer
 # =============================================================================
 
+
 class PHPAnalyzer(ScriptAnalyzer):
     """
     Analyzer for PHP scripts using VLD extension or OPcache debug output.
@@ -561,9 +560,9 @@ class PHPAnalyzer(ScriptAnalyzer):
 
     name = "php"
 
-    def __init__(self, php_path: Optional[str] = None):
+    def __init__(self, php_path: str | None = None):
         self.php_path = php_path or "php"
-        self._vld_available: Optional[bool] = None
+        self._vld_available: bool | None = None
 
     def is_available(self) -> bool:
         """Check if PHP is available."""
@@ -598,9 +597,12 @@ class PHPAnalyzer(ScriptAnalyzer):
         """Get VLD opcode dump for a PHP file."""
         cmd = [
             self.php_path,
-            "-d", "vld.active=1",
-            "-d", "vld.execute=0",
-            "-d", "vld.verbosity=1",
+            "-d",
+            "vld.active=1",
+            "-d",
+            "vld.execute=0",
+            "-d",
+            "vld.verbosity=1",
             source_file,
         ]
 
@@ -615,8 +617,10 @@ class PHPAnalyzer(ScriptAnalyzer):
         """Get OPcache debug output for a PHP file (fallback)."""
         cmd = [
             self.php_path,
-            "-d", "opcache.enable_cli=1",
-            "-d", "opcache.opt_debug_level=0x10000",
+            "-d",
+            "opcache.enable_cli=1",
+            "-d",
+            "opcache.opt_debug_level=0x10000",
             source_file,
         ]
 
@@ -631,7 +635,7 @@ class PHPAnalyzer(ScriptAnalyzer):
         self,
         output: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> tuple[list[dict], list[Violation]]:
         """
         Parse VLD output for dangerous opcodes and function calls.
@@ -658,7 +662,7 @@ class PHPAnalyzer(ScriptAnalyzer):
         filter_pattern = re.compile(function_filter) if function_filter else None
 
         # Track function calls for detection
-        pending_fcall: Optional[str] = None
+        pending_fcall: str | None = None
 
         for line in output.split("\n"):
             line_stripped = line.strip()
@@ -697,10 +701,7 @@ class PHPAnalyzer(ScriptAnalyzer):
             # Examples:
             #    5     0  E >   RECV    !0
             #          1        RECV    !1      (no line number)
-            opcode_match = re.match(
-                r"(?:(\d+)\s+)?(\d+)\s+[E>*\s]*([A-Z_]+)\s*(.*)",
-                line_stripped
-            )
+            opcode_match = re.match(r"(?:(\d+)\s+)?(\d+)\s+[E>*\s]*([A-Z_]+)\s*(.*)", line_stripped)
 
             if not opcode_match:
                 # Check for end of section
@@ -736,52 +737,60 @@ class PHPAnalyzer(ScriptAnalyzer):
                 if pending_fcall:
                     # Check if this function is dangerous
                     if pending_fcall in DANGEROUS_PHP_FUNCTIONS["errors"]:
-                        violations.append(Violation(
-                            function=current_function or "<main>",
-                            file=current_file or "",
-                            line=line_num,
-                            address="",
-                            instruction=f"{opcode} {pending_fcall}",
-                            mnemonic=pending_fcall.upper(),
-                            reason=DANGEROUS_PHP_FUNCTIONS["errors"][pending_fcall],
-                            severity=Severity.ERROR,
-                        ))
+                        violations.append(
+                            Violation(
+                                function=current_function or "<main>",
+                                file=current_file or "",
+                                line=line_num,
+                                address="",
+                                instruction=f"{opcode} {pending_fcall}",
+                                mnemonic=pending_fcall.upper(),
+                                reason=DANGEROUS_PHP_FUNCTIONS["errors"][pending_fcall],
+                                severity=Severity.ERROR,
+                            )
+                        )
                     elif include_warnings and pending_fcall in DANGEROUS_PHP_FUNCTIONS["warnings"]:
-                        violations.append(Violation(
-                            function=current_function or "<main>",
-                            file=current_file or "",
-                            line=line_num,
-                            address="",
-                            instruction=f"{opcode} {pending_fcall}",
-                            mnemonic=pending_fcall.upper(),
-                            reason=DANGEROUS_PHP_FUNCTIONS["warnings"][pending_fcall],
-                            severity=Severity.WARNING,
-                        ))
+                        violations.append(
+                            Violation(
+                                function=current_function or "<main>",
+                                file=current_file or "",
+                                line=line_num,
+                                address="",
+                                instruction=f"{opcode} {pending_fcall}",
+                                mnemonic=pending_fcall.upper(),
+                                reason=DANGEROUS_PHP_FUNCTIONS["warnings"][pending_fcall],
+                                severity=Severity.WARNING,
+                            )
+                        )
                     pending_fcall = None
 
             # Check for dangerous opcodes
             if opcode_lower in DANGEROUS_PHP_OPCODES["errors"]:
-                violations.append(Violation(
-                    function=current_function or "<main>",
-                    file=current_file or "",
-                    line=line_num,
-                    address="",
-                    instruction=f"{opcode} {operands}".strip(),
-                    mnemonic=opcode.upper(),
-                    reason=DANGEROUS_PHP_OPCODES["errors"][opcode_lower],
-                    severity=Severity.ERROR,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_function or "<main>",
+                        file=current_file or "",
+                        line=line_num,
+                        address="",
+                        instruction=f"{opcode} {operands}".strip(),
+                        mnemonic=opcode.upper(),
+                        reason=DANGEROUS_PHP_OPCODES["errors"][opcode_lower],
+                        severity=Severity.ERROR,
+                    )
+                )
             elif include_warnings and opcode_lower in DANGEROUS_PHP_OPCODES["warnings"]:
-                violations.append(Violation(
-                    function=current_function or "<main>",
-                    file=current_file or "",
-                    line=line_num,
-                    address="",
-                    instruction=f"{opcode} {operands}".strip(),
-                    mnemonic=opcode.upper(),
-                    reason=DANGEROUS_PHP_OPCODES["warnings"][opcode_lower],
-                    severity=Severity.WARNING,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_function or "<main>",
+                        file=current_file or "",
+                        line=line_num,
+                        address="",
+                        instruction=f"{opcode} {operands}".strip(),
+                        mnemonic=opcode.upper(),
+                        reason=DANGEROUS_PHP_OPCODES["warnings"][opcode_lower],
+                        severity=Severity.WARNING,
+                    )
+                )
 
         return functions, violations
 
@@ -789,7 +798,7 @@ class PHPAnalyzer(ScriptAnalyzer):
         self,
         output: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> tuple[list[dict], list[Violation]]:
         """
         Parse OPcache debug output for dangerous opcodes.
@@ -804,7 +813,7 @@ class PHPAnalyzer(ScriptAnalyzer):
         self,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> AnalysisReport:
         """Analyze a PHP file for constant-time violations."""
         source_path = Path(source_file)
@@ -820,8 +829,7 @@ class PHPAnalyzer(ScriptAnalyzer):
         else:
             success, output = self._get_opcache_output(str(source_path.absolute()))
             backend = "opcache"
-            print(f"Note: VLD extension not available, using OPcache debug output",
-                  file=sys.stderr)
+            print("Note: VLD extension not available, using OPcache debug output", file=sys.stderr)
 
         if not success:
             raise RuntimeError(f"Failed to get opcodes: {output}")
@@ -847,6 +855,7 @@ class PHPAnalyzer(ScriptAnalyzer):
 # JavaScript/TypeScript Analyzer
 # =============================================================================
 
+
 class JavaScriptAnalyzer(ScriptAnalyzer):
     """
     Analyzer for JavaScript/TypeScript using V8 bytecode output.
@@ -856,7 +865,7 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
 
     name = "javascript"
 
-    def __init__(self, node_path: Optional[str] = None, tsc_path: Optional[str] = None):
+    def __init__(self, node_path: str | None = None, tsc_path: str | None = None):
         self.node_path = node_path or "node"
         self.tsc_path = tsc_path or "tsc"
 
@@ -919,13 +928,19 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
         else:
             cmd = [self.tsc_path]
 
-        cmd.extend([
-            "--outDir", output_dir,
-            "--target", "ES2020",
-            "--module", "commonjs",
-            "--skipLibCheck",
-            "--noEmit", "false",
-        ])
+        cmd.extend(
+            [
+                "--outDir",
+                output_dir,
+                "--target",
+                "ES2020",
+                "--module",
+                "commonjs",
+                "--skipLibCheck",
+                "--noEmit",
+                "false",
+            ]
+        )
 
         if tsconfig:
             cmd.extend(["--project", tsconfig])
@@ -938,9 +953,11 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
                 return False, result.stderr or result.stdout
             return True, str(output_file)
         except FileNotFoundError:
-            return False, f"TypeScript compiler not found"
+            return False, "TypeScript compiler not found"
 
-    def _get_v8_bytecode(self, source_file: str, function_filter: Optional[str] = None) -> tuple[bool, str]:
+    def _get_v8_bytecode(
+        self, source_file: str, function_filter: str | None = None
+    ) -> tuple[bool, str]:
         """Get V8 bytecode output for a JavaScript file."""
         cmd = [self.node_path, "--print-bytecode"]
 
@@ -961,7 +978,7 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
         output: str,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> tuple[list[dict], list[Violation]]:
         """
         Parse V8 bytecode output for dangerous operations.
@@ -989,17 +1006,14 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
         filter_pattern = re.compile(function_filter) if function_filter else None
 
         # Track function calls
-        pending_call: Optional[str] = None
+        pending_call: str | None = None
 
         for line in output.split("\n"):
             line_stripped = line.strip()
 
             # Detect function start
             # Format: [generated bytecode for function: functionName (0x...)]
-            func_match = re.match(
-                r"\[generated bytecode for function:\s*([^\s(]+)",
-                line_stripped
-            )
+            func_match = re.match(r"\[generated bytecode for function:\s*([^\s(]+)", line_stripped)
             if func_match:
                 func_name = func_match.group(1).strip()
                 # Skip internal Node.js functions
@@ -1018,16 +1032,23 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
                 continue
 
             # Skip metadata lines
-            if any(line_stripped.startswith(x) for x in
-                   ["Bytecode length:", "Parameter count", "Register count",
-                    "Frame size", "Constant pool", "Handler Table"]):
+            if any(
+                line_stripped.startswith(x)
+                for x in [
+                    "Bytecode length:",
+                    "Parameter count",
+                    "Register count",
+                    "Frame size",
+                    "Constant pool",
+                    "Handler Table",
+                ]
+            ):
                 continue
 
             # Parse bytecode instruction
             # Format: offset : Instruction [operands]
             bytecode_match = re.match(
-                r"\s*(\d+)\s*:\s*([A-Za-z][A-Za-z0-9]*)\s*(.*)",
-                line_stripped
+                r"\s*(\d+)\s*:\s*([A-Za-z][A-Za-z0-9]*)\s*(.*)", line_stripped
             )
 
             if not bytecode_match:
@@ -1049,36 +1070,46 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
             instruction_lower = instruction.lower()
 
             # Track function calls
-            if instruction in ("CallRuntime", "CallUndefinedReceiver0",
-                               "CallUndefinedReceiver1", "CallUndefinedReceiver2",
-                               "CallProperty0", "CallProperty1", "CallProperty2"):
+            if instruction in (
+                "CallRuntime",
+                "CallUndefinedReceiver0",
+                "CallUndefinedReceiver1",
+                "CallUndefinedReceiver2",
+                "CallProperty0",
+                "CallProperty1",
+                "CallProperty2",
+            ):
                 # Try to extract function name from operands
                 # This is approximate since V8 bytecode uses indices
                 pending_call = operands.lower()
 
             # Check for dangerous bytecodes
             if instruction_lower in DANGEROUS_JS_BYTECODES["errors"]:
-                violations.append(Violation(
-                    function=current_function or "<anonymous>",
-                    file=current_file,
-                    line=None,
-                    address=offset,
-                    instruction=f"{instruction} {operands}".strip(),
-                    mnemonic=instruction.upper(),
-                    reason=DANGEROUS_JS_BYTECODES["errors"][instruction_lower],
-                    severity=Severity.ERROR,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_function or "<anonymous>",
+                        file=current_file,
+                        line=None,
+                        address=offset,
+                        instruction=f"{instruction} {operands}".strip(),
+                        mnemonic=instruction.upper(),
+                        reason=DANGEROUS_JS_BYTECODES["errors"][instruction_lower],
+                        severity=Severity.ERROR,
+                    )
+                )
             elif include_warnings and instruction_lower in DANGEROUS_JS_BYTECODES["warnings"]:
-                violations.append(Violation(
-                    function=current_function or "<anonymous>",
-                    file=current_file,
-                    line=None,
-                    address=offset,
-                    instruction=f"{instruction} {operands}".strip(),
-                    mnemonic=instruction.upper(),
-                    reason=DANGEROUS_JS_BYTECODES["warnings"][instruction_lower],
-                    severity=Severity.WARNING,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_function or "<anonymous>",
+                        file=current_file,
+                        line=None,
+                        address=offset,
+                        instruction=f"{instruction} {operands}".strip(),
+                        mnemonic=instruction.upper(),
+                        reason=DANGEROUS_JS_BYTECODES["warnings"][instruction_lower],
+                        severity=Severity.WARNING,
+                    )
+                )
 
         return functions, violations
 
@@ -1096,9 +1127,9 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
         violations = []
 
         try:
-            with open(source_file, "r") as f:
+            with open(source_file) as f:
                 source = f.read()
-        except (IOError, OSError):
+        except OSError:
             return violations
 
         # Simple regex-based detection for common patterns
@@ -1107,17 +1138,19 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
             pattern = rf"\b{re.escape(func_name)}\s*\("
             for match in re.finditer(pattern, source, re.IGNORECASE):
                 # Get line number
-                line_num = source[:match.start()].count("\n") + 1
-                violations.append(Violation(
-                    function="<source>",
-                    file=source_file,
-                    line=line_num,
-                    address="",
-                    instruction=match.group(0),
-                    mnemonic=func_name.upper().replace(".", "_"),
-                    reason=reason,
-                    severity=Severity.ERROR,
-                ))
+                line_num = source[: match.start()].count("\n") + 1
+                violations.append(
+                    Violation(
+                        function="<source>",
+                        file=source_file,
+                        line=line_num,
+                        address="",
+                        instruction=match.group(0),
+                        mnemonic=func_name.upper().replace(".", "_"),
+                        reason=reason,
+                        severity=Severity.ERROR,
+                    )
+                )
 
         # Detect division and modulo operators in source
         # Pattern matches: a / b, a % b (but not // comments or /= assignment)
@@ -1132,17 +1165,19 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
             # Skip comment lines
             if line.strip().startswith("//") or line.strip().startswith("*"):
                 continue
-            line_num = source[:match.start()].count("\n") + 1
-            violations.append(Violation(
-                function="<source>",
-                file=source_file,
-                line=line_num,
-                address="",
-                instruction="/",
-                mnemonic="DIV_OP",
-                reason="Division operator has variable-time execution",
-                severity=Severity.ERROR,
-            ))
+            line_num = source[: match.start()].count("\n") + 1
+            violations.append(
+                Violation(
+                    function="<source>",
+                    file=source_file,
+                    line=line_num,
+                    address="",
+                    instruction="/",
+                    mnemonic="DIV_OP",
+                    reason="Division operator has variable-time execution",
+                    severity=Severity.ERROR,
+                )
+            )
 
         mod_pattern = r"\s%\s*[^=]"
         for match in re.finditer(mod_pattern, source):
@@ -1153,33 +1188,37 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
             line = source[line_start:line_end]
             if line.strip().startswith("//") or line.strip().startswith("*"):
                 continue
-            line_num = source[:match.start()].count("\n") + 1
-            violations.append(Violation(
-                function="<source>",
-                file=source_file,
-                line=line_num,
-                address="",
-                instruction="%",
-                mnemonic="MOD_OP",
-                reason="Modulo operator has variable-time execution",
-                severity=Severity.ERROR,
-            ))
+            line_num = source[: match.start()].count("\n") + 1
+            violations.append(
+                Violation(
+                    function="<source>",
+                    file=source_file,
+                    line=line_num,
+                    address="",
+                    instruction="%",
+                    mnemonic="MOD_OP",
+                    reason="Modulo operator has variable-time execution",
+                    severity=Severity.ERROR,
+                )
+            )
 
         if include_warnings:
             for func_name, reason in DANGEROUS_JS_FUNCTIONS["warnings"].items():
                 pattern = rf"\.{re.escape(func_name)}\s*\("
                 for match in re.finditer(pattern, source, re.IGNORECASE):
-                    line_num = source[:match.start()].count("\n") + 1
-                    violations.append(Violation(
-                        function="<source>",
-                        file=source_file,
-                        line=line_num,
-                        address="",
-                        instruction=match.group(0),
-                        mnemonic=func_name.upper(),
-                        reason=reason,
-                        severity=Severity.WARNING,
-                    ))
+                    line_num = source[: match.start()].count("\n") + 1
+                    violations.append(
+                        Violation(
+                            function="<source>",
+                            file=source_file,
+                            line=line_num,
+                            address="",
+                            instruction=match.group(0),
+                            mnemonic=func_name.upper(),
+                            reason=reason,
+                            severity=Severity.WARNING,
+                        )
+                    )
 
         return violations
 
@@ -1187,7 +1226,7 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
         self,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> AnalysisReport:
         """Analyze a JavaScript or TypeScript file for constant-time violations."""
         source_path = Path(source_file)
@@ -1230,7 +1269,7 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
         js_file: str,
         report_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> AnalysisReport:
         """Analyze a JavaScript file."""
         success, output = self._get_v8_bytecode(js_file, function_filter)
@@ -1271,6 +1310,7 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
 # Python Analyzer
 # =============================================================================
 
+
 class PythonAnalyzer(ScriptAnalyzer):
     """
     Analyzer for Python scripts using the dis module for bytecode disassembly.
@@ -1283,16 +1323,16 @@ class PythonAnalyzer(ScriptAnalyzer):
     # Python 3.11+ BINARY_OP opargs for division/modulo
     # See: https://docs.python.org/3.11/library/dis.html#opcode-BINARY_OP
     BINARY_OP_DIV_OPARGS = {
-        11: "BINARY_OP_TRUEDIV",      # /
-        12: "BINARY_OP_FLOORDIV",     # //
-        6: "BINARY_OP_MODULO",        # %
+        11: "BINARY_OP_TRUEDIV",  # /
+        12: "BINARY_OP_FLOORDIV",  # //
+        6: "BINARY_OP_MODULO",  # %
         # Inplace variants
-        24: "BINARY_OP_INPLACE_TRUEDIV",    # /=
-        25: "BINARY_OP_INPLACE_FLOORDIV",   # //=
-        19: "BINARY_OP_INPLACE_MODULO",     # %=
+        24: "BINARY_OP_INPLACE_TRUEDIV",  # /=
+        25: "BINARY_OP_INPLACE_FLOORDIV",  # //=
+        19: "BINARY_OP_INPLACE_MODULO",  # %=
     }
 
-    def __init__(self, python_path: Optional[str] = None):
+    def __init__(self, python_path: str | None = None):
         self.python_path = python_path or "python3"
 
     def is_available(self) -> bool:
@@ -1311,7 +1351,8 @@ class PythonAnalyzer(ScriptAnalyzer):
         """Get Python dis module output for bytecode disassembly."""
         cmd = [
             self.python_path,
-            "-m", "dis",
+            "-m",
+            "dis",
             source_file,
         ]
 
@@ -1329,7 +1370,7 @@ class PythonAnalyzer(ScriptAnalyzer):
         output: str,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> tuple[list[dict], list[Violation]]:
         """
         Parse Python dis output for dangerous bytecodes.
@@ -1362,10 +1403,7 @@ class PythonAnalyzer(ScriptAnalyzer):
 
             # Detect function/code object start
             # Format: Disassembly of <code object functionName at 0x...>:
-            func_match = re.match(
-                r"Disassembly of <code object\s+([^\s>]+)",
-                line_stripped
-            )
+            func_match = re.match(r"Disassembly of <code object\s+([^\s>]+)", line_stripped)
             if func_match:
                 func_name = func_match.group(1).strip()
                 current_function = func_name
@@ -1385,10 +1423,7 @@ class PythonAnalyzer(ScriptAnalyzer):
             #               2 LOAD_FAST                1 (modulus)
             #               4 BINARY_TRUE_DIVIDE
             #               6 BINARY_OP               11 (/)
-            bytecode_match = re.match(
-                r"(?:(\d+)\s+)?(\d+)\s+([A-Z_]+)\s*(.*)",
-                line_stripped
-            )
+            bytecode_match = re.match(r"(?:(\d+)\s+)?(\d+)\s+([A-Z_]+)\s*(.*)", line_stripped)
 
             if not bytecode_match:
                 continue
@@ -1417,41 +1452,47 @@ class PythonAnalyzer(ScriptAnalyzer):
                     oparg = int(oparg_match.group(1))
                     if oparg in self.BINARY_OP_DIV_OPARGS:
                         op_name = self.BINARY_OP_DIV_OPARGS[oparg]
-                        violations.append(Violation(
-                            function=current_function or "<module>",
-                            file=source_file,
-                            line=line_num,
-                            address=offset,
-                            instruction=f"{instruction} {operands}".strip(),
-                            mnemonic=op_name,
-                            reason=f"{op_name} has variable-time execution",
-                            severity=Severity.ERROR,
-                        ))
+                        violations.append(
+                            Violation(
+                                function=current_function or "<module>",
+                                file=source_file,
+                                line=line_num,
+                                address=offset,
+                                instruction=f"{instruction} {operands}".strip(),
+                                mnemonic=op_name,
+                                reason=f"{op_name} has variable-time execution",
+                                severity=Severity.ERROR,
+                            )
+                        )
                 continue
 
             # Check for dangerous bytecodes (Python < 3.11)
             if instruction_lower in DANGEROUS_PYTHON_BYTECODES["errors"]:
-                violations.append(Violation(
-                    function=current_function or "<module>",
-                    file=source_file,
-                    line=line_num,
-                    address=offset,
-                    instruction=f"{instruction} {operands}".strip(),
-                    mnemonic=instruction.upper(),
-                    reason=DANGEROUS_PYTHON_BYTECODES["errors"][instruction_lower],
-                    severity=Severity.ERROR,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_function or "<module>",
+                        file=source_file,
+                        line=line_num,
+                        address=offset,
+                        instruction=f"{instruction} {operands}".strip(),
+                        mnemonic=instruction.upper(),
+                        reason=DANGEROUS_PYTHON_BYTECODES["errors"][instruction_lower],
+                        severity=Severity.ERROR,
+                    )
+                )
             elif include_warnings and instruction_lower in DANGEROUS_PYTHON_BYTECODES["warnings"]:
-                violations.append(Violation(
-                    function=current_function or "<module>",
-                    file=source_file,
-                    line=line_num,
-                    address=offset,
-                    instruction=f"{instruction} {operands}".strip(),
-                    mnemonic=instruction.upper(),
-                    reason=DANGEROUS_PYTHON_BYTECODES["warnings"][instruction_lower],
-                    severity=Severity.WARNING,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_function or "<module>",
+                        file=source_file,
+                        line=line_num,
+                        address=offset,
+                        instruction=f"{instruction} {operands}".strip(),
+                        mnemonic=instruction.upper(),
+                        reason=DANGEROUS_PYTHON_BYTECODES["warnings"][instruction_lower],
+                        severity=Severity.WARNING,
+                    )
+                )
 
         return functions, violations
 
@@ -1466,9 +1507,9 @@ class PythonAnalyzer(ScriptAnalyzer):
         violations = []
 
         try:
-            with open(source_file, "r") as f:
+            with open(source_file) as f:
                 source = f.read()
-        except (IOError, OSError):
+        except OSError:
             return violations
 
         # Detect dangerous function calls
@@ -1476,17 +1517,19 @@ class PythonAnalyzer(ScriptAnalyzer):
             # Match function calls like random.random() or math.sqrt()
             pattern = rf"\b{re.escape(func_name)}\s*\("
             for match in re.finditer(pattern, source, re.IGNORECASE):
-                line_num = source[:match.start()].count("\n") + 1
-                violations.append(Violation(
-                    function="<source>",
-                    file=source_file,
-                    line=line_num,
-                    address="",
-                    instruction=match.group(0),
-                    mnemonic=func_name.upper().replace(".", "_"),
-                    reason=reason,
-                    severity=Severity.ERROR,
-                ))
+                line_num = source[: match.start()].count("\n") + 1
+                violations.append(
+                    Violation(
+                        function="<source>",
+                        file=source_file,
+                        line=line_num,
+                        address="",
+                        instruction=match.group(0),
+                        mnemonic=func_name.upper().replace(".", "_"),
+                        reason=reason,
+                        severity=Severity.ERROR,
+                    )
+                )
 
         if include_warnings:
             for func_name, reason in DANGEROUS_PYTHON_FUNCTIONS["warnings"].items():
@@ -1494,17 +1537,19 @@ class PythonAnalyzer(ScriptAnalyzer):
                 method_name = func_name.split(".")[-1] if "." in func_name else func_name
                 pattern = rf"\.{re.escape(method_name)}\s*\("
                 for match in re.finditer(pattern, source, re.IGNORECASE):
-                    line_num = source[:match.start()].count("\n") + 1
-                    violations.append(Violation(
-                        function="<source>",
-                        file=source_file,
-                        line=line_num,
-                        address="",
-                        instruction=match.group(0),
-                        mnemonic=method_name.upper(),
-                        reason=reason,
-                        severity=Severity.WARNING,
-                    ))
+                    line_num = source[: match.start()].count("\n") + 1
+                    violations.append(
+                        Violation(
+                            function="<source>",
+                            file=source_file,
+                            line=line_num,
+                            address="",
+                            instruction=match.group(0),
+                            mnemonic=method_name.upper(),
+                            reason=reason,
+                            severity=Severity.WARNING,
+                        )
+                    )
 
         return violations
 
@@ -1512,7 +1557,7 @@ class PythonAnalyzer(ScriptAnalyzer):
         self,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> AnalysisReport:
         """Analyze a Python file for constant-time violations."""
         source_path = Path(source_file)
@@ -1557,6 +1602,7 @@ class PythonAnalyzer(ScriptAnalyzer):
 # Ruby Analyzer
 # =============================================================================
 
+
 class RubyAnalyzer(ScriptAnalyzer):
     """
     Analyzer for Ruby scripts using YARV instruction sequence dump.
@@ -1566,7 +1612,7 @@ class RubyAnalyzer(ScriptAnalyzer):
 
     name = "ruby"
 
-    def __init__(self, ruby_path: Optional[str] = None):
+    def __init__(self, ruby_path: str | None = None):
         self.ruby_path = ruby_path or "ruby"
 
     def is_available(self) -> bool:
@@ -1604,7 +1650,7 @@ class RubyAnalyzer(ScriptAnalyzer):
         output: str,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> tuple[list[dict], list[Violation]]:
         """
         Parse Ruby YARV instruction sequence output.
@@ -1636,10 +1682,7 @@ class RubyAnalyzer(ScriptAnalyzer):
 
             # Detect function/instruction sequence start
             # Format: == disasm: #<ISeq:functionName@file.rb:line ...>
-            func_match = re.match(
-                r"==\s*disasm:\s*#<ISeq:([^@]+)@([^:]+):(\d+)",
-                line_stripped
-            )
+            func_match = re.match(r"==\s*disasm:\s*#<ISeq:([^@]+)@([^:]+):(\d+)", line_stripped)
             if func_match:
                 func_name = func_match.group(1).strip()
                 # file_name = func_match.group(2)
@@ -1658,10 +1701,7 @@ class RubyAnalyzer(ScriptAnalyzer):
             # Examples:
             #   0000 putobject        10
             #   0004 opt_div          <calldata!...>
-            yarv_match = re.match(
-                r"(\d{4})\s+([a-z_]+[a-z0-9_]*)\s*(.*)",
-                line_stripped
-            )
+            yarv_match = re.match(r"(\d{4})\s+([a-z_]+[a-z0-9_]*)\s*(.*)", line_stripped)
 
             if not yarv_match:
                 continue
@@ -1683,27 +1723,31 @@ class RubyAnalyzer(ScriptAnalyzer):
 
             # Check for dangerous bytecodes
             if instruction_lower in DANGEROUS_RUBY_BYTECODES["errors"]:
-                violations.append(Violation(
-                    function=current_function or "<main>",
-                    file=source_file,
-                    line=current_line,
-                    address=offset,
-                    instruction=f"{instruction} {operands}".strip(),
-                    mnemonic=instruction.upper(),
-                    reason=DANGEROUS_RUBY_BYTECODES["errors"][instruction_lower],
-                    severity=Severity.ERROR,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_function or "<main>",
+                        file=source_file,
+                        line=current_line,
+                        address=offset,
+                        instruction=f"{instruction} {operands}".strip(),
+                        mnemonic=instruction.upper(),
+                        reason=DANGEROUS_RUBY_BYTECODES["errors"][instruction_lower],
+                        severity=Severity.ERROR,
+                    )
+                )
             elif include_warnings and instruction_lower in DANGEROUS_RUBY_BYTECODES["warnings"]:
-                violations.append(Violation(
-                    function=current_function or "<main>",
-                    file=source_file,
-                    line=current_line,
-                    address=offset,
-                    instruction=f"{instruction} {operands}".strip(),
-                    mnemonic=instruction.upper(),
-                    reason=DANGEROUS_RUBY_BYTECODES["warnings"][instruction_lower],
-                    severity=Severity.WARNING,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_function or "<main>",
+                        file=source_file,
+                        line=current_line,
+                        address=offset,
+                        instruction=f"{instruction} {operands}".strip(),
+                        mnemonic=instruction.upper(),
+                        reason=DANGEROUS_RUBY_BYTECODES["warnings"][instruction_lower],
+                        severity=Severity.WARNING,
+                    )
+                )
 
         return functions, violations
 
@@ -1718,9 +1762,9 @@ class RubyAnalyzer(ScriptAnalyzer):
         violations = []
 
         try:
-            with open(source_file, "r") as f:
+            with open(source_file) as f:
                 source = f.read()
-        except (IOError, OSError):
+        except OSError:
             return violations
 
         # Detect dangerous function calls
@@ -1734,17 +1778,19 @@ class RubyAnalyzer(ScriptAnalyzer):
             else:
                 pattern = rf"\b{re.escape(func_name)}\s*[(\[]?"
             for match in re.finditer(pattern, source, re.IGNORECASE):
-                line_num = source[:match.start()].count("\n") + 1
-                violations.append(Violation(
-                    function="<source>",
-                    file=source_file,
-                    line=line_num,
-                    address="",
-                    instruction=match.group(0),
-                    mnemonic=func_name.upper().replace(".", "_").replace("?", ""),
-                    reason=reason,
-                    severity=Severity.ERROR,
-                ))
+                line_num = source[: match.start()].count("\n") + 1
+                violations.append(
+                    Violation(
+                        function="<source>",
+                        file=source_file,
+                        line=line_num,
+                        address="",
+                        instruction=match.group(0),
+                        mnemonic=func_name.upper().replace(".", "_").replace("?", ""),
+                        reason=reason,
+                        severity=Severity.ERROR,
+                    )
+                )
 
         if include_warnings:
             for func_name, reason in DANGEROUS_RUBY_FUNCTIONS["warnings"].items():
@@ -1754,17 +1800,19 @@ class RubyAnalyzer(ScriptAnalyzer):
                 else:
                     pattern = rf"\.{re.escape(func_name)}\s*[(\[]?"
                 for match in re.finditer(pattern, source):
-                    line_num = source[:match.start()].count("\n") + 1
-                    violations.append(Violation(
-                        function="<source>",
-                        file=source_file,
-                        line=line_num,
-                        address="",
-                        instruction=match.group(0),
-                        mnemonic=func_name.upper().replace("?", ""),
-                        reason=reason,
-                        severity=Severity.WARNING,
-                    ))
+                    line_num = source[: match.start()].count("\n") + 1
+                    violations.append(
+                        Violation(
+                            function="<source>",
+                            file=source_file,
+                            line=line_num,
+                            address="",
+                            instruction=match.group(0),
+                            mnemonic=func_name.upper().replace("?", ""),
+                            reason=reason,
+                            severity=Severity.WARNING,
+                        )
+                    )
 
         return violations
 
@@ -1772,7 +1820,7 @@ class RubyAnalyzer(ScriptAnalyzer):
         self,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> AnalysisReport:
         """Analyze a Ruby file for constant-time violations."""
         source_path = Path(source_file)
@@ -1817,6 +1865,7 @@ class RubyAnalyzer(ScriptAnalyzer):
 # Java Analyzer
 # =============================================================================
 
+
 class JavaAnalyzer(ScriptAnalyzer):
     """
     Analyzer for Java source files using javap for bytecode disassembly.
@@ -1826,7 +1875,7 @@ class JavaAnalyzer(ScriptAnalyzer):
 
     name = "java"
 
-    def __init__(self, javac_path: Optional[str] = None, javap_path: Optional[str] = None):
+    def __init__(self, javac_path: str | None = None, javap_path: str | None = None):
         self.javac_path = javac_path or "javac"
         self.javap_path = javap_path or "javap"
 
@@ -1853,7 +1902,8 @@ class JavaAnalyzer(ScriptAnalyzer):
         """Compile Java source to class files."""
         cmd = [
             self.javac_path,
-            "-d", output_dir,
+            "-d",
+            output_dir,
             source_file,
         ]
 
@@ -1888,7 +1938,7 @@ class JavaAnalyzer(ScriptAnalyzer):
         output: str,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> tuple[list[dict], list[Violation]]:
         """
         Parse javap bytecode output for dangerous operations.
@@ -1922,8 +1972,7 @@ class JavaAnalyzer(ScriptAnalyzer):
 
             # Detect class declaration
             class_match = re.match(
-                r"(?:public\s+|private\s+|protected\s+)?(?:final\s+)?class\s+(\S+)",
-                line_stripped
+                r"(?:public\s+|private\s+|protected\s+)?(?:final\s+)?class\s+(\S+)", line_stripped
             )
             if class_match:
                 current_class = class_match.group(1)
@@ -1931,8 +1980,7 @@ class JavaAnalyzer(ScriptAnalyzer):
 
             # Detect method declaration
             method_match = re.match(
-                r"(?:public|private|protected|static|\s)+\S+\s+(\w+)\s*\(",
-                line_stripped
+                r"(?:public|private|protected|static|\s)+\S+\s+(\w+)\s*\(", line_stripped
             )
             if method_match and not line_stripped.startswith("//"):
                 method_name = method_match.group(1)
@@ -2006,27 +2054,31 @@ class JavaAnalyzer(ScriptAnalyzer):
 
             # Check for dangerous bytecodes
             if instruction_lower in DANGEROUS_JAVA_BYTECODES["errors"]:
-                violations.append(Violation(
-                    function=current_method or "<unknown>",
-                    file=source_file,
-                    line=current_line,
-                    address=str(offset),
-                    instruction=f"{instruction} {operands}".strip(),
-                    mnemonic=instruction.upper(),
-                    reason=DANGEROUS_JAVA_BYTECODES["errors"][instruction_lower],
-                    severity=Severity.ERROR,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_method or "<unknown>",
+                        file=source_file,
+                        line=current_line,
+                        address=str(offset),
+                        instruction=f"{instruction} {operands}".strip(),
+                        mnemonic=instruction.upper(),
+                        reason=DANGEROUS_JAVA_BYTECODES["errors"][instruction_lower],
+                        severity=Severity.ERROR,
+                    )
+                )
             elif include_warnings and instruction_lower in DANGEROUS_JAVA_BYTECODES["warnings"]:
-                violations.append(Violation(
-                    function=current_method or "<unknown>",
-                    file=source_file,
-                    line=current_line,
-                    address=str(offset),
-                    instruction=f"{instruction} {operands}".strip(),
-                    mnemonic=instruction.upper(),
-                    reason=DANGEROUS_JAVA_BYTECODES["warnings"][instruction_lower],
-                    severity=Severity.WARNING,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_method or "<unknown>",
+                        file=source_file,
+                        line=current_line,
+                        address=str(offset),
+                        instruction=f"{instruction} {operands}".strip(),
+                        mnemonic=instruction.upper(),
+                        reason=DANGEROUS_JAVA_BYTECODES["warnings"][instruction_lower],
+                        severity=Severity.WARNING,
+                    )
+                )
 
         return functions, violations
 
@@ -2039,9 +2091,9 @@ class JavaAnalyzer(ScriptAnalyzer):
         violations = []
 
         try:
-            with open(source_file, "r") as f:
+            with open(source_file) as f:
                 source = f.read()
-        except (IOError, OSError):
+        except OSError:
             return violations
 
         # Detect dangerous function calls
@@ -2057,17 +2109,19 @@ class JavaAnalyzer(ScriptAnalyzer):
             else:
                 continue
             for match in re.finditer(pattern, source):
-                line_num = source[:match.start()].count("\n") + 1
-                violations.append(Violation(
-                    function="<source>",
-                    file=source_file,
-                    line=line_num,
-                    address="",
-                    instruction=match.group(0),
-                    mnemonic=func_name.upper().replace(".", "_"),
-                    reason=reason,
-                    severity=Severity.ERROR,
-                ))
+                line_num = source[: match.start()].count("\n") + 1
+                violations.append(
+                    Violation(
+                        function="<source>",
+                        file=source_file,
+                        line=line_num,
+                        address="",
+                        instruction=match.group(0),
+                        mnemonic=func_name.upper().replace(".", "_"),
+                        reason=reason,
+                        severity=Severity.ERROR,
+                    )
+                )
 
         if include_warnings:
             for func_name, reason in DANGEROUS_JAVA_FUNCTIONS["warnings"].items():
@@ -2080,17 +2134,19 @@ class JavaAnalyzer(ScriptAnalyzer):
                 else:
                     continue
                 for match in re.finditer(pattern, source):
-                    line_num = source[:match.start()].count("\n") + 1
-                    violations.append(Violation(
-                        function="<source>",
-                        file=source_file,
-                        line=line_num,
-                        address="",
-                        instruction=match.group(0),
-                        mnemonic=func_name.upper().replace(".", "_"),
-                        reason=reason,
-                        severity=Severity.WARNING,
-                    ))
+                    line_num = source[: match.start()].count("\n") + 1
+                    violations.append(
+                        Violation(
+                            function="<source>",
+                            file=source_file,
+                            line=line_num,
+                            address="",
+                            instruction=match.group(0),
+                            mnemonic=func_name.upper().replace(".", "_"),
+                            reason=reason,
+                            severity=Severity.WARNING,
+                        )
+                    )
 
         return violations
 
@@ -2098,7 +2154,7 @@ class JavaAnalyzer(ScriptAnalyzer):
         self,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> AnalysisReport:
         """Analyze a Java file for constant-time violations."""
         source_path = Path(source_file)
@@ -2161,6 +2217,7 @@ class JavaAnalyzer(ScriptAnalyzer):
 # Kotlin Analyzer
 # =============================================================================
 
+
 class KotlinAnalyzer(ScriptAnalyzer):
     """
     Analyzer for Kotlin source files using kotlinc and javap for bytecode disassembly.
@@ -2171,7 +2228,7 @@ class KotlinAnalyzer(ScriptAnalyzer):
 
     name = "kotlin"
 
-    def __init__(self, kotlinc_path: Optional[str] = None, javap_path: Optional[str] = None):
+    def __init__(self, kotlinc_path: str | None = None, javap_path: str | None = None):
         self.kotlinc_path = kotlinc_path or "kotlinc"
         self.javap_path = javap_path or "javap"
 
@@ -2198,7 +2255,8 @@ class KotlinAnalyzer(ScriptAnalyzer):
         """Compile Kotlin source to class files."""
         cmd = [
             self.kotlinc_path,
-            "-d", output_dir,
+            "-d",
+            output_dir,
             source_file,
         ]
 
@@ -2233,7 +2291,7 @@ class KotlinAnalyzer(ScriptAnalyzer):
         output: str,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> tuple[list[dict], list[Violation]]:
         """Parse javap bytecode output for dangerous operations (same as Java)."""
         functions = []
@@ -2253,8 +2311,7 @@ class KotlinAnalyzer(ScriptAnalyzer):
 
             # Detect class declaration (including Kotlin's Kt suffix for file classes)
             class_match = re.match(
-                r"(?:public\s+|private\s+|protected\s+)?(?:final\s+)?class\s+(\S+)",
-                line_stripped
+                r"(?:public\s+|private\s+|protected\s+)?(?:final\s+)?class\s+(\S+)", line_stripped
             )
             if class_match:
                 current_class = class_match.group(1)
@@ -2262,8 +2319,7 @@ class KotlinAnalyzer(ScriptAnalyzer):
 
             # Detect method declaration
             method_match = re.match(
-                r"(?:public|private|protected|static|final|\s)+\S+\s+(\w+)\s*\(",
-                line_stripped
+                r"(?:public|private|protected|static|final|\s)+\S+\s+(\w+)\s*\(", line_stripped
             )
             if method_match and not line_stripped.startswith("//"):
                 method_name = method_match.group(1)
@@ -2330,27 +2386,31 @@ class KotlinAnalyzer(ScriptAnalyzer):
 
             # Check for dangerous bytecodes (same as Java since Kotlin compiles to JVM)
             if instruction_lower in DANGEROUS_KOTLIN_BYTECODES["errors"]:
-                violations.append(Violation(
-                    function=current_method or "<unknown>",
-                    file=source_file,
-                    line=current_line,
-                    address=str(offset),
-                    instruction=f"{instruction} {operands}".strip(),
-                    mnemonic=instruction.upper(),
-                    reason=DANGEROUS_KOTLIN_BYTECODES["errors"][instruction_lower],
-                    severity=Severity.ERROR,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_method or "<unknown>",
+                        file=source_file,
+                        line=current_line,
+                        address=str(offset),
+                        instruction=f"{instruction} {operands}".strip(),
+                        mnemonic=instruction.upper(),
+                        reason=DANGEROUS_KOTLIN_BYTECODES["errors"][instruction_lower],
+                        severity=Severity.ERROR,
+                    )
+                )
             elif include_warnings and instruction_lower in DANGEROUS_KOTLIN_BYTECODES["warnings"]:
-                violations.append(Violation(
-                    function=current_method or "<unknown>",
-                    file=source_file,
-                    line=current_line,
-                    address=str(offset),
-                    instruction=f"{instruction} {operands}".strip(),
-                    mnemonic=instruction.upper(),
-                    reason=DANGEROUS_KOTLIN_BYTECODES["warnings"][instruction_lower],
-                    severity=Severity.WARNING,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_method or "<unknown>",
+                        file=source_file,
+                        line=current_line,
+                        address=str(offset),
+                        instruction=f"{instruction} {operands}".strip(),
+                        mnemonic=instruction.upper(),
+                        reason=DANGEROUS_KOTLIN_BYTECODES["warnings"][instruction_lower],
+                        severity=Severity.WARNING,
+                    )
+                )
 
         return functions, violations
 
@@ -2363,9 +2423,9 @@ class KotlinAnalyzer(ScriptAnalyzer):
         violations = []
 
         try:
-            with open(source_file, "r") as f:
+            with open(source_file) as f:
                 source = f.read()
-        except (IOError, OSError):
+        except OSError:
             return violations
 
         # Detect dangerous function calls (Kotlin-specific patterns)
@@ -2394,17 +2454,19 @@ class KotlinAnalyzer(ScriptAnalyzer):
 
             if pattern:
                 for match in re.finditer(pattern, source, re.IGNORECASE):
-                    line_num = source[:match.start()].count("\n") + 1
-                    violations.append(Violation(
-                        function="<source>",
-                        file=source_file,
-                        line=line_num,
-                        address="",
-                        instruction=match.group(0),
-                        mnemonic=func_name.upper().replace(".", "_"),
-                        reason=reason,
-                        severity=Severity.ERROR,
-                    ))
+                    line_num = source[: match.start()].count("\n") + 1
+                    violations.append(
+                        Violation(
+                            function="<source>",
+                            file=source_file,
+                            line=line_num,
+                            address="",
+                            instruction=match.group(0),
+                            mnemonic=func_name.upper().replace(".", "_"),
+                            reason=reason,
+                            severity=Severity.ERROR,
+                        )
+                    )
 
         if include_warnings:
             for func_name, reason in DANGEROUS_KOTLIN_FUNCTIONS["warnings"].items():
@@ -2420,17 +2482,19 @@ class KotlinAnalyzer(ScriptAnalyzer):
 
                 if pattern:
                     for match in re.finditer(pattern, source):
-                        line_num = source[:match.start()].count("\n") + 1
-                        violations.append(Violation(
-                            function="<source>",
-                            file=source_file,
-                            line=line_num,
-                            address="",
-                            instruction=match.group(0),
-                            mnemonic=func_name.upper().replace(".", "_"),
-                            reason=reason,
-                            severity=Severity.WARNING,
-                        ))
+                        line_num = source[: match.start()].count("\n") + 1
+                        violations.append(
+                            Violation(
+                                function="<source>",
+                                file=source_file,
+                                line=line_num,
+                                address="",
+                                instruction=match.group(0),
+                                mnemonic=func_name.upper().replace(".", "_"),
+                                reason=reason,
+                                severity=Severity.WARNING,
+                            )
+                        )
 
         return violations
 
@@ -2438,7 +2502,7 @@ class KotlinAnalyzer(ScriptAnalyzer):
         self,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> AnalysisReport:
         """Analyze a Kotlin file for constant-time violations."""
         source_path = Path(source_file)
@@ -2501,6 +2565,7 @@ class KotlinAnalyzer(ScriptAnalyzer):
 # C# Analyzer
 # =============================================================================
 
+
 class CSharpAnalyzer(ScriptAnalyzer):
     """
     Analyzer for C# source files using .NET SDK for compilation and IL disassembly.
@@ -2510,7 +2575,7 @@ class CSharpAnalyzer(ScriptAnalyzer):
 
     name = "csharp"
 
-    def __init__(self, dotnet_path: Optional[str] = None):
+    def __init__(self, dotnet_path: str | None = None):
         self.dotnet_path = dotnet_path or "dotnet"
 
     def is_available(self) -> bool:
@@ -2547,11 +2612,14 @@ class CSharpAnalyzer(ScriptAnalyzer):
         proj_file.write_text(proj_content)
 
         cmd = [
-            self.dotnet_path, "build",
+            self.dotnet_path,
+            "build",
             str(proj_file),
-            "-c", "Release",
+            "-c",
+            "Release",
             "--nologo",
-            "-v", "q",
+            "-v",
+            "q",
         ]
 
         try:
@@ -2645,7 +2713,7 @@ class CSharpAnalyzer(ScriptAnalyzer):
         output: str,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> tuple[list[dict], list[Violation]]:
         """
         Parse CIL/IL output for dangerous operations.
@@ -2738,27 +2806,31 @@ class CSharpAnalyzer(ScriptAnalyzer):
 
             # Check for dangerous bytecodes
             if instruction_lower in DANGEROUS_CSHARP_BYTECODES["errors"]:
-                violations.append(Violation(
-                    function=current_method or "<unknown>",
-                    file=source_file,
-                    line=None,
-                    address=f"IL_{offset}",
-                    instruction=f"{instruction} {operands}".strip(),
-                    mnemonic=instruction.upper(),
-                    reason=DANGEROUS_CSHARP_BYTECODES["errors"][instruction_lower],
-                    severity=Severity.ERROR,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_method or "<unknown>",
+                        file=source_file,
+                        line=None,
+                        address=f"IL_{offset}",
+                        instruction=f"{instruction} {operands}".strip(),
+                        mnemonic=instruction.upper(),
+                        reason=DANGEROUS_CSHARP_BYTECODES["errors"][instruction_lower],
+                        severity=Severity.ERROR,
+                    )
+                )
             elif include_warnings and instruction_lower in DANGEROUS_CSHARP_BYTECODES["warnings"]:
-                violations.append(Violation(
-                    function=current_method or "<unknown>",
-                    file=source_file,
-                    line=None,
-                    address=f"IL_{offset}",
-                    instruction=f"{instruction} {operands}".strip(),
-                    mnemonic=instruction.upper(),
-                    reason=DANGEROUS_CSHARP_BYTECODES["warnings"][instruction_lower],
-                    severity=Severity.WARNING,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_method or "<unknown>",
+                        file=source_file,
+                        line=None,
+                        address=f"IL_{offset}",
+                        instruction=f"{instruction} {operands}".strip(),
+                        mnemonic=instruction.upper(),
+                        reason=DANGEROUS_CSHARP_BYTECODES["warnings"][instruction_lower],
+                        severity=Severity.WARNING,
+                    )
+                )
 
         return functions, violations
 
@@ -2771,9 +2843,9 @@ class CSharpAnalyzer(ScriptAnalyzer):
         violations = []
 
         try:
-            with open(source_file, "r") as f:
+            with open(source_file) as f:
                 source = f.read()
-        except (IOError, OSError):
+        except OSError:
             return violations
 
         # Detect dangerous function calls
@@ -2787,17 +2859,19 @@ class CSharpAnalyzer(ScriptAnalyzer):
             else:
                 continue
             for match in re.finditer(pattern, source):
-                line_num = source[:match.start()].count("\n") + 1
-                violations.append(Violation(
-                    function="<source>",
-                    file=source_file,
-                    line=line_num,
-                    address="",
-                    instruction=match.group(0),
-                    mnemonic=func_name.upper().replace(".", "_"),
-                    reason=reason,
-                    severity=Severity.ERROR,
-                ))
+                line_num = source[: match.start()].count("\n") + 1
+                violations.append(
+                    Violation(
+                        function="<source>",
+                        file=source_file,
+                        line=line_num,
+                        address="",
+                        instruction=match.group(0),
+                        mnemonic=func_name.upper().replace(".", "_"),
+                        reason=reason,
+                        severity=Severity.ERROR,
+                    )
+                )
 
         if include_warnings:
             for func_name, reason in DANGEROUS_CSHARP_FUNCTIONS["warnings"].items():
@@ -2810,17 +2884,19 @@ class CSharpAnalyzer(ScriptAnalyzer):
                 else:
                     continue
                 for match in re.finditer(pattern, source):
-                    line_num = source[:match.start()].count("\n") + 1
-                    violations.append(Violation(
-                        function="<source>",
-                        file=source_file,
-                        line=line_num,
-                        address="",
-                        instruction=match.group(0),
-                        mnemonic=func_name.upper().replace(".", "_"),
-                        reason=reason,
-                        severity=Severity.WARNING,
-                    ))
+                    line_num = source[: match.start()].count("\n") + 1
+                    violations.append(
+                        Violation(
+                            function="<source>",
+                            file=source_file,
+                            line=line_num,
+                            address="",
+                            instruction=match.group(0),
+                            mnemonic=func_name.upper().replace(".", "_"),
+                            reason=reason,
+                            severity=Severity.WARNING,
+                        )
+                    )
 
         return violations
 
@@ -2834,9 +2910,9 @@ class CSharpAnalyzer(ScriptAnalyzer):
 
         # Also detect division/modulo operators in source
         try:
-            with open(source_file, "r") as f:
+            with open(source_file) as f:
                 source = f.read()
-        except (IOError, OSError):
+        except OSError:
             source = ""
 
         # Detect division operator
@@ -2849,17 +2925,19 @@ class CSharpAnalyzer(ScriptAnalyzer):
             line = source[line_start:line_end]
             if line.strip().startswith("//"):
                 continue
-            line_num = source[:match.start()].count("\n") + 1
-            violations.append(Violation(
-                function="<source>",
-                file=source_file,
-                line=line_num,
-                address="",
-                instruction="/",
-                mnemonic="DIV_OP",
-                reason="Division operator may have variable-time execution",
-                severity=Severity.ERROR,
-            ))
+            line_num = source[: match.start()].count("\n") + 1
+            violations.append(
+                Violation(
+                    function="<source>",
+                    file=source_file,
+                    line=line_num,
+                    address="",
+                    instruction="/",
+                    mnemonic="DIV_OP",
+                    reason="Division operator may have variable-time execution",
+                    severity=Severity.ERROR,
+                )
+            )
 
         # Detect modulo operator
         mod_pattern = r"\s%\s*[^=]"
@@ -2871,17 +2949,19 @@ class CSharpAnalyzer(ScriptAnalyzer):
             line = source[line_start:line_end]
             if line.strip().startswith("//"):
                 continue
-            line_num = source[:match.start()].count("\n") + 1
-            violations.append(Violation(
-                function="<source>",
-                file=source_file,
-                line=line_num,
-                address="",
-                instruction="%",
-                mnemonic="REM_OP",
-                reason="Modulo operator may have variable-time execution",
-                severity=Severity.ERROR,
-            ))
+            line_num = source[: match.start()].count("\n") + 1
+            violations.append(
+                Violation(
+                    function="<source>",
+                    file=source_file,
+                    line=line_num,
+                    address="",
+                    instruction="%",
+                    mnemonic="REM_OP",
+                    reason="Modulo operator may have variable-time execution",
+                    severity=Severity.ERROR,
+                )
+            )
 
         return AnalysisReport(
             architecture="cil",
@@ -2897,7 +2977,7 @@ class CSharpAnalyzer(ScriptAnalyzer):
         self,
         source_file: str,
         include_warnings: bool = False,
-        function_filter: Optional[str] = None,
+        function_filter: str | None = None,
     ) -> AnalysisReport:
         """Analyze a C# file for constant-time violations."""
         source_path = Path(source_file)
@@ -2959,7 +3039,8 @@ class CSharpAnalyzer(ScriptAnalyzer):
 # Helper Functions
 # =============================================================================
 
-def get_script_analyzer(language: str) -> Optional[ScriptAnalyzer]:
+
+def get_script_analyzer(language: str) -> ScriptAnalyzer | None:
     """
     Get the appropriate analyzer for a bytecode-analyzed language.
 
@@ -2989,6 +3070,12 @@ def get_script_analyzer(language: str) -> Optional[ScriptAnalyzer]:
 def is_script_language(language: str) -> bool:
     """Check if a language is handled by bytecode analysis in this module."""
     return language.lower() in (
-        "php", "javascript", "typescript", "python", "ruby",
-        "java", "kotlin", "csharp",
+        "php",
+        "javascript",
+        "typescript",
+        "python",
+        "ruby",
+        "java",
+        "kotlin",
+        "csharp",
     )

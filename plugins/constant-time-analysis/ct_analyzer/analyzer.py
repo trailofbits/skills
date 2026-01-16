@@ -39,7 +39,6 @@ import tempfile
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 
 class Severity(Enum):
@@ -56,9 +55,10 @@ class OutputFormat(Enum):
 @dataclass
 class Violation:
     """A detected constant-time violation."""
+
     function: str
     file: str
-    line: Optional[int]
+    line: int | None
     address: str
     instruction: str
     mnemonic: str
@@ -69,6 +69,7 @@ class Violation:
 @dataclass
 class AnalysisReport:
     """Report from analyzing a compiled binary."""
+
     architecture: str
     compiler: str
     optimization: str
@@ -149,9 +150,8 @@ DANGEROUS_INSTRUCTIONS = {
             "jnp": "conditional branch may leak timing information if condition depends on secret data",
             "jc": "conditional branch may leak timing information if condition depends on secret data",
             "jnc": "conditional branch may leak timing information if condition depends on secret data",
-        }
+        },
     },
-
     # ARM64 / AArch64
     "arm64": {
         "errors": {
@@ -199,9 +199,8 @@ DANGEROUS_INSTRUCTIONS = {
             "cbnz": "compare-and-branch may leak timing information if value depends on secret data",
             "tbz": "test-bit-and-branch may leak timing information if value depends on secret data",
             "tbnz": "test-bit-and-branch may leak timing information if value depends on secret data",
-        }
+        },
     },
-
     # ARM 32-bit
     "arm": {
         "errors": {
@@ -227,9 +226,8 @@ DANGEROUS_INSTRUCTIONS = {
             "blt": "conditional branch may leak timing information if condition depends on secret data",
             "bgt": "conditional branch may leak timing information if condition depends on secret data",
             "ble": "conditional branch may leak timing information if condition depends on secret data",
-        }
+        },
     },
-
     # RISC-V 64-bit
     "riscv64": {
         "errors": {
@@ -253,9 +251,8 @@ DANGEROUS_INSTRUCTIONS = {
             "bge": "conditional branch may leak timing information if condition depends on secret data",
             "bltu": "conditional branch may leak timing information if condition depends on secret data",
             "bgeu": "conditional branch may leak timing information if condition depends on secret data",
-        }
+        },
     },
-
     # PowerPC 64-bit Little Endian
     "ppc64le": {
         "errors": {
@@ -279,9 +276,8 @@ DANGEROUS_INSTRUCTIONS = {
             "bge": "conditional branch may leak timing information if condition depends on secret data",
             "bgt": "conditional branch may leak timing information if condition depends on secret data",
             "ble": "conditional branch may leak timing information if condition depends on secret data",
-        }
+        },
     },
-
     # IBM z/Architecture (s390x)
     "s390x": {
         "errors": {
@@ -315,9 +311,8 @@ DANGEROUS_INSTRUCTIONS = {
             "jnm": "conditional branch may leak timing information if condition depends on secret data",
             "jz": "conditional branch may leak timing information if condition depends on secret data",
             "jnz": "conditional branch may leak timing information if condition depends on secret data",
-        }
+        },
     },
-
     # i386 / x86 32-bit
     "i386": {
         "errors": {
@@ -350,7 +345,7 @@ DANGEROUS_INSTRUCTIONS = {
             "jge": "conditional branch may leak timing information if condition depends on secret data",
             "jl": "conditional branch may leak timing information if condition depends on secret data",
             "jle": "conditional branch may leak timing information if condition depends on secret data",
-        }
+        },
     },
 }
 
@@ -377,6 +372,7 @@ def normalize_arch(arch: str) -> str:
 def get_native_arch() -> str:
     """Get the native architecture of the current system."""
     import platform
+
     machine = platform.machine().lower()
     return normalize_arch(machine)
 
@@ -420,8 +416,14 @@ def detect_language(source_file: str) -> str:
 def is_bytecode_language(language: str) -> bool:
     """Check if the language is analyzed via bytecode (scripting and VM-compiled)."""
     return language in (
-        "php", "javascript", "typescript", "python", "ruby",  # Scripting
-        "java", "csharp", "kotlin",  # VM-compiled (JVM/CIL)
+        "php",
+        "javascript",
+        "typescript",
+        "python",
+        "ruby",  # Scripting
+        "java",
+        "csharp",
+        "kotlin",  # VM-compiled (JVM/CIL)
     )
 
 
@@ -432,7 +434,7 @@ is_scripting_language = is_bytecode_language
 class Compiler:
     """Base class for compiler interfaces."""
 
-    def __init__(self, name: str, path: Optional[str] = None):
+    def __init__(self, name: str, path: str | None = None):
         self.name = name
         self.path = path or name
 
@@ -473,7 +475,7 @@ class GCCCompiler(Compiler):
         "s390x": ["-march=z13"],
     }
 
-    def __init__(self, path: Optional[str] = None):
+    def __init__(self, path: str | None = None):
         super().__init__("gcc", path or "gcc")
 
     def compile_to_assembly(
@@ -496,7 +498,8 @@ class GCCCompiler(Compiler):
             *arch_flags,
             *(extra_flags or []),
             source_file,
-            "-o", output_file,
+            "-o",
+            output_file,
         ]
 
         try:
@@ -521,7 +524,7 @@ class ClangCompiler(Compiler):
         "s390x": "s390x-unknown-linux-gnu",
     }
 
-    def __init__(self, path: Optional[str] = None):
+    def __init__(self, path: str | None = None):
         super().__init__("clang", path or "clang")
 
     def compile_to_assembly(
@@ -543,7 +546,8 @@ class ClangCompiler(Compiler):
             *(["--target=" + target] if target else []),
             *(extra_flags or []),
             source_file,
-            "-o", output_file,
+            "-o",
+            output_file,
         ]
 
         try:
@@ -568,7 +572,7 @@ class GoCompiler(Compiler):
         "s390x": "s390x",
     }
 
-    def __init__(self, path: Optional[str] = None):
+    def __init__(self, path: str | None = None):
         super().__init__("go", path or "go")
 
     def is_available(self) -> bool:
@@ -608,8 +612,10 @@ class GoCompiler(Compiler):
                 gcflags = "-N -l"  # Disable optimizations and inlining
 
             cmd = [
-                self.path, "build",
-                "-o", binary_path,
+                self.path,
+                "build",
+                "-o",
+                binary_path,
             ]
             if gcflags:
                 cmd.extend(["-gcflags", gcflags])
@@ -647,7 +653,7 @@ class RustCompiler(Compiler):
         "s390x": "s390x-unknown-linux-gnu",
     }
 
-    def __init__(self, path: Optional[str] = None):
+    def __init__(self, path: str | None = None):
         super().__init__("rustc", path or "rustc")
 
     def compile_to_assembly(
@@ -673,11 +679,13 @@ class RustCompiler(Compiler):
         cmd = [
             self.path,
             "--emit=asm",
-            "-C", f"opt-level={opt_level}",
+            "-C",
+            f"opt-level={opt_level}",
             *(["--target", target] if target else []),
             *(extra_flags or []),
             source_file,
-            "-o", output_file,
+            "-o",
+            output_file,
         ]
 
         try:
@@ -701,7 +709,7 @@ class SwiftCompiler(Compiler):
         "x86_64-ios-sim": "x86_64-apple-ios13.0-simulator",
     }
 
-    def __init__(self, path: Optional[str] = None):
+    def __init__(self, path: str | None = None):
         super().__init__("swiftc", path or "swiftc")
 
     def compile_to_assembly(
@@ -731,7 +739,8 @@ class SwiftCompiler(Compiler):
             *(["-target", target] if target else []),
             *(extra_flags or []),
             source_file,
-            "-o", output_file,
+            "-o",
+            output_file,
         ]
 
         try:
@@ -780,9 +789,12 @@ class AssemblyParser:
 
         # Get dangerous instructions for this architecture
         if self.arch not in DANGEROUS_INSTRUCTIONS:
-            print(f"Warning: Architecture '{self.arch}' is not supported. "
-                  f"Supported architectures: {', '.join(DANGEROUS_INSTRUCTIONS.keys())}. "
-                  "No timing violations will be detected.", file=sys.stderr)
+            print(
+                f"Warning: Architecture '{self.arch}' is not supported. "
+                f"Supported architectures: {', '.join(DANGEROUS_INSTRUCTIONS.keys())}. "
+                "No timing violations will be detected.",
+                file=sys.stderr,
+            )
             self.errors = {}
             self.warnings = {}
         else:
@@ -790,7 +802,9 @@ class AssemblyParser:
             self.errors = arch_instructions.get("errors", {})
             self.warnings = arch_instructions.get("warnings", {})
 
-    def parse(self, assembly_text: str, include_warnings: bool = False) -> tuple[list[dict], list[Violation]]:
+    def parse(
+        self, assembly_text: str, include_warnings: bool = False
+    ) -> tuple[list[dict], list[Violation]]:
         """
         Parse assembly text and detect violations.
         Returns (functions, violations).
@@ -809,7 +823,7 @@ class AssemblyParser:
             # Skip empty lines and comments
             if not line or line.startswith("#") or line.startswith("//") or line.startswith(";"):
                 # Check for file/line info in comments
-                file_match = re.search(r'#\s*([^:]+):(\d+)', line)
+                file_match = re.search(r"#\s*([^:]+):(\d+)", line)
                 if file_match:
                     current_file = file_match.group(1)
                     current_line = int(file_match.group(2))
@@ -818,19 +832,23 @@ class AssemblyParser:
             # Detect function start (various formats)
             func_match = (
                 # GCC/Clang: function_name:
-                re.match(r'^([a-zA-Z_][a-zA-Z0-9_]*):$', line) or
+                re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*):$", line)
+                or
                 # Go objdump: TEXT symbol_name(SB) file
-                re.match(r'^TEXT\s+([^\s(]+)\(SB\)', line) or
+                re.match(r"^TEXT\s+([^\s(]+)\(SB\)", line)
+                or
                 # With .type directive
-                re.match(r'\.type\s+([a-zA-Z_][a-zA-Z0-9_]*),\s*@function', line)
+                re.match(r"\.type\s+([a-zA-Z_][a-zA-Z0-9_]*),\s*@function", line)
             )
 
             if func_match:
                 if current_function:
-                    functions.append({
-                        "name": current_function,
-                        "instructions": instruction_count,
-                    })
+                    functions.append(
+                        {
+                            "name": current_function,
+                            "instructions": instruction_count,
+                        }
+                    )
                 current_function = func_match.group(1)
                 instruction_count = 0
                 continue
@@ -849,7 +867,7 @@ class AssemblyParser:
             address = ""
 
             # Extract address if present
-            addr_match = re.search(r'0x([0-9a-fA-F]+)', line)
+            addr_match = re.search(r"0x([0-9a-fA-F]+)", line)
             if addr_match:
                 address = "0x" + addr_match.group(1)
 
@@ -858,7 +876,7 @@ class AssemblyParser:
             mnemonic = ""
             for part in parts:
                 # Skip addresses, hex bytes, file references
-                if part.startswith("0x") or re.match(r'^[0-9a-fA-F]{2,}$', part):
+                if part.startswith("0x") or re.match(r"^[0-9a-fA-F]{2,}$", part):
                     continue
                 if ":" in part and not part.endswith(":"):  # file:line reference
                     continue
@@ -873,34 +891,40 @@ class AssemblyParser:
 
             # Check for violations
             if mnemonic in self.errors:
-                violations.append(Violation(
-                    function=current_function or "<unknown>",
-                    file=current_file or "",
-                    line=current_line,
-                    address=address,
-                    instruction=instruction,
-                    mnemonic=mnemonic.upper(),
-                    reason=self.errors[mnemonic],
-                    severity=Severity.ERROR,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_function or "<unknown>",
+                        file=current_file or "",
+                        line=current_line,
+                        address=address,
+                        instruction=instruction,
+                        mnemonic=mnemonic.upper(),
+                        reason=self.errors[mnemonic],
+                        severity=Severity.ERROR,
+                    )
+                )
             elif include_warnings and mnemonic in self.warnings:
-                violations.append(Violation(
-                    function=current_function or "<unknown>",
-                    file=current_file or "",
-                    line=current_line,
-                    address=address,
-                    instruction=instruction,
-                    mnemonic=mnemonic.upper(),
-                    reason=self.warnings[mnemonic],
-                    severity=Severity.WARNING,
-                ))
+                violations.append(
+                    Violation(
+                        function=current_function or "<unknown>",
+                        file=current_file or "",
+                        line=current_line,
+                        address=address,
+                        instruction=instruction,
+                        mnemonic=mnemonic.upper(),
+                        reason=self.warnings[mnemonic],
+                        severity=Severity.WARNING,
+                    )
+                )
 
         # Don't forget the last function
         if current_function:
-            functions.append({
-                "name": current_function,
-                "instructions": instruction_count,
-            })
+            functions.append(
+                {
+                    "name": current_function,
+                    "instructions": instruction_count,
+                }
+            )
 
         return functions, violations
 
@@ -1065,30 +1089,33 @@ def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
     """Format an analysis report for output."""
 
     if format_type == OutputFormat.JSON:
-        return json.dumps({
-            "architecture": report.architecture,
-            "compiler": report.compiler,
-            "optimization": report.optimization,
-            "source_file": report.source_file,
-            "total_functions": report.total_functions,
-            "total_instructions": report.total_instructions,
-            "error_count": report.error_count,
-            "warning_count": report.warning_count,
-            "passed": report.passed,
-            "violations": [
-                {
-                    "function": v.function,
-                    "file": v.file,
-                    "line": v.line,
-                    "address": v.address,
-                    "instruction": v.instruction,
-                    "mnemonic": v.mnemonic,
-                    "reason": v.reason,
-                    "severity": v.severity.value,
-                }
-                for v in report.violations
-            ]
-        }, indent=2)
+        return json.dumps(
+            {
+                "architecture": report.architecture,
+                "compiler": report.compiler,
+                "optimization": report.optimization,
+                "source_file": report.source_file,
+                "total_functions": report.total_functions,
+                "total_instructions": report.total_instructions,
+                "error_count": report.error_count,
+                "warning_count": report.warning_count,
+                "passed": report.passed,
+                "violations": [
+                    {
+                        "function": v.function,
+                        "file": v.file,
+                        "line": v.line,
+                        "address": v.address,
+                        "instruction": v.instruction,
+                        "mnemonic": v.mnemonic,
+                        "reason": v.reason,
+                        "severity": v.severity.value,
+                    }
+                    for v in report.violations
+                ],
+            },
+            indent=2,
+        )
 
     elif format_type == OutputFormat.GITHUB:
         lines = []
@@ -1096,7 +1123,9 @@ def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
             level = "error" if v.severity == Severity.ERROR else "warning"
             file_ref = f"file={v.file}" if v.file else ""
             line_ref = f",line={v.line}" if v.line else ""
-            lines.append(f"::{level} {file_ref}{line_ref}::{v.mnemonic} in {v.function}: {v.reason}")
+            lines.append(
+                f"::{level} {file_ref}{line_ref}::{v.mnemonic} in {v.function}: {v.reason}"
+            )
         return "\n".join(lines)
 
     else:  # TEXT
@@ -1173,19 +1202,31 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
     parser.add_argument("source_file", help="Source file to analyze")
     parser.add_argument("--arch", "-a", help="Target architecture (default: native)")
     parser.add_argument("--compiler", "-c", help="Compiler to use (gcc, clang, go, rustc)")
-    parser.add_argument("--opt-level", "-O", default="O2",
-                       help="Optimization level (O0, O1, O2, O3, Os, Oz)")
-    parser.add_argument("--warnings", "-w", action="store_true",
-                       help="Include warning-level violations (conditional branches)")
+    parser.add_argument(
+        "--opt-level", "-O", default="O2", help="Optimization level (O0, O1, O2, O3, Os, Oz)"
+    )
+    parser.add_argument(
+        "--warnings",
+        "-w",
+        action="store_true",
+        help="Include warning-level violations (conditional branches)",
+    )
     parser.add_argument("--func", "-f", help="Regex pattern to filter functions")
     parser.add_argument("--json", action="store_true", help="Output in JSON format")
     parser.add_argument("--github", action="store_true", help="Output GitHub Actions annotations")
-    parser.add_argument("--assembly", action="store_true",
-                       help="Input is already assembly (requires --arch)")
-    parser.add_argument("--list-arch", action="store_true",
-                       help="List supported architectures and exit")
-    parser.add_argument("--extra-flags", "-X", action="append", default=[],
-                       help="Extra flags to pass to the compiler")
+    parser.add_argument(
+        "--assembly", action="store_true", help="Input is already assembly (requires --arch)"
+    )
+    parser.add_argument(
+        "--list-arch", action="store_true", help="List supported architectures and exit"
+    )
+    parser.add_argument(
+        "--extra-flags",
+        "-X",
+        action="append",
+        default=[],
+        help="Extra flags to pass to the compiler",
+    )
 
     args = parser.parse_args()
 

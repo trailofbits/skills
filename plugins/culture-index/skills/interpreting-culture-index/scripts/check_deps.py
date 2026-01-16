@@ -91,9 +91,15 @@ def main() -> int:
     if missing_system:
         print(f"\n  System tools: {', '.join(missing_system)}", file=sys.stderr)
         if "poppler" in missing_system:
-            print("    poppler: brew install poppler (macOS) or apt install poppler-utils", file=sys.stderr)
+            print(
+                "    poppler: brew install poppler (macOS) or apt install poppler-utils",
+                file=sys.stderr,
+            )
         if "tesseract" in missing_system:
-            print("    tesseract: brew install tesseract (macOS) or apt install tesseract-ocr", file=sys.stderr)
+            print(
+                "    tesseract: brew install tesseract (macOS) or apt install tesseract-ocr",
+                file=sys.stderr,
+            )
 
     return 1
 

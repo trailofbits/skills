@@ -69,7 +69,7 @@ from pathlib import Path
 scripts_dir = Path(__file__).parent
 sys.path.insert(0, str(scripts_dir))
 
-from culture_index.extract import process_pdf
+from culture_index.extract import process_pdf  # noqa: E402
 
 
 def render_chart(chart: dict, title: str) -> list[str]:
@@ -183,7 +183,8 @@ Examples:
     parser.add_argument("pdf", type=Path, help="Input PDF file path")
     parser.add_argument("output", type=Path, nargs="?", help="Output JSON file path (optional)")
     parser.add_argument(
-        "--verify", "-v",
+        "--verify",
+        "-v",
         action="store_true",
         help="Show verification summary for spot-checking (recommended)",
     )

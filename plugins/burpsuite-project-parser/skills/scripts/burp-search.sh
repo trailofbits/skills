@@ -6,19 +6,19 @@ set -euo pipefail
 
 # Platform-specific default paths
 case "$(uname -s)" in
-Darwin)
-    _default_java="/Applications/Burp Suite Professional.app/Contents/Resources/jre.bundle/Contents/Home/bin/java"
-    _default_jar="/Applications/Burp Suite Professional.app/Contents/Resources/app/burpsuite_pro.jar"
-    ;;
-Linux)
-    _default_java="/opt/BurpSuiteProfessional/jre/bin/java"
-    _default_jar="/opt/BurpSuiteProfessional/burpsuite_pro.jar"
-    ;;
-*)
-    echo "Warning: Unsupported platform '$(uname -s)'. Set BURP_JAVA and BURP_JAR environment variables." >&2
-    _default_java=""
-    _default_jar=""
-    ;;
+    Darwin)
+        _default_java="/Applications/Burp Suite Professional.app/Contents/Resources/jre.bundle/Contents/Home/bin/java"
+        _default_jar="/Applications/Burp Suite Professional.app/Contents/Resources/app/burpsuite_pro.jar"
+        ;;
+    Linux)
+        _default_java="/opt/BurpSuiteProfessional/jre/bin/java"
+        _default_jar="/opt/BurpSuiteProfessional/burpsuite_pro.jar"
+        ;;
+    *)
+        echo "Warning: Unsupported platform '$(uname -s)'. Set BURP_JAVA and BURP_JAR environment variables." >&2
+        _default_java=""
+        _default_jar=""
+        ;;
 esac
 
 JAVA_PATH="${BURP_JAVA:-$_default_java}"

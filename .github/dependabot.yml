@@ -1,6 +1,16 @@
 version: 2
 updates:
   - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      all:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
     directory: /plugins/constant-time-analysis
     schedule:
       interval: weekly

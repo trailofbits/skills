@@ -13,11 +13,11 @@ This file demonstrates common timing side-channel vulnerabilities in Python:
 DO NOT USE THIS CODE IN PRODUCTION - it is intentionally vulnerable.
 """
 
-import random
-import math
-import struct
-import json
 import base64
+import json
+import math
+import random
+import struct
 
 
 def vulnerable_mod_reduce(value: int, modulus: int) -> int:
@@ -141,8 +141,22 @@ def vulnerable_sbox_lookup(secret_byte: int) -> int:
     """
     # Standard AES S-box (first 16 values as example)
     sbox = [
-        0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5,
-        0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
+        0x63,
+        0x7C,
+        0x77,
+        0x7B,
+        0xF2,
+        0x6B,
+        0x6F,
+        0xC5,
+        0x30,
+        0x01,
+        0x67,
+        0x2B,
+        0xFE,
+        0xD7,
+        0xAB,
+        0x76,
     ]
     # VULNERABLE: Table lookup indexed by secret byte
     return sbox[secret_byte % len(sbox)]
