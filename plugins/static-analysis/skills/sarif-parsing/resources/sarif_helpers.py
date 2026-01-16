@@ -5,29 +5,31 @@ Reusable utilities for working with SARIF files.
 No external dependencies beyond standard library.
 """
 
-import json
 import hashlib
-from pathlib import Path
-from typing import Optional, Iterator, Any
-from dataclasses import dataclass, field
-from urllib.parse import unquote
+import json
 from collections import defaultdict
+from collections.abc import Iterator
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+from urllib.parse import unquote
 
 
 @dataclass
 class Finding:
     """Structured representation of a SARIF result."""
+
     rule_id: str
     level: str
     message: str
-    file_path: Optional[str] = None
-    start_line: Optional[int] = None
-    end_line: Optional[int] = None
-    start_column: Optional[int] = None
-    end_column: Optional[int] = None
-    fingerprint: Optional[str] = None
-    tool_name: Optional[str] = None
-    rule_name: Optional[str] = None
+    file_path: str | None = None
+    start_line: int | None = None
+    end_line: int | None = None
+    start_column: int | None = None
+    end_column: int | None = None
+    fingerprint: str | None = None
+    tool_name: str | None = None
+    rule_name: str | None = None
     raw: dict = field(default_factory=dict, repr=False)
 
 
@@ -79,7 +81,7 @@ def safe_get(data: dict, *keys, default: Any = None) -> Any:
     return data if data != {} else default
 
 
-def extract_location(result: dict) -> tuple[Optional[str], Optional[int], Optional[int]]:
+def extract_location(result: dict) -> tuple[str | None, int | None, int | None]:
     """Extract file path, start line, and end line from result."""
     loc = safe_get(result, "locations", 0, default={})
     phys = loc.get("physicalLocation", {})
@@ -118,19 +120,21 @@ def extract_findings(sarif: dict) -> list[Finding]:
         elif result.get("fingerprints"):
             fp = next(iter(result["fingerprints"].values()), None)
 
-        findings.append(Finding(
-            rule_id=result.get("ruleId", "unknown"),
-            level=result.get("level", "warning"),
-            message=safe_get(result, "message", "text", default=""),
-            file_path=file_path,
-            start_line=start_line,
-            end_line=end_line,
-            start_column=region.get("startColumn"),
-            end_column=region.get("endColumn"),
-            fingerprint=fp,
-            tool_name=tool_name,
-            raw=result,
-        ))
+        findings.append(
+            Finding(
+                rule_id=result.get("ruleId", "unknown"),
+                level=result.get("level", "warning"),
+                message=safe_get(result, "message", "text", default=""),
+                file_path=file_path,
+                start_line=start_line,
+                end_line=end_line,
+                start_column=region.get("startColumn"),
+                end_column=region.get("endColumn"),
+                fingerprint=fp,
+                tool_name=tool_name,
+                raw=result,
+            )
+        )
 
     return findings
 
@@ -226,7 +230,7 @@ def merge_sarif_files(*paths: str | Path) -> dict:
     merged = {
         "version": "2.1.0",
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
-        "runs": []
+        "runs": [],
     }
 
     for path in paths:
@@ -237,8 +241,7 @@ def merge_sarif_files(*paths: str | Path) -> dict:
 
 
 def diff_findings(
-    baseline: list[Finding],
-    current: list[Finding]
+    baseline: list[Finding], current: list[Finding]
 ) -> tuple[list[Finding], list[Finding], list[Finding]]:
     """
     Compare two sets of findings.
@@ -251,12 +254,13 @@ def diff_findings(
     baseline_fps = {f.fingerprint or compute_fingerprint(f.raw) for f in baseline}
     current_fps = {f.fingerprint or compute_fingerprint(f.raw) for f in current}
 
-    new = [f for f in current
-           if (f.fingerprint or compute_fingerprint(f.raw)) not in baseline_fps]
-    fixed = [f for f in baseline
-             if (f.fingerprint or compute_fingerprint(f.raw)) not in current_fps]
-    unchanged = [f for f in current
-                 if (f.fingerprint or compute_fingerprint(f.raw)) in baseline_fps]
+    new = [f for f in current if (f.fingerprint or compute_fingerprint(f.raw)) not in baseline_fps]
+    fixed = [
+        f for f in baseline if (f.fingerprint or compute_fingerprint(f.raw)) not in current_fps
+    ]
+    unchanged = [
+        f for f in current if (f.fingerprint or compute_fingerprint(f.raw)) in baseline_fps
+    ]
 
     return new, fixed, unchanged
 
@@ -274,13 +278,15 @@ def to_csv_rows(findings: list[Finding]) -> list[list[str]]:
     """Convert findings to CSV-ready rows."""
     rows = [["rule_id", "level", "file", "line", "message"]]
     for f in findings:
-        rows.append([
-            f.rule_id,
-            f.level,
-            f.file_path or "",
-            str(f.start_line or ""),
-            f.message.replace("\n", " ")[:200]
-        ])
+        rows.append(
+            [
+                f.rule_id,
+                f.level,
+                f.file_path or "",
+                str(f.start_line or ""),
+                f.message.replace("\n", " ")[:200],
+            ]
+        )
     return rows
 
 
@@ -311,15 +317,15 @@ if __name__ == "__main__":
     findings = extract_findings(sarif)
     findings = sort_by_severity(findings)
 
-    print(f"\nSummary:")
+    print("\nSummary:")
     stats = summary(findings)
     print(f"  Total findings: {stats['total']}")
     print(f"  Files affected: {stats['files_affected']}")
     print(f"  Rules triggered: {stats['rules_triggered']}")
-    print(f"\nBy severity:")
-    for level, count in stats['by_level'].items():
+    print("\nBy severity:")
+    for level, count in stats["by_level"].items():
         print(f"  {level}: {count}")
 
-    print(f"\nTop 5 rules:")
-    for rule, count in sorted(stats['by_rule'].items(), key=lambda x: -x[1])[:5]:
+    print("\nTop 5 rules:")
+    for rule, count in sorted(stats["by_rule"].items(), key=lambda x: -x[1])[:5]:
         print(f"  {rule}: {count}")

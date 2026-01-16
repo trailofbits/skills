@@ -1,0 +1,19 @@
+[project]
+name = "skills-marketplace"
+version = "0.0.0"
+description = "Trail of Bits Skills Marketplace - linting configuration"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**/*.py" = ["F401", "SIM118"]
+"**/test_samples/**/*.py" = ["F", "E", "B"]
+# ct_analyzer has long opcode tables and string constants
+"**/ct_analyzer/analyzer.py" = ["E501"]
+"**/ct_analyzer/script_analyzers.py" = ["E501", "SIM102", "SIM108", "F841"]

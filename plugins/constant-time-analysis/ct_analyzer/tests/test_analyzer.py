@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from analyzer import (
     DANGEROUS_INSTRUCTIONS,
     AssemblyParser,
+    OutputFormat,
     Severity,
     analyze_assembly,
     analyze_source,
@@ -25,7 +26,6 @@ from analyzer import (
     format_report,
     get_native_arch,
     normalize_arch,
-    OutputFormat,
 )
 
 
@@ -99,10 +99,14 @@ class TestDangerousInstructions(unittest.TestCase):
 
     def test_all_architectures_have_errors(self):
         for arch in DANGEROUS_INSTRUCTIONS:
-            self.assertIn("errors", DANGEROUS_INSTRUCTIONS[arch],
-                         f"Architecture {arch} missing 'errors' key")
-            self.assertGreater(len(DANGEROUS_INSTRUCTIONS[arch]["errors"]), 0,
-                              f"Architecture {arch} has no error instructions")
+            self.assertIn(
+                "errors", DANGEROUS_INSTRUCTIONS[arch], f"Architecture {arch} missing 'errors' key"
+            )
+            self.assertGreater(
+                len(DANGEROUS_INSTRUCTIONS[arch]["errors"]),
+                0,
+                f"Architecture {arch} has no error instructions",
+            )
 
     def test_all_architectures_have_division(self):
         """Every architecture should flag some form of division."""
@@ -114,8 +118,7 @@ class TestDangerousInstructions(unittest.TestCase):
                 any(pattern in mnemonic.lower() for pattern in division_patterns)
                 for mnemonic in errors.keys()
             )
-            self.assertTrue(has_division,
-                           f"Architecture {arch} should flag division instructions")
+            self.assertTrue(has_division, f"Architecture {arch} should flag division instructions")
 
     def test_x86_64_has_known_dangerous(self):
         """x86_64 should flag DIV, IDIV, and their variants."""
@@ -310,10 +313,7 @@ class TestIntegration(unittest.TestCase):
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
-    @unittest.skipUnless(
-        lambda self: self.has_clang or self.has_gcc,
-        "No C compiler available"
-    )
+    @unittest.skipUnless(lambda self: self.has_clang or self.has_gcc, "No C compiler available")
     def test_vulnerable_c_detected(self):
         """Vulnerable C implementation should be detected."""
         if not (self.has_clang or self.has_gcc):
@@ -333,26 +333,19 @@ class TestIntegration(unittest.TestCase):
             )
 
             # Should detect division instructions
-            self.assertFalse(report.passed,
-                            "Vulnerable code should fail analysis")
-            self.assertGreater(report.error_count, 0,
-                              "Should find error-level violations")
+            self.assertFalse(report.passed, "Vulnerable code should fail analysis")
+            self.assertGreater(report.error_count, 0, "Should find error-level violations")
 
             # Check that we found division-related violations
-            div_violations = [v for v in report.violations
-                             if "div" in v.mnemonic.lower()]
-            self.assertGreater(len(div_violations), 0,
-                              "Should detect division instructions")
+            div_violations = [v for v in report.violations if "div" in v.mnemonic.lower()]
+            self.assertGreater(len(div_violations), 0, "Should detect division instructions")
 
         except RuntimeError as e:
             if "Compilation failed" in str(e):
                 self.skipTest(f"Compilation failed: {e}")
             raise
 
-    @unittest.skipUnless(
-        lambda self: self.has_clang or self.has_gcc,
-        "No C compiler available"
-    )
+    @unittest.skipUnless(lambda self: self.has_clang or self.has_gcc, "No C compiler available")
     def test_constant_time_c_clean(self):
         """Constant-time C implementation should pass."""
         if not (self.has_clang or self.has_gcc):
@@ -372,8 +365,11 @@ class TestIntegration(unittest.TestCase):
             )
 
             # Constant-time implementation should not have division
-            div_violations = [v for v in report.violations
-                             if "div" in v.mnemonic.lower() and v.severity == Severity.ERROR]
+            div_violations = [
+                v
+                for v in report.violations
+                if "div" in v.mnemonic.lower() and v.severity == Severity.ERROR
+            ]
 
             # Note: We allow this to be empty OR the compiler might have
             # optimized in unexpected ways
@@ -618,12 +614,12 @@ Frame size 8
 
     def test_detect_math_sqrt_in_source(self):
         """Should detect Math.sqrt() calls in source."""
-        from script_analyzers import JavaScriptAnalyzer
-
         # Create a temp file with Math.sqrt
         import tempfile
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
+        from script_analyzers import JavaScriptAnalyzer
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False) as f:
             f.write("""
 function vulnerable(x) {
     return Math.sqrt(x);
@@ -642,11 +638,11 @@ function vulnerable(x) {
 
     def test_detect_math_random_in_source(self):
         """Should detect Math.random() calls in source."""
-        from script_analyzers import JavaScriptAnalyzer
-
         import tempfile
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
+        from script_analyzers import JavaScriptAnalyzer
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False) as f:
             f.write("""
 function generateToken() {
     return Math.random().toString(36);
@@ -721,7 +717,9 @@ Disassembly of <code object vulnerable_div at 0x1234>:
         functions, violations = analyzer._parse_dis_output(dis_output, "test.py")
 
         error_violations = [v for v in violations if v.severity == Severity.ERROR]
-        self.assertEqual(len(error_violations), 2, "Should detect BINARY_TRUE_DIVIDE and BINARY_MODULO")
+        self.assertEqual(
+            len(error_violations), 2, "Should detect BINARY_TRUE_DIVIDE and BINARY_MODULO"
+        )
 
         mnemonics = {v.mnemonic for v in error_violations}
         self.assertIn("BINARY_TRUE_DIVIDE", mnemonics)
@@ -729,11 +727,11 @@ Disassembly of <code object vulnerable_div at 0x1234>:
 
     def test_detect_random_in_source(self):
         """Should detect random.random() calls in source."""
-        from script_analyzers import PythonAnalyzer
-
         import tempfile
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        from script_analyzers import PythonAnalyzer
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write("""
 import random
 
@@ -750,17 +748,19 @@ def generate_int():
             violations = analyzer._detect_dangerous_function_calls(temp_path)
 
             random_violations = [v for v in violations if "RANDOM" in v.mnemonic.upper()]
-            self.assertEqual(len(random_violations), 2, "Should detect random.random() and random.randint()")
+            self.assertEqual(
+                len(random_violations), 2, "Should detect random.random() and random.randint()"
+            )
         finally:
             os.unlink(temp_path)
 
     def test_detect_math_sqrt_in_source(self):
         """Should detect math.sqrt() calls in source."""
-        from script_analyzers import PythonAnalyzer
-
         import tempfile
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        from script_analyzers import PythonAnalyzer
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write("""
 import math
 
@@ -840,15 +840,17 @@ local table (size: 2, argc: 2 [opts: 0, rest: -1, post: 0, block: -1, kw: -1@-1,
         )
 
         warning_violations = [v for v in violations if v.severity == Severity.WARNING]
-        self.assertGreater(len(warning_violations), 0, "Should detect opt_eq and branchif as warnings")
+        self.assertGreater(
+            len(warning_violations), 0, "Should detect opt_eq and branchif as warnings"
+        )
 
     def test_detect_rand_in_source(self):
         """Should detect rand() calls in source."""
-        from script_analyzers import RubyAnalyzer
-
         import tempfile
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.rb', delete=False) as f:
+        from script_analyzers import RubyAnalyzer
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".rb", delete=False) as f:
             f.write("""
 def generate_token
   rand(100)
@@ -985,11 +987,11 @@ public class CryptoUtils {
 
     def test_detect_java_random_in_source(self):
         """Should detect new Random() calls in Java source."""
-        from script_analyzers import JavaAnalyzer
-
         import tempfile
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.java', delete=False) as f:
+        from script_analyzers import JavaAnalyzer
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".java", delete=False) as f:
             f.write("""
 public class Test {
     public int generate() {
@@ -1011,11 +1013,11 @@ public class Test {
 
     def test_detect_math_sqrt_in_java_source(self):
         """Should detect Math.sqrt() calls in Java source."""
-        from script_analyzers import JavaAnalyzer
-
         import tempfile
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.java', delete=False) as f:
+        from script_analyzers import JavaAnalyzer
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".java", delete=False) as f:
             f.write("""
 public class Test {
     public double calculate(double x) {
@@ -1125,11 +1127,11 @@ class TestCSharpAnalyzerParsing(unittest.TestCase):
 
     def test_detect_csharp_random_in_source(self):
         """Should detect new Random() calls in C# source."""
-        from script_analyzers import CSharpAnalyzer
-
         import tempfile
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.cs', delete=False) as f:
+        from script_analyzers import CSharpAnalyzer
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".cs", delete=False) as f:
             f.write("""
 public class Test {
     public int Generate() {
@@ -1151,11 +1153,11 @@ public class Test {
 
     def test_detect_math_sqrt_in_csharp_source(self):
         """Should detect Math.Sqrt() calls in C# source."""
-        from script_analyzers import CSharpAnalyzer
-
         import tempfile
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.cs', delete=False) as f:
+        from script_analyzers import CSharpAnalyzer
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".cs", delete=False) as f:
             f.write("""
 public class Test {
     public double Calculate(double x) {
@@ -1176,11 +1178,11 @@ public class Test {
 
     def test_source_only_fallback(self):
         """Source-only analysis should detect division operators."""
-        from script_analyzers import CSharpAnalyzer
-
         import tempfile
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.cs', delete=False) as f:
+        from script_analyzers import CSharpAnalyzer
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".cs", delete=False) as f:
             f.write("""
 public class Test {
     public int Divide(int a, int b) {
@@ -1264,7 +1266,7 @@ class TestScriptAnalyzerIntegration(unittest.TestCase):
         # Create a simple vulnerable JS file for testing
         import tempfile
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False) as f:
             f.write("""
 function vulnerableDiv(a, b) {
     return a / b;
@@ -1319,14 +1321,23 @@ console.log(vulnerableRandom());
                 self.assertFalse(report.passed, "Should fail with violations")
 
             # Check for expected violation types
-            div_violations = [v for v in report.violations
-                            if "DIV" in v.mnemonic.upper() or "MODULO" in v.mnemonic.upper()]
-            func_violations = [v for v in report.violations
-                              if "RANDOM" in v.mnemonic.upper() or "SQRT" in v.mnemonic.upper()]
+            div_violations = [
+                v
+                for v in report.violations
+                if "DIV" in v.mnemonic.upper() or "MODULO" in v.mnemonic.upper()
+            ]
+            func_violations = [
+                v
+                for v in report.violations
+                if "RANDOM" in v.mnemonic.upper() or "SQRT" in v.mnemonic.upper()
+            ]
 
             # Should detect at least some violations
-            self.assertGreater(len(div_violations) + len(func_violations), 0,
-                              "Should detect division or dangerous function calls")
+            self.assertGreater(
+                len(div_violations) + len(func_violations),
+                0,
+                "Should detect division or dangerous function calls",
+            )
 
         except RuntimeError as e:
             if "dis" in str(e).lower():
@@ -1356,14 +1367,23 @@ console.log(vulnerableRandom());
                 self.assertFalse(report.passed, "Should fail with violations")
 
             # Check for expected violation types
-            div_violations = [v for v in report.violations
-                            if "DIV" in v.mnemonic.upper() or "MOD" in v.mnemonic.upper()]
-            func_violations = [v for v in report.violations
-                              if "RAND" in v.mnemonic.upper() or "SQRT" in v.mnemonic.upper()]
+            div_violations = [
+                v
+                for v in report.violations
+                if "DIV" in v.mnemonic.upper() or "MOD" in v.mnemonic.upper()
+            ]
+            func_violations = [
+                v
+                for v in report.violations
+                if "RAND" in v.mnemonic.upper() or "SQRT" in v.mnemonic.upper()
+            ]
 
             # Should detect at least some violations
-            self.assertGreater(len(div_violations) + len(func_violations), 0,
-                              "Should detect division or dangerous function calls")
+            self.assertGreater(
+                len(div_violations) + len(func_violations),
+                0,
+                "Should detect division or dangerous function calls",
+            )
 
         except RuntimeError as e:
             if "yarv" in str(e).lower() or "dump" in str(e).lower():
