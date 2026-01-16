@@ -50,4 +50,4 @@ jobs:
           curl -sS https://webinstall.dev/shfmt | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Run shfmt
-        run: find plugins -name "*.sh" -type f -exec shfmt -i 4 -ci -d {} +
+        run: find plugins -name "*.sh" -type f -exec shfmt -i 2 -ci -d {} +
