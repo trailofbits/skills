@@ -3,6 +3,9 @@ name = "skills-marketplace"
 version = "0.0.0"
 description = "Trail of Bits Skills Marketplace - linting configuration"
 requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6.0.3",
+]
 
 [tool.ruff]
 line-length = 100

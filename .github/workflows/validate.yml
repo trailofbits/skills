@@ -128,3 +128,13 @@ jobs:
             exit 1
           fi
           echo "No personal emails found"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb  # v6.1.0
+        with:
+          enable-cache: true
+
+      - name: Validate discovery files
+        run: |
+          echo "Checking AGENTS.md and skills-index.json are up to date..."
+          uv run scripts/build-discovery.py --check

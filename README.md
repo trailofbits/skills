@@ -4,16 +4,37 @@ A Claude Code plugin marketplace from Trail of Bits providing skills to enhance 
 
 ## Installation
 
-### Add the Marketplace
+### Claude Code (Recommended)
 
 ```
 /plugin marketplace add trailofbits/skills
-```
-
-### Browse and Install Plugins
-
-```
 /plugin menu
+```
+
+### OpenSkills (Cursor, Windsurf, Aider, etc.)
+
+For other AI coding agents, use [OpenSkills](https://github.com/numman-ali/openskills):
+
+```bash
+npx openskills install trailofbits/skills
+npx openskills sync
+```
+
+### Direct Download (Single Skill)
+
+Download individual skills from [GitHub Releases](https://github.com/trailofbits/skills/releases):
+
+```bash
+# Download and extract a specific skill
+curl -LO https://github.com/trailofbits/skills/releases/latest/download/constant-time-analysis.zip
+unzip constant-time-analysis.zip -d ~/.claude/skills/
+```
+
+### Manual (Any Agent)
+
+```bash
+git clone https://github.com/trailofbits/skills.git
+cp -r skills/{skill-name}/ ~/.claude/skills/
 ```
 
 ### Local Development
