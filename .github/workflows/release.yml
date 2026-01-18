@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    name: Build skill distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb  # v6.1.0
+        with:
+          enable-cache: true
+
+      - name: Build zip distributions
+        run: |
+          echo "Creating zip distributions..."
+          mkdir -p dist
+          for skill in skills/*/; do
+            name=$(basename "$skill")
+            echo "  Packaging $name..."
+            # Resolve symlink and zip the actual content
+            real_path=$(readlink -f "$skill")
+            (cd "$(dirname "$real_path")" && zip -rq "$GITHUB_WORKSPACE/dist/$name.zip" "$(basename "$real_path")")
+          done
+          echo "Zip files created:"
+          ls -la dist/
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          for zip in dist/*.zip; do
+            echo "Uploading $zip..."
+            gh release upload "$RELEASE_TAG" "$zip" --clobber
+          done
