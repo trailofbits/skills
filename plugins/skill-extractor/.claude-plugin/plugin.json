@@ -1,0 +1,10 @@
+{
+  "name": "skill-extractor",
+  "version": "1.0.0",
+  "description": "Extract reusable skills from work sessions. Manual invocation only - no hooks, no noise.",
+  "author": {
+    "name": "Trail of Bits",
+    "email": "opensource@trailofbits.com",
+    "url": "https://github.com/trailofbits"
+  }
+}
