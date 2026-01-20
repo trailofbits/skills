@@ -68,6 +68,12 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 |--------|-------------|
 | [dwarf-expert](plugins/dwarf-expert/) | Interact with and understand the DWARF debugging format |
 
+### Mobile Security
+
+| Plugin | Description |
+|--------|-------------|
+| [firebase-apk-scanner](plugins/firebase-apk-scanner/) | Scan Android APKs for Firebase security misconfigurations |
+
 ### Development
 
 | Plugin | Description |
