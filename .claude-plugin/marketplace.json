@@ -126,6 +126,16 @@
       "source": "./plugins/semgrep-rule-creator"
     },
     {
+      "name": "semgrep-rule-variant-creator",
+      "version": "1.0.0",
+      "description": "Creates language variants of existing Semgrep rules with proper applicability analysis and test-driven validation",
+      "author": {
+        "name": "Maciej Domanski",
+        "email": "opensource@trailofbits.com"
+      },
+      "source": "./plugins/semgrep-rule-variant-creator"
+    },
+    {
       "name": "sharp-edges",
       "version": "1.0.0",
       "description": "Identify error-prone APIs, dangerous configurations, and footgun designs that enable security mistakes",
