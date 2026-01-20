@@ -3,6 +3,7 @@ name: firebase-apk-scanner
 description: Scans Android APKs for Firebase security misconfigurations including open databases, storage buckets, authentication issues, and exposed cloud functions. Use when analyzing APK files for Firebase vulnerabilities, performing mobile app security audits, or testing Firebase endpoint security. For authorized security research only.
 argument-hint: [apk-file-or-directory]
 allowed-tools: Bash({baseDir}/scanner.sh:*), Bash(apktool:*), Bash(curl:*), Read, Grep, Glob
+disable-model-invocation: true
 ---
 
 # Firebase APK Security Scanner
