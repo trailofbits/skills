@@ -181,6 +181,17 @@
         "name": "Axel Mierczuk"
       },
       "source": "./plugins/variant-analysis"
+    },
+    {
+      "name": "modern-python",
+      "version": "1.0.0",
+      "description": "Modern Python tooling and best practices with uv, ruff, and pytest",
+      "author": {
+        "name": "William Tan",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/modern-python"
     }
   ]
 }

@@ -79,6 +79,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | Plugin | Description |
 |--------|-------------|
 | [ask-questions-if-underspecified](plugins/ask-questions-if-underspecified/) | Clarify requirements before implementing |
+| [modern-python](plugins/modern-python/) | Modern Python tooling and best practices with uv, ruff, and pytest |
 
 ### Team Management
 
