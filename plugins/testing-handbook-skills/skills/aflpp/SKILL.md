@@ -380,7 +380,7 @@ Use `afl-plot` to visualize coverage over time:
 
 CMPLOG/RedQueen is the best path constraint solving mechanism available in any fuzzer.
 To enable it, the fuzz target needs to be instrumented for it.
-Before building the fuzzing target set the envinroment variable:
+Before building the fuzzing target set the environment variable:
 
 ```bash
 ./afl++ <host/docker> AFL_LLVM_CMPLOG=1 make
@@ -555,7 +555,7 @@ curl -o seeds/input.png https://raw.githubusercontent.com/glennrp/libpng/acfd50a
 curl -O https://raw.githubusercontent.com/glennrp/libpng/2fff013a6935967960a5ae626fc21432807933dd/contrib/oss-fuzz/png.dict
 
 # Start fuzzing
-afl-fuzz -i seeds -o out -- ./fuzz
+./afl++ <host/docker> afl-fuzz -i seeds -o out -- ./fuzz
 ```
 
 ### Example: CMake-based Project
