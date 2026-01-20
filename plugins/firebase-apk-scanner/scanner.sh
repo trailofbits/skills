@@ -769,7 +769,9 @@ test_firestore_write() {
 
     local doc_name
     doc_name=$(echo "$response" | jq -r '.name // empty' 2>/dev/null || true)
-    [ -n "$doc_name" ] && curl -s -X DELETE "https://firestore.googleapis.com/v1/${doc_name}" --max-time 5 >/dev/null 2>&1 || true
+    if [ -n "$doc_name" ]; then
+      curl -s -X DELETE "https://firestore.googleapis.com/v1/${doc_name}" --max-time 5 >/dev/null 2>&1 || true
+    fi
     return 0
   fi
 
@@ -1249,7 +1251,7 @@ generate_report() {
       if [ -f "${result_dir}/firebase_config.json" ]; then
         echo ""
         echo "Extracted Configuration:"
-        cat "${result_dir}/firebase_config.json" 2>/dev/null | jq '.' || true
+        jq '.' "${result_dir}/firebase_config.json" 2>/dev/null || true
       fi
 
       if [ -f "${result_dir}/vulnerabilities.txt" ]; then
