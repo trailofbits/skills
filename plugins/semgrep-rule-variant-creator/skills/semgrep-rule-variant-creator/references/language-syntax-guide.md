@@ -145,6 +145,7 @@ Search for:
 - `"<target language> <functionality>"` (e.g., "golang exec command")
 - `"<target language> <vulnerability>"` (e.g., "java sql injection")
 - Standard library documentation
+- [Semgrep Pattern Examples](https://semgrep.dev/docs/writing-rules/pattern-examples) - Per-language pattern references
 
 ### Step 3: Find All Variants
 
