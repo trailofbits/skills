@@ -97,6 +97,7 @@ Do not scan or pull into context any skills outside of `testing-handbook-skills/
 | `draft: true` in frontmatter | Skip section |
 | Empty directory | Skip section |
 | Template/placeholder file | Skip section |
+| GUI-only tool (e.g., `web/burp/`) | Skip section (Claude cannot operate GUI tools) |
 
 ## Decision Tree
 
@@ -113,7 +114,7 @@ Do not scan or pull into context any skills outside of `testing-handbook-skills/
 │
 ├─ Generating a specific skill type?
 │  └─ Read appropriate template:
-│     ├─ Tool (Semgrep, CodeQL, Burp) → templates/tool-skill.md
+│     ├─ Tool (Semgrep, CodeQL) → templates/tool-skill.md
 │     ├─ Fuzzer (libFuzzer, AFL++) → templates/fuzzer-skill.md
 │     ├─ Technique (harness, coverage) → templates/technique-skill.md
 │     └─ Domain (crypto, web) → templates/domain-skill.md

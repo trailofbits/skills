@@ -1,6 +1,6 @@
 # Tool Skill Template
 
-Use this template for static analysis tools (Semgrep, CodeQL), web tools (Burp Suite), and similar standalone tools.
+Use this template for static analysis tools (Semgrep, CodeQL) and similar standalone CLI tools.
 
 ## Template Structure
 

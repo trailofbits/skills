@@ -144,9 +144,24 @@ For each directory found, apply the first matching rule:
 | `**/fuzzing/[lang]/[name]/` | `index.md` or numbered files | Fuzzer | Create fuzzer skill |
 | `**/fuzzing/techniques/[name]/` | Any `.md` files | Technique | Create technique skill |
 | `**/crypto/[name]/` | Any `.md` files | Domain | Create domain skill |
-| `**/web/[name]/` | Numbered files or `_index.md` | Tool | Create tool skill |
+| `**/web/[name]/` | Numbered files or `_index.md` | Tool | Create tool skill (but check exclusions) |
 | Named `techniques/` | Subdirectories | Container | Create one technique skill per subdirectory |
 | Any other | Only `_index.md` | Skip | Not enough content |
+
+**Hard Exclusions (GUI-only tools):**
+
+Some handbook sections describe tools that require graphical user interfaces and cannot be operated by Claude. Skip these unconditionally:
+
+| Section | Tool | Reason |
+|---------|------|--------|
+| `**/web/burp/` | Burp Suite | GUI-based HTTP proxy; requires visual interaction |
+
+These tools are excluded because Claude cannot:
+- Launch or interact with GUI applications
+- Click buttons, navigate menus, or view visual elements
+- Operate browser-based or desktop UI tools
+
+For web security testing, prefer CLI-based alternatives documented elsewhere (e.g., `curl`, `httpie`, custom scripts).
 
 **Classification priority** (when multiple patterns match):
 1. Most specific path wins (deeper = higher priority)
@@ -223,7 +238,6 @@ Present to user in this format:
 | 5 | fuzz-harness-writing | /fuzzing/techniques/01-writing-harnesses/ | Technique | - |
 | 6 | coverage-analysis | /fuzzing/c-cpp/techniques/01-coverage/ | Technique | - |
 | 7 | address-sanitizer | /fuzzing/techniques/03-asan/ | Technique | - |
-| 8 | burp-suite | /web/burp/ | Tool | - |
 
 ---
 
@@ -233,6 +247,7 @@ Present to user in this format:
 |---------|--------|
 | /docs/dynamic-analysis/ | `draft: true` in frontmatter |
 | /docs/fuzzing/3-python.md | Single file, insufficient content |
+| /docs/web/burp/ | GUI-only tool (excluded) |
 
 ---
 

@@ -304,7 +304,7 @@ When generating a domain skill, map to relevant tool and technique skills:
 |--------|-------------|------------------|
 | Cryptography | wycheproof, constant-time-testing, cryptofuzz | coverage-analysis, property-based-testing |
 | Fuzzing (general) | libfuzzer, aflpp, honggfuzz | fuzz-harness-writing, address-sanitizer, coverage-analysis |
-| Web Security | burp-suite, zap | - |
+| Web Security | semgrep, nuclei | - |
 | Static Analysis | semgrep, codeql, bandit | - |
 
 ## Example: Cryptographic Testing
@@ -466,8 +466,7 @@ description: >
 
 | Scenario | Recommended Approach | Skill |
 |----------|---------------------|-------|
-| Manual testing | Burp Suite proxy | **burp-suite** |
-| Automated scanning | OWASP ZAP | **zap** |
+| Automated scanning | Nuclei templates | **nuclei** |
 | API fuzzing | API-specific tools | **api-fuzzing** |
 | Code review | Semgrep rules | **semgrep** |
 
@@ -477,9 +476,9 @@ description: >
 
 | Skill | Primary Use in Web Security |
 |-------|----------------------------|
-| **burp-suite** | Intercept and modify HTTP traffic |
 | **semgrep** | Find OWASP Top 10 patterns in code |
 | **sqlmap** | Automated SQL injection testing |
+| **nuclei** | Template-based vulnerability scanning |
 
 ### Technique Skills
 

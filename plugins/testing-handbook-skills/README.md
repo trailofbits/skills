@@ -62,7 +62,7 @@ plugins/testing-handbook-skills/
 │   │   ├── testing.md            # Validation strategy
 │   │   ├── agent-prompt.md       # Agent prompt template for generation
 │   │   └── templates/            # Skill generation templates
-│   │       ├── tool-skill.md     # Semgrep, CodeQL, Burp
+│   │       ├── tool-skill.md     # Semgrep, CodeQL
 │   │       ├── fuzzer-skill.md   # libFuzzer, AFL++, cargo-fuzz
 │   │       ├── technique-skill.md # Harness writing, coverage
 │   │       └── domain-skill.md   # Crypto testing, web security
@@ -93,7 +93,7 @@ uv run scripts/validate-skills.py --json
 
 | Type | Template | Example Sources |
 |------|----------|-----------------|
-| Tool | tool-skill.md | Semgrep, CodeQL, Burp Suite |
+| Tool | tool-skill.md | Semgrep, CodeQL |
 | Fuzzer | fuzzer-skill.md | libFuzzer, AFL++, cargo-fuzz |
 | Technique | technique-skill.md | Harness writing, coverage analysis |
 | Domain | domain-skill.md | Wycheproof, constant-time testing |
@@ -113,7 +113,7 @@ Each generated skill:
 
 ## Skills Cross-Reference
 
-This graph shows the 17 generated skills and their cross-references (from the Related Skills section of each skill). Only links between actually generated skills are shown.
+This graph shows the 16 generated skills and their cross-references (from the Related Skills section of each skill). Only links between actually generated skills are shown.
 
 ```mermaid
 graph TB
@@ -138,7 +138,6 @@ graph TB
     subgraph Tools
         semgrep[semgrep]
         codeql[codeql]
-        burp-suite[burp-suite]
     end
 
     subgraph Domain
@@ -219,7 +218,7 @@ graph TB
 |------|--------|
 | Fuzzers (6) | libfuzzer, aflpp, libafl, cargo-fuzz, atheris, ruzzy |
 | Techniques (6) | harness-writing, address-sanitizer, coverage-analysis, fuzzing-dictionary, fuzzing-obstacles, ossfuzz |
-| Tools (3) | semgrep, codeql, burp-suite |
+| Tools (2) | semgrep, codeql |
 | Domain (2) | wycheproof, constant-time-testing |
 
 **Note:** Some skills reference planned/external skills not yet generated (e.g., `honggfuzz`, `fuzzing-corpus`, `sarif-parsing`). Run `validate-skills.py` to see the full list.
