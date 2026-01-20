@@ -1,6 +1,6 @@
 ---
 name: modern-python
-description: Modern Python tooling and best practices using uv, ruff, and pytest. Use when creating new Python projects, configuring pyproject.toml, setting up development tooling, writing scripts with dependencies, or migrating existing projects from legacy tools when the user requests it.
+description: Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools.
 ---
 
 # Modern Python

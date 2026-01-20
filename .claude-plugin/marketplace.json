@@ -184,8 +184,8 @@
     },
     {
       "name": "modern-python",
-      "version": "1.0.0",
-      "description": "Modern Python tooling and best practices with uv, ruff, and pytest",
+      "version": "1.1.0",
+      "description": "Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools.",
       "author": {
         "name": "William Tan",
         "email": "opensource@trailofbits.com",
