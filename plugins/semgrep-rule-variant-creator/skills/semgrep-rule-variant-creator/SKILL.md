@@ -92,6 +92,19 @@ FOR EACH target language:
   (Complete full cycle before moving to next language)
 ```
 
+## Foundational Knowledge
+
+**The `semgrep-rule-creator` skill is the authoritative reference for Semgrep rule creation fundamentals.** While this skill focuses on porting existing rules to new languages, the core principles of writing quality rules remain the same.
+
+Consult `semgrep-rule-creator` for guidance on:
+- **When to use taint mode vs pattern matching** - Choosing the right approach for the vulnerability type
+- **Test-first methodology** - Why tests come before rules and how to write effective test cases
+- **Anti-patterns to avoid** - Common mistakes like overly broad or overly specific patterns
+- **Iterating until tests pass** - The validation loop and debugging techniques
+- **Rule optimization** - Removing redundant patterns after tests pass
+
+When porting a rule, you're applying these same principles in a new language context. If uncertain about rule structure or approach, refer to `semgrep-rule-creator` first.
+
 ## Four-Phase Workflow
 
 ### Phase 1: Applicability Analysis
