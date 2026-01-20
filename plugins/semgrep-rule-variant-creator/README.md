@@ -14,7 +14,7 @@ This skill takes an existing Semgrep rule and one or more target languages, then
 ## Prerequisites
 
 - [Semgrep](https://semgrep.dev/docs/getting-started/) installed and available in PATH
-- Existing Semgrep rule to port (YAML file)
+- Existing Semgrep rule to port (in YAML)
 - Target languages specified
 
 ## Usage

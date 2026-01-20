@@ -164,22 +164,6 @@ See [workflow.md]({baseDir}/references/workflow.md) for detailed workflow and tr
 | Dump AST | `semgrep --dump-ast -l <lang> <file>` |
 | Debug taint flow | `semgrep --dataflow-traces -f rule.yaml file` |
 
-| Language | Key | Extension |
-|----------|-----|-----------|
-| Python | `python` | `.py` |
-| JavaScript | `javascript` | `.js` |
-| TypeScript | `typescript` | `.ts` |
-| Java | `java` | `.java` |
-| Go | `go` | `.go` |
-| Ruby | `ruby` | `.rb` |
-| C | `c` | `.c` |
-| C++ | `cpp` | `.cpp` |
-| C# | `csharp` | `.cs` |
-| PHP | `php` | `.php` |
-| Rust | `rust` | `.rs` |
-| Kotlin | `kotlin` | `.kt` |
-| Swift | `swift` | `.swift` |
-| Scala | `scala` | `.scala` |
 
 ## Key Differences from Rule Creation
 
