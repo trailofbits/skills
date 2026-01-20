@@ -19,16 +19,22 @@ This skill takes an existing Semgrep rule and one or more target languages, then
 
 ## Usage
 
-Invoke the skill when you want to port an existing rule:
+Invoke the skill when you want to port an existing Semgrep rule:
 
 ```
-Port the sql-injection.yaml rule to Go and Java
+Port the sql-injection.yaml Semgrep rule to Go and Java
 ```
 
-Or:
+```
+Create Semgrep rule variants of my-rule.yaml for TypeScript, Rust, and C#
+```
 
 ```
-Create variants of my-rule.yaml for TypeScript, Rust, and C#
+Create the same Semgrep rule for JavaScript and Ruby
+```
+
+```
+Port this Semgrep rule to Golang
 ```
 
 ## Output Structure
