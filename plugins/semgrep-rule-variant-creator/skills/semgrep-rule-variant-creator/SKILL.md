@@ -27,14 +27,14 @@ Port existing Semgrep rules to new target languages with proper applicability an
 
 Do NOT use this skill for:
 - Creating a new Semgrep rule from scratch (use `semgrep-rule-creator` instead)
-- Running existing rules against code (use `semgrep` skill)
+- Running existing rules against code
 - Languages where the vulnerability pattern fundamentally doesn't apply
 - Minor syntax variations within the same language
 
 ## Input Specification
 
 This skill requires:
-1. **Existing Semgrep rule** - YAML file path or rule content
+1. **Existing Semgrep rule** - YAML file path or YAML rule content
 2. **Target languages** - One or more languages to port to (e.g., "Golang and Java")
 
 ## Output Specification
