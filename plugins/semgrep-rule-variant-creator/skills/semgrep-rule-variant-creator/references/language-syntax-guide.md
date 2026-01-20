@@ -205,7 +205,7 @@ pattern: $REQ.body.$PARAM
 
 ### User Input Sources
 
-Research common input sources for target language:
+Research common input sources for target language, for example:
 - HTTP request parameters
 - Command line arguments
 - Environment variables

@@ -51,10 +51,10 @@ rules:
 
 Document:
 - **Rule ID**: python-sql-injection
-- **Mode**: taint
-- **Sources**: request.args.get(...)
-- **Sinks**: cursor.execute($QUERY, ...)
-- **Sanitizers**: sanitize(...)
+- **Mode**: taint (optional, if taint mode used via `mode: taint`)
+- **Sources**: request.args.get(...) (via `pattern-sources` - if taint analysis mode used)
+- **Sinks**: cursor.execute($QUERY, ...) (via `pattern-sinks` - if taint analysis mode used)
+- **Sanitizers**: sanitize(...) (via `pattern-sanitizers` - optional, if taint analysis used)
 
 ### Step 1.2: Analyze for Target Language
 
