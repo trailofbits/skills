@@ -197,6 +197,7 @@ See [workflow.md]({baseDir}/references/workflow.md) for detailed workflow and tr
 
 - [Rule Syntax](https://semgrep.dev/docs/writing-rules/rule-syntax) - YAML structure and operators
 - [Pattern Syntax](https://semgrep.dev/docs/writing-rules/pattern-syntax) - Pattern matching and metavariables
+- [Pattern Examples](https://semgrep.dev/docs/writing-rules/pattern-examples) - Per-language pattern references
 - [Testing Rules](https://semgrep.dev/docs/writing-rules/testing-rules) - Testing annotations
 - [Trail of Bits Testing Handbook](https://appsec.guide/docs/static-analysis/semgrep/advanced/) - Advanced patterns
 
