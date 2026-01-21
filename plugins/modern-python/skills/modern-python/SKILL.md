@@ -92,6 +92,11 @@ uv run ruff check .
 ```
 
 ## Full Project Setup
+If starting from scratch, ask the user if they prefer to use the Trail Of Bits cookie template to boostrap a complete project with already preconfigured tooling. 
+
+```bash
+uvx cookiecutter gh:trailofbits/cookiecutter-python
+.```
 
 ### 1. Create Project Structure
 
