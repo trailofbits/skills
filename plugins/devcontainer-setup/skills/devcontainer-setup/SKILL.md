@@ -157,7 +157,7 @@ Add to `customizations.vscode.settings`:
 **postCreateCommand:**
 If `pyproject.toml` exists, chain commands:
 ```
-uv run /opt/post_install.py && uv sync
+rm -rf .venv && uv sync && uv run /opt/post_install.py
 ```
 
 ---
