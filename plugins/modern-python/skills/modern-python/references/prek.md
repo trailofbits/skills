@@ -55,7 +55,7 @@ prek auto-update
 ```yaml
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.13
+    rev: v0.14.13  # Check https://github.com/astral-sh/ruff-pre-commit/releases for latest
     hooks:
       - id: ruff
         args: [--fix]
@@ -79,6 +79,10 @@ prek run ruff
 
 ### Recommended `.pre-commit-config.yaml`
 
+> **Note:** Versions shown are examples. Always check for the latest stable versions:
+> - ruff: https://github.com/astral-sh/ruff-pre-commit/releases
+> - ty: https://github.com/astral-sh/ty/releases
+
 ```yaml
 # See https://pre-commit.com for more information
 default_language_version:
@@ -87,7 +91,7 @@ default_language_version:
 repos:
   # Ruff - linting and formatting
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.13
+    rev: v0.14.13  # Update to latest
     hooks:
       - id: ruff
         args: [--fix]
@@ -95,7 +99,7 @@ repos:
 
   # ty - type checking
   - repo: https://github.com/astral-sh/ty
-    rev: 0.0.12
+    rev: 0.0.13  # Update to latest
     hooks:
       - id: ty
 

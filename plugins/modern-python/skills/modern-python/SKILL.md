@@ -46,7 +46,7 @@ Guide for modern Python tooling and best practices, based on [trailofbits/cookie
 What are you doing?
 │
 ├─ Single-file script with dependencies?
-│   └─ Use PEP 723 inline metadata (./pep723-scripts.md)
+│   └─ Use PEP 723 inline metadata (./references/pep723-scripts.md)
 │
 ├─ New multi-file project (not distributed)?
 │   └─ Minimal uv setup (see Quick Start below)
@@ -66,7 +66,7 @@ What are you doing?
 | **ruff** | Linting AND formatting | flake8, black, isort, pyupgrade, pydocstyle |
 | **ty** | Type checking | mypy, pyright (faster alternative) |
 | **pytest** | Testing with coverage | unittest |
-| **prek** | Pre-commit hooks ([setup](./prek.md)) | pre-commit (faster, Rust-native) |
+| **prek** | Pre-commit hooks ([setup](./references/prek.md)) | pre-commit (faster, Rust-native) |
 
 ## Quick Start: Minimal Project
 
@@ -92,11 +92,11 @@ uv run ruff check .
 ```
 
 ## Full Project Setup
-If starting from scratch, ask the user if they prefer to use the Trail Of Bits cookie template to boostrap a complete project with already preconfigured tooling. 
+If starting from scratch, ask the user if they prefer to use the Trail Of Bits cookie template to boostrap a complete project with already preconfigured tooling.
 
 ```bash
 uvx cookiecutter gh:trailofbits/cookiecutter-python
-.```
+```
 
 ### 1. Create Project Structure
 
@@ -118,7 +118,7 @@ myproject/
 
 ### 2. Configure pyproject.toml
 
-See [pyproject.md](./pyproject.md) for complete configuration reference.
+See [pyproject.md](./references/pyproject.md) for complete configuration reference.
 
 Key sections:
 ```toml
@@ -188,7 +188,7 @@ When a user requests migration from legacy tooling:
 
 First, determine the nature of the code:
 
-**For standalone scripts**: Convert to PEP 723 inline metadata (see [pep723-scripts.md](./pep723-scripts.md))
+**For standalone scripts**: Convert to PEP 723 inline metadata (see [pep723-scripts.md](./references/pep723-scripts.md))
 
 **For projects**:
 ```bash
@@ -222,7 +222,7 @@ Then:
 1. Remove flake8, black, isort via `uv remove`
 2. Delete `.flake8`, `pyproject.toml [tool.black]`, `[tool.isort]` configs
 3. Add ruff: `uv add --group dev ruff`
-4. Add ruff configuration (see [ruff-config.md](./ruff-config.md))
+4. Add ruff configuration (see [ruff-config.md](./references/ruff-config.md))
 5. Run `uv run ruff check --fix .` to apply fixes
 6. Run `uv run ruff format .` to format
 
@@ -248,7 +248,7 @@ Then:
 | `uv build` | Build package |
 | `uv publish` | Publish to PyPI |
 
-See [uv-commands.md](./uv-commands.md) for complete reference.
+See [uv-commands.md](./references/uv-commands.md) for complete reference.
 
 ## Quick Reference: Dependency Groups
 
@@ -274,9 +274,9 @@ Install with: `uv sync --group dev --group test`
 
 ## Read Next
 
-- [pyproject.md](./pyproject.md) - Complete pyproject.toml reference
-- [uv-commands.md](./uv-commands.md) - uv command reference
-- [ruff-config.md](./ruff-config.md) - Ruff linting/formatting configuration
-- [testing.md](./testing.md) - pytest and coverage setup
-- [pep723-scripts.md](./pep723-scripts.md) - PEP 723 inline script metadata
-- [prek.md](./prek.md) - Fast pre-commit hooks with prek
+- [pyproject.md](./references/pyproject.md) - Complete pyproject.toml reference
+- [uv-commands.md](./references/uv-commands.md) - uv command reference
+- [ruff-config.md](./references/ruff-config.md) - Ruff linting/formatting configuration
+- [testing.md](./references/testing.md) - pytest and coverage setup
+- [pep723-scripts.md](./references/pep723-scripts.md) - PEP 723 inline script metadata
+- [prek.md](./references/prek.md) - Fast pre-commit hooks with prek
