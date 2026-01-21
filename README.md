@@ -95,7 +95,7 @@ When reporting bugs you've found, feel free to mention:
 
 | Skill | Bug |
 |-------|-----|
-| constant-time-analysis | [Timing side-channel in ECDSA verification](https://github.com/RustCrypto/signatures/pull/1144) |
+| constant-time-analysis | [Timing side-channel in ML-DSA signing](https://github.com/RustCrypto/signatures/pull/1144) |
 
 ## Contributing
 
