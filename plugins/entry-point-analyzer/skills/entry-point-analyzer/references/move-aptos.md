@@ -1,8 +1,8 @@
-# Move Entry Point Detection (Aptos/Sui)
+# Move Entry Point Detection (Aptos)
 
 ## Entry Point Identification (State-Changing Only)
 
-In Move, `entry` functions are designed for transactions and typically modify state. **Include all entry functions** by default, as they represent the attack surface. Pure `public fun` (non-entry) functions are module-callable only and excluded.
+In Move, `public` functions can be invoked from transaction scripts (Aptos) and typically modify state. In addition, all `entry` functions are entrypoints. Package-protected (`public package`) and friend (`friend` or `public friend`) functions should be excluded.
 
 ### Aptos Move
 ```move
@@ -14,15 +14,6 @@ public fun helper(): u64 { }
 
 // Entry-only functions (can't be called by other modules)
 entry fun private_entry(account: &signer) { }
-```
-
-### Sui Move
-```move
-// Entry functions in Sui
-public entry fun transfer(ctx: &mut TxContext) { }
-
-// Public functions
-public fun compute(): u64 { }
 ```
 
 ### Visibility Rules
@@ -61,17 +52,6 @@ public entry fun admin_action(admin: &signer) acquires AdminCap {
 }
 ```
 
-### Sui Object Ownership
-```move
-// Object ownership provides access control
-public entry fun use_owned_object(obj: &mut MyObject, ctx: &mut TxContext) {
-    // Only owner of obj can call this
-}
-
-// Shared objects - anyone can access
-public entry fun use_shared(obj: &mut SharedObject) { }
-```
-
 ### Access Control Classification
 | Pattern | Classification |
 |---------|----------------|
@@ -80,8 +60,6 @@ public entry fun use_shared(obj: &mut SharedObject) { }
 | `exists<AdminCap>(addr)` | Admin (capability) |
 | `exists<GovernanceCap>(addr)` | Governance |
 | `exists<GuardianCap>(addr)` | Guardian |
-| Owned object parameter | Owner of object |
-| Shared object, no signer check | Public (Unrestricted) |
 | `&signer` with no checks | Review Required |
 
 ## Contract-Only Detection
@@ -114,15 +92,6 @@ public fun on_transfer_hook(amount: u64): bool {
    - `exists<*Cap>` checks → Capability-based
    - No access checks → Public (Unrestricted)
 
-### Sui
-1. Parse all `.move` files
-2. Find `module` declarations
-3. Extract `public entry` and `entry` functions
-4. Analyze parameters:
-   - Owned object types → Owner-restricted
-   - Shared objects without signer → Public
-   - `&signer`/`&mut TxContext` with checks → Role-based
-
 ## Move-Specific Considerations
 
 1. **Resource Model**: Access control often through resource ownership
@@ -134,7 +103,5 @@ public fun on_transfer_hook(amount: u64): bool {
 ## Common Gotchas
 
 1. **Init Functions**: `init` or `initialize` often create initial capabilities
-2. **Object Wrapping (Sui)**: Wrapped objects transfer ownership
-3. **Shared vs Owned (Sui)**: Shared objects have different access semantics
-4. **Module Upgrades**: Check upgrade capability ownership
-5. **Phantom Types**: Type parameters with `phantom` don't affect runtime
+2. **Module Upgrades**: Check upgrade capability ownership
+3. **Phantom Types**: Type parameters with `phantom` don't affect runtime

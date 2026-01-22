@@ -94,7 +94,8 @@ If `which slither` returns nothing, proceed with manual analysis using the langu
 | `.sol` | Solidity | [{baseDir}/references/solidity.md]({baseDir}/references/solidity.md) |
 | `.vy` | Vyper | [{baseDir}/references/vyper.md]({baseDir}/references/vyper.md) |
 | `.rs` + `Cargo.toml` with `solana-program` | Solana (Rust) | [{baseDir}/references/solana.md]({baseDir}/references/solana.md) |
-| `.move` | Move (Aptos/Sui) | [{baseDir}/references/move.md]({baseDir}/references/move.md) |
+| `.move` + `Move.toml` with `edition` | [{baseDir}/references/move-sui.md]({baseDir}/references/move-sui.md) |
+| `.move` + `Move.toml` with `Aptos` | [{baseDir}/references/move-aptos.md]({baseDir}/references/move-aptos.md) |
 | `.fc`, `.func`, `.tact` | TON (FunC/Tact) | [{baseDir}/references/ton.md]({baseDir}/references/ton.md) |
 | `.rs` + `Cargo.toml` with `cosmwasm-std` | CosmWasm | [{baseDir}/references/cosmwasm.md]({baseDir}/references/cosmwasm.md) |
 
