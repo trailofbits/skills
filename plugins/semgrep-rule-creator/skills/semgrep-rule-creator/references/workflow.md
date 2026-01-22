@@ -149,7 +149,7 @@ rules:
   - id: sql-injection
     mode: taint
     languages: [python]
-    severity: ERROR
+    severity: HIGH
     message: User input flows to SQL query
     pattern-sources:
       - pattern: request.args.get(...)
@@ -259,7 +259,7 @@ rules:
   - id: command-injection
     mode: taint
     languages: [python]
-    severity: ERROR
+    severity: HIGH
     message: >-
       User input from $SOURCE flows to shell command.
       This allows command injection attacks.

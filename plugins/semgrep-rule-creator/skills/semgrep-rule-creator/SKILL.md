@@ -114,7 +114,7 @@ This skill guides creation of Semgrep rules that detect security vulnerabilities
 rules:
   - id: insecure-eval
     languages: [python]
-    severity: ERROR
+    severity: HIGH
     message: User input passed to eval() allows code execution
     mode: taint
     pattern-sources:

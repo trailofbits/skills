@@ -7,7 +7,7 @@ rules:
   - id: rule-id-here          # Unique identifier (lowercase, hyphens)
     languages:                 # Target language(s)
       - python
-    severity: ERROR           # LOW, MEDIUM, HIGH, CRITICAL (ERROR/WARNING/INFO are legacy)
+    severity: HIGH            # LOW, MEDIUM, HIGH, CRITICAL (ERROR/WARNING/INFO are legacy)
     message: Description      # Shown when rule matches
     pattern: code(...)        # OR use patterns/pattern-either/mode:taint
 ```
@@ -85,7 +85,7 @@ rules:
   - id: taint-rule
     mode: taint
     languages: [python]
-    severity: ERROR
+    severity: HIGH
     message: Tainted data reaches sink
     pattern-sources:
       - pattern: user_input()
