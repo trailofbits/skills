@@ -132,13 +132,13 @@ eval(request.args.get('code'))
 eval("print('safe')")
 ```
 
-Run tests: `semgrep --test --config rule.yaml test-file`
+Run tests (from rule directory): `semgrep --test --config rule.yaml test-file`
 
 ## Quick Reference
 
 | Task | Command |
 |------|---------|
-| Run tests | `semgrep --test --config rule.yaml test-file` |
+| Run tests | `cd <rule-dir> && semgrep --test --config rule.yaml test-file` |
 | Validate YAML | `semgrep --validate --config rule.yaml` |
 | Dump AST | `semgrep --dump-ast -l <lang> <file>` |
 | Debug taint flow | `semgrep --dataflow-traces -f rule.yaml file` |
