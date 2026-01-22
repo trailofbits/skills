@@ -6,7 +6,7 @@ Detailed workflow for creating production-quality Semgrep rules.
 
 Before writing any code:
 
-1. **Fetch external documentation** - Read https://appsec.guide/docs/static-analysis/semgrep/advanced/
+1. **Fetch external documentation** - See [Documentation](../SKILL.md#documentation) for required reading
 2. **Understand the exact bug pattern** - What vulnerability or issue should be detected?
 3. **Identify the target language** - Python, JavaScript, Java, Go, etc.
 4. **Determine the approach**:

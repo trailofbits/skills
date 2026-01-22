@@ -167,7 +167,7 @@ Run tests: `semgrep --test --config rule.yaml test-file`
 
 Understand the bug pattern, identify target language, determine if taint mode applies.
 
-Before writing complex rules, see [Documentation](#documentation) for required reading.
+Before writing any rule, see [Documentation](#documentation) for required reading.
 
 ### 2. Create Test Cases First
 
