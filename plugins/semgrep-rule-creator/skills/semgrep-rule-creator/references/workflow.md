@@ -236,7 +236,7 @@ Shows:
 
 ## Step 7: Iterate Until Pass
 
-**The task is complete ONLY when:**
+**Verification checkpoint - proceed to optimization when:**
 - "All tests passed"
 - No "missed lines" (false negatives)
 - No "incorrect lines" (false positives)
@@ -392,6 +392,8 @@ semgrep --test --config rule.yaml test-file
 ```
 
 **Critical**: Always re-run tests after optimization. Some "redundant" patterns may actually be necessary due to AST structure differences.
+
+**Task complete ONLY when**: All tests pass after optimization.
 
 ## Troubleshooting
 
