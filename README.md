@@ -43,6 +43,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [differential-review](plugins/differential-review/) | Security-focused differential review of code changes with git history analysis |
 | [semgrep-rule-creator](plugins/semgrep-rule-creator/) | Create and refine Semgrep rules for custom vulnerability detection |
 | [semgrep-rule-variant-creator](plugins/semgrep-rule-variant-creator/) | Port existing Semgrep rules to new target languages with test-driven validation |
+| [sloc-initial-sweep](plugins/sloc-initial-sweep/) | Logical/physical SLOC breakdowns for audit scoping and prioritization |
 | [sharp-edges](plugins/sharp-edges/) | Identify error-prone APIs, dangerous configurations, and footgun designs |
 | [static-analysis](plugins/static-analysis/) | Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing |
 | [testing-handbook-skills](plugins/testing-handbook-skills/) | Skills from the [Testing Handbook](https://appsec.guide): fuzzers, static analysis, sanitizers, coverage |
