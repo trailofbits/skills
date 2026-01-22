@@ -83,9 +83,13 @@ Example output helps understand:
 - How variables are bound
 - How control flow is structured
 
-## Step 4: Choose Pattern Operators
+## Step 4: Write the Rule
 
-### Basic Pattern Matching
+Choose the appropriate pattern operators and write your rule.
+
+### Pattern Operators
+
+#### Basic Pattern Matching
 
 ```yaml
 # Single pattern
@@ -104,7 +108,7 @@ pattern-either:
   - pattern: exec(...)
 ```
 
-### Scope Operators
+#### Scope Operators
 
 ```yaml
 patterns:
@@ -117,7 +121,7 @@ patterns:
         ...
 ```
 
-### Metavariable Filters
+#### Metavariable Filters
 
 ```yaml
 patterns:
@@ -130,7 +134,7 @@ patterns:
       pattern: db
 ```
 
-### Focus Metavariable
+#### Focus Metavariable
 
 Report finding on specific part of match:
 
@@ -140,9 +144,9 @@ patterns:
   - focus-metavariable: $ARG
 ```
 
-## Step 5: Write Taint Rules
+### Taint Rules
 
-### Basic Taint Structure
+#### Basic Taint Structure
 
 ```yaml
 rules:
@@ -162,7 +166,7 @@ rules:
       - pattern: int(...)
 ```
 
-### Taint Source Options
+#### Taint Source Options
 
 ```yaml
 pattern-sources:
@@ -171,7 +175,7 @@ pattern-sources:
     by-side-effect: true  # Taints variable by side effect
 ```
 
-### Taint Sanitizer Options
+#### Taint Sanitizer Options
 
 ```yaml
 pattern-sanitizers:
@@ -181,7 +185,7 @@ pattern-sanitizers:
     by-side-effect: true  # Sanitizes variable for subsequent use
 ```
 
-### Taint Sink with Focus
+#### Taint Sink with Focus
 
 ```yaml
 # NOTE: Sinks default to exact: true (unlike sources/sanitizers which default to false)
@@ -191,28 +195,28 @@ pattern-sinks:
       - focus-metavariable: $SQL
 ```
 
-## Step 6: Validate and Test
+### Validate and Test
 
-### Validate YAML Syntax
+#### Validate YAML Syntax
 
 ```bash
 semgrep --validate --config rule.yaml
 ```
 
-### Run Tests
+#### Run Tests
 
 ```bash
 cd <rule-directory>
 semgrep --test --config rule.yaml test-file
 ```
 
-### Expected Output
+#### Expected Output
 
 ```
 1/1: ✓ All tests passed
 ```
 
-### Debug Failures
+#### Debug Failures
 
 If tests fail, check:
 1. **Missed lines**: Rule didn't match when it should
@@ -222,7 +226,7 @@ If tests fail, check:
    - Pattern too broad
    - Need `pattern-not` exclusion
 
-### Debug Taint Rules
+#### Debug Taint Rules
 
 ```bash
 semgrep --dataflow-traces -f rule.yaml test_file.py
@@ -234,7 +238,7 @@ Shows:
 - Data flow path
 - Why taint didn't propagate (if applicable)
 
-## Step 7: Iterate Until Pass
+## Step 5: Iterate Until Tests Pass
 
 **Verification checkpoint - proceed to optimization when:**
 - "All tests passed"
@@ -311,7 +315,7 @@ def safe_hardcoded():
     os.system("ls -la")
 ```
 
-## Step 8: Optimize the Rule
+## Step 6: Optimize the Rule
 
 After all tests pass, analyze and optimize the rule to remove redundant patterns.
 
