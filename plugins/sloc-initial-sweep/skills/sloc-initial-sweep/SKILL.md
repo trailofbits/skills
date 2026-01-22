@@ -188,16 +188,16 @@ By Language:
 
 By Directory:
 ----------------------------------------
-  marketplace       1,163 SLOC  (4 files)
-  core                842 SLOC  (4 files)
-  mocks               821 SLOC  (19 files)
-  polylend            555 SLOC  (8 files)
-  earn                531 SLOC  (2 files)
-  interfaces          473 SLOC  (20 files)
-  oracles             380 SLOC  (2 files)
-  vault               293 SLOC  (2 files)
-  errors              285 SLOC  (11 files)
-  bundler             219 SLOC  (1 file)
+  module-a         1,163 SLOC  (4 files)
+  module-b           842 SLOC  (4 files)
+  mocks              821 SLOC  (19 files)
+  module-c           555 SLOC  (8 files)
+  module-d           531 SLOC  (2 files)
+  interfaces         473 SLOC  (20 files)
+  adapters           380 SLOC  (2 files)
+  vaults             293 SLOC  (2 files)
+  errors             285 SLOC  (11 files)
+  bundler            219 SLOC  (1 file)
   [... remaining folders ...]
 ```
 
@@ -232,7 +232,7 @@ By Directory:
 > **SLOC Summary:** 6,061 logical SLOC across 82 Solidity files in `contracts/`.
 > 
 > **Size:** Medium codebase  
-> **Largest modules:** Marketplace (1,163), Core (842), Mocks (821)  
+> **Largest modules:** module-a (1,163), module-b (842), mocks (821)  
 > **Estimated effort:** 30-60 hours for comprehensive audit (excluding mocks)  
 > **Notes:** Mocks excluded from audit scope, reducing focus area to ~5,240 SLOC
 
@@ -266,8 +266,8 @@ By Directory:
     "solidity": 6061
   },
   "by_folder": {
-    "marketplace": 1163,
-    "core": 842,
+    "module-a": 1163,
+    "module-b": 842,
     ...
   }
 }
@@ -321,7 +321,7 @@ By Directory:
 1. Run SLOC on `main` branch
 2. Run SLOC on `upgrade` branch
 3. Present delta: "Added 1,200 SLOC (+19.8%), Removed 300 SLOC"
-4. Identify changed modules: "Marketplace +500, Vault +400, New: LendingVault 300"
+4. Identify changed modules: "module-a +500, vaults +400, New: module-d 300"
 
 ---
 

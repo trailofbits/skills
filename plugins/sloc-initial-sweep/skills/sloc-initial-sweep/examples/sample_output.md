@@ -8,7 +8,7 @@ This document shows example outputs for various audit scenarios.
 
 **Command:**
 ```bash
-python3 scripts/sloc_counter.py /path/to/NettyWorthV2 \
+python3 scripts/sloc_counter.py /path/to/project \
   --dirs contracts \
   --extensions .sol \
   --method logical
@@ -30,27 +30,27 @@ By Language:
 
 By Directory:
 ----------------------------------------
-  marketplace       1,163 SLOC  (4 files)
-  core                842 SLOC  (4 files)
-  mocks               821 SLOC  (19 files)
-  polylend            555 SLOC  (8 files)
-  earn                531 SLOC  (2 files)
-  interfaces          473 SLOC  (20 files)
-  oracles             380 SLOC  (2 files)
-  vault               293 SLOC  (2 files)
-  errors              285 SLOC  (11 files)
-  bundler             219 SLOC  (1 file)
-  supporting          191 SLOC  (2 files)
-  libraries           158 SLOC  (2 files)
-  helpers              93 SLOC  (1 file)
-  events               28 SLOC  (2 files)
-  validators           16 SLOC  (1 file)
-  tokens               13 SLOC  (1 file)
+  module-a         1,163 SLOC  (4 files)
+  module-b           842 SLOC  (4 files)
+  mocks              821 SLOC  (19 files)
+  module-c           555 SLOC  (8 files)
+  module-d           531 SLOC  (2 files)
+  interfaces         473 SLOC  (20 files)
+  adapters           380 SLOC  (2 files)
+  vaults             293 SLOC  (2 files)
+  errors             285 SLOC  (11 files)
+  bundler            219 SLOC  (1 file)
+  supporting         191 SLOC  (2 files)
+  libraries          158 SLOC  (2 files)
+  helpers             93 SLOC  (1 file)
+  events              28 SLOC  (2 files)
+  validators          16 SLOC  (1 file)
+  tokens              13 SLOC  (1 file)
 ```
 
 **Analysis Notes:**
 - **Size:** Medium codebase
-- **Largest module:** Marketplace (1,163 SLOC = 19% of total)
+- **Largest module:** module-a (1,163 SLOC = 19% of total)
 - **Mocks:** 821 SLOC (14% of total) - can exclude from audit scope
 - **Production SLOC:** ~5,240 (excluding mocks)
 - **Estimated audit effort:** 26-52 hours (at 100-200 SLOC/hour)
@@ -61,7 +61,7 @@ By Directory:
 
 **Command:**
 ```bash
-python3 scripts/sloc_counter.py /path/to/NettyWorthV2 \
+python3 scripts/sloc_counter.py /path/to/project \
   --dirs contracts scripts test \
   --extensions .sol .ts \
   --method logical
@@ -103,7 +103,7 @@ By Directory:
 
 **Command (Physical):**
 ```bash
-python3 scripts/sloc_counter.py /path/to/NettyWorthV2 \
+python3 scripts/sloc_counter.py /path/to/project \
   --dirs contracts \
   --extensions .sol \
   --method physical
@@ -125,9 +125,9 @@ By Language:
 
 By Directory:
 ----------------------------------------
-  marketplace       2,456 SLOC  (4 files)
-  core              1,789 SLOC  (4 files)
-  mocks             1,523 SLOC  (19 files)
+  module-a         2,456 SLOC  (4 files)
+  module-b         1,789 SLOC  (4 files)
+  mocks            1,523 SLOC  (19 files)
   ...
 ```
 
@@ -202,16 +202,16 @@ diff v1_sloc.txt v2_sloc.txt
 |--------|------|------|-------|
 | Total SLOC | 5,061 | 6,061 | +1,000 (+19.8%) |
 | Files | 75 | 82 | +7 |
-| Largest module | Marketplace (980) | Marketplace (1,163) | +183 |
+| Largest module | module-a (980) | module-a (1,163) | +183 |
 
 **New modules in v2.0:**
-- `earn/CollateralVault.sol` - 320 SLOC
-- `earn/LendingVault.sol` - 211 SLOC
-- `polylend/` (entire directory) - 555 SLOC
+- `module-d/VaultCore.sol` - 320 SLOC
+- `module-d/VaultConfig.sol` - 211 SLOC
+- `module-c/` (entire directory) - 555 SLOC
 
 **Analysis Notes:**
 - **Growth:** 20% increase in codebase size
-- **New features:** Earn module (531 SLOC), Polylend integration (555 SLOC)
+- **New features:** New earnings module (531 SLOC), external integration module (555 SLOC)
 - **Audit delta:** Focus on new modules + modified contracts
 - **Estimated delta audit:** 10-20 hours for new code
 
@@ -221,7 +221,7 @@ diff v1_sloc.txt v2_sloc.txt
 
 **Command:**
 ```bash
-python3 scripts/sloc_counter.py /path/to/yield-basis \
+python3 scripts/sloc_counter.py /path/to/project-vyper \
   --dirs contracts \
   --extensions .vy .vyi \
   --method logical
@@ -273,7 +273,7 @@ python3 scripts/sloc_counter.py /path/to/repo \
 ```json
 {
   "timestamp": "2026-01-22T14:30:00Z",
-  "repository": "/path/to/NettyWorthV2",
+  "repository": "/path/to/project",
   "method": "logical",
   "total_sloc": 6061,
   "total_files": 82,
@@ -285,14 +285,14 @@ python3 scripts/sloc_counter.py /path/to/repo \
     }
   },
   "by_folder": {
-    "marketplace": {"sloc": 1163, "files": 4},
-    "core": {"sloc": 842, "files": 4},
+    "module-a": {"sloc": 1163, "files": 4},
+    "module-b": {"sloc": 842, "files": 4},
     "mocks": {"sloc": 821, "files": 19},
-    "polylend": {"sloc": 555, "files": 8},
-    "earn": {"sloc": 531, "files": 2},
+    "module-c": {"sloc": 555, "files": 8},
+    "module-d": {"sloc": 531, "files": 2},
     "interfaces": {"sloc": 473, "files": 20},
-    "oracles": {"sloc": 380, "files": 2},
-    "vault": {"sloc": 293, "files": 2},
+    "adapters": {"sloc": 380, "files": 2},
+    "vaults": {"sloc": 293, "files": 2},
     "errors": {"sloc": 285, "files": 11},
     "bundler": {"sloc": 219, "files": 1},
     "supporting": {"sloc": 191, "files": 2},
