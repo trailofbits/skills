@@ -207,7 +207,6 @@ semgrep --dataflow-traces -f rule.yaml test-file
 **After all tests pass**, analyze the rule for redundant or unnecessary patterns:
 
 **Common optimizations:**
-- **Quote variants**: Semgrep treats `"` and `'` as equivalent - remove duplicate patterns
 - **Subset patterns**: `func(...)` already matches `func()` - remove the more specific one
 - **Redundant ellipsis**: `func($X, ...)` covers `func($X)` - keep only the general form
 
