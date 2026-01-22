@@ -195,7 +195,7 @@ See [workflow.md]({baseDir}/references/workflow.md) for detailed patterns and ex
 semgrep --test --config rule.yaml test-file
 ```
 
-**Verification checkpoint**: Output MUST show `✓ All tests passed`. Do not proceed to optimization until this is achieved.
+**Verification checkpoint**: Output MUST show "All tests passed". Do not proceed to optimization until this is achieved.
 
 For debugging taint rules:
 ```bash
@@ -239,7 +239,7 @@ pattern-either:
 semgrep --test --config rule.yaml test-file
 ```
 
-**Final verification**: Output MUST show `✓ All tests passed` after optimization. If any test fails, revert the optimization that caused it.
+**Final verification**: Output MUST show "All tests passed" after optimization. If any test fails, revert the optimization that caused it.
 
 **Task complete ONLY when**: All tests pass after optimization.
 
