@@ -216,7 +216,7 @@ pattern-either:
   - pattern: hashlib.md5(...)
   - pattern: md5(...)
   - pattern: hashlib.new("md5", ...)
-  - pattern: hashlib.new('md5', ...)    # Redundant - quotes equivalent
+  - pattern: hashlib.new('md5', ...)    # Redundant - quotes equivalent in Python
   - pattern: hashlib.new("md5")         # Redundant - covered by ... variant
   - pattern: hashlib.new('md5')         # Redundant - quotes + covered
 ```
