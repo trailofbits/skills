@@ -174,8 +174,10 @@ Before writing any rule, see [Documentation](#documentation) for required readin
 **Why test-first?** Writing tests before the rule forces you to think about both vulnerable AND safe patterns. Rules written without tests often have hidden false positives (matching safe code) or false negatives (missing vulnerable variants). Tests make these visible immediately.
 
 Create directory and test file with annotations:
-- `// ruleid: <id>` - Line BEFORE code that SHOULD match
-- `// ok: <id>` - Line BEFORE code that should NOT match
+- `<comment> ruleid: <id>` - Line BEFORE code that SHOULD match (use language-appropriate comment syntax: `#` for Python, `//` for JS/TS/Java/Go/C)
+- `<comment> ok: <id>` - Line BEFORE code that should NOT match
+
+The annotation line must contain ONLY the comment marker and annotation (e.g., `# ruleid: my-rule`). No other text, comments, or code on the same line.
 
 ### 3. Analyze AST Structure
 
