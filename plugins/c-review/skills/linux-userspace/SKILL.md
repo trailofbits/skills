@@ -24,6 +24,7 @@ Uses iterative refinement with false positive judging to maximize finding qualit
 - Reviewing privilege dropping code
 - Finding glibc-specific vulnerabilities
 - Auditing POSIX API usage
+- Finding memory corruption bugs in Linux programs
 
 ## When NOT to Use
 
@@ -44,49 +45,11 @@ Common excuses specific to Linux userspace that lead to missed findings:
 - **"The race window is too small"** - Race conditions can be widened via resource exhaustion.
 - **"The environment is trusted"** - Environment variables come from many sources. Treat as attacker-controlled.
 
-## Workflow Overview
+## Workflow
 
-### Step 1: Threat Model Selection
+Follow [workflows/review-workflow.md](../../workflows/review-workflow.md) for the complete review process.
 
-Before starting, determine the threat model using AskUserQuestion:
-
-- **Remote** - Attacker can only send data over the network
-- **Local Unprivileged** - Attacker has shell access as unprivileged user (most common for setuid)
-- **Both** - Consider both threat models
-
-For setuid/setgid binaries, the Local Unprivileged threat model is typically most relevant.
-
-### Step 2: Context Building
-
-Build codebase context with Linux-specific focus:
-
-1. Use the `audit-context-building` skill for architectural understanding
-2. Run `checksec` on binaries to assess exploit mitigations
-3. Map signal handlers and multi-threaded sections
-4. Document environment variable usage and privilege transitions
-
-### Step 3: Parallel Bug Analysis
-
-Spawn all bug-finding agents in parallel, providing each with:
-- Codebase context from Step 2
-- Threat model context from Step 1
-- Specific bug class focus
-
-### Step 4: False Positive Judging
-
-Invoke `fp-judge` agent with all findings to evaluate validity and generate
-feedback for refined analysis.
-
-### Step 5: Refined Analysis
-
-Re-run bug-finding agents with FP feedback, avoiding identified false positive
-patterns and focusing on uncovered areas.
-
-### Step 6: Deduplication and Reporting
-
-Invoke `dedup-judge` to merge duplicates, then generate Markdown and SARIF reports.
-
-For complete workflow details, see [{baseDir}/../../workflows/review-workflow.md](../../workflows/review-workflow.md).
+**Note:** For setuid/setgid binaries, the Local Unprivileged threat model is typically most relevant.
 
 ## Bug-Finding Agents
 

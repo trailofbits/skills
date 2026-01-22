@@ -43,51 +43,15 @@ Common excuses that lead to missed findings:
 - **"The static analyzer didn't find anything"** - Analyzers have blind spots. Manual review required.
 - **"This is just test/debug code"** - Debug code ships to production. Report it.
 
-## Workflow Overview
+## Workflow
 
-### Step 1: Threat Model Selection
+Follow [workflows/review-workflow.md](../../workflows/review-workflow.md) for the complete review process.
 
-Before starting, determine the threat model using AskUserQuestion:
-
-- **Remote** - Attacker can only send data over the network
-- **Local Unprivileged** - Attacker has shell access as unprivileged user
-- **Both** - Consider both threat models
-
-### Step 2: Context Building
-
-Build comprehensive codebase context before spawning analysis agents:
-
-1. Use the `audit-context-building` skill to create architectural understanding
-2. Identify entry points, trust boundaries, and attack surface
-3. Map data flows from untrusted input sources
-4. Document memory allocation patterns and ownership
-
-### Step 3: Parallel Bug Analysis
-
-Spawn all bug-finding agents in parallel, providing each with:
-- Codebase context from Step 2
-- Threat model context from Step 1
-- Specific bug class focus
-
-### Step 4: False Positive Judging
-
-Invoke `fp-judge` agent with all findings to evaluate validity and generate
-feedback for refined analysis.
-
-### Step 5: Refined Analysis
-
-Re-run bug-finding agents with FP feedback, avoiding identified false positive
-patterns and focusing on uncovered areas.
-
-### Step 6: Deduplication and Reporting
-
-Invoke `dedup-judge` to merge duplicates, then generate Markdown and SARIF reports.
-
-For complete workflow details, see [{baseDir}/../../workflows/review-workflow.md](../../workflows/review-workflow.md).
+**C++ Detection:** Check for C++ files (`.cpp`, `.cc`, `.cxx`, `.hpp`, `.hxx`) and include C++ specific agents if found.
 
 ## Bug-Finding Agents
 
-Spawn all in parallel during analysis rounds:
+### Core C Agents (always spawn)
 
 | Agent | Focus Area |
 |-------|------------|
@@ -101,10 +65,8 @@ Spawn all in parallel during analysis rounds:
 | `null-deref-finder` | Null pointer dereferences |
 | `error-handling-finder` | Unhandled errors and exceptions |
 | `memory-leak-finder` | Memory and resource leaks |
-| `init-order-finder` | Initialization order bugs (static init fiasco) |
 | `race-condition-finder` | TOCTOU, double fetch, locking issues |
 | `filesystem-issues-finder` | Symlinks, paths, temp files |
-| `iterator-invalidation-finder` | Iterator/container invalidation |
 | `banned-functions-finder` | Error-prone function usage |
 | `dos-finder` | Denial of service vectors |
 | `undefined-behavior-finder` | UB patterns |
@@ -113,6 +75,18 @@ Spawn all in parallel during analysis rounds:
 | `time-issues-finder` | Clock/time problems |
 | `access-control-finder` | Privilege and access issues |
 | `regex-issues-finder` | ReDoS and regex bypasses |
+
+### C++ Specific Agents (spawn only if C++ files detected)
+
+| Agent | Focus Area |
+|-------|------------|
+| `init-order-finder` | Static initialization order bugs |
+| `iterator-invalidation-finder` | Iterator/container invalidation |
+| `exception-safety-finder` | RAII violations, exception-unsafe code |
+| `move-semantics-finder` | Use-after-move, invalid moves |
+| `smart-pointer-finder` | Circular references, ownership bugs |
+| `virtual-function-finder` | Missing virtual destructor, slicing |
+| `lambda-capture-finder` | Dangling captures, lifetime bugs |
 
 ## Related Skills
 
