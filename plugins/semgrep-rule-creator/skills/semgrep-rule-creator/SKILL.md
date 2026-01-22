@@ -26,7 +26,7 @@ Create production-quality Semgrep rules with proper testing and validation.
 ## When NOT to Use
 
 Do NOT use this skill for:
-- Running existing Semgrep rulesets (use the `semgrep` skill instead)
+- Running existing Semgrep rulesets
 - General static analysis without custom rules (use `static-analysis` plugin)
 - One-off scans where existing rules suffice
 - Non-Semgrep pattern matching needs
