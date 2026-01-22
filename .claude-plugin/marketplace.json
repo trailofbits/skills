@@ -190,6 +190,15 @@
         "name": "Axel Mierczuk"
       },
       "source": "./plugins/variant-analysis"
+    },
+    {
+      "name": "c-review",
+      "version": "1.0.0",
+      "description": "Comprehensive C/C++ security code review with 50 specialized bug-finding agents covering memory safety, type safety, concurrency, and Linux userspace-specific issues",
+      "author": {
+        "name": "Paweł Płatek"
+      },
+      "source": "./plugins/c-review"
     }
   ]
 }
