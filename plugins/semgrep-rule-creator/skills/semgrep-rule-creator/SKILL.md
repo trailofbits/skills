@@ -87,7 +87,7 @@ This workflow is **strict** - do not skip steps:
 - **Test-first is mandatory**: Never write a rule without test cases
 - **100% test pass is required**: "Most tests pass" is not acceptable
 - **Optimization comes last**: Only simplify patterns after all tests pass
-- **Documentation reading is required**: Fetch external docs before writing complex rules
+- **Documentation reading is required**: Fetch external docs before writing rules
 
 ## Overview
 
