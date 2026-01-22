@@ -26,7 +26,6 @@ Use `mode: taint` when detecting:
 
 Use basic patterns when detecting:
 - Use of deprecated/dangerous functions
-- Hardcoded credentials
 - Missing security headers
 - Configuration issues
 - Code style violations
