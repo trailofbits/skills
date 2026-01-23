@@ -45,19 +45,7 @@ Use basic patterns when detecting:
 
 ### Test Annotations
 
-```python
-# ruleid: my-rule-id
-vulnerable_code_here()  # This line MUST be flagged
-
-# ok: my-rule-id
-safe_code_here()  # This line must NOT be flagged
-
-# todoruleid: my-rule-id
-known_limitation()  # Should match but doesn't yet
-
-# todook: my-rule-id
-known_false_positive()  # Matches but shouldn't
-```
+See [quick-reference.md](quick-reference.md#test-file-annotations) for annotation syntax (`ruleid:`, `ok:`, `todoruleid:`, `todook:`).
 
 **CRITICAL**: The comment must be on the line IMMEDIATELY BEFORE the code. Semgrep reports findings on the line after the annotation.
 
