@@ -187,7 +187,6 @@ After all tests pass, remove redundant patterns (quote variants, ellipsis subset
 
 - **Read documentation first**: See [Documentation](#documentation) before creating rules
 - **Tests must pass 100%**: Do not finish until all tests pass
-- **`ruleid:` placement**: Comment goes on line IMMEDIATELY BEFORE the flagged code
 - **Avoid generic patterns**: Rules must be specific, not match broad patterns
 - **Prioritize taint mode**: For data flow vulnerabilities
 
