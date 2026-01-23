@@ -198,42 +198,7 @@ semgrep --dataflow-traces -f rule.yaml test-file
 
 ### 6. Optimize the Rule
 
-**After all tests pass**, analyze the rule for redundant or unnecessary patterns:
-
-**Common optimizations:**
-- **Subset patterns**: `func(...)` already matches `func()` - remove the more specific one
-- **Redundant ellipsis**: `func($X, ...)` covers `func($X)` - keep only the general form
-
-**Example - Before optimization:**
-```yaml
-pattern-either:
-  - pattern: hashlib.md5(...)
-  - pattern: md5(...)
-  - pattern: hashlib.new("md5", ...)
-  - pattern: hashlib.new('md5', ...)    # Redundant - quotes equivalent in Python
-  - pattern: hashlib.new("md5")         # Redundant - covered by ... variant
-  - pattern: hashlib.new('md5')         # Redundant - quotes + covered
-```
-
-**After optimization:**
-```yaml
-pattern-either:
-  - pattern: hashlib.md5(...)
-  - pattern: md5(...)
-  - pattern: hashlib.new("md5", ...)    # Covers all quote/argument variants
-```
-
-**Optimization checklist:**
-1. Remove patterns differing only in quote style (`"` vs `'`)
-2. Remove patterns that are subsets of more general patterns (with `...`)
-3. Consolidate similar patterns using metavariables where possible
-4. **Re-run tests after optimization** to ensure no regressions
-
-```bash
-semgrep --test --config rule.yaml test-file
-```
-
-**Final verification**: Output MUST show "All tests passed" after optimization. If any test fails, revert the optimization that caused it.
+After all tests pass, remove redundant patterns (quote variants, ellipsis subsets). See [workflow.md]({baseDir}/references/workflow.md#step-6-optimize-the-rule) for detailed optimization examples and checklist.
 
 **Task complete ONLY when**: All tests pass after optimization.
 
