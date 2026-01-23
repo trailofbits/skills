@@ -15,12 +15,11 @@ Before writing any code:
 
 ### When to Use Taint Mode
 
-Use `mode: taint` when detecting:
-- SQL injection (user input → database query)
-- Command injection (user input → shell execution)
-- XSS (user input → HTML output)
-- Path traversal (user input → file operations)
-- SSRF (user input → HTTP requests)
+Taint mode is a powerful feature in Semgrep that can track the flow of data from one location to another. By using taint mode, you can:
+
+- **Track data flow across multiple variables**: Trace how data moves across different variables, functions, components, and identify insecure flow paths (e.g., situations where a specific sanitizer is not used).
+- **Find injection vulnerabilities**: Identify injection vulnerabilities such as SQL injection, command injection, and XSS attacks.
+- **Write simple and resilient Semgrep rules**: Simplify rules that are resilient to code patterns nested in if statements, loops, and other structures.
 
 ### When to Use Pattern Matching
 
