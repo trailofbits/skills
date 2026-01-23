@@ -114,7 +114,8 @@ jobs:
       - name: Check for hardcoded paths
         run: |
           echo "Checking for hardcoded user paths..."
-          if grep -rE '/home/[a-z]|/Users/[A-Z]' plugins/ --include='*.md' --include='*.py' --include='*.json' | grep -v '/path/to'; then
+          # Exclude /path/to (example paths) and /home/vscode (standard devcontainer user)
+          if grep -rE '/home/[a-z]|/Users/[A-Z]' plugins/ --include='*.md' --include='*.py' --include='*.json' | grep -v '/path/to' | grep -v '/home/vscode'; then
             echo "ERROR: Found hardcoded user paths (see above)"
             exit 1
           fi
