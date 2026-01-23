@@ -170,9 +170,12 @@ rm -rf .venv && uv sync && uv run /opt/post_install.py
 
 ```json
 "ghcr.io/devcontainers/features/node:1": {
-  "version": "22"
+  "version": "22",
+  "installYarnUsingApt": false
 }
 ```
+
+> **Note:** `installYarnUsingApt: false` is set to install yarn from corepack.
 
 **devcontainer.json extensions:**
 
