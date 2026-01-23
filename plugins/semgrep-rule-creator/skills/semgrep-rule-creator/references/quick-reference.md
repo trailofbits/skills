@@ -12,10 +12,6 @@ rules:
     pattern: code(...)        # OR use patterns/pattern-either/mode:taint
 ```
 
-## Language Keys
-
-Common: `python`, `javascript`, `typescript`, `jsx`, `java`, `go`, `ruby`, `c`, `cpp`, `csharp`, `php`, `rust`, `kotlin`, `swift`, `scala`, `terraform`, `solidity`, `generic`, `json`, `yaml`, `html`, `bash`, `dockerfile`
-
 ## Pattern Operators
 
 ### Basic Matching
