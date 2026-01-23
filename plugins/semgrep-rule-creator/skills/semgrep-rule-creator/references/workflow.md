@@ -8,7 +8,7 @@ Before writing any code:
 
 1. **Fetch external documentation** - See [Documentation](../SKILL.md#documentation) for required reading
 2. **Understand the exact bug pattern** - What vulnerability or issue should be detected?
-3. **Identify the target language** - Python, JavaScript, Java, Go, etc.
+3. **Identify the target language**
 4. **Determine the approach**:
    - **Taint mode**: Data flows from untrusted source to dangerous sink
    - **Pattern matching**: Syntactic patterns without data flow
