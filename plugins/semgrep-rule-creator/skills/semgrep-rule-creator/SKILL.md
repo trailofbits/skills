@@ -136,15 +136,7 @@ Run tests (from rule directory): `semgrep --test --config rule.yaml test-file`
 
 ## Quick Reference
 
-| Task | Command |
-|------|---------|
-| Run tests | `cd <rule-dir> && semgrep --test --config rule.yaml test-file` |
-| Validate YAML | `semgrep --validate --config rule.yaml` |
-| Dump AST | `semgrep --dump-ast -l <lang> <file>` |
-| Debug taint flow | `semgrep --dataflow-traces -f rule.yaml file` |
-| Run single rule | `semgrep -f rule.yaml <file>` |
-
-For pattern operators and taint mode syntax, see [quick-reference.md]({baseDir}/references/quick-reference.md).
+For commands, pattern operators, and taint mode syntax, see [quick-reference.md]({baseDir}/references/quick-reference.md).
 
 | Taint Component | Purpose |
 |-----------------|---------|
