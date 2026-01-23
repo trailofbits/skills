@@ -48,6 +48,7 @@ Include test cases for:
 - ✅ Different coding styles
 - ✅ Sanitized/validated input (must not match)
 - ✅ Unrelated code (must not match) - normal code with no relation to the rule's target pattern
+- ✅ Nested structures (e.g., inside if statements, loops, try/catch blocks, callbacks)
 
 ## Step 3: Analyze AST Structure
 
