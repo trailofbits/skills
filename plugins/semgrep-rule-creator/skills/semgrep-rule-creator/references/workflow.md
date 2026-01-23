@@ -47,6 +47,7 @@ Include test cases for:
 - ✅ Edge cases and variations
 - ✅ Different coding styles
 - ✅ Sanitized/validated input (must not match)
+- ✅ Unrelated code (must not match) - normal code with no relation to the rule's target pattern
 
 ## Step 3: Analyze AST Structure
 
