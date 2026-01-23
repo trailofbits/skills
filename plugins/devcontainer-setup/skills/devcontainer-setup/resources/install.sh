@@ -182,35 +182,35 @@ main() {
   shift
 
   case "$command" in
-  .)
-    cmd_dot
-    ;;
-  up)
-    cmd_up "$@"
-    ;;
-  rebuild)
-    cmd_rebuild "$@"
-    ;;
-  down)
-    cmd_down "$@"
-    ;;
-  shell)
-    cmd_shell
-    ;;
-  self-install)
-    cmd_self_install
-    ;;
-  template)
-    cmd_template "$@"
-    ;;
-  help | --help | -h)
-    print_usage
-    ;;
-  *)
-    log_error "Unknown command: $command"
-    print_usage
-    exit 1
-    ;;
+    .)
+      cmd_dot
+      ;;
+    up)
+      cmd_up "$@"
+      ;;
+    rebuild)
+      cmd_rebuild "$@"
+      ;;
+    down)
+      cmd_down "$@"
+      ;;
+    shell)
+      cmd_shell
+      ;;
+    self-install)
+      cmd_self_install
+      ;;
+    template)
+      cmd_template "$@"
+      ;;
+    help | --help | -h)
+      print_usage
+      ;;
+    *)
+      log_error "Unknown command: $command"
+      print_usage
+      exit 1
+      ;;
   esac
 }
 
