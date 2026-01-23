@@ -340,7 +340,7 @@ patterns:
 semgrep --test --config rule.yaml test-file
 ```
 
-**Critical**: Always re-run tests after optimization. Some "redundant" patterns may actually be necessary due to AST structure differences.
+**Critical**: Always re-run tests after optimization. Some "redundant" patterns may actually be necessary due to AST structure differences. If any test fails, revert the optimization that caused it.
 
 **Task complete ONLY when**: All tests pass after optimization.
 
