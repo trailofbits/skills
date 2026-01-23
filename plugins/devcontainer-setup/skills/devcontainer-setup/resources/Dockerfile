@@ -11,7 +11,6 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && apt-get install -y --no-install-recommends \
   # Modern CLI tools
   fd-find \
-  fzf \
   ripgrep \
   tmux \
   zsh \
@@ -23,6 +22,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   unzip \
   vim \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install fzf from GitHub (Ubuntu 24.04 apt version lacks shell integration)
+ARG FZF_VERSION=0.67.0
+RUN ARCH=$(dpkg --print-architecture) && \
+  case "${ARCH}" in \
+    amd64) FZF_ARCH="linux_amd64" ;; \
+    arm64) FZF_ARCH="linux_arm64" ;; \
+    *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
+  esac && \
+  curl -fsSL "https://github.com/junegunn/fzf/releases/download/v${FZF_VERSION}/fzf-${FZF_VERSION}-${FZF_ARCH}.tar.gz" | tar -xz -C /usr/local/bin
 
 # Install git-delta
 ARG GIT_DELTA_VERSION=0.18.2

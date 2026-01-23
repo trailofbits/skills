@@ -3,6 +3,7 @@
 
 Runs on container creation to set up:
 - Claude settings (bypassPermissions mode)
+- Claude plugin marketplaces (anthropics/skills, trailofbits/skills)
 - Tmux configuration (200k history, mouse support)
 - Directory ownership fixes for mounted volumes
 """
@@ -133,6 +134,28 @@ def setup_git_config():
         print(f"[post_install] Git config created: {gitconfig}")
 
 
+def setup_claude_plugins():
+    """Install Claude Code plugin marketplaces."""
+    marketplaces = [
+        "anthropics/skills",
+        "trailofbits/skills",
+    ]
+
+    for marketplace in marketplaces:
+        try:
+            subprocess.run(
+                ["claude", "plugin", "marketplace", "add", marketplace],
+                check=True,
+                capture_output=True,
+            )
+            print(f"[post_install] Added plugin marketplace: {marketplace}")
+        except subprocess.CalledProcessError as e:
+            print(f"[post_install] Warning: Could not add marketplace {marketplace}: {e}")
+        except FileNotFoundError:
+            print("[post_install] Warning: claude command not found, skipping plugins")
+            break
+
+
 def setup_global_gitignore():
     """Set up global gitignore and local git config.
 
@@ -211,6 +234,7 @@ def main():
     print("[post_install] Starting post-install configuration...")
 
     setup_claude_settings()
+    setup_claude_plugins()
     setup_tmux_config()
     fix_directory_ownership()
     setup_git_config()
