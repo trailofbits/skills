@@ -144,15 +144,7 @@ Run tests (from rule directory): `semgrep --test --config rule.yaml test-file`
 | Debug taint flow | `semgrep --dataflow-traces -f rule.yaml file` |
 | Run single rule | `semgrep -f rule.yaml <file>` |
 
-| Pattern Operator | Purpose |
-|------------------|---------|
-| `pattern` | Match single pattern |
-| `patterns` | AND - all must match |
-| `pattern-either` | OR - any can match |
-| `pattern-not` | Exclude matches |
-| `pattern-inside` | Must be inside scope |
-| `metavariable-regex` | Filter by regex |
-| `focus-metavariable` | Report on specific part |
+For pattern operators and taint mode syntax, see [quick-reference.md]({baseDir}/references/quick-reference.md).
 
 | Taint Component | Purpose |
 |-----------------|---------|

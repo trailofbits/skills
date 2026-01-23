@@ -38,5 +38,6 @@ Use this plugin when you need to:
 
 ## Related Skills
 
+- `semgrep-rule-variant-creator` - Port existing Semgrep rules to new target languages
 - `static-analysis` - General static analysis toolkit with Semgrep, CodeQL, and SARIF parsing
 - `variant-analysis` - Find similar vulnerabilities across codebases

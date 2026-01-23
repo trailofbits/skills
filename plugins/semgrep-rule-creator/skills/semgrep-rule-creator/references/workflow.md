@@ -87,62 +87,7 @@ Example output helps understand:
 
 Choose the appropriate pattern operators and write your rule.
 
-### Pattern Operators
-
-#### Basic Pattern Matching
-
-```yaml
-# Single pattern
-pattern: dangerous_function(...)
-
-# All must match (AND)
-patterns:
-  - pattern: $FUNC(...)
-  - metavariable-regex:
-      metavariable: $FUNC
-      regex: ^(eval|exec)$
-
-# Any can match (OR)
-pattern-either:
-  - pattern: eval(...)
-  - pattern: exec(...)
-```
-
-#### Scope Operators
-
-```yaml
-patterns:
-  - pattern-inside: |
-      def $FUNC(...):
-        ...
-  - pattern: return $SENSITIVE
-  - pattern-not-inside: |
-      if $CHECK:
-        ...
-```
-
-#### Metavariable Filters
-
-```yaml
-patterns:
-  - pattern: $OBJ.$METHOD(...)
-  - metavariable-regex:
-      metavariable: $METHOD
-      regex: ^(execute|query|run)$
-  - metavariable-pattern:
-      metavariable: $OBJ
-      pattern: db
-```
-
-#### Focus Metavariable
-
-Report finding on specific part of match:
-
-```yaml
-patterns:
-  - pattern: $FUNC($ARG, ...)
-  - focus-metavariable: $ARG
-```
+For pattern operator syntax (basic matching, scope operators, metavariable filters, focus), see [quick-reference.md](quick-reference.md).
 
 ### Taint Rules
 
