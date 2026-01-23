@@ -136,13 +136,6 @@ Run tests (from rule directory): `semgrep --test --config rule.yaml test-file`
 
 For commands, pattern operators, and taint mode syntax, see [quick-reference.md]({baseDir}/references/quick-reference.md).
 
-| Taint Component | Purpose |
-|-----------------|---------|
-| `pattern-sources` | Where tainted data originates |
-| `pattern-sinks` | Dangerous functions receiving taint |
-| `pattern-sanitizers` | Functions that clean taint |
-| `pattern-propagators` | Custom taint propagation |
-
 ## Workflow
 
 ### 1. Analyze the Problem
