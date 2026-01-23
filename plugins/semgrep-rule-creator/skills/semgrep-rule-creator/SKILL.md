@@ -167,7 +167,7 @@ Before writing any rule, see [Documentation](#documentation) for required readin
 
 Create directory and test file with annotations (`# ruleid:`, `# ok:`, etc.). See [quick-reference.md]({baseDir}/references/quick-reference.md#test-file-annotations) for full syntax.
 
-**Critical**: Annotation must be on line IMMEDIATELY BEFORE the code to be flagged.
+The annotation line must contain ONLY the comment marker and annotation (e.g., `# ruleid: my-rule`). No other text, comments, or code on the same line.
 
 ### 3. Analyze AST Structure
 
