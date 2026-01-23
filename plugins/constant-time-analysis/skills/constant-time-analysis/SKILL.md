@@ -65,41 +65,41 @@ Based on the file extension or language context, refer to the appropriate guide:
 
 ```bash
 # Analyze any supported file type
-uv run {baseDir}/ct_analyzer/analyzer.py <source_file>
+uv run --directory {baseDir} ct-analyzer <source_file>
 
 # Include conditional branch warnings
-uv run {baseDir}/ct_analyzer/analyzer.py --warnings <source_file>
+uv run --directory {baseDir} ct-analyzer --warnings <source_file>
 
 # Filter to specific functions
-uv run {baseDir}/ct_analyzer/analyzer.py --func 'sign|verify' <source_file>
+uv run --directory {baseDir} ct-analyzer --func 'sign|verify' <source_file>
 
 # JSON output for CI
-uv run {baseDir}/ct_analyzer/analyzer.py --json <source_file>
+uv run --directory {baseDir} ct-analyzer --json <source_file>
 ```
 
 ### Native Compiled Languages Only (C, C++, Go, Rust)
 
 ```bash
 # Cross-architecture testing (RECOMMENDED)
-uv run {baseDir}/ct_analyzer/analyzer.py --arch x86_64 crypto.c
-uv run {baseDir}/ct_analyzer/analyzer.py --arch arm64 crypto.c
+uv run --directory {baseDir} ct-analyzer --arch x86_64 crypto.c
+uv run --directory {baseDir} ct-analyzer --arch arm64 crypto.c
 
 # Multiple optimization levels
-uv run {baseDir}/ct_analyzer/analyzer.py --opt-level O0 crypto.c
-uv run {baseDir}/ct_analyzer/analyzer.py --opt-level O3 crypto.c
+uv run --directory {baseDir} ct-analyzer --opt-level O0 crypto.c
+uv run --directory {baseDir} ct-analyzer --opt-level O3 crypto.c
 ```
 
 ### VM-Compiled Languages (Java, Kotlin, C#)
 
 ```bash
 # Analyze Java bytecode
-uv run {baseDir}/ct_analyzer/analyzer.py CryptoUtils.java
+uv run --directory {baseDir} ct-analyzer CryptoUtils.java
 
 # Analyze Kotlin bytecode (Android/JVM)
-uv run {baseDir}/ct_analyzer/analyzer.py CryptoUtils.kt
+uv run --directory {baseDir} ct-analyzer CryptoUtils.kt
 
 # Analyze C# IL
-uv run {baseDir}/ct_analyzer/analyzer.py CryptoUtils.cs
+uv run --directory {baseDir} ct-analyzer CryptoUtils.cs
 ```
 
 Note: Java, Kotlin, and C# compile to bytecode (JVM/CIL) that runs on a virtual machine with JIT compilation. The analyzer examines the bytecode directly, not the JIT-compiled native code. The `--arch` and `--opt-level` flags do not apply to these languages.
@@ -108,13 +108,13 @@ Note: Java, Kotlin, and C# compile to bytecode (JVM/CIL) that runs on a virtual 
 
 ```bash
 # Analyze Swift for native architecture
-uv run {baseDir}/ct_analyzer/analyzer.py crypto.swift
+uv run --directory {baseDir} ct-analyzer crypto.swift
 
 # Analyze for specific architecture (iOS devices)
-uv run {baseDir}/ct_analyzer/analyzer.py --arch arm64 crypto.swift
+uv run --directory {baseDir} ct-analyzer --arch arm64 crypto.swift
 
 # Analyze with different optimization levels
-uv run {baseDir}/ct_analyzer/analyzer.py --opt-level O0 crypto.swift
+uv run --directory {baseDir} ct-analyzer --opt-level O0 crypto.swift
 ```
 
 Note: Swift compiles to native code like C/C++/Go/Rust, so it uses assembly-level analysis and supports `--arch` and `--opt-level` flags.
