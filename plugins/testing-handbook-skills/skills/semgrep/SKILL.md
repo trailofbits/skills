@@ -2,10 +2,10 @@
 name: semgrep-testing-handbook
 type: tool
 description: >
-  Trail of Bits testing handbook guidance for Semgrep. Use when following testing handbook
-  methodology, scanning proprietary code with metrics disabled, applying first-tool-to-run
-  philosophy for security assessments, or integrating Semgrep into CI/CD pipelines per
-  appsec.guide best practices.
+  Trail of Bits testing handbook methodology for Semgrep. Use when applying first-tool-to-run
+  philosophy, scanning proprietary code with metrics disabled, or integrating Semgrep into
+  CI/CD. Covers quick scanning, autofix workflows, and privacy-conscious configuration per
+  appsec.guide.
 ---
 
 # Semgrep
