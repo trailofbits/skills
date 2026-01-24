@@ -1,6 +1,12 @@
 ---
 name: semgrep-rule-variant-creator
-description: Creates language variants of existing Semgrep rules. Use when porting a Semgrep rule to specified target languages. Takes an existing rule and target languages as input, produces independent rule+test directories for each language.
+description: >
+  Ports, translates, and creates language variants of existing Semgrep rules. Use when
+  porting a rule from one language to another (e.g., Python to Java), translating rules
+  to TypeScript/Go/Rust/C#, creating multi-language variants of existing detectors,
+  expanding rule coverage to additional languages, or adapting rules for multiple languages.
+  Applies 4-phase workflow: Analyze applicability, Plan library equivalents, Implement with
+  independent directories per language, Verify with language-specific tests.
 allowed-tools:
   - Bash
   - Read
