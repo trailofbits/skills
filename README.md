@@ -86,6 +86,12 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 |--------|-------------|
 | [culture-index](plugins/culture-index/) | Interpret Culture Index survey results for individuals and teams |
 
+### Tooling
+
+| Plugin | Description |
+|--------|-------------|
+| [claude-in-chrome-troubleshooting](plugins/claude-in-chrome-troubleshooting/) | Diagnose and fix Claude in Chrome MCP extension connectivity issues |
+
 ## Trophy Case
 
 Bugs discovered using Trail of Bits Skills. Found something? [Let us know!](https://github.com/trailofbits/skills/issues/new?template=trophy-case.yml)
