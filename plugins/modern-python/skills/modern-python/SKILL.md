@@ -147,6 +147,12 @@ addopts = "--cov=myproject --cov-fail-under=80"
 [tool.ty]
 error-on-warning = true
 python-version = "3.10"
+
+[tool.ty.rules]
+# Upgrade warnings to errors for stricter checking
+possibly-unbound = "error"
+possibly-unresolved-reference = "warn"  # Disabled by default; may have false positives
+unused-ignore-comment = "warn"          # Catch stale type: ignore comments
 ```
 
 ### 3. Install Dependencies
