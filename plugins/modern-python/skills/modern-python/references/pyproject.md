@@ -13,14 +13,13 @@ version = "0.1.0"
 description = "A modern Python project"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
     { name = "Your Name", email = "you@example.com" }
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -56,7 +55,7 @@ default-groups = ["dev", "test"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 src = ["src"]
 
 [tool.ruff.lint]
@@ -153,6 +152,13 @@ build-backend = "uv_build"
 
 `uv_build` is simpler and sufficient for most use cases. Use static versioning in `[project] version` rather than VCS-aware dynamic versioning.
 
+For flat layout (no `src/` directory), configure the module root:
+
+```toml
+[tool.uv.build-backend]
+module-root = ""
+```
+
 > **Note:** These tools evolve rapidly. Prefer `>=X.Y,<X+1` constraints to automatically get newer releases within the same major version.
 
 ### [dependency-groups]
@@ -161,10 +167,11 @@ Development dependencies (PEP 735). Unlike optional-dependencies, these are NOT 
 
 ```toml
 [dependency-groups]
-dev = ["ruff", "ty"]
+dev = [{include-group = "lint"}, {include-group = "test"}, {include-group = "audit"}]
+lint = ["ruff", "ty"]
 test = ["pytest", "pytest-cov"]
+audit = ["pip-audit"]
 docs = ["sphinx", "myst-parser"]
-lint = ["ruff"]
 ```
 
 Install with: `uv sync --group dev --group test`
@@ -190,6 +197,13 @@ python-preference = "managed"
 | `>=1.0,<2.0` | Version 1.x only |
 | `~=1.4` | Compatible release (>=1.4, <2.0) |
 | `==1.4.*` | Any 1.4.x version |
+
+## uv.lock Handling
+
+| Project Type | uv.lock in Git? | Why |
+|--------------|-----------------|-----|
+| Application | ✅ Commit | Reproducible deploys |
+| Library | ❌ .gitignore | Users resolve their own deps |
 
 ## Common Patterns
 

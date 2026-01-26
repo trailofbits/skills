@@ -9,7 +9,7 @@ Add to `pyproject.toml`:
 ```toml
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 src = ["src"]
 
 [tool.ruff.lint]
@@ -218,3 +218,27 @@ Ruff includes isort. Remove:
 - [tool.isort] config
 
 Use `[tool.ruff.lint.isort]` for isort settings.
+
+## Code Modernization
+
+Run pyupgrade rules to modernize syntax to your target Python version:
+
+```bash
+uv run ruff check --select=UP --fix .  # Auto-fix upgrades
+uv run ruff check --select=UP .        # Preview only
+```
+
+Common modernizations include:
+- `typing.Optional[X]` → `X | None`
+- `typing.List[X]` → `list[X]`
+- `super(ClassName, self)` → `super()`
+- Format strings and other syntax upgrades
+
+## Line Length Migration
+
+If migrating from 120 to 100 char lines, expect manual fixes.
+For less churn during initial migration, keep existing:
+
+```toml
+line-length = 120  # Match existing; tighten later
+```

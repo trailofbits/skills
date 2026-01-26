@@ -256,6 +256,11 @@ def test_unix_feature():
     uv sync --group test
     uv run pytest --cov-report=xml
 
+- name: Security audit
+  run: |
+    uv sync --group audit
+    uv run pip-audit
+
 - name: Upload coverage
   uses: codecov/codecov-action@<sha>  # <latest> https://github.com/codecov/codecov-action/releases
   with:

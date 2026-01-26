@@ -18,13 +18,14 @@ Guide for modern Python tooling and best practices, based on [trailofbits/cookie
 ## When NOT to Use This Skill
 
 - **User wants to keep legacy tooling**: Respect existing workflows if explicitly requested
-- **Python < 3.10 required**: These tools target modern Python
+- **Python < 3.11 required**: These tools target modern Python
 - **Non-Python projects**: Mixed codebases where Python isn't primary
 
 ## Anti-Patterns to Avoid
 
 | Avoid | Use Instead |
 |-------|-------------|
+| `[tool.ty]` python-version | `[tool.ty.environment]` python-version |
 | `uv pip install` | `uv add` and `uv sync` |
 | Editing pyproject.toml manually to add deps | `uv add <pkg>` / `uv remove <pkg>` |
 | `hatchling` build backend | `uv_build` (simpler, sufficient for most cases) |
@@ -125,17 +126,18 @@ Key sections:
 [project]
 name = "myproject"
 version = "0.1.0"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = []
 
 [dependency-groups]
+dev = [{include-group = "lint"}, {include-group = "test"}, {include-group = "audit"}]
 lint = ["ruff", "ty"]
 test = ["pytest", "pytest-cov"]
-dev = [{include-group = "lint"}, {include-group = "test"}]
+audit = ["pip-audit"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -146,13 +148,14 @@ addopts = "--cov=myproject --cov-fail-under=80"
 
 [tool.ty]
 error-on-warning = true
-python-version = "3.10"
+
+[tool.ty.environment]
+python-version = "3.11"
 
 [tool.ty.rules]
-# Upgrade warnings to errors for stricter checking
+# Strict from day 1 for new projects
 possibly-unbound = "error"
-possibly-unresolved-reference = "warn"  # Disabled by default; may have false positives
-unused-ignore-comment = "warn"          # Catch stale type: ignore comments
+unused-ignore-comment = "warn"
 ```
 
 ### 3. Install Dependencies
@@ -273,7 +276,7 @@ Install with: `uv sync --group dev --group test`
 ## Best Practices Checklist
 
 - [ ] Use `src/` layout for packages
-- [ ] Set `requires-python = ">=3.10"`
+- [ ] Set `requires-python = ">=3.11"`
 - [ ] Configure ruff with `select = ["ALL"]` and explicit ignores
 - [ ] Use ty for type checking
 - [ ] Enforce test coverage minimum (80%+)
@@ -283,6 +286,7 @@ Install with: `uv sync --group dev --group test`
 
 ## Read Next
 
+- [migration-checklist.md](./references/migration-checklist.md) - Step-by-step migration cleanup
 - [pyproject.md](./references/pyproject.md) - Complete pyproject.toml reference
 - [uv-commands.md](./references/uv-commands.md) - uv command reference
 - [ruff-config.md](./references/ruff-config.md) - Ruff linting/formatting configuration
