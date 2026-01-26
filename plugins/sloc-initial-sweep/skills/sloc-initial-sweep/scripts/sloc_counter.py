@@ -218,7 +218,7 @@ def count_sloc(root_dir, include_dirs, extensions, method="logical"):
     
     for path in files:
         try:
-            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(path, encoding="utf-8", errors="ignore") as f:
                 text = f.read()
         except Exception as e:
             print(f"Error reading {path}: {e}", file=sys.stderr)
