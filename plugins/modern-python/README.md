@@ -25,7 +25,7 @@ This skill provides guidance on:
 - **pytest** - Testing with coverage enforcement
 - **PEP 723** - Inline script metadata for single-file scripts
 - **src/ layout** - Standard package structure
-- **Python 3.10+** - Minimum version requirement
+- **Python 3.11+** - Minimum version requirement
 
 ## Installation
 
