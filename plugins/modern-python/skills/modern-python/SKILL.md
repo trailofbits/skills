@@ -270,8 +270,31 @@ Then:
 | `uv sync` | Install dependencies |
 | `uv sync --all-groups` | Install all dependency groups |
 | `uv run <cmd>` | Run command in venv |
+| `uv run --with <pkg> <cmd>` | Run with temporary dependency |
 | `uv build` | Build package |
 | `uv publish` | Publish to PyPI |
+
+### Ad-hoc Dependencies with `--with`
+
+Use `uv run --with` for one-off commands that need packages not in your project:
+
+```bash
+# Run Python with a temporary package
+uv run --with requests python -c "import requests; print(requests.get('https://httpbin.org/ip').json())"
+
+# Run a module with temporary deps
+uv run --with rich python -m rich.progress
+
+# Multiple packages
+uv run --with requests --with rich python script.py
+
+# Combine with project deps (adds to existing venv)
+uv run --with httpx pytest  # project deps + httpx
+```
+
+**When to use `--with` vs `uv add`:**
+- `uv add`: Package is a project dependency (goes in pyproject.toml/uv.lock)
+- `--with`: One-off usage, testing, or scripts outside a project context
 
 See [uv-commands.md](./references/uv-commands.md) for complete reference.
 

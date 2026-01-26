@@ -1,0 +1,17 @@
+{
+  "description": "Intercepts legacy python3/pip commands and redirects to uv",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run \"${CLAUDE_PLUGIN_ROOT}/hooks/intercept-legacy-python.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

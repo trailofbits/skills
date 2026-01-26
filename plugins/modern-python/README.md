@@ -35,6 +35,8 @@ Modern Python tooling and best practices using uv, ruff, ty, and pytest. Based o
 - **src/ layout** - Standard package structure
 - **Python 3.11+** - Minimum version requirement
 
+This plugin also includes a hook that intercepts legacy `python3`/`pip` commands and suggests `uv` alternatives.
+
 ## Installation
 
 ```
