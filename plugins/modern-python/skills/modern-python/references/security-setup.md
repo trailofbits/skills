@@ -2,21 +2,24 @@
 
 Security tooling for Python projects: pre-commit hooks, CI auditing, and dependency scanning.
 
-## Quick Setup
+## Tool Installation
+
+Install these tools before running the quick setup commands below.
+
+### prek (pre-commit runner)
 
 ```bash
-# 1. Install security hooks
-prek install
+# Homebrew (recommended)
+brew install prek
 
-# 2. Initialize secrets baseline
-detect-secrets scan > .secrets.baseline
+# Cargo
+cargo install prek
 
-# 3. Audit existing workflows
-actionlint .github/workflows/
-zizmor .github/workflows/
+# Standalone installer
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/j178/prek/releases/latest/download/prek-installer.sh | sh
 ```
 
-## Tool Installation
+### Security tools
 
 Pre-commit hooks auto-install tools when run via prek. For manual CLI usage:
 
@@ -34,6 +37,22 @@ Alternative installation methods:
 - **actionlint**: `go install github.com/rhysd/actionlint/cmd/actionlint@latest`
 - **zizmor**: `cargo install zizmor`
 - **detect-secrets**: `pipx install detect-secrets`
+
+## Quick Setup
+
+```bash
+# 1. Install security hooks
+prek install
+
+# 2. Initialize secrets baseline
+detect-secrets scan > .secrets.baseline
+
+# 3. Audit existing workflows
+actionlint .github/workflows/
+zizmor .github/workflows/
+```
+
+See [templates/pre-commit-config.yaml](../templates/pre-commit-config.yaml) for a complete hook configuration.
 
 ## Tool Matrix
 
@@ -96,12 +115,12 @@ git add .secrets.baseline
 **When hook fails:**
 
 ```bash
-# Audit the finding
-detect-secrets audit .secrets.baseline
-
-# If false positive: mark as reviewed in baseline
-# If real secret: remove from code, rotate the credential
+# View the finding (non-interactive)
+detect-secrets audit --report .secrets.baseline
 ```
+
+If false positive: update baseline with `detect-secrets scan --update .secrets.baseline`
+If real secret: remove from code and rotate the credential.
 
 ## CI Security
 
@@ -217,27 +236,7 @@ uv run pip-audit --fix
 
 Automatically creates PRs for outdated dependencies.
 
-**Setup:** Create `.github/dependabot.yml`:
-
-```yaml
-version: 2
-updates:
-  - package-ecosystem: pip
-    directory: /
-    schedule:
-      interval: weekly
-    # 7-day cooldown: don't update packages published < 7 days ago
-    # Mitigates supply chain attacks via malicious updates
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-    cooldown:
-      default-days: 7
-```
+Copy [templates/dependabot.yml](../templates/dependabot.yml) to `.github/dependabot.yml`.
 
 **How pip-audit and Dependabot work together:**
 

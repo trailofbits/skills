@@ -17,19 +17,7 @@
 
 ## Installation
 
-```bash
-# Using uv (recommended)
-uv tool install prek
-
-# Or add to project dev dependencies
-uv add --group dev prek
-
-# Homebrew
-brew install prek
-
-# Standalone installer
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/j178/prek/releases/latest/download/prek-installer.sh | sh
-```
+See [security-setup.md](./security-setup.md#tool-installation) for installation options.
 
 ## Quick Start
 
@@ -76,6 +64,8 @@ prek run ruff
 ```
 
 ## Configuration
+
+For a complete, copy-paste-ready configuration, see [templates/pre-commit-config.yaml](../templates/pre-commit-config.yaml).
 
 ### Recommended `.pre-commit-config.yaml`
 
