@@ -98,6 +98,24 @@ When skills include Python scripts with dependencies:
 
 4. **Document system dependencies** - List non-Python deps (poppler, tesseract) in workflows with platform-specific install commands
 
+### Hooks
+
+**Performance is critical** - PreToolUse hooks run on every Bash command:
+
+- Prefer shell + jq over Python with dependencies
+- Avoid spawning interpreters - Python startup + loading tree-sitter is too slow
+- Fast-fail early - exit 0 immediately for non-matching commands
+
+**Simpler solutions win** - Don't use AST parsing (tree-sitter) when regex works. Accept rare false positives if the performance gain is significant and Claude can work around them.
+
+**Think about false positives** - When intercepting command patterns, ask:
+- What diagnostic commands contain this? (`which python`, `type pip`, `command -v`)
+- What search tools might have this as an argument? (`grep python`, `rg pip`)
+- What filenames/strings might match? (`cat python.txt`, `echo "pip"`)
+
+**Document tradeoffs explicitly** - In PR descriptions, acknowledge known limitations:
+> "A regex-based approach may have rare false positives, but Claude will rephrase and the performance gain is worth it."
+
 ---
 
 ## Quality Standards
