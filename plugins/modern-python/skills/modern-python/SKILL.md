@@ -283,3 +283,4 @@ Install with: `uv sync --group dev --group test`
 - [testing.md](./references/testing.md) - pytest and coverage setup
 - [pep723-scripts.md](./references/pep723-scripts.md) - PEP 723 inline script metadata
 - [prek.md](./references/prek.md) - Fast pre-commit hooks with prek
+- [dependabot.md](./references/dependabot.md) - Automated dependency updates
