@@ -17,19 +17,7 @@
 
 ## Installation
 
-```bash
-# Using uv (recommended)
-uv tool install prek
-
-# Or add to project dev dependencies
-uv add --group dev prek
-
-# Homebrew
-brew install prek
-
-# Standalone installer
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/j178/prek/releases/latest/download/prek-installer.sh | sh
-```
+See [security-setup.md](./security-setup.md#tool-installation) for installation options.
 
 ## Quick Start
 
@@ -77,6 +65,8 @@ prek run ruff
 
 ## Configuration
 
+For a complete, copy-paste-ready configuration, see [templates/pre-commit-config.yaml](../templates/pre-commit-config.yaml).
+
 ### Recommended `.pre-commit-config.yaml`
 
 > **Note:** Versions shown as `<latest>` are placeholders. Always check the linked releases for current stable versions before use.
@@ -95,12 +85,6 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  # ty - type checking
-  - repo: https://github.com/astral-sh/ty
-    rev: <latest>  # https://github.com/astral-sh/ty/releases
-    hooks:
-      - id: ty
-
   # General file checks (prek builtin - faster, no external deps)
   - repo: builtin
     hooks:
@@ -108,7 +92,37 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-merge-conflict
+
+  # Security hooks - see security-setup.md for detailed guidance
+  # Shell script linting
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: <latest>  # https://github.com/koalaman/shellcheck-precommit/tags
+    hooks:
+      - id: shellcheck
+        args: [--severity=error]
+
+  # Secret detection
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: <latest>  # https://github.com/Yelp/detect-secrets/releases
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+
+  # GitHub Actions linting
+  - repo: https://github.com/rhysd/actionlint
+    rev: <latest>  # https://github.com/rhysd/actionlint/releases
+    hooks:
+      - id: actionlint
+
+  # GitHub Actions security audit
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: <latest>  # https://github.com/zizmorcore/zizmor-pre-commit/releases
+    hooks:
+      - id: zizmor
+        args: [--persona=regular, --min-severity=medium, --min-confidence=medium]
 ```
+
+See [security-setup.md](./security-setup.md) for detailed guidance on each security hook.
 
 ### Using Built-in Hooks
 
@@ -194,3 +208,4 @@ Your existing `.pre-commit-config.yaml` works unchanged.
 3. **Use `--cooldown-days` for auto-update** - Mitigates supply chain attacks: `prek auto-update --cooldown-days 3`
 4. **Prefer built-in hooks** - Use `repo: builtin` for common checks (faster, offline)
 5. **Run hooks before commit** - `prek install` sets this up automatically
+6. **Initialize detect-secrets baseline** - Run `detect-secrets scan > .secrets.baseline` before first commit

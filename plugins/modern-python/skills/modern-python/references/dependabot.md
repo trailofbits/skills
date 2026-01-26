@@ -10,27 +10,12 @@
 
 ## Configuration
 
-Create `.github/dependabot.yml`:
+Copy [templates/dependabot.yml](../templates/dependabot.yml) to `.github/dependabot.yml`.
 
-```yaml
-version: 2
-updates:
-  # Python dependencies
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7  # Wait 7 days before updating new releases
-
-  # GitHub Actions
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7
-```
+The template includes:
+- Weekly update schedule for pip and GitHub Actions
+- 7-day cooldown for supply chain protection
+- Grouping to reduce PR noise
 
 ## Supply Chain Protection
 
@@ -51,32 +36,8 @@ The `cooldown.default-days: 7` setting delays updates for newly published versio
 | `groups` | Group related updates into single PRs |
 | `reviewers` | Auto-assign reviewers to PRs |
 
-## Grouping Updates
-
-Reduce PR noise by grouping related updates:
-
-```yaml
-version: 2
-updates:
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7
-    groups:
-      dev-dependencies:
-        patterns:
-          - "pytest*"
-          - "ruff"
-          - "ty"
-      production:
-        update-types:
-          - "minor"
-          - "patch"
-```
-
 ## See Also
 
 - [GitHub Dependabot docs](https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file)
+- [security-setup.md](./security-setup.md) - Security tooling overview
 - [prek.md](./prek.md) - Pre-commit hooks (complementary tool)

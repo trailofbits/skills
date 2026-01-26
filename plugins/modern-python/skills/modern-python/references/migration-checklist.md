@@ -77,8 +77,8 @@ uv run ruff check --select=ERA --fix .
 
 - [ ] Remove scheduled CI triggers (activity without progress is theater)
 - [ ] Update CI to use `uv sync` and `uv run`
-- [ ] Add `pip-audit` security check step
 - [ ] Pin GitHub Actions to SHA hashes
+- [ ] Set up security tooling (see [security-setup.md](./security-setup.md))
 
 ## Gradual ty Adoption
 
@@ -110,9 +110,10 @@ uv run ty check src/ 2>&1 | grep -c "error"
 ## Supply Chain Security
 
 - [ ] Add pip-audit to dependency groups
-- [ ] Run `uv run pip-audit` before releases
-- [ ] Configure Dependabot with 7-day cooldown (see [dependabot.md](./dependabot.md))
+- [ ] Configure Dependabot with 7-day cooldown
 - [ ] Pin exact versions in production (`==` not `>=`)
+
+See [security-setup.md](./security-setup.md) for pip-audit and Dependabot configuration.
 
 ## Verification
 
