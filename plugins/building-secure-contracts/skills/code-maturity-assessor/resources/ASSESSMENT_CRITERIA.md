@@ -353,4 +353,3 @@
 - End-to-end testing covers all entry points
 - Isolated test cases (no dependencies)
 - Mutation testing used
-
