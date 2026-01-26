@@ -35,7 +35,21 @@ Modern Python tooling and best practices using uv, ruff, ty, and pytest. Based o
 - **src/ layout** - Standard package structure
 - **Python 3.11+** - Minimum version requirement
 
-This plugin also includes a hook that intercepts legacy `python3`/`pip` commands and suggests `uv` alternatives.
+## Hook: Legacy Command Interception
+
+This plugin includes a `PreToolUse` hook that intercepts legacy Python/pip commands and suggests uv alternatives. When Claude attempts to run commands like `python` or `pip install`, the hook blocks the command and provides guidance:
+
+| Legacy Command | Suggested Alternative |
+|----------------|----------------------|
+| `python` | `uv run python` |
+| `python script.py` | `uv run script.py` |
+| `pip install pkg` | `uv add pkg` or `uv run --with pkg` |
+| `pip uninstall pkg` | `uv remove pkg` |
+| `pip freeze` | `uv export` |
+| `python -m pip` | `uv add`/`uv remove` |
+| `uv pip` | `uv add`/`uv remove`/`uv sync` |
+
+Commands using `uv run` are allowed through without interception.
 
 ## Installation
 

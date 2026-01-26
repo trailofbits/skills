@@ -1,5 +1,5 @@
 {
-  "description": "Intercepts legacy python3/pip commands and redirects to uv",
+  "description": "Intercept legacy Python/pip commands and suggest uv alternatives",
   "hooks": {
     "PreToolUse": [
       {
@@ -7,8 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uv run \"${CLAUDE_PLUGIN_ROOT}/hooks/intercept-legacy-python.py\"",
-            "timeout": 5
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/intercept-legacy-python.sh\""
           }
         ]
       }
