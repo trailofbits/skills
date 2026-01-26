@@ -205,7 +205,7 @@ Your existing `.pre-commit-config.yaml` works unchanged.
 
 1. **Use `prek run --all-files` in CI** - Ensures all files are checked, not just changed ones
 2. **Pin hook versions** - Use specific `rev` values, not branches
-3. **Use `--cooldown-days` for auto-update** - Mitigates supply chain attacks: `prek auto-update --cooldown-days 3`
+3. **Use `--cooldown-days` for auto-update** - Mitigates supply chain attacks: `prek auto-update --cooldown-days 7`
 4. **Prefer built-in hooks** - Use `repo: builtin` for common checks (faster, offline)
 5. **Run hooks before commit** - `prek install` sets this up automatically
 6. **Initialize detect-secrets baseline** - Run `detect-secrets scan > .secrets.baseline` before first commit
