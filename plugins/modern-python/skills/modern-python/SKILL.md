@@ -154,12 +154,12 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["D", "ANN101", "ANN102"]
+ignore = ["D", "COM812", "ISC001"]
 
 [tool.pytest.ini_options]
 addopts = "--cov=myproject --cov-fail-under=80"
 
-[tool.ty]
+[tool.ty.terminal]
 error-on-warning = true
 
 [tool.ty.environment]
@@ -167,7 +167,7 @@ python-version = "3.11"
 
 [tool.ty.rules]
 # Strict from day 1 for new projects
-possibly-unbound = "error"
+possibly-unresolved-reference = "error"
 unused-ignore-comment = "warn"
 ```
 

@@ -62,8 +62,6 @@ src = ["src"]
 select = ["ALL"]
 ignore = [
     "D",        # pydocstyle (enable selectively)
-    "ANN101",   # missing type self
-    "ANN102",   # missing type cls
     "COM812",   # trailing comma (conflicts with formatter)
     "ISC001",   # implicit string concat (conflicts with formatter)
 ]

@@ -16,8 +16,6 @@ src = ["src"]
 select = ["ALL"]
 ignore = [
     "D",        # pydocstyle
-    "ANN101",   # missing type self
-    "ANN102",   # missing type cls
     "COM812",   # trailing comma (formatter conflict)
     "ISC001",   # string concat (formatter conflict)
 ]
@@ -87,8 +85,6 @@ ignore = [
 ```toml
 ignore = [
     "D",        # Docstrings (enable selectively)
-    "ANN101",   # Missing type annotation for self
-    "ANN102",   # Missing type annotation for cls
     "ANN401",   # Dynamically typed Any
     "TD002",    # Missing TODO author
     "TD003",    # Missing TODO link

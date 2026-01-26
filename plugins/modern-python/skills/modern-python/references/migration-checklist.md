@@ -85,7 +85,7 @@ uv run ruff check --select=ERA --fix .
 For legacy codebases with many type errors, start lenient:
 
 ```toml
-[tool.ty]
+[tool.ty.terminal]
 error-on-warning = true
 
 [tool.ty.environment]
