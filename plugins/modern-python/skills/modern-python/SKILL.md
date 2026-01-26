@@ -69,6 +69,19 @@ What are you doing?
 | **pytest** | Testing with coverage | unittest |
 | **prek** | Pre-commit hooks ([setup](./references/prek.md)) | pre-commit (faster, Rust-native) |
 
+### Security Tools
+
+| Tool | Purpose | When It Runs |
+|------|---------|--------------|
+| **shellcheck** | Shell script linting | pre-commit |
+| **detect-secrets** | Secret detection | pre-commit |
+| **actionlint** | Workflow syntax validation | pre-commit, CI |
+| **zizmor** | Workflow security audit | pre-commit, CI |
+| **pip-audit** | Dependency vulnerability scanning | CI, manual |
+| **Dependabot** | Automated dependency updates | scheduled |
+
+See [security-setup.md](./references/security-setup.md) for configuration and usage.
+
 ## Quick Start: Minimal Project
 
 For simple multi-file projects not intended for distribution:
@@ -293,4 +306,5 @@ Install with: `uv sync --group dev --group test`
 - [testing.md](./references/testing.md) - pytest and coverage setup
 - [pep723-scripts.md](./references/pep723-scripts.md) - PEP 723 inline script metadata
 - [prek.md](./references/prek.md) - Fast pre-commit hooks with prek
+- [security-setup.md](./references/security-setup.md) - Security hooks and dependency scanning
 - [dependabot.md](./references/dependabot.md) - Automated dependency updates
