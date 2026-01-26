@@ -28,8 +28,6 @@
 
 **For Claude:** Use the `claude-code-guide` subagent for plugin/skill questions - it has access to official documentation.
 
----
-
 ## Technical Reference
 
 ### Plugin Structure
@@ -100,23 +98,13 @@ When skills include Python scripts with dependencies:
 
 ### Hooks
 
-**Performance is critical** - PreToolUse hooks run on every Bash command:
+PreToolUse hooks run on every Bash command—performance is critical:
 
-- Prefer shell + jq over Python with dependencies
-- Avoid spawning interpreters - Python startup + loading tree-sitter is too slow
-- Fast-fail early - exit 0 immediately for non-matching commands
-
-**Simpler solutions win** - Don't use AST parsing (tree-sitter) when regex works. Accept rare false positives if the performance gain is significant and Claude can work around them.
-
-**Think about false positives** - When intercepting command patterns, ask:
-- What diagnostic commands contain this? (`which python`, `type pip`, `command -v`)
-- What search tools might have this as an argument? (`grep python`, `rg pip`)
-- What filenames/strings might match? (`cat python.txt`, `echo "pip"`)
-
-**Document tradeoffs explicitly** - In PR descriptions, acknowledge known limitations:
-> "A regex-based approach may have rare false positives, but Claude will rephrase and the performance gain is worth it."
-
----
+- **Prefer shell + jq** over Python—interpreter startup (Python + tree-sitter) adds noticeable latency
+- **Fast-fail early** - exit 0 immediately for non-matching commands so most invocations are instant
+- **Favor regex over AST parsing** - accept rare false positives if performance gain is significant and Claude can rephrase
+- **Anticipate false positive patterns** - diagnostic commands (`which python`), search tools (`grep python`), and filenames (`cat python.txt`) shouldn't trigger interception
+- **Document tradeoffs** in PR descriptions so reviewers understand deliberate design choices
 
 ## Quality Standards
 
@@ -187,8 +175,6 @@ See [ADVANCED.md](references/ADVANCED.md) for detailed patterns.
 ## API Reference
 See [API.md](references/API.md) for complete method documentation.
 ```
-
----
 
 ## PR Checklist
 
