@@ -29,13 +29,19 @@ LEGACY_PATTERNS: list[tuple[str, tuple[str, ...], str]] = [
     # Most specific first
     ("python", ("-m", "pip"), "`python -m pip` -> `uv add`/`uv remove`"),
     ("python3", ("-m", "pip"), "`python -m pip` -> `uv add`/`uv remove`"),
-    ("python", ("-m",), "`python -m module` -> `uv run python -m module` (use `--with pkg` for deps)"),
-    ("python3", ("-m",), "`python -m module` -> `uv run python -m module` (use `--with pkg` for deps)"),
-
+    (
+        "python",
+        ("-m",),
+        "`python -m module` -> `uv run python -m module` (use `--with pkg` for deps)",
+    ),
+    (
+        "python3",
+        ("-m",),
+        "`python -m module` -> `uv run python -m module` (use `--with pkg` for deps)",
+    ),
     # Catch-all for python/python3 (covers -c, scripts, REPL, etc.)
     ("python", (), "`python` -> `uv run python` (use `--with pkg` for one-off deps)"),
     ("python3", (), "`python3` -> `uv run python` (use `--with pkg` for one-off deps)"),
-
     # pip commands (already specific enough)
     ("pip", ("install",), "`pip install` -> `uv add` (project) or `uv run --with pkg` (one-off)"),
     ("pip3", ("install",), "`pip install` -> `uv add` (project) or `uv run --with pkg` (one-off)"),
@@ -93,11 +99,13 @@ def main() -> None:
     if not suggestion:
         return
 
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": f"""Use `uv` instead of legacy python/pip commands.
+    print(
+        json.dumps(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": f"""Use `uv` instead of legacy python/pip commands.
 
 **Detected**: {suggestion}
 
@@ -110,8 +118,10 @@ def main() -> None:
 - `pip uninstall pkg` -> `uv remove pkg`
 
 See: ${{CLAUDE_PLUGIN_ROOT}}/skills/modern-python/SKILL.md""",
-        }
-    }))
+                }
+            }
+        )
+    )
 
 
 if __name__ == "__main__":
