@@ -249,7 +249,7 @@ def test_unix_feature():
 ```yaml
 # GitHub Actions
 - name: Checkout
-  uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+  uses: actions/checkout@<sha>  # <latest> https://github.com/actions/checkout/releases
 
 - name: Run tests
   run: |
@@ -257,7 +257,7 @@ def test_unix_feature():
     uv run pytest --cov-report=xml
 
 - name: Upload coverage
-  uses: codecov/codecov-action@0561704f0f02c16a585d4c7555e57fa2e44cf909  # v5.5.2
+  uses: codecov/codecov-action@<sha>  # <latest> https://github.com/codecov/codecov-action/releases
   with:
     files: ./coverage.xml
 ```

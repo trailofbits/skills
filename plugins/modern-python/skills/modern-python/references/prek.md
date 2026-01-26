@@ -55,7 +55,7 @@ prek auto-update
 ```yaml
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.13  # Check https://github.com/astral-sh/ruff-pre-commit/releases for latest
+    rev: <latest>  # https://github.com/astral-sh/ruff-pre-commit/releases
     hooks:
       - id: ruff
         args: [--fix]
@@ -79,9 +79,7 @@ prek run ruff
 
 ### Recommended `.pre-commit-config.yaml`
 
-> **Note:** Versions shown are examples. Always check for the latest stable versions:
-> - ruff: https://github.com/astral-sh/ruff-pre-commit/releases
-> - ty: https://github.com/astral-sh/ty/releases
+> **Note:** Versions shown as `<latest>` are placeholders. Always check the linked releases for current stable versions before use.
 
 ```yaml
 # See https://pre-commit.com for more information
@@ -91,7 +89,7 @@ default_language_version:
 repos:
   # Ruff - linting and formatting
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.13  # Update to latest
+    rev: <latest>  # https://github.com/astral-sh/ruff-pre-commit/releases
     hooks:
       - id: ruff
         args: [--fix]
@@ -99,7 +97,7 @@ repos:
 
   # ty - type checking
   - repo: https://github.com/astral-sh/ty
-    rev: 0.0.13  # Update to latest
+    rev: <latest>  # https://github.com/astral-sh/ty/releases
     hooks:
       - id: ty
 
@@ -154,8 +152,8 @@ jobs:
   prek:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
-      - uses: j178/prek-action@d0bd1eb8f31f06b4145d18a17ca60cfb519d4a6d  # v1.0.12
+      - uses: actions/checkout@<sha>  # <latest> https://github.com/actions/checkout/releases
+      - uses: j178/prek-action@<sha>  # <latest> https://github.com/j178/prek-action/releases
 ```
 
 Or manually:
@@ -167,33 +165,6 @@ Or manually:
 - name: Run hooks
   run: prek run --all-files
 ```
-
-### Dependabot
-
-Automate dependency updates with supply chain protection:
-
-```yaml
-# .github/dependabot.yml
-version: 2
-updates:
-  # Python dependencies
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7  # Wait 7 days before updating new releases
-
-  # GitHub Actions
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7
-```
-
-The `cooldown.default-days: 7` setting delays updates for newly published versions, providing time for the community to detect compromised packages before they reach your project.
 
 ## Makefile Integration
 
