@@ -24,6 +24,11 @@ if [[ $input_command =~ command[[:space:]]+-v[[:space:]]+(python3?|pip3?)([[:spa
     exit 0
 fi
 
+# Skip search tools (python/pip as search argument, not execution)
+if [[ $input_command =~ (^|[[:space:];|&])(grep|rg|ag|ack|find)[[:space:]] ]]; then
+    exit 0
+fi
+
 # Pattern matching for legacy commands
 # Match at: start of line, after ; && || | $( or whitespace
 # Captures the matched command (python/python3/pip/pip3) in group 2
@@ -65,7 +70,7 @@ if [[ $input_command =~ $legacy_pattern ]]; then
 fi
 
 # Also check for `uv pip` (legacy interface)
-uv_pip_pattern='(^|[;&|[:space:]])uv[[:space:]]+pip([[:space:]]|$)'
+uv_pip_pattern='(^|[[:space:];|&])uv[[:space:]]+pip([[:space:]]|$)'
 if [[ $input_command =~ $uv_pip_pattern ]]; then
     # shellcheck disable=SC2016
     suggestion='`uv pip` is legacy. Use: `uv add`, `uv remove`, `uv sync`'
