@@ -16,6 +16,14 @@ if [[ $input_command =~ (^|[[:space:];|&])uv[[:space:]]+run[[:space:]] ]]; then
     exit 0
 fi
 
+# Skip diagnostic commands (checking python location, not executing it)
+if [[ $input_command =~ (^|[[:space:];|&])(which|type|whereis)[[:space:]]+(python3?|pip3?)([[:space:]]|$) ]]; then
+    exit 0
+fi
+if [[ $input_command =~ command[[:space:]]+-v[[:space:]]+(python3?|pip3?)([[:space:]]|$) ]]; then
+    exit 0
+fi
+
 # Pattern matching for legacy commands
 # Match at: start of line, after ; && || | $( or whitespace
 # Captures the matched command (python/python3/pip/pip3) in group 2
@@ -71,7 +79,7 @@ cat <<EOF
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "Use \`uv\` instead of legacy python/pip commands.\n\n**Detected**: ${suggestion}\n\n**Quick reference**:\n- \`python\` -> \`uv run python\`\n- \`python script.py\` -> \`uv run script.py\`\n- \`pip install pkg\` -> \`uv add pkg\` or \`uv run --with pkg\`\n- \`pip uninstall pkg\` -> \`uv remove pkg\`"
+    "permissionDecisionReason": "Use uv instead: ${suggestion}"
   }
 }
 EOF
