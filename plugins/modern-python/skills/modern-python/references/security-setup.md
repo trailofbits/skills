@@ -223,7 +223,7 @@ uv run pip-audit --fix
 
 ```yaml
 - name: Security audit
-  run: uv run pip-audit
+  run: uv run pip-audit .
 ```
 
 **When vulnerabilities found:**

@@ -24,12 +24,6 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  # ty - type checking (fast, Rust-based)
-  - repo: https://github.com/astral-sh/ty
-    rev: <latest>  # https://github.com/astral-sh/ty/releases
-    hooks:
-      - id: ty
-
   # === General File Checks ===
   # prek builtin hooks - faster, no external deps
   - repo: builtin
