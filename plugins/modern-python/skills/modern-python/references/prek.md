@@ -169,13 +169,7 @@ Or manually:
 ## Makefile Integration
 
 ```makefile
-.PHONY: lint format hooks
-
-lint:
-	uv run ruff format --check && uv run ruff check && uv run ty check src/
-
-format:
-	uv run ruff format .
+.PHONY: hooks hooks-install
 
 hooks:
 	prek run --all-files

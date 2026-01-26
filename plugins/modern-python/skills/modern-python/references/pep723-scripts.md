@@ -68,7 +68,7 @@ uv run script.py
 # ///
 ```
 
-### Optional Dependencies
+### Private Package Index
 
 ```python
 # /// script
