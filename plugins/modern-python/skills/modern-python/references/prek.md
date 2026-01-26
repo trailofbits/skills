@@ -168,6 +168,33 @@ Or manually:
   run: prek run --all-files
 ```
 
+### Dependabot
+
+Automate dependency updates with supply chain protection:
+
+```yaml
+# .github/dependabot.yml
+version: 2
+updates:
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7  # Wait 7 days before updating new releases
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+```
+
+The `cooldown.default-days: 7` setting delays updates for newly published versions, providing time for the community to detect compromised packages before they reach your project.
+
 ## Makefile Integration
 
 ```makefile
