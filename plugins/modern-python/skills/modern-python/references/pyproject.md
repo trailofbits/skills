@@ -43,7 +43,7 @@ Documentation = "https://myproject.readthedocs.io"
 Repository = "https://github.com/org/myproject"
 
 [build-system]
-requires = ["uv_build>=0.9.0,<0.10.0"]
+requires = ["uv_build>=0.9,<1"]  # Use latest 0.x; check https://pypi.org/project/uv-build/
 build-backend = "uv_build"
 
 [dependency-groups]
@@ -147,11 +147,13 @@ Build backend configuration. Use `uv_build` for most projects:
 
 ```toml
 [build-system]
-requires = ["uv_build>=0.9.0,<0.10.0"]
+requires = ["uv_build>=0.9,<1"]  # Use latest 0.x; check https://pypi.org/project/uv-build/
 build-backend = "uv_build"
 ```
 
 `uv_build` is simpler and sufficient for most use cases. Use static versioning in `[project] version` rather than VCS-aware dynamic versioning.
+
+> **Note:** These tools evolve rapidly. Prefer `>=X.Y,<X+1` constraints to automatically get newer releases within the same major version.
 
 ### [dependency-groups]
 

@@ -1,6 +1,6 @@
 # prek: Fast Pre-commit Hooks
 
-[prek](https://github.com/j178/prek) is a reimagined version of pre-commit, built in Rust. It is a faster, dependency-free, drop-in replacement for pre-commit.
+[prek](https://github.com/j178/prek) is a fast, Rust-native drop-in replacement for pre-commit. It uses the same `.pre-commit-config.yaml` format and is fully compatible with existing configurations.
 
 ## Why prek over pre-commit?
 
@@ -154,8 +154,8 @@ jobs:
   prek:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: j178/prek-action@v1
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+      - uses: j178/prek-action@d0bd1eb8f31f06b4145d18a17ca60cfb519d4a6d  # v1.0.12
 ```
 
 Or manually:

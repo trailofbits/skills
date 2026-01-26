@@ -248,13 +248,16 @@ def test_unix_feature():
 
 ```yaml
 # GitHub Actions
+- name: Checkout
+  uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
 - name: Run tests
   run: |
     uv sync --group test
     uv run pytest --cov-report=xml
 
 - name: Upload coverage
-  uses: codecov/codecov-action@v4
+  uses: codecov/codecov-action@0561704f0f02c16a585d4c7555e57fa2e44cf909  # v5.5.2
   with:
     files: ./coverage.xml
 ```

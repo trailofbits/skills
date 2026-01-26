@@ -92,7 +92,7 @@ uv run ruff check .
 ```
 
 ## Full Project Setup
-If starting from scratch, ask the user if they prefer to use the Trail Of Bits cookie template to boostrap a complete project with already preconfigured tooling.
+If starting from scratch, ask the user if they prefer to use the Trail of Bits cookiecutter template to bootstrap a complete project with already preconfigured tooling.
 
 ```bash
 uvx cookiecutter gh:trailofbits/cookiecutter-python
@@ -198,8 +198,11 @@ uv init --bare
 # Add dependencies using uv (not by editing pyproject.toml)
 uv add requests rich  # add each package
 
-# Or import from requirements.txt
-uv add $(cat requirements.txt | grep -v '^#' | grep -v '^-' | tr '\n' ' ')
+# Or import from requirements.txt (review each package before adding)
+# Note: Complex version specifiers may need manual handling
+grep -v '^#' requirements.txt | grep -v '^-' | grep -v '^\s*$' | while read -r pkg; do
+    uv add "$pkg" || echo "Failed to add: $pkg"
+done
 
 uv sync
 ```
