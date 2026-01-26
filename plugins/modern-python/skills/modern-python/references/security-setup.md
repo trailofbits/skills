@@ -16,6 +16,25 @@ actionlint .github/workflows/
 zizmor .github/workflows/
 ```
 
+## Tool Installation
+
+Pre-commit hooks auto-install tools when run via prek. For manual CLI usage:
+
+```bash
+# Homebrew (macOS/Linux)
+brew install actionlint shellcheck
+
+# Python tools via uv
+uv tool install detect-secrets
+uv tool install zizmor
+```
+
+Alternative installation methods:
+
+- **actionlint**: `go install github.com/rhysd/actionlint/cmd/actionlint@latest`
+- **zizmor**: `cargo install zizmor`
+- **detect-secrets**: `pipx install detect-secrets`
+
 ## Tool Matrix
 
 | Tool | Runs | Catches |
@@ -175,7 +194,7 @@ audit = ["pip-audit"]
 uv run pip-audit
 
 # Audit without installing (faster for CI)
-uv run pip-audit --requirement pyproject.toml
+uv run pip-audit .
 
 # Fix automatically (upgrades vulnerable packages)
 uv run pip-audit --fix
@@ -234,41 +253,4 @@ The 7-day cooldown protects against attackers publishing malicious updates and h
 
 See [dependabot.md](./dependabot.md) for advanced configuration.
 
-## Complete prek Configuration
-
-All security hooks together:
-
-```yaml
-# .pre-commit-config.yaml
-repos:
-  # ... ruff, ty hooks ...
-
-  # Shell script linting
-  - repo: https://github.com/koalaman/shellcheck-precommit
-    rev: <latest>
-    hooks:
-      - id: shellcheck
-        args: [--severity=error]
-
-  # Secret detection
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: <latest>
-    hooks:
-      - id: detect-secrets
-        args: [--baseline, .secrets.baseline]
-
-  # GitHub Actions linting
-  - repo: https://github.com/rhysd/actionlint
-    rev: <latest>
-    hooks:
-      - id: actionlint
-
-  # GitHub Actions security audit
-  - repo: https://github.com/zizmorcore/zizmor-pre-commit
-    rev: <latest>
-    hooks:
-      - id: zizmor
-        args: [--persona=regular, --min-severity=medium, --min-confidence=medium]
-```
-
-See [prek.md](./prek.md) for full configuration including ruff and ty hooks.
+See [prek.md](./prek.md) for complete pre-commit hook configuration including security hooks.
