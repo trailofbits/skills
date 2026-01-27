@@ -24,9 +24,28 @@ if [[ $input_command =~ command[[:space:]]+-v[[:space:]]+(python3?|pip3?)([[:spa
   exit 0
 fi
 
-# Skip search tools (python/pip as search argument, not execution)
+# Skip search tools when python/pip is NOT being executed
+# Handles: grep python (OK), python | grep (DENY), find | xargs python (DENY)
 if [[ $input_command =~ (^|[[:space:];|&])(grep|rg|ag|ack|find)[[:space:]] ]]; then
-  exit 0
+  # Check for python/pip at COMMAND position before any pipe
+  # Command position: start of string (with optional whitespace) or after ; or &
+  before_pipe="${input_command%%|*}"
+  py_at_start='^[[:space:]]*(python3?|pip3?)([[:space:]]|$)'
+  py_after_sep='[;&][[:space:]]*(python3?|pip3?)([[:space:]]|$)'
+  if [[ $before_pipe =~ $py_at_start ]] || [[ $before_pipe =~ $py_after_sep ]]; then
+    : # Python executes before pipe - fall through to deny
+  # Check for xargs/parallel invoking python/pip after pipe
+  elif [[ $input_command == *"|"* ]]; then
+    after_pipe="${input_command#*|}"
+    if [[ $after_pipe =~ (xargs|parallel)[[:space:]] ]] && \
+       [[ $after_pipe =~ (python3?|pip3?)([[:space:]]|$) ]]; then
+      : # xargs/parallel invokes python - fall through to deny
+    else
+      exit 0  # No python execution found
+    fi
+  else
+    exit 0  # No pipe, search tool only - python is just an argument
+  fi
 fi
 
 # Pattern matching for legacy commands

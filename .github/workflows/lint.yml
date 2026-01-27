@@ -51,3 +51,19 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Run shfmt
         run: find plugins -name "*.sh" -type f -exec shfmt -i 2 -ci -d {} +
+
+  bats:
+    name: Shell (bats)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+        with:
+          persist-credentials: false
+      - name: Install bats and uv
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Run hook tests
+        run: bats plugins/modern-python/hooks/*.bats
