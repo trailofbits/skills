@@ -37,14 +37,14 @@ if [[ $input_command =~ (^|[[:space:];|&])(grep|rg|ag|ack|find)[[:space:]] ]]; t
   # Check for xargs/parallel invoking python/pip after pipe
   elif [[ $input_command == *"|"* ]]; then
     after_pipe="${input_command#*|}"
-    if [[ $after_pipe =~ (xargs|parallel)[[:space:]] ]] && \
-       [[ $after_pipe =~ (python3?|pip3?)([[:space:]]|$) ]]; then
+    if [[ $after_pipe =~ (xargs|parallel)[[:space:]] ]] &&
+      [[ $after_pipe =~ (python3?|pip3?)([[:space:]]|$) ]]; then
       : # xargs/parallel invokes python - fall through to deny
     else
-      exit 0  # No python execution found
+      exit 0 # No python execution found
     fi
   else
-    exit 0  # No pipe, search tool only - python is just an argument
+    exit 0 # No pipe, search tool only - python is just an argument
   fi
 fi
 

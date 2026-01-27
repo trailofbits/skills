@@ -20,7 +20,8 @@ run_hook() {
 run_hook_no_uv() {
   local cmd="$1"
   # Create a subshell with restricted PATH that excludes uv
-  run env PATH=/usr/bin:/bin bash -c 'jq -n --arg cmd "$1" '"'"'{"tool_input":{"command":$cmd}}'"'"' | "$2"' _ "$cmd" "$HOOK_SCRIPT"
+  # Suppress stderr to ignore jq's "Broken pipe" when script exits early
+  run env PATH=/usr/bin:/bin bash -c 'jq -n --arg cmd "$1" '"'"'{"tool_input":{"command":$cmd}}'"'"' 2>/dev/null | "$2"' _ "$cmd" "$HOOK_SCRIPT"
 }
 
 # Assert the hook allowed the command (exit 0, no output)
