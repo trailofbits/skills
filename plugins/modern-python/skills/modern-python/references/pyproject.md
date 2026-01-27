@@ -78,7 +78,7 @@ quote-style = "double"
 indent-style = "space"
 docstring-code-format = true
 
-[tool.pytest.ini_options]
+[tool.pytest]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = [

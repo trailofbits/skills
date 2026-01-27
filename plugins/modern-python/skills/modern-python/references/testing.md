@@ -13,7 +13,7 @@ uv add --group test pytest pytest-cov hypothesis
 ## pyproject.toml Configuration
 
 ```toml
-[tool.pytest.ini_options]
+[tool.pytest]
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = [

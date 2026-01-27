@@ -156,8 +156,8 @@ target-version = "py311"
 select = ["ALL"]
 ignore = ["D", "COM812", "ISC001"]
 
-[tool.pytest.ini_options]
-addopts = "--cov=myproject --cov-fail-under=80"
+[tool.pytest]
+addopts = ["--cov=myproject", "--cov-fail-under=80"]
 
 [tool.ty.terminal]
 error-on-warning = true
