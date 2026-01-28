@@ -92,10 +92,6 @@ rules:
     pattern-sanitizers:           # Optional
       - pattern: sanitize(...)
       - pattern: escape(...)
-    pattern-propagators:          # Pro feature - intraprocedural only
-      - pattern: $DST.append($SRC)
-        from: $SRC
-        to: $DST
 ```
 
 ### Taint Options
