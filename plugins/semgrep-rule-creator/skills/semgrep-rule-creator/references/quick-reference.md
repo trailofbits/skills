@@ -127,6 +127,9 @@ future_detection()             # Known limitation, should match later
 future_fp_fix()                # Known FP, should not match later
 ```
 
+DO NOT use multi-line comments for test annotations, for example:
+/* ruleid: ... */
+
 ## Debugging Commands
 
 ```bash
