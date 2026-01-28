@@ -12,11 +12,11 @@ Create production-quality Semgrep rules for detecting bug patterns and security 
 
 ## When to Use
 
-Use this plugin when you need to:
+Use this skill when you need to:
 - Create custom Semgrep rules for detecting specific bug patterns
 - Write rules for security vulnerability detection
-- Build taint-mode rules for data flow analysis
-- Develop pattern-matching rules for code quality checks
+- Build taint mode rules for data flow analysis
+- Develop pattern matching rules for code quality checks
 
 ## What It Does
 

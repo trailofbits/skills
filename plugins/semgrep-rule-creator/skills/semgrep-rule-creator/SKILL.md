@@ -27,7 +27,7 @@ Create production-quality Semgrep rules with proper testing and validation.
 
 Do NOT use this skill for:
 - Running existing Semgrep rulesets
-- General static analysis without custom rules (use `static-analysis` plugin)
+- General static analysis without custom rules (use `static-analysis` skill)
 
 ## Rationalizations to Reject
 
@@ -101,7 +101,7 @@ This skill guides creation of Semgrep rules that detect security vulnerabilities
 
 **Iterating between approaches:** It's okay to experiment. If you start with taint mode and it's not working well (e.g., taint doesn't propagate as expected, too many false positives/negatives), switch to pattern matching. Conversely, if pattern matching produces too many false positives on safe cases, try taint mode instead. The goal is a working rule—not rigid adherence to one approach.
 
-**Output structure** - exactly 2 files in a directory named after the rule ID:
+**Output structure** - exactly 2 files in a directory named after the rule-id:
 ```
 <rule-id>/
 ├── <rule-id>.yaml     # Semgrep rule
@@ -141,9 +141,9 @@ Create directory and test file with annotations (`# ruleid:`, `# ok:`, etc.). Se
 
 The annotation line must contain ONLY the comment marker and annotation (e.g., `# ruleid: my-rule`). No other text, comments, or code on the same line.
 
-### 3. Analyze AST Structure
+### 3. Analyze AST (Abstract Syntax Tree) Structure
 
-**Why analyze AST?** Semgrep matches against the Abstract Syntax Tree, not raw text. Code that looks similar may parse differently (e.g., `foo.bar()` vs `foo().bar`). The AST dump shows exactly what Semgrep sees, preventing patterns that fail due to unexpected tree structure.
+**Why analyze AST?** Semgrep matches against the AST, not raw text. Code that looks similar may parse differently (e.g., `foo.bar()` vs `foo().bar`). The AST dump shows exactly what Semgrep sees, preventing patterns that fail due to unexpected tree structure.
 
 ```bash
 semgrep --dump-ast -l <language> <rule-id>.<ext>

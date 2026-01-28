@@ -104,7 +104,6 @@ pattern-sources:
   - pattern: source(...)
     exact: true                   # Only exact match is source (default: false)
     by-side-effect: true          # Taints variable by side effect
-    control: true                 # Pro: control flow source
 
 pattern-sanitizers:
   - pattern: sanitize($X)
@@ -114,22 +113,21 @@ pattern-sanitizers:
 pattern-sinks:
   - pattern: sink(...)
     exact: false                  # Subexpressions also sinks (default: true)
-    at-exit: true                 # Pro: only match at function exit points
 ```
 
 ## Test File Annotations
 
 ```python
-# ruleid: my-rule-id
+# ruleid: rule-id
 vulnerable_code()              # This line MUST match
 
-# ok: my-rule-id
+# ok: rule-id
 safe_code()                    # This line MUST NOT match
 
-# todoruleid: my-rule-id
+# todoruleid: rule-id
 future_detection()             # Known limitation, should match later
 
-# todook: my-rule-id
+# todook: rule-id
 future_fp_fix()                # Known FP, should not match later
 ```
 
