@@ -196,12 +196,12 @@ patterns:
 
 ### Optimization Checklist
 
-1. ✅ Remove patterns differing only in quote style
-2. ✅ Remove patterns that are subsets of `...` patterns
-3. ✅ Consolidate similar patterns using metavariable-regex
-4. ✅ Remove duplicate patterns in pattern-either
-5. ✅ Simplify nested pattern-either when possible
-6. ✅ **Re-run tests after each optimization**
+1. Remove patterns differing only in quote style
+2. Remove patterns that are subsets of `...` patterns
+3. Consolidate similar patterns using metavariable-regex
+4. Remove duplicate patterns in pattern-either
+5. Simplify nested pattern-either when possible
+6. **Re-run tests after each optimization**
 
 ### Verify After Optimization
 
