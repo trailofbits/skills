@@ -86,7 +86,6 @@ This workflow is **strict** - do not skip steps:
 - **Test-first is mandatory**: Never write a rule without tests
 - **100% test pass is required**: "Most tests pass" is not acceptable
 - **Optimization comes last**: Only simplify patterns after all tests pass
-- **Documentation reading is required**: Fetch external docs before writing rules
 - **Avoid generic patterns**: Rules must be specific, not match broad patterns
 - **Prioritize taint mode**: For data flow vulnerabilities
 
@@ -111,7 +110,8 @@ This skill guides creation of Semgrep rules that detect security vulnerabilities
 
 ## Quick Reference
 
-For commands, pattern operators, and taint mode syntax, see [quick-reference.md]({baseDir}/references/quick-reference.md).
+- For commands, pattern operators, and taint mode syntax, see [quick-reference.md]({baseDir}/references/quick-reference.md).
+- For detailed workflow and examples, see [workflow.md]({baseDir}/references/workflow.md)
 
 ## Workflow
 
@@ -163,15 +163,10 @@ After all tests pass, remove redundant patterns (quote variants, ellipsis subset
 
 ## Documentation
 
-**REQUIRED**: Before writing any rule, use WebFetch to read **all** of these 5 links with Semgrep documentation:
+**REQUIRED**: Before writing any rule, use WebFetch to read **all** of these 4 links with Semgrep documentation:
 
 1. [Rule Syntax](https://semgrep.dev/docs/writing-rules/rule-syntax) - YAML structure, operators, and rule options
 2. [Pattern Syntax](https://semgrep.dev/docs/writing-rules/pattern-syntax) - Pattern matching, metavariables, and ellipsis usage
-3. [Testing Rules](https://semgrep.dev/docs/writing-rules/testing-rules) - Testing rules to properly catch code patterns and avoid false positives
+3. [ToB Testing Handbook - Semgrep](https://appsec.guide/docs/static-analysis/semgrep/advanced/) - Patterns, taint tracking, and practical examples
 4. [Writing Rules Index](https://github.com/semgrep/semgrep-docs/tree/main/docs/writing-rules/) - Full documentation index (browse for taint mode, testing, etc.)
-5. [ToB Testing Handbook - Semgrep](https://appsec.guide/docs/static-analysis/semgrep/advanced/) - Patterns, taint tracking, and practical examples
 
-## Next Steps
-
-- For detailed workflow and examples, see [workflow.md]({baseDir}/references/workflow.md)
-- For pattern syntax quick reference, see [quick-reference.md]({baseDir}/references/quick-reference.md)
