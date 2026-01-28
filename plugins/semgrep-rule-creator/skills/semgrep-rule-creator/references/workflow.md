@@ -42,13 +42,13 @@ See [quick-reference.md](quick-reference.md#test-file-annotations) for annotatio
 ### Test Case Design
 
 You must include test cases for:
-- ✅ Clear vulnerable cases (must match)
-- ✅ Clear safe cases (must not match)
-- ✅ Edge cases and variations
-- ✅ Different coding styles
-- ✅ Sanitized/validated input (must not match)
-- ✅ Unrelated code (must not match) - normal code with no relation to the rule's target pattern
-- ✅ Nested structures (e.g., inside if statements, loops, try/catch blocks, callbacks)
+- Clear vulnerable cases (must match)
+- Clear safe cases (must not match)
+- Edge cases and variations
+- Different coding styles
+- Sanitized/validated input (must not match)
+- Unrelated code (must not match) - normal code with no relation to the rule's target pattern
+- Nested structures (e.g., inside if statements, loops, try/catch blocks, callbacks)
 
 ## Step 3: Analyze AST Structure
 
