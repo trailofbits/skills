@@ -34,13 +34,21 @@ Do not use this skill for:
 
 When in doubt: trace the code path to determine if the app runs with the default or crashes.
 
+## Rationalizations to Reject
+
+- **"It's just a development default"** → If it reaches production code, it's a finding
+- **"The production config overrides it"** → Verify prod config exists; code-level vulnerability remains if not
+- **"This would never run without proper config"** → Prove it with code trace; many apps fail silently
+- **"It's behind authentication"** → Defense in depth; compromised session still exploits weak defaults
+- **"We'll fix it before release"** → Document now; "later" rarely comes
+
 ## Workflow
 
 Follow this workflow for every potential finding:
 
 ### 1. SEARCH: Perform Project Discovery and Find Insecure Defaults
 
-Determine language, framework, and project conventions. Use this information to further discover things like secret storage locations, secret usage patterns, credentialed third-party integrations, cryptography, and any other relevant configuration. Further use information to analyze insecure default configurations. 
+Determine language, framework, and project conventions. Use this information to further discover things like secret storage locations, secret usage patterns, credentialed third-party integrations, cryptography, and any other relevant configuration. Further use information to analyze insecure default configurations.
 
 **Example**
 Search for patterns in `**/config/`, `**/auth/`, `**/database/`, and env files:
@@ -51,7 +59,7 @@ Search for patterns in `**/config/`, `**/auth/`, `**/database/`, and env files:
 
 Tailor search approach based on discovery results.
 
-Focus on production-reachable code, not test fixtures or example files. 
+Focus on production-reachable code, not test fixtures or example files.
 
 ### 2. VERIFY: Actual Behavior
 For each match, trace the code path to understand runtime behavior.

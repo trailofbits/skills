@@ -41,5 +41,5 @@ Use this skill when:
 ## Usage
 
 ```
-Use the insecure defaults skill and find risky default configuration
+Audit this codebase for insecure defaults—focus on environment variable fallbacks and authentication configuration
 ```
