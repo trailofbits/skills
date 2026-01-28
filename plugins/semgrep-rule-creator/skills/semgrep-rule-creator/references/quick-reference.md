@@ -4,7 +4,7 @@
 
 ```yaml
 rules:
-  - id: rule-id-here          # Unique identifier (lowercase, hyphens)
+  - id: rule-id          # Unique identifier (lowercase, hyphens)
     languages:                 # Target language(s)
       - python
     severity: HIGH            # LOW, MEDIUM, HIGH, CRITICAL (ERROR/WARNING/INFO are legacy)
