@@ -21,7 +21,7 @@ Taint mode is a powerful feature in Semgrep that can track the flow of data from
 - **Find injection vulnerabilities**: Identify injection vulnerabilities such as SQL injection, command injection, and XSS attacks.
 - **Write simple and resilient Semgrep rules**: Simplify rules that are resilient to code patterns nested in if statements, loops, and other structures.
 
-## Step 2: Create Test Cases First
+## Step 2: Write Tests First
 
 **Always write tests before the rule.**
 

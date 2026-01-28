@@ -20,7 +20,7 @@ Create production-quality Semgrep rules with proper testing and validation.
 **Ideal scenarios:**
 - Writing Semgrep rules for specific bug patterns
 - Writing rules to detect security vulnerabilities in your codebase
-- Writing taint-mode rules for data flow vulnerabilities
+- Writing taint mode rules for data flow vulnerabilities
 - Writing rules to enforce coding standards
 
 ## When NOT to Use
@@ -115,6 +115,18 @@ This skill guides creation of Semgrep rules that detect security vulnerabilities
 
 ## Workflow
 
+Copy this checklist and track progress:
+
+```
+Semgrep Rule Progress:
+- [ ] Step 1: Analyze problem (read documentation, determine approach)
+- [ ] Step 2: Write tests first (create directory, add test annotations)
+- [ ] Step 3: Analyze AST structure (semgrep --dump-ast)
+- [ ] Step 4: Write the rule
+- [ ] Step 5: Iterate until all tests pass (semgrep --test)
+- [ ] Step 6: Optimize the rule (remove redundancies, re-test)
+```
+
 ### 1. Analyze the Problem
 
 Understand the bug pattern, identify target language, determine if taint mode applies.
@@ -147,7 +159,7 @@ See [workflow.md]({baseDir}/references/workflow.md) for detailed patterns and ex
 semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
 ```
 
-For debugging taint-mode rules:
+For debugging taint mode rules:
 ```bash
 semgrep --dataflow-traces -f <rule-id>.yaml <rule-id>.<ext>
 ```
