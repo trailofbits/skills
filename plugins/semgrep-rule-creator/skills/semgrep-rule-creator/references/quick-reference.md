@@ -117,18 +117,6 @@ pattern-sinks:
     at-exit: true                 # Pro: only match at function exit points
 ```
 
-## Rule Options
-
-```yaml
-options:
-  constant_propagation: true      # Default: true
-  symbolic_propagation: true      # Track symbolic values
-  taint_assume_safe_functions: false
-  taint_assume_safe_indexes: false
-  taint_assume_safe_booleans: false
-  taint_assume_safe_numbers: false
-```
-
 ## Test File Annotations
 
 ```python
@@ -149,25 +137,47 @@ future_fp_fix()                # Known FP, should not match later
 
 ```bash
 # Test rules
-semgrep --test --config rule.yaml test-file
+semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
 
 # Validate YAML syntax
-semgrep --validate --config rule.yaml
+semgrep --validate --config <rule-id>.yaml
 
 # Run with dataflow traces (for taint rules)
-semgrep --dataflow-traces -f rule.yaml test-file.py
+semgrep --dataflow-traces -f <rule-id>.yaml <rule-id>.<ext>
 
 # Dump AST to understand code structure
-semgrep --dump-ast -l python test-file.py
+semgrep --dump-ast -l <language> <rule-id>.<ext>
 
 # Run single rule
-semgrep -f rule.yaml test-file.py
+semgrep -f <rule-id>.yaml <rule-id>.<ext>
 ```
 
 ## Common Pitfalls
 
-1. **Wrong annotation line**: `ruleid:` must be on the line IMMEDIATELY BEFORE the finding
+1. **Wrong annotation line**: `ruleid:` must be on the line IMMEDIATELY BEFORE the finding. No other text or code
 2. **Too generic patterns**: Avoid `pattern: $X` without constraints
-3. **Missing ellipsis**: Use `...` to match variable arguments
-4. **Taint not flowing**: Check if sanitizer is too broad
 5. **YAML syntax errors**: Validate with `semgrep --validate`
+
+## Troubleshooting
+
+### Pattern Not Matching
+
+1. Check AST structure: `semgrep --dump-ast -l <lang> file`
+2. Verify metavariable binding
+3. Check for whitespace/formatting differences
+4. Try more general pattern first, then narrow down
+
+### Taint Not Propagating
+
+1. Use `--dataflow-traces` to see flow
+2. Check if sanitizer is too broad
+3. Verify source pattern matches
+4. Check sink focus-metavariable
+
+### Too Many False Positives
+
+1. Add `pattern-not` for safe patterns
+2. Add sanitizers for validation functions
+3. Use `pattern-inside` to limit scope
+4. Use `metavariable-regex` to filter
+
