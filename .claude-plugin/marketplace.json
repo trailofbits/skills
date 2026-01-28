@@ -201,6 +201,17 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/modern-python"
+    },
+    {
+      "name": "insecure-defaults",
+      "version": "1.0.0",
+      "description": "Detects and verifies insecure default configurations including hardcoded credentials, fallback secrets, weak authentication defaults, and dangerous configuration values that remain active in production",
+      "author": {
+        "name": "Trail of Bits",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/insecure-defaults"
     }
   ]
 }
