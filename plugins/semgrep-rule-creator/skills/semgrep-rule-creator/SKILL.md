@@ -119,7 +119,7 @@ Copy this checklist and track progress:
 
 ```
 Semgrep Rule Progress:
-- [ ] Step 1: Analyze problem (read documentation, determine approach)
+- [ ] Step 1: Analyze the problem (read documentation, determine approach)
 - [ ] Step 2: Write tests first (create directory, add test annotations)
 - [ ] Step 3: Analyze AST structure (semgrep --dump-ast)
 - [ ] Step 4: Write the rule
@@ -146,7 +146,7 @@ The annotation line must contain ONLY the comment marker and annotation (e.g., `
 **Why analyze AST?** Semgrep matches against the Abstract Syntax Tree, not raw text. Code that looks similar may parse differently (e.g., `foo.bar()` vs `foo().bar`). The AST dump shows exactly what Semgrep sees, preventing patterns that fail due to unexpected tree structure.
 
 ```bash
-semgrep --dump-ast -l <language> <test-file>
+semgrep --dump-ast -l <language> <rule-id>.<ext>
 ```
 
 ### 4. Write the Rule

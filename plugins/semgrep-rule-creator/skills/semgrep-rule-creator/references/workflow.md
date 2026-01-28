@@ -29,8 +29,8 @@ Taint mode is a powerful feature in Semgrep that can track the flow of data from
 
 ```
 <rule-id>/
-├── <rule-id>.yaml # YAML Semgrep rule file
-└── <rule-id>.<ext> # Test for Semgrep rule
+├── <rule-id>.yaml     # Semgrep rule
+└── <rule-id>.<ext>    # Test file with ruleid/ok annotations
 ```
 
 ### Test Annotations
@@ -42,8 +42,8 @@ See [quick-reference.md](quick-reference.md#test-file-annotations) for annotatio
 ### Test Case Design
 
 You must include test cases for:
-- ✅ Clear vulnerable patterns (must match)
-- ✅ Clear safe patterns (must not match)
+- ✅ Clear vulnerable cases (must match)
+- ✅ Clear safe cases (must not match)
 - ✅ Edge cases and variations
 - ✅ Different coding styles
 - ✅ Sanitized/validated input (must not match)
@@ -65,7 +65,7 @@ Example output helps understand:
 
 ## Step 4: Write the Rule
 
-Choose the appropriate pattern operators and write your rule.
+Choose the appropriate pattern operators and write the rule.
 
 For pattern operator syntax (basic matching, scope operators, metavariable filters, focus), see [quick-reference.md](quick-reference.md).
 
@@ -100,7 +100,7 @@ If tests fail, check:
    - Pattern too broad
    - Need `pattern-not` exclusion
 
-#### Debug Taint Rules (taint mode only)
+#### Debug Taint Mode Rules
 
 ```bash
 semgrep --dataflow-traces -f <rule-id>.yaml <rule-id>.<ext>
@@ -209,6 +209,6 @@ patterns:
 semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
 ```
 
-**Critical**: Always re-run tests after optimization. Some "redundant" patterns may actually be necessary due to AST structure differences. If any test fails, revert the optimization that caused it.
+**CRITICAL**: Always re-run tests after optimization. Some "redundant" patterns may actually be necessary due to AST structure differences. If any test fails, revert the optimization that caused it.
 
 **Task complete ONLY when**: All tests pass after optimization.

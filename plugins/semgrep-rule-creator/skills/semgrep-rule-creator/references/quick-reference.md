@@ -124,7 +124,7 @@ pattern-sinks:
 vulnerable_code()              # This line MUST match
 
 # ok: my-rule-id
-safe_code()                    # This line must NOT match
+safe_code()                    # This line MUST NOT match
 
 # todoruleid: my-rule-id
 future_detection()             # Known limitation, should match later
@@ -142,7 +142,7 @@ semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
 # Validate YAML syntax
 semgrep --validate --config <rule-id>.yaml
 
-# Run with dataflow traces (for taint rules)
+# Run with dataflow traces (for taint mode rules)
 semgrep --dataflow-traces -f <rule-id>.yaml <rule-id>.<ext>
 
 # Dump AST to understand code structure
@@ -156,7 +156,7 @@ semgrep -f <rule-id>.yaml <rule-id>.<ext>
 
 1. **Wrong annotation line**: `ruleid:` must be on the line IMMEDIATELY BEFORE the finding. No other text or code
 2. **Too generic patterns**: Avoid `pattern: $X` without constraints
-5. **YAML syntax errors**: Validate with `semgrep --validate`
+3. **YAML syntax errors**: Validate with `semgrep --validate`
 
 ## Troubleshooting
 
@@ -176,7 +176,7 @@ semgrep -f <rule-id>.yaml <rule-id>.<ext>
 
 ### Too Many False Positives
 
-1. Add `pattern-not` for safe patterns
+1. Add `pattern-not` for safe cases
 2. Add sanitizers for validation functions
 3. Use `pattern-inside` to limit scope
 4. Use `metavariable-regex` to filter
