@@ -4,7 +4,7 @@
 
 ```yaml
 rules:
-  - id: rule-id-here          # Unique identifier (lowercase, hyphens)
+  - id: rule-id          # Unique identifier (lowercase, hyphens)
     languages:                 # Target language(s)
       - python
     severity: HIGH            # LOW, MEDIUM, HIGH, CRITICAL (ERROR/WARNING/INFO are legacy)
@@ -92,10 +92,6 @@ rules:
     pattern-sanitizers:           # Optional
       - pattern: sanitize(...)
       - pattern: escape(...)
-    pattern-propagators:          # Pro feature - intraprocedural only
-      - pattern: $DST.append($SRC)
-        from: $SRC
-        to: $DST
 ```
 
 ### Taint Options
@@ -104,7 +100,6 @@ pattern-sources:
   - pattern: source(...)
     exact: true                   # Only exact match is source (default: false)
     by-side-effect: true          # Taints variable by side effect
-    control: true                 # Pro: control flow source
 
 pattern-sanitizers:
   - pattern: sanitize($X)
@@ -114,60 +109,72 @@ pattern-sanitizers:
 pattern-sinks:
   - pattern: sink(...)
     exact: false                  # Subexpressions also sinks (default: true)
-    at-exit: true                 # Pro: only match at function exit points
-```
-
-## Rule Options
-
-```yaml
-options:
-  constant_propagation: true      # Default: true
-  symbolic_propagation: true      # Track symbolic values
-  taint_assume_safe_functions: false
-  taint_assume_safe_indexes: false
-  taint_assume_safe_booleans: false
-  taint_assume_safe_numbers: false
 ```
 
 ## Test File Annotations
 
 ```python
-# ruleid: my-rule-id
+# ruleid: rule-id
 vulnerable_code()              # This line MUST match
 
-# ok: my-rule-id
-safe_code()                    # This line must NOT match
+# ok: rule-id
+safe_code()                    # This line MUST NOT match
 
-# todoruleid: my-rule-id
+# todoruleid: rule-id
 future_detection()             # Known limitation, should match later
 
-# todook: my-rule-id
+# todook: rule-id
 future_fp_fix()                # Known FP, should not match later
 ```
+
+DO NOT use multi-line comments for test annotations, for example:
+/* ruleid: ... */
 
 ## Debugging Commands
 
 ```bash
 # Test rules
-semgrep --test --config rule.yaml test-file
+semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
 
 # Validate YAML syntax
-semgrep --validate --config rule.yaml
+semgrep --validate --config <rule-id>.yaml
 
-# Run with dataflow traces (for taint rules)
-semgrep --dataflow-traces -f rule.yaml test-file.py
+# Run with dataflow traces (for taint mode rules)
+semgrep --dataflow-traces -f <rule-id>.yaml <rule-id>.<ext>
 
 # Dump AST to understand code structure
-semgrep --dump-ast -l python test-file.py
+semgrep --dump-ast -l <language> <rule-id>.<ext>
 
 # Run single rule
-semgrep -f rule.yaml test-file.py
+semgrep -f <rule-id>.yaml <rule-id>.<ext>
 ```
 
-## Common Pitfalls
+## Troubleshooting
 
-1. **Wrong annotation line**: `ruleid:` must be on the line IMMEDIATELY BEFORE the finding
+### Common Pitfalls
+
+1. **Wrong annotation line**: `ruleid:` must be on the line IMMEDIATELY BEFORE the finding. No other text or code
 2. **Too generic patterns**: Avoid `pattern: $X` without constraints
-3. **Missing ellipsis**: Use `...` to match variable arguments
-4. **Taint not flowing**: Check if sanitizer is too broad
-5. **YAML syntax errors**: Validate with `semgrep --validate`
+3. **YAML syntax errors**: Validate with `semgrep --validate`
+
+### Pattern Not Matching
+
+1. Check AST structure: `semgrep --dump-ast -l <language> <rule-id>.<ext>`
+2. Verify metavariable binding
+3. Check for whitespace/formatting differences
+4. Try more general pattern first, then narrow down
+
+### Taint Not Propagating
+
+1. Use `--dataflow-traces` to see flow
+2. Check if sanitizer is too broad
+3. Verify source pattern matches
+4. Check sink focus-metavariable
+
+### Too Many False Positives
+
+1. Add `pattern-not` for safe cases
+2. Add sanitizers for validation functions
+3. Use `pattern-inside` to limit scope
+4. Use `metavariable-regex` to filter
+
