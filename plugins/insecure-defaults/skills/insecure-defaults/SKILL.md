@@ -105,3 +105,5 @@ Exploitation: Attacker forges JWTs using 'default', gains unauthorized access
 **Debug Features:** Stack traces, introspection, verbose errors
 → Verify: Enabled by default? Exposed in responses?
 → Skip: Logging-only, not user-facing
+
+For detailed examples and counter-examples, see [examples.md](references/examples.md).
