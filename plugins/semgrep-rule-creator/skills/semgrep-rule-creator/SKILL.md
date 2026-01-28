@@ -101,7 +101,7 @@ This skill guides creation of Semgrep rules that detect security vulnerabilities
 
 **Iterating between approaches:** It's okay to experiment. If you start with taint mode and it's not working well (e.g., taint doesn't propagate as expected, too many false positives/negatives), switch to pattern matching. Conversely, if pattern matching produces too many false positives on safe cases, try taint mode instead. The goal is a working rule—not rigid adherence to one approach.
 
-**Output structure** - exactly two files in a directory named after the rule ID:
+**Output structure** - exactly 2 files in a directory named after the rule ID:
 ```
 <rule-id>/
 ├── <rule-id>.yaml     # Semgrep rule
@@ -129,7 +129,7 @@ Semgrep Rule Progress:
 
 ### 1. Analyze the Problem
 
-Understand the bug pattern, identify target language, determine if taint mode applies.
+Understand the bug pattern, identify the target language, determine if taint mode applies.
 
 Before writing any rule, see [Documentation](#documentation) for required reading.
 

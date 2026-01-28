@@ -162,7 +162,7 @@ semgrep -f <rule-id>.yaml <rule-id>.<ext>
 
 ### Pattern Not Matching
 
-1. Check AST structure: `semgrep --dump-ast -l <lang> file`
+1. Check AST structure: `semgrep --dump-ast -l <language> <rule-id>.<ext>`
 2. Verify metavariable binding
 3. Check for whitespace/formatting differences
 4. Try more general pattern first, then narrow down

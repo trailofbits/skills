@@ -114,7 +114,7 @@ Shows:
 
 ## Step 5: Iterate Until Tests Pass
 
-**Verification checkpoint - proceed to optimization when:**
+**Verification checkpoint**: Proceed to optimization when:
 - "All tests passed"
 - No "missed lines" (false negatives)
 - No "incorrect lines" (false positives)
