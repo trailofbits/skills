@@ -108,6 +108,32 @@ This skill guides creation of Semgrep rules that detect security vulnerabilities
 └── <rule-id>.<ext>    # Test file with ruleid/ok annotations
 ```
 
+## Quick Start
+
+```yaml
+rules:
+  - id: insecure-eval
+    languages: [python]
+    severity: HIGH
+    message: User input passed to eval() allows code execution
+    mode: taint
+    pattern-sources:
+      - pattern: request.args.get(...)
+    pattern-sinks:
+      - pattern: eval(...)
+```
+
+Test file (`insecure-eval.py`):
+```python
+# ruleid: insecure-eval
+eval(request.args.get('code'))
+
+# ok: insecure-eval
+eval("print('safe')")
+```
+
+Run tests (from rule directory): `semgrep --test --config <rule-id>.yaml <rule-id>.<ext>`
+
 ## Quick Reference
 
 - For commands, pattern operators, and taint mode syntax, see [quick-reference.md]({baseDir}/references/quick-reference.md).
@@ -181,4 +207,3 @@ After all tests pass, remove redundant patterns (quote variants, ellipsis subset
 2. [Pattern Syntax](https://semgrep.dev/docs/writing-rules/pattern-syntax) - Pattern matching, metavariables, and ellipsis usage
 3. [ToB Testing Handbook - Semgrep](https://appsec.guide/docs/static-analysis/semgrep/advanced/) - Patterns, taint tracking, and practical examples
 4. [Writing Rules Index](https://github.com/semgrep/semgrep-docs/tree/main/docs/writing-rules/) - Full documentation index (browse for taint mode, testing, etc.)
-
