@@ -1,6 +1,6 @@
 ---
 name: semgrep-rule-creator
-description: Create custom Semgrep rules for detecting bug patterns and security vulnerabilities. This skill should be used when the user explicitly asks to "create a Semgrep rule", "write a Semgrep rule", "make a Semgrep rule", "build a Semgrep rule", or requests detection of a specific bug pattern, vulnerability, or insecure code pattern using Semgrep.
+description: Creates custom Semgrep rules for detecting security vulnerabilities, bug patterns, and code patterns. Use when writing Semgrep rules or building custom static analysis detections.
 allowed-tools:
   - Bash
   - Read
@@ -18,10 +18,10 @@ Create production-quality Semgrep rules with proper testing and validation.
 ## When to Use
 
 **Ideal scenarios:**
-- Creating custom detection rules for specific bug patterns
-- Building security vulnerability detectors for your codebase
+- Writing Semgrep rules for specific bug patterns
+- Writing rules to detect security vulnerabilities in your codebase
 - Writing taint-mode rules for data flow vulnerabilities
-- Developing rules to enforce coding standards
+- Writing rules to enforce coding standards
 
 ## When NOT to Use
 
@@ -31,12 +31,12 @@ Do NOT use this skill for:
 
 ## Rationalizations to Reject
 
-When creating Semgrep rules, reject these common shortcuts:
+When writing Semgrep rules, reject these common shortcuts:
 
-- **"The pattern looks complete"** → Still run `semgrep --test --config rule.yaml test-file` to verify. Untested rules have hidden false positives/negatives.
+- **"The pattern looks complete"** → Still run `semgrep --test --config <rule-id>.yaml <rule-id>.<ext>` to verify. Untested rules have hidden false positives/negatives.
 - **"It matches the vulnerable case"** → Matching vulnerabilities is half the job. Verify safe cases don't match (false positives break trust).
 - **"Taint mode is overkill for this"** → If data flows from user input to a dangerous sink, taint mode gives better precision than pattern matching.
-- **"One test case is enough"** → Include edge cases: different coding styles, sanitized inputs, safe alternatives, and boundary conditions.
+- **"One test is enough"** → Include edge cases: different coding styles, sanitized inputs, safe alternatives, and boundary conditions.
 - **"I'll optimize the patterns first"** → Write correct patterns first, optimize after all tests pass. Premature optimization causes regressions.
 - **"The AST dump is too complex"** → The AST reveals exactly how Semgrep sees code. Skipping it leads to patterns that miss syntactic variations.
 
@@ -82,14 +82,17 @@ pattern-sinks:
 ## Strictness Level
 
 This workflow is **strict** - do not skip steps:
-- **Test-first is mandatory**: Never write a rule without test cases
+- **Read documentation first**: See [Documentation](#documentation) before writing Semgrep rules
+- **Test-first is mandatory**: Never write a rule without tests
 - **100% test pass is required**: "Most tests pass" is not acceptable
 - **Optimization comes last**: Only simplify patterns after all tests pass
 - **Documentation reading is required**: Fetch external docs before writing rules
+- **Avoid generic patterns**: Rules must be specific, not match broad patterns
+- **Prioritize taint mode**: For data flow vulnerabilities
 
 ## Overview
 
-This skill guides creation of Semgrep rules that detect security vulnerabilities and bug patterns. Rules are created iteratively: write test cases first, analyze AST structure, write the rule, then iterate until all tests pass.
+This skill guides creation of Semgrep rules that detect security vulnerabilities and code patterns. Rules are created iteratively: analyze the problem, write tests first, analyze AST structure, write the rule, iterate until all tests pass, optimize the rule.
 
 **Approach selection:**
 - **Taint mode** (prioritize): Data flow issues where untrusted input reaches dangerous sinks
@@ -97,7 +100,7 @@ This skill guides creation of Semgrep rules that detect security vulnerabilities
 
 **Why prioritize taint mode?** Pattern matching finds syntax but misses context. A pattern `eval($X)` matches both `eval(user_input)` (vulnerable) and `eval("safe_literal")` (safe). Taint mode tracks data flow, so it only alerts when untrusted data actually reaches the sink—dramatically reducing false positives for injection vulnerabilities.
 
-**Iterating between approaches:** It's okay to experiment. If you start with taint mode and it's not working well (e.g., taint doesn't propagate as expected, too many false positives/negatives), switch to pattern matching. Conversely, if pattern matching produces too many false positives on safe code, try taint mode instead. The goal is a working rule—not rigid adherence to one approach.
+**Iterating between approaches:** It's okay to experiment. If you start with taint mode and it's not working well (e.g., taint doesn't propagate as expected, too many false positives/negatives), switch to pattern matching. Conversely, if pattern matching produces too many false positives on safe cases, try taint mode instead. The goal is a working rule—not rigid adherence to one approach.
 
 **Output structure** - exactly two files in a directory named after the rule ID:
 ```
@@ -105,32 +108,6 @@ This skill guides creation of Semgrep rules that detect security vulnerabilities
 ├── <rule-id>.yaml     # Semgrep rule
 └── <rule-id>.<ext>    # Test file with ruleid/ok annotations
 ```
-
-## Quick Start
-
-```yaml
-rules:
-  - id: insecure-eval
-    languages: [python]
-    severity: HIGH
-    message: User input passed to eval() allows code execution
-    mode: taint
-    pattern-sources:
-      - pattern: request.args.get(...)
-    pattern-sinks:
-      - pattern: eval(...)
-```
-
-Test file (`insecure-eval.py`):
-```python
-# ruleid: insecure-eval
-eval(request.args.get('code'))
-
-# ok: insecure-eval
-eval("print('safe')")
-```
-
-Run tests (from rule directory): `semgrep --test --config rule.yaml test-file`
 
 ## Quick Reference
 
@@ -144,9 +121,9 @@ Understand the bug pattern, identify target language, determine if taint mode ap
 
 Before writing any rule, see [Documentation](#documentation) for required reading.
 
-### 2. Create Test Cases First
+### 2. Write Tests First
 
-**Why test-first?** Writing tests before the rule forces you to think about both vulnerable AND safe patterns. Rules written without tests often have hidden false positives (matching safe code) or false negatives (missing vulnerable variants). Tests make these visible immediately.
+**Why test-first?** Writing tests before the rule forces you to think about both vulnerable AND safe cases. Rules written without tests often have hidden false positives (matching safe cases) or false negatives (missing vulnerable variants). Tests make these visible immediately.
 
 Create directory and test file with annotations (`# ruleid:`, `# ok:`, etc.). See [quick-reference.md]({baseDir}/references/quick-reference.md#test-file-annotations) for full syntax.
 
@@ -167,15 +144,15 @@ See [workflow.md]({baseDir}/references/workflow.md) for detailed patterns and ex
 ### 5. Iterate Until Tests Pass
 
 ```bash
-semgrep --test --config rule.yaml test-file
+semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
 ```
 
-**Verification checkpoint**: Output MUST show "All tests passed". Do not proceed to optimization until this is achieved.
-
-For debugging taint rules:
+For debugging taint-mode rules:
 ```bash
-semgrep --dataflow-traces -f rule.yaml test-file
+semgrep --dataflow-traces -f <rule-id>.yaml <rule-id>.<ext>
 ```
+
+**Verification checkpoint**: Output MUST show "All tests passed". **Only proceed when validation passes**.
 
 ### 6. Optimize the Rule
 
@@ -183,22 +160,16 @@ After all tests pass, remove redundant patterns (quote variants, ellipsis subset
 
 **Task complete ONLY when**: All tests pass after optimization.
 
-## Key Requirements
-
-- **Read documentation first**: See [Documentation](#documentation) before creating rules
-- **Tests must pass 100%**: Do not finish until all tests pass
-- **Avoid generic patterns**: Rules must be specific, not match broad patterns
-- **Prioritize taint mode**: For data flow vulnerabilities
 
 ## Documentation
 
-**REQUIRED**: Before creating any rule, use WebFetch to read this Semgrep documentation:
+**REQUIRED**: Before writing any rule, use WebFetch to read **all** of these 5 links with Semgrep documentation:
 
-- [Rule Syntax](https://semgrep.dev/docs/writing-rules/rule-syntax) - YAML structure, operators, and rule options
-- [Pattern Syntax](https://semgrep.dev/docs/writing-rules/pattern-syntax) - Pattern matching, metavariables, and ellipsis usage
-- [Testing Rules](https://semgrep.dev/docs/writing-rules/testing-rules) - Testing rules to properly catch code patterns and avoid false positives
-- [Writing Rules Index](https://github.com/semgrep/semgrep-docs/tree/main/docs/writing-rules/) - Full documentation index (browse for taint mode, testing, etc.)
-- [Trail of Bits Testing Handbook - Semgrep](https://appsec.guide/docs/static-analysis/semgrep/advanced/) - Patterns, taint tracking, and practical examples
+1. [Rule Syntax](https://semgrep.dev/docs/writing-rules/rule-syntax) - YAML structure, operators, and rule options
+2. [Pattern Syntax](https://semgrep.dev/docs/writing-rules/pattern-syntax) - Pattern matching, metavariables, and ellipsis usage
+3. [Testing Rules](https://semgrep.dev/docs/writing-rules/testing-rules) - Testing rules to properly catch code patterns and avoid false positives
+4. [Writing Rules Index](https://github.com/semgrep/semgrep-docs/tree/main/docs/writing-rules/) - Full documentation index (browse for taint mode, testing, etc.)
+5. [ToB Testing Handbook - Semgrep](https://appsec.guide/docs/static-analysis/semgrep/advanced/) - Patterns, taint tracking, and practical examples
 
 ## Next Steps
 
