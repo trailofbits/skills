@@ -146,13 +146,13 @@ semgrep --dump-ast -l <language> <rule-id>.<ext>
 semgrep -f <rule-id>.yaml <rule-id>.<ext>
 ```
 
-## Common Pitfalls
+## Troubleshooting
+
+### Common Pitfalls
 
 1. **Wrong annotation line**: `ruleid:` must be on the line IMMEDIATELY BEFORE the finding. No other text or code
 2. **Too generic patterns**: Avoid `pattern: $X` without constraints
 3. **YAML syntax errors**: Validate with `semgrep --validate`
-
-## Troubleshooting
 
 ### Pattern Not Matching
 
