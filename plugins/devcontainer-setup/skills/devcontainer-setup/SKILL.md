@@ -26,15 +26,13 @@ flowchart TB
     start([User requests devcontainer])
     recon[1. Project Reconnaissance]
     detect[2. Detect Languages]
-    ask_network[Ask: Include network isolation tools?]
     generate[3. Generate Configuration]
     write[4. Write files to .devcontainer/]
     done([Done])
 
     start --> recon
     recon --> detect
-    detect --> ask_network
-    ask_network --> generate
+    detect --> generate
     generate --> write
     write --> done
 ```
@@ -87,34 +85,17 @@ Start with base templates from `resources/` directory. Substitute:
 
 Then apply language-specific modifications below.
 
-## User Question: Network Isolation
+## Base Template Features
 
-Ask the user using `AskUserQuestion`:
+The base template includes:
 
-> **Include network isolation tools?**
->
-> Adds iptables/ipset to optionally restrict outbound network access (e.g., allow only api.anthropic.com and github.com).
-
-**If yes**, make these additions:
-
-1. In `devcontainer.json`, add `runArgs` at the top level after the `features` block:
-```json
-"runArgs": [
-  "--cap-add=NET_ADMIN",
-  "--cap-add=NET_RAW"
-],
-```
-
-2. In `Dockerfile`, add network packages to the main `apt-get install` block (before the `&& rm -rf /var/lib/apt/lists/*` cleanup):
-```dockerfile
-# Network tools (for optional network isolation)
-iptables \
-ipset \
-iproute2 \
-dnsutils \
-```
-
-**If no**, use the base template as-is (no network tools).
+- **Claude Code** with marketplace plugins (anthropics/skills, trailofbits/skills)
+- **Python 3.13** via uv (fast binary download)
+- **Node 22** via fnm (Fast Node Manager)
+- **ast-grep** for AST-based code search
+- **Network isolation tools** (iptables, ipset) with NET_ADMIN capability
+- **Tailscale** feature for secure networking
+- **Modern CLI tools**: ripgrep, fd, fzf, tmux, git-delta
 
 ---
 
@@ -126,8 +107,7 @@ dnsutils \
 
 **Dockerfile additions:**
 
-The base Dockerfile already includes uv. Add Python installation.
-Detect the correct Python version to install in `pyproject.toml`.
+The base Dockerfile already includes Python 3.13 via uv. If a different version is required (detected from `pyproject.toml`), modify the Python installation:
 
 ```dockerfile
 # Install Python via uv (fast binary download, not source compilation)
@@ -166,16 +146,7 @@ rm -rf .venv && uv sync && uv run /opt/post_install.py
 
 **Detection:** `package.json` or `tsconfig.json`
 
-**Features to add:**
-
-```json
-"ghcr.io/devcontainers/features/node:1": {
-  "version": "22",
-  "installYarnUsingApt": false
-}
-```
-
-> **Note:** `installYarnUsingApt: false` is set to install yarn from corepack.
+**No Dockerfile additions needed:** The base template includes Node 22 via fnm (Fast Node Manager).
 
 **devcontainer.json extensions:**
 
@@ -191,11 +162,6 @@ Add to `customizations.vscode.settings`:
 "editor.codeActionsOnSave": {
   "source.fixAll.eslint": "explicit"
 }
-```
-
-Add to `containerEnv`:
-```json
-"NODE_OPTIONS": "--max-old-space-size=4096"
 ```
 
 **postCreateCommand:**
@@ -323,7 +289,6 @@ Before presenting files to the user, verify:
 3. JSON syntax is valid in `devcontainer.json` (no trailing commas, proper nesting)
 4. Language-specific extensions are added for all detected languages
 5. `postCreateCommand` includes all required setup commands (chained with `&&`)
-6. If network isolation was requested, both `runArgs` and Dockerfile packages are added
 
 ---
 

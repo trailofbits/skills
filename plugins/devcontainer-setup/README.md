@@ -4,11 +4,12 @@ Create pre-configured devcontainers with Claude Code and language-specific tooli
 
 ## Features
 
-- **Claude Code** pre-installed with `bypassPermissions` auto-configured
-- **Multi-language support**: Python, Node/TypeScript, Rust, Go
-- **Modern CLI tools**: ripgrep, fd, tmux, fzf, git-delta
+- **Claude Code** pre-installed with `bypassPermissions` auto-configured and marketplace plugins
+- **Multi-language support**: Python 3.13, Node 22, Rust, Go
+- **Modern CLI tools**: ripgrep, fd, fzf, tmux, git-delta, ast-grep
 - **Session persistence**: command history, GitHub CLI auth, Claude config survive rebuilds
-- **Optional network isolation**: iptables/ipset for restricting outbound traffic
+- **Network isolation**: iptables/ipset with NET_ADMIN capability for restricting outbound traffic
+- **Tailscale integration**: Secure networking via devcontainer feature
 
 ## Usage
 
@@ -16,9 +17,8 @@ Tell Claude to "set up a devcontainer" or "add devcontainer support" in your pro
 
 The skill will:
 1. Detect your project's language stack
-2. Ask about network isolation preferences
-3. Generate `.devcontainer/` configuration files
-4. Provide instructions for starting the container
+2. Generate `.devcontainer/` configuration files
+3. Provide instructions for starting the container
 
 ## Generated Files
 
@@ -46,8 +46,8 @@ devc shell          Open zsh shell in container
 
 | Language | Detection | Configuration |
 |----------|-----------|---------------|
-| Python | `pyproject.toml`, `*.py` | uv + Python via Dockerfile |
-| Node/TypeScript | `package.json`, `tsconfig.json` | Devcontainer feature |
+| Python | `pyproject.toml`, `*.py` | Python 3.13 via uv (in Dockerfile) |
+| Node/TypeScript | `package.json`, `tsconfig.json` | Node 22 via fnm (in Dockerfile) |
 | Rust | `Cargo.toml` | Devcontainer feature |
 | Go | `go.mod` | Devcontainer feature |
 
@@ -55,12 +55,13 @@ Multi-language projects automatically get all detected configurations merged.
 
 ## Security Model
 
-The devcontainer provides **filesystem isolation** with optional **network isolation**:
+The devcontainer provides **filesystem isolation** with **network isolation** capabilities:
 
 - Container filesystem is isolated from host
 - Your `~/.gitconfig` is mounted read-only
 - Persistent volumes preserve auth across rebuilds
-- Optional iptables/ipset for restricting network access
+- iptables/ipset with NET_ADMIN/NET_RAW capabilities for restricting network access
+- NPM security settings: scripts disabled, 24-hour package release delay
 
 ## Reference Material
 

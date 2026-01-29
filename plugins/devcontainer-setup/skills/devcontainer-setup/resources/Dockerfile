@@ -1,6 +1,6 @@
 # {{PROJECT_NAME}} Devcontainer
 # Based on Microsoft devcontainer image for better devcontainer integration
-FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04@sha256:d94c97dd9cacf183d0a6fd12a8e87b526e9e928307674ae9c94139139c0c6eae
+FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
 
 ARG TZ
 ENV TZ="$TZ"
@@ -10,8 +10,9 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # Install additional system packages (base image already includes git, curl, sudo, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
   # Modern CLI tools
-  fd-find \
+  fzf \
   ripgrep \
+  fd-find \
   tmux \
   zsh \
   # Build tools
@@ -19,19 +20,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   # Utilities
   jq \
   nano \
-  unzip \
   vim \
+  unzip \
+  # Network tools (for security testing)
+  iptables \
+  ipset \
+  iproute2 \
+  dnsutils \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Install fzf from GitHub (Ubuntu 24.04 apt version lacks shell integration)
-ARG FZF_VERSION=0.67.0
-RUN ARCH=$(dpkg --print-architecture) && \
-  case "${ARCH}" in \
-    amd64) FZF_ARCH="linux_amd64" ;; \
-    arm64) FZF_ARCH="linux_arm64" ;; \
-    *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
-  esac && \
-  curl -fsSL "https://github.com/junegunn/fzf/releases/download/v${FZF_VERSION}/fzf-${FZF_VERSION}-${FZF_ARCH}.tar.gz" | tar -xz -C /usr/local/bin
 
 # Install git-delta
 ARG GIT_DELTA_VERSION=0.18.2
@@ -43,11 +39,11 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # Install uv (Python package manager) via multi-stage copy
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Persist command history
-RUN mkdir -p /commandhistory && \
+# Create directories and set ownership (combined for fewer layers)
+RUN mkdir -p /commandhistory /workspace /home/vscode/.claude /opt && \
   touch /commandhistory/.bash_history && \
   touch /commandhistory/.zsh_history && \
-  chown -R vscode /commandhistory
+  chown -R vscode:vscode /commandhistory /workspace /home/vscode/.claude /opt
 
 # Set environment variables
 ENV DEVCONTAINER=true
@@ -55,19 +51,31 @@ ENV SHELL=/bin/zsh
 ENV EDITOR=nano
 ENV VISUAL=nano
 
-# Create workspace and config directories
-RUN mkdir -p /workspace /home/vscode/.claude /opt && \
-  chown -R vscode:vscode /workspace /home/vscode/.claude /opt
-
 WORKDIR /workspace
 
 # Switch to non-root user for remaining setup
 USER vscode
 
-# Install Claude Code (unpinned - always get latest for devcontainers)
-RUN curl -fsSL https://claude.ai/install.sh | bash
+# Install Claude Code natively with marketplace plugins
+RUN curl -fsSL https://claude.ai/install.sh | bash && \
+  claude plugin marketplace add anthropics/skills && \
+  claude plugin marketplace add trailofbits/skills
 
+# Install Python 3.13 via uv (fast binary download, not source compilation)
+RUN uv python install 3.13 --default
 ENV PATH="/home/vscode/.local/bin:$PATH"
+
+# Install ast-grep (AST-based code search)
+RUN uv tool install ast-grep-cli
+
+# Install fnm (Fast Node Manager) and Node 22
+ARG NODE_VERSION=22
+ENV FNM_DIR="/home/vscode/.fnm"
+RUN curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "$FNM_DIR" --skip-shell && \
+  export PATH="$FNM_DIR:$PATH" && \
+  eval "$(fnm env)" && \
+  fnm install ${NODE_VERSION} && \
+  fnm default ${NODE_VERSION}
 
 # Install Oh My Zsh
 ARG ZSH_IN_DOCKER_VERSION=1.2.1
