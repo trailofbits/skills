@@ -1,136 +1,168 @@
 # c-review
 
-Comprehensive C/C++ security code review plugin with specialized bug-finding agents.
+Comprehensive C/C++ security code review plugin with task-based orchestration and automatic prompt selection.
 
 ## Overview
 
-This plugin provides thorough security review of C/C++ codebases using parallel specialized agents, each focused on a specific vulnerability class. It uses iterative refinement with false positive judging and deduplication to maximize finding quality.
+This plugin provides thorough security review of C/C++ codebases using parallel specialized agents, each focused on a specific vulnerability class. The unified coordinator automatically selects which prompts to use based on code analysis and threat model.
 
 ## Features
 
-- **52 specialized agents** covering all major C/C++ bug classes
-- **Iterative review workflow** with FP judging and refinement
-- **Two review modes**: general C/C++ bugs and Linux userspace-specific issues
+- **53 specialized bug-finders** covering all major C/C++ bug classes
+- **Automatic prompt selection** based on code characteristics (C++, POSIX/Linux/macOS)
+- **Threat model filtering** to disable irrelevant prompts
+- **Task-based progress tracking** with TaskCreate/TaskUpdate
+- **Judge pipeline** for FP filtering, deduplication, and severity assignment
 - **Dual output formats**: Markdown (human-readable) and SARIF (tooling)
 
 ## Usage
 
-### General C/C++ Review
-
 ```
-/c-review:general
+/c-review
 ```
 
-Reviews code for general vulnerability classes:
-- Buffer overflows and spatial safety
-- Use-after-free and temporal safety
-- Integer overflows and numeric errors
-- Type confusion
-- Format string bugs
-- Race conditions
-- And 16 more bug classes...
+The unified command automatically:
+1. Detects C++ code and enables C++ prompts
+2. Detects POSIX code (Linux, macOS, BSD) and enables userspace prompts
+3. Asks for threat model and filters prompts accordingly
+4. Tracks progress via task management
 
-### Linux Userspace Review
+### Threat Models
+
+| Model | Description | Auto-Disabled Prompts |
+|-------|-------------|----------------------|
+| Remote | Attacker sends network data only | privilege-drop, envvar |
+| Local Unprivileged | Attacker has shell access | (none) |
+| Both | Consider all scenarios | (none) |
+
+## Prompt Selection
 
 ```
-/c-review:linux-userspace
+                    Code Analysis
+                         │
+        ┌────────────────┼────────────────┐
+        │                │                │
+        ▼                ▼                ▼
+   Always: 20      If C++: +7      If POSIX: +26
+   C prompts     C++ prompts    userspace prompts
+        │                │         (Linux/macOS/BSD)
+        └────────────────┼────────────────┘
+                         │
+                         ▼
+              Filter by threat model
+                         │
+                         ▼
+              Final prompt set (20-53)
 ```
-
-Reviews code for Linux/glibc-specific issues:
-- Thread safety violations
-- Signal handler safety
-- Privilege dropping bugs
-- Environment variable security
-- EINTR handling
-- And 21 more checklist items...
 
 ## Workflow
 
-Both review modes follow the same iterative workflow:
+The review uses task management to track progress:
 
-1. **Context Building** - Understand codebase architecture, entry points, and trust boundaries
-2. **Round 1 Analysis** - Spawn all bug-finding agents in parallel
-3. **FP Judging** - Evaluate findings for false positives
-4. **Round 2 Analysis** - Re-run agents with FP feedback
-5. **Deduplication** - Merge and consolidate findings
-6. **Report Generation** - Produce Markdown and SARIF reports
+| Phase | Tasks | Description |
+|-------|-------|-------------|
+| 0 | 1 | Initialize master tracking task |
+| 1 | 1 | Check prerequisites (clangd, compile_commands.json) |
+| 2 | 1 | Analyze code (detect C++, POSIX) |
+| 3 | 1 | Select threat model, configure filtering |
+| 4 | 1 | Build codebase context |
+| 5 | N+1 | Coordinator spawns N bug-finders (20-53) |
+| 6 | 3 | Judge pipeline (FP, dedup, severity) |
+| 7 | 1 | Present findings, optional SARIF |
 
-## Agents
+**Total:** 30-63 tasks depending on code type
 
-### Judge Agents (shared)
+## Bug Classes
+
+### General C (20 prompts - always enabled)
+
+| Bug Class | Description |
+|-----------|-------------|
+| buffer-overflow | Spatial safety, bounds checking |
+| use-after-free | Temporal safety, UAF, double-free |
+| integer-overflow | Numeric errors, signedness |
+| type-confusion | Type safety, casts, unions |
+| format-string | Printf/scanf format bugs |
+| string-issues | Null termination, encoding |
+| uninitialized-data | Uninitialized memory |
+| null-deref | Null pointer dereferences |
+| error-handling | Unchecked errors |
+| memory-leak | Resource leaks |
+| race-condition | TOCTOU, double fetch |
+| filesystem-issues | Symlinks, temp files |
+| banned-functions | Dangerous functions |
+| dos | Denial of service |
+| undefined-behavior | UB patterns |
+| compiler-bugs | Compiler optimizations |
+| operator-precedence | Precedence mistakes |
+| time-issues | Clock/time bugs |
+| access-control | Privilege issues |
+| regex-issues | ReDoS, bypasses |
+
+### C++ (7 prompts - if C++ detected)
+
+| Bug Class | Description |
+|-----------|-------------|
+| init-order | Static initialization order |
+| iterator-invalidation | Container modification |
+| exception-safety | RAII, exception handling |
+| move-semantics | Move-after-use bugs |
+| smart-pointer | unique_ptr, shared_ptr misuse |
+| virtual-function | VTable, vtable hijacking |
+| lambda-capture | Capture lifetime issues |
+
+### POSIX Userspace (26 prompts - if Linux/macOS/BSD detected)
+
+These prompts apply to all POSIX-compliant systems including Linux, macOS, and BSD.
+The directory is named `linux-userspace` for historical reasons but covers standard
+libc/POSIX patterns common to all Unix-like systems.
+
+| Bug Class | Description |
+|-----------|-------------|
+| thread-safety | Non-thread-safe functions |
+| signal-handler | Async-signal safety |
+| privilege-drop | setuid/setgid bugs |
+| errno-handling | Return value/errno |
+| eintr-handling | EINTR retry logic |
+| envvar | Environment variable security |
+| open-issues | File operation races |
+| unsafe-stdlib | sprintf, strcpy, gets |
+| oob-comparison | memcmp/strncmp bounds |
+| overlapping-buffers | memcpy overlap UB |
+| strlen-strcpy | Null byte miscounting |
+| scanf-uninit | Uninitialized leaks |
+| snprintf-retval | Return value misuse |
+| negative-retval | Negative as size |
+| strncat-misuse | Size argument confusion |
+| strncpy-termination | Null termination |
+| qsort | Non-transitive comparator |
+| memcpy-size | Negative size |
+| spinlock-init | Uninitialized locks |
+| inet-aton | IP validation bypass |
+| socket-disconnect | AF_UNSPEC disconnect |
+| half-closed-socket | Partial shutdown |
+| flexible-array | Zero-length arrays |
+| printf-attr | Missing format attr |
+| va-start-end | Variadic pairing |
+| null-zero | 0 vs NULL |
+
+## Judge Agents
 
 | Agent | Purpose |
 |-------|---------|
 | `fp-judge` | Evaluates findings for false positives |
 | `dedup-judge` | Merges duplicate and related findings |
-
-### General Bug-Finding Agents (22)
-
-| Agent | Bug Class |
-|-------|-----------|
-| `buffer-overflow-finder` | Spatial safety, bounds checking |
-| `use-after-free-finder` | Temporal safety, UAF, double-free |
-| `integer-overflow-finder` | Numeric errors, signedness |
-| `type-confusion-finder` | Type safety, casts, unions |
-| `format-string-finder` | Printf/scanf format bugs |
-| `string-issues-finder` | Null termination, encoding |
-| `uninitialized-data-finder` | Uninitialized memory |
-| `null-deref-finder` | Null pointer dereferences |
-| `error-handling-finder` | Unchecked errors |
-| `memory-leak-finder` | Resource leaks |
-| `init-order-finder` | Static initialization order |
-| `race-condition-finder` | TOCTOU, double fetch |
-| `filesystem-issues-finder` | Symlinks, temp files |
-| `iterator-invalidation-finder` | Container modification |
-| `banned-functions-finder` | Dangerous functions |
-| `dos-finder` | Denial of service |
-| `undefined-behavior-finder` | UB patterns |
-| `compiler-bugs-finder` | Compiler optimizations |
-| `operator-precedence-finder` | Precedence mistakes |
-| `time-issues-finder` | Clock/time bugs |
-| `access-control-finder` | Privilege issues |
-| `regex-issues-finder` | ReDoS, bypasses |
-
-### Linux Userspace Bug-Finding Agents (26)
-
-| Agent | Bug Class |
-|-------|-----------|
-| `thread-safety-finder` | Non-thread-safe functions |
-| `signal-handler-finder` | Async-signal safety |
-| `oob-comparison-finder` | memcmp/strncmp bounds |
-| `envvar-finder` | Environment variable security |
-| `open-issues-finder` | File operation races |
-| `privilege-drop-finder` | setuid/setgid bugs |
-| `unsafe-stdlib-finder` | sprintf, strcpy, gets |
-| `errno-handling-finder` | Return value/errno |
-| `eintr-handling-finder` | EINTR retry logic |
-| `overlapping-buffers-finder` | memcpy overlap UB |
-| `strlen-strcpy-finder` | Null byte miscounting |
-| `scanf-uninit-finder` | Uninitialized leaks |
-| `snprintf-retval-finder` | Return value misuse |
-| `negative-retval-finder` | Negative as size |
-| `strncat-misuse-finder` | Size argument confusion |
-| `strncpy-termination-finder` | Null termination |
-| `qsort-finder` | Non-transitive comparator |
-| `memcpy-size-finder` | Negative size |
-| `spinlock-init-finder` | Uninitialized locks |
-| `inet-aton-finder` | IP validation bypass |
-| `socket-disconnect-finder` | AF_UNSPEC disconnect |
-| `half-closed-socket-finder` | Partial shutdown |
-| `flexible-array-finder` | Zero-length arrays |
-| `printf-attr-finder` | Missing format attr |
-| `va-start-end-finder` | Variadic pairing |
-| `null-zero-finder` | 0 vs NULL |
+| `severity-agent` | Assigns severity based on threat model |
 
 ## Output Formats
 
 ### Markdown Report
 
 Human-readable report with:
-- Executive summary
-- Findings grouped by severity
+- Findings grouped by severity (CRITICAL → HIGH → MEDIUM → LOW)
 - Code snippets and locations
 - Impact and recommendations
+- Severity rationale based on threat model
 
 ### SARIF Report
 
@@ -139,11 +171,13 @@ Machine-readable SARIF 2.1.0 format for:
 - CI/CD pipelines
 - GitHub Security tab
 
-## Reference
-
-Based on [Trail of Bits C/C++ Security Checklist](https://github.com/trailofbits/publications).
-
 ## Requirements
 
 - Claude Code with plugin support
-- Optionally: `checksec` for binary mitigation analysis
+- `clangd` for accurate LSP analysis (recommended)
+- `compile_commands.json` for symbol resolution (recommended)
+- `audit-context-building` skill for codebase context
+
+## Reference
+
+Based on [Trail of Bits C/C++ Security Checklist](https://github.com/trailofbits/publications).
