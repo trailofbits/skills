@@ -1,0 +1,6 @@
+{
+  "name": "humanizer",
+  "version": "1.0.0",
+  "description": "Identifies and removes AI writing patterns to make text sound natural and human-written",
+  "author": "Trail of Bits"
+}
