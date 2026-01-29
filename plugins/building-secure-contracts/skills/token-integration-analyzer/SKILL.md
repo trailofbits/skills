@@ -1,13 +1,13 @@
 ---
 name: token-integration-analyzer
-description: Comprehensive token integration and implementation analyzer based on Trail of Bits' token integration checklist. Analyzes token implementations for ERC20/ERC721 conformity, checks for 20+ weird token patterns, assesses contract composition and owner privileges, performs on-chain scarcity analysis, and evaluates how protocols handle non-standard tokens. Context-aware for both token implementations and token integrations. (project, gitignored)
+description: Token integration and implementation analyzer based on Trail of Bits' token integration checklist. Analyzes token implementations for ERC20/ERC721 conformity, checks for 20+ weird token patterns, assesses contract composition and owner privileges, performs on-chain scarcity analysis, and evaluates how protocols handle non-standard tokens. Context-aware for both token implementations and token integrations.
 ---
 
 # Token Integration Analyzer
 
 ## Purpose
 
-I will systematically analyze your codebase for token-related security concerns using Trail of Bits' token integration checklist. I help with:
+Systematically analyzes the codebase for token-related security concerns using Trail of Bits' token integration checklist:
 
 1. **Token Implementations**: Analyze if your token follows ERC20/ERC721 standards or has non-standard behavior
 2. **Token Integrations**: Analyze how your protocol handles arbitrary tokens, including weird/non-standard tokens
@@ -21,7 +21,7 @@ I will systematically analyze your codebase for token-related security concerns 
 ## How This Works
 
 ### Phase 1: Context Discovery
-I'll determine what we're analyzing:
+Determines analysis context:
 - **Token implementation**: Are you building a token contract?
 - **Token integration**: Does your protocol interact with external tokens?
 - **Platform**: Ethereum, other EVM chains, or different platform?
@@ -35,7 +35,7 @@ For Solidity projects, I'll help run:
 - `slither-prop` - Property generation for testing
 
 ### Phase 3: Code Analysis
-I'll analyze:
+Analyzes:
 - Contract composition and complexity
 - Owner privileges and centralization risks
 - ERC20/ERC721 conformity
@@ -50,7 +50,7 @@ If you provide a contract address, I'll query:
 - On-chain configuration
 
 ### Phase 5: Risk Assessment
-I'll provide:
+Provides:
 - Identified vulnerabilities
 - Non-standard behaviors
 - Integration risks

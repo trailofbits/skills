@@ -1,13 +1,13 @@
 ---
 name: audit-prep-assistant
-description: Prepare your codebase for security review using Trail of Bits' checklist. Helps set review goals, runs static analysis tools, increases test coverage, removes dead code, ensures accessibility, and generates comprehensive documentation (flowcharts, user stories, inline comments). (project, gitignored)
+description: Prepares codebases for security review using Trail of Bits' checklist. Helps set review goals, runs static analysis tools, increases test coverage, removes dead code, ensures accessibility, and generates documentation (flowcharts, user stories, inline comments).
 ---
 
 # Audit Prep Assistant
 
 ## Purpose
 
-I'll help you prepare for a security review using Trail of Bits' checklist. A well-prepared codebase makes the review process smoother and more effective.
+Helps prepare for a security review using Trail of Bits' checklist. A well-prepared codebase makes the review process smoother and more effective.
 
 **Use this**: 1-2 weeks before your security audit
 
@@ -17,7 +17,7 @@ I'll help you prepare for a security review using Trail of Bits' checklist. A we
 
 ### Step 1: Set Review Goals
 
-I'll help you define what you want from the review:
+Helps define what you want from the review:
 
 **Key Questions**:
 - What's the overall security level you're aiming for?
@@ -27,13 +27,13 @@ I'll help you define what you want from the review:
   - Fragile parts?
 - What's the worst-case scenario for your project?
 
-I'll document your goals to share with the assessment team.
+Documents goals to share with the assessment team.
 
 ---
 
 ### Step 2: Resolve Easy Issues
 
-I'll run static analysis and help you fix low-hanging fruit:
+Runs static analysis and helps fix low-hanging fruit:
 
 **Run Static Analysis**:
 
@@ -80,7 +80,7 @@ Then I'll:
 
 ### Step 3: Ensure Code Accessibility
 
-I'll help make your code clear and accessible:
+Helps make code clear and accessible:
 
 **Provide Detailed File List**:
 - List all files in scope
@@ -110,7 +110,7 @@ I'll help make your code clear and accessible:
 
 ### Step 4: Generate Documentation
 
-I'll help create comprehensive documentation:
+Helps create documentation:
 
 **Flowcharts and Sequence Diagrams**:
 - Map primary workflows
@@ -174,7 +174,7 @@ When invoked, I will:
 6. **Generate documentation** - Create flowcharts, user stories, glossaries
 7. **Create prep checklist** - Track what's done and what's remaining
 
-I'll adapt based on:
+Adapts based on:
 - Your platform (Solidity, Rust, Go, etc.)
 - Available tools
 - Existing documentation

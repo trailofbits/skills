@@ -1,13 +1,13 @@
 ---
 name: secure-workflow-guide
-description: Guide you through Trail of Bits' 5-step secure development workflow. Runs Slither scans, checks special features (upgradeability/ERC conformance/token integration), generates visual security diagrams, helps document security properties for fuzzing/verification, and reviews manual security areas. (project, gitignored)
+description: Guides through Trail of Bits' 5-step secure development workflow. Runs Slither scans, checks special features (upgradeability/ERC conformance/token integration), generates visual security diagrams, helps document security properties for fuzzing/verification, and reviews manual security areas.
 ---
 
 # Secure Workflow Guide
 
 ## Purpose
 
-I'll guide you through Trail of Bits' secure development workflow - a 5-step process to enhance smart contract security throughout development.
+Guides through Trail of Bits' secure development workflow - a 5-step process to enhance smart contract security throughout development.
 
 **Use this**: On every check-in, before deployment, or when you want a security review
 
@@ -15,7 +15,7 @@ I'll guide you through Trail of Bits' secure development workflow - a 5-step pro
 
 ## The 5-Step Workflow
 
-I'll guide you through a comprehensive security workflow covering:
+Covers a security workflow including:
 
 ### Step 1: Check for Known Security Issues
 Run Slither with 70+ built-in detectors to find common vulnerabilities:
@@ -83,7 +83,7 @@ When invoked, I will:
 6. **Analyze Step 5**: Manual review areas
 7. **Provide action plan**: Prioritized fixes and next steps
 
-I'll adapt based on:
+Adapts based on:
 - What tools you have installed
 - What's applicable to your project
 - Where you are in development

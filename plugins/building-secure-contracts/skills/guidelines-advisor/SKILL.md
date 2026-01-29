@@ -1,13 +1,13 @@
 ---
 name: guidelines-advisor
-description: Comprehensive smart contract development advisor based on Trail of Bits' best practices. Analyzes codebase to generate documentation/specifications, review architecture, check upgradeability patterns, assess implementation quality, identify pitfalls, review dependencies, and evaluate testing. Provides actionable recommendations. (project, gitignored)
+description: Smart contract development advisor based on Trail of Bits' best practices. Analyzes codebase to generate documentation/specifications, review architecture, check upgradeability patterns, assess implementation quality, identify pitfalls, review dependencies, and evaluate testing. Provides actionable recommendations.
 ---
 
 # Guidelines Advisor
 
 ## Purpose
 
-I will systematically analyze your codebase and provide comprehensive guidance based on Trail of Bits' development guidelines. I'll help you:
+Systematically analyzes the codebase and provides guidance based on Trail of Bits' development guidelines:
 
 1. **Generate documentation and specifications** (plain English descriptions, architectural diagrams, code documentation)
 2. **Optimize on-chain/off-chain architecture** (only if applicable)
@@ -25,7 +25,7 @@ I will systematically analyze your codebase and provide comprehensive guidance b
 ## How This Works
 
 ### Phase 1: Discovery & Context
-I'll explore the codebase to understand:
+Explores the codebase to understand:
 - Project structure and platform
 - Contract/module files and their purposes
 - Existing documentation
@@ -34,19 +34,19 @@ I'll explore the codebase to understand:
 - Dependencies
 
 ### Phase 2: Documentation Generation
-I'll help create:
+Helps create:
 - Plain English system description
 - Architectural diagrams (using Slither printers for Solidity)
 - Code documentation recommendations (NatSpec for Solidity)
 
 ### Phase 3: Architecture Analysis
-I'll analyze:
+Analyzes:
 - On-chain vs off-chain component distribution (if applicable)
 - Upgradeability approach (if applicable)
 - Delegatecall proxy patterns (if present)
 
 ### Phase 4: Implementation Review
-I'll assess:
+Assesses:
 - Function composition and clarity
 - Inheritance structure
 - Event logging practices
@@ -55,7 +55,7 @@ I'll assess:
 - Testing coverage and techniques
 
 ### Phase 5: Recommendations
-I'll provide:
+Provides:
 - Prioritized improvement suggestions
 - Best practice guidance
 - Actionable next steps
