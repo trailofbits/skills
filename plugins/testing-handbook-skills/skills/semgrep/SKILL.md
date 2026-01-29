@@ -1,9 +1,11 @@
 ---
-name: semgrep
+name: semgrep-testing-handbook
 type: tool
 description: >
-  Semgrep is a fast static analysis tool for finding bugs and enforcing code standards.
-  Use when scanning code for security issues or integrating into CI/CD pipelines.
+  Trail of Bits testing handbook methodology for Semgrep. Use when applying first-tool-to-run
+  philosophy, scanning proprietary code with metrics disabled, or integrating Semgrep into
+  CI/CD. Covers quick scanning, autofix workflows, and privacy-conscious configuration per
+  appsec.guide.
 ---
 
 # Semgrep
