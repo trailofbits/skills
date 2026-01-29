@@ -1,6 +1,6 @@
 ---
 name: modern-python
-description: Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools.
+description: Configures Python projects with modern tooling (uv, ruff, ty). Use when creating projects, writing standalone scripts, or migrating from pip/Poetry/mypy/black.
 ---
 
 # Modern Python

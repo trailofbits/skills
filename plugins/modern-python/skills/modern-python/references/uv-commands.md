@@ -170,7 +170,28 @@ uv run script_with_metadata.py
 | `UV_NO_CACHE` | Disable caching |
 | `UV_PYTHON` | Default Python version |
 | `UV_PROJECT` | Project directory path |
+| `UV_PROJECT_ENVIRONMENT` | Custom venv directory (e.g., `.venv-dev`) |
 | `UV_SYSTEM_PYTHON` | Use system Python |
+
+## Container/Host Development
+
+When developing on a host machine while also running in containers, you can use separate venvs to avoid rebuilding on each context switch:
+
+```bash
+# On host machine (add to shell profile or .envrc)
+export UV_PROJECT_ENVIRONMENT=.venv-dev
+
+# Now host uses .venv-dev, containers use default .venv
+uv sync  # creates .venv-dev on host
+```
+
+Add both to `.gitignore`:
+```
+.venv/
+.venv-dev/
+```
+
+This avoids rebuilding the venv when switching between host and container (different OS, Python versions, or native dependencies).
 
 ## Performance Tips
 
