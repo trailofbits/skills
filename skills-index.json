@@ -1,0 +1,378 @@
+{
+  "version": "1.0.0",
+  "generated": "2026-01-18T16:43:06.006257+00:00",
+  "skills": [
+    {
+      "name": "address-sanitizer",
+      "description": "AddressSanitizer detects memory errors during fuzzing. Use when fuzzing C/C++ code to find buffer overflows and use-after-free bugs.",
+      "path": "skills/address-sanitizer",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/address-sanitizer"
+    },
+    {
+      "name": "aflpp",
+      "description": "AFL++ is a fork of AFL with better fuzzing performance and advanced features. Use for multi-core fuzzing of C/C++ projects.",
+      "path": "skills/aflpp",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/aflpp"
+    },
+    {
+      "name": "algorand-vulnerability-scanner",
+      "description": "Scans Algorand smart contracts for 11 common vulnerabilities including rekeying attacks, unchecked transaction fees, missing field validations, and access control issues. Use when auditing Algorand projects (TEAL/PyTeal). (project, gitignored)",
+      "path": "skills/algorand-vulnerability-scanner",
+      "plugin": "building-secure-contracts",
+      "source_path": "plugins/building-secure-contracts/skills/not-so-smart-contracts-scanners/algorand-vulnerability-scanner"
+    },
+    {
+      "name": "ask-questions-if-underspecified",
+      "description": "Clarify requirements before implementing. Use when serious doubts araise.",
+      "path": "skills/ask-questions-if-underspecified",
+      "plugin": "ask-questions-if-underspecified",
+      "source_path": "plugins/ask-questions-if-underspecified/skills/ask-questions-if-underspecified"
+    },
+    {
+      "name": "atheris",
+      "description": "Atheris is a coverage-guided Python fuzzer based on libFuzzer. Use for fuzzing pure Python code and Python C extensions.",
+      "path": "skills/atheris",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/atheris"
+    },
+    {
+      "name": "audit-context-building",
+      "description": "Enables ultra-granular, line-by-line code analysis to build deep architectural context before vulnerability or bug finding.",
+      "path": "skills/audit-context-building",
+      "plugin": "audit-context-building",
+      "source_path": "plugins/audit-context-building/skills/audit-context-building"
+    },
+    {
+      "name": "audit-prep-assistant",
+      "description": "Prepare your codebase for security review using Trail of Bits' checklist. Helps set review goals, runs static analysis tools, increases test coverage, removes dead code, ensures accessibility, and generates comprehensive documentation (flowcharts, user stories, inline comments). (project, gitignored)",
+      "path": "skills/audit-prep-assistant",
+      "plugin": "building-secure-contracts",
+      "source_path": "plugins/building-secure-contracts/skills/development-guidelines/audit-prep-assistant"
+    },
+    {
+      "name": "burp-suite",
+      "description": "Burp Suite Professional is an HTTP interception proxy with numerous security testing features. Use when testing web applications for security vulnerabilities.",
+      "path": "skills/burp-suite",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/burp-suite"
+    },
+    {
+      "name": "burpsuite-project-parser",
+      "description": "Searches and explores Burp Suite project files (.burp) from the command line. Use when searching response headers or bodies with regex patterns, extracting security audit findings, dumping proxy history or site map data, or analyzing HTTP traffic captured in a Burp project.",
+      "path": "skills/burpsuite-project-parser",
+      "plugin": "burpsuite-project-parser",
+      "source_path": "plugins/burpsuite-project-parser/skills",
+      "allowed_tools": [
+        "Bash",
+        "Read"
+      ]
+    },
+    {
+      "name": "cairo-vulnerability-scanner",
+      "description": "Scans Cairo/StarkNet smart contracts for 6 critical vulnerabilities including felt252 arithmetic overflow, L1-L2 messaging issues, address conversion problems, and signature replay. Use when auditing StarkNet projects. (project, gitignored)",
+      "path": "skills/cairo-vulnerability-scanner",
+      "plugin": "building-secure-contracts",
+      "source_path": "plugins/building-secure-contracts/skills/not-so-smart-contracts-scanners/cairo-vulnerability-scanner"
+    },
+    {
+      "name": "cargo-fuzz",
+      "description": "cargo-fuzz is the de facto fuzzing tool for Rust projects using Cargo. Use for fuzzing Rust code with libFuzzer backend.",
+      "path": "skills/cargo-fuzz",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/cargo-fuzz"
+    },
+    {
+      "name": "code-maturity-assessor",
+      "description": "Systematic code maturity assessment using Trail of Bits' 9-category framework. Analyzes codebase for arithmetic safety, auditing practices, access controls, complexity, decentralization, documentation, MEV risks, low-level code, and testing. Produces professional scorecard with evidence-based ratings and actionable recommendations. (project, gitignored)",
+      "path": "skills/code-maturity-assessor",
+      "plugin": "building-secure-contracts",
+      "source_path": "plugins/building-secure-contracts/skills/development-guidelines/code-maturity-assessor"
+    },
+    {
+      "name": "codeql",
+      "description": "Run CodeQL static analysis for security vulnerability detection, taint tracking, and data flow analysis. Use when asked to analyze code with CodeQL, create CodeQL databases, write custom QL queries, perform security audits, or set up CodeQL in CI/CD pipelines.",
+      "path": "skills/codeql",
+      "plugin": "static-analysis",
+      "source_path": "plugins/static-analysis/skills/codeql",
+      "allowed_tools": [
+        "Bash",
+        "Read",
+        "Glob",
+        "Grep"
+      ]
+    },
+    {
+      "name": "constant-time-analysis",
+      "description": "Detects timing side-channel vulnerabilities in cryptographic code. Use when implementing or reviewing crypto code, encountering division on secrets, secret-dependent branches, or constant-time programming questions in C, C++, Go, Rust, Swift, Java, Kotlin, C#, PHP, JavaScript, TypeScript, Python, or Ruby.",
+      "path": "skills/constant-time-analysis",
+      "plugin": "constant-time-analysis",
+      "source_path": "plugins/constant-time-analysis/skills/constant-time-analysis"
+    },
+    {
+      "name": "constant-time-testing",
+      "description": "Constant-time testing detects timing side channels in cryptographic code. Use when auditing crypto implementations for timing vulnerabilities.",
+      "path": "skills/constant-time-testing",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/constant-time-testing"
+    },
+    {
+      "name": "cosmos-vulnerability-scanner",
+      "description": "Scans Cosmos SDK blockchains for 9 consensus-critical vulnerabilities including non-determinism, incorrect signers, ABCI panics, and rounding errors. Use when auditing Cosmos chains or CosmWasm contracts. (project, gitignored)",
+      "path": "skills/cosmos-vulnerability-scanner",
+      "plugin": "building-secure-contracts",
+      "source_path": "plugins/building-secure-contracts/skills/not-so-smart-contracts-scanners/cosmos-vulnerability-scanner"
+    },
+    {
+      "name": "coverage-analysis",
+      "description": "Coverage analysis measures code exercised during fuzzing. Use when assessing harness effectiveness or identifying fuzzing blockers.",
+      "path": "skills/coverage-analysis",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/coverage-analysis"
+    },
+    {
+      "name": "differential-review",
+      "description": "Performs security-focused differential review of code changes (PRs, commits, diffs). Adapts analysis depth to codebase size, uses git history for context, calculates blast radius, checks test coverage, and generates comprehensive markdown reports. Automatically detects and prevents security regressions.\n",
+      "path": "skills/differential-review",
+      "plugin": "differential-review",
+      "source_path": "plugins/differential-review/skills/differential-review",
+      "allowed_tools": [
+        "Read",
+        "Write",
+        "Grep",
+        "Glob",
+        "Bash"
+      ]
+    },
+    {
+      "name": "dwarf-expert",
+      "description": "Provides expertise for analyzing DWARF debug files and understanding the DWARF debug format/standard (v3-v5). Triggers when understanding DWARF information, interacting with DWARF files, answering DWARF-related questions, or working with code that parses DWARF data.",
+      "path": "skills/dwarf-expert",
+      "plugin": "dwarf-expert",
+      "source_path": "plugins/dwarf-expert/skills/dwarf-expert",
+      "allowed_tools": [
+        "Read",
+        "Bash",
+        "Grep",
+        "Glob",
+        "WebSearch"
+      ]
+    },
+    {
+      "name": "entry-point-analyzer",
+      "description": "Analyzes smart contract codebases to identify state-changing entry points for security auditing. Detects externally callable functions that modify state, categorizes them by access level (public, admin, role-restricted, contract-only), and generates structured audit reports. Excludes view/pure/read-only functions. Use when auditing smart contracts (Solidity, Vyper, Solana/Rust, Move, TON, CosmWasm) or when asked to find entry points, audit flows, external functions, access control patterns, or privileged operations.",
+      "path": "skills/entry-point-analyzer",
+      "plugin": "entry-point-analyzer",
+      "source_path": "plugins/entry-point-analyzer/skills/entry-point-analyzer",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ]
+    },
+    {
+      "name": "fix-review",
+      "description": "Verifies that git commits address security audit findings without introducing bugs. This skill should be used when the user asks to \"verify these commits fix the audit findings\", \"check if TOB-XXX was addressed\", \"review the fix branch\", \"validate remediation commits\", \"did these changes address the security report\", \"post-audit remediation review\", \"compare fix commits to audit report\", or when reviewing commits against security audit reports.\n",
+      "path": "skills/fix-review",
+      "plugin": "fix-review",
+      "source_path": "plugins/fix-review/skills/fix-review",
+      "allowed_tools": [
+        "Read",
+        "Write",
+        "Grep",
+        "Glob",
+        "Bash",
+        "WebFetch"
+      ]
+    },
+    {
+      "name": "fuzzing-dictionary",
+      "description": "Fuzzing dictionaries guide fuzzers with domain-specific tokens. Use when fuzzing parsers, protocols, or format-specific code.",
+      "path": "skills/fuzzing-dictionary",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/fuzzing-dictionary"
+    },
+    {
+      "name": "fuzzing-obstacles",
+      "description": "Techniques for patching code to overcome fuzzing obstacles. Use when checksums, global state, or other barriers block fuzzer progress.",
+      "path": "skills/fuzzing-obstacles",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/fuzzing-obstacles"
+    },
+    {
+      "name": "guidelines-advisor",
+      "description": "Comprehensive smart contract development advisor based on Trail of Bits' best practices. Analyzes codebase to generate documentation/specifications, review architecture, check upgradeability patterns, assess implementation quality, identify pitfalls, review dependencies, and evaluate testing. Provides actionable recommendations. (project, gitignored)",
+      "path": "skills/guidelines-advisor",
+      "plugin": "building-secure-contracts",
+      "source_path": "plugins/building-secure-contracts/skills/development-guidelines/guidelines-advisor"
+    },
+    {
+      "name": "harness-writing",
+      "description": "Techniques for writing effective fuzzing harnesses across languages. Use when creating new fuzz targets or improving existing harness code.",
+      "path": "skills/harness-writing",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/harness-writing"
+    },
+    {
+      "name": "interpreting-culture-index",
+      "description": "Use when interpreting Culture Index surveys, CI profiles, behavioral assessments, or personality data. Supports individual interpretation, team composition (gas/brake/glue), burnout detection, profile comparison, hiring profiles, manager coaching, interview transcript analysis for trait prediction, candidate debrief, onboarding planning, and conflict mediation. Handles PDF vision or JSON input.",
+      "path": "skills/interpreting-culture-index",
+      "plugin": "culture-index",
+      "source_path": "plugins/culture-index/skills/interpreting-culture-index"
+    },
+    {
+      "name": "libafl",
+      "description": "LibAFL is a modular fuzzing library for building custom fuzzers. Use for advanced fuzzing needs, custom mutators, or non-standard fuzzing targets.",
+      "path": "skills/libafl",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/libafl"
+    },
+    {
+      "name": "libfuzzer",
+      "description": "Coverage-guided fuzzer built into LLVM for C/C++ projects. Use for fuzzing C/C++ code that can be compiled with Clang.",
+      "path": "skills/libfuzzer",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/libfuzzer"
+    },
+    {
+      "name": "ossfuzz",
+      "description": "OSS-Fuzz provides free continuous fuzzing for open source projects. Use when setting up continuous fuzzing infrastructure or enrolling projects.",
+      "path": "skills/ossfuzz",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/ossfuzz"
+    },
+    {
+      "name": "property-based-testing",
+      "description": "Provides guidance for property-based testing across multiple languages and smart contracts. Use when writing tests, reviewing code with serialization/validation/parsing patterns, designing features, or when property-based testing would provide stronger coverage than example-based tests.",
+      "path": "skills/property-based-testing",
+      "plugin": "property-based-testing",
+      "source_path": "plugins/property-based-testing/skills/property-based-testing"
+    },
+    {
+      "name": "ruzzy",
+      "description": "Ruzzy is a coverage-guided Ruby fuzzer by Trail of Bits. Use for fuzzing pure Ruby code and Ruby C extensions.",
+      "path": "skills/ruzzy",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/ruzzy"
+    },
+    {
+      "name": "sarif-parsing",
+      "description": "Parse, analyze, and process SARIF (Static Analysis Results Interchange Format) files. Use when reading security scan results, aggregating findings from multiple tools, deduplicating alerts, extracting specific vulnerabilities, or integrating SARIF data into CI/CD pipelines.",
+      "path": "skills/sarif-parsing",
+      "plugin": "static-analysis",
+      "source_path": "plugins/static-analysis/skills/sarif-parsing",
+      "allowed_tools": [
+        "Bash",
+        "Read",
+        "Glob",
+        "Grep"
+      ]
+    },
+    {
+      "name": "secure-workflow-guide",
+      "description": "Guide you through Trail of Bits' 5-step secure development workflow. Runs Slither scans, checks special features (upgradeability/ERC conformance/token integration), generates visual security diagrams, helps document security properties for fuzzing/verification, and reviews manual security areas. (project, gitignored)",
+      "path": "skills/secure-workflow-guide",
+      "plugin": "building-secure-contracts",
+      "source_path": "plugins/building-secure-contracts/skills/development-guidelines/secure-workflow-guide"
+    },
+    {
+      "name": "semgrep",
+      "description": "Run Semgrep static analysis for fast security scanning and pattern matching. Use when asked to scan code with Semgrep, write custom YAML rules, find vulnerabilities quickly, use taint mode, or set up Semgrep in CI/CD pipelines.",
+      "path": "skills/semgrep",
+      "plugin": "static-analysis",
+      "source_path": "plugins/static-analysis/skills/semgrep",
+      "allowed_tools": [
+        "Bash",
+        "Read",
+        "Glob",
+        "Grep"
+      ]
+    },
+    {
+      "name": "semgrep-rule-creator",
+      "description": "Create custom Semgrep rules for detecting bug patterns and security vulnerabilities. This skill should be used when the user explicitly asks to \"create a Semgrep rule\", \"write a Semgrep rule\", \"make a Semgrep rule\", \"build a Semgrep rule\", or requests detection of a specific bug pattern, vulnerability, or insecure code pattern using Semgrep.",
+      "path": "skills/semgrep-rule-creator",
+      "plugin": "semgrep-rule-creator",
+      "source_path": "plugins/semgrep-rule-creator/skills/semgrep-rule-creator",
+      "allowed_tools": [
+        "Bash",
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Grep",
+        "WebFetch"
+      ]
+    },
+    {
+      "name": "sharp-edges",
+      "description": "Identifies error-prone APIs, dangerous configurations, and footgun designs that enable security mistakes. Use when reviewing API designs, configuration schemas, cryptographic library ergonomics, or evaluating whether code follows 'secure by default' and 'pit of success' principles. Triggers: footgun, misuse-resistant, secure defaults, API usability, dangerous configuration.",
+      "path": "skills/sharp-edges",
+      "plugin": "sharp-edges",
+      "source_path": "plugins/sharp-edges/skills/sharp-edges",
+      "allowed_tools": [
+        "Read",
+        "Grep",
+        "Glob"
+      ]
+    },
+    {
+      "name": "solana-vulnerability-scanner",
+      "description": "Scans Solana programs for 6 critical vulnerabilities including arbitrary CPI, improper PDA validation, missing signer/ownership checks, and sysvar spoofing. Use when auditing Solana/Anchor programs. (project, gitignored)",
+      "path": "skills/solana-vulnerability-scanner",
+      "plugin": "building-secure-contracts",
+      "source_path": "plugins/building-secure-contracts/skills/not-so-smart-contracts-scanners/solana-vulnerability-scanner"
+    },
+    {
+      "name": "spec-to-code-compliance",
+      "description": "Verifies code implements exactly what documentation specifies for blockchain audits. Use when comparing code against whitepapers, finding gaps between specs and implementation, or performing compliance checks for protocol implementations.",
+      "path": "skills/spec-to-code-compliance",
+      "plugin": "spec-to-code-compliance",
+      "source_path": "plugins/spec-to-code-compliance/skills/spec-to-code-compliance"
+    },
+    {
+      "name": "substrate-vulnerability-scanner",
+      "description": "Scans Substrate/Polkadot pallets for 7 critical vulnerabilities including arithmetic overflow, panic DoS, incorrect weights, and bad origin checks. Use when auditing Substrate runtimes or FRAME pallets. (project, gitignored)",
+      "path": "skills/substrate-vulnerability-scanner",
+      "plugin": "building-secure-contracts",
+      "source_path": "plugins/building-secure-contracts/skills/not-so-smart-contracts-scanners/substrate-vulnerability-scanner"
+    },
+    {
+      "name": "testing-handbook-generator",
+      "description": "Meta-skill that analyzes the Trail of Bits Testing Handbook (appsec.guide) and generates Claude Code skills for security testing tools and techniques. Use when creating new skills based on handbook content.",
+      "path": "skills/testing-handbook-generator",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/testing-handbook-generator"
+    },
+    {
+      "name": "token-integration-analyzer",
+      "description": "Comprehensive token integration and implementation analyzer based on Trail of Bits' token integration checklist. Analyzes token implementations for ERC20/ERC721 conformity, checks for 20+ weird token patterns, assesses contract composition and owner privileges, performs on-chain scarcity analysis, and evaluates how protocols handle non-standard tokens. Context-aware for both token implementations and token integrations. (project, gitignored)",
+      "path": "skills/token-integration-analyzer",
+      "plugin": "building-secure-contracts",
+      "source_path": "plugins/building-secure-contracts/skills/development-guidelines/token-integration-analyzer"
+    },
+    {
+      "name": "ton-vulnerability-scanner",
+      "description": "Scans TON (The Open Network) smart contracts for 3 critical vulnerabilities including integer-as-boolean misuse, fake Jetton contracts, and forward TON without gas checks. Use when auditing FunC contracts. (project, gitignored)",
+      "path": "skills/ton-vulnerability-scanner",
+      "plugin": "building-secure-contracts",
+      "source_path": "plugins/building-secure-contracts/skills/not-so-smart-contracts-scanners/ton-vulnerability-scanner"
+    },
+    {
+      "name": "variant-analysis",
+      "description": "Find similar vulnerabilities and bugs across codebases using pattern-based analysis. Use when hunting bug variants, building CodeQL/Semgrep queries, analyzing security vulnerabilities, or performing systematic code audits after finding an initial issue.",
+      "path": "skills/variant-analysis",
+      "plugin": "variant-analysis",
+      "source_path": "plugins/variant-analysis/skills/variant-analysis"
+    },
+    {
+      "name": "wycheproof",
+      "description": "Wycheproof provides test vectors for validating cryptographic implementations. Use when testing crypto code for known attacks and edge cases.",
+      "path": "skills/wycheproof",
+      "plugin": "testing-handbook-skills",
+      "source_path": "plugins/testing-handbook-skills/skills/wycheproof"
+    }
+  ]
+}
