@@ -1,10 +1,10 @@
 {
   "name": "c-review",
-  "version": "3.0.1",
+  "version": "3.2.0",
   "description": "Comprehensive C/C++ security code review with task-based orchestration and automatic prompt selection",
   "author": {
     "name": "Trail of Bits",
     "url": "https://www.trailofbits.com"
   },
-  "keywords": ["c", "cpp", "security", "code-review", "static-analysis", "vulnerabilities", "linux", "macos", "posix"]
+  "keywords": ["c", "cpp", "security", "code-review", "static-analysis", "vulnerabilities", "linux", "macos", "posix", "windows"]
 }

@@ -52,16 +52,25 @@ Report to user:
 - POSIX userspace code detected: yes/no (Linux/macOS/BSD patterns)
 - Windows userspace code detected: yes/no
 
-## Step 3: Select Threat Model
+## Step 3: Select Threat Model and Worker Model
 
-AskUserQuestion:
-- Question: "What is the threat model?"
+AskUserQuestion (ask both in one call):
+
+**Question 1:** "What is the threat model?"
 - Options:
   1. Remote - Network attacker only
   2. Local Unprivileged - Shell access as unprivileged user
   3. Both (Recommended)
 
 → `threat_model = REMOTE | LOCAL_UNPRIVILEGED | BOTH`
+
+**Question 2:** "Which model should workers use for bug finding?"
+- Options:
+  1. Haiku - Fast, cost-effective, good for large codebases (Recommended)
+  2. Sonnet - Deeper reasoning, better for subtle bugs
+  3. Opus - Maximum capability, highest cost
+
+→ `worker_model = haiku | sonnet | opus`
 
 Calculate disabled prompts:
 ```
@@ -93,6 +102,7 @@ is_cpp: [true/false]
 is_posix: [true/false]  # Linux, macOS, BSD userspace
 is_windows: [true/false]  # Windows userspace
 threat_model: [REMOTE|LOCAL_UNPRIVILEGED|BOTH]
+worker_model: [haiku|sonnet|opus]
 disabled_prompts: [list]
 codebase_context: [context or empty]
 

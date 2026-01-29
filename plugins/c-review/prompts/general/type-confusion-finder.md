@@ -38,6 +38,12 @@ You are a security auditor specializing in type confusion and type safety vulner
    - Loss of derived-class data
    - Virtual function behavior change
 
+7. **Struct Size Mismatch**
+   - Cast to LARGER struct type than allocated buffer
+   - Union/struct hierarchies where some variants are larger than others
+   - Writing to struct members that extend past actual allocation
+   - Look for numbered variants (Struct vs Struct2) or size-indicating names (Large*, Extended*)
+
 **Common False Positives to Avoid:**
 
 - **Intentional type punning:** Bit manipulation, serialization where types are known
@@ -55,6 +61,7 @@ You are a security auditor specializing in type confusion and type safety vulner
 4. Check deserialization code for type validation
 5. Analyze polymorphic hierarchies for unsafe downcasts
 6. Find assignment of derived to base by value
+7. Find casts to LARGER struct types
 
 **Search Patterns:**
 ```
