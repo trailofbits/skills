@@ -57,54 +57,9 @@ For each claimed task:
    )
    ```
 
-## Finding Schema (TOON)
+## Finding Schema
 
-Summary row format (comma-separated):
-```
-[ID],[bug_class],[title],[location],[function],[confidence]
-```
-
-Example:
-```toon
-findings[2]{id,bug_class,title,location,function,confidence}:
- BOF-001,buffer-overflow,Stack overflow in parse_header,file.c:123,parse_header,High
- BOF-002,buffer-overflow,Heap overflow in process_data,data.c:456,process_data,Medium
-```
-
-Detail format:
-```toon
-finding:
-  id: [PREFIX]-[NNN]
-  bug_class: [from prompt]
-  title: [brief description]
-  location: [file:line]
-  function: [function_name]
-  confidence: High|Medium|Low
-  description: |
-    [Why this is a vulnerability]
-  code_snippet: |
-    [relevant code]
-  impact: [what attacker can achieve]
-  data_flow:
-    source: [where attacker input enters]
-    sink: [where vulnerability manifests]
-    validation: [what checks exist or are missing]
-  recommendation: [how to fix]
-```
-
-## ID Prefixes by Bug Class
-
-Use the prefix from the prompt template. Common prefixes:
-- BOF: buffer-overflow
-- UAF: use-after-free
-- INT: integer-overflow
-- FMT: format-string
-- RACE: race-condition
-- SIG: signal-handler
-- PRIV: privilege-drop
-- DLL: dll-planting
-- PIPE: named-pipe
-- etc.
+See `prompts/shared/common.md` for TOON format specification. Use the **Finding ID Prefix** from each prompt template (e.g., `BOF` for buffer-overflow).
 
 ## Quality Standards
 

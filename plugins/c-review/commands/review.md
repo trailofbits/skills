@@ -10,6 +10,8 @@ allowed-tools:
 
 Thin entry point - gathers user options and invokes the skill.
 
+**Tool inheritance:** This command only needs `Task` and `AskUserQuestion`. The spawned `general-purpose` task has access to all tools required by the skill (Read, Grep, Glob, LSP, Bash, TaskCreate, TaskUpdate, TaskList, TaskGet).
+
 ## Step 1: Select Options
 
 AskUserQuestion (both questions in one call):

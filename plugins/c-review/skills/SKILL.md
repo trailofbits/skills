@@ -1,14 +1,23 @@
 ---
 name: c-review
-version: 1.0.0
 description: >
   Performs comprehensive C/C++ security review using parallel workers to scan for
   memory corruption, integer overflows, race conditions, and platform-specific vulnerabilities.
-  Supports Linux/macOS/BSD (POSIX) and Windows userspace codebases. Triggers on "audit C code",
-  "find buffer overflows", "review C++ for security", "check for use-after-free",
-  "audit Windows service", "review Linux daemon", "find memory corruption bugs",
-  "check signal handlers", "review setuid program", or similar security review requests
-  for native code.
+  Triggers on "audit C code", "C security audit", "find buffer overflows", "review C++ for security",
+  "check for use-after-free", "C++ vulnerability scan", "audit Windows service", "review Linux daemon",
+  "check signal handlers", "review setuid program", "native code security review".
+  NOT for kernel modules, managed languages, or embedded/bare-metal code.
+allowed-tools:
+  - Task
+  - TaskCreate
+  - TaskUpdate
+  - TaskList
+  - TaskGet
+  - Grep
+  - Glob
+  - Read
+  - LSP
+  - Bash
 ---
 
 # C/C++ Security Review
@@ -56,6 +65,18 @@ Coordinator
 - **Minimal prompts** - Workers read everything from TaskGet, not prompt injection
 - **Context efficiency** - Prompt templates read on-demand from files
 
+**Path convention:** This skill uses `${CLAUDE_PLUGIN_ROOT}` for all file paths. This is a plugin environment variable automatically set by Claude Code to the plugin's root directory.
+
+**IMPORTANT:** Before Phase 1, verify the plugin root is accessible:
+```
+Glob: ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md
+```
+If this returns no results, the skill was not loaded via the plugin system. Fall back to searching for the c-review plugin directory:
+```
+Glob: **/plugins/c-review/prompts/internal/worker.md
+```
+Use the discovered path as the base for all subsequent file references.
+
 ---
 
 ## Orchestration Workflow
@@ -91,13 +112,34 @@ Grep: pattern="#include.*<(windows|winbase|winnt|winuser|winsock|ntdef|ntstatus)
 ```
 → `is_windows = true` if matches
 
-**Calculate disabled prompts:**
+**Calculate disabled prompts** (coordinator logic):
 ```
-if threat_model == REMOTE:
+if threat_model == "REMOTE":
     disabled_prompts = ["privilege-drop-finder", "envvar-finder"]
 else:
     disabled_prompts = []
 ```
+
+**Collect codebase context:**
+
+Gather a brief summary (5-10 lines) to help workers understand the codebase:
+
+```bash
+# Check for README/documentation
+head -50 README.md 2>/dev/null || head -50 README.rst 2>/dev/null
+```
+
+```bash
+# Detect build system
+ls -la Makefile CMakeLists.txt meson.build configure.ac 2>/dev/null | head -5
+```
+
+Summarize:
+- **Purpose**: What does this software do? (e.g., "HTTP server", "PDF parser", "crypto library")
+- **Entry points**: Where does untrusted data enter? (network, files, CLI args)
+- **Security-relevant features**: Authentication, crypto, privilege separation, sandboxing
+
+Store this as `codebase_context` for Phase 1.
 
 ### Phase 1: Create Context Task
 
@@ -178,30 +220,35 @@ TaskUpdate(severity_agent_id, addBlockedBy=[dedup_judge_id])
 
 ### Phase 5: Spawn Worker Pool
 
-**CRITICAL: Spawn 8 workers in ONE message with 8 parallel Task calls.**
+**CRITICAL: All 8 workers MUST be spawned in a SINGLE assistant message containing 8 parallel Task tool calls.**
 
-Workers self-organize: claim pending tasks, execute, complete, repeat until done.
+This is non-negotiable for performance:
+- DO NOT spawn workers sequentially
+- DO NOT wait for one worker to complete before spawning the next
+- Workers self-organize via task claiming and naturally load-balance
 
 The user selects the worker model at review start:
 - **haiku** - Fast, cost-effective, good for large codebases
 - **sonnet** - Deeper reasoning, better for subtle bugs
 - **opus** - Maximum capability, highest cost
 
+**Spawn all 8 workers in ONE response:**
+
+Emit a single response containing **8 Task tool invocations**. Each invocation uses these parameters:
+
+| Parameter | Value |
+|-----------|-------|
+| subagent_type | `general-purpose` |
+| model | `[worker_model from user selection]` |
+| description | `worker-N` (where N = 1-8) |
+| prompt | `Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md. Context: [context_task_id]. You are worker-N.` |
+
+**Example prompt for worker-3:**
 ```
-Task(
-  subagent_type="general-purpose",
-  model="[worker_model]",
-  description="worker-1",
-  prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-1."
-)
-Task(subagent_type="general-purpose", model="[worker_model]", description="worker-2", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-2.")
-Task(subagent_type="general-purpose", model="[worker_model]", description="worker-3", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-3.")
-Task(subagent_type="general-purpose", model="[worker_model]", description="worker-4", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-4.")
-Task(subagent_type="general-purpose", model="[worker_model]", description="worker-5", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-5.")
-Task(subagent_type="general-purpose", model="[worker_model]", description="worker-6", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-6.")
-Task(subagent_type="general-purpose", model="[worker_model]", description="worker-7", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-7.")
-Task(subagent_type="general-purpose", model="[worker_model]", description="worker-8", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-8.")
+Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md. Context: task-abc123. You are worker-3.
 ```
+
+All 8 Task invocations MUST appear in the same message to enable parallel execution. Do NOT wait for workers to return before spawning others.
 
 Each worker:
 1. Calls TaskList() to find pending "-finder" tasks
@@ -209,24 +256,30 @@ Each worker:
 3. Reads prompt from task.metadata.prompt_path
 4. Reads shared instructions from prompts/shared/common.md
 5. Executes analysis using Grep, Read, LSP
-6. Stores findings with TaskUpdate(taskId, status="completed", metadata={findings_toon: ...})
+6. Stores findings with TaskUpdate(taskId, status="completed", metadata={findings_toon: ..., findings_detail_toon: ...})
 7. Loops back to step 1 until no pending tasks
 
 ### Phase 6: Execute Aggregation
 
 After all workers exit (all finder tasks completed):
 
-```
+```python
 all_findings_toon = ""
+all_findings_detail_toon = ""
 for task_id in finder_task_ids:
     task = TaskGet(task_id)
     if task.metadata.findings_toon:
         all_findings_toon += task.metadata.findings_toon + "\n"
+    if task.metadata.findings_detail_toon:
+        all_findings_detail_toon += task.metadata.findings_detail_toon + "\n"
 
 TaskUpdate(
   taskId=aggregation_id,
   status="completed",
-  metadata={"all_findings_toon": all_findings_toon}
+  metadata={
+    "all_findings_toon": all_findings_toon,
+    "all_findings_detail_toon": all_findings_detail_toon
+  }
 )
 ```
 
@@ -269,114 +322,20 @@ return final.metadata.final_findings
 
 ## TOON Format for Internal Communication
 
-All inter-task finding data uses [TOON format](https://github.com/toon-format/toon) for token efficiency (~40% reduction vs JSON).
-
-**TOON basics:**
-- YAML-like indentation for nested objects
-- CSV-style rows for uniform arrays
-- `[N]{field1,field2,...}:` declares array length and headers
-- Rows are comma-separated values
-
-### Finding Summary (tabular)
-
-For passing finding lists between tasks:
-
-```toon
-findings[3]{id,bug_class,title,location,function,confidence,verdict,severity}:
- BOF-001,buffer-overflow,Stack overflow in parse_header,file.c:123,parse_header,High,,
- UAF-001,use-after-free,UAF in conn_close,conn.c:456,conn_close,Medium,,
- INT-001,integer-overflow,Integer overflow in calc_size,alloc.c:78,calc_size,High,,
-```
-
-### Finding Details (nested)
-
-For full finding data including descriptions:
-
-```toon
-finding:
-  id: BOF-001
-  bug_class: buffer-overflow
-  title: Stack buffer overflow in parse_header
-  location: file.c:123
-  function: parse_header
-  confidence: High
-  verdict:
-  severity:
-  description: |
-    Unchecked strcpy from network input allows stack buffer overflow.
-  code_snippet: |
-    char buf[64]; strcpy(buf, input);
-  impact: Remote code execution via controlled return address
-  data_flow:
-    source: network input via recv()
-    sink: strcpy() buffer overflow
-    validation: No length check
-  recommendation: Use strncpy() with sizeof(buf)-1
-```
-
-**Field ownership:**
-- Bug finder: id, bug_class, title, location, function, confidence, description, code_snippet, impact, data_flow, recommendation
-- FP-judge: verdict
-- Severity-agent: severity
-
-**Final report:** Severity-agent outputs markdown for human consumption. All prior stages use TOON.
+All inter-task finding data uses [TOON format](references/toon-format.md) for token efficiency (~40% reduction vs JSON). Workers and judges read the full format specification from `prompts/shared/common.md`.
 
 ---
 
-## Bug Classes
+## Bug Classes (Prompt Counts)
 
-### General C/C++ (28 prompts: 21 C + 7 C++)
+| Category | Count | Loaded When |
+|----------|-------|-------------|
+| General C | 21 | Always |
+| General C++ | 7 | `is_cpp = true` |
+| POSIX Userspace | 26 | `is_posix = true` (Linux/macOS/BSD) |
+| Windows Userspace | 10 | `is_windows = true` |
 
-| Bug Class | Description |
-|-----------|-------------|
-| buffer-overflow | Spatial safety, bounds checking |
-| use-after-free | Temporal safety, UAF, double-free |
-| integer-overflow | Numeric errors, signedness |
-| type-confusion | Type safety, casts, unions |
-| format-string | Printf/scanf format bugs |
-| string-issues | Null termination, encoding |
-| uninitialized-data | Uninitialized memory |
-| null-deref | Null pointer dereferences |
-| error-handling | Unchecked errors |
-| memory-leak | Resource leaks |
-| race-condition | TOCTOU, double fetch |
-| filesystem-issues | Symlinks, temp files |
-| banned-functions | Dangerous functions |
-| dos | Denial of service |
-| undefined-behavior | UB patterns |
-| compiler-bugs | Compiler optimizations |
-| operator-precedence | Precedence mistakes |
-| time-issues | Clock/time bugs |
-| access-control | Privilege issues |
-| regex-issues | ReDoS, bypasses |
-| exploit-mitigations | Typos in security flags |
-
-### C++ (7 additional prompts)
-
-init-order, iterator-invalidation, exception-safety, move-semantics, smart-pointer, virtual-function, lambda-capture
-
-### POSIX Userspace (26 additional prompts)
-
-Applies to Linux, macOS, and BSD userspace code using standard libc/POSIX APIs.
-
-thread-safety, signal-handler, privilege-drop, errno-handling, eintr-handling, envvar, open-issues, unsafe-stdlib, scanf-uninit, snprintf-retval, oob-comparison, socket-disconnect, strlen-strcpy, strncpy-termination, va-start-end, inet-aton, qsort, null-zero, half-closed-socket, spinlock-init, flexible-array, memcpy-size, printf-attr, strncat-misuse, negative-retval, overlapping-buffers
-
-### Windows Userspace (10 additional prompts)
-
-Applies to Windows userspace applications using Win32 APIs.
-
-| Bug Class | Description |
-|-----------|-------------|
-| dll-planting | LoadLibrary without full path, DLL hijacking |
-| createprocess | Unquoted paths, handle inheritance, dangerous flags |
-| windows-path | DOS device names, 8.3 names, UNC, junctions |
-| named-pipe | Pipe security, DACL, remote access |
-| windows-alloc | Uninitialized alloc, mismatched free, secure zeroing |
-| cross-process | VirtualAllocEx, WriteProcessMemory, injection |
-| token-privilege | SeDebugPrivilege, privilege escalation |
-| windows-crypto | Deprecated CSP APIs, weak algorithms |
-| installer-race | Temp file races, MSI rollback, symlink attacks |
-| service-security | Service privileges, binary ACLs, protected process |
+Each prompt file contains: bug patterns, false positive guidance, analysis process, and search patterns. See individual `*-finder.md` files for details.
 
 ---
 
