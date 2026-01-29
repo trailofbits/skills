@@ -85,50 +85,43 @@ For each finding:
    - FALSE_POSITIVE: Not actually a bug
    - OUT_OF_SCOPE: Real bug but requires attacker capabilities outside threat model
 
-**Output Format:**
+**Output Format (TOON):**
 
-For each finding, provide:
+Store results in task metadata using TOON format:
 
+```toon
+fp_results:
+  threat_model: REMOTE
+  total_evaluated: 15
+
+verdicts[N]{id,verdict,confidence,reachability,attack_vector,mitigations}:
+ BOF-001,TRUE_POSITIVE,High,Yes,Remote,None
+ UAF-001,LIKELY_TP,Medium,Unclear,Remote,Partial
+ INT-001,FALSE_POSITIVE,High,No,None,Full
+ ACC-001,OUT_OF_SCOPE,High,Yes,Local,None
+
+verdict_details[N]{id,analysis,feedback}:
+ BOF-001,"Reachable via parse_request() from network handler","Valid pattern"
+ UAF-001,"Connection cleanup path unclear - needs trace","Check other cleanup paths"
+ INT-001,"Size bounded by MAX_ALLOC constant","Avoid when constant bounds exist"
+ ACC-001,"Requires local file access - outside REMOTE model","Note for LOCAL audit"
+
+summary:
+  true_positives: 5
+  likely_tp: 3
+  likely_fp: 2
+  false_positives: 4
+  out_of_scope: 1
+
+fp_patterns[N]{pattern,reason}:
+ "alloc size from config","Config values bounded by schema validation"
+ "string copy to fixed buffer","Buffer sizes checked at API boundary"
+
+needs_analysis[N]{area,reason}:
+ "error handling paths","Multiple unchecked error returns found"
 ```
-### Finding: [Finding ID] - [Original Title]
-**Verdict:** [TRUE_POSITIVE | LIKELY_TP | LIKELY_FP | FALSE_POSITIVE | OUT_OF_SCOPE]
-**Confidence:** [High | Medium | Low]
-**Threat Model Applicability:** [Applicable | Out of Scope] - [Explanation]
 
-**Analysis:**
-[Your reasoning for the verdict]
-
-**Reachability:** [Yes/No/Unclear] - [Explanation]
-**Attack Vector:** [Remote/Local/Both/None] - [How attacker triggers this]
-**Mitigations:** [None/Partial/Full] - [What mitigations exist]
-
-**Feedback for Agents:**
-[What patterns to avoid or focus on in refined analysis]
-```
-
-**At the end, provide summary:**
-
-```
-## FP Analysis Summary
-
-**Threat Model:** [REMOTE | LOCAL_UNPRIVILEGED | BOTH]
-**Total Findings Evaluated:** N
-**True Positives:** N
-**Likely True Positives:** N
-**Likely False Positives:** N
-**False Positives:** N
-**Out of Scope:** N (valid bugs but outside threat model)
-
-## Patterns to Avoid (for refined analysis)
-- [Pattern 1]: [Why it's FP in this codebase]
-- [Pattern 2]: [Why it's FP in this codebase]
-
-## Out of Scope Findings (for reference)
-- [Finding ID]: [Why it's outside threat model but still notable]
-
-## Areas Needing More Analysis
-- [Area 1]: [Why more scrutiny needed]
-```
+**Pass to next stage:** Only findings with verdict TRUE_POSITIVE or LIKELY_TP proceed to dedup-judge.
 
 **Quality Standards:**
 - Read the actual code, don't guess from finding description alone

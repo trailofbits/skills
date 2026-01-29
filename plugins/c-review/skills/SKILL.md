@@ -1,14 +1,16 @@
 ---
 name: c-review
-version: 3.0.0
+version: 3.1.0
 description: >
   This skill should be used when the user asks to "review C code for security issues",
   "audit C/C++ codebase", "find vulnerabilities in C code", "security review C program",
   "check C code for bugs", "find memory corruption bugs", "audit native code security",
   "find buffer overflows", "check for use-after-free", "review parser code",
-  "review Linux C code", "review macOS C code", "audit Linux daemon", "audit macOS daemon",
+  "review Linux C code", "review macOS C code", "review Windows C code",
+  "audit Linux daemon", "audit macOS daemon", "audit Windows service",
   "check signal handlers", "review setuid program", "find thread safety issues",
-  "check errno handling", or needs comprehensive C/C++ security analysis.
+  "check errno handling", "review DLL loading", "check CreateProcess calls",
+  "audit named pipes", "review Windows crypto", or needs comprehensive C/C++ security analysis.
 ---
 
 # C/C++ Security Review
@@ -23,12 +25,13 @@ Comprehensive security review of C/C++ codebases using task-based orchestration.
 - Identifying integer overflow and type confusion bugs
 - Detecting race conditions and concurrency issues
 - Auditing Linux/macOS daemons, setuid programs, signal handlers
+- Auditing Windows services, DLL loading, named pipes, CreateProcess
 
 ## When NOT to Use
 
 - Windows kernel driver review (different checklist)
-- Managed languages (Java, C#, Python)
 - Linux/macOS kernel modules (different checklist)
+- Managed languages (Java, C#, Python)
 - Embedded/bare-metal code without libc
 
 ---
@@ -50,7 +53,8 @@ TaskCreate(
     "codebase_context": "[from input]",
     "threat_model": "[REMOTE|LOCAL_UNPRIVILEGED|BOTH]",
     "is_cpp": true/false,
-    "is_posix": true/false
+    "is_posix": true/false,
+    "is_windows": true/false
   }
 )
 ```
@@ -62,7 +66,7 @@ Store as `context_task_id`.
 Load prompts based on code characteristics:
 
 ```
-# Always load general C prompts (20)
+# Always load general C prompts (21)
 Glob: ${CLAUDE_PLUGIN_ROOT}/prompts/general/*.md
 
 # If is_cpp, these are already in general/ (7 C++ prompts)
@@ -72,6 +76,9 @@ Glob: ${CLAUDE_PLUGIN_ROOT}/prompts/general/*.md
 # If is_posix (Linux, macOS, BSD), load POSIX userspace prompts (26)
 # Note: "linux-userspace" prompts apply to ALL POSIX systems including macOS
 Glob: ${CLAUDE_PLUGIN_ROOT}/prompts/linux-userspace/*.md
+
+# If is_windows, load Windows userspace prompts (10)
+Glob: ${CLAUDE_PLUGIN_ROOT}/prompts/windows-userspace/*.md
 ```
 
 Filter by `disabled_prompts` from input.
@@ -223,30 +230,63 @@ return final.metadata.final_findings
 
 ---
 
-## Finding Schema
+## TOON Format for Internal Communication
 
-All findings must follow this schema:
+All inter-agent finding data uses [TOON format](https://github.com/toon-format/toon) for token efficiency (~40% reduction vs JSON).
 
-```json
-{
-  "id": "BOF-001",
-  "bug_class": "buffer-overflow",
-  "title": "Stack buffer overflow in parse_header",
-  "location": "file.c:123",
-  "function": "parse_header",
-  "confidence": "High|Medium|Low",
-  "severity": null,
-  "verdict": null,
-  "description": "Why this is a vulnerability",
-  "code_snippet": "char buf[64]; strcpy(buf, input);",
-  "impact": "Remote code execution",
-  "data_flow": {
-    "source": "network input via recv()",
-    "sink": "strcpy() buffer overflow",
-    "validation": "No length check"
-  },
-  "recommendation": "Use strncpy() with sizeof(buf)-1"
-}
+**TOON basics:**
+- YAML-like indentation for nested objects
+- CSV-style rows for uniform arrays
+- `[N]{field1,field2,...}:` declares array length and headers
+- Rows are comma-separated values
+
+### Finding Summary (tabular)
+
+For passing finding lists between agents:
+
+```toon
+findings[3]{id,bug_class,title,location,function,confidence,verdict,severity}:
+ BOF-001,buffer-overflow,Stack overflow in parse_header,file.c:123,parse_header,High,,
+ UAF-001,use-after-free,UAF in conn_close,conn.c:456,conn_close,Medium,,
+ INT-001,integer-overflow,Integer overflow in calc_size,alloc.c:78,calc_size,High,,
+```
+
+### Finding Details (nested)
+
+For full finding data including descriptions:
+
+```toon
+finding:
+  id: BOF-001
+  bug_class: buffer-overflow
+  title: Stack buffer overflow in parse_header
+  location: file.c:123
+  function: parse_header
+  confidence: High
+  verdict:
+  severity:
+  description: |
+    Unchecked strcpy from network input allows stack buffer overflow.
+  code_snippet: |
+    char buf[64]; strcpy(buf, input);
+  impact: Remote code execution via controlled return address
+  data_flow:
+    source: network input via recv()
+    sink: strcpy() buffer overflow
+    validation: No length check
+  recommendation: Use strncpy() with sizeof(buf)-1
+```
+
+### Context Task
+
+```toon
+context:
+  threat_model: REMOTE
+  is_cpp: true
+  is_posix: true
+  is_windows: false
+  codebase_context: |
+    [audit-context-building output]
 ```
 
 **Field ownership:**
@@ -254,11 +294,13 @@ All findings must follow this schema:
 - FP-judge: verdict
 - Severity-agent: severity
 
+**Final report:** Severity-agent outputs markdown for human consumption. All prior stages use TOON.
+
 ---
 
 ## Bug Classes
 
-### General C (20 prompts)
+### General C (21 prompts)
 
 | Bug Class | Description |
 |-----------|-------------|
@@ -282,6 +324,7 @@ All findings must follow this schema:
 | time-issues | Clock/time bugs |
 | access-control | Privilege issues |
 | regex-issues | ReDoS, bypasses |
+| exploit-mitigations | Typos in security flags |
 
 ### C++ (7 additional prompts)
 
@@ -292,6 +335,23 @@ init-order, iterator-invalidation, exception-safety, move-semantics, smart-point
 Applies to Linux, macOS, and BSD userspace code using standard libc/POSIX APIs.
 
 thread-safety, signal-handler, privilege-drop, errno-handling, eintr-handling, envvar, open-issues, unsafe-stdlib, scanf-uninit, snprintf-retval, oob-comparison, socket-disconnect, strlen-strcpy, strncpy-termination, va-start-end, inet-aton, qsort, null-zero, half-closed-socket, spinlock-init, flexible-array, memcpy-size, printf-attr, strncat-misuse, negative-retval, overlapping-buffers
+
+### Windows Userspace (10 additional prompts)
+
+Applies to Windows userspace applications using Win32 APIs.
+
+| Bug Class | Description |
+|-----------|-------------|
+| dll-planting | LoadLibrary without full path, DLL hijacking |
+| createprocess | Unquoted paths, handle inheritance, dangerous flags |
+| windows-path | DOS device names, 8.3 names, UNC, junctions |
+| named-pipe | Pipe security, DACL, remote access |
+| windows-alloc | Uninitialized alloc, mismatched free, secure zeroing |
+| cross-process | VirtualAllocEx, WriteProcessMemory, injection |
+| token-privilege | SeDebugPrivilege, privilege escalation |
+| windows-crypto | Deprecated CSP APIs, weak algorithms |
+| installer-race | Temp file races, MSI rollback, symlink attacks |
+| service-security | Service privileges, binary ACLs, protected process |
 
 ---
 

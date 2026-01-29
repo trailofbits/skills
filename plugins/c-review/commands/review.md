@@ -42,9 +42,15 @@ Grep: pattern="#include.*<(pthread|signal|sys/(socket|stat|types|wait)|unistd|er
 ```
 → `is_posix = true/false` (applies to Linux, macOS, BSD)
 
+```
+Grep: pattern="#include.*<(windows|winbase|winnt|winuser|winsock|ntdef|ntstatus)\.h>"
+```
+→ `is_windows = true/false`
+
 Report to user:
 - C++ detected: yes/no
 - POSIX userspace code detected: yes/no (Linux/macOS/BSD patterns)
+- Windows userspace code detected: yes/no
 
 ## Step 3: Select Threat Model
 
@@ -85,6 +91,7 @@ Task(
 
 is_cpp: [true/false]
 is_posix: [true/false]  # Linux, macOS, BSD userspace
+is_windows: [true/false]  # Windows userspace
 threat_model: [REMOTE|LOCAL_UNPRIVILEGED|BOTH]
 disabled_prompts: [list]
 codebase_context: [context or empty]

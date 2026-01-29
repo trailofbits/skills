@@ -27,6 +27,7 @@ Follow the **Orchestration Workflow** section exactly.
 You receive from the command:
 - `is_cpp`: true/false
 - `is_posix`: true/false (Linux, macOS, BSD userspace)
+- `is_windows`: true/false (Windows userspace)
 - `threat_model`: REMOTE | LOCAL_UNPRIVILEGED | BOTH
 - `disabled_prompts`: list of prompts to skip
 - `codebase_context`: context from audit-context-building (may be empty)
@@ -34,14 +35,15 @@ You receive from the command:
 ## Critical Requirements
 
 1. **Task metadata for data** - Store/retrieve via metadata, not prompt pasting
-2. **addBlockedBy for dependencies** - Explicit dependency chains
-3. **Parallel spawning** - ALL bug finders in ONE message
-4. **TaskGet for retrieval** - Read from completed task metadata
+2. **TOON format for findings** - All inter-agent data uses TOON for ~40% token savings
+3. **addBlockedBy for dependencies** - Explicit dependency chains
+4. **Parallel spawning** - ALL bug finders in ONE message
+5. **TaskGet for retrieval** - Read from completed task metadata
 
 ## Summary of Workflow
 
 1. Create context task with shared parameters
-2. Load and filter prompts based on is_cpp, is_posix, disabled_prompts
+2. Load and filter prompts based on is_cpp, is_posix, is_windows, disabled_prompts
 3. Create tracking tasks for each bug finder
 4. Create aggregation task blocked by ALL finders
 5. Create judge pipeline: FP → Dedup → Severity (each blocked by previous)
@@ -52,20 +54,25 @@ You receive from the command:
 
 ## Prompt Counts
 
-| Code Type | General | C++ | POSIX | Total |
-|-----------|---------|-----|-------|-------|
-| C only | 20 | 0 | 0 | 20 |
-| C + C++ | 20 | 7 | 0 | 27 |
-| C + POSIX (Linux/macOS/BSD) | 20 | 0 | 26 | 46 |
-| C + C++ + POSIX | 20 | 7 | 26 | 53 |
+| Code Type | General | C++ | POSIX | Windows | Total |
+|-----------|---------|-----|-------|---------|-------|
+| C only | 21 | 0 | 0 | 0 | 21 |
+| C + C++ | 21 | 7 | 0 | 0 | 28 |
+| C + POSIX | 21 | 0 | 26 | 0 | 47 |
+| C + Windows | 21 | 0 | 0 | 10 | 31 |
+| C + C++ + POSIX | 21 | 7 | 26 | 0 | 54 |
+| C + C++ + Windows | 21 | 7 | 0 | 10 | 38 |
 
 Minus `disabled_prompts` count.
 
-Note: The `linux-userspace/` prompt directory applies to ALL POSIX systems including macOS.
+Notes:
+- The `linux-userspace/` prompt directory applies to ALL POSIX systems including macOS.
+- POSIX and Windows are mutually exclusive (different OS targets).
 
 ## Failure Modes
 
 - ❌ Pasting data into prompts instead of using task metadata
+- ❌ Using JSON instead of TOON for finding arrays (wastes tokens)
 - ❌ Sequential Task spawning instead of parallel
 - ❌ Missing addBlockedBy on pipeline tasks
 - ❌ Not passing task IDs to workers

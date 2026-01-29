@@ -65,70 +65,41 @@ You are a senior security auditor specializing in finding consolidation and dedu
    - Include all relevant code snippets
    - Keep the highest confidence rating
 
-**Output Format:**
+**Output Format (TOON):**
 
-```
-## Deduplication Analysis
+Store results in task metadata using TOON format:
 
-### Duplicate Groups Found
+```toon
+dedup_results:
+  original_count: 15
+  after_dedup: 10
+  duplicates_merged: 4
+  related_groups: 2
 
-**Group 1: [Root Cause Description]**
-- [Finding ID A] (from agent-1): [brief]
-- [Finding ID B] (from agent-2): [brief]
-- **Merged into:** [New consolidated finding title]
-- **Original IDs preserved:** [A, B]
+duplicate_groups[N]{group_id,root_cause,primary_id,merged_ids}:
+ 1,"Missing bounds check in parse_*","BOF-001","BOF-001|BOF-003"
+ 2,"UAF in connection cleanup","UAF-001","UAF-001|UAF-005|UAF-007"
 
-**Group 2: [Root Cause Description]**
-[...]
+related_groups[N]{group_id,pattern,finding_ids,fix_location}:
+ 1,"Unchecked snprintf return","INT-002|INT-004","src/format.c:print_msg()"
 
-### Related Finding Groups
+consolidated[N]{id,also_known_as,bug_class,confidence,locations}:
+ BOF-001,"BOF-003",buffer-overflow,High,"file.c:123|file.c:456"
+ UAF-001,"UAF-005|UAF-007",use-after-free,High,"conn.c:89"
+ INT-001,"",integer-overflow,Medium,"alloc.c:34"
 
-**Group 1: [Common Pattern]**
-- [Finding ID X]: [location]
-- [Finding ID Y]: [location]
-- **Recommendation:** Fix pattern once in [location]
+consolidated_details[N]{id,description,code_snippet,impact,recommendation}:
+ BOF-001,"Missing bounds check on user input...","char buf[64]; strcpy...","RCE","Use strlcpy"
+ UAF-001,"Connection freed while callback pending...","free(conn); cb(conn);","UAF","Reference counting"
 
-## Consolidated Findings
-
-### Finding ID: [Primary ID] (also: [merged IDs])
-
-**Bug Class:** [category]
-**Locations:**
-- file1.c:123
-- file2.c:456
-**Confidence:** High/Medium/Low
-
-[Merged description from best source]
-
-### Code
-```c
-[Most representative code snippet]
+bug_class_counts[N]{bug_class,count}:
+ buffer-overflow,3
+ use-after-free,2
+ integer-overflow,4
+ type-confusion,1
 ```
 
-### Impact
-[Combined impact assessment]
-
-### Recommendation
-[How to fix - may address multiple locations]
-
----
-
-[Next finding...]
-
-## Summary
-
-**Original Finding Count:** N
-**After Deduplication:** M
-**Duplicates Merged:** X
-**Related Groups:** Y
-
-### Findings by Bug Class
-| Bug Class | Count |
-|-----------|-------|
-| Buffer Overflow | N |
-| Use-After-Free | N |
-| ... | ... |
-```
+**Pass to next stage:** All consolidated findings (with merged IDs preserved) proceed to severity-agent.
 
 **Quality Standards:**
 - Don't merge findings that are truly different bugs

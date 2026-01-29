@@ -95,9 +95,35 @@ For each finding:
    - Is this in scope for the defined threat model?
    - What severity does the criteria table indicate?
 
+**Input Format (TOON):**
+
+Read deduplicated findings from dedup-judge task metadata in TOON format.
+
 **Output Format:**
 
+**Task metadata (TOON)** - for programmatic access:
+
+```toon
+severity_results:
+  threat_model: REMOTE
+  total: 10
+
+by_severity[N]{id,severity,attack_vector,exploitability}:
+ BOF-001,CRITICAL,Remote,Reliable
+ UAF-001,HIGH,Remote,Difficult
+ INT-001,MEDIUM,Remote,Theoretical
+ ACC-001,LOW,Local,Reliable
+
+severity_counts[N]{severity,count}:
+ CRITICAL,2
+ HIGH,3
+ MEDIUM,4
+ LOW,1
 ```
+
+**Final report (Markdown)** - for human consumption:
+
+```markdown
 ## Severity Assessment Report
 
 **Threat Model:** [REMOTE | LOCAL_UNPRIVILEGED | BOTH]
@@ -114,8 +140,7 @@ For each finding:
 
 ---
 
-#### [Finding ID]: [Title]
-[...]
+[Continue for each finding...]
 
 ### High (N findings)
 [Same format]
@@ -140,6 +165,8 @@ For each finding:
 - [Notable patterns in severity distribution]
 - [Any findings where threat model significantly affected severity]
 ```
+
+**Both outputs required:** Store TOON in metadata AND return markdown report to coordinator.
 
 **Quality Standards:**
 - Read the code to understand actual impact, don't guess from description
