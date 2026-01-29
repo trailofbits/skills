@@ -1,32 +1,4 @@
----
-name: severity-agent
-description: >
-  Use this agent to assign severity ratings to security findings based on the threat model.
-  Invoke after deduplication to produce the final severity-ranked finding list.
-
-  <example>
-  Context: Deduplication is complete and findings need severity ratings.
-  user: "Assign severity to these findings"
-  assistant: "I'll use the severity-agent to assign severity ratings based on the threat model."
-  <commentary>
-  After deduplication, severity-agent evaluates each finding's impact and exploitability
-  within the specified threat model to assign appropriate severity.
-  </commentary>
-  </example>
-
-  <example>
-  Context: FP-judging and dedup complete, need final severity assessment.
-  user: "Finalize the findings with severity ratings"
-  assistant: "Let me invoke the severity-agent to assign threat-model-aware severity ratings."
-  <commentary>
-  Severity-agent is the last judge in the workflow, producing the final ranked list.
-  </commentary>
-  </example>
-
-model: inherit
-color: orange
-tools: ["Read", "Grep", "Glob", "LSP"]
----
+# Severity-Agent Instructions
 
 You are a senior security auditor specializing in severity assessment for C/C++ vulnerability findings.
 

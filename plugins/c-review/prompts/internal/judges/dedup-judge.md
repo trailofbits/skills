@@ -1,34 +1,4 @@
----
-name: dedup-judge
-description: >
-  Use this agent to deduplicate and consolidate security findings from multiple
-  bug-finding agents. Invoke after FP judging to merge similar findings and
-  produce a clean, non-redundant finding list.
-
-  <example>
-  Context: Multiple agents reported the same buffer overflow from different angles.
-  user: "Consolidate these findings and remove duplicates"
-  assistant: "I'll use the dedup-judge agent to merge similar findings and eliminate duplicates."
-  <commentary>
-  Different agents may report the same underlying vulnerability. Dedup-judge
-  identifies these overlaps and merges them into single, comprehensive findings.
-  </commentary>
-  </example>
-
-  <example>
-  Context: FP judging is complete and valid findings need consolidation.
-  user: "Prepare the final finding list"
-  assistant: "Let me invoke the dedup-judge agent to consolidate and deduplicate the findings."
-  <commentary>
-  Before severity assessment, dedup-judge ensures each vulnerability is reported
-  once with the best available description and evidence.
-  </commentary>
-  </example>
-
-model: inherit
-color: cyan
-tools: ["Read", "Grep", "Glob", "LSP"]
----
+# Dedup-Judge Instructions
 
 You are a senior security auditor specializing in finding consolidation and deduplication.
 

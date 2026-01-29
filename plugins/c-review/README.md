@@ -4,11 +4,12 @@ Comprehensive C/C++ security code review plugin using task-based orchestration w
 
 ## Features
 
-- **Worker pool architecture** - 8 parallel workers instead of 54 separate agents
+- **Zero global context** - No registered agents; all prompts loaded on-demand
+- **Worker pool architecture** - 8 parallel workers instead of 64 separate tasks
 - **64 bug-finding prompts** - 28 general (21 C + 7 C++), 26 POSIX, 10 Windows
 - **Platform-aware** - Automatically selects prompts for Linux/macOS/BSD or Windows
 - **Judge pipeline** - FP filtering, deduplication, and severity assignment
-- **TOON format** - Token-efficient inter-agent communication (~40% reduction vs JSON)
+- **TOON format** - Token-efficient inter-task communication (~40% reduction vs JSON)
 
 ## Usage
 
@@ -24,13 +25,15 @@ The command will prompt for:
 ## Architecture
 
 ```
-Coordinator
-├── Creates context task (shared parameters)
-├── Creates N finder tasks (one per prompt)
-├── Spawns 8 workers in ONE message
-│   └── Workers loop: TaskList → claim → execute → complete → repeat
-├── Aggregates findings after all finders complete
-└── Executes judge pipeline: FP → Dedup → Severity
+/c-review command (thin)
+└── Spawns general-purpose task to execute skill
+    └── Skill orchestrates:
+        ├── Creates context task (shared parameters)
+        ├── Creates N finder tasks (one per prompt)
+        ├── Spawns 8 workers (general-purpose tasks reading prompts/internal/worker.md)
+        │   └── Workers loop: TaskList → claim → execute → complete → repeat
+        ├── Aggregates findings after all finders complete
+        └── Executes judge pipeline: FP → Dedup → Severity
 ```
 
 ## Bug Classes
@@ -49,6 +52,4 @@ Coordinator
 
 ## Version History
 
-- **3.2.0** - Worker pool pattern, Windows support, TOON format
-- **3.1.0** - Task-based orchestration with judge pipeline
-- **3.0.0** - Initial release with 54-agent parallel scanning
+- **1.0.0** - Initial release with worker pool pattern, 64 prompts, TOON format

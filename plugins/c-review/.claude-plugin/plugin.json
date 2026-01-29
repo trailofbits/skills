@@ -1,6 +1,6 @@
 {
   "name": "c-review",
-  "version": "3.2.0",
+  "version": "1.0.0",
   "description": "Comprehensive C/C++ security code review with task-based orchestration and automatic prompt selection",
   "author": {
     "name": "Trail of Bits",

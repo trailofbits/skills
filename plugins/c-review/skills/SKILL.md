@@ -1,8 +1,8 @@
 ---
 name: c-review
-version: 3.2.0
+version: 1.0.0
 description: >
-  Performs comprehensive C/C++ security review using parallel worker agents to scan for
+  Performs comprehensive C/C++ security review using parallel workers to scan for
   memory corruption, integer overflows, race conditions, and platform-specific vulnerabilities.
   Supports Linux/macOS/BSD (POSIX) and Windows userspace codebases. Triggers on "audit C code",
   "find buffer overflows", "review C++ for security", "check for use-after-free",
@@ -36,7 +36,7 @@ Comprehensive security review of C/C++ codebases using task-based orchestration 
 
 ## Architecture: Worker Pool Pattern
 
-Instead of spawning one agent per prompt (54 agents), we spawn 8 workers that claim tasks from a shared queue:
+Instead of spawning one task per prompt (64 prompts), we spawn 8 workers that claim tasks from a shared queue:
 
 ```
 Coordinator
@@ -51,7 +51,7 @@ Coordinator
 ```
 
 **Benefits:**
-- **8 agents instead of 54** - Reduces spawn overhead and API calls
+- **8 workers instead of 64** - Reduces spawn overhead and API calls
 - **Self-organizing** - Workers naturally load-balance across prompts
 - **Minimal prompts** - Workers read everything from TaskGet, not prompt injection
 - **Context efficiency** - Prompt templates read on-demand from files
@@ -60,7 +60,44 @@ Coordinator
 
 ## Orchestration Workflow
 
-The coordinator agent follows this workflow using task management.
+Execute these phases in order.
+
+### Phase 0: Setup
+
+**Check prerequisites:**
+```bash
+which clangd
+```
+If not found, warn user that LSP features will be limited.
+
+```bash
+fd compile_commands.json . --type f 2>/dev/null | head -5
+```
+If not found, suggest: CMake (`-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`), Bear, or compiledb.
+
+**Detect code characteristics:**
+```bash
+fd -e cpp -e cxx -e cc -e hpp . | head -5
+```
+→ `is_cpp = true` if any found
+
+```
+Grep: pattern="#include.*<(pthread|signal|sys/(socket|stat|types|wait)|unistd|errno)\.h>"
+```
+→ `is_posix = true` if matches (Linux, macOS, BSD)
+
+```
+Grep: pattern="#include.*<(windows|winbase|winnt|winuser|winsock|ntdef|ntstatus)\.h>"
+```
+→ `is_windows = true` if matches
+
+**Calculate disabled prompts:**
+```
+if threat_model == REMOTE:
+    disabled_prompts = ["privilege-drop-finder", "envvar-finder"]
+else:
+    disabled_prompts = []
+```
 
 ### Phase 1: Create Context Task
 
@@ -152,18 +189,18 @@ The user selects the worker model at review start:
 
 ```
 Task(
-  subagent_type="c-review:worker",
+  subagent_type="general-purpose",
   model="[worker_model]",
   description="worker-1",
-  prompt="Context task: [context_task_id]. Claim and execute finder tasks until none remain."
+  prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-1."
 )
-Task(subagent_type="c-review:worker", model="[worker_model]", description="worker-2", prompt="Context task: [context_task_id]. ...")
-Task(subagent_type="c-review:worker", model="[worker_model]", description="worker-3", prompt="Context task: [context_task_id]. ...")
-Task(subagent_type="c-review:worker", model="[worker_model]", description="worker-4", prompt="Context task: [context_task_id]. ...")
-Task(subagent_type="c-review:worker", model="[worker_model]", description="worker-5", prompt="Context task: [context_task_id]. ...")
-Task(subagent_type="c-review:worker", model="[worker_model]", description="worker-6", prompt="Context task: [context_task_id]. ...")
-Task(subagent_type="c-review:worker", model="[worker_model]", description="worker-7", prompt="Context task: [context_task_id]. ...")
-Task(subagent_type="c-review:worker", model="[worker_model]", description="worker-8", prompt="Context task: [context_task_id]. ...")
+Task(subagent_type="general-purpose", model="[worker_model]", description="worker-2", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-2.")
+Task(subagent_type="general-purpose", model="[worker_model]", description="worker-3", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-3.")
+Task(subagent_type="general-purpose", model="[worker_model]", description="worker-4", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-4.")
+Task(subagent_type="general-purpose", model="[worker_model]", description="worker-5", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-5.")
+Task(subagent_type="general-purpose", model="[worker_model]", description="worker-6", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-6.")
+Task(subagent_type="general-purpose", model="[worker_model]", description="worker-7", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-7.")
+Task(subagent_type="general-purpose", model="[worker_model]", description="worker-8", prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/worker.md for instructions. Context task: [context_task_id]. You are worker-8.")
 ```
 
 Each worker:
@@ -200,24 +237,24 @@ Each judge reads input from its dependency via TaskGet:
 **FP-Judge:**
 ```
 Task(
-  subagent_type="c-review:judges:fp-judge",
-  prompt="Aggregation task: [aggregation_id]. Context task: [context_task_id]. Your task: [fp_judge_id]."
+  subagent_type="general-purpose",
+  prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/judges/fp-judge.md for instructions. Aggregation task: [aggregation_id]. Context task: [context_task_id]. Your task: [fp_judge_id]."
 )
 ```
 
 **Dedup-Judge:** (runs after fp-judge completes via addBlockedBy)
 ```
 Task(
-  subagent_type="c-review:judges:dedup-judge",
-  prompt="Input task: [fp_judge_id]. Your task: [dedup_judge_id]."
+  subagent_type="general-purpose",
+  prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/judges/dedup-judge.md for instructions. Input task: [fp_judge_id]. Your task: [dedup_judge_id]."
 )
 ```
 
 **Severity-Agent:** (runs after dedup-judge completes)
 ```
 Task(
-  subagent_type="c-review:judges:severity-agent",
-  prompt="Input task: [dedup_judge_id]. Context task: [context_task_id]. Your task: [severity_agent_id]."
+  subagent_type="general-purpose",
+  prompt="Read ${CLAUDE_PLUGIN_ROOT}/prompts/internal/judges/severity-agent.md for instructions. Input task: [dedup_judge_id]. Context task: [context_task_id]. Your task: [severity_agent_id]."
 )
 ```
 
@@ -232,7 +269,7 @@ return final.metadata.final_findings
 
 ## TOON Format for Internal Communication
 
-All inter-agent finding data uses [TOON format](https://github.com/toon-format/toon) for token efficiency (~40% reduction vs JSON).
+All inter-task finding data uses [TOON format](https://github.com/toon-format/toon) for token efficiency (~40% reduction vs JSON).
 
 **TOON basics:**
 - YAML-like indentation for nested objects
@@ -242,7 +279,7 @@ All inter-agent finding data uses [TOON format](https://github.com/toon-format/t
 
 ### Finding Summary (tabular)
 
-For passing finding lists between agents:
+For passing finding lists between tasks:
 
 ```toon
 findings[3]{id,bug_class,title,location,function,confidence,verdict,severity}:
