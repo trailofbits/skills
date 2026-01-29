@@ -41,6 +41,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [audit-context-building](plugins/audit-context-building/) | Build deep architectural context through ultra-granular code analysis |
 | [burpsuite-project-parser](plugins/burpsuite-project-parser/) | Search and extract data from Burp Suite project files |
 | [differential-review](plugins/differential-review/) | Security-focused differential review of code changes with git history analysis |
+| [insecure-defaults](plugins/insecure-defaults/) | Detect insecure default configurations, hardcoded credentials, and fail-open security patterns |
 | [semgrep-rule-creator](plugins/semgrep-rule-creator/) | Create and refine Semgrep rules for custom vulnerability detection |
 | [semgrep-rule-variant-creator](plugins/semgrep-rule-variant-creator/) | Port existing Semgrep rules to new target languages with test-driven validation |
 | [sharp-edges](plugins/sharp-edges/) | Identify error-prone APIs, dangerous configurations, and footgun designs |
@@ -80,12 +81,19 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 |--------|-------------|
 | [ask-questions-if-underspecified](plugins/ask-questions-if-underspecified/) | Clarify requirements before implementing |
 | [devcontainer-setup](plugins/devcontainer-setup/) | Create pre-configured devcontainers with Claude Code and language-specific tooling |
+| [modern-python](plugins/modern-python/) | Modern Python tooling and best practices with uv, ruff, and pytest |
 
 ### Team Management
 
 | Plugin | Description |
 |--------|-------------|
 | [culture-index](plugins/culture-index/) | Interpret Culture Index survey results for individuals and teams |
+
+### Tooling
+
+| Plugin | Description |
+|--------|-------------|
+| [claude-in-chrome-troubleshooting](plugins/claude-in-chrome-troubleshooting/) | Diagnose and fix Claude in Chrome MCP extension connectivity issues |
 
 ## Trophy Case
 
@@ -96,7 +104,7 @@ When reporting bugs you've found, feel free to mention:
 
 | Skill | Bug |
 |-------|-----|
-| constant-time-analysis | [Timing side-channel in ECDSA verification](https://github.com/RustCrypto/signatures/pull/1144) |
+| constant-time-analysis | [Timing side-channel in ML-DSA signing](https://github.com/RustCrypto/signatures/pull/1144) |
 
 ## Contributing
 

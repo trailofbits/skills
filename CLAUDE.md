@@ -28,8 +28,6 @@
 
 **For Claude:** Use the `claude-code-guide` subagent for plugin/skill questions - it has access to official documentation.
 
----
-
 ## Technical Reference
 
 ### Plugin Structure
@@ -98,7 +96,15 @@ When skills include Python scripts with dependencies:
 
 4. **Document system dependencies** - List non-Python deps (poppler, tesseract) in workflows with platform-specific install commands
 
----
+### Hooks
+
+PreToolUse hooks run on every Bash command—performance is critical:
+
+- **Prefer shell + jq** over Python—interpreter startup (Python + tree-sitter) adds noticeable latency
+- **Fast-fail early** - exit 0 immediately for non-matching commands so most invocations are instant
+- **Favor regex over AST parsing** - accept rare false positives if performance gain is significant and Claude can rephrase
+- **Anticipate false positive patterns** - diagnostic commands (`which python`), search tools (`grep python`), and filenames (`cat python.txt`) shouldn't trigger interception
+- **Document tradeoffs** in PR descriptions so reviewers understand deliberate design choices
 
 ## Quality Standards
 
@@ -169,8 +175,6 @@ See [ADVANCED.md](references/ADVANCED.md) for detailed patterns.
 ## API Reference
 See [API.md](references/API.md) for complete method documentation.
 ```
-
----
 
 ## PR Checklist
 

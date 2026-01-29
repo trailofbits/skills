@@ -200,6 +200,28 @@
         "name": "Axel Mierczuk"
       },
       "source": "./plugins/variant-analysis"
+    },
+    {
+      "name": "modern-python",
+      "version": "1.2.0",
+      "description": "Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools.",
+      "author": {
+        "name": "William Tan",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/modern-python"
+    },
+    {
+      "name": "insecure-defaults",
+      "version": "1.0.0",
+      "description": "Detects and verifies insecure default configurations including hardcoded credentials, fallback secrets, weak authentication defaults, and dangerous configuration values that remain active in production",
+      "author": {
+        "name": "Trail of Bits",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/insecure-defaults"
     }
   ]
 }
