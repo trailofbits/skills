@@ -1,1 +1,21 @@
-*                            @dguido
+# Default owner for everything
+* @dguido
+
+# Plugin-specific owners (alphabetical)
+/plugins/ask-questions-if-underspecified/ @kevin-valerio @dguido
+/plugins/audit-context-building/ @omarinuwa @dguido
+/plugins/building-secure-contracts/ @omarinuwa @dguido
+/plugins/burpsuite-project-parser/ @BuffaloWill @dguido
+/plugins/constant-time-analysis/ @tob-scott-a @dguido
+/plugins/differential-review/ @omarinuwa @dguido
+/plugins/dwarf-expert/ @xintenseapple @dguido
+/plugins/entry-point-analyzer/ @nisedo @dguido
+/plugins/firebase-apk-scanner/ @nicksellier @dguido
+/plugins/modern-python/ @Ninja3047 @dguido
+/plugins/property-based-testing/ @hbrodin @dguido
+/plugins/semgrep-rule-creator/ @ahpaleus @dguido
+/plugins/semgrep-rule-variant-creator/ @ahpaleus @dguido
+/plugins/spec-to-code-compliance/ @omarinuwa @dguido
+/plugins/static-analysis/ @axelm-tob @dguido
+/plugins/testing-handbook-skills/ @GrosQuildu @dguido
+/plugins/variant-analysis/ @axelm-tob @dguido
