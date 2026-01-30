@@ -48,6 +48,11 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [static-analysis](plugins/static-analysis/) | Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing |
 | [testing-handbook-skills](plugins/testing-handbook-skills/) | Skills from the [Testing Handbook](https://appsec.guide): fuzzers, static analysis, sanitizers, coverage |
 | [variant-analysis](plugins/variant-analysis/) | Find similar vulnerabilities across codebases using pattern-based analysis |
+
+### Malware Analysis
+
+| Plugin | Description |
+|--------|-------------|
 | [yara-authoring](plugins/yara-authoring/) | YARA detection rule authoring with linting, atom analysis, and best practices |
 
 ### Verification
