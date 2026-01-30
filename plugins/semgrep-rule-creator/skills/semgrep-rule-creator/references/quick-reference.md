@@ -33,6 +33,33 @@ pattern-regex: ^foo.*bar$      # PCRE2 regex matching (multiline mode)
 - `$...VAR` - Match zero or more arguments (ellipsis metavariable)
 - `...` - Ellipsis, match anything in between
 
+### Typed Metavariables
+
+Constrain metavariables to specific types (reduces false positives):
+
+```yaml
+# C/C++ - match only int16_t parameters
+pattern: (int16_t $X)
+
+# C/C++ - match function with typed parameter
+pattern: some_func((int $ARG))
+
+# Java - match Logger type
+pattern: (java.util.logging.Logger $LOGGER).log(...)
+
+# Go - match pointer type (uses colon syntax)
+pattern: ($READER : *zip.Reader).Open($INPUT)
+
+# TypeScript - match specific type
+pattern: ($X: DomSanitizer).sanitize(...)
+
+Use in taint mode to track only specific types as sources:
+pattern-sources:
+  - pattern: (int $X)        # Only int parameters are taint sources
+  - pattern: (int16_t $X)    # Only int16_t parameters
+  - pattern: int $X = $INIT; # Local variable declarations
+
+
 ### Deep Expression Matching
 ```yaml
 <... $EXPR ...>               # Recursively match pattern in nested expressions

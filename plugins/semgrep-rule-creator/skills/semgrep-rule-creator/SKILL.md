@@ -161,8 +161,8 @@ Semgrep Rule Progress:
 
 **REQUIRED**: Before writing any rule, use WebFetch to read **all** of these 4 links with Semgrep documentation:
 
-1. [Rule Syntax](https://semgrep.dev/docs/writing-rules/rule-syntax) - YAML structure, operators, and rule options
-2. [Pattern Syntax](https://semgrep.dev/docs/writing-rules/pattern-syntax) - Pattern matching, metavariables, and ellipsis usage
-3. [ToB Testing Handbook - Semgrep](https://appsec.guide/docs/static-analysis/semgrep/advanced/) - Patterns, taint tracking, and practical examples
+1. [Rule Syntax](https://semgrep.dev/docs/writing-rules/rule-syntax)
+2. [Pattern Syntax](https://semgrep.dev/docs/writing-rules/pattern-syntax)
+3. [ToB Testing Handbook - Semgrep](https://appsec.guide/docs/static-analysis/semgrep/advanced/)
 4. [Constant propagation](https://semgrep.dev/docs/writing-rules/data-flow/constant-propagation)
-5. [Writing Rules Index](https://github.com/semgrep/semgrep-docs/tree/main/docs/writing-rules/) - Full documentation index (browse for taint mode, testing, etc.)
+5. [Writing Rules Index](https://github.com/semgrep/semgrep-docs/tree/main/docs/writing-rules/)
