@@ -71,11 +71,36 @@ strings sample.exe | wc -l
 
 **Expert rule:** Don't write string-based rules against packed samples. Either unpack first or write a rule targeting the packer itself.
 
+### Using yr dump for File Analysis
+
+Before writing rules, inspect the sample's structure with YARA-X's native `yr dump`:
+
+```bash
+# Inspect PE structure (imports, exports, sections, resources)
+yr dump -m pe sample.exe --output-format yaml
+
+# Check entropy (indicates packing)
+yr dump -m math sample.exe --output-format yaml | grep entropy
+
+# For Chrome extensions
+yr dump -m crx extension.crx --output-format yaml
+
+# For Android apps
+yr dump -m dex classes.dex --output-format yaml
+```
+
+`yr dump` shows exactly what YARA-X modules can see. Use this to:
+- Understand available fields before writing conditions
+- Debug why module conditions aren't matching
+- Find unique structural indicators when strings fail
+
 ---
 
 ## Phase 2: String Extraction
 
 ### Using yarGen
+
+yarGen extracts candidate strings but generates legacy YARA syntax. Always validate output for YARA-X compatibility.
 
 ```bash
 # Basic extraction
@@ -88,18 +113,43 @@ python yarGen.py -m samples/ \
     --nosimple \              # Exclude simple strings
     --nomagic \               # Don't add magic header checks (do manually)
     -o candidate_rule.yar
+
+# CRITICAL: Validate for YARA-X compatibility
+yr check candidate_rule.yar
+yr fmt -w candidate_rule.yar   # Apply YARA-X formatting
 ```
 
-### Manual Extraction for Packed/Obfuscated Samples
+**Common yarGen → YARA-X fixes:**
+- Escape literal `{` in regex: `/{/` → `/\{/`
+- Fix invalid escapes: `\R` → `\\R` or `R`
+- Remove duplicate modifiers
 
-When yarGen fails:
+### FLOSS for Packed/Obfuscated Samples
+
+When yarGen returns only API names or the sample appears packed, use FLOSS:
 
 ```bash
-# Extract with FLOSS (handles stack strings, encoded strings)
+# Extract all string types (static, stack, tight, decoded)
 floss sample.exe -o strings.txt
 
-# Look for unique patterns
-strings sample.exe | sort | uniq -c | sort -rn | head -50
+# Quick extraction (faster, less thorough)
+floss --only static sample.exe
+
+# For Go/Rust binaries (special handling)
+floss --only go sample.exe
+```
+
+FLOSS extracts:
+- **Static strings** — Same as `strings` command
+- **Stack strings** — Built character-by-character at runtime
+- **Tight strings** — Small decoding loops
+- **Decoded strings** — From common encoding routines
+
+**Expert tip:** Stack strings are often the most unique indicators. If FLOSS finds them, prioritize those over static strings.
+
+```bash
+# Look for unique patterns in FLOSS output
+sort strings.txt | uniq -c | sort -rn | head -50
 ```
 
 ### Filtering Criteria

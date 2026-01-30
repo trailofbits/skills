@@ -143,11 +143,11 @@ Writing a JavaScript rule?
 
 | Tool | Purpose |
 |------|---------|
-| **yarGen** | Extract candidate strings: `python yarGen.py -m samples/ --excludegood` |
-| **yr CLI** | Validate/test: `yr check`, `yr scan -s`, `yr fmt` |
+| **yarGen** | Extract candidate strings: `yarGen.py -m samples/ --excludegood` → validate with `yr check` |
+| **FLOSS** | Extract obfuscated/stack strings: `floss sample.exe` (when yarGen fails) |
+| **yr CLI** | Validate: `yr check`, scan: `yr scan -s`, inspect: `yr dump -m pe` |
 | **signature-base** | Study quality examples |
 | **YARA-CI** | Goodware corpus testing before deployment |
-| **Binarly** | Validate string uniqueness |
 
 Master these five. Don't get distracted by tool catalogs.
 
@@ -608,9 +608,9 @@ Learn from production rules. These repositories contain well-tested, properly at
 | Tool | Purpose |
 |------|---------|
 | [yarGen](https://github.com/Neo23x0/yarGen) | Extract candidate strings from samples |
+| [FLOSS](https://github.com/mandiant/flare-floss) | Extract obfuscated and stack strings |
 | [YARA-CI](https://yara-ci.cloud.virustotal.com/) | Automated goodware testing |
 | [YaraDbg](https://yaradbg.dev) | Web-based rule debugger |
-| [Binarly](https://github.com/binarly-io/binary-risk-intelligence) | String uniqueness validation |
 
 ### macOS-Specific Resources
 

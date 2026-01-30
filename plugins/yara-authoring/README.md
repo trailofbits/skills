@@ -12,7 +12,7 @@ This skill doesn't dump YARA syntax at you. Instead, it teaches:
 - **Expert heuristics** (mutex names are gold, API names are garbage)
 - **Rationalizations to reject** (the shortcuts that cause production failures)
 
-An expert uses 5 tools: yarGen, `yr` CLI, signature-base, YARA-CI, Binarly. Everything else is noise.
+An expert uses 5 tools: yarGen, FLOSS, `yr` CLI, signature-base, YARA-CI. Everything else is noise.
 
 ## Installation
 
