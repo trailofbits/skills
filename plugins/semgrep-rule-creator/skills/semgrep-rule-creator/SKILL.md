@@ -88,6 +88,9 @@ This workflow is **strict** - do not skip steps:
 - **Optimization comes last**: Only simplify patterns after all tests pass
 - **Avoid generic patterns**: Rules must be specific, not match broad patterns
 - **Prioritize taint mode**: For data flow vulnerabilities
+- **One YAML file - one Semgrep rule**: Each YAML file must contain only one Semgrep rule; don't combine multiple rules in a single file
+- **No generic rules**: When targeting a specific language for Semgrep rules - avoid generic pattern matching (`languages: generic`)
+- **Forbidden `todook` and `todoruleid` test annotations**: `todoruleid: <rule-id>` and `todook: <rule-id>` annotations in tests files for future rule improvements are forbidden
 
 ## Overview
 
@@ -137,7 +140,7 @@ Run tests (from rule directory): `semgrep --test --config <rule-id>.yaml <rule-i
 ## Quick Reference
 
 - For commands, pattern operators, and taint mode syntax, see [quick-reference.md]({baseDir}/references/quick-reference.md).
-- For detailed workflow and examples, see [workflow.md]({baseDir}/references/workflow.md)
+- For detailed workflow and examples, you MUST see [workflow.md]({baseDir}/references/workflow.md)
 
 ## Workflow
 
@@ -145,59 +148,14 @@ Copy this checklist and track progress:
 
 ```
 Semgrep Rule Progress:
-- [ ] Step 1: Analyze the problem (read documentation, determine approach)
-- [ ] Step 2: Write tests first (create directory, add test annotations)
-- [ ] Step 3: Analyze AST structure (semgrep --dump-ast)
+- [ ] Step 1: Analyze the Problem
+- [ ] Step 2: Write Tests First
+- [ ] Step 3: Analyze AST structure
 - [ ] Step 4: Write the rule
 - [ ] Step 5: Iterate until all tests pass (semgrep --test)
 - [ ] Step 6: Optimize the rule (remove redundancies, re-test)
+- [ ] Step 7: Final Run
 ```
-
-### 1. Analyze the Problem
-
-Understand the bug pattern, identify the target language, determine if taint mode applies.
-
-Before writing any rule, see [Documentation](#documentation) for required reading.
-
-### 2. Write Tests First
-
-**Why test-first?** Writing tests before the rule forces you to think about both vulnerable AND safe cases. Rules written without tests often have hidden false positives (matching safe cases) or false negatives (missing vulnerable variants). Tests make these visible immediately.
-
-Create directory and test file with annotations (`# ruleid:`, `# ok:`, etc.). See [quick-reference.md]({baseDir}/references/quick-reference.md#test-file-annotations) for full syntax.
-
-The annotation line must contain ONLY the comment marker and annotation (e.g., `# ruleid: my-rule`). No other text, comments, or code on the same line.
-
-### 3. Analyze AST (Abstract Syntax Tree) Structure
-
-**Why analyze AST?** Semgrep matches against the AST, not raw text. Code that looks similar may parse differently (e.g., `foo.bar()` vs `foo().bar`). The AST dump shows exactly what Semgrep sees, preventing patterns that fail due to unexpected tree structure.
-
-```bash
-semgrep --dump-ast -l <language> <rule-id>.<ext>
-```
-
-### 4. Write the Rule
-
-See [workflow.md]({baseDir}/references/workflow.md) for detailed patterns and examples.
-
-### 5. Iterate Until Tests Pass
-
-```bash
-semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
-```
-
-For debugging taint mode rules:
-```bash
-semgrep --dataflow-traces -f <rule-id>.yaml <rule-id>.<ext>
-```
-
-**Verification checkpoint**: Output MUST show "All tests passed". **Only proceed when validation passes**.
-
-### 6. Optimize the Rule
-
-After all tests pass, remove redundant patterns (quote variants, ellipsis subsets). See [workflow.md]({baseDir}/references/workflow.md#step-6-optimize-the-rule) for detailed optimization examples and checklist.
-
-**Task complete ONLY when**: All tests pass after optimization.
-
 
 ## Documentation
 
@@ -206,4 +164,5 @@ After all tests pass, remove redundant patterns (quote variants, ellipsis subset
 1. [Rule Syntax](https://semgrep.dev/docs/writing-rules/rule-syntax) - YAML structure, operators, and rule options
 2. [Pattern Syntax](https://semgrep.dev/docs/writing-rules/pattern-syntax) - Pattern matching, metavariables, and ellipsis usage
 3. [ToB Testing Handbook - Semgrep](https://appsec.guide/docs/static-analysis/semgrep/advanced/) - Patterns, taint tracking, and practical examples
-4. [Writing Rules Index](https://github.com/semgrep/semgrep-docs/tree/main/docs/writing-rules/) - Full documentation index (browse for taint mode, testing, etc.)
+4. [Constant propagation](https://semgrep.dev/docs/writing-rules/data-flow/constant-propagation)
+5. [Writing Rules Index](https://github.com/semgrep/semgrep-docs/tree/main/docs/writing-rules/) - Full documentation index (browse for taint mode, testing, etc.)

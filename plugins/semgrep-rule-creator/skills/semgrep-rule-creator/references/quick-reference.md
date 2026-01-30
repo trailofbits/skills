@@ -113,18 +113,14 @@ pattern-sinks:
 
 ## Test File Annotations
 
+Only allowed annotations are `ok: rule-id` and `ok: rule-id`.
+
 ```python
 # ruleid: rule-id
 vulnerable_code()              # This line MUST match
 
 # ok: rule-id
 safe_code()                    # This line MUST NOT match
-
-# todoruleid: rule-id
-future_detection()             # Known limitation, should match later
-
-# todook: rule-id
-future_fp_fix()                # Known FP, should not match later
 ```
 
 DO NOT use multi-line comments for test annotations, for example:

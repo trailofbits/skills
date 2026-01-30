@@ -6,9 +6,9 @@ Detailed workflow for creating production-quality Semgrep rules.
 
 Before writing any code:
 
-1. **Fetch external documentation** - See [Documentation](../SKILL.md#documentation) for required reading
-2. **Understand the exact bug pattern** - What vulnerability, issue or pattern should be detected?
-3. **Identify the target language**
+1. **Fetch external documentation**: See [Documentation](../SKILL.md#documentation) for required reading
+2. **Understand the exact bug pattern and explain the bug for a junior developer**: What vulnerability, issue or pattern should be detected?
+3. **Identify the target language**: What is specific about the bug and that language?
 4. **Determine the approach**:
    - **Pattern matching**: Syntactic patterns without data flow
    - **Taint mode**: Data flows from untrusted source to dangerous sink
@@ -23,7 +23,9 @@ Taint mode is a powerful feature in Semgrep that can track the flow of data from
 
 ## Step 2: Write Tests First
 
-**Always write tests before the rule.**
+**Why test-first?** Writing tests before the rule forces you to think about both vulnerable AND safe cases. Rules written without tests often have hidden false positives (matching safe cases) or false negatives (missing vulnerable variants). Tests make these visible immediately.
+
+Create directory and test file with annotations (`# ruleid:`, `# ok:` only). See [quick-reference.md]({baseDir}/references/quick-reference.md#test-file-annotations) for full syntax.
 
 ### Directory Structure
 
@@ -33,11 +35,9 @@ Taint mode is a powerful feature in Semgrep that can track the flow of data from
 └── <rule-id>.<ext>    # Test file with ruleid/ok annotations
 ```
 
-### Test Annotations
-
-See [quick-reference.md](quick-reference.md#test-file-annotations) for annotation syntax (`ruleid:`, `ok:`, `todoruleid:`, `todook:`).
-
-**CRITICAL**: The comment must be on the line IMMEDIATELY BEFORE the code. Semgrep reports findings on the line after the annotation.
+**CRITICAL**:
+1. The comment (`# ruleid:` or `# ok:` ) must be on the line IMMEDIATELY BEFORE the code. Semgrep reports findings on the line after the annotation.
+2. The comment must contain ONLY the comment marker and annotation (e.g., `# ruleid: my-rule`). No other text, comments, or code on the same line.
 
 ### Test Case Design
 
@@ -52,7 +52,7 @@ You must include test cases for:
 
 ## Step 3: Analyze AST Structure
 
-Understanding how Semgrep parses code is crucial for writing precise patterns.
+**Why analyze AST?** Semgrep matches against the AST, not raw text. Code that looks similar may parse differently (e.g., `foo.bar()` vs `foo().bar`). The AST dump shows exactly what Semgrep sees, preventing patterns that fail due to unexpected tree structure. Understanding how exactly Semgrep parses code is crucial for writing precise patterns.
 
 ```bash
 semgrep --dump-ast -l <language> <rule-id>.<ext>
@@ -113,8 +113,23 @@ Shows:
 - Why taint didn't propagate (if applicable)
 
 ## Step 5: Iterate Until Tests Pass
+Work on writing Semgrep rule (patterns) iteratively to ensure the Semgrep rule works correctly.
 
-**Verification checkpoint**: Proceed to optimization when:
+Each time when you introduce any changes, test Semgrep rule:
+
+```bash
+semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
+```
+
+For debugging taint mode rules:
+```bash
+semgrep --dataflow-traces -f <rule-id>.yaml <rule-id>.<ext>
+```
+
+**Verification checkpoint**: Output MUST show "All tests passed". **Only proceed when validation passes**.
+
+
+**Verification checkpoint**: Proceed to Step 6: Optimize the Rule when:
 - "All tests passed"
 - No "missed lines" (false negatives)
 - No "incorrect lines" (false positives)
@@ -131,7 +146,7 @@ Shows:
 
 ## Step 6: Optimize the Rule
 
-After all tests pass, analyze and optimize the rule to remove redundant patterns.
+After all tests pass, remove redundant patterns (quote variants, ellipsis subsets, redundant patterns).
 
 ### Semgrep Pattern Equivalences
 
@@ -201,7 +216,8 @@ patterns:
 3. Consolidate similar patterns using metavariable-regex
 4. Remove duplicate patterns in pattern-either
 5. Simplify nested pattern-either when possible
-6. **Re-run tests after each optimization**
+6. Replace complex regex patterns with metavariable-comparison
+7. **Re-run tests after each optimization**
 
 ### Verify After Optimization
 
@@ -212,3 +228,13 @@ semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
 **CRITICAL**: Always re-run tests after optimization. Some "redundant" patterns may actually be necessary due to AST structure differences. If any test fails, revert the optimization that caused it.
 
 **Task complete ONLY when**: All tests pass after optimization.
+
+
+## Step 7: Final Run
+Run the Semgrep rule you created using: `semgrep --config <rule-id>.yaml <rule-id>.<ext>`.
+
+Ensure that message:
+ 1. Contains a short and concise explanation of the matched pattern
+ 2. Has no uninterpolated metavariables (e.g., $OP, $VAR). All metavariables referenced in the message must be captured by the pattern so they interpolate to actual code. 
+
+Fix any message issues and re-run that Semgrep rule after each fix.
