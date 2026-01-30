@@ -51,3 +51,9 @@ _fzf_compgen_path() {
 _fzf_compgen_dir() {
   fdfind --type d --hidden --follow --exclude .git . "$1"
 }
+
+# Source fzf key bindings and completion
+# shellcheck source=/dev/null
+source ~/.fzf/key-bindings.zsh
+# shellcheck source=/dev/null
+source ~/.fzf/completion.zsh

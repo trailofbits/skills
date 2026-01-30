@@ -56,6 +56,9 @@ WORKDIR /workspace
 # Switch to non-root user for remaining setup
 USER vscode
 
+# Set PATH early so claude and other user-installed binaries are available
+ENV PATH="/home/vscode/.local/bin:$PATH"
+
 # Install Claude Code natively with marketplace plugins
 RUN curl -fsSL https://claude.ai/install.sh | bash && \
   claude plugin marketplace add anthropics/skills && \
@@ -63,7 +66,6 @@ RUN curl -fsSL https://claude.ai/install.sh | bash && \
 
 # Install Python 3.13 via uv (fast binary download, not source compilation)
 RUN uv python install 3.13 --default
-ENV PATH="/home/vscode/.local/bin:$PATH"
 
 # Install ast-grep (AST-based code search)
 RUN uv tool install ast-grep-cli
@@ -81,8 +83,13 @@ RUN curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "$FNM_D
 ARG ZSH_IN_DOCKER_VERSION=1.2.1
 RUN sh -c "$(curl -fsSL https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh)" -- \
   -p git \
-  -p fzf \
   -x
+
+# Download fzf shell integration (Ubuntu 24.04 package doesn't include these)
+ARG FZF_VERSION=0.44.1
+RUN mkdir -p /home/vscode/.fzf && \
+  curl -fsSL "https://raw.githubusercontent.com/junegunn/fzf/${FZF_VERSION}/shell/key-bindings.zsh" -o /home/vscode/.fzf/key-bindings.zsh && \
+  curl -fsSL "https://raw.githubusercontent.com/junegunn/fzf/${FZF_VERSION}/shell/completion.zsh" -o /home/vscode/.fzf/completion.zsh
 
 # Copy zsh configuration
 COPY --chown=vscode:vscode .zshrc /home/vscode/.zshrc.custom

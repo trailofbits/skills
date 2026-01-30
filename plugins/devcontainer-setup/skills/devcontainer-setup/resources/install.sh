@@ -4,7 +4,14 @@ set -euo pipefail
 # Claude Code Devcontainer CLI Helper
 # Provides the `devc` command for managing devcontainers
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve symlinks to get actual script location
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+  DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
 SCRIPT_NAME="$(basename "$0")"
 
 # Colors for output
@@ -25,6 +32,7 @@ Commands:
     down                Stop the devcontainer
     shell               Open a shell in the running container
     self-install        Install 'devc' command to ~/.local/bin
+    update              Update devc to the latest version
     template [dir]      Copy devcontainer template to directory (default: current)
     help                Show this help message
 
@@ -34,6 +42,7 @@ Examples:
     devc rebuild                # Clean rebuild
     devc shell                  # Open interactive shell
     devc self-install           # Install devc to PATH
+    devc update                 # Update to latest version
 EOF
 }
 
@@ -165,6 +174,32 @@ cmd_self_install() {
   fi
 }
 
+cmd_update() {
+  log_info "Updating devc..."
+
+  if ! git -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
+    log_error "Not a git repository: $SCRIPT_DIR"
+    log_info "Re-clone with: rm -rf ~/.claude-devcontainer && git clone https://github.com/trailofbits/claude-code-devcontainer ~/.claude-devcontainer"
+    exit 1
+  fi
+
+  local before_sha after_sha
+  before_sha=$(git -C "$SCRIPT_DIR" rev-parse HEAD)
+
+  if ! git -C "$SCRIPT_DIR" pull --ff-only; then
+    log_error "Update failed. Try: cd $SCRIPT_DIR && git pull"
+    exit 1
+  fi
+
+  after_sha=$(git -C "$SCRIPT_DIR" rev-parse HEAD)
+
+  if [[ "$before_sha" == "$after_sha" ]]; then
+    log_success "Already up to date"
+  else
+    log_success "Updated from ${before_sha:0:7} to ${after_sha:0:7}"
+  fi
+}
+
 cmd_dot() {
   # Install template and start container in one command
   cmd_template "."
@@ -199,6 +234,9 @@ main() {
       ;;
     self-install)
       cmd_self_install
+      ;;
+    update)
+      cmd_update
       ;;
     template)
       cmd_template "$@"
