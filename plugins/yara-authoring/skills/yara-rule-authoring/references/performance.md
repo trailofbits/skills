@@ -1,6 +1,8 @@
-# YARA Performance Guidelines
+# YARA-X Performance Guidelines
 
-Understanding how YARA works internally helps you write rules that scan fast.
+Understanding how YARA-X works internally helps you write rules that scan fast.
+
+> **YARA-X Performance:** YARA-X is 5-10x faster than legacy YARA for regex-heavy rules due to its Rust-based regex engine. The atom extraction and matching principles remain the same.
 
 ## How YARA Scanning Works
 
@@ -123,6 +125,8 @@ If the cheap check fails, expensive checks never run.
 | **JavaScript** | `filesize < 1MB and ...` (no magic bytes, JS files are text) |
 | **npm packages** | Check for `"name":` or `package.json` content first |
 | **Office docs (OOXML)** | `filesize < 50MB and uint32(0) == 0x504B0304 and ...` |
+| **Chrome extensions** | `crx.is_crx and ...` (use crx module) |
+| **Android apps** | `dex.header.magic == "dex\n" and ...` (use dex module) |
 
 ### Use `for..of` Efficiently
 
@@ -130,7 +134,7 @@ If the cheap check fails, expensive checks never run.
 // SLOW: Checks all strings even after match
 any of them
 
-// FAST: Short-circuits after first match (YARA 4.0+)
+// FAST: Short-circuits after first match
 for any of them : ( $ )
 
 // OPTIMIZED: With early exit
@@ -174,7 +178,7 @@ $url = /https:\/\/api\.[a-z]{5,20}\.com\//
 
 ### Regex Performance Rules
 
-**Expert guidance from Stairwell:** Anchor every regex to a string atom. Unanchored regex consumes memory proportional to file size.
+**Expert guidance:** Anchor every regex to a string atom. Unanchored regex consumes memory proportional to file size.
 
 ```yara
 // CATASTROPHIC: Runs against every byte, unbounded backtracking
@@ -226,7 +230,7 @@ $s = "Malware" fullword
 |-----------|------|-------------|
 | `pe.imphash()` | High | Pre-filter with uint16(0) == 0x5A4D |
 | `hash.md5()` | Very High | Use for small files only |
-| `pe.rich_signature` | Moderate | Pre-filter with filesize |
+| `pe.rich_header` | Moderate | Pre-filter with filesize |
 | `math.entropy()` | High | Use for specific sections only |
 
 ### Pre-Filter Before Modules
@@ -251,14 +255,14 @@ rule Example
 
 ## Measuring Performance
 
-### YARA Profiler
+### YARA-X Profiling
 
 ```bash
 # Time rule execution
-time yara -r rules/ /path/to/files/
+time yr scan rules/ /path/to/files/
 
 # Count matches without output
-yara -c rules/ /path/to/files/
+yr scan -c rules/ /path/to/files/
 ```
 
 ### Rule-by-Rule Analysis
@@ -268,7 +272,7 @@ Test individual rules against a corpus:
 ```bash
 for rule in rules/*.yar; do
     echo "Testing: $rule"
-    time yara "$rule" /corpus/ > /dev/null
+    time yr scan "$rule" /corpus/ > /dev/null
 done
 ```
 
@@ -278,19 +282,6 @@ Use the atom analyzer script:
 
 ```bash
 uv run {baseDir}/scripts/atom_analyzer.py rule.yar
-```
-
-### Slow Rule Callbacks (YARA 4.5+)
-
-YARA 4.5.0 added `CALLBACK_MSG_TOO_SLOW_SCANNING` to identify rules that take
-too long. While this is API-level (yara-python, libyara), it indicates YARA
-now tracks rule execution time internally.
-
-For CLI validation, use `--strict-escape` to catch problematic regex patterns
-that might cause slowdowns:
-
-```bash
-yara --strict-escape rules.yar /path/to/test/
 ```
 
 ## Real-World Examples

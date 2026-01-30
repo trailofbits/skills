@@ -146,6 +146,98 @@ meta:
 | 51-75 | High | Alert SOC, likely malicious |
 | 76-100 | Critical | Auto-quarantine appropriate |
 
+## Common Naming Mistakes
+
+| Bad Name | Problem | Corrected |
+|----------|---------|-----------|
+| `Emotet_Detector` | Missing category, platform, date | `MAL_Win_Emotet_Loader_Jan25` |
+| `MAL_Suspicious_File` | "Suspicious" is vague | `MAL_Win_Lazarus_Downloader_Jan25` |
+| `rule1` | No semantic meaning | `HKTL_Multi_Mimikatz_CredDump_Jan25` |
+| `MALWARE_windows_trojan` | Wrong case, wrong order | `MAL_Win_Trojan_Generic_Jan25` |
+| `emotet_loader` | All lowercase | `MAL_Win_Emotet_Loader_Jan25` |
+| `EmoteTLoader` | CamelCase | `MAL_Win_Emotet_Loader_Jan25` |
+| `MAL Win Emotet` | Spaces | `MAL_Win_Emotet_Loader_Jan25` |
+| `CobaltStrike_Beacon` | Missing category and date | `HKTL_Win_CobaltStrike_Beacon_Jan25` |
+
+## Linter Error Codes
+
+The `yara_lint.py` script produces these codes:
+
+| Code | Severity | Issue | Fix |
+|------|----------|-------|-----|
+| E001 | Error | Missing required metadata | Add description, author, date, reference |
+| E002 | Error | Invalid rule name format | Use CATEGORY_PLATFORM_FAMILY_DATE |
+| E003 | Error | String under 4 bytes | Use longer strings or hex patterns |
+| W001 | Warning | Name doesn't follow convention | Use standard prefix or justify custom |
+| W002 | Warning | Description doesn't start with "Detects" | Rewrite description |
+| W003 | Warning | Unbounded regex pattern | Add length bounds: `.{0,100}` not `.*` |
+| W004 | Warning | Condition doesn't start with cheap check | Add `filesize <` or magic bytes first |
+| I001 | Info | Unrecognized category prefix | Use standard prefix or document custom |
+| I002 | Info | `nocase` modifier used | Consider if case variation is needed |
+
+## PR Review Checklist
+
+When reviewing YARA rules in PRs:
+
+### Naming & Metadata
+- [ ] Name matches `{CATEGORY}_{PLATFORM}_{FAMILY}_{DATE}` format
+- [ ] Category prefix is from approved list (or justified)
+- [ ] Description starts with "Detects" and is 60-400 chars
+- [ ] Author includes contact (email or @handle)
+- [ ] Reference URL is provided and accessible
+- [ ] Date matches rule creation/modification date
+- [ ] Hash field contains valid SHA256 of primary sample
+
+### String Quality
+- [ ] All strings ≥4 bytes
+- [ ] No API names used as indicators
+- [ ] No common paths or executables
+- [ ] Regex patterns are bounded
+- [ ] Base64 modifier only on 3+ char strings
+
+### Condition Quality
+- [ ] Starts with `filesize <` check
+- [ ] Has magic bytes check before module use
+- [ ] Uses `and` instead of implicit conjunction
+- [ ] Expensive operations come last
+
+### Testing Evidence
+- [ ] Matches all target samples (list sample hashes)
+- [ ] Zero matches on goodware corpus (state corpus tested)
+- [ ] `yr check` passes
+- [ ] `yr fmt --check` passes
+- [ ] Linter passes
+
+## Enforcing Style in CI
+
+### Pre-commit Hook
+
+Add to `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: local
+    hooks:
+      - id: yara-lint
+        name: YARA Lint
+        entry: uv run yara_lint.py --strict
+        language: system
+        files: \.yar$
+        types: [file]
+```
+
+### GitHub Actions
+
+```yaml
+- name: Lint YARA rules
+  run: |
+    uv run yara_lint.py --strict rules/
+    yr check rules/
+    yr fmt --check rules/
+```
+
+Block PRs that fail linting. No exceptions for "quick fixes."
+
 ## Anti-Patterns
 
 ### Naming

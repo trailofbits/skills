@@ -1,4 +1,4 @@
-# YARA Rule Testing
+# YARA-X Rule Testing
 
 Testing is non-negotiable. Untested rules cause alert fatigue (false positives) or missed detections (false negatives).
 
@@ -19,7 +19,12 @@ Every rule needs three validation stages:
            │
            ▼
 ┌──────────────────────┐
-│ Lint (syntax/style)  │──── Fix issues ────┐
+│ yr check (validate)  │──── Fix issues ────┐
+└──────────┬───────────┘                    │
+           │                                │
+           ▼                                │
+┌──────────────────────┐                    │
+│ Lint (style checks)  │──── Fix issues ────┤
 └──────────┬───────────┘                    │
            │                                │
            ▼                                │
@@ -43,16 +48,25 @@ Every rule needs three validation stages:
 └──────────────────────┘
 ```
 
-### Escape Sequence Validation (YARA 4.5+)
+### Validation with yr check
 
-Before deploying rules, validate escape sequences:
+Always validate rules before testing:
 
 ```bash
-yara --strict-escape rule.yar sample.exe
+# Basic validation
+yr check rule.yar
+
+# Validate directory
+yr check rules/
+
+# Migration mode (identifies legacy YARA compatibility issues)
+yr check --relaxed-re-syntax rules/
 ```
 
-This catches invalid escapes like `\R` (should be `\\R` or just `R`) that
-silently become literals in older YARA versions.
+> **Note:** Use `--relaxed-re-syntax` only as a temporary diagnostic tool during migration.
+> Fix all identified issues rather than relying on relaxed mode permanently.
+
+YARA-X provides better error messages than legacy YARA, with precise source locations for issues.
 
 ## Goodware Testing
 
@@ -66,10 +80,37 @@ Test against legitimate software in your target ecosystem, not just Windows bina
 | **JavaScript/Node** | Popular npm packages (lodash, react, express, axios) |
 | **VS Code extensions** | Top 100 marketplace extensions by installs |
 | **Browser extensions** | Chrome Web Store popular extensions |
-| **npm packages** | Download top 1000 packages by weekly downloads |
+| **npm packages** | Top 100+ packages by weekly downloads |
 | **Python packages** | Top PyPI packages (requests, django, flask) |
 
 **Critical:** A rule that fires on legitimate software in your target ecosystem is useless. VT's goodware corpus is PE-centric — supplement with ecosystem-appropriate files.
+
+### Goodware Corpus Selection
+
+Not all goodware is equal. Choose corpus that matches your rule's target:
+
+| Rule Target | Minimum Goodware Corpus |
+|-------------|------------------------|
+| PE files | Chrome, Firefox, Adobe Reader, Microsoft Office, Python installer |
+| JavaScript | lodash, react, express, webpack, electron |
+| npm packages | Top 100 by weekly downloads + packages with postinstall scripts |
+| Chrome extensions | Top 50 marketplace extensions |
+
+**Expert baseline:** "Test against Chrome, Firefox, and Adobe Reader" — Kaspersky Applied YARA
+
+### Interpreting Goodware Matches
+
+```
+Rule matched goodware — now what?
+├─ Matched 1-2 files?
+│  └─ Investigate: is the match legitimate? Add exclusion or tighten string
+├─ Matched 3-5 files?
+│  └─ Pattern is too common — find different indicators
+├─ Matched 6+ files?
+│  └─ Rule is fundamentally broken — start over
+└─ Matched only one vendor's software?
+   └─ Add vendor exclusion: `not $fp_vendor`
+```
 
 ### VirusTotal Goodware Corpus (Recommended)
 
@@ -85,17 +126,18 @@ The gold standard. VirusTotal maintains a corpus of 1M+ clean files from major s
 | Matches | Assessment | Action |
 |---------|------------|--------|
 | 0 | Excellent | Proceed to deployment |
-| 1-5 | Investigate | Review matches, add exclusions or tighten strings |
+| 1-2 | Investigate | Review matches, add exclusions or tighten strings |
+| 3-5 | Too common | Find different indicators |
 | 6+ | Broken | Start over with different indicators |
 
 ### Local Testing
 
 ```bash
 # Should return zero matches
-yara -r rules/ /path/to/goodware/
+yr scan -r rules/ /path/to/goodware/
 
-# Count matches
-yara -c rules/ /path/to/goodware/
+# Count matches (quiet mode)
+yr scan -c rules/ /path/to/goodware/
 ```
 
 ### yarGen Database Lookup
@@ -118,13 +160,114 @@ Strings appearing in the database are likely to cause false positives.
 3. Reports syntax errors and performance issues
 4. Integrates with VT goodware corpus
 
+## Free Testing Alternatives
+
+Not everyone has VirusTotal Intelligence access. Here are free alternatives:
+
+### Free Online Tools
+
+| Tool | Purpose | Access |
+|------|---------|--------|
+| **YARA-CI** | GitHub App tests PRs against 1M NIST goodware files | Free, [github.com/apps/virustotal-yara-ci](https://github.com/apps/virustotal-yara-ci) |
+| **YaraDbg** | Web-based rule debugger with step-through execution | Free, [yaradbg.dev](https://yaradbg.dev) |
+| **Klara** | Kaspersky's distributed YARA scanner | Open source, self-hosted |
+
+### YARA-CI Setup
+
+YARA-CI is the best free option for automated testing:
+
+```bash
+# 1. Install GitHub App from github.com/apps/virustotal-yara-ci
+# 2. Connect your rules repository
+# 3. Each PR automatically tested against 1M+ goodware files
+# 4. View results at yara-ci.cloud.virustotal.com
+```
+
+Results include:
+- Syntax validation
+- Performance warnings
+- Goodware matches (potential FPs)
+- Slowloris detection (rules that timeout)
+
+### Building a Local Goodware Corpus
+
+For offline testing, build your own corpus:
+
+**Windows PE files:**
+```bash
+# Fresh Windows 11 VM → export C:\Windows\System32\*.dll
+# Download Chrome, Firefox, Adobe Reader installers
+# Python/Node installers from official sources
+```
+
+**npm/JavaScript packages:**
+```bash
+# Download top packages
+npm pack lodash react express axios webpack
+# Extract for scanning
+for f in *.tgz; do tar -xzf "$f"; done
+```
+
+**Chrome extensions:**
+```bash
+# Export installed extensions from chrome://extensions (Developer mode)
+# Or download .crx files from Chrome Web Store using extension ID
+```
+
+**macOS applications:**
+```bash
+# Copy from /Applications/ on a fresh macOS install
+# System binaries from /usr/bin/, /usr/sbin/
+```
+
+### NIST NSRL
+
+The [NIST National Software Reference Library](https://www.nist.gov/itl/ssd/software-quality-group/national-software-reference-library-nsrl) provides hash sets of known-good files:
+
+- **Size:** ~147GB compressed
+- **Contains:** Hashes from legitimate software
+- **Use:** Filter known-good files before scanning
+
+```bash
+# Download RDS (Reference Data Set)
+# Available at: https://www.nist.gov/itl/ssd/software-quality-group/nsrl-download-links
+# Use to exclude known-good files from your corpus
+```
+
+### macOS XProtect
+
+Apple's built-in YARA rules are a good reference:
+
+```bash
+# Location on macOS
+/System/Library/CoreServices/XProtect.bundle/Contents/Resources/XProtect.yara
+
+# View rules (requires SIP disabled or extraction from DMG)
+cat /System/Library/CoreServices/XProtect.bundle/Contents/Resources/XProtect.yara
+```
+
+XProtect rules demonstrate Apple's production patterns for macOS malware detection.
+
+### Minimum Local Corpus by Platform
+
+| Rule Target | Minimum Local Corpus |
+|-------------|---------------------|
+| PE files | Chrome.exe, Firefox.exe, python.exe (10+ files) |
+| npm packages | lodash, react, express, webpack (top 50 by downloads) |
+| Chrome extensions | uBlock Origin, React DevTools, Grammarly (top 20) |
+| macOS | /Applications/* from fresh install |
+| Android DEX | Top 10 Play Store apps (extracted APKs) |
+
 ## Malware Sample Testing
 
 ### Positive Testing
 
 ```bash
 # Rule should match all target samples
-yara -r MAL_Win_Emotet.yar samples/emotet/
+yr scan -r MAL_Win_Emotet.yar samples/emotet/
+
+# With matched strings shown
+yr scan -s MAL_Win_Emotet.yar samples/emotet/
 
 # Expected: all files listed
 # If any missing: rule too narrow
@@ -145,7 +288,7 @@ When a rule matches goodware:
 ### 1. Identify the Match
 
 ```bash
-yara -s rule.yar false_positive.exe
+yr scan -s rule.yar false_positive.exe
 ```
 
 Shows which strings matched.
@@ -219,7 +362,7 @@ npm pack webpack && tar -xzf webpack-*.tgz -C test_corpus/legitimate/
 npm pack electron-builder && tar -xzf electron-builder-*.tgz -C test_corpus/legitimate/
 
 # Your rule should NOT match legitimate postinstall scripts
-yara -r supply_chain_rule.yar test_corpus/legitimate/
+yr scan -r supply_chain_rule.yar test_corpus/legitimate/
 # Expected: zero matches
 ```
 
@@ -239,7 +382,9 @@ Rules targeting supply chain attacks should detect patterns from documented inci
 
 Before any rule goes to production:
 
-- [ ] Syntax validates (`yara -v rule.yar`)
+- [ ] `yr check` passes (syntax and YARA-X compatibility)
+- [ ] `yr fmt --check` passes (consistent formatting)
+- [ ] Linter passes (`uv run yara_lint.py rule.yar`)
 - [ ] Matches all target samples (positive testing)
 - [ ] Zero matches on goodware corpus (negative testing)
 - [ ] Tested against packed variants if applicable

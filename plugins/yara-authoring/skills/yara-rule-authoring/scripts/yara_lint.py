@@ -1,8 +1,11 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["plyara>=2.1"]
+# dependencies = ["yara-x>=0.10.0"]
 # ///
-"""YARA rule linter for style, metadata, and common anti-patterns.
+"""YARA-X rule linter for style, metadata, compatibility, and common anti-patterns.
+
+Uses the yara-x Python package for actual rule validation, ensuring rules are
+compatible with YARA-X before deployment.
 
 Usage:
     uv run yara_lint.py rule.yar
@@ -21,7 +24,7 @@ from dataclasses import field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import plyara
+import yara_x
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -100,6 +103,7 @@ VALID_PLATFORM_INDICATORS = frozenset(
         "DOC",
         "PDF",
         "JAR",
+        "CRX",
     }
 )
 
@@ -162,13 +166,111 @@ def check_naming_convention(rule_name: str) -> Iterator[Issue]:
         )
 
 
-def check_metadata(rule_name: str, rule: dict) -> Iterator[Issue]:
-    """Check for required and well-formed metadata."""
+def extract_metadata(content: str, rule_name: str) -> dict[str, str]:
+    """Extract metadata from a rule using regex (since yara-x doesn't expose parsed AST)."""
     metadata = {}
-    if "metadata" in rule:
-        for item in rule["metadata"]:
-            metadata.update(item)
 
+    # Find the rule block
+    rule_pattern = rf"rule\s+{re.escape(rule_name)}\s*\{{"
+    rule_match = re.search(rule_pattern, content)
+    if not rule_match:
+        return metadata
+
+    # Find meta: section within the rule
+    start = rule_match.end()
+    # Find matching closing brace
+    brace_count = 1
+    pos = start
+    while pos < len(content) and brace_count > 0:
+        if content[pos] == "{":
+            brace_count += 1
+        elif content[pos] == "}":
+            brace_count -= 1
+        pos += 1
+
+    rule_content = content[start : pos - 1]
+
+    # Extract meta section
+    pattern = r"meta\s*:\s*(.*?)(?=strings\s*:|condition\s*:|$)"
+    meta_match = re.search(pattern, rule_content, re.DOTALL)
+    if meta_match:
+        meta_section = meta_match.group(1)
+        # Parse key = "value" pairs
+        for match in re.finditer(r'(\w+)\s*=\s*"([^"]*)"', meta_section):
+            metadata[match.group(1)] = match.group(2)
+
+    return metadata
+
+
+def extract_strings(content: str, rule_name: str) -> list[dict]:
+    """Extract strings from a rule using regex."""
+    strings = []
+
+    # Find the rule block
+    rule_pattern = rf"rule\s+{re.escape(rule_name)}\s*\{{"
+    rule_match = re.search(rule_pattern, content)
+    if not rule_match:
+        return strings
+
+    # Find strings section
+    start = rule_match.end()
+    brace_count = 1
+    pos = start
+    while pos < len(content) and brace_count > 0:
+        if content[pos] == "{":
+            brace_count += 1
+        elif content[pos] == "}":
+            brace_count -= 1
+        pos += 1
+
+    rule_content = content[start : pos - 1]
+
+    strings_match = re.search(r"strings\s*:\s*(.*?)(?=condition\s*:|$)", rule_content, re.DOTALL)
+    if not strings_match:
+        return strings
+
+    strings_section = strings_match.group(1)
+
+    # Parse text strings: $name = "value" modifiers
+    for match in re.finditer(r'(\$\w+)\s*=\s*"([^"]*)"([^\n]*)', strings_section):
+        modifiers = match.group(3).strip().split()
+        strings.append(
+            {
+                "name": match.group(1),
+                "value": match.group(2),
+                "type": "text",
+                "modifiers": modifiers,
+            }
+        )
+
+    # Parse hex strings: $name = { hex }
+    for match in re.finditer(r"(\$\w+)\s*=\s*\{([^}]*)\}", strings_section):
+        strings.append(
+            {
+                "name": match.group(1),
+                "value": match.group(2).strip(),
+                "type": "byte",
+                "modifiers": [],
+            }
+        )
+
+    # Parse regex strings: $name = /pattern/ modifiers
+    for match in re.finditer(r"(\$\w+)\s*=\s*/([^/]*)/([^\n]*)", strings_section):
+        modifiers = match.group(3).strip().split()
+        strings.append(
+            {
+                "name": match.group(1),
+                "value": match.group(2),
+                "type": "regex",
+                "modifiers": modifiers,
+            }
+        )
+
+    return strings
+
+
+def check_metadata(rule_name: str, metadata: dict[str, str]) -> Iterator[Issue]:
+    """Check for required and well-formed metadata."""
     # Required fields
     required = ["description", "author", "date"]
     for field_name in required:
@@ -215,38 +317,44 @@ def check_metadata(rule_name: str, rule: dict) -> Iterator[Issue]:
         )
 
 
-def check_strings(rule_name: str, rule: dict) -> Iterator[Issue]:
+def check_strings(rule_name: str, strings: list[dict]) -> Iterator[Issue]:
     """Check strings for anti-patterns and quality issues."""
-    if "strings" not in rule:
-        return
-
-    for string in rule["strings"]:
+    for string in strings:
         string_id = string.get("name", "unknown")
         string_value = string.get("value", "")
         string_type = string.get("type", "text")
+        modifiers = string.get("modifiers", [])
 
         # Check string length (text strings)
         if string_type == "text":
-            # Handle modifiers like 'wide', 'nocase'
-            clean_value = string_value.strip('"').strip("'")
-            if len(clean_value) < 4:
+            if len(string_value) < 4:
                 yield Issue(
                     rule=rule_name,
                     severity="error",
                     code="E002",
-                    message=f"String {string_id} is only {len(clean_value)} bytes; "
+                    message=f"String {string_id} is only {len(string_value)} bytes; "
                     "minimum 4 bytes for good atoms",
                 )
 
             # Check for FP-prone strings
             for fp_string in FP_PRONE_STRINGS:
-                if fp_string.lower() in clean_value.lower():
+                if fp_string.lower() in string_value.lower():
                     yield Issue(
                         rule=rule_name,
                         severity="warning",
                         code="W005",
                         message=f"String {string_id} contains FP-prone pattern '{fp_string}'",
                     )
+
+            # YARA-X specific: base64 modifier requires 3+ chars
+            if "base64" in modifiers and len(string_value) < 3:
+                yield Issue(
+                    rule=rule_name,
+                    severity="error",
+                    code="E006",
+                    message=f"String {string_id} uses 'base64' but is only {len(string_value)} "
+                    "chars; YARA-X requires 3+ characters for base64 modifier",
+                )
 
         # Check hex strings
         if string_type == "byte":
@@ -263,7 +371,7 @@ def check_strings(rule_name: str, rule: dict) -> Iterator[Issue]:
                 )
 
             # Check for too many wildcards at start
-            if re.match(r"^\{\s*\?\?", hex_value):
+            if re.match(r"^\s*\?\?", hex_value):
                 yield Issue(
                     rule=rule_name,
                     severity="warning",
@@ -272,54 +380,46 @@ def check_strings(rule_name: str, rule: dict) -> Iterator[Issue]:
                     "move fixed bytes first for better atoms",
                 )
 
-
-def check_condition(rule_name: str, rule: dict) -> Iterator[Issue]:
-    """Check condition for performance and deprecated features."""
-    if "condition_terms" not in rule:
-        return
-
-    condition_str = " ".join(str(t) for t in rule["condition_terms"])
-
-    # Check for deprecated features
-    for pattern, message in DEPRECATED_PATTERNS.items():
-        if pattern.lower() in condition_str.lower():
-            yield Issue(
-                rule=rule_name,
-                severity="warning",
-                code="W007",
-                message=message,
-            )
-
-    # Check for unbounded regex in strings (from raw_condition if available)
-    raw_condition = rule.get("raw_condition", condition_str)
-    if re.search(r"/\.\*[^?]", raw_condition) or re.search(r"/\.\+[^?]", raw_condition):
-        yield Issue(
-            rule=rule_name,
-            severity="warning",
-            code="W008",
-            message="Unbounded regex (.*/.+) detected; use bounded quantifiers {1,N}",
-        )
-
-
-def check_string_modifiers(rule_name: str, rule: dict) -> Iterator[Issue]:
-    """Check string modifiers for performance concerns."""
-    if "strings" not in rule:
-        return
-
-    for string in rule["strings"]:
-        string_id = string.get("name", "unknown")
-        modifiers = string.get("modifiers", [])
-
-        # nocase on long strings
-        if "nocase" in modifiers:
-            value = string.get("value", "")
-            if len(value) > 20:
+        # Check regex strings for YARA-X compatibility issues
+        if string_type == "regex":
+            # Check for unescaped { in regex (YARA-X strict mode)
+            if re.search(r"(?<!\\)\{(?![0-9])", string_value):
                 yield Issue(
                     rule=rule_name,
-                    severity="info",
-                    code="I003",
-                    message=f"String {string_id} uses 'nocase' on long string; performance impact",
+                    severity="error",
+                    code="E007",
+                    message=f"Regex {string_id} has unescaped '{{'; "
+                    "YARA-X requires escaping as '\\{{'",
                 )
+
+            # Check for unbounded regex
+            if re.search(r"(?<!\\)\.\*(?!\?)", string_value) or re.search(
+                r"(?<!\\)\.\+(?!\?)", string_value
+            ):
+                yield Issue(
+                    rule=rule_name,
+                    severity="warning",
+                    code="W008",
+                    message=f"Regex {string_id} has unbounded quantifier (.*/.+); "
+                    "use bounded quantifiers {{1,N}}",
+                )
+
+
+def check_string_modifiers(rule_name: str, strings: list[dict]) -> Iterator[Issue]:
+    """Check string modifiers for performance concerns."""
+    for string in strings:
+        string_id = string.get("name", "unknown")
+        modifiers = string.get("modifiers", [])
+        value = string.get("value", "")
+
+        # nocase on long strings
+        if "nocase" in modifiers and len(value) > 20:
+            yield Issue(
+                rule=rule_name,
+                severity="info",
+                code="I003",
+                message=f"String {string_id} uses 'nocase' on long string; performance impact",
+            )
 
         # xor without range
         if "xor" in modifiers and not any("xor(" in str(m) for m in modifiers):
@@ -331,22 +431,60 @@ def check_string_modifiers(rule_name: str, rule: dict) -> Iterator[Issue]:
             )
 
 
-def lint_rule(rule: dict) -> list[Issue]:
-    """Lint a single parsed rule."""
-    issues = []
-    rule_name = rule.get("rule_name", "unknown")
+def check_condition(rule_name: str, content: str) -> Iterator[Issue]:
+    """Check condition for performance and deprecated features."""
+    # Find the rule's condition
+    rule_pattern = rf"rule\s+{re.escape(rule_name)}\s*\{{"
+    rule_match = re.search(rule_pattern, content)
+    if not rule_match:
+        return
 
-    issues.extend(check_naming_convention(rule_name))
-    issues.extend(check_metadata(rule_name, rule))
-    issues.extend(check_strings(rule_name, rule))
-    issues.extend(check_condition(rule_name, rule))
-    issues.extend(check_string_modifiers(rule_name, rule))
+    start = rule_match.end()
+    brace_count = 1
+    pos = start
+    while pos < len(content) and brace_count > 0:
+        if content[pos] == "{":
+            brace_count += 1
+        elif content[pos] == "}":
+            brace_count -= 1
+        pos += 1
 
-    return issues
+    rule_content = content[start : pos - 1]
+
+    condition_match = re.search(r"condition\s*:\s*(.*)", rule_content, re.DOTALL)
+    if not condition_match:
+        return
+
+    condition_str = condition_match.group(1).strip()
+
+    # Check for deprecated features
+    for pattern, message in DEPRECATED_PATTERNS.items():
+        if pattern.lower() in condition_str.lower():
+            yield Issue(
+                rule=rule_name,
+                severity="warning",
+                code="W007",
+                message=message,
+            )
+
+    # Check for negative array indexing (not supported in YARA-X)
+    if re.search(r"@\w+\s*\[\s*-\d+\s*\]", condition_str):
+        yield Issue(
+            rule=rule_name,
+            severity="error",
+            code="E008",
+            message="Negative array indexing (e.g., @a[-1]) not supported in YARA-X; "
+            "use @a[#a - 1] instead",
+        )
+
+
+def extract_rule_names(content: str) -> list[str]:
+    """Extract rule names from YARA source."""
+    return re.findall(r"(?:private\s+)?rule\s+(\w+)\s*[:{]", content)
 
 
 def lint_file(file_path: Path) -> LintResult:
-    """Lint a YARA file."""
+    """Lint a YARA file using yara-x for validation."""
     result = LintResult(file=str(file_path))
 
     try:
@@ -355,15 +493,38 @@ def lint_file(file_path: Path) -> LintResult:
         result.parse_error = f"Cannot read file: {e}"
         return result
 
+    # First, try to compile with yara-x to catch syntax/compatibility errors
     try:
-        parser = plyara.Plyara()
-        rules = parser.parse_string(content)
-    except Exception as e:
-        result.parse_error = f"Parse error: {e}"
-        return result
+        compiler = yara_x.Compiler()
+        compiler.add_source(content)
+        compiler.build()
+    except yara_x.CompileError as e:
+        # Extract useful information from the error
+        error_msg = str(e)
+        result.issues.append(
+            Issue(
+                rule="(compilation)",
+                severity="error",
+                code="E000",
+                message=f"YARA-X compilation error: {error_msg}",
+            )
+        )
+        # Still try to do style checks even if compilation fails
 
-    for rule in rules:
-        result.issues.extend(lint_rule(rule))
+    # Extract rule names and perform style checks
+    rule_names = extract_rule_names(content)
+
+    for rule_name in rule_names:
+        result.issues.extend(check_naming_convention(rule_name))
+
+        metadata = extract_metadata(content, rule_name)
+        result.issues.extend(check_metadata(rule_name, metadata))
+
+        strings = extract_strings(content, rule_name)
+        result.issues.extend(check_strings(rule_name, strings))
+        result.issues.extend(check_string_modifiers(rule_name, strings))
+
+        result.issues.extend(check_condition(rule_name, content))
 
     return result
 
@@ -419,7 +580,7 @@ def format_result(result: LintResult, *, use_color: bool = True) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="YARA rule linter")
+    parser = argparse.ArgumentParser(description="YARA-X rule linter")
     parser.add_argument("path", type=Path, help="File or directory to lint")
     parser.add_argument("--json", action="store_true", help="Output JSON format")
     parser.add_argument("--strict", action="store_true", help="Treat warnings as errors")

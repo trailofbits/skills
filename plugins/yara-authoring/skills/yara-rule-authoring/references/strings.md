@@ -1,6 +1,8 @@
-# YARA String Selection
+# YARA-X String Selection
 
 Choosing the right strings is the most critical decision in YARA rule writing.
+
+> **YARA-X Note:** YARA-X enforces stricter validation on strings. Base64 modifier requires 3+ character strings, and regex patterns must have properly escaped metacharacters.
 
 ## String Quality Judgment
 
@@ -63,6 +65,19 @@ $url = /https?:\/\/[a-z0-9]{5,50}\.onion/    // Good: bounded
 $bad = /https?:\/\/.*/                        // BAD: unbounded
 ```
 
+**YARA-X regex requirements:**
+- Literal `{` must be escaped as `\{` (YARA-X strict mode)
+- Invalid escape sequences error instead of becoming literals
+- Use `yr check` to validate regex patterns before deployment
+
+```yara
+// BAD: Fails in YARA-X
+$pattern = /config{key}/
+
+// GOOD: Escape the brace
+$pattern = /config\{key\}/
+```
+
 ## Modifiers and Their Costs
 
 | Modifier | Performance Impact | When to Use |
@@ -72,12 +87,27 @@ $bad = /https?:\/\/.*/                        // BAD: unbounded
 | `nocase` | **Doubles atoms** | Only when necessary |
 | `fullword` | Minimal | Prevent substring matches |
 | `xor` | **High (255x patterns)** | Only with specific range |
-| `base64` | Moderate (3x patterns) | Encoded payloads |
+| `base64` | Moderate (3x patterns) | Encoded payloads (**3+ chars required in YARA-X**) |
+| `private` | None | Hide pattern from scan output (YARA-X 1.3.0+) |
 
 **Modifier judgment:**
 - `nocase` — Only use for user-facing strings that might vary in case
 - `xor(0x00-0xFF)` — Almost always too broad; find the actual key
 - `xor(0x41)` — Specific key is acceptable
+- `base64` — YARA-X requires strings of 3+ characters (won't match on shorter strings)
+
+### Private Patterns (YARA-X 1.3.0+)
+
+Mark helper patterns as private to exclude them from scan output:
+
+```yara
+strings:
+    $public = "malware_marker"
+    private $helper = "internal_pattern"  // Matches but not in output
+
+condition:
+    $public and $helper
+```
 
 ## Bad String Sources (Always Reject)
 

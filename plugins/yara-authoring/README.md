@@ -1,6 +1,8 @@
-# YARA Authoring Plugin
+# YARA-X Authoring Plugin
 
-A behavior-driven skill for authoring high-quality YARA detection rules, teaching you to think and act like an expert YARA author.
+A behavior-driven skill for authoring high-quality YARA-X detection rules, teaching you to think and act like an expert YARA author.
+
+> **YARA-X Focus:** This skill targets [YARA-X](https://virustotal.github.io/yara-x/), the Rust-based successor to legacy YARA. YARA-X powers VirusTotal's Livehunt/Retrohunt production systems and is 5-10x faster for regex-heavy rules. Legacy YARA (C implementation) is in maintenance mode.
 
 ## Philosophy
 
@@ -10,9 +12,32 @@ This skill doesn't dump YARA syntax at you. Instead, it teaches:
 - **Expert heuristics** (mutex names are gold, API names are garbage)
 - **Rationalizations to reject** (the shortcuts that cause production failures)
 
-An expert uses 5 tools: yarGen, yara CLI, signature-base, YARA-CI, Binarly. Everything else is noise.
+An expert uses 5 tools: yarGen, `yr` CLI, signature-base, YARA-CI, Binarly. Everything else is noise.
 
 ## Installation
+
+### YARA-X CLI
+
+```bash
+# macOS
+brew install yara-x
+
+# Or from source
+cargo install yara-x
+
+# Verify installation
+yr --version
+```
+
+### Python Package (for scripts)
+
+```bash
+pip install yara-x
+# or with uv
+uv pip install yara-x
+```
+
+### Plugin
 
 Add this plugin to your Claude Code configuration:
 
@@ -24,7 +49,7 @@ claude mcp add-plugin /path/to/yara-authoring
 
 ### yara-rule-authoring
 
-Guides authoring of YARA rules for malware detection with expert judgment.
+Guides authoring of YARA-X rules for malware detection with expert judgment.
 
 **Covers:**
 - Decision trees for string quality, when to abandon approaches, debugging FPs
@@ -33,8 +58,11 @@ Guides authoring of YARA rules for malware detection with expert judgment.
 - Naming conventions (CATEGORY_PLATFORM_FAMILY_DATE format)
 - Performance optimization (atom quality, short-circuit conditions)
 - Testing workflow (goodware corpus validation)
+- **YARA-X migration guide** for converting legacy rules
+- **Chrome extension analysis** with `crx` module
+- **Android DEX analysis** with `dex` module
 
-**Triggers:** YARA, malware detection, threat hunting, IOC, signature
+**Triggers:** YARA, YARA-X, malware detection, threat hunting, IOC, signature
 
 ## Scripts
 
@@ -42,7 +70,7 @@ The skill includes two Python scripts that require `uv` to run:
 
 ### yara_lint.py
 
-Validates YARA rules for style, metadata, and anti-patterns:
+Validates YARA-X rules for style, metadata, compatibility issues, and anti-patterns:
 
 ```bash
 uv run yara_lint.py rule.yar
@@ -70,15 +98,34 @@ uv run atom_analyzer.py --verbose rule.yar
 
 ## Key Resources
 
+- [YARA-X Documentation](https://virustotal.github.io/yara-x/) (official)
+- [YARA-X GitHub](https://github.com/VirusTotal/yara-x)
 - [Neo23x0 YARA Style Guide](https://github.com/Neo23x0/YARA-Style-Guide)
 - [Neo23x0 Performance Guidelines](https://github.com/Neo23x0/YARA-Performance-Guidelines)
 - [signature-base Rule Collection](https://github.com/Neo23x0/signature-base)
-- [Official YARA Documentation](https://yara.readthedocs.io/)
 - [YARA-CI](https://yara-ci.cloud.virustotal.com/)
 
 ## Requirements
 
 - Python 3.11+
 - [uv](https://github.com/astral-sh/uv) for running scripts
+- [YARA-X](https://virustotal.github.io/yara-x/) CLI (`yr`)
 
 The scripts use PEP 723 inline metadata, so dependencies are resolved automatically by `uv run`.
+
+## Migrating from Legacy YARA
+
+If you have existing rules written for legacy YARA:
+
+1. **Run validation:** `yr check --relaxed-re-syntax rules/`
+2. **Fix issues identified** (see SKILL.md migration section)
+3. **Validate without relaxed mode:** `yr check rules/`
+
+> **Note:** Use `--relaxed-re-syntax` only as a temporary diagnostic tool.
+> Fix all identified issues rather than relying on relaxed mode permanently.
+
+Common migration issues:
+- Unescaped `{` in regex patterns
+- Invalid escape sequences (`\R` → `\\R`)
+- Base64 patterns on strings < 3 characters
+- Negative array indexing

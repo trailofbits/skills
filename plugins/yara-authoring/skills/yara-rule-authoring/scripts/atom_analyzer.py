@@ -1,11 +1,11 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["plyara>=2.1"]
+# dependencies = ["yara-x>=0.10.0"]
 # ///
-"""YARA string atom quality analyzer.
+"""YARA-X string atom quality analyzer.
 
 Analyzes strings for efficient atom extraction, identifying patterns that
-will cause poor scanning performance.
+will cause poor scanning performance. Uses yara-x for rule validation.
 
 Usage:
     uv run atom_analyzer.py rule.yar
@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import plyara
+import yara_x
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -174,9 +174,7 @@ def analyze_text_string(string_id: str, value: str, modifiers: list[str]) -> Str
     """Analyze a text string for atom quality."""
     issues = []
 
-    # Remove quotes
-    clean_value = value.strip('"').strip("'")
-    byte_count = len(clean_value)
+    byte_count = len(value)
 
     # Check minimum length
     if byte_count < 4:
@@ -196,11 +194,23 @@ def analyze_text_string(string_id: str, value: str, modifiers: list[str]) -> Str
             issues=issues,
         )
 
+    # YARA-X specific: base64 modifier requires 3+ chars
+    if "base64" in modifiers and byte_count < 3:
+        issues.append(
+            AtomIssue(
+                string_id=string_id,
+                severity="error",
+                message=f"String uses 'base64' but is only {byte_count} chars; "
+                "YARA-X requires 3+ characters for base64 modifier",
+                suggestion="Use a string of 3+ characters with base64 modifier",
+            )
+        )
+
     # Convert to bytes for analysis
     try:
-        data = clean_value.encode("utf-8")
+        data = value.encode("utf-8")
     except UnicodeEncodeError:
-        data = clean_value.encode("latin-1")
+        data = value.encode("latin-1")
 
     best_atom, score = find_best_atom(data, [])
 
@@ -339,12 +349,83 @@ def analyze_hex_string(string_id: str, value: str) -> StringAnalysis:
     )
 
 
-def analyze_rule(rule: dict) -> Iterator[StringAnalysis]:
-    """Analyze all strings in a rule."""
-    if "strings" not in rule:
-        return
+def extract_strings(content: str, rule_name: str) -> list[dict]:
+    """Extract strings from a rule using regex."""
+    strings = []
 
-    for string in rule["strings"]:
+    # Find the rule block
+    rule_pattern = rf"rule\s+{re.escape(rule_name)}\s*\{{"
+    rule_match = re.search(rule_pattern, content)
+    if not rule_match:
+        return strings
+
+    # Find strings section
+    start = rule_match.end()
+    brace_count = 1
+    pos = start
+    while pos < len(content) and brace_count > 0:
+        if content[pos] == "{":
+            brace_count += 1
+        elif content[pos] == "}":
+            brace_count -= 1
+        pos += 1
+
+    rule_content = content[start : pos - 1]
+
+    strings_match = re.search(r"strings\s*:\s*(.*?)(?=condition\s*:|$)", rule_content, re.DOTALL)
+    if not strings_match:
+        return strings
+
+    strings_section = strings_match.group(1)
+
+    # Parse text strings: $name = "value" modifiers
+    for match in re.finditer(r'(\$\w+)\s*=\s*"([^"]*)"([^\n]*)', strings_section):
+        modifiers = match.group(3).strip().split()
+        strings.append(
+            {
+                "name": match.group(1),
+                "value": match.group(2),
+                "type": "text",
+                "modifiers": modifiers,
+            }
+        )
+
+    # Parse hex strings: $name = { hex }
+    for match in re.finditer(r"(\$\w+)\s*=\s*\{([^}]*)\}", strings_section):
+        strings.append(
+            {
+                "name": match.group(1),
+                "value": match.group(2).strip(),
+                "type": "byte",
+                "modifiers": [],
+            }
+        )
+
+    # Parse regex strings: $name = /pattern/ modifiers
+    for match in re.finditer(r"(\$\w+)\s*=\s*/([^/]*)/([^\n]*)", strings_section):
+        modifiers = match.group(3).strip().split()
+        strings.append(
+            {
+                "name": match.group(1),
+                "value": match.group(2),
+                "type": "regex",
+                "modifiers": modifiers,
+            }
+        )
+
+    return strings
+
+
+def extract_rule_names(content: str) -> list[str]:
+    """Extract rule names from YARA source."""
+    return re.findall(r"(?:private\s+)?rule\s+(\w+)\s*[:{]", content)
+
+
+def analyze_rule(rule_name: str, content: str) -> Iterator[StringAnalysis]:
+    """Analyze all strings in a rule."""
+    strings = extract_strings(content, rule_name)
+
+    for string in strings:
         string_id = string.get("name", "$unknown")
         string_value = string.get("value", "")
         string_type = string.get("type", "text")
@@ -365,18 +446,20 @@ def analyze_file(file_path: Path, *, verbose: bool = False) -> int:
         print(f"Error reading {file_path}: {e}", file=sys.stderr)
         return 1
 
+    # Validate with yara-x first
     try:
-        parser = plyara.Plyara()
-        rules = parser.parse_string(content)
-    except Exception as e:
-        print(f"Parse error in {file_path}: {e}", file=sys.stderr)
-        return 1
+        compiler = yara_x.Compiler()
+        compiler.add_source(content)
+        compiler.build()
+    except yara_x.CompileError as e:
+        print(f"\033[91mYARA-X compilation error in {file_path}:\033[0m {e}", file=sys.stderr)
+        # Continue with analysis anyway for educational purposes
 
+    rule_names = extract_rule_names(content)
     has_issues = False
 
-    for rule in rules:
-        rule_name = rule.get("rule_name", "unknown")
-        analyses = list(analyze_rule(rule))
+    for rule_name in rule_names:
+        analyses = list(analyze_rule(rule_name, content))
 
         rule_has_issues = any(a.issues for a in analyses)
         if rule_has_issues or verbose:
@@ -412,7 +495,7 @@ def analyze_file(file_path: Path, *, verbose: bool = False) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="YARA string atom quality analyzer")
+    parser = argparse.ArgumentParser(description="YARA-X string atom quality analyzer")
     parser.add_argument("path", type=Path, help="YARA file to analyze")
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Show all strings, not just issues"
