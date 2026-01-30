@@ -212,6 +212,17 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/insecure-defaults"
+    },
+    {
+      "name": "yara-authoring",
+      "version": "1.0.0",
+      "description": "YARA detection rule authoring with linting, atom analysis, and best practices from Neo23x0 and the malware research community",
+      "author": {
+        "name": "Trail of Bits",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/yara-authoring"
     }
   ]
 }
