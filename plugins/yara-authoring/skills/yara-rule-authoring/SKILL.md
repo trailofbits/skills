@@ -240,6 +240,10 @@ Quick rules of thumb from experienced YARA authors:
 - Anchor regex to a string atom when possible — unanchored regex runs against every byte
 - `nocase` on regex doubles memory — use only when case actually varies in samples
 
+**Organizational patterns (YARA 4.5+):**
+- Prefix unused strings with `_` to suppress warnings: `$_note = "metadata"`
+- Use `--strict-escape` during development to catch regex issues early
+
 ## Quick Reference
 
 ### Naming Convention
@@ -537,7 +541,8 @@ Before deploying any rule:
 
 ## Resources
 
-- [Official YARA Documentation](https://yara.readthedocs.io/)
+- [Official YARA Documentation](https://yara.readthedocs.io/) (4.5.0)
+- [YARA Releases](https://github.com/VirusTotal/yara/releases) — check for latest
 - [Neo23x0 YARA Style Guide](https://github.com/Neo23x0/YARA-Style-Guide)
 - [Neo23x0 Performance Guidelines](https://github.com/Neo23x0/YARA-Performance-Guidelines)
 - [signature-base Rule Collection](https://github.com/Neo23x0/signature-base)

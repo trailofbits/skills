@@ -43,6 +43,17 @@ Every rule needs three validation stages:
 └──────────────────────┘
 ```
 
+### Escape Sequence Validation (YARA 4.5+)
+
+Before deploying rules, validate escape sequences:
+
+```bash
+yara --strict-escape rule.yar sample.exe
+```
+
+This catches invalid escapes like `\R` (should be `\\R` or just `R`) that
+silently become literals in older YARA versions.
+
 ## Goodware Testing
 
 ### Platform-Specific Goodware

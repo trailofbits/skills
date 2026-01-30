@@ -280,6 +280,19 @@ Use the atom analyzer script:
 uv run {baseDir}/scripts/atom_analyzer.py rule.yar
 ```
 
+### Slow Rule Callbacks (YARA 4.5+)
+
+YARA 4.5.0 added `CALLBACK_MSG_TOO_SLOW_SCANNING` to identify rules that take
+too long. While this is API-level (yara-python, libyara), it indicates YARA
+now tracks rule execution time internally.
+
+For CLI validation, use `--strict-escape` to catch problematic regex patterns
+that might cause slowdowns:
+
+```bash
+yara --strict-escape rules.yar /path/to/test/
+```
+
 ## Real-World Examples
 
 ### Before Optimization
