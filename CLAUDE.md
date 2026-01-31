@@ -198,4 +198,5 @@ Before submitting:
 - [ ] Registered in marketplace.json
 
 **Version updates (for existing plugins):**
-- [ ] Increment version in `.claude-plugin/marketplace.json` when making substantive changes to a plugin or skill (clients only update plugins when the version number increases)
+- [ ] Increment version in both `plugin.json` and `.claude-plugin/marketplace.json` when making substantive changes (clients only update plugins when the version number increases)
+- [ ] Ensure version numbers match between `plugin.json` and `.claude-plugin/marketplace.json`
