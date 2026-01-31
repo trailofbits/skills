@@ -196,3 +196,6 @@ Before submitting:
 - [ ] Plugin has README.md
 - [ ] Added to root README.md table
 - [ ] Registered in marketplace.json
+
+**Version updates (for existing plugins):**
+- [ ] Increment version in `.claude-plugin/marketplace.json` when making substantive changes to a plugin or skill (clients only update plugins when the version number increases)
