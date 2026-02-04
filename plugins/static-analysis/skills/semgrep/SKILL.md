@@ -1,337 +1,299 @@
 ---
 name: semgrep
-description: Run Semgrep static analysis for fast security scanning and pattern matching. Use when asked to scan code with Semgrep, write custom YAML rules, find vulnerabilities quickly, use taint mode, or set up Semgrep in CI/CD pipelines.
+description: Run Semgrep static analysis scan on a codebase using parallel subagents. Use when asked to scan
+  code for vulnerabilities, run a security audit with Semgrep, find bugs, or perform
+  static analysis. Spawns parallel workers for multi-language codebases and triage.
 allowed-tools:
   - Bash
   - Read
   - Glob
   - Grep
+  - Write
+  - Task
 ---
 
-# Semgrep Static Analysis
+# Semgrep Security Scan
 
-## When to Use Semgrep
+Run a complete Semgrep scan with automatic language detection, parallel execution via Task subagents, and parallel triage.
 
-**Ideal scenarios:**
-- Quick security scans (minutes, not hours)
-- Pattern-based bug detection
-- Enforcing coding standards and best practices
-- Finding known vulnerability patterns
-- Single-file analysis without complex data flow
-- First-pass analysis before deeper tools
+## Prerequisites
 
-**Consider CodeQL instead when:**
-- Need interprocedural taint tracking across files
-- Complex data flow analysis required
-- Analyzing custom proprietary frameworks
+**Required:** Semgrep CLI
+
+```bash
+semgrep --version
+```
+
+If not installed, see [Semgrep installation docs](https://semgrep.dev/docs/getting-started/).
+
+## When to Use
+
+- Security audit of a codebase
+- Finding vulnerabilities before code review
+- Scanning for known bug patterns
+- First-pass static analysis
 
 ## When NOT to Use
 
-Do NOT use this skill for:
-- Complex interprocedural data flow analysis (use CodeQL instead)
-- Binary analysis or compiled code without source
-- Custom deep semantic analysis requiring AST/CFG traversal
-- When you need to track taint across many function boundaries
+- Need cross-file taint tracking → CodeQL or Semgrep Pro
+- Binary analysis → Use binary analysis tools
+- Already have Semgrep CI configured → Use existing pipeline
 
-## Installation
+---
+
+## Orchestration Architecture
+
+This skill uses **parallel Task subagents** for maximum efficiency:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ MAIN AGENT                                                      │
+│ 1. Detect languages                                             │
+│ 2. Present plan, get approval                                   │
+│ 3. Spawn parallel scan Tasks                                    │
+│ 4. Spawn parallel triage Tasks                                  │
+│ 5. Collect and report results                                   │
+└─────────────────────────────────────────────────────────────────┘
+          │ Step 3                           │ Step 4
+          ▼                                  ▼
+┌─────────────────┐              ┌─────────────────┐
+│ Scan Tasks      │              │ Triage Tasks    │
+│ (parallel)      │              │ (parallel)      │
+├─────────────────┤              ├─────────────────┤
+│ Python scanner  │              │ Python triager  │
+│ JS/TS scanner   │              │ JS/TS triager   │
+│ Go scanner      │              │ Go triager      │
+│ Docker scanner  │              │ Docker triager  │
+└─────────────────┘              └─────────────────┘
+```
+
+---
+
+## Workflow
+
+### Step 1: Detect Languages (Main Agent)
 
 ```bash
-# pip
-python3 -m pip install semgrep
+# Find languages by file extension
+fd -t f -e py -e js -e ts -e jsx -e tsx -e go -e rb -e java -e php -e c -e cpp -e rs | \
+  sed 's/.*\.//' | sort | uniq -c | sort -rn
 
-# Homebrew
-brew install semgrep
-
-# Docker
-docker run --rm -v "${PWD}:/src" returntocorp/semgrep semgrep --config auto /src
-
-# Update
-pip install --upgrade semgrep
+# Check for frameworks/technologies
+ls -la package.json pyproject.toml Gemfile go.mod Cargo.toml pom.xml 2>/dev/null
+fd -t f "Dockerfile" "docker-compose" ".tf" "*.yaml" "*.yml" | head -20
 ```
 
-## Core Workflow
+Map findings to categories:
 
-### 1. Quick Scan
+| Detection | Category | Rulesets |
+|-----------|----------|----------|
+| `.py`, `pyproject.toml` | Python | `p/python`, `p/django`, `p/flask` |
+| `.js`, `.ts`, `package.json` | JavaScript/TypeScript | `p/javascript`, `p/typescript`, `p/react`, `p/nodejs` |
+| `.go`, `go.mod` | Go | `p/golang`, `p/trailofbits` |
+| `.rb`, `Gemfile` | Ruby | `p/ruby`, `p/rails` |
+| `.java`, `pom.xml` | Java | `p/java`, `p/spring` |
+| `.php` | PHP | `p/php` |
+| `.c`, `.cpp` | C/C++ | `p/c` |
+| `Dockerfile` | Docker | `p/dockerfile` |
+| `.tf` | Terraform | `p/terraform` |
+| Any | Security baseline | `p/security-audit`, `p/owasp-top-ten`, `p/secrets` |
+
+See [references/rulesets.md](references/rulesets.md) for complete ruleset reference.
+
+### Step 2: Create Plan and Get Approval (Main Agent)
+
+Present plan to user:
+
+```
+## Semgrep Scan Plan
+
+**Target:** /path/to/codebase
+**Output directory:** ./semgrep-results/
+
+### Detected Languages/Technologies:
+- Python (1,234 files) - Django framework detected
+- JavaScript (567 files) - React detected
+- Dockerfile (3 files)
+
+### Execution Strategy:
+- Spawn 3 parallel scan Tasks (one per language category)
+- Each Task runs its rulesets in parallel
+- Then spawn parallel triage Tasks for each result
+
+Proceed with scan?
+```
+
+Wait for user confirmation before proceeding.
+
+### Step 3: Spawn Parallel Scan Tasks
+
+Create output directory, then spawn Tasks:
 
 ```bash
-semgrep --config auto .                    # Auto-detect rules
-semgrep --config auto --metrics=off .      # Disable telemetry for proprietary code
+mkdir -p semgrep-results
 ```
 
-### 2. Use Rulesets
+**Spawn N Tasks in a SINGLE message** (one per language category):
 
+**Task Prompt for Scanner Subagent:**
+
+```
+You are a Semgrep scanner for [LANGUAGE_CATEGORY].
+
+## Task
+Run Semgrep scans for [LANGUAGE] files and save results.
+
+## Commands to Run (in parallel)
 ```bash
-semgrep --config p/<RULESET> .             # Single ruleset
-semgrep --config p/security-audit --config p/trailofbits .  # Multiple
+semgrep --metrics=off --config [RULESET1] --json -o semgrep-results/[lang]-[ruleset1].json . &
+semgrep --metrics=off --config [RULESET2] --json -o semgrep-results/[lang]-[ruleset2].json . &
+semgrep --metrics=off --config p/security-audit --include="*.[ext]" --json -o semgrep-results/[lang]-security.json . &
+semgrep --metrics=off --config p/secrets --include="*.[ext]" --json -o semgrep-results/[lang]-secrets.json . &
+wait
 ```
 
-| Ruleset | Description |
-|---------|-------------|
-| `p/default` | General security and code quality |
-| `p/security-audit` | Comprehensive security rules |
-| `p/owasp-top-ten` | OWASP Top 10 vulnerabilities |
-| `p/cwe-top-25` | CWE Top 25 vulnerabilities |
-| `p/r2c-security-audit` | r2c security audit rules |
-| `p/trailofbits` | Trail of Bits security rules |
-| `p/python` | Python-specific |
-| `p/javascript` | JavaScript-specific |
-| `p/golang` | Go-specific |
+## Critical Rules
+- Always use --metrics=off
+- Use --include to scope language-specific rulesets
+- Run rulesets in parallel with & and wait
 
-### 3. Output Formats
-
-```bash
-semgrep --config p/security-audit --sarif -o results.sarif .   # SARIF
-semgrep --config p/security-audit --json -o results.json .     # JSON
-semgrep --config p/security-audit --dataflow-traces .          # Show data flow
+## Output
+Report:
+- Number of findings per ruleset
+- Any scan errors
+- File paths of JSON results
 ```
 
-### 4. Scan Specific Paths
+**Example - 3 Language Scan:**
 
-```bash
-semgrep --config p/python app.py           # Single file
-semgrep --config p/javascript src/         # Directory
-semgrep --config auto --include='**/test/**' .  # Include tests (excluded by default)
-```
+Spawn these 3 Tasks in a SINGLE message:
 
-## Writing Custom Rules
+1. **Task: Python Scanner**
+   - Rulesets: p/python, p/django, p/security-audit, p/secrets
+   - Output: semgrep-results/python-*.json
 
-### Basic Structure
+2. **Task: JavaScript Scanner**
+   - Rulesets: p/javascript, p/react, p/security-audit, p/secrets
+   - Output: semgrep-results/js-*.json
 
-```yaml
-rules:
-  - id: hardcoded-password
-    languages: [python]
-    message: "Hardcoded password detected: $PASSWORD"
-    severity: ERROR
-    pattern: password = "$PASSWORD"
-```
+3. **Task: Docker Scanner**
+   - Rulesets: p/dockerfile
+   - Output: semgrep-results/docker-*.json
 
-### Pattern Syntax
+### Step 4: Spawn Parallel Triage Tasks
 
-| Syntax | Description | Example |
-|--------|-------------|---------|
-| `...` | Match anything | `func(...)` |
-| `$VAR` | Capture metavariable | `$FUNC($INPUT)` |
-| `<... ...>` | Deep expression match | `<... user_input ...>` |
+After scan Tasks complete, spawn triage Tasks:
 
-### Pattern Operators
-
-| Operator | Description |
-|----------|-------------|
-| `pattern` | Match exact pattern |
-| `patterns` | All must match (AND) |
-| `pattern-either` | Any matches (OR) |
-| `pattern-not` | Exclude matches |
-| `pattern-inside` | Match only inside context |
-| `pattern-not-inside` | Match only outside context |
-| `pattern-regex` | Regex matching |
-| `metavariable-regex` | Regex on captured value |
-| `metavariable-comparison` | Compare values |
-
-### Combining Patterns
-
-```yaml
-rules:
-  - id: sql-injection
-    languages: [python]
-    message: "Potential SQL injection"
-    severity: ERROR
-    patterns:
-      - pattern-either:
-          - pattern: cursor.execute($QUERY)
-          - pattern: db.execute($QUERY)
-      - pattern-not:
-          - pattern: cursor.execute("...", (...))
-      - metavariable-regex:
-          metavariable: $QUERY
-          regex: .*\+.*|.*\.format\(.*|.*%.*
-```
-
-### Taint Mode (Data Flow)
-
-Simple pattern matching finds obvious cases:
-
-```python
-# Pattern `os.system($CMD)` catches this:
-os.system(user_input)  # Found
-```
-
-But misses indirect flows:
-
-```python
-# Same pattern misses this:
-cmd = user_input
-processed = cmd.strip()
-os.system(processed)  # Missed - no direct match
-```
-
-Taint mode tracks data through assignments and transformations:
-- **Source**: Where untrusted data enters (`user_input`)
-- **Propagators**: How it flows (`cmd = ...`, `processed = ...`)
-- **Sanitizers**: What makes it safe (`shlex.quote()`)
-- **Sink**: Where it becomes dangerous (`os.system()`)
-
-```yaml
-rules:
-  - id: command-injection
-    languages: [python]
-    message: "User input flows to command execution"
-    severity: ERROR
-    mode: taint
-    pattern-sources:
-      - pattern: request.args.get(...)
-      - pattern: request.form[...]
-      - pattern: request.json
-    pattern-sinks:
-      - pattern: os.system($SINK)
-      - pattern: subprocess.call($SINK, shell=True)
-      - pattern: subprocess.run($SINK, shell=True, ...)
-    pattern-sanitizers:
-      - pattern: shlex.quote(...)
-      - pattern: int(...)
-```
-
-### Full Rule with Metadata
-
-```yaml
-rules:
-  - id: flask-sql-injection
-    languages: [python]
-    message: "SQL injection: user input flows to query without parameterization"
-    severity: ERROR
-    metadata:
-      cwe: "CWE-89: SQL Injection"
-      owasp: "A03:2021 - Injection"
-      confidence: HIGH
-    mode: taint
-    pattern-sources:
-      - pattern: request.args.get(...)
-      - pattern: request.form[...]
-      - pattern: request.json
-    pattern-sinks:
-      - pattern: cursor.execute($QUERY)
-      - pattern: db.execute($QUERY)
-    pattern-sanitizers:
-      - pattern: int(...)
-    fix: cursor.execute($QUERY, (params,))
-```
-
-## Testing Rules
-
-### Test File Format
-
-```python
-# test_rule.py
-def test_vulnerable():
-    user_input = request.args.get("id")
-    # ruleid: flask-sql-injection
-    cursor.execute("SELECT * FROM users WHERE id = " + user_input)
-
-def test_safe():
-    user_input = request.args.get("id")
-    # ok: flask-sql-injection
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_input,))
-```
-
-```bash
-semgrep --test rules/
-```
-
-## CI/CD Integration (GitHub Actions)
-
-```yaml
-name: Semgrep
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-  schedule:
-    - cron: '0 0 1 * *'  # Monthly
-
-jobs:
-  semgrep:
-    runs-on: ubuntu-latest
-    container:
-      image: returntocorp/semgrep
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Required for diff-aware scanning
-
-      - name: Run Semgrep
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            semgrep ci --baseline-commit ${{ github.event.pull_request.base.sha }}
-          else
-            semgrep ci
-          fi
-        env:
-          SEMGREP_RULES: >-
-            p/security-audit
-            p/owasp-top-ten
-            p/trailofbits
-```
-
-## Configuration
-
-### .semgrepignore
+**Task Prompt for Triage Subagent:**
 
 ```
-tests/fixtures/
-**/testdata/
-generated/
-vendor/
-node_modules/
+You are a security finding triager for [LANGUAGE_CATEGORY].
+
+## Input Files
+[LIST OF JSON FILES TO TRIAGE]
+
+## Task
+For each finding:
+1. Read the JSON finding
+2. Read source code context (5 lines before/after)
+3. Classify as TRUE_POSITIVE or FALSE_POSITIVE
+
+## False Positive Criteria
+- Test files (should add to .semgrepignore)
+- Sanitized inputs (context shows validation)
+- Dead code paths
+- Example/documentation code
+- Already has nosemgrep comment
+
+## Output Format
+Create: semgrep-results/[lang]-triage.json
+
+```json
+{
+  "file": "[lang]-[ruleset].json",
+  "total": 45,
+  "true_positives": [
+    {"rule": "...", "file": "...", "line": N, "reason": "..."}
+  ],
+  "false_positives": [
+    {"rule": "...", "file": "...", "line": N, "reason": "..."}
+  ]
+}
 ```
 
-### Suppress False Positives
-
-```python
-password = get_from_vault()  # nosemgrep: hardcoded-password
-dangerous_but_safe()  # nosemgrep
+## Report
+Return summary:
+- Total findings: N
+- True positives: N
+- False positives: N (with breakdown by reason)
 ```
 
-## Performance
+### Step 5: Collect Results (Main Agent)
 
-```bash
-semgrep --config rules/ --time .    # Check rule performance
-ulimit -n 4096                       # Increase file descriptors for large codebases
+After all Tasks complete, merge and report:
+
+```
+## Semgrep Scan Complete
+
+**Scanned:** 1,804 files
+**Rulesets used:** 8
+**Total raw findings:** 156
+**After triage:** 32 true positives
+
+### By Severity:
+- ERROR: 5
+- WARNING: 18
+- INFO: 9
+
+### By Category:
+- SQL Injection: 3
+- XSS: 7
+- Hardcoded secrets: 2
+- Insecure configuration: 12
+- Code quality: 8
+
+Results written to:
+- semgrep-results/findings.json
+- semgrep-results/triage.log
 ```
 
-### Path Filtering in Rules
+---
 
-```yaml
-rules:
-  - id: my-rule
-    paths:
-      include: [src/]
-      exclude: [src/generated/]
-```
+## Small Codebase Optimization
 
-## Third-Party Rules
+For **single-language codebases** or **<100 files**, skip Task spawning:
 
-```bash
-pip install semgrep-rules-manager
-semgrep-rules-manager --dir ~/semgrep-rules download
-semgrep -f ~/semgrep-rules .
-```
+1. Run scans directly (still parallel with `&` and `wait`)
+2. Triage inline
+3. Report results
+
+Overhead of Task spawning not worth it for small jobs.
+
+---
+
+## Common Mistakes
+
+| Mistake | Correct Approach |
+|---------|------------------|
+| Running without `--metrics=off` | Always use `--metrics=off` |
+| Running rulesets sequentially | Run in parallel with `&` and `wait` |
+| Not scoping rulesets to languages | Use `--include="*.py"` for language-specific rules |
+| Reporting raw findings without triage | Always triage to remove false positives |
+| Single-threaded for multi-lang | Spawn parallel Tasks per language |
+| Sequential Tasks | Spawn all Tasks in SINGLE message for parallelism |
+
+## Limitations
+
+1. Cannot track data flow across files (use Semgrep Pro or CodeQL)
+2. Triage requires reading code context - parallelized via Tasks
+3. Some false positive patterns require human judgment
 
 ## Rationalizations to Reject
 
 | Shortcut | Why It's Wrong |
 |----------|----------------|
-| "Semgrep found nothing, code is clean" | Semgrep is pattern-based; it can't track complex data flow across functions |
-| "I wrote a rule, so we're covered" | Rules need testing with `semgrep --test`; false negatives are silent |
-| "Taint mode catches injection" | Only if you defined all sources, sinks, AND sanitizers correctly |
-| "Pro rules are comprehensive" | Pro rules are good but not exhaustive; supplement with custom rules for your codebase |
-| "Too many findings = noisy tool" | High finding count often means real problems; tune rules, don't disable them |
-
-## Resources
-
-- Registry: https://semgrep.dev/explore
-- Playground: https://semgrep.dev/playground
-- Docs: https://semgrep.dev/docs/
-- Trail of Bits Rules: https://github.com/trailofbits/semgrep-rules
-- Blog: https://semgrep.dev/blog/
+| "Skip triage, report everything" | Floods user with noise; true issues get lost |
+| "Run one ruleset at a time" | Wastes time; parallel execution is faster |
+| "Use --config auto" | Sends metrics; less control over rulesets |
+| "Triage later" | Findings without context are harder to evaluate |
+| "One Task at a time" | Defeats parallelism; spawn all Tasks together |
