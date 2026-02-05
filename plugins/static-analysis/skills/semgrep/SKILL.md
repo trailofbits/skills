@@ -35,8 +35,8 @@ If not installed, see [Semgrep installation docs](https://semgrep.dev/docs/getti
 **Optional:** Semgrep Pro (for cross-file analysis and Pro languages)
 
 ```bash
-# Check if logged in to Semgrep AppSec Platform
-semgrep logout 2>&1 | grep -q "Not logged in" && echo "OSS only" || echo "Pro available"
+# Check if Semgrep Pro engine is installed
+semgrep --pro --validate --config p/default 2>/dev/null && echo "Pro available" || echo "OSS only"
 
 # If logged in, install/update Pro Engine
 semgrep install-semgrep-pro
@@ -134,9 +134,9 @@ TaskCreate: "Report results" (Step 6) - blockedBy: Step 5
 ### Step 1: Detect Languages and Pro Availability (Main Agent)
 
 ```bash
-# Check if Semgrep Pro is available
+# Check if Semgrep Pro is available (non-destructive check)
 SEMGREP_PRO=false
-if semgrep logout 2>&1 | grep -qv "Not logged in"; then
+if semgrep --pro --validate --config p/default 2>/dev/null; then
   SEMGREP_PRO=true
   echo "Semgrep Pro: AVAILABLE (cross-file analysis enabled)"
 else
@@ -289,13 +289,14 @@ Create output directory with run number to avoid collisions, then spawn Tasks wi
 
 ```bash
 # Find next available run number
-NEXT_NUM=$(printf "%03d" $(($(ls -d semgrep-results-* 2>/dev/null | sed 's/semgrep-results-//' | sort -n | tail -1 | sed 's/^0*//' || echo 0) + 1)))
+LAST=$(ls -d semgrep-results-[0-9][0-9][0-9] 2>/dev/null | sort | tail -1 | grep -o '[0-9]*$' || true)
+NEXT_NUM=$(printf "%03d" $(( ${LAST:-0} + 1 )))
 OUTPUT_DIR="semgrep-results-${NEXT_NUM}"
 mkdir -p "$OUTPUT_DIR"
 echo "Output directory: $OUTPUT_DIR"
 ```
 
-**Spawn N Tasks in a SINGLE message** (one per language category).
+**Spawn N Tasks in a SINGLE message** (one per language category) using `subagent_type: Bash`.
 
 Use the scanner task prompt template from [scanner-task-prompt.md]({baseDir}/references/scanner-task-prompt.md).
 
@@ -317,7 +318,7 @@ Spawn these 3 Tasks in a SINGLE message:
 
 ### Step 5: Spawn Parallel Triage Tasks
 
-After scan Tasks complete, spawn triage Tasks using the same output directory from Step 4.
+After scan Tasks complete, spawn triage Tasks using `subagent_type: general-purpose` (triage requires reading code context, not just running commands).
 
 Use the triage task prompt template from [triage-task-prompt.md]({baseDir}/references/triage-task-prompt.md).
 

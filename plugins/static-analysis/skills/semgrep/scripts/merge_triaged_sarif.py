@@ -72,12 +72,12 @@ def normalize_file_path(uri: str) -> str:
 
 
 def has_sarif_multitool() -> bool:
-    """Check if SARIF Multitool is available via npx."""
+    """Check if SARIF Multitool is pre-installed via npx."""
     if not shutil.which("npx"):
         return False
     try:
         result = subprocess.run(
-            ["npx", "--yes", "@microsoft/sarif-multitool", "--version"],
+            ["npx", "--no-install", "@microsoft/sarif-multitool", "--version"],
             capture_output=True,
             timeout=30,
         )
@@ -97,9 +97,13 @@ def merge_with_multitool(sarif_dir: Path) -> dict | None:
 
     try:
         cmd = [
-            "npx", "--yes", "@microsoft/sarif-multitool", "merge",
+            "npx",
+            "--no-install",
+            "@microsoft/sarif-multitool",
+            "merge",
             *[str(f) for f in sarif_files],
-            "--output-file", str(tmp_path),
+            "--output-file",
+            str(tmp_path),
             "--force",
         ]
         result = subprocess.run(cmd, capture_output=True, timeout=120)
@@ -185,10 +189,7 @@ def filter_sarif_by_triage(sarif: dict, true_positives: set[tuple[str, str, int]
         if filtered_results:
             result_rule_ids = {r.get("ruleId") for r in filtered_results}
             driver = run.get("tool", {}).get("driver", {})
-            filtered_rules = [
-                r for r in driver.get("rules", [])
-                if r.get("id") in result_rule_ids
-            ]
+            filtered_rules = [r for r in driver.get("rules", []) if r.get("id") in result_rule_ids]
 
             filtered_run = {
                 "tool": {
