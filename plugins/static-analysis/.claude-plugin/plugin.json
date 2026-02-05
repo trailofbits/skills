@@ -4,5 +4,5 @@
   "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
   "author": {
     "name": "Axel Mierczuk & Paweł Płatek"
-  },
+  }
 }
