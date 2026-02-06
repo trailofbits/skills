@@ -225,6 +225,17 @@
       "source": "./plugins/yara-authoring"
     },
     {
+      "name": "frida-ios-security",
+      "version": "1.0.0",
+      "description": "iOS application security assessment using Frida. Systematic runtime analysis of data protection, network security, authentication, platform security, and anti-tampering controls.",
+      "author": {
+        "name": "Trail of Bits",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/frida-ios-security"
+    },
+    {
       "name": "frida-scripting",
       "version": "1.0.0",
       "description": "Develops Frida scripts for dynamic instrumentation, introspection, and manipulation of macOS and iOS binaries using the Objective-C runtime, Interceptor, Stalker, and Memory APIs.",

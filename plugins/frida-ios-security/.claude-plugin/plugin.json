@@ -1,0 +1,10 @@
+{
+  "name": "frida-ios-security",
+  "version": "1.0.0",
+  "description": "iOS application security assessment using Frida. Systematic runtime analysis of data protection, network security, authentication, platform security, and anti-tampering controls.",
+  "author": {
+    "name": "Trail of Bits",
+    "email": "opensource@trailofbits.com",
+    "url": "https://github.com/trailofbits"
+  }
+}

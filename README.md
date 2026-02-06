@@ -81,6 +81,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | Plugin | Description |
 |--------|-------------|
 | [firebase-apk-scanner](plugins/firebase-apk-scanner/) | Scan Android APKs for Firebase security misconfigurations |
+| [frida-ios-security](plugins/frida-ios-security/) | iOS application security assessment using Frida (MASVS-aligned) |
 
 ### Development
 
