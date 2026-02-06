@@ -99,6 +99,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | Plugin | Description |
 |--------|-------------|
 | [claude-in-chrome-troubleshooting](plugins/claude-in-chrome-troubleshooting/) | Diagnose and fix Claude in Chrome MCP extension connectivity issues |
+| [skill-generator](plugins/skill-generator/) | Generate Claude Code skills from any documentation source using proven patterns |
 
 ## Trophy Case
 
