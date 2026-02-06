@@ -74,7 +74,23 @@ mkdir -p "$DIAG_DIR"
 
 #### 2b: Write Source Enumeration Query
 
-Use the `Write` tool to create `$DIAG_DIR/list-sources.ql`. Select the import block matching `$LANG`:
+Use the `Write` tool to create `$DIAG_DIR/list-sources.ql`. Pick the import block for `$LANG`:
+
+**Import reference** (verified against [CodeQL standard libraries](https://codeql.github.com/codeql-standard-libraries/)):
+
+| Language | Imports | Class |
+|----------|---------|-------|
+| Python | `import python` + `import semmle.python.dataflow.new.RemoteFlowSources` | `RemoteFlowSource` |
+| JavaScript | `import javascript` | `RemoteFlowSource` |
+| Java | `import java` + `import semmle.code.java.dataflow.FlowSources` | `RemoteFlowSource` |
+| Go | `import go` | `RemoteFlowSource` |
+| C/C++ | `import cpp` + `import semmle.code.cpp.security.FlowSources` | `RemoteFlowSource` |
+| C# | `import csharp` + `import semmle.code.csharp.security.dataflow.flowsources.Remote` | `RemoteFlowSource` |
+| Ruby | `import ruby` + `import codeql.ruby.dataflow.RemoteFlowSources` | `RemoteFlowSource` |
+
+All languages use the class name `RemoteFlowSource`. JavaScript and Go include it via their top-level import (`import javascript` / `import go`).
+
+**Template** (Python example — swap imports per table above):
 
 ```ql
 /**
@@ -83,38 +99,8 @@ Use the `Write` tool to create `$DIAG_DIR/list-sources.ql`. Select the import bl
  * @kind problem
  * @id custom/list-sources
  */
-
-// === Pick ONE import block matching $LANG, delete the rest ===
-
-// Python
 import python
 import semmle.python.dataflow.new.RemoteFlowSources
-
-// JavaScript / TypeScript
-import javascript
-import semmle.javascript.security.dataflow.RemoteFlowSources
-
-// Java / Kotlin
-import java
-import semmle.code.java.dataflow.FlowSources
-
-// Go
-import go
-import semmle.go.dataflow.FlowSources
-
-// C / C++
-import cpp
-import semmle.code.cpp.security.FlowSources
-
-// C#
-import csharp
-import semmle.code.csharp.dataflow.FlowSources
-
-// Ruby
-import ruby
-import codeql.ruby.dataflow.RemoteFlowSources
-
-// === End language imports ===
 
 from RemoteFlowSource src
 select src,
@@ -123,60 +109,40 @@ select src,
     + ":" + src.getLocation().getStartLine().toString()
 ```
 
-**Note for Go:** The source class is `UntrustedFlowSource`, not `RemoteFlowSource`. Adjust the `from` clause accordingly.
+**Note:** `getSourceType()` is available on Python, Java, and C#. For Go, JavaScript, Ruby, and C++ replace the select with:
+```ql
+select src,
+  src.getLocation().getFile().getRelativePath()
+    + ":" + src.getLocation().getStartLine().toString()
+```
 
 #### 2c: Write Sink Enumeration Query
 
-Use the `Write` tool to create `$DIAG_DIR/list-sinks.ql`. This uses the language's Concepts library to find all security-relevant sinks.
+Use the `Write` tool to create `$DIAG_DIR/list-sinks.ql`. The Concepts API differs significantly across languages — **use the correct per-language template below**.
+
+**Concept class reference** (verified against [CodeQL standard libraries](https://codeql.github.com/codeql-standard-libraries/)):
+
+| Concept | Python | JavaScript | Go | Ruby |
+|---------|--------|------------|-----|------|
+| SQL | `SqlExecution.getSql()` | `DatabaseAccess.getAQueryArgument()` | `SQL::QueryString` (is-a Node) | `SqlExecution.getSql()` |
+| Command exec | `SystemCommandExecution.getCommand()` | `SystemCommandExecution.getACommandArgument()` | `SystemCommandExecution.getCommandName()` | `SystemCommandExecution.getAnArgument()` |
+| File access | `FileSystemAccess.getAPathArgument()` | `FileSystemAccess.getAPathArgument()` | `FileSystemAccess.getAPathArgument()` | `FileSystemAccess.getAPathArgument()` |
+| HTTP client | `Http::Client::Request.getAUrlPart()` | — | — | — |
+| Decoding | `Decoding.getAnInput()` | — | — | — |
+| XML parsing | — | — | — | `XmlParserCall.getAnInput()` |
+
+**Python:**
 
 ```ql
 /**
  * @name List recognized dataflow sinks
- * @description Enumerates all security-relevant sinks CodeQL recognizes
+ * @description Enumerates security-relevant sinks CodeQL recognizes
  * @kind problem
  * @id custom/list-sinks
  */
-
-// === Pick ONE import block matching $LANG, delete the rest ===
-
-// Python
 import python
 import semmle.python.Concepts
 
-// JavaScript / TypeScript
-import javascript
-import semmle.javascript.security.dataflow.CommandInjectionCustomizations
-import semmle.javascript.security.dataflow.SqlInjectionCustomizations
-import semmle.javascript.security.dataflow.TaintedPathCustomizations
-import semmle.javascript.security.dataflow.ServerSideUrlRedirectCustomizations
-import semmle.javascript.security.dataflow.NosqlInjectionCustomizations
-
-// Java
-import java
-import semmle.code.java.security.QueryInjectionSink
-import semmle.code.java.security.CommandLineSink
-import semmle.code.java.security.PathInjectionSink
-
-// Go
-import go
-import semmle.go.Concepts
-
-// C / C++
-import cpp
-import semmle.code.cpp.security.Security
-
-// C#
-import csharp
-import semmle.code.csharp.security.dataflow.SqlInjectionQuery
-import semmle.code.csharp.security.dataflow.CommandInjectionQuery
-
-// Ruby
-import ruby
-import codeql.ruby.Concepts
-
-// === End language imports ===
-
-// Python / Go / Ruby (languages with unified Concepts library)
 from DataFlow::Node sink, string kind
 where
   exists(SqlExecution e | sink = e.getSql() and kind = "sql-execution")
@@ -195,14 +161,133 @@ where
   or
   exists(Decoding d | sink = d.getAnInput() and kind = "decoding")
   or
-  exists(XmlParsing p | sink = p.getAnInput() and kind = "xml-parsing")
+  exists(CodeExecution e | sink = e.getCode() and kind = "code-execution")
 select sink,
   kind
     + " | " + sink.getLocation().getFile().getRelativePath()
     + ":" + sink.getLocation().getStartLine().toString()
 ```
 
-**Language adaptation required:** The Concepts library API differs across languages. For Java, C++, and C#, which lack a unified `Concepts` module, use the language-specific sink classes imported above. Claude must adapt the `from`/`where`/`select` clauses to match the available sink classes for the target language.
+**JavaScript / TypeScript:**
+
+```ql
+import javascript
+
+from DataFlow::Node sink, string kind
+where
+  exists(DatabaseAccess e |
+    sink = e.getAQueryArgument() and kind = "database-access"
+  )
+  or
+  exists(SystemCommandExecution e |
+    sink = e.getACommandArgument() and kind = "command-execution"
+  )
+  or
+  exists(FileSystemAccess e |
+    sink = e.getAPathArgument() and kind = "file-access"
+  )
+select sink,
+  kind
+    + " | " + sink.getLocation().getFile().getRelativePath()
+    + ":" + sink.getLocation().getStartLine().toString()
+```
+
+**Go:**
+
+```ql
+import go
+import semmle.go.frameworks.SQL
+
+from DataFlow::Node sink, string kind
+where
+  sink instanceof SQL::QueryString and kind = "sql-query"
+  or
+  exists(SystemCommandExecution e |
+    sink = e.getCommandName() and kind = "command-execution"
+  )
+  or
+  exists(FileSystemAccess e |
+    sink = e.getAPathArgument() and kind = "file-access"
+  )
+select sink,
+  kind
+    + " | " + sink.getLocation().getFile().getRelativePath()
+    + ":" + sink.getLocation().getStartLine().toString()
+```
+
+**Ruby:**
+
+```ql
+import ruby
+import codeql.ruby.Concepts
+
+from DataFlow::Node sink, string kind
+where
+  exists(SqlExecution e | sink = e.getSql() and kind = "sql-execution")
+  or
+  exists(SystemCommandExecution e |
+    sink = e.getAnArgument() and kind = "command-execution"
+  )
+  or
+  exists(FileSystemAccess e |
+    sink = e.getAPathArgument() and kind = "file-access"
+  )
+  or
+  exists(CodeExecution e | sink = e.getCode() and kind = "code-execution")
+select sink,
+  kind
+    + " | " + sink.getLocation().getFile().getRelativePath()
+    + ":" + sink.getLocation().getStartLine().toString()
+```
+
+**Java:** Java lacks a unified Concepts module. Use language-specific sink classes. The diagnostics query needs its own `qlpack.yml` with a `codeql/java-all` dependency — create it alongside the `.ql` files:
+
+```yaml
+# $DIAG_DIR/qlpack.yml
+name: custom/diagnostics
+version: 0.0.1
+dependencies:
+  codeql/java-all: "*"
+```
+
+Then run `codeql pack install` in the diagnostics directory before executing queries.
+
+```ql
+/**
+ * @name List recognized dataflow sinks
+ * @description Enumerates security-relevant sinks CodeQL recognizes
+ * @kind problem
+ * @id custom/list-sinks
+ */
+import java
+import semmle.code.java.dataflow.DataFlow
+import semmle.code.java.security.QueryInjection
+import semmle.code.java.security.CommandLineQuery
+import semmle.code.java.security.TaintedPathQuery
+import semmle.code.java.security.XSS
+import semmle.code.java.security.RequestForgery
+import semmle.code.java.security.Xxe
+
+from DataFlow::Node sink, string kind
+where
+  sink instanceof QueryInjectionSink and kind = "sql-injection"
+  or
+  sink instanceof CommandInjectionSink and kind = "command-injection"
+  or
+  sink instanceof TaintedPathSink and kind = "path-injection"
+  or
+  sink instanceof XssSink and kind = "xss"
+  or
+  sink instanceof RequestForgerySink and kind = "ssrf"
+  or
+  sink instanceof XxeSink and kind = "xxe"
+select sink,
+  kind
+    + " | " + sink.getLocation().getFile().getRelativePath()
+    + ":" + sink.getLocation().getStartLine().toString()
+```
+
+**C++ / C#:** Similar approach — use language-specific sink classes from their security query customization modules. Adapt the pattern above using the relevant `Sink` classes from the language's `security/` packages.
 
 #### 2d: Run Queries
 
@@ -390,15 +475,21 @@ Columns: `[package, type, subtypes, name, signature, ext, output, kind, provenan
 |--------|-------------|---------|
 | package | Module/package path | `myapp.auth` |
 | type | Class or module name | `AuthManager` |
-| subtypes | Include subclasses | `true` |
+| subtypes | Include subclasses | `True` (Java: capitalized) / `true` (Python/JS/Go) |
 | name | Method name | `get_token` |
-| signature | Method signature (optional) | `""` |
+| signature | Method signature (optional) | `""` (Python/JS), `"(String,int)"` (Java) |
 | ext | Extension (optional) | `""` |
-| output | What is tainted | `ReturnValue`, `Argument[0]` |
+| output | What is tainted | `ReturnValue`, `Parameter[0]` (Java) / `Argument[0]` (Python/JS/Go) |
 | kind | Source category | `remote`, `local`, `file`, `environment`, `database` |
 | provenance | How model was created | `manual` |
 
-Example:
+**Java-specific format differences:**
+- **subtypes**: Use `True` / `False` (capitalized, Python-style), not `true` / `false`
+- **output for parameters**: Use `Parameter[N]` (not `Argument[N]`) to mark method parameters as sources
+- **signature**: Required for disambiguation — use Java type syntax: `"(String)"`, `"(String,int)"`
+- **Parameter ranges**: Use `Parameter[0..2]` to mark multiple consecutive parameters
+
+Example (Python):
 
 ```yaml
 # codeql-extensions/sources.yml
@@ -409,6 +500,19 @@ extensions:
     data:
       - ["myapp.http", "Request", true, "get_param", "", "", "ReturnValue", "remote", "manual"]
       - ["myapp.http", "Request", true, "get_header", "", "", "ReturnValue", "remote", "manual"]
+```
+
+Example (Java — note `True`, `Parameter[N]`, and signature):
+
+```yaml
+# codeql-extensions/sources.yml
+extensions:
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sourceModel
+    data:
+      - ["com.myapp.controller", "ApiController", True, "search", "(String)", "", "Parameter[0]", "remote", "manual"]
+      - ["com.myapp.service", "FileService", True, "upload", "(String,String)", "", "Parameter[0..1]", "remote", "manual"]
 ```
 
 #### Sink Models
@@ -427,7 +531,7 @@ Note: column 7 is `input` (which argument receives tainted data), not `output`.
 | `ssrf` | Server-side request forgery |
 | `unsafe-deserialization` | Insecure deserialization |
 
-Example:
+Example (Python):
 
 ```yaml
 # codeql-extensions/sinks.yml
@@ -438,6 +542,17 @@ extensions:
     data:
       - ["myapp.db", "Connection", true, "raw_query", "", "", "Argument[0]", "sql-injection", "manual"]
       - ["myapp.shell", "Runner", false, "execute", "", "", "Argument[0]", "command-injection", "manual"]
+```
+
+Example (Java — note `True` and `Argument[N]` for sink input):
+
+```yaml
+extensions:
+  - addsTo:
+      pack: codeql/java-all
+      extensible: sinkModel
+    data:
+      - ["com.myapp.db", "QueryRunner", True, "execute", "(String)", "", "Argument[0]", "sql-injection", "manual"]
 ```
 
 #### Summary Models
@@ -488,65 +603,100 @@ extensions:
 
 Use the `Write` tool to create each file. Only create files that have entries — skip empty categories.
 
+#### Deploy the Extensions
+
+**Known limitation:** `--additional-packs` and `--model-packs` flags do not work with pre-compiled query packs (bundled CodeQL distributions that cache `java-all` inside `.codeql/libraries/`). Extensions placed in a standalone model pack directory will be resolved by `codeql resolve qlpacks` but silently ignored during `codeql database analyze`.
+
+**Workaround — copy extensions into the library pack's `ext/` directory:**
+
+```bash
+# Find the java-all ext directory used by the query pack
+JAVA_ALL_EXT=$(find "$(codeql resolve qlpacks 2>/dev/null | grep 'java-queries' | awk '{print $NF}' | tr -d '()')" \
+  -path '*/.codeql/libraries/codeql/java-all/*/ext' -type d 2>/dev/null | head -1)
+
+if [ -n "$JAVA_ALL_EXT" ]; then
+  cp codeql-extensions/sources.yml "$JAVA_ALL_EXT/$(basename "$(pwd)").sources.model.yml"
+  [ -f codeql-extensions/sinks.yml ] && cp codeql-extensions/sinks.yml "$JAVA_ALL_EXT/$(basename "$(pwd)").sinks.model.yml"
+  [ -f codeql-extensions/summaries.yml ] && cp codeql-extensions/summaries.yml "$JAVA_ALL_EXT/$(basename "$(pwd)").summaries.model.yml"
+  echo "Extensions deployed to $JAVA_ALL_EXT"
+else
+  echo "WARNING: Could not find java-all ext directory. Extensions may not load."
+fi
+```
+
+**For Python/JS/Go:** The same limitation may apply. Locate the `<lang>-all` pack's `ext/` directory and copy extensions there.
+
+**Alternative (if query packs are NOT pre-compiled):** Use `--additional-packs=./codeql-extensions` with a proper model pack `qlpack.yml`:
+
+```yaml
+# codeql-extensions/qlpack.yml
+name: custom/<project>-extensions
+version: 0.0.1
+library: true
+extensionTargets:
+  codeql/<lang>-all: "*"
+dataExtensions:
+  - sources.yml
+  - sinks.yml
+  - summaries.yml
+```
+
 ---
 
 ### Step 5: Validate with Re-Analysis
 
-Re-run the same source/sink queries WITH extensions to confirm new models are loaded, then run a full security analysis to measure the finding delta.
+Run a full security analysis with and without extensions to measure the finding delta. This is more reliable than re-running source/sink enumeration queries, which may not reflect the `sourceModel` extensible being used by taint-tracking queries.
 
-#### 5a: Re-Run Source/Sink Queries with Extensions
+#### 5a: Run Baseline Analysis (without extensions)
 
 ```bash
-VALIDATION_DIR="${DB_NAME%.db}-validation"
-mkdir -p "$VALIDATION_DIR"
+RESULTS_DIR="${DB_NAME%.db}-results"
+mkdir -p "$RESULTS_DIR"
 
-# Sources with extensions
-codeql query run \
-  --database="$DB_NAME" \
-  --additional-packs=./codeql-extensions \
-  --output="$VALIDATION_DIR/sources-ext.bqrs" \
-  -- "$DIAG_DIR/list-sources.ql"
-
-codeql bqrs decode \
-  --format=csv \
-  --output="$VALIDATION_DIR/sources-ext.csv" \
-  -- "$VALIDATION_DIR/sources-ext.bqrs"
-
-# Sinks with extensions
-codeql query run \
-  --database="$DB_NAME" \
-  --additional-packs=./codeql-extensions \
-  --output="$VALIDATION_DIR/sinks-ext.bqrs" \
-  -- "$DIAG_DIR/list-sinks.ql"
-
-codeql bqrs decode \
-  --format=csv \
-  --output="$VALIDATION_DIR/sinks-ext.csv" \
-  -- "$VALIDATION_DIR/sinks-ext.bqrs"
+# Baseline run (or skip if already run in a previous step)
+codeql database analyze "$DB_NAME" \
+  --format=sarif-latest \
+  --output="$RESULTS_DIR/baseline.sarif" \
+  --threads=0 \
+  -- codeql/<lang>-queries:codeql-suites/<lang>-security-extended.qls
 ```
 
-**Compare source/sink counts:**
+#### 5b: Run Analysis with Extensions
 
 ```bash
-SOURCES_BEFORE=$(wc -l < "$DIAG_DIR/sources.csv")
-SOURCES_AFTER=$(wc -l < "$VALIDATION_DIR/sources-ext.csv")
-SINKS_BEFORE=$(wc -l < "$DIAG_DIR/sinks.csv")
-SINKS_AFTER=$(wc -l < "$VALIDATION_DIR/sinks-ext.csv")
+# Clean cache to force re-evaluation
+codeql database cleanup "$DB_NAME"
 
-echo "Sources: $SOURCES_BEFORE → $SOURCES_AFTER (+$((SOURCES_AFTER - SOURCES_BEFORE)))"
-echo "Sinks: $SINKS_BEFORE → $SINKS_AFTER (+$((SINKS_AFTER - SINKS_BEFORE)))"
+codeql database analyze "$DB_NAME" \
+  --format=sarif-latest \
+  --output="$RESULTS_DIR/with-extensions.sarif" \
+  --threads=0 \
+  --rerun \
+  -- codeql/<lang>-queries:codeql-suites/<lang>-security-extended.qls
+```
+
+Use `-vvv` flag to verify extensions are being loaded — look for `Loading data extensions in ... <your-extension-file>.yml` in stderr.
+
+#### 5c: Compare Findings
+
+```bash
+BASELINE=$(python3 -c "import json; print(sum(len(r.get('results',[])) for r in json.load(open('$RESULTS_DIR/baseline.sarif')).get('runs',[])))")
+WITH_EXT=$(python3 -c "import json; print(sum(len(r.get('results',[])) for r in json.load(open('$RESULTS_DIR/with-extensions.sarif')).get('runs',[])))")
+echo "Findings: $BASELINE → $WITH_EXT (+$((WITH_EXT - BASELINE)))"
 ```
 
 **If counts did not increase:** The extension YAML may have syntax errors or column values that don't match the code. Check:
 
 | Issue | Solution |
 |-------|----------|
-| Extension not loaded | Check YAML syntax, verify `pack` name matches `codeql/<lang>-all` |
+| Extension not loaded | Run with `-vvv` and grep for your extension filename in output |
+| Pre-compiled pack ignores extensions | Use the `ext/` directory workaround above |
+| Java: No new findings | Verify `True`/`False` (capitalized) for subtypes, `Parameter[N]` for sources |
 | No new sources/sinks | Verify column values match actual code signatures exactly |
 | Type not found | Use exact type name as it appears in CodeQL database |
-| Wrong argument index | Arguments are 0-indexed; `self` is `Argument[self]` |
+| Wrong argument index | Arguments are 0-indexed; `self` is `Argument[self]` (Python), `Parameter[0]` (Java) |
 
-Fix the extension files and re-run 5a until counts increase.
+Fix the extension files, re-deploy to `ext/`, and re-run 5b until counts increase.
 
 ---
 
@@ -568,8 +718,9 @@ Fix the extension files and re-run 5a until counts increase.
 - Sinks: <BEFORE> → <AFTER> (+<DELTA>)
 
 ### Usage:
-Pass `--additional-packs=./codeql-extensions` to `codeql database analyze`
-or run the run-analysis workflow (auto-detected).
+Extensions deployed to `<lang>-all` ext/ directory (auto-loaded).
+Source files in `codeql-extensions/` for version control.
+Run the run-analysis workflow to use them.
 ```
 
 ## Threat Models Reference

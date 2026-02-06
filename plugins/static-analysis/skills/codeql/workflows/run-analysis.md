@@ -166,12 +166,31 @@ Use `AskUserQuestion` tool with `multiSelect: true`:
 ```
 header: "Query Packs"
 question: "Select query packs to run:"
-multiSelect: true
+multiSelect: false
 options:
-  - label: "security-and-quality"
-    description: "Includes code quality checks - more findings, more noise"
+  - label: "Use all (Recommended)"
+    description: "Run all installed query packs for maximum coverage"
   - label: "security-extended"
     description: "codeql/<lang>-queries - Core security queries, low false positives"
+  - label: "security-and-quality"
+    description: "Includes code quality checks - more findings, more noise"
+  - label: "Select individually"
+    description: "Choose specific packs from the full list"
+```
+
+**If "Use all":** Include all installed query packs: `security-extended` + Trail of Bits + Community Packs (whichever are installed).
+
+**If "Select individually":** Follow up with a `multiSelect: true` question listing all installed packs:
+
+```
+header: "Query Packs"
+question: "Select query packs to run:"
+multiSelect: true
+options:
+  - label: "security-extended"
+    description: "codeql/<lang>-queries - Core security queries, low false positives"
+  - label: "security-and-quality"
+    description: "Includes code quality checks - more findings, more noise"
   - label: "security-experimental"
     description: "Bleeding-edge queries - may have higher false positives"
   - label: "Trail of Bits"
@@ -190,11 +209,28 @@ options:
 
 Present detected model packs from Step 2b. Categorize by source:
 
-Use `AskUserQuestion` tool with `multiSelect: true`:
+Use `AskUserQuestion` tool:
 
 ```
 header: "Model Packs"
 question: "Model packs add custom data flow models (sources, sinks, summaries). Select which to include:"
+multiSelect: false
+options:
+  - label: "Use all (Recommended)"
+    description: "Include all detected model packs and data extensions"
+  - label: "Select individually"
+    description: "Choose specific model packs from the list"
+  - label: "Skip"
+    description: "Run without model packs"
+```
+
+**If "Use all":** Include all model packs and data extensions detected in Step 2b.
+
+**If "Select individually":** Follow up with a `multiSelect: true` question:
+
+```
+header: "Model Packs"
+question: "Select model packs to include:"
 multiSelect: true
 options:
   # For each in-repo model pack found in 2b:

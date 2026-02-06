@@ -12,6 +12,11 @@ allowed-tools:
   - Glob
   - Grep
   - AskUserQuestion
+  - Task
+  - TaskCreate
+  - TaskList
+  - TaskUpdate
+  - WebFetch
 ---
 
 # CodeQL Analysis
@@ -40,7 +45,6 @@ command -v codeql >/dev/null 2>&1 && codeql --version || echo "NOT INSTALLED"
 
 - **Writing custom queries** - Use a dedicated query development skill
 - **CI/CD integration** - Use GitHub Actions documentation directly
-- **Projects that cannot be built** - CodeQL requires successful compilation for compiled languages
 - **Quick pattern searches** - Use Semgrep or grep for speed
 
 ---
@@ -60,7 +64,7 @@ This skill has three workflows:
 
 **If user explicitly specifies** what to do (e.g., "build a database", "run analysis"), execute that workflow.
 
-**If user says "scan with CodeQL" or similar**, determine automatically:
+**Default pipeline for "test", "scan", "analyze", or similar:** Execute all three workflows sequentially: build → extensions → analysis. The create-data-extensions step is critical for finding vulnerabilities in projects with custom frameworks or annotations that CodeQL doesn't model by default.
 
 ```bash
 # Check if database exists
@@ -73,10 +77,11 @@ fi
 
 | Condition | Action |
 |-----------|--------|
-| No database exists | Execute build-database workflow, then ask if user wants to continue |
-| Database exists, no extensions | Ask user: create data extensions, run analysis, or both? |
+| No database exists | Execute build → extensions → analysis (full pipeline) |
+| Database exists, no extensions | Execute extensions → analysis |
 | Database exists, extensions exist | Ask user: run analysis on existing DB, or rebuild? |
-| User says "full scan" | Execute all three workflows sequentially: build → extensions → analysis |
+| User says "just run analysis" or "skip extensions" | Run analysis only |
+
 
 ### Decision Prompt
 
@@ -85,10 +90,10 @@ If unclear, ask user:
 ```
 I can help with CodeQL analysis. What would you like to do?
 
-1. **Build database** - Create a new CodeQL database from this codebase
-2. **Create data extensions** - Generate custom source/sink models for project APIs
-3. **Run analysis** - Run security queries on existing database (codeql.db)
-4. **Full scan** - Build database, create extensions, then run analysis
+1. **Full scan (Recommended)** - Build database, create extensions, then run analysis
+2. **Build database** - Create a new CodeQL database from this codebase
+3. **Create data extensions** - Generate custom source/sink models for project APIs
+4. **Run analysis** - Run security queries on existing database (codeql.db)
 
 [If database exists: "I found an existing database at codeql.db"]
 ```
