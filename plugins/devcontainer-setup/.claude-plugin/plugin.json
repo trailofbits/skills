@@ -1,0 +1,9 @@
+{
+  "name": "devcontainer-setup",
+  "version": "0.1.0",
+  "description": "Create pre-configured devcontainers with Claude Code and language-specific tooling",
+  "author": {
+    "name": "Alexis Challande",
+    "url": "https://github.com/trailofbits"
+  }
+}
