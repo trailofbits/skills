@@ -63,13 +63,23 @@ options:
 **Verify and detect language:**
 
 ```bash
-# Check database exists and get language
+# Check database exists and get language(s)
 codeql database info $DB_NAME
 
-# Get language from database
-LANG=$(codeql database info $DB_NAME --format=json | jq -r '.languages[0].name')
-echo "Database language: $LANG"
+# Get primary language from database
+LANG=$(codeql database info $DB_NAME --format=json \
+  | jq -r '.languages[0].name')
+LANG_COUNT=$(codeql database info $DB_NAME --format=json \
+  | jq '.languages | length')
+echo "Primary language: $LANG"
+if [ "$LANG_COUNT" -gt 1 ]; then
+  echo "WARNING: Multi-language database ($LANG_COUNT languages)"
+  codeql database info $DB_NAME --format=json \
+    | jq -r '.languages[].name'
+fi
 ```
+
+**Multi-language databases:** If more than one language is detected, ask the user which language to analyze or run separate analyses for each.
 
 ---
 
@@ -324,10 +334,28 @@ If codebase is large then read [../references/performance-tuning.md](../referenc
 jq '.runs[].results | length' "$RESULTS_DIR/results.sarif"
 ```
 
-**Summary by severity:**
+**Summary by SARIF level:**
 
 ```bash
-jq -r '.runs[].results[] | .level' "$RESULTS_DIR/results.sarif" | sort | uniq -c
+jq -r '.runs[].results[] | .level' "$RESULTS_DIR/results.sarif" \
+  | sort | uniq -c | sort -rn
+```
+
+**Summary by security severity** (more useful for triage):
+
+```bash
+jq -r '
+  .runs[].results[] |
+  (.properties["security-severity"] // "none") + " " +
+  (.message.text // "no message" | .[0:80])
+' "$RESULTS_DIR/results.sarif" | sort -rn | head -20
+```
+
+**Summary by rule:**
+
+```bash
+jq -r '.runs[].results[] | .ruleId' "$RESULTS_DIR/results.sarif" \
+  | sort | uniq -c | sort -rn
 ```
 
 ---

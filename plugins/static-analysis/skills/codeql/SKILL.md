@@ -1,10 +1,12 @@
 ---
 name: codeql
 description: >-
-  Run CodeQL static analysis for security vulnerability detection with
-  interprocedural data flow tracking. Use when analyzing codebases with
-  CodeQL, creating databases, selecting rulesets, or interpreting results.
-  NOT for writing custom queries or CI/CD setup.
+  Runs CodeQL static analysis for security vulnerability detection
+  using interprocedural data flow and taint tracking. Use when asked
+  to find vulnerabilities, run a security scan, perform taint analysis,
+  build a CodeQL database, select query rulesets, create data extension
+  models, or interpret SARIF results. NOT for writing custom QL queries
+  or CI/CD pipeline setup.
 allowed-tools:
   - Bash
   - Read
@@ -23,11 +25,19 @@ allowed-tools:
 
 CodeQL provides interprocedural data flow and taint tracking for security vulnerability detection.
 
-## Prerequisites
+## Quick Start
+
+For the common case ("scan this codebase for vulnerabilities"):
 
 ```bash
+# 1. Verify CodeQL is installed
 command -v codeql >/dev/null 2>&1 && codeql --version || echo "NOT INSTALLED"
+
+# 2. Check for existing database
+ls -dt codeql_*.db 2>/dev/null | head -1
 ```
+
+Then execute the full pipeline: **build database → create data extensions → run analysis** using the workflows below.
 
 ## When to Use
 
@@ -46,6 +56,17 @@ command -v codeql >/dev/null 2>&1 && codeql --version || echo "NOT INSTALLED"
 - **Writing custom queries** - Use a dedicated query development skill
 - **CI/CD integration** - Use GitHub Actions documentation directly
 - **Quick pattern searches** - Use Semgrep or grep for speed
+
+## Rationalizations to Reject
+
+These shortcuts lead to missed findings. Do not accept them:
+
+- **"security-extended is enough"** - It is the baseline. Always check if Trail of Bits packs and Community Packs are available for the language. They catch categories `security-extended` misses entirely.
+- **"The database built, so it's good"** - A database that builds does not mean it extracted well. Always run Step 4 (quality assessment) and check file counts against expected source files. A cached build produces zero useful extraction.
+- **"Data extensions aren't needed for standard frameworks"** - Even Django/Spring apps have custom wrappers around ORM calls, request parsing, or shell execution that CodeQL does not model. Skipping the extensions workflow means missing vulnerabilities in project-specific code.
+- **"build-mode=none is fine for compiled languages"** - It produces severely incomplete analysis. No interprocedural data flow through compiled code is traced. Only use as an absolute last resort and clearly flag the limitation.
+- **"No findings means the code is secure"** - Zero findings can indicate poor database quality, missing models, or wrong query packs. Investigate before reporting clean results.
+- **"I'll just run the default suite"** - The default suite varies by how CodeQL is invoked. Always explicitly specify the suite (e.g., `security-extended`) so results are reproducible.
 
 ---
 

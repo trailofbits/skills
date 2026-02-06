@@ -205,12 +205,12 @@ log_step "Building database for interpreted language: <LANG>"
 CMD="codeql database create $DB_NAME --language=<LANG> --source-root=. --codescanning-config=codeql-config.yml --overwrite"
 log_cmd "$CMD"
 
-$CMD 2>&1 | tee ${DB_NAME%.db}-build.log
+$CMD 2>&1 | tee -a "$LOG_FILE"
 
 if codeql database info $DB_NAME >/dev/null 2>&1; then
   log_result "SUCCESS"
 else
-  log_result "FAILED - see ${DB_NAME%.db}-build.log"
+  log_result "FAILED"
 fi
 ```
 
@@ -229,12 +229,12 @@ log_step "METHOD 1: Autobuild"
 CMD="codeql database create $DB_NAME --language=<LANG> --source-root=. --overwrite"
 log_cmd "$CMD"
 
-$CMD 2>&1 | tee ${DB_NAME%.db}-build.log
+$CMD 2>&1 | tee -a "$LOG_FILE"
 
 if codeql database info $DB_NAME >/dev/null 2>&1; then
   log_result "SUCCESS"
 else
-  log_result "FAILED - see ${DB_NAME%.db}-build.log"
+  log_result "FAILED"
 fi
 ```
 
@@ -272,12 +272,12 @@ BUILD_CMD="<BUILD_CMD>"
 CMD="codeql database create $DB_NAME --language=<LANG> --source-root=. --command='$BUILD_CMD' --overwrite"
 log_cmd "$CMD"
 
-$CMD 2>&1 | tee ${DB_NAME%.db}-build.log
+$CMD 2>&1 | tee -a "$LOG_FILE"
 
 if codeql database info $DB_NAME >/dev/null 2>&1; then
   log_result "SUCCESS"
 else
-  log_result "FAILED - see ${DB_NAME%.db}-build.log"
+  log_result "FAILED"
 fi
 ```
 
@@ -322,7 +322,7 @@ log_step "METHOD 4: No-build fallback (partial analysis)"
 CMD="codeql database create $DB_NAME --language=<LANG> --source-root=. --build-mode=none --overwrite"
 log_cmd "$CMD"
 
-$CMD 2>&1 | tee ${DB_NAME%.db}-build.log
+$CMD 2>&1 | tee -a "$LOG_FILE"
 
 if codeql database info $DB_NAME >/dev/null 2>&1; then
   log_result "SUCCESS (partial - no build tracing)"
@@ -556,7 +556,7 @@ codeql database info $DB_NAME >> "$LOG_FILE" 2>&1
 - Coverage: <good/partial/poor>
 
 ### Build Log:
-See `${DB_NAME%.db}-build.log` for complete details including:
+See `$LOG_FILE` for complete details including:
 - All attempted commands
 - Fixes applied
 - Quality assessments
