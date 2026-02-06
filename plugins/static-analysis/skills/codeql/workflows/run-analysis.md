@@ -64,17 +64,17 @@ options:
 
 ```bash
 # Check database exists and get language(s)
-codeql database info $DB_NAME
+codeql database info "$DB_NAME"
 
 # Get primary language from database
-LANG=$(codeql database info $DB_NAME --format=json \
+LANG=$(codeql database info "$DB_NAME" --format=json \
   | jq -r '.languages[0].name')
-LANG_COUNT=$(codeql database info $DB_NAME --format=json \
+LANG_COUNT=$(codeql database info "$DB_NAME" --format=json \
   | jq '.languages | length')
 echo "Primary language: $LANG"
 if [ "$LANG_COUNT" -gt 1 ]; then
   echo "WARNING: Multi-language database ($LANG_COUNT languages)"
-  codeql database info $DB_NAME --format=json \
+  codeql database info "$DB_NAME" --format=json \
     | jq -r '.languages[].name'
 fi
 ```

@@ -1,6 +1,6 @@
 # Language-Specific Guidance
 
-## Interpreted Languages (No Build Required)
+## No Build Required
 
 ### Python
 
@@ -73,7 +73,7 @@ codeql database create codeql.db --language=ruby --source-root=.
 | Bundler issues | Run `bundle install` first |
 | Rails engines | May need multiple database passes |
 
-## Compiled Languages (Build Required)
+## Build Required
 
 ### C/C++
 

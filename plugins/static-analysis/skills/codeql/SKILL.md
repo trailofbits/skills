@@ -3,10 +3,10 @@ name: codeql
 description: >-
   Runs CodeQL static analysis for security vulnerability detection
   using interprocedural data flow and taint tracking. Use when asked
-  to find vulnerabilities, run a security scan, perform taint analysis,
-  build a CodeQL database, select query rulesets, create data extension
-  models, or interpret SARIF results. NOT for writing custom QL queries
-  or CI/CD pipeline setup.
+  to find vulnerabilities, run a security scan, perform a security audit,
+  run CodeQL, build a CodeQL database, select query rulesets, create data
+  extension models, or process CodeQL SARIF output. NOT for writing custom
+  QL queries or CI/CD pipeline setup.
 allowed-tools:
   - Bash
   - Read
@@ -41,21 +41,18 @@ Then execute the full pipeline: **build database → create data extensions → 
 
 ## When to Use
 
-- Source code access with ability to build (for compiled languages)
-- Need for interprocedural data flow and taint tracking
-- Finding complex vulnerabilities requiring AST/CFG analysis
-- Comprehensive security audits
-
-**Consider Semgrep instead when:**
-- No build capability for compiled languages
-- Need fast, lightweight pattern matching
-- Single-file analysis is sufficient
+- Scanning a codebase for security vulnerabilities with deep data flow analysis
+- Building a CodeQL database from source code (with build capability for compiled languages)
+- Finding complex vulnerabilities that require interprocedural taint tracking or AST/CFG analysis
+- Performing comprehensive security audits with multiple query packs
 
 ## When NOT to Use
 
 - **Writing custom queries** - Use a dedicated query development skill
 - **CI/CD integration** - Use GitHub Actions documentation directly
 - **Quick pattern searches** - Use Semgrep or grep for speed
+- **No build capability** for compiled languages - Consider Semgrep instead
+- **Single-file or lightweight analysis** - Semgrep is faster for simple pattern matching
 
 ## Rationalizations to Reject
 
@@ -89,8 +86,9 @@ This skill has three workflows:
 
 ```bash
 # Check if database exists
-if codeql database info codeql.db 2>/dev/null; then
-  echo "DATABASE EXISTS - can run analysis"
+DB=$(ls -dt codeql_*.db 2>/dev/null | head -1)
+if [ -n "$DB" ] && codeql database info "$DB" 2>/dev/null; then
+  echo "DATABASE EXISTS ($DB) - can run analysis"
 else
   echo "NO DATABASE - need to build first"
 fi
@@ -114,7 +112,7 @@ I can help with CodeQL analysis. What would you like to do?
 1. **Full scan (Recommended)** - Build database, create extensions, then run analysis
 2. **Build database** - Create a new CodeQL database from this codebase
 3. **Create data extensions** - Generate custom source/sink models for project APIs
-4. **Run analysis** - Run security queries on existing database (codeql.db)
+4. **Run analysis** - Run security queries on existing database
 
-[If database exists: "I found an existing database at codeql.db"]
+[If database exists: "I found an existing database at <DB_NAME>"]
 ```

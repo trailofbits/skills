@@ -101,6 +101,12 @@ select sink,
 ### JavaScript / TypeScript
 
 ```ql
+/**
+ * @name List recognized dataflow sinks
+ * @description Enumerates security-relevant sinks CodeQL recognizes
+ * @kind problem
+ * @id custom/list-sinks-js
+ */
 import javascript
 
 from DataFlow::Node sink, string kind
@@ -125,6 +131,12 @@ select sink,
 ### Go
 
 ```ql
+/**
+ * @name List recognized dataflow sinks
+ * @description Enumerates security-relevant sinks CodeQL recognizes
+ * @kind problem
+ * @id custom/list-sinks-go
+ */
 import go
 import semmle.go.frameworks.SQL
 
@@ -148,6 +160,12 @@ select sink,
 ### Ruby
 
 ```ql
+/**
+ * @name List recognized dataflow sinks
+ * @description Enumerates security-relevant sinks CodeQL recognizes
+ * @kind problem
+ * @id custom/list-sinks-ruby
+ */
 import ruby
 import codeql.ruby.Concepts
 

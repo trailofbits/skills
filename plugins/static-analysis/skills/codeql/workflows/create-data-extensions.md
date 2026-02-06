@@ -402,6 +402,8 @@ Use the `Write` tool to create each file. Only create files that have entries �
 
 **Workaround — copy extensions into the library pack's `ext/` directory:**
 
+> **Warning:** Files copied into the `ext/` directory live inside CodeQL's managed pack cache. They will be **lost** when packs are updated via `codeql pack download` or version upgrades. After any pack update, re-run this deployment step to restore the extensions.
+
 ```bash
 # Find the java-all ext directory used by the query pack
 JAVA_ALL_EXT=$(find "$(codeql resolve qlpacks 2>/dev/null | grep 'java-queries' | awk '{print $NF}' | tr -d '()')" \
@@ -516,27 +518,8 @@ Source files in `codeql-extensions/` for version control.
 Run the run-analysis workflow to use them.
 ```
 
-## Threat Models Reference
+## References
 
-Control which source categories are active during analysis:
-
-| Model | Sources Included |
-|-------|------------------|
-| `remote` | HTTP requests, network input |
-| `local` | Command line args, local files |
-| `environment` | Environment variables |
-| `database` | Database query results |
-| `file` | File contents |
-
-Enable additional threat models:
-
-```bash
-codeql database analyze codeql.db \
-  --threat-models=remote,environment \
-  -- codeql/python-queries
-```
-
-## External References
-
+- [Threat models reference](../references/threat-models.md) — control which source categories are active during analysis
 - [CodeQL data extensions](https://codeql.github.com/docs/codeql-cli/using-custom-queries-with-the-codeql-cli/#using-extension-packs)
 - [Customizing library models](https://codeql.github.com/docs/codeql-language-guides/customizing-library-models-for-python/)

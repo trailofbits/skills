@@ -125,7 +125,7 @@ fd -t f -e py -e js -e ts -e go -e rb -e java -e c -e cpp -e h -e hpp -e rs -e c
 ls -la Makefile CMakeLists.txt build.gradle pom.xml Cargo.toml *.sln 2>/dev/null || true
 
 # Check for existing CodeQL database
-ls -la $DB_NAME 2>/dev/null && echo "WARNING: existing database found"
+ls -la "$DB_NAME" 2>/dev/null && echo "WARNING: existing database found"
 ```
 
 | Language | `--language=` | Type |
@@ -340,7 +340,7 @@ Try these in order, then retry current build method. **Log each fix attempt:**
 ### 1. Clean existing state
 ```bash
 log_step "Applying fix: clean existing state"
-rm -rf $DB_NAME
+rm -rf "$DB_NAME"
 log_result "Removed $DB_NAME"
 ```
 
