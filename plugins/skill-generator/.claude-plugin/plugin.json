@@ -1,0 +1,10 @@
+{
+  "name": "skill-generator",
+  "version": "1.0.0",
+  "description": "Generate Claude Code skills from any documentation source using proven patterns from Trail of Bits",
+  "author": {
+    "name": "Trail of Bits",
+    "email": "opensource@trailofbits.com",
+    "url": "https://github.com/trailofbits"
+  }
+}

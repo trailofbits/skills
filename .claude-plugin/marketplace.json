@@ -223,6 +223,28 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/yara-authoring"
+    },
+    {
+      "name": "skill-generator",
+      "version": "1.0.0",
+      "description": "Generate Claude Code skills from any documentation source using proven patterns from Trail of Bits",
+      "author": {
+        "name": "Trail of Bits",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/skill-generator"
+    },
+    {
+      "name": "skill-generator-v2",
+      "version": "2.0.0",
+      "description": "Generate Claude Code skills from any documentation source with multi-agent review, quality scoring, and ecosystem-aware duplicate detection",
+      "author": {
+        "name": "Trail of Bits",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/skill-generator-v2"
     }
   ]
 }
