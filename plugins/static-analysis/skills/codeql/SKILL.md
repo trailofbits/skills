@@ -2,11 +2,11 @@
 name: codeql
 description: >-
   Runs CodeQL static analysis for security vulnerability detection
-  using interprocedural data flow and taint tracking. Use when asked
-  to find vulnerabilities, run a security scan, perform a security audit,
-  run CodeQL, build a CodeQL database, select query rulesets, create data
-  extension models, or process CodeQL SARIF output. NOT for writing custom
-  QL queries or CI/CD pipeline setup.
+  using interprocedural data flow and taint tracking. Applicable when
+  finding vulnerabilities, running a security scan, performing a security
+  audit, running CodeQL, building a CodeQL database, selecting query
+  rulesets, creating data extension models, or processing CodeQL SARIF
+  output. NOT for writing custom QL queries or CI/CD pipeline setup.
 allowed-tools:
   - Bash
   - Read
@@ -18,12 +18,13 @@ allowed-tools:
   - TaskCreate
   - TaskList
   - TaskUpdate
-  - WebFetch
 ---
 
 # CodeQL Analysis
 
-CodeQL provides interprocedural data flow and taint tracking for security vulnerability detection.
+Supported languages: Python, JavaScript/TypeScript, Go, Java/Kotlin, C/C++, C#, Ruby, Swift.
+
+**Skill resources:** Reference files and templates are located at `{baseDir}/references/` and `{baseDir}/workflows/`. Use `{baseDir}` to resolve paths to these files at runtime.
 
 ## Quick Start
 
@@ -87,7 +88,7 @@ This skill has three workflows:
 ```bash
 # Check if database exists
 DB=$(ls -dt codeql_*.db 2>/dev/null | head -1)
-if [ -n "$DB" ] && codeql database info "$DB" 2>/dev/null; then
+if [ -n "$DB" ] && codeql resolve database -- "$DB" >/dev/null 2>&1; then
   echo "DATABASE EXISTS ($DB) - can run analysis"
 else
   echo "NO DATABASE - need to build first"

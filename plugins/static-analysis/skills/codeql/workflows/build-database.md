@@ -207,7 +207,7 @@ log_cmd "$CMD"
 
 $CMD 2>&1 | tee -a "$LOG_FILE"
 
-if codeql database info $DB_NAME >/dev/null 2>&1; then
+if codeql resolve database -- "$DB_NAME" >/dev/null 2>&1; then
   log_result "SUCCESS"
 else
   log_result "FAILED"
@@ -231,7 +231,7 @@ log_cmd "$CMD"
 
 $CMD 2>&1 | tee -a "$LOG_FILE"
 
-if codeql database info $DB_NAME >/dev/null 2>&1; then
+if codeql resolve database -- "$DB_NAME" >/dev/null 2>&1; then
   log_result "SUCCESS"
 else
   log_result "FAILED"
@@ -274,7 +274,7 @@ log_cmd "$CMD"
 
 $CMD 2>&1 | tee -a "$LOG_FILE"
 
-if codeql database info $DB_NAME >/dev/null 2>&1; then
+if codeql resolve database -- "$DB_NAME" >/dev/null 2>&1; then
   log_result "SUCCESS"
 else
   log_result "FAILED"
@@ -304,7 +304,7 @@ codeql database trace-command $DB_NAME -- <build step 2>
 log_cmd "codeql database finalize $DB_NAME"
 codeql database finalize $DB_NAME
 
-if codeql database info $DB_NAME >/dev/null 2>&1; then
+if codeql resolve database -- "$DB_NAME" >/dev/null 2>&1; then
   log_result "SUCCESS"
 else
   log_result "FAILED"
@@ -324,7 +324,7 @@ log_cmd "$CMD"
 
 $CMD 2>&1 | tee -a "$LOG_FILE"
 
-if codeql database info $DB_NAME >/dev/null 2>&1; then
+if codeql resolve database -- "$DB_NAME" >/dev/null 2>&1; then
   log_result "SUCCESS (partial - no build tracing)"
 else
   log_result "FAILED"
@@ -357,10 +357,13 @@ log_result "Cleaned: $CLEANED"
 ```
 
 ### 3. Install missing dependencies
+
+> **Note:** The commands below install the *target project's* dependencies so CodeQL can trace the build. Use whatever package manager the target project expects (`pip`, `npm`, `go mod`, etc.) — these are not the skill's own tooling preferences.
+
 ```bash
 log_step "Applying fix: install dependencies"
 
-# Python - log what was installed
+# Python — use target project's package manager (pip/uv/poetry)
 if [ -f requirements.txt ]; then
   log_cmd "pip install -r requirements.txt"
   pip install -r requirements.txt 2>&1 | tee -a "$LOG_FILE"
@@ -423,34 +426,97 @@ log_result "Registry: <REGISTRY_URL>, Method: <AUTH_METHOD>"
 
 ## Step 4: Assess Quality
 
+Run all quality checks and compare against the project's expected source files.
+
+### 4a. Collect Metrics
+
 ```bash
 log_step "Assessing database quality"
 
-# File count
-FILE_COUNT=$(codeql database ls-files $DB_NAME 2>/dev/null | wc -l)
-echo "Files extracted: $FILE_COUNT"
+# 1. Baseline lines of code and file list (most reliable metric)
+codeql database print-baseline -- "$DB_NAME"
+BASELINE_LOC=$(python3 -c "
+import json
+with open('$DB_NAME/baseline-info.json') as f:
+    d = json.load(f)
+for lang, info in d['languages'].items():
+    print(f'{lang}: {info[\"linesOfCode\"]} LoC, {len(info[\"files\"])} files')
+")
+echo "$BASELINE_LOC"
+log_result "Baseline: $BASELINE_LOC"
 
-# Check for problems
-ERRORS=$(codeql database info $DB_NAME 2>&1 | grep -i -E "(error|warning|failed|no source)" || true)
+# 2. Source archive file count
+SRC_FILE_COUNT=$(unzip -Z1 "$DB_NAME/src.zip" 2>/dev/null | wc -l)
+echo "Files in source archive: $SRC_FILE_COUNT"
 
-if [ -z "$ERRORS" ] && [ "$FILE_COUNT" -gt 0 ]; then
-  log_result "GOOD - $FILE_COUNT files extracted, no errors"
-else
-  log_result "POOR - $FILE_COUNT files, issues: $ERRORS"
+# 3. Extraction errors from extractor diagnostics
+EXTRACTOR_ERRORS=$(find "$DB_NAME/diagnostic/extractors" -name '*.jsonl' \
+  -exec cat {} + 2>/dev/null | grep -c '^{' 2>/dev/null || true)
+EXTRACTOR_ERRORS=${EXTRACTOR_ERRORS:-0}
+echo "Extractor errors: $EXTRACTOR_ERRORS"
+
+# 4. Export diagnostics summary (experimental but useful)
+DIAG_TEXT=$(codeql database export-diagnostics --format=text -- "$DB_NAME" 2>/dev/null || true)
+if [ -n "$DIAG_TEXT" ]; then
+  echo "Diagnostics: $DIAG_TEXT"
 fi
 
-# Sample of extracted files (for log)
-codeql database ls-files $DB_NAME | head -20 >> "$LOG_FILE"
+# 5. Check database is finalized
+FINALIZED=$(grep '^finalised:' "$DB_NAME/codeql-database.yml" 2>/dev/null \
+  | awk '{print $2}')
+echo "Finalized: $FINALIZED"
+```
+
+### 4b. Compare Against Expected Source
+
+Estimate the expected source file count from the working directory and compare:
+
+```bash
+# Count source files in the project (adjust extensions per language)
+EXPECTED=$(fd -t f -e java -e kt --exclude 'codeql_*.db' \
+  --exclude node_modules --exclude vendor --exclude .git . | wc -l)
+echo "Expected source files: $EXPECTED"
+echo "Extracted source files: $SRC_FILE_COUNT"
+
+# Baseline LOC from database metadata
+DB_LOC=$(grep '^baselineLinesOfCode:' "$DB_NAME/codeql-database.yml" \
+  | awk '{print $2}')
+echo "Baseline LoC: $DB_LOC"
+
+# Error ratio
+if [ "$SRC_FILE_COUNT" -gt 0 ]; then
+  ERROR_RATIO=$(python3 -c "print(f'{$EXTRACTOR_ERRORS/$SRC_FILE_COUNT*100:.1f}%')")
+else
+  ERROR_RATIO="N/A (no files)"
+fi
+echo "Error ratio: $ERROR_RATIO ($EXTRACTOR_ERRORS errors / $SRC_FILE_COUNT files)"
+```
+
+### 4c. Log Assessment
+
+```bash
+log_step "Quality assessment results"
+log_result "Baseline LoC: $DB_LOC"
+log_result "Source archive files: $SRC_FILE_COUNT (expected: ~$EXPECTED)"
+log_result "Extractor errors: $EXTRACTOR_ERRORS (ratio: $ERROR_RATIO)"
+log_result "Finalized: $FINALIZED"
+
+# Sample extracted files
+unzip -Z1 "$DB_NAME/src.zip" 2>/dev/null | head -20 >> "$LOG_FILE"
 ```
 
 ### Quality Criteria
 
-| Metric | Good | Poor |
-|--------|------|------|
-| File count | Matches expected source files | 0 or very few |
-| Key files | Application code present | Missing main directories |
-| Errors | None or <5% | Many extraction errors |
-| "No source code seen" | Absent | Present (cached build) |
+| Metric | Source | Good | Poor |
+|--------|--------|------|------|
+| Baseline LoC | `print-baseline` / `baseline-info.json` | > 0, proportional to project size | 0 or far below expected |
+| Source archive files | `src.zip` | Close to expected source file count | 0 or < 50% of expected |
+| Extractor errors | `diagnostic/extractors/*.jsonl` | 0 or < 5% of files | > 5% of files |
+| Finalized | `codeql-database.yml` | `true` | `false` (incomplete build) |
+| Key directories | `src.zip` listing | Application code directories present | Missing `src/main`, `lib/`, `app/` etc. |
+| "No source code seen" | build log | Absent | Present (cached build — compiled languages) |
+
+**Interpreting baseline LoC:** A small number of extractor errors is normal and does not significantly impact analysis. However, if `baselineLinesOfCode` is 0 or the source archive contains no files, the database is empty — likely a cached build (compiled languages) or wrong `--source-root`.
 
 ---
 
@@ -478,10 +544,13 @@ log_result "Forced clean rebuild"
 ```
 
 ### 3. Install type stubs / dependencies
+
+> **Note:** These install into the *target project's* environment to improve CodeQL extraction quality.
+
 ```bash
 log_step "Quality improvement: install type stubs/additional deps"
 
-# Python type stubs - log each installed package
+# Python type stubs — install into target project's environment
 STUBS_INSTALLED=""
 for stub in types-requests types-PyYAML types-redis; do
   if pip install "$stub" 2>/dev/null; then
@@ -539,7 +608,7 @@ echo "Finished: $(date -Iseconds)" >> "$LOG_FILE"
 echo "Final database: $DB_NAME" >> "$LOG_FILE"
 echo "Successful method: <METHOD>" >> "$LOG_FILE"
 echo "Final command: <EXACT_COMMAND>" >> "$LOG_FILE"
-codeql database info $DB_NAME >> "$LOG_FILE" 2>&1
+codeql resolve database -- "$DB_NAME" >> "$LOG_FILE" 2>&1
 ```
 
 **Report to user:**

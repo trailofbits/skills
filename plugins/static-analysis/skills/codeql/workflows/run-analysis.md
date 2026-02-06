@@ -9,7 +9,7 @@ Create these tasks on workflow start:
 ```
 TaskCreate: "Select database and detect language" (Step 1)
 TaskCreate: "Check additional query packs and detect model packs" (Step 2) - blockedBy: Step 1
-TaskCreate: "Select query packs and model packs" (Step 3) - blockedBy: Step 2
+TaskCreate: "Select query packs, model packs, and threat models" (Step 3) - blockedBy: Step 2
 TaskCreate: "Execute analysis" (Step 4) - blockedBy: Step 3
 TaskCreate: "Process and report results" (Step 5) - blockedBy: Step 4
 ```
@@ -19,7 +19,7 @@ TaskCreate: "Process and report results" (Step 5) - blockedBy: Step 4
 | Task | Gate Type | Cannot Proceed Until |
 |------|-----------|---------------------|
 | Step 2 | **SOFT GATE** | User confirms installed/ignored for each missing pack |
-| Step 3 | **HARD GATE** | User approves final query pack and model pack selection |
+| Step 3 | **HARD GATE** | User approves query packs, model packs, and threat model selection |
 
 ---
 
@@ -64,18 +64,18 @@ options:
 
 ```bash
 # Check database exists and get language(s)
-codeql database info "$DB_NAME"
+codeql resolve database -- "$DB_NAME"
 
 # Get primary language from database
-LANG=$(codeql database info "$DB_NAME" --format=json \
-  | jq -r '.languages[0].name')
-LANG_COUNT=$(codeql database info "$DB_NAME" --format=json \
+LANG=$(codeql resolve database --format=json -- "$DB_NAME" \
+  | jq -r '.languages[0]')
+LANG_COUNT=$(codeql resolve database --format=json -- "$DB_NAME" \
   | jq '.languages | length')
 echo "Primary language: $LANG"
 if [ "$LANG_COUNT" -gt 1 ]; then
   echo "WARNING: Multi-language database ($LANG_COUNT languages)"
-  codeql database info "$DB_NAME" --format=json \
-    | jq -r '.languages[].name'
+  codeql resolve database --format=json -- "$DB_NAME" \
+    | jq -r '.languages[]'
 fi
 ```
 
@@ -263,6 +263,54 @@ options:
 
 ---
 
+### Step 3c: Select Threat Models
+
+Threat models control which input sources CodeQL treats as tainted. The default (`remote`) covers HTTP/network input only. Expanding the threat model finds more vulnerabilities but may increase false positives. See [threat-models.md](../references/threat-models.md) for details on each model.
+
+Use `AskUserQuestion`:
+
+```
+header: "Threat Models"
+question: "Which input sources should CodeQL treat as tainted?"
+multiSelect: false
+options:
+  - label: "Remote only (Recommended)"
+    description: "Default — HTTP requests, network input. Best for web services and APIs."
+  - label: "Remote + Local"
+    description: "Add CLI args, local files. Use for CLI tools or desktop apps."
+  - label: "All sources"
+    description: "Remote, local, environment, database, file. Maximum coverage, more noise."
+  - label: "Custom"
+    description: "Select specific threat models individually"
+```
+
+**If "Custom":** Follow up with `multiSelect: true`:
+
+```
+header: "Threat Models"
+question: "Select threat models to enable:"
+multiSelect: true
+options:
+  - label: "remote"
+    description: "HTTP requests, network input (always included)"
+  - label: "local"
+    description: "CLI args, local files — for CLI tools, batch processors"
+  - label: "environment"
+    description: "Environment variables — for 12-factor/container apps"
+  - label: "database"
+    description: "Database results — for second-order injection audits"
+```
+
+**Build the threat model flag:**
+
+```bash
+# Only add --threat-models when non-default models are selected
+# Default (remote only) needs no flag
+THREAT_MODEL_FLAG=""  # or "--threat-models=remote,local" etc.
+```
+
+---
+
 ### Step 4: Execute Analysis
 
 Run analysis with **only** the packs selected by user in Step 3.
@@ -281,10 +329,14 @@ PACKS="<USER_SELECTED_QUERY_PACKS>"
 MODEL_PACK_FLAGS=""
 ADDITIONAL_PACK_FLAGS=""
 
+# Threat model flag from Step 3c (empty string if default/remote-only)
+# THREAT_MODEL_FLAG=""
+
 codeql database analyze $DB_NAME \
   --format=sarif-latest \
   --output="$RESULTS_DIR/results.sarif" \
   --threads=0 \
+  $THREAT_MODEL_FLAG \
   $MODEL_PACK_FLAGS \
   $ADDITIONAL_PACK_FLAGS \
   -- $PACKS
@@ -371,6 +423,7 @@ Report to user:
 **Language:** <LANG>
 **Query packs:** <list of query packs used>
 **Model packs:** <list of model packs used, or "None">
+**Threat models:** <list of threat models, or "default (remote)">
 
 ### Results Summary:
 - Total findings: <N>

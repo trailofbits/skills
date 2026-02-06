@@ -7,7 +7,7 @@ CodeQL and Semgrep skills are based on the Trail of Bits Testing Handbook:
 - [CodeQL Testing Handbook](https://appsec.guide/docs/static-analysis/codeql/)
 - [Semgrep Testing Handbook](https://appsec.guide/docs/static-analysis/semgrep/)
 
-**Author:** Axel Mierczuk
+**Author:** Axel Mierczuk & Paweł Płatek
 
 ## Skills Included
 
@@ -24,7 +24,6 @@ Use this plugin when you need to:
 - Run CodeQL for interprocedural taint tracking and data flow analysis
 - Use Semgrep for fast pattern-based bug detection
 - Parse SARIF output from security scanners
-- Set up static analysis in CI/CD pipelines
 - Aggregate and deduplicate findings from multiple tools
 
 ## What It Does
@@ -32,8 +31,8 @@ Use this plugin when you need to:
 ### CodeQL
 - Create databases for Python, JavaScript, Go, Java, C/C++, and more
 - Run security queries with SARIF/CSV output
-- Write custom QL queries with taint tracking
-- Integrate with GitHub Actions
+- Generate data extension models for project-specific APIs
+- Select and combine query packs (security-extended, Trail of Bits, Community)
 
 ### Semgrep
 - Quick security scans using built-in rulesets (OWASP, CWE, Trail of Bits)

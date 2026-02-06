@@ -1,8 +1,8 @@
 {
   "name": "static-analysis",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
   "author": {
-    "name": "Axel Mierczuk"
+    "name": "Axel Mierczuk & Paweł Płatek"
   }
 }

@@ -237,6 +237,103 @@ select sink,
     + ":" + sink.getLocation().getStartLine().toString()
 ```
 
-### C++ / C#
+### C / C++
 
-Similar approach — use language-specific sink classes from their security query customization modules. Adapt the Java pattern above using the relevant `Sink` classes from the language's `security/` packages.
+C++ uses a similar per-vulnerability-class pattern. Requires a `qlpack.yml` with `codeql/cpp-all` dependency (same approach as Java):
+
+```yaml
+# $DIAG_DIR/qlpack.yml
+name: custom/diagnostics
+version: 0.0.1
+dependencies:
+  codeql/cpp-all: "*"
+```
+
+Then run `codeql pack install` in the diagnostics directory before executing queries.
+
+```ql
+/**
+ * @name List recognized dataflow sinks
+ * @description Enumerates security-relevant sinks CodeQL recognizes
+ * @kind problem
+ * @id custom/list-sinks-cpp
+ */
+import cpp
+import semmle.code.cpp.dataflow.DataFlow
+import semmle.code.cpp.security.CommandExecution
+import semmle.code.cpp.security.FileAccess
+import semmle.code.cpp.security.BufferWrite
+
+from DataFlow::Node sink, string kind
+where
+  exists(FunctionCall call |
+    sink.asExpr() = call.getAnArgument() and
+    call.getTarget().hasGlobalOrStdName("system") and
+    kind = "command-injection"
+  )
+  or
+  exists(FunctionCall call |
+    sink.asExpr() = call.getAnArgument() and
+    call.getTarget().hasGlobalOrStdName(["fopen", "open", "freopen"]) and
+    kind = "file-access"
+  )
+  or
+  exists(FunctionCall call |
+    sink.asExpr() = call.getAnArgument() and
+    call.getTarget().hasGlobalOrStdName(["sprintf", "strcpy", "strcat", "gets"]) and
+    kind = "buffer-write"
+  )
+  or
+  exists(FunctionCall call |
+    sink.asExpr() = call.getAnArgument() and
+    call.getTarget().hasGlobalOrStdName(["execl", "execle", "execlp", "execv", "execvp", "execvpe", "popen"]) and
+    kind = "command-execution"
+  )
+select sink,
+  kind
+    + " | " + sink.getLocation().getFile().getRelativePath()
+    + ":" + sink.getLocation().getStartLine().toString()
+```
+
+### C\#
+
+C# uses per-vulnerability sink classes. Requires a `qlpack.yml` with `codeql/csharp-all` dependency:
+
+```yaml
+# $DIAG_DIR/qlpack.yml
+name: custom/diagnostics
+version: 0.0.1
+dependencies:
+  codeql/csharp-all: "*"
+```
+
+Then run `codeql pack install` in the diagnostics directory before executing queries.
+
+```ql
+/**
+ * @name List recognized dataflow sinks
+ * @description Enumerates security-relevant sinks CodeQL recognizes
+ * @kind problem
+ * @id custom/list-sinks-csharp
+ */
+import csharp
+import semmle.code.csharp.dataflow.DataFlow
+import semmle.code.csharp.security.dataflow.SqlInjectionQuery
+import semmle.code.csharp.security.dataflow.CommandInjectionQuery
+import semmle.code.csharp.security.dataflow.TaintedPathQuery
+import semmle.code.csharp.security.dataflow.XSSQuery
+
+from DataFlow::Node sink, string kind
+where
+  sink instanceof SqlInjection::Sink and kind = "sql-injection"
+  or
+  sink instanceof CommandInjection::Sink and kind = "command-injection"
+  or
+  sink instanceof TaintedPath::Sink and kind = "path-injection"
+  or
+  sink instanceof XSS::Sink and kind = "xss"
+select sink,
+  kind
+    + " | " + sink.getLocation().getFile().getRelativePath()
+    + ":" + sink.getLocation().getStartLine().toString()
+```

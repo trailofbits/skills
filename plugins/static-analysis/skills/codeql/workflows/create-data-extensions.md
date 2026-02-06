@@ -65,7 +65,7 @@ Run custom QL queries against the database to enumerate all sources and sinks Co
 
 ```bash
 DB_NAME=$(ls -dt codeql_*.db 2>/dev/null | head -1)
-LANG=$(codeql database info "$DB_NAME" --format=json | jq -r '.languages[0].name')
+LANG=$(codeql resolve database --format=json -- "$DB_NAME" | jq -r '.languages[0]')
 echo "Database: $DB_NAME, Language: $LANG"
 
 DIAG_DIR="${DB_NAME%.db}-diagnostics"
@@ -410,12 +410,23 @@ JAVA_ALL_EXT=$(find "$(codeql resolve qlpacks 2>/dev/null | grep 'java-queries' 
   -path '*/.codeql/libraries/codeql/java-all/*/ext' -type d 2>/dev/null | head -1)
 
 if [ -n "$JAVA_ALL_EXT" ]; then
-  cp codeql-extensions/sources.yml "$JAVA_ALL_EXT/$(basename "$(pwd)").sources.model.yml"
-  [ -f codeql-extensions/sinks.yml ] && cp codeql-extensions/sinks.yml "$JAVA_ALL_EXT/$(basename "$(pwd)").sinks.model.yml"
-  [ -f codeql-extensions/summaries.yml ] && cp codeql-extensions/summaries.yml "$JAVA_ALL_EXT/$(basename "$(pwd)").summaries.model.yml"
-  echo "Extensions deployed to $JAVA_ALL_EXT"
+  PROJECT_NAME=$(basename "$(pwd)")
+  cp codeql-extensions/sources.yml "$JAVA_ALL_EXT/${PROJECT_NAME}.sources.model.yml"
+  [ -f codeql-extensions/sinks.yml ] && cp codeql-extensions/sinks.yml "$JAVA_ALL_EXT/${PROJECT_NAME}.sinks.model.yml"
+  [ -f codeql-extensions/summaries.yml ] && cp codeql-extensions/summaries.yml "$JAVA_ALL_EXT/${PROJECT_NAME}.summaries.model.yml"
+
+  # Verify deployment — confirm files landed correctly
+  DEPLOYED=$(ls "$JAVA_ALL_EXT/${PROJECT_NAME}".*.model.yml 2>/dev/null | wc -l)
+  if [ "$DEPLOYED" -gt 0 ]; then
+    echo "Extensions deployed to $JAVA_ALL_EXT ($DEPLOYED files):"
+    ls -la "$JAVA_ALL_EXT/${PROJECT_NAME}".*.model.yml
+  else
+    echo "ERROR: Files were copied but verification failed. Check path: $JAVA_ALL_EXT"
+  fi
 else
   echo "WARNING: Could not find java-all ext directory. Extensions may not load."
+  echo "Attempted path lookup from: codeql resolve qlpacks | grep java-queries"
+  echo "Run 'codeql resolve qlpacks' manually to debug."
 fi
 ```
 
