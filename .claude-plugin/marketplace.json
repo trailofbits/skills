@@ -225,6 +225,17 @@
       "source": "./plugins/yara-authoring"
     },
     {
+      "name": "frida-scripting",
+      "version": "1.0.0",
+      "description": "Develops Frida scripts for dynamic instrumentation, introspection, and manipulation of macOS and iOS binaries using the Objective-C runtime, Interceptor, Stalker, and Memory APIs.",
+      "author": {
+        "name": "Trail of Bits",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/frida-scripting"
+    },
+    {
       "name": "skill-generator",
       "version": "1.0.0",
       "description": "Generate Claude Code skills from any documentation source using proven patterns from Trail of Bits",

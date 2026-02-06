@@ -74,6 +74,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | Plugin | Description |
 |--------|-------------|
 | [dwarf-expert](plugins/dwarf-expert/) | Interact with and understand the DWARF debugging format |
+| [frida-scripting](plugins/frida-scripting/) | Develop Frida scripts for dynamic instrumentation of macOS and iOS binaries |
 
 ### Mobile Security
 

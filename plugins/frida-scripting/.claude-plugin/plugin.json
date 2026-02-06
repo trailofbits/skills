@@ -1,0 +1,6 @@
+{
+  "name": "frida-scripting",
+  "version": "1.0.0",
+  "description": "Develops Frida scripts for dynamic instrumentation, introspection, and manipulation of macOS and iOS binaries using the Objective-C runtime, Interceptor, Stalker, and Memory APIs.",
+  "author": "Trail of Bits"
+}
