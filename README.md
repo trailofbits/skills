@@ -6,6 +6,7 @@ A Claude Code plugin marketplace from Trail of Bits providing skills to enhance 
 
 ### Add the Marketplace
 
+**Claude Code / AdaL:**
 ```
 /plugin marketplace add trailofbits/skills
 ```
