@@ -214,6 +214,15 @@
       "source": "./plugins/insecure-defaults"
     },
     {
+      "name": "second-opinion",
+      "version": "1.0.0",
+      "description": "Runs code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on uncommitted changes, branch diffs, or specific commits",
+      "author": {
+        "name": "Dan Guido"
+      },
+      "source": "./plugins/second-opinion"
+    },
+    {
       "name": "yara-authoring",
       "version": "2.0.0",
       "description": "YARA-X detection rule authoring with linting and quality analysis",

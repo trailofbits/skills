@@ -14,6 +14,7 @@
 /plugins/insecure-defaults/ @dariushoule @dguido
 /plugins/modern-python/ @Ninja3047 @dguido
 /plugins/property-based-testing/ @hbrodin @dguido
+/plugins/second-opinion/ @dguido
 /plugins/semgrep-rule-creator/ @ahpaleus @dguido
 /plugins/semgrep-rule-variant-creator/ @ahpaleus @dguido
 /plugins/spec-to-code-compliance/ @omarinuwa @dguido
