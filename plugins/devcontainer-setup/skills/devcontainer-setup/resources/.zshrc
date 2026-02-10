@@ -52,5 +52,5 @@ _fzf_compgen_dir() {
   fdfind --type d --hidden --follow --exclude .git . "$1"
 }
 
-# Source fzf key bindings and completion
+# Source fzf shell integration (built-in since fzf 0.48+)
 eval "$(fzf --zsh)"

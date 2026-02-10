@@ -1,5 +1,7 @@
 # {{PROJECT_NAME}} Devcontainer
 # Based on Microsoft devcontainer image for better devcontainer integration
+ARG UV_VERSION=0.10.0
+FROM ghcr.io/astral-sh/uv:${UV_VERSION}@sha256:78a7ff97cd27b7124a5f3c2aefe146170793c56a1e03321dd31a289f6d82a04f AS uv
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04@sha256:d94c97dd9cacf183d0a6fd12a8e87b526e9e928307674ae9c94139139c0c6eae
 
 ARG TZ
@@ -31,16 +33,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   iproute2 \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Install fzf from GitHub (Ubuntu 24.04 apt version lacks shell integration)
-ARG FZF_VERSION=0.67.0
-RUN ARCH=$(dpkg --print-architecture) && \
-  case "${ARCH}" in \
-    amd64) FZF_ARCH="linux_amd64" ;; \
-    arm64) FZF_ARCH="linux_arm64" ;; \
-    *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
-  esac && \
-  curl -fsSL "https://github.com/junegunn/fzf/releases/download/v${FZF_VERSION}/fzf-${FZF_VERSION}-${FZF_ARCH}.tar.gz" | tar -xz -C /usr/local/bin
-
 # Install git-delta
 ARG GIT_DELTA_VERSION=0.18.2
 RUN ARCH=$(dpkg --print-architecture) && \
@@ -49,8 +41,17 @@ RUN ARCH=$(dpkg --print-architecture) && \
   rm /tmp/git-delta.deb
 
 # Install uv (Python package manager) via multi-stage copy
-ARG UV_VERSION=0.10.0
-COPY --from=ghcr.io/astral-sh/uv:0.10.0@sha256:78a7ff97cd27b7124a5f3c2aefe146170793c56a1e03321dd31a289f6d82a04f /uv /usr/local/bin/uv
+COPY --from=uv /uv /usr/local/bin/uv
+
+# Install fzf from GitHub releases (newer than apt, includes built-in shell integration)
+ARG FZF_VERSION=0.67.0
+RUN ARCH=$(dpkg --print-architecture) && \
+  case "${ARCH}" in \
+    amd64) FZF_ARCH="linux_amd64" ;; \
+    arm64) FZF_ARCH="linux_arm64" ;; \
+    *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
+  esac && \
+  curl -fsSL "https://github.com/junegunn/fzf/releases/download/v${FZF_VERSION}/fzf-${FZF_VERSION}-${FZF_ARCH}.tar.gz" | tar -xz -C /usr/local/bin
 
 # Create directories and set ownership (combined for fewer layers)
 RUN mkdir -p /commandhistory /workspace /home/vscode/.claude /opt && \
