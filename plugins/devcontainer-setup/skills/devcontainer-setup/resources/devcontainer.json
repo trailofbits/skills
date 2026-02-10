@@ -43,6 +43,7 @@
   ],
   "containerEnv": {
     "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
+    "POWERLEVEL9K_DISABLE_GITSTATUS": "true",
     "GIT_CONFIG_GLOBAL": "/home/vscode/.gitconfig.local",
     "UV_LINK_MODE": "copy",
     "NPM_CONFIG_IGNORE_SCRIPTS": "true",
