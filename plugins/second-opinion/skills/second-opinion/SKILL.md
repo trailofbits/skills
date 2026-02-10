@@ -71,7 +71,7 @@ call (max 4 questions).
 header: "Review tool"
 question: "Which tool should run the review?"
 options:
-  - "Both Codex and Gemini (Recommended)" → run both sequentially
+  - "Both Codex and Gemini (Recommended)" → run both in parallel
   - "Codex only"                          → codex review
   - "Gemini only"                         → gemini CLI
 ```
@@ -100,6 +100,12 @@ options:
   - "Yes, include it"
   - "No, standard review"
 ```
+
+**Note:** Project context only applies to Gemini and to Codex
+with `--uncommitted`. For Codex with `--base`/`--commit`, the
+positional prompt is not supported — inform the user that Codex
+will review without custom instructions in this mode (it still
+reads `AGENTS.md` if one exists in the repo).
 
 **Question 4 — Review focus** (always ask):
 
@@ -161,8 +167,11 @@ Summary:
 - Model: `gpt-5.3-codex`, reasoning: `xhigh`
 - `--uncommitted` takes a positional prompt
 - `--base` and `--commit` do NOT accept custom prompts
-  (use project `AGENTS.md` for review instructions)
+  (Codex reads `AGENTS.md` if present, but the skill will
+  not create one; note this limitation to the user)
 - Falls back to `gpt-5.2-codex` on auth errors
+- Output is verbose — summarize findings, don't dump raw
+  (see references/codex-invocation.md § Parsing Output)
 - Set `timeout: 600000` on the Bash call
 
 ## Gemini Invocation

@@ -56,9 +56,14 @@ codex review --uncommitted \
 mechanism. The positional `[PROMPT]` argument is mutually
 exclusive with these flags, and there is no stdin option.
 
-**Workaround:** Place review instructions in an `AGENTS.md`
-file at the project root. Codex reads this file automatically
-and will apply the instructions to its review.
+**Limitation:** When using `--base` or `--commit`, Codex
+cannot receive custom review instructions or project context
+via prompt. If an `AGENTS.md` file exists at the repo root,
+Codex reads it automatically — but the skill should not
+create or modify this file.
+
+For `--uncommitted`, project context and focus instructions
+are passed via the positional prompt argument (no limitation).
 
 ## Model Fallback
 
@@ -73,3 +78,20 @@ when using Codex with a ChatGPT account"), retry with
 | `codex: command not found` | Tell user: `npm i -g @openai/codex` |
 | Model auth error | Retry with `gpt-5.2-codex` |
 | Timeout | Suggest `high` reasoning instead of `xhigh` |
+| `EPERM` / sandbox errors | Expected — `codex review` runs sandboxed and cannot execute tests or builds. Ignore these. |
+
+## Parsing Output
+
+Codex review output is verbose. It contains sandbox warnings,
+`[thinking]` blocks, `[exec]` blocks showing tool calls and
+full file reads, and the actual review findings.
+
+When presenting results to the user:
+- **Do NOT dump raw output.** Summarize the findings.
+- The review conclusion is typically at the **end** of the
+  output, after all thinking and exec blocks.
+- Skip sandbox permission warnings (`EPERM`, `xcodebuild`).
+- Skip `[thinking]` and `[exec]` block contents unless they
+  contain specific findings the user should see.
+- If the output is truncated (>30KB), read the persisted
+  output file to find the conclusion.
