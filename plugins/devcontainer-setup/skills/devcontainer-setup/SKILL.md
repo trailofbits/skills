@@ -94,7 +94,6 @@ The base template includes:
 - **Node 22** via fnm (Fast Node Manager)
 - **ast-grep** for AST-based code search
 - **Network isolation tools** (iptables, ipset) with NET_ADMIN capability
-- **Tailscale** feature for secure networking
 - **Modern CLI tools**: ripgrep, fd, fzf, tmux, git-delta
 
 ---

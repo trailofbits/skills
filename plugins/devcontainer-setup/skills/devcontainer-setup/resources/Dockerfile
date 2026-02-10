@@ -49,7 +49,8 @@ RUN ARCH=$(dpkg --print-architecture) && \
   rm /tmp/git-delta.deb
 
 # Install uv (Python package manager) via multi-stage copy
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+ARG UV_VERSION=0.10.0
+COPY --from=ghcr.io/astral-sh/uv:0.10.0@sha256:78a7ff97cd27b7124a5f3c2aefe146170793c56a1e03321dd31a289f6d82a04f /uv /usr/local/bin/uv
 
 # Create directories and set ownership (combined for fewer layers)
 RUN mkdir -p /commandhistory /workspace /home/vscode/.claude /opt && \
