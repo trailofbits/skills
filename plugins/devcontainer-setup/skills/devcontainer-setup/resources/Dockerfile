@@ -1,6 +1,6 @@
 # {{PROJECT_NAME}} Devcontainer
 # Based on Microsoft devcontainer image for better devcontainer integration
-FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
+FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04@sha256:d94c97dd9cacf183d0a6fd12a8e87b526e9e928307674ae9c94139139c0c6eae
 
 ARG TZ
 ENV TZ="$TZ"
@@ -9,10 +9,12 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install additional system packages (base image already includes git, curl, sudo, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+  # Sandboxing support for Claude Code
+  bubblewrap \
+  socat \
   # Modern CLI tools
-  fzf \
-  ripgrep \
   fd-find \
+  ripgrep \
   tmux \
   zsh \
   # Build tools
@@ -20,14 +22,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   # Utilities
   jq \
   nano \
-  vim \
   unzip \
+  vim \
   # Network tools (for security testing)
-  iptables \
-  ipset \
-  iproute2 \
   dnsutils \
+  ipset \
+  iptables \
+  iproute2 \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install fzf from GitHub (Ubuntu 24.04 apt version lacks shell integration)
+ARG FZF_VERSION=0.67.0
+RUN ARCH=$(dpkg --print-architecture) && \
+  case "${ARCH}" in \
+    amd64) FZF_ARCH="linux_amd64" ;; \
+    arm64) FZF_ARCH="linux_arm64" ;; \
+    *) echo "Unsupported architecture: ${ARCH}" && exit 1 ;; \
+  esac && \
+  curl -fsSL "https://github.com/junegunn/fzf/releases/download/v${FZF_VERSION}/fzf-${FZF_VERSION}-${FZF_ARCH}.tar.gz" | tar -xz -C /usr/local/bin
 
 # Install git-delta
 ARG GIT_DELTA_VERSION=0.18.2
@@ -84,12 +96,6 @@ ARG ZSH_IN_DOCKER_VERSION=1.2.1
 RUN sh -c "$(curl -fsSL https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh)" -- \
   -p git \
   -x
-
-# Download fzf shell integration (Ubuntu 24.04 package doesn't include these)
-ARG FZF_VERSION=0.44.1
-RUN mkdir -p /home/vscode/.fzf && \
-  curl -fsSL "https://raw.githubusercontent.com/junegunn/fzf/${FZF_VERSION}/shell/key-bindings.zsh" -o /home/vscode/.fzf/key-bindings.zsh && \
-  curl -fsSL "https://raw.githubusercontent.com/junegunn/fzf/${FZF_VERSION}/shell/completion.zsh" -o /home/vscode/.fzf/completion.zsh
 
 # Copy zsh configuration
 COPY --chown=vscode:vscode .zshrc /home/vscode/.zshrc.custom

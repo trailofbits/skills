@@ -53,7 +53,4 @@ _fzf_compgen_dir() {
 }
 
 # Source fzf key bindings and completion
-# shellcheck source=/dev/null
-source ~/.fzf/key-bindings.zsh
-# shellcheck source=/dev/null
-source ~/.fzf/completion.zsh
+eval "$(fzf --zsh)"
