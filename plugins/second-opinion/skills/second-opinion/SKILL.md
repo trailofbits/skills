@@ -113,36 +113,13 @@ options:
   - "Error handling"    → error handling-focused prompt
 ```
 
-### 2. Check tool availability
+### 2. Run the tool directly
 
-Before running, verify the selected tool(s) are installed:
-
-```bash
-# Codex
-command -v codex
-
-# Gemini
-command -v gemini
-```
-
-For Gemini, also check extensions:
-
-```bash
-gemini --list-extensions 2>/dev/null | grep -q code-review
-gemini --list-extensions 2>/dev/null | grep -q gemini-cli-security
-```
-
-If a selected tool is missing, tell the user how to install it
-and skip that tool (if "Both" was selected, run only the
-available one).
-
-Install commands for missing tools/extensions:
-```bash
-npm i -g @openai/codex
-npm i -g @google/gemini-cli
-gemini extensions install https://github.com/gemini-cli-extensions/code-review
-gemini extensions install https://github.com/gemini-cli-extensions/security
-```
+Do not pre-check tool availability. Run the selected tool
+immediately. If the command fails with "command not found" or
+an extension is missing, report the install command from the
+Error Handling table below and skip that tool (if "Both" was
+selected, run only the available one).
 
 ## Diff Preview
 
@@ -183,7 +160,8 @@ fallback.
 Summary:
 - Model: `gpt-5.3-codex`, reasoning: `xhigh`
 - `--uncommitted` takes a positional prompt
-- `--base` and `--commit` take prompt via stdin heredoc with `-`
+- `--base` and `--commit` do NOT accept custom prompts
+  (use project `AGENTS.md` for review instructions)
 - Falls back to `gpt-5.2-codex` on auth errors
 - Set `timeout: 600000` on the Bash call
 
@@ -214,9 +192,11 @@ Summary:
 
 When the user picks "Both" (the default):
 
-1. Run Codex first, capture output
-2. Run Gemini second, capture output
-3. Present results with clear headers:
+1. Run Codex and Gemini in parallel — issue both Bash tool
+   calls in a single response. Both commands are read-only
+   (they review diffs via external APIs) so there is no
+   shared state or git lock contention.
+2. Collect both results, then present with clear headers:
 
 ```
 ## Codex Review (gpt-5.3-codex)
@@ -234,7 +214,8 @@ Summarize where the two reviews agree and differ.
 |-------|--------|
 | `codex: command not found` | Tell user: `npm i -g @openai/codex` |
 | `gemini: command not found` | Tell user: `npm i -g @google/gemini-cli` |
-| Gemini extension missing | Tell user the `gemini extensions install` URL |
+| Gemini `code-review` extension missing | Tell user: `gemini extensions install https://github.com/gemini-cli-extensions/code-review` |
+| Gemini `gemini-cli-security` extension missing | Tell user: `gemini extensions install https://github.com/gemini-cli-extensions/security` |
 | Model auth error (Codex) | Retry with `gpt-5.2-codex` |
 | Empty diff | Tell user there are no changes to review |
 | Timeout | Inform user and suggest narrowing the diff scope |

@@ -52,17 +52,13 @@ codex review --uncommitted \
   "the assembled prompt"
 ```
 
-`--base` and `--commit` require stdin (the positional prompt
-is mutually exclusive with these flags). Use `-` to read from
-stdin and a heredoc to avoid shell quoting issues:
+`--base` and `--commit` do NOT accept a custom prompt via any
+mechanism. The positional `[PROMPT]` argument is mutually
+exclusive with these flags, and there is no stdin option.
 
-```bash
-cat <<'PROMPT' | codex review --base main \
-  -c model='"gpt-5.3-codex"' \
-  -c model_reasoning_effort='"xhigh"' -
-the assembled prompt
-PROMPT
-```
+**Workaround:** Place review instructions in an `AGENTS.md`
+file at the project root. Codex reads this file automatically
+and will apply the instructions to its review.
 
 ## Model Fallback
 
