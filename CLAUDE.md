@@ -196,6 +196,8 @@ Before submitting:
 - [ ] Plugin has README.md
 - [ ] Added to root README.md table
 - [ ] Registered in marketplace.json
+- [ ] Added to CODEOWNERS with plugin-specific ownership (`/plugins/<name>/ @gh-username @dguido`)
+  - To find the GitHub username: run `gh api user --jq .login` (most reliable — uses authenticated GitHub identity)
 
 **Version updates (for existing plugins):**
 - [ ] Increment version in both `plugin.json` and `.claude-plugin/marketplace.json` when making substantive changes (clients only update plugins when the version number increases)
