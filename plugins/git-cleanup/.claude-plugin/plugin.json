@@ -1,7 +1,7 @@
 {
   "name": "git-cleanup",
   "version": "1.0.0",
-  "description": "Safely clean up git worktrees and local branches. Only use when explicitly invoked via /git-cleanup, never automatically.",
+  "description": "Safely analyzes and cleans up local git branches and worktrees by categorizing them as merged, squash-merged, superseded, or active work.",
   "author": {
     "name": "Henrik Brodin",
     "email": "opensource@trailofbits.com",

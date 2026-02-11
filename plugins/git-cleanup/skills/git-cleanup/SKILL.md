@@ -1,9 +1,10 @@
 ---
 name: git-cleanup
-description: "Safely analyzes and cleans up git worktrees and local branches. INVOCATION RULE: User message must contain the literal command '/git-cleanup'. Do NOT invoke for similar phrases like 'cleanup my git', 'clean branches', 'git cleanup', or 'tidy up git' - these require asking the user what they want first."
-invoke: user
+description: "Safely analyzes and cleans up local git branches and worktrees by categorizing them as merged, squash-merged, superseded, or active work."
 allowed-tools:
   - Bash
+  - Read
+  - Grep
   - AskUserQuestion
 ---
 
@@ -13,18 +14,15 @@ Safely clean up accumulated git worktrees and local branches by categorizing the
 
 ## When to Use
 
-- **ONLY** when the user explicitly invokes `/git-cleanup`
 - When the user has accumulated many local branches and worktrees
 - When branches have been merged but not cleaned up locally
 - When remote branches have been deleted but local tracking branches remain
 
 ## When NOT to Use
 
-- **NEVER** invoke automatically based on context clues
-- **NEVER** suggest proactively ("I noticed you have many branches...")
-- **NEVER** run when user mentions "cleanup" in other contexts
 - Do not use for remote branch management (this is local cleanup only)
 - Do not use for repository maintenance tasks like gc or prune
+- Not designed for headless or non-interactive automation (requires user confirmations at two gates)
 
 ## Core Principle: SAFETY FIRST
 
@@ -64,15 +62,15 @@ Present related branches together with a clear recommendation, not scattered acr
 Don't rely on simple keyword matching. For `[gone]` branches:
 
 ```bash
-# 1. Get the branch's commits that aren't in main
-git log --oneline main..<branch>
+# 1. Get the branch's commits that aren't in default branch
+git log --oneline "$default_branch".."$branch"
 
-# 2. Search main for PRs that might have incorporated this work
+# 2. Search default branch for PRs that incorporated this work
 # Search by: branch name, commit message keywords, PR numbers
-git log --oneline main | grep -iE "(branch-name|keyword|#[0-9]+)"
+git log --oneline "$default_branch" | grep -iE "(branch-name|keyword|#[0-9]+)"
 
 # 3. For related branch groups, trace which PRs merged which work
-git log --oneline main | grep -iE "(#[0-9]+)" | head -20
+git log --oneline "$default_branch" | grep -iE "(#[0-9]+)" | head -20
 ```
 
 ## Workflow
@@ -83,11 +81,13 @@ Gather ALL information upfront before any categorization:
 
 ```bash
 # Get default branch name
-git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main"
+default_branch=$(git symbolic-ref refs/remotes/origin/HEAD \
+  2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")
+
+# Protected branches - never analyze or delete
+protected='^(main|master|develop|release/.*)$'
 
 # List all local branches with tracking info
-# NOTE: Look for [ahead N] or [behind N] markers to determine sync status
-# Example: "feature/x abc123 [origin/feature/x: ahead 2]" means 2 unpushed commits
 git branch -vv
 
 # List all worktrees
@@ -97,20 +97,25 @@ git worktree list
 git fetch --prune
 
 # Get merged branches (into default branch)
-git branch --merged <default-branch>
+git branch --merged "$default_branch"
 
-# Get recent PR merge history (essential for squash-merge detection)
-git log --oneline <default-branch> | grep -iE "#[0-9]+" | head -30
+# Get recent PR merge history (squash-merge detection)
+git log --oneline "$default_branch" | grep -iE "#[0-9]+" | head -30
 
-# For EACH branch, get its unique commits AND check sync status with remote
-for branch in $(git branch --format='%(refname:short)' | grep -v '^main$'); do
+# For EACH non-protected branch, get unique commits and sync status
+for branch in $(git branch --format='%(refname:short)' \
+  | grep -vE "$protected"); do
   echo "=== $branch ==="
-  echo "Commits not in main:"
-  git log --oneline main..$branch 2>/dev/null | head -5
+  echo "Commits not in $default_branch:"
+  git log --oneline "$default_branch".."$branch" 2>/dev/null \
+    | head -5
   echo "Commits not pushed to remote:"
-  git log --oneline origin/$branch..$branch 2>/dev/null | head -5 || echo "(no remote tracking)"
+  git log --oneline "origin/$branch".."$branch" 2>/dev/null \
+    | head -5 || echo "(no remote tracking)"
 done
 ```
+
+**Note on branch names:** Git branch names can contain characters that break shell expansion. Always quote `"$branch"` in commands.
 
 ### Phase 2: Group Related Branches
 
@@ -129,6 +134,11 @@ For each group with 2+ branches:
 2. **Find merge evidence** - Which PRs incorporated work from this group?
 3. **Identify the "final" branch** - Usually the most recent or most complete
 4. **Mark superseded branches** - Older iterations whose work is in main or in a newer branch
+
+**SUPERSEDED requires evidence, not just shared prefix:**
+- A PR merged the work into main, OR
+- A newer branch contains all commits from the older branch
+- Name prefix alone is NOT sufficient — similarly named branches may contain independent work
 
 Example analysis for `feature/api-*` branches:
 
@@ -171,7 +181,7 @@ Is branch merged into default branch?
 |----------|---------|----------------|
 | SAFE_TO_DELETE | Merged into default branch | `git branch -d` |
 | SQUASH_MERGED | Work incorporated via squash merge | `git branch -D` |
-| SUPERSEDED | Part of a group, work in newer branch/main | `git branch -D` |
+| SUPERSEDED | Part of a group, work verified in main via PR or in newer branch | `git branch -D` |
 | REMOTE_GONE | Remote deleted, work NOT found in main | Review needed |
 | UNPUSHED_WORK | Has commits not pushed to remote | Keep |
 | LOCAL_WORK | Untracked branch with unique commits | Keep |
@@ -293,18 +303,19 @@ Confirm? (yes/no)
 
 ### Phase 5: Execute
 
-Delete in a single batch:
+Run each deletion as a **separate command** so partial failures don't block remaining deletions. Report the result of each:
 
 ```bash
-# Chain all deletions together
-git branch -d fix/typo && \
-git branch -D feature/login && \
-git branch -D feature/api && \
-git branch -D feature/api-v2 && \
-git branch -D feature/api-refactor && \
-git branch -D feature/api-final && \
+git branch -d fix/typo
+git branch -D feature/login
+git branch -D feature/api
+git branch -D feature/api-v2
+git branch -D feature/api-refactor
+git branch -D feature/api-final
 git worktree remove ../proj-auth
 ```
+
+If a deletion fails, report the error and continue with remaining deletions.
 
 ### Phase 6: Report
 
@@ -333,7 +344,7 @@ git worktree remove ../proj-auth
 1. **Never invoke automatically** - Only run when user explicitly uses `/git-cleanup`
 2. **Two confirmation gates only** - Analysis review, then deletion confirmation
 3. **Use correct delete command** - `-d` for merged, `-D` for squash-merged/superseded
-4. **Never touch protected branches** - main, master, develop, release/*
+4. **Never touch protected branches** - main, master, develop, release/* (filtered programmatically)
 5. **Block dirty worktree removal** - Refuse without explicit data loss acknowledgment
 6. **Group related branches** - Don't scatter them across categories
 
@@ -350,110 +361,3 @@ These are common shortcuts that lead to data loss. Reject them:
 | "I'll just delete all the `[gone]` branches" | `[gone]` only means the remote was deleted. The local branch may have unpushed commits. |
 | "The user seems to want everything deleted" | Always present analysis first. Let the user choose what to delete. |
 | "The branch has commits not in main, so it has unpushed work" | "Not in main" ≠ "not pushed". A branch can be synced with its remote but not merged to main. Always check `git log origin/<branch>..<branch>`. |
-
-## Anti-Patterns
-
-| Don't Do This | Why | Do This Instead |
-|---------------|-----|-----------------|
-| Try `-d` then ask about `-D` | Wastes confirmations | Know upfront which need `-D` |
-| Scatter related branches across categories | User can't see relationships | Group by prefix first |
-| Shallow keyword search for PRs | Misses squash-merged work | Trace PR history thoroughly |
-| Multiple confirmation rounds | Frustrating UX | Exactly 2 gates |
-| Categorize before grouping | Misses superseded branches | Group related branches first |
-| Present "needs review" for obviously superseded branches | User has to tell you | Investigate relationships proactively |
-
-## Commands Reference
-
-### Safe Commands (information gathering)
-
-```bash
-git branch -vv                      # List branches with tracking info
-git branch --merged <branch>        # List branches merged into <branch>
-git worktree list                   # List all worktrees
-git fetch --prune                   # Sync remote state
-git log --oneline -n 5 <branch>     # Recent commits on branch
-git log --oneline main..<branch>    # Commits unique to branch
-git log --oneline origin/<branch>..<branch>  # Commits not pushed (local ahead of remote)
-git log --oneline <branch>..origin/<branch>  # Commits not pulled (local behind remote)
-git status --porcelain              # Check for uncommitted changes
-git log --oneline main | grep "#"   # Find PR merge commits
-```
-
-### Destructive Commands (require confirmation)
-
-```bash
-git branch -d <name>              # Safe delete (merged branches only)
-git branch -D <name>              # Force delete (squash-merged/superseded)
-git worktree remove <path>        # Remove worktree
-```
-
-## Example Session
-
-```
-User: /git-cleanup
-
-Claude: Let me analyze your git branches and worktrees...
-
-[Runs comprehensive analysis]
-
-## Git Cleanup Analysis
-
-### Related Branch Groups
-
-**Group: feature/api-* (4 branches)**
-| Branch | Status | Evidence |
-|--------|--------|----------|
-| feature/api | Superseded | Core work merged in PR #29 |
-| feature/api-v2 | Superseded | Improvements merged in PR #45 |
-| feature/api-refactor | Superseded | Refactor merged in PR #67 |
-| feature/api-final | Superseded | Older iteration |
-
-Recommendation: Delete all 4 - work is in main via PRs
-
----
-
-### Individual Branches
-
-**Safe to Delete (merged)**
-| Branch | Merged Into |
-|--------|-------------|
-| fix/typo | main |
-
-**Keep (active work)**
-| Branch | Status |
-|--------|--------|
-| feature/new-dashboard | 3 commits ahead of origin |
-
----
-
-**Summary:** 4 related branches to delete, 1 merged branch to delete, 1 to keep.
-
-[AskUserQuestion: Which to clean up?]
-
-User: Delete all recommended
-
-Claude: I will execute:
-
-git branch -d fix/typo
-git branch -D feature/api
-git branch -D feature/api-v2
-git branch -D feature/api-refactor
-git branch -D feature/api-final
-
-Confirm?
-
-User: yes
-
-Claude: ## Cleanup Complete
-
-### Deleted
-- fix/typo
-- feature/api
-- feature/api-v2
-- feature/api-refactor
-- feature/api-final
-
-### Remaining
-- main (current)
-- feature/new-dashboard (active work)
-```
