@@ -6,7 +6,12 @@
 
 set -euo pipefail
 
-NS="crs"
+command -v kubectl >/dev/null 2>&1 || {
+  echo "Error: kubectl not found"
+  exit 1
+}
+
+NS="${BUTTERCUP_NAMESPACE:-crs}"
 FULL=false
 [[ "${1:-}" == "--full" ]] && FULL=true
 
@@ -66,6 +71,7 @@ if [[ -n "$REDIS_POD" ]]; then
     traced_vulnerabilities_queue
     pov_reproducer_requests_queue
     pov_reproducer_responses_queue
+    orchestrator_delete_task_queue
   )
   for q in "${QUEUES[@]}"; do
     len=$(kubectl exec -n "$NS" "$REDIS_POD" -- redis-cli XLEN "$q" 2>/dev/null || echo "N/A")

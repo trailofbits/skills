@@ -6,7 +6,9 @@ description: >
   disk saturation, DinD issues, or any service misbehavior in the crs namespace.
   Covers triage, log analysis, queue inspection, and common failure patterns
   for: redis, fuzzer-bot, coverage-bot, seed-gen, patcher, build-bot, scheduler,
-  task-server, program-model, litellm, dind, tracer-bot, merger-bot.
+  task-server, task-downloader, program-model, litellm, dind, tracer-bot,
+  merger-bot, competition-api, pov-reproducer, scratch-cleaner, registry-cache,
+  image-preloader, ui.
 ---
 
 # Debug Buttercup
@@ -35,10 +37,11 @@ All pods run in namespace `crs`. Key services:
 
 | Layer | Services |
 |-------|----------|
-| Infra | redis, dind, litellm |
-| Orchestration | scheduler, task-server, task-downloader |
+| Infra | redis, dind, litellm, registry-cache |
+| Orchestration | scheduler, task-server, task-downloader, scratch-cleaner |
 | Fuzzing | build-bot, fuzzer-bot, coverage-bot, tracer-bot, merger-bot |
-| Analysis | patcher, seed-gen, program-model |
+| Analysis | patcher, seed-gen, program-model, pov-reproducer |
+| Interface | competition-api, ui |
 
 ## Triage Workflow
 
@@ -167,6 +170,7 @@ Buttercup uses Redis streams with consumer groups. Queue names:
 | Traced Vulns | traced_vulnerabilities_queue |
 | POV Requests | pov_reproducer_requests_queue |
 | POV Responses | pov_reproducer_responses_queue |
+| Delete Task | orchestrator_delete_task_queue |
 
 ```bash
 # Check stream length (pending messages)
@@ -200,6 +204,20 @@ kubectl exec -n crs <pod> -- cat /tmp/health_check_alive
 ```
 
 If a pod is restart-looping, the health check file is likely going stale because the main process is blocked (e.g. waiting on Redis, stuck on I/O).
+
+## Telemetry (OpenTelemetry / Signoz)
+
+All services export traces and metrics via OpenTelemetry. If Signoz is deployed (`global.signoz.deployed: true`), use its UI for distributed tracing across services.
+
+```bash
+# Check if OTEL is configured
+kubectl exec -n crs <pod> -- env | grep OTEL
+
+# Verify Signoz pods are running (if deployed)
+kubectl get pods -n platform -l app.kubernetes.io/name=signoz
+```
+
+Traces are especially useful for diagnosing slow task processing, identifying which service in a pipeline is the bottleneck, and correlating events across the scheduler -> build-bot -> fuzzer-bot chain.
 
 ## Volume and Storage
 

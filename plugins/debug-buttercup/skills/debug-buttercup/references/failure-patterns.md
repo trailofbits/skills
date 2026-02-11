@@ -109,8 +109,10 @@ kubectl top pods -n crs --sort-by=memory
 ```bash
 # Check all queue depths
 for q in fuzzer_build_queue fuzzer_build_output_queue fuzzer_crash_queue \
-         confirmed_vulnerabilities_queue patches_queue index_queue \
-         tasks_ready_queue; do
+         confirmed_vulnerabilities_queue orchestrator_download_tasks_queue \
+         orchestrator_delete_task_queue tasks_ready_queue patches_queue \
+         index_queue index_output_queue traced_vulnerabilities_queue \
+         pov_reproducer_requests_queue pov_reproducer_responses_queue; do
   echo "$q: $(kubectl exec -n crs <redis-pod> -- redis-cli XLEN $q)"
 done
 

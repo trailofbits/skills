@@ -102,7 +102,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 |--------|-------------|
 | [claude-in-chrome-troubleshooting](plugins/claude-in-chrome-troubleshooting/) | Diagnose and fix Claude in Chrome MCP extension connectivity issues |
 
-### Trail of Bits Tools
+### Infrastructure
 
 | Plugin | Description |
 |--------|-------------|
