@@ -198,3 +198,7 @@ pytest test_file.py --hypothesis-show-statistics
 - **Overly constrained strategies**: If you're using multiple `assume()` calls, redesign the strategy instead
 - **Missing edge cases**: No `@example` decorators for empty, single-element, or boundary values
 - **No settings**: Missing `@settings` for CI - tests may be too slow or not thorough enough
+
+## When Tests Fail
+
+See [{baseDir}/references/interpreting-failures.md]({baseDir}/references/interpreting-failures.md) for how to interpret failures and determine if they represent genuine bugs vs test errors vs ambiguous specifications.
