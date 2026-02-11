@@ -1,0 +1,25 @@
+{
+  "description": "Intercept GitHub URL fetches and curl/wget commands, suggest gh CLI instead",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/intercept-github-fetch.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/intercept-github-curl.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}
