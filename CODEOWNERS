@@ -12,6 +12,7 @@
 /plugins/dwarf-expert/ @xintenseapple @dguido
 /plugins/entry-point-analyzer/ @nisedo @dguido
 /plugins/firebase-apk-scanner/ @nicksellier @dguido
+/plugins/gh-cli/ @Ninja3047 @dguido
 /plugins/insecure-defaults/ @dariushoule @dguido
 /plugins/modern-python/ @Ninja3047 @dguido
 /plugins/property-based-testing/ @hbrodin @dguido
