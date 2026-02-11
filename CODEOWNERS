@@ -8,6 +8,7 @@
 /plugins/burpsuite-project-parser/ @BuffaloWill @dguido
 /plugins/constant-time-analysis/ @tob-scott-a @dguido
 /plugins/differential-review/ @omarinuwa @dguido
+/plugins/debug-buttercup/ @reytchison @dguido
 /plugins/dwarf-expert/ @xintenseapple @dguido
 /plugins/entry-point-analyzer/ @nisedo @dguido
 /plugins/firebase-apk-scanner/ @nicksellier @dguido

@@ -67,6 +67,16 @@
       "source": "./plugins/culture-index"
     },
     {
+      "name": "debug-buttercup",
+      "version": "1.0.0",
+      "description": "Debug Buttercup Kubernetes deployments",
+      "author": {
+        "name": "Ronald Eytchison",
+        "email": "opensource@trailofbits.com"
+      },
+      "source": "./plugins/debug-buttercup"
+    },
+    {
       "name": "devcontainer-setup",
       "version": "0.1.0",
       "description": "Create pre-configured devcontainers with Claude Code and language-specific tooling",

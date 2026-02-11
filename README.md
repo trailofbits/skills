@@ -102,6 +102,12 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 |--------|-------------|
 | [claude-in-chrome-troubleshooting](plugins/claude-in-chrome-troubleshooting/) | Diagnose and fix Claude in Chrome MCP extension connectivity issues |
 
+### Infrastructure
+
+| Plugin | Description |
+|--------|-------------|
+| [debug-buttercup](plugins/debug-buttercup/) | Debug [Buttercup](https://github.com/trailofbits/buttercup) Kubernetes deployments |
+
 ## Trophy Case
 
 Bugs discovered using Trail of Bits Skills. Found something? [Let us know!](https://github.com/trailofbits/skills/issues/new?template=trophy-case.yml)
