@@ -1,7 +1,7 @@
 {
   "name": "insecure-defaults",
   "version": "1.0.0",
-  "description": "Detects and verifies insecure default configurations",
+  "description": "Detects insecure default configurations including hardcoded credentials, fallback secrets, weak authentication defaults, and dangerous values in production",
   "author": {
     "name": "Trail of Bits",
     "email": "opensource@trailofbits.com",

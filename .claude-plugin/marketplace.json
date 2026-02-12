@@ -12,7 +12,7 @@
     {
       "name": "ask-questions-if-underspecified",
       "version": "1.0.1",
-      "description": "Clarify requirements before implementing. Do not use automatically, only when invoked explicitly.",
+      "description": "Clarify ambiguous requirements by asking questions before implementing. Only when invoked explicitly.",
       "author": {
         "name": "Kevin Valerio",
         "email": "opensource@trailofbits.com",
@@ -41,7 +41,7 @@
     {
       "name": "burpsuite-project-parser",
       "version": "1.0.0",
-      "description": "Search and extract data from Burp Suite project files (.burp) directly from the command line for use in Claude",
+      "description": "Search and extract data from Burp Suite project files (.burp) for security analysis",
       "author": {
         "name": "Will Vandevanter"
       },
@@ -235,7 +235,7 @@
     {
       "name": "insecure-defaults",
       "version": "1.0.0",
-      "description": "Detects and verifies insecure default configurations",
+      "description": "Detects insecure default configurations including hardcoded credentials, fallback secrets, weak authentication defaults, and dangerous values in production",
       "author": {
         "name": "Trail of Bits",
         "email": "opensource@trailofbits.com",
