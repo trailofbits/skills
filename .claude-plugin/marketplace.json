@@ -105,6 +105,17 @@
       "source": "./plugins/firebase-apk-scanner"
     },
     {
+      "name": "gh-cli",
+      "version": "1.0.0",
+      "description": "Intercepts GitHub URL fetches and curl/wget commands, redirecting to the authenticated gh CLI. Includes gh CLI usage guidance.",
+      "author": {
+        "name": "William Tan",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/gh-cli"
+    },
+    {
       "name": "fix-review",
       "description": "Verify fix commits address audit findings without introducing bugs",
       "version": "0.1.0",

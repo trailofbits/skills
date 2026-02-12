@@ -16,6 +16,7 @@
 /plugins/entry-point-analyzer/ @nisedo @dguido
 /plugins/firebase-apk-scanner/ @nicksellier @dguido
 /plugins/fix-review/ @dguido
+/plugins/gh-cli/ @Ninja3047 @dguido
 /plugins/git-cleanup/ @hbrodin @dguido
 /plugins/insecure-defaults/ @dariushoule @dguido
 /plugins/modern-python/ @Ninja3047 @dguido
