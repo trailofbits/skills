@@ -61,9 +61,17 @@ case "$host" in
     if [[ -z "$path" ]] || ! [[ $path =~ / ]]; then
       exit 0
     fi
-    # github.com/{owner}/{repo}/blob/... -> suggest gh api or Read
-    if [[ $path =~ ^([^/]+)/([^/]+)/blob/ ]]; then
+    # Match specific resource patterns before the generic {owner}/{repo} catch-all
+    if [[ $path =~ ^([^/]+)/([^/]+)/pull/([0-9]+) ]]; then
+      suggestion="Use \`gh pr view ${BASH_REMATCH[3]} --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
+    elif [[ $path =~ ^([^/]+)/([^/]+)/issues/([0-9]+) ]]; then
+      suggestion="Use \`gh issue view ${BASH_REMATCH[3]} --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
+    elif [[ $path =~ ^([^/]+)/([^/]+)/releases/download/ ]]; then
+      suggestion="Use \`gh release download --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
+    elif [[ $path =~ ^([^/]+)/([^/]+)/blob/ ]]; then
       suggestion="Use \`gh api repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/contents/...\` or clone and use Read tool instead"
+    elif [[ $path =~ ^([^/]+)/([^/]+)/tree/([^/]+)/(.*) ]]; then
+      suggestion="Use \`gh api repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/contents/${BASH_REMATCH[4]}?ref=${BASH_REMATCH[3]}\` instead"
     elif [[ $path =~ ^([^/]+)/([^/]+) ]]; then
       suggestion="Use \`gh repo view ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
     else
