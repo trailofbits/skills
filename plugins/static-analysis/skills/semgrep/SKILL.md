@@ -241,6 +241,8 @@ Present plan to user with **explicit ruleset listing**:
 - Spawn 3 parallel scan Tasks (Python, JavaScript, Docker)
 - Total rulesets: 9
 - [If Pro] Cross-file taint tracking enabled
+- Scan agent: `static-analysis:semgrep-scanner`
+- Triage agent: `static-analysis:semgrep-triager`
 
 **Want to modify rulesets?** Tell me which to add or remove.
 **Ready to scan?** Say "proceed" or "yes".
@@ -282,6 +284,7 @@ Before marking Step 3 complete, verify:
 - [ ] User given opportunity to modify rulesets
 - [ ] User explicitly approved (quote their confirmation)
 - [ ] **Final ruleset list captured for Step 4**
+- [ ] Agent types listed: `static-analysis:semgrep-scanner` and `static-analysis:semgrep-triager`
 
 ### Step 4: Spawn Parallel Scan Tasks
 
@@ -296,7 +299,7 @@ mkdir -p "$OUTPUT_DIR"
 echo "Output directory: $OUTPUT_DIR"
 ```
 
-**Spawn N Tasks in a SINGLE message** (one per language category) using `subagent_type: semgrep-scanner`.
+**Spawn N Tasks in a SINGLE message** (one per language category) using `subagent_type: static-analysis:semgrep-scanner`.
 
 Use the scanner task prompt template from [scanner-task-prompt.md]({baseDir}/references/scanner-task-prompt.md).
 
@@ -318,7 +321,7 @@ Spawn these 3 Tasks in a SINGLE message:
 
 ### Step 5: Spawn Parallel Triage Tasks
 
-After scan Tasks complete, spawn triage Tasks using `subagent_type: semgrep-triager` (triage requires reading code context, not just running commands).
+After scan Tasks complete, spawn triage Tasks using `subagent_type: static-analysis:semgrep-triager` (triage requires reading code context, not just running commands).
 
 Use the triage task prompt template from [triage-task-prompt.md]({baseDir}/references/triage-task-prompt.md).
 
@@ -402,10 +405,10 @@ This plugin provides two specialized agents for the scan and triage phases:
 
 | Agent | Tools | Purpose |
 |-------|-------|---------|
-| `semgrep-scanner` | Bash | Executes parallel semgrep scans for a language category |
-| `semgrep-triager` | Read, Grep, Glob, Write | Classifies findings as true/false positives by reading source context |
+| `static-analysis:semgrep-scanner` | Bash | Executes parallel semgrep scans for a language category |
+| `static-analysis:semgrep-triager` | Read, Grep, Glob, Write | Classifies findings as true/false positives by reading source context |
 
-Use `subagent_type: semgrep-scanner` in Step 4 and `subagent_type: semgrep-triager` in Step 5 when spawning Task subagents.
+Use `subagent_type: static-analysis:semgrep-scanner` in Step 4 and `subagent_type: static-analysis:semgrep-triager` in Step 5 when spawning Task subagents.
 
 ## Rationalizations to Reject
 
