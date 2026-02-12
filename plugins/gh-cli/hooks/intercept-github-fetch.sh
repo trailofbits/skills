@@ -56,6 +56,11 @@ case "$host" in
     suggestion="Use \`gh gist view\` instead"
     ;;
   github.com)
+    # Skip non-repo paths (single-segment paths are site pages, not repos)
+    # e.g. github.com/settings, github.com/notifications, github.com/login
+    if [[ -z "$path" ]] || ! [[ $path =~ / ]]; then
+      exit 0
+    fi
     # github.com/{owner}/{repo}/blob/... -> suggest gh api or Read
     if [[ $path =~ ^([^/]+)/([^/]+)/blob/ ]]; then
       suggestion="Use \`gh api repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/contents/...\` or clone and use Read tool instead"

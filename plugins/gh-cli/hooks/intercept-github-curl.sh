@@ -38,12 +38,16 @@ elif [[ $cmd =~ api\.github\.com/repos/([^/]+)/([^/]+)/pulls ]]; then
   suggestion="Use \`gh pr list --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
 elif [[ $cmd =~ api\.github\.com/repos/([^/]+)/([^/]+)/issues ]]; then
   suggestion="Use \`gh issue list --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
+elif [[ $cmd =~ api\.github\.com/repos/([^/]+)/([^/]+)/actions ]]; then
+  suggestion="Use \`gh run list --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
 elif [[ $cmd =~ api\.github\.com/([^[:space:]\"\']+) ]]; then
   suggestion="Use \`gh api ${BASH_REMATCH[1]}\` instead"
 elif [[ $cmd =~ github\.com/([^/]+)/([^/]+)/archive/ ]]; then
   suggestion="Use \`gh release download --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
 elif [[ $cmd =~ raw\.githubusercontent\.com/([^/]+)/([^/]+)/[^/]+/([^[:space:]\"\']+) ]]; then
   suggestion="Use \`gh api repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/contents/${BASH_REMATCH[3]}\` instead"
+elif [[ $cmd =~ gist\.github\.com/ ]]; then
+  suggestion="Use \`gh gist view\` instead"
 fi
 
 jq -n --arg reason "${suggestion}. The gh CLI uses your authenticated GitHub token and works with private repos." \

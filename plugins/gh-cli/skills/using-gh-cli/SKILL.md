@@ -4,7 +4,6 @@ description: "Guides usage of the GitHub CLI (gh) for interacting with GitHub re
 allowed-tools:
   - Bash
   - Read
-  - Grep
 ---
 
 # Using the GitHub CLI (`gh`)

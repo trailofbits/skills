@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test helper functions for prefer-gh-cli BATS tests
+# Test helper functions for gh-cli BATS tests
 # shellcheck disable=SC2154  # status/output are BATS-provided variables
 # shellcheck disable=SC2016  # Single quotes for jq filter are intentional
 
