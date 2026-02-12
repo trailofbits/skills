@@ -151,9 +151,9 @@ Generate one report per finding:
 
 ## Working with the Codebase
 
-- Use `{baseDir}/plugins/differential-review/skills/differential-review/adversarial.md` for the full adversarial methodology with examples
-- Use `{baseDir}/plugins/differential-review/skills/differential-review/patterns.md` for common vulnerability pattern reference
-- Use `{baseDir}/plugins/differential-review/skills/differential-review/methodology.md` for the broader review workflow context
+- Use `{baseDir}/skills/differential-review/adversarial.md` for the full adversarial methodology with examples
+- Use `{baseDir}/skills/differential-review/patterns.md` for common vulnerability pattern reference
+- Use `{baseDir}/skills/differential-review/methodology.md` for the broader review workflow context
 
 ## Anti-Patterns to Avoid
 
