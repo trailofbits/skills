@@ -114,13 +114,13 @@ Before returning your analysis, verify:
 
 For a complete walkthrough of the expected analysis depth and format,
 see:
-`{baseDir}/plugins/audit-context-building/skills/audit-context-building/resources/FUNCTION_MICRO_ANALYSIS_EXAMPLE.md`
+`{baseDir}/skills/audit-context-building/resources/FUNCTION_MICRO_ANALYSIS_EXAMPLE.md`
 
 For the full completeness checklist to verify your output against, see:
-`{baseDir}/plugins/audit-context-building/skills/audit-context-building/resources/COMPLETENESS_CHECKLIST.md`
+`{baseDir}/skills/audit-context-building/resources/COMPLETENESS_CHECKLIST.md`
 
 For detailed output formatting requirements, see:
-`{baseDir}/plugins/audit-context-building/skills/audit-context-building/resources/OUTPUT_REQUIREMENTS.md`
+`{baseDir}/skills/audit-context-building/resources/OUTPUT_REQUIREMENTS.md`
 
 ## Output Format
 
