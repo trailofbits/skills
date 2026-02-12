@@ -1,7 +1,7 @@
 ---
 name: semgrep-scanner
 description: "Executes semgrep CLI scans for a language category. Use when running automated static analysis scans with semgrep against a codebase."
-tools: Bash
+tools: Bash(semgrep scan:*), Bash
 ---
 
 # Semgrep Scanner Agent
