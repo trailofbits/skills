@@ -6,19 +6,26 @@
 /plugins/audit-context-building/ @omarinuwa @dguido
 /plugins/building-secure-contracts/ @omarinuwa @dguido
 /plugins/burpsuite-project-parser/ @BuffaloWill @dguido
+/plugins/claude-in-chrome-troubleshooting/ @dguido
 /plugins/constant-time-analysis/ @tob-scott-a @dguido
-/plugins/differential-review/ @omarinuwa @dguido
+/plugins/culture-index/ @dguido
 /plugins/debug-buttercup/ @reytchison @dguido
+/plugins/devcontainer-setup/ @DarkaMaul @dguido
+/plugins/differential-review/ @omarinuwa @dguido
 /plugins/dwarf-expert/ @xintenseapple @dguido
 /plugins/entry-point-analyzer/ @nisedo @dguido
 /plugins/firebase-apk-scanner/ @nicksellier @dguido
+/plugins/fix-review/ @dguido
+/plugins/git-cleanup/ @hbrodin @dguido
 /plugins/insecure-defaults/ @dariushoule @dguido
 /plugins/modern-python/ @Ninja3047 @dguido
 /plugins/property-based-testing/ @hbrodin @dguido
 /plugins/second-opinion/ @dguido
 /plugins/semgrep-rule-creator/ @ahpaleus @dguido
 /plugins/semgrep-rule-variant-creator/ @ahpaleus @dguido
+/plugins/sharp-edges/ @tob-scott-a @dguido
 /plugins/spec-to-code-compliance/ @omarinuwa @dguido
 /plugins/static-analysis/ @axelm-tob @dguido
 /plugins/testing-handbook-skills/ @GrosQuildu @dguido
 /plugins/variant-analysis/ @axelm-tob @dguido
+/plugins/yara-authoring/ @dguido

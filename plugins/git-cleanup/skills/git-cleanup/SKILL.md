@@ -1,6 +1,7 @@
 ---
 name: git-cleanup
 description: "Safely analyzes and cleans up local git branches and worktrees by categorizing them as merged, squash-merged, superseded, or active work."
+disable-model-invocation: true
 allowed-tools:
   - Bash
   - Read
