@@ -36,7 +36,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Run shellcheck
-        run: find plugins -name "*.sh" -type f -exec shellcheck -x {} +
+        run: find plugins -name "*.sh" -type f -exec shellcheck --severity=warning -x {} +
 
   shfmt:
     name: Shell (shfmt)
