@@ -1,6 +1,6 @@
 # Triage Subagent Task Prompt
 
-Use this prompt template when spawning triage Tasks in Step 5. Use `subagent_type: general-purpose`.
+Use this prompt template when spawning triage Tasks in Step 5. Use `subagent_type: semgrep-triager`.
 
 ## Template
 
