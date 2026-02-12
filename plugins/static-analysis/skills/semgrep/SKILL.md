@@ -296,7 +296,7 @@ mkdir -p "$OUTPUT_DIR"
 echo "Output directory: $OUTPUT_DIR"
 ```
 
-**Spawn N Tasks in a SINGLE message** (one per language category) using `subagent_type: Bash`.
+**Spawn N Tasks in a SINGLE message** (one per language category) using `subagent_type: semgrep-scanner`.
 
 Use the scanner task prompt template from [scanner-task-prompt.md]({baseDir}/references/scanner-task-prompt.md).
 
@@ -318,7 +318,7 @@ Spawn these 3 Tasks in a SINGLE message:
 
 ### Step 5: Spawn Parallel Triage Tasks
 
-After scan Tasks complete, spawn triage Tasks using `subagent_type: general-purpose` (triage requires reading code context, not just running commands).
+After scan Tasks complete, spawn triage Tasks using `subagent_type: semgrep-triager` (triage requires reading code context, not just running commands).
 
 Use the triage task prompt template from [triage-task-prompt.md]({baseDir}/references/triage-task-prompt.md).
 
@@ -395,6 +395,17 @@ Results written to:
 2. **Pro mode:** Cross-file analysis uses `-j 1` (single job) which is slower per ruleset, but parallel rulesets compensate
 3. Triage requires reading code context - parallelized via Tasks
 4. Some false positive patterns require human judgment
+
+## Agents
+
+This plugin provides two specialized agents for the scan and triage phases:
+
+| Agent | Type | Purpose |
+|-------|------|---------|
+| `semgrep-scanner` | Bash | Executes parallel semgrep scans for a language category |
+| `semgrep-triager` | Read, Grep, Glob, Write | Classifies findings as true/false positives by reading source context |
+
+Use `subagent_type: semgrep-scanner` in Step 4 and `subagent_type: semgrep-triager` in Step 5 when spawning Task subagents.
 
 ## Rationalizations to Reject
 
