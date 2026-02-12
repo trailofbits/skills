@@ -21,22 +21,22 @@ Normalize the spec corpus into a clean, canonical form. Preserve heading hierarc
 ### Phase 2: Spec Intent IR Extraction
 Extract ALL intended behavior into structured Spec-IR records. Each record must include `spec_excerpt`, `source_section`, `semantic_type`, `normalized_form`, and `confidence` score. Extract invariants, preconditions, postconditions, formulas, flows, security requirements, actor definitions, and edge-case behavior.
 
-See `{baseDir}/plugins/spec-to-code-compliance/skills/spec-to-code-compliance/resources/IR_EXAMPLES.md` (Example 1) for Spec-IR record format.
+See `{baseDir}/skills/spec-to-code-compliance/resources/IR_EXAMPLES.md` (Example 1) for Spec-IR record format.
 
 ### Phase 3: Code Behavior IR Extraction
 Perform structured, deterministic, line-by-line and block-by-block semantic analysis of the entire codebase. For every function, extract signature, visibility, modifiers, preconditions, state reads/writes, computations, external calls, events, postconditions, and enforced invariants.
 
-See `{baseDir}/plugins/spec-to-code-compliance/skills/spec-to-code-compliance/resources/IR_EXAMPLES.md` (Example 2) for Code-IR record format.
+See `{baseDir}/skills/spec-to-code-compliance/resources/IR_EXAMPLES.md` (Example 2) for Code-IR record format.
 
 ### Phase 4: Alignment IR (Spec-to-Code Comparison)
 For each Spec-IR item, locate related behaviors in Code-IR and generate an Alignment Record with `match_type` classification: `full_match`, `partial_match`, `mismatch`, `missing_in_code`, `code_stronger_than_spec`, or `code_weaker_than_spec`. Include reasoning traces, confidence scores, and evidence links.
 
-See `{baseDir}/plugins/spec-to-code-compliance/skills/spec-to-code-compliance/resources/IR_EXAMPLES.md` (Example 3) for Alignment record format.
+See `{baseDir}/skills/spec-to-code-compliance/resources/IR_EXAMPLES.md` (Example 3) for Alignment record format.
 
 ### Phase 5: Divergence Classification
 Classify each misalignment by severity (CRITICAL, HIGH, MEDIUM, LOW). Each finding must include evidence links, severity justification, exploitability reasoning with concrete attack scenarios and economic impact, and recommended remediation with code examples.
 
-See `{baseDir}/plugins/spec-to-code-compliance/skills/spec-to-code-compliance/resources/IR_EXAMPLES.md` (Example 4) for divergence finding format.
+See `{baseDir}/skills/spec-to-code-compliance/resources/IR_EXAMPLES.md` (Example 4) for divergence finding format.
 
 ### Phase 6: Final Audit-Grade Report
 Produce a structured compliance report with all 16 sections: Executive Summary, Documentation Sources, Spec-IR Breakdown, Code-IR Summary, Full Alignment Matrix, Divergence Findings, Missing Invariants, Incorrect Logic, Math Inconsistencies, Flow Mismatches, Access Control Drift, Undocumented Behavior, Ambiguity Hotspots, Recommended Remediations, Documentation Update Suggestions, and Final Risk Assessment.
@@ -53,9 +53,9 @@ Produce a structured compliance report with all 16 sections: Executive Summary, 
 
 ## Quality Standards
 
-Refer to `{baseDir}/plugins/spec-to-code-compliance/skills/spec-to-code-compliance/resources/OUTPUT_REQUIREMENTS.md` for IR production standards, quality thresholds, and format consistency requirements.
+Refer to `{baseDir}/skills/spec-to-code-compliance/resources/OUTPUT_REQUIREMENTS.md` for IR production standards, quality thresholds, and format consistency requirements.
 
-Before finalizing, verify against `{baseDir}/plugins/spec-to-code-compliance/skills/spec-to-code-compliance/resources/COMPLETENESS_CHECKLIST.md` to confirm all phases meet minimum standards.
+Before finalizing, verify against `{baseDir}/skills/spec-to-code-compliance/resources/COMPLETENESS_CHECKLIST.md` to confirm all phases meet minimum standards.
 
 ## Rationalizations to Reject
 

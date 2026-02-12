@@ -68,4 +68,4 @@ After all scans complete, report:
 
 For the complete scanner task prompt template with variable
 substitutions and examples, see:
-`{baseDir}/references/scanner-task-prompt.md`
+`{baseDir}/skills/semgrep/references/scanner-task-prompt.md`
