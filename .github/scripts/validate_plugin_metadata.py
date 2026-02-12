@@ -40,7 +40,11 @@ def scan_plugins_directory(plugins_dir: Path) -> set[str]:
     if not plugins_dir.is_dir():
         return set()
 
-    return {p.name for p in plugins_dir.iterdir() if p.is_dir() and not p.name.startswith(".")}
+    return {
+        p.name
+        for p in plugins_dir.iterdir()
+        if p.is_dir() and not p.name.startswith(".")
+    }
 
 
 def extract_plugins_from_changed_files(
@@ -89,7 +93,7 @@ def parse_codeowners(codeowners_path: Path) -> set[str]:
     for line in codeowners_path.read_text().splitlines():
         line = line.strip()
         if line and not line.startswith("#") and (match := pattern.match(line)):
-                plugins.add(match.group(1))
+            plugins.add(match.group(1))
 
     return plugins
 
@@ -170,7 +174,9 @@ def validate_marketplace_entry(
     expected_source = f"./plugins/{plugin_name}"
     actual_source = marketplace_entry.get("source", "")
     if actual_source != expected_source:
-        errors.append(f"marketplace.json source '{actual_source}' should be '{expected_source}'")
+        errors.append(
+            f"marketplace.json source '{actual_source}' should be '{expected_source}'"
+        )
 
     return errors
 
@@ -183,7 +189,9 @@ def validate_plugins(
     errors = []
 
     plugins_dir = repo_root / "plugins"
-    marketplace_plugins = parse_marketplace(repo_root / ".claude-plugin" / "marketplace.json")
+    marketplace_plugins = parse_marketplace(
+        repo_root / ".claude-plugin" / "marketplace.json"
+    )
     codeowners_plugins = parse_codeowners(repo_root / "CODEOWNERS")
     readme_plugins = parse_readme(repo_root / "README.md")
 
@@ -195,7 +203,9 @@ def validate_plugins(
             for msg in validate_plugin_json(plugin_path, plugin_name):
                 errors.append(ValidationError(plugin_name, msg))
 
-            for msg in validate_marketplace_entry(marketplace_plugins, plugin_path, plugin_name):
+            for msg in validate_marketplace_entry(
+                marketplace_plugins, plugin_path, plugin_name
+            ):
                 errors.append(ValidationError(plugin_name, msg))
 
             if plugin_name not in codeowners_plugins:
@@ -212,16 +222,22 @@ def validate_plugins(
                     )
                 )
             if plugin_name in codeowners_plugins:
-                errors.append(ValidationError(plugin_name, "deleted but still in CODEOWNERS"))
+                errors.append(
+                    ValidationError(plugin_name, "deleted but still in CODEOWNERS")
+                )
             if plugin_name in readme_plugins:
-                errors.append(ValidationError(plugin_name, "deleted but still in README.md"))
+                errors.append(
+                    ValidationError(plugin_name, "deleted but still in README.md")
+                )
 
     return errors
 
 
 def main() -> int:
     """Validate plugin metadata consistency."""
-    repo_root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent.parent.parent
+    repo_root = (
+        Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parent.parent.parent
+    )
 
     changed_files = os.environ.get("CHANGED_FILES", "").splitlines()
     if changed_files:
@@ -235,7 +251,9 @@ def main() -> int:
             print(f"No plugins found in {repo_root / 'plugins'}")
             return 0
 
-    print(f"Checking {len(plugins_to_check)} plugin(s): {', '.join(sorted(plugins_to_check))}")
+    print(
+        f"Checking {len(plugins_to_check)} plugin(s): {', '.join(sorted(plugins_to_check))}"
+    )
 
     errors = validate_plugins(plugins_to_check, repo_root)
 
