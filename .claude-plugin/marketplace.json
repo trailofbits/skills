@@ -12,7 +12,7 @@
     {
       "name": "ask-questions-if-underspecified",
       "version": "1.0.1",
-      "description": "Clarify requirements before implementing. When doubting, ask questions.",
+      "description": "Clarify requirements before implementing. Do not use automatically, only when invoked explicitly.",
       "author": {
         "name": "Kevin Valerio",
         "email": "opensource@trailofbits.com",
@@ -41,7 +41,7 @@
     {
       "name": "burpsuite-project-parser",
       "version": "1.0.0",
-      "description": "Search and extract data from Burp Suite project files (.burp) for use in Claude",
+      "description": "Search and extract data from Burp Suite project files (.burp) directly from the command line for use in Claude",
       "author": {
         "name": "Will Vandevanter"
       },
@@ -126,7 +126,7 @@
     },
     {
       "name": "fix-review",
-      "description": "Verify fix commits address audit findings without introducing bugs",
+      "description": "Verifies that code changes address security audit findings without introducing bugs",
       "version": "0.1.0",
       "author": {
         "name": "Trail of Bits",
@@ -245,7 +245,7 @@
     {
       "name": "insecure-defaults",
       "version": "1.0.0",
-      "description": "Detects and verifies insecure default configurations including hardcoded credentials, fallback secrets, weak authentication defaults, and dangerous configuration values that remain active in production",
+      "description": "Detects and verifies insecure default configurations",
       "author": {
         "name": "Trail of Bits",
         "email": "opensource@trailofbits.com",
@@ -255,7 +255,7 @@
     },
     {
       "name": "second-opinion",
-      "version": "1.0.0",
+      "version": "1.2.0",
       "description": "Runs code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on uncommitted changes, branch diffs, or specific commits",
       "author": {
         "name": "Dan Guido"
