@@ -1,6 +1,6 @@
 ---
 name: function-analyzer
-description: "Performs ultra-granular per-function deep analysis for security audit context building. Use when analyzing dense functions, data-flow chains, cryptographic implementations, or state machines that require detailed understanding before vulnerability hunting."
+description: "Performs ultra-granular per-function deep analysis for security audit context building. Use when analyzing dense functions, data-flow chains, cryptographic implementations, or state machines."
 tools: Read, Grep, Glob
 ---
 
@@ -25,6 +25,13 @@ a neutral structural observation.
 - Cryptographic or mathematical implementations
 - State machines and lifecycle transitions
 - Multi-module workflow paths
+
+## When NOT to Use
+
+- Vulnerability identification, exploit modeling, or fix proposals
+- High-level architecture overviews without per-function depth
+- Simple getter/setter functions that do not warrant micro-analysis
+- Tasks that require code modification (this agent is read-only)
 
 ## Per-Function Microstructure Checklist
 

@@ -263,7 +263,10 @@ Claude may spawn subagents for:
 - Complex state machines.
 - Multi-module workflow reconstruction.
 
-Use the **`function-analyzer`** agent for per-function deep analysis. It follows the full microstructure checklist, cross-function flow rules, and quality thresholds defined in this skill, and enforces the pure-context-building constraint.
+Use the **`function-analyzer`** agent for per-function deep analysis.
+It follows the full microstructure checklist, cross-function flow
+rules, and quality thresholds defined in this skill, and enforces
+the pure-context-building constraint.
 
 Subagents must:
 - Follow the same micro-first rules.
