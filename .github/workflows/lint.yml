@@ -65,5 +65,11 @@ jobs:
           sudo apt-get install -y bats
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Run hook tests
-        run: bats plugins/modern-python/hooks/*.bats
+      - name: Run bats tests
+        run: |
+          bats_files=$(find plugins -name "*.bats" -type f)
+          if [ -z "$bats_files" ]; then
+            echo "No .bats files found, skipping"
+            exit 0
+          fi
+          echo "$bats_files" | xargs bats
