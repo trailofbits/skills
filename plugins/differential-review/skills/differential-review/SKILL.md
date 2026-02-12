@@ -81,8 +81,8 @@ Phase 3: Blast Radius → Phase 4: Deep Context → Phase 5: Adversarial → Pha
 │     (Pre-Analysis + Phases 0-4: triage, code analysis, test coverage, blast radius)
 │
 ├─ Analyzing HIGH RISK change?
-│  └─ Read: adversarial.md
-│     (Phase 5: Attacker modeling, exploit scenarios, exploitability rating)
+│  ├─ Read: adversarial.md
+│  │  (Phase 5: Attacker modeling, exploit scenarios, exploitability rating)
 │  └─ Or delegate to: adversarial-modeler agent
 │     (Autonomous attacker modeling with concrete exploit scenarios)
 │

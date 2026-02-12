@@ -155,6 +155,15 @@ Generate one report per finding:
 - Use `{baseDir}/skills/differential-review/patterns.md` for common vulnerability pattern reference
 - Use `{baseDir}/skills/differential-review/methodology.md` for the broader review workflow context
 
+## When NOT to Use
+
+- **LOW or MEDIUM risk changes** -- only activate for HIGH RISK classifications
+- **Greenfield code without a baseline** -- adversarial modeling requires existing
+  invariants and trust boundaries to cross-reference against
+- **Documentation, test, or formatting changes** -- no attack surface to model
+- **When the user explicitly requests quick triage only** -- use the
+  Quick Reference in SKILL.md instead
+
 ## Anti-Patterns to Avoid
 
 - **Generic findings** without specific attack paths ("input validation could be bypassed")
