@@ -59,16 +59,16 @@ Before finalizing, verify against `{baseDir}/skills/spec-to-code-compliance/reso
 
 ## Rationalizations to Reject
 
-Do not accept these shortcuts -- they lead to missed findings:
+Do not accept these shortcuts---they lead to missed findings:
 
 | Rationalization | Why It's Wrong |
 |-----------------|----------------|
-| "Spec is clear enough" | Ambiguity hides in plain sight -- extract to IR and classify explicitly |
-| "Code obviously matches" | Obvious matches have subtle divergences -- document with evidence |
-| "I'll note this as partial match" | Partial = potential vulnerability -- investigate until full_match or mismatch |
-| "This undocumented behavior is fine" | Undocumented = untested = risky -- classify as UNDOCUMENTED CODE PATH |
-| "Low confidence is okay here" | Low confidence findings get ignored -- investigate until confidence >= 0.8 or classify as AMBIGUOUS |
-| "I'll infer what the spec meant" | Inference = hallucination -- quote exact text or mark UNDOCUMENTED |
+| "Spec is clear enough" | Ambiguity hides in plain sight---extract to IR and classify explicitly |
+| "Code obviously matches" | Obvious matches have subtle divergences---document with evidence |
+| "I'll note this as partial match" | Partial = potential vulnerability---investigate until full_match or mismatch |
+| "This undocumented behavior is fine" | Undocumented = untested = risky---classify as UNDOCUMENTED CODE PATH |
+| "Low confidence is okay here" | Low confidence findings get ignored---investigate until confidence >= 0.8 or classify as AMBIGUOUS |
+| "I'll infer what the spec meant" | Inference = hallucination---quote exact text or mark UNDOCUMENTED |
 
 ## Anti-Hallucination Requirements
 

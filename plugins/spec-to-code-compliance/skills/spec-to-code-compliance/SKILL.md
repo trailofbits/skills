@@ -350,6 +350,8 @@ Before finalizing analysis, review the [COMPLETENESS_CHECKLIST.md](resources/COM
 
 The `spec-compliance-checker` agent performs the full 7-phase specification-to-code compliance workflow autonomously. Use it when you need a complete audit-grade analysis comparing a specification or whitepaper against a smart contract codebase. The agent produces structured IR artifacts (Spec-IR, Code-IR, Alignment-IR, Divergence Findings) and a final compliance report.
 
+Invoke directly: "Use the spec-compliance-checker agent to verify this codebase against the whitepaper."
+
 ---
 
 # END OF SKILL
