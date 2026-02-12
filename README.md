@@ -67,7 +67,6 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 
 | Plugin | Description |
 |--------|-------------|
-| [fix-review](plugins/fix-review/) | Verify fix commits address audit findings without introducing bugs |
 
 ### Reverse Engineering
 

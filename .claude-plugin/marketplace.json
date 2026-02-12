@@ -116,16 +116,6 @@
       "source": "./plugins/gh-cli"
     },
     {
-      "name": "fix-review",
-      "description": "Verify fix commits address audit findings without introducing bugs",
-      "version": "0.1.0",
-      "author": {
-        "name": "Trail of Bits",
-        "email": "opensource@trailofbits.com"
-      },
-      "source": "./plugins/fix-review"
-    },
-    {
       "name": "dwarf-expert",
       "description": "Interact with and understand the DWARF debugging format",
       "version": "1.0.0",
