@@ -88,8 +88,7 @@ def parse_codeowners(codeowners_path: Path) -> set[str]:
 
     for line in codeowners_path.read_text().splitlines():
         line = line.strip()
-        if line and not line.startswith("#"):
-            if match := pattern.match(line):
+        if line and not line.startswith("#") and (match := pattern.match(line)):
                 plugins.add(match.group(1))
 
     return plugins
