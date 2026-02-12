@@ -67,12 +67,12 @@ Classify findings into these six categories:
 
 ## Severity Classification
 
-| Severity | Criteria |
-|----------|----------|
-| Critical | Default or obvious usage is insecure |
-| High | Easy misconfiguration breaks security |
-| Medium | Unusual but possible misconfiguration |
-| Low | Requires deliberate misuse |
+| Severity | Criteria | Examples |
+|----------|----------|----------|
+| Critical | Default or obvious usage is insecure | `verify: false` default; empty password allowed |
+| High | Easy misconfiguration breaks security | Algorithm parameter accepts "none" |
+| Medium | Unusual but possible misconfiguration | Negative timeout has unexpected meaning |
+| Low | Requires deliberate misuse | Obscure parameter combination |
 
 ## Language-Specific References
 
@@ -98,6 +98,8 @@ Language-specific footgun guides:
 | JavaScript/TypeScript | `{baseDir}/skills/sharp-edges/references/lang-javascript.md` |
 | Python | `{baseDir}/skills/sharp-edges/references/lang-python.md` |
 | Ruby | `{baseDir}/skills/sharp-edges/references/lang-ruby.md` |
+
+For a combined quick reference across all languages, see `{baseDir}/skills/sharp-edges/references/language-specific.md`.
 
 Read the relevant language guide(s) and any applicable cross-cutting references before reporting findings. Do not guess at language-specific behavior — verify it in the reference material.
 
