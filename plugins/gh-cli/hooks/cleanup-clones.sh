@@ -8,7 +8,15 @@ set -euo pipefail
 session_id=$(jq -r '.session_id // empty' 2>/dev/null) || exit 0
 [[ -z "$session_id" ]] && exit 0
 
-# Clean up the session-scoped clone directory
-rm -rf "${TMPDIR:-/tmp}"/gh-clones-"$session_id" 2>/dev/null
+# Validate session_id format before using in path
+if ! [[ "$session_id" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+  echo "gh-cli: invalid session_id format, skipping cleanup" >&2
+  exit 0
+fi
 
-exit 0
+# rm -rf is intentional: these are ephemeral temp clones, not user data.
+# trash(1) is inappropriate for temp directory cleanup.
+clone_dir="${TMPDIR:-/tmp}/gh-clones-${session_id}"
+if [[ -d "$clone_dir" ]]; then
+  rm -rf "$clone_dir"
+fi

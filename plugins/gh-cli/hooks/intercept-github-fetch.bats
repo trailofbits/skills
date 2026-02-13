@@ -94,6 +94,17 @@ load test_helper
   assert_suggestion_contains "gh repo clone owner/repo"
 }
 
+@test "fetch: denies github.com tree URL with clone suggestion" {
+  run_fetch_hook "https://github.com/owner/repo/tree/main/src/lib"
+  assert_deny
+  assert_suggestion_contains "gh repo clone owner/repo"
+}
+
+@test "fetch: allows github.com site pages (single segment path)" {
+  run_fetch_hook "https://github.com/settings"
+  assert_allow
+}
+
 # =============================================================================
 # Deny: api.github.com
 # =============================================================================
@@ -142,6 +153,13 @@ load test_helper
   run_fetch_hook "https://raw.githubusercontent.com/owner/repo/main/src/lib/utils.py"
   assert_deny
   assert_suggestion_contains "gh repo clone owner/repo"
+}
+
+@test "fetch: clone suggestion includes session-scoped path and shallow clone" {
+  run_fetch_hook "https://raw.githubusercontent.com/astral-sh/uv/main/README.md"
+  assert_deny
+  assert_suggestion_contains "CLAUDE_SESSION_ID"
+  assert_suggestion_contains "--depth 1"
 }
 
 # =============================================================================

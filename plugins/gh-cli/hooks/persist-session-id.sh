@@ -9,8 +9,16 @@ set -euo pipefail
 session_id=$(jq -r '.session_id // empty' 2>/dev/null) || exit 0
 [[ -z "$session_id" ]] && exit 0
 
-if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
-	echo "export CLAUDE_SESSION_ID=\"$session_id\"" >>"$CLAUDE_ENV_FILE"
+# Validate session_id is alphanumeric/hyphens/underscores to prevent shell injection
+# when the value is written into an export statement that gets sourced.
+if ! [[ "$session_id" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+  echo "gh-cli: invalid session_id format, skipping" >&2
+  exit 0
 fi
 
-exit 0
+if [[ -z "${CLAUDE_ENV_FILE:-}" ]]; then
+  echo "gh-cli: CLAUDE_ENV_FILE not set; session-scoped clones will not work" >&2
+  exit 0
+fi
+
+echo "export CLAUDE_SESSION_ID=\"$session_id\"" >>"$CLAUDE_ENV_FILE"

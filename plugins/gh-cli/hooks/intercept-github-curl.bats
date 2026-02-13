@@ -172,6 +172,12 @@ load test_helper
   assert_suggestion_contains "gh repo clone owner/repo"
 }
 
+@test "curl: denies curl to gist.github.com" {
+  run_curl_hook "curl https://gist.github.com/user/abc123"
+  assert_deny
+  assert_suggestion_contains "gh gist view"
+}
+
 # =============================================================================
 # Deny: piped curl commands
 # =============================================================================
