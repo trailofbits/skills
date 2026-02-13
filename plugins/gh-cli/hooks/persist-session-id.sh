@@ -10,7 +10,7 @@ session_id=$(jq -r '.session_id // empty' 2>/dev/null) || exit 0
 [[ -z "$session_id" ]] && exit 0
 
 if [[ -n "${CLAUDE_ENV_FILE:-}" ]]; then
-  echo "export CLAUDE_SESSION_ID=\"$session_id\"" >> "$CLAUDE_ENV_FILE"
+	echo "export CLAUDE_SESSION_ID=\"$session_id\"" >>"$CLAUDE_ENV_FILE"
 fi
 
 exit 0
