@@ -40,18 +40,15 @@ gemini -p "/code-review" \
   -m gemini-3-pro-preview
 ```
 
-For branch diffs or specific commits, pipe the diff into a
-heredoc-based prompt to avoid shell expansion issues:
+For branch diffs or specific commits, pipe the diff with a
+prompt header (avoids heredocs — diffs contain `$` and backticks
+that break shell expansion):
 
 ```bash
 git diff <branch>...HEAD > /tmp/review-diff.txt
-cat <<'PROMPT' | gemini -p - \
-  -m gemini-3-pro-preview \
-  --yolo
-Review this diff for code quality issues. <focus prompt>
-
-$(cat /tmp/review-diff.txt)
-PROMPT
+{ printf '%s\n\n' 'Review this diff for code quality issues. <focus prompt>'; \
+  cat /tmp/review-diff.txt; } \
+  | gemini -p - -m gemini-3-pro-preview --yolo
 ```
 
 ## Security Review
@@ -61,17 +58,9 @@ headless mode with a security-focused prompt instead:
 
 ```bash
 git diff HEAD > /tmp/review-diff.txt
-cat <<'PROMPT' | gemini -p - \
-  -e gemini-cli-security \
-  -m gemini-3-pro-preview \
-  --yolo
-Analyze this diff for security vulnerabilities, including
-injection, auth bypass, data exposure, and input validation
-issues. Report each finding with severity, location, and
-remediation.
-
-$(cat /tmp/review-diff.txt)
-PROMPT
+{ printf '%s\n\n' 'Analyze this diff for security vulnerabilities, including injection, auth bypass, data exposure, and input validation issues. Report each finding with severity, location, and remediation.'; \
+  cat /tmp/review-diff.txt; } \
+  | gemini -p - -e gemini-cli-security -m gemini-3-pro-preview --yolo
 ```
 
 When security focus is selected, also run dependency scanning:
@@ -89,18 +78,11 @@ If project context was requested, prepend it to the prompt:
 
 ```bash
 git diff HEAD > /tmp/review-diff.txt
-cat <<'PROMPT' | gemini -p - \
-  -m gemini-3-pro-preview \
-  --yolo
-Project conventions:
----
-<CLAUDE.md or AGENTS.md contents>
----
-
-<review instructions and focus>
-
-$(cat /tmp/review-diff.txt)
-PROMPT
+{ printf 'Project conventions:\n---\n'; \
+  cat CLAUDE.md; \
+  printf '\n---\n\n%s\n\n' '<review instructions and focus>'; \
+  cat /tmp/review-diff.txt; } \
+  | gemini -p - -m gemini-3-pro-preview --yolo
 ```
 
 ## Error Handling
