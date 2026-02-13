@@ -37,7 +37,7 @@ Modern Python tooling and best practices using uv, ruff, ty, and pytest. Based o
 
 ## Hook: Legacy Command Interception
 
-This plugin includes a `SessionStart` hook that prepends PATH shims for `python`, `pip`, and `uv`. When Claude runs a bare `python` or `pip` command, the shell resolves to the shim, which prints an error with the correct `uv` alternative and exits non-zero. `uv run` is unaffected because it prepends its managed virtualenv's `bin/` to PATH, shadowing the shims.
+This plugin includes a `SessionStart` hook that prepends PATH shims for `python`, `pip`, `pipx`, and `uv`. When Claude runs a bare `python`, `pip`, or `pipx` command, the shell resolves to the shim, which prints an error with the correct `uv` alternative and exits non-zero. `uv run` is unaffected because it prepends its managed virtualenv's `bin/` to PATH, shadowing the shims.
 
 | Intercepted Command | Suggested Alternative |
 |---------------------|----------------------|
@@ -48,6 +48,12 @@ This plugin includes a `SessionStart` hook that prepends PATH shims for `python`
 | `pip uninstall pkg` | `uv remove pkg` |
 | `pip freeze` | `uv export` |
 | `uv pip ...` | `uv add`/`uv remove`/`uv sync` |
+| `pipx install <pkg>` | `uv tool install <pkg>` |
+| `pipx run <pkg>` | `uvx <pkg>` |
+| `pipx uninstall <pkg>` | `uv tool uninstall <pkg>` |
+| `pipx upgrade <pkg>` | `uv tool upgrade <pkg>` |
+| `pipx inject <pkg> <dep>` | `uv tool install --with <dep> <pkg>` |
+| `pipx list` | `uv tool list` |
 
 Commands like `grep python`, `which python`, and `cat python.txt` work normally because `python` is a shell argument, not the command being invoked.
 
