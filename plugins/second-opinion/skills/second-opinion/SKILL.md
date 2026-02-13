@@ -46,12 +46,10 @@ codex review --commit <sha>
 
 # Gemini (code review extension)
 gemini -p "/code-review" --yolo -e code-review
-# Gemini (headless with diff — see references/ for full heredoc pattern)
+# Gemini (headless with diff — see references/ for full pattern)
 git diff HEAD > /tmp/review-diff.txt
-cat <<'PROMPT' | gemini -p - --yolo
-Review this diff...
-$(cat /tmp/review-diff.txt)
-PROMPT
+{ printf '%s\n\n' 'Review this diff for issues.'; cat /tmp/review-diff.txt; } \
+  | gemini -p - --yolo -m gemini-3-pro-preview
 ```
 
 ## Invocation
