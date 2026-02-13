@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# PATH shim for pipx — intercepts bare invocations and
+# suggests the uv tool equivalent.
+
+case "${1:-}" in
+  install)
+    echo "ERROR: Use \`uv tool install <package>\` instead of \`pipx install\`" >&2
+    ;;
+  uninstall)
+    echo "ERROR: Use \`uv tool uninstall <package>\` instead of \`pipx uninstall\`" >&2
+    ;;
+  run)
+    echo "ERROR: Use \`uvx <package>\` instead of \`pipx run\`" >&2
+    ;;
+  upgrade)
+    echo "ERROR: Use \`uv tool upgrade <package>\` instead of \`pipx upgrade\`" >&2
+    ;;
+  upgrade-all)
+    echo "ERROR: Use \`uv tool upgrade --all\` instead of \`pipx upgrade-all\`" >&2
+    ;;
+  ensurepath)
+    echo "ERROR: Use \`uv tool update-shell\` instead of \`pipx ensurepath\`" >&2
+    ;;
+  inject)
+    echo "ERROR: Use \`uv tool install --with <dep> <package>\` instead of \`pipx inject\`" >&2
+    ;;
+  list)
+    echo "ERROR: Use \`uv tool list\` instead of \`pipx list\`" >&2
+    ;;
+  *)
+    echo "ERROR: Use \`uv tool\` commands instead of \`pipx\`" >&2
+    echo "  uv tool install <package>   # install a CLI tool" >&2
+    echo "  uv tool uninstall <package> # uninstall a CLI tool" >&2
+    echo "  uvx <package>               # run a tool without installing" >&2
+    echo "  uv tool list                # list installed tools" >&2
+    ;;
+esac
+
+exit 1

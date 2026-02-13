@@ -223,7 +223,7 @@
     },
     {
       "name": "modern-python",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "description": "Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools.",
       "author": {
         "name": "William Tan",
