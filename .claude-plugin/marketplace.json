@@ -115,7 +115,7 @@
     },
     {
       "name": "gh-cli",
-      "version": "1.0.0",
+      "version": "1.3.0",
       "description": "Intercepts GitHub URL fetches and curl/wget commands, redirecting to the authenticated gh CLI. Includes gh CLI usage guidance.",
       "author": {
         "name": "William Tan",

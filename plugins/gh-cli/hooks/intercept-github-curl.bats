@@ -166,10 +166,10 @@ load test_helper
   assert_suggestion_contains "gh release download --repo owner/repo"
 }
 
-@test "curl: denies curl to raw.githubusercontent.com" {
+@test "curl: denies curl to raw.githubusercontent.com with clone suggestion" {
   run_curl_hook "curl https://raw.githubusercontent.com/owner/repo/main/README.md"
   assert_deny
-  assert_suggestion_contains "gh api repos/owner/repo/contents/README.md"
+  assert_suggestion_contains "gh repo clone owner/repo"
 }
 
 # =============================================================================

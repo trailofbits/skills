@@ -47,7 +47,7 @@ elif [[ $cmd =~ github\.com/([^/]+)/([^/]+)/releases/download/ ]]; then
 elif [[ $cmd =~ github\.com/([^/]+)/([^/]+)/archive/ ]]; then
   suggestion="Use \`gh release download --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
 elif [[ $cmd =~ raw\.githubusercontent\.com/([^/]+)/([^/]+)/[^/]+/([^[:space:]\"\']+) ]]; then
-  suggestion="Use \`gh api repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/contents/${BASH_REMATCH[3]}\` instead"
+  suggestion="Use \`gh repo clone ${BASH_REMATCH[1]}/${BASH_REMATCH[2]} \"\$TMPDIR/gh-clones-\${CLAUDE_SESSION_ID}/${BASH_REMATCH[2]}\" -- --depth 1\`, then use the Explore agent on the clone"
 elif [[ $cmd =~ gist\.github\.com/ ]]; then
   suggestion="Use \`gh gist view\` instead"
 fi

@@ -15,18 +15,22 @@ Claude Code's `WebFetch` tool and Bash `curl`/`wget` commands don't use the user
 This plugin provides:
 
 1. **PreToolUse hooks** that intercept GitHub URL access and suggest the correct `gh` CLI command
-2. **A skill** with comprehensive `gh` CLI reference documentation
+2. **A skill** with comprehensive `gh` CLI reference documentation, including clone-and-read patterns for browsing code
+3. **A SessionEnd hook** that automatically cleans up cloned repositories when the session ends
 
 ### What Gets Intercepted
 
 | Tool | Pattern | Suggestion |
 |------|---------|------------|
 | `WebFetch` | `github.com/{owner}/{repo}` | `gh repo view owner/repo` |
+| `WebFetch` | `github.com/.../blob/...` | `gh repo clone` + Read |
+| `WebFetch` | `github.com/.../tree/...` | `gh repo clone` + Read/Glob/Grep |
 | `WebFetch` | `api.github.com/repos/.../pulls` | `gh pr list` / `gh pr view` |
 | `WebFetch` | `api.github.com/repos/.../issues` | `gh issue list` / `gh issue view` |
 | `WebFetch` | `api.github.com/...` | `gh api <endpoint>` |
-| `WebFetch` | `raw.githubusercontent.com/...` | `gh api repos/.../contents/...` |
+| `WebFetch` | `raw.githubusercontent.com/...` | `gh repo clone` + Read |
 | `Bash` | `curl https://api.github.com/...` | `gh api <endpoint>` |
+| `Bash` | `curl https://raw.githubusercontent.com/...` | `gh repo clone` + Read |
 | `Bash` | `wget https://github.com/...` | `gh release download` |
 
 ### What Passes Through
@@ -36,6 +40,10 @@ This plugin provides:
 - Commands already using `gh`
 - Git commands (`git clone`, `git push`, etc.)
 - Search commands that mention GitHub URLs (`grep`, `rg`, etc.)
+
+### Automatic Cleanup
+
+Cloned repositories are stored in session-scoped temp directories (`$TMPDIR/gh-clones-<session-id>/`). A SessionEnd hook automatically removes them when the session ends, so there's no manual cleanup needed and concurrent sessions don't interfere with each other.
 
 ## Prerequisites
 
