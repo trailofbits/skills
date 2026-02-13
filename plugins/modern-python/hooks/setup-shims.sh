@@ -10,12 +10,6 @@ set -euo pipefail
 # Guard: only activate when uv is available
 command -v uv &>/dev/null || exit 0
 
-# Guard: need CLAUDE_ENV_FILE to export PATH
-if [[ -z "${CLAUDE_ENV_FILE:-}" ]]; then
-  echo "modern-python: CLAUDE_ENV_FILE not set; shims will not be activated" >&2
-  exit 0
-fi
-
 shims_dir="$(cd "$(dirname "$0")/shims" && pwd)"
 
 echo "export PATH=\"${shims_dir}:\${PATH}\"" >>"$CLAUDE_ENV_FILE"

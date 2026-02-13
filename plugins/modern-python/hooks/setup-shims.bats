@@ -36,13 +36,6 @@ teardown() {
   [[ ! -s "$CLAUDE_ENV_FILE" ]]
 }
 
-@test "warns when CLAUDE_ENV_FILE is not set" {
-  run env -u CLAUDE_ENV_FILE PATH="${FAKE_BIN}:${ORIG_PATH}" \
-    bash "$SETUP_SCRIPT"
-  [[ $status -eq 0 ]]
-  [[ "$output" == *"CLAUDE_ENV_FILE not set"* ]]
-}
-
 @test "writes PATH export to CLAUDE_ENV_FILE" {
   run env PATH="${FAKE_BIN}:${ORIG_PATH}" bash "$SETUP_SCRIPT"
   [[ $status -eq 0 ]]
