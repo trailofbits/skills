@@ -17,6 +17,12 @@ case "${1:-}" in
   upgrade)
     echo "ERROR: Use \`uv tool upgrade <package>\` instead of \`pipx upgrade\`" >&2
     ;;
+  upgrade-all)
+    echo "ERROR: Use \`uv tool upgrade --all\` instead of \`pipx upgrade-all\`" >&2
+    ;;
+  ensurepath)
+    echo "ERROR: Use \`uv tool update-shell\` instead of \`pipx ensurepath\`" >&2
+    ;;
   inject)
     echo "ERROR: Use \`uv tool install --with <dep> <package>\` instead of \`pipx inject\`" >&2
     ;;

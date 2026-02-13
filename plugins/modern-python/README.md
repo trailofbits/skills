@@ -52,6 +52,8 @@ This plugin includes a `SessionStart` hook that prepends PATH shims for `python`
 | `pipx run <pkg>` | `uvx <pkg>` |
 | `pipx uninstall <pkg>` | `uv tool uninstall <pkg>` |
 | `pipx upgrade <pkg>` | `uv tool upgrade <pkg>` |
+| `pipx upgrade-all` | `uv tool upgrade --all` |
+| `pipx ensurepath` | `uv tool update-shell` |
 | `pipx inject <pkg> <dep>` | `uv tool install --with <dep> <pkg>` |
 | `pipx list` | `uv tool list` |
 

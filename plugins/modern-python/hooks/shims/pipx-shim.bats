@@ -39,14 +39,26 @@ SHIM="${BATS_TEST_DIRNAME}/pipx"
   [[ "$output" == *"uv tool list"* ]]
 }
 
+@test "exits non-zero for pipx upgrade-all" {
+  run "$SHIM" upgrade-all
+  [[ $status -ne 0 ]]
+  [[ "$output" == *"uv tool upgrade --all"* ]]
+}
+
+@test "exits non-zero for pipx ensurepath" {
+  run "$SHIM" ensurepath
+  [[ $status -ne 0 ]]
+  [[ "$output" == *"uv tool update-shell"* ]]
+}
+
 @test "exits non-zero for bare pipx" {
   run "$SHIM"
   [[ $status -ne 0 ]]
   [[ "$output" == *"uv tool"* ]]
 }
 
-@test "exits non-zero for pipx ensurepath" {
-  run "$SHIM" ensurepath
+@test "exits non-zero for unknown pipx subcommand" {
+  run "$SHIM" completions
   [[ $status -ne 0 ]]
   [[ "$output" == *"uv tool"* ]]
 }
