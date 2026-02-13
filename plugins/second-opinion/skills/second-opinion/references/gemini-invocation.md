@@ -63,14 +63,23 @@ git diff HEAD > /tmp/review-diff.txt
   | gemini -p - -e gemini-cli-security -m gemini-3-pro-preview --yolo
 ```
 
-When security focus is selected, also run dependency scanning:
+When security focus is selected, only run the supply chain scan
+if the diff touches dependency manifest files:
 
 ```bash
-gemini -p "/security:scan-deps" \
-  --yolo \
-  -e gemini-cli-security \
-  -m gemini-3-pro-preview
+# Check whether dependency files changed before scanning
+git diff --name-only <scope> \
+  | grep -qiE '(package\.json|package-lock|yarn\.lock|pnpm-lock|Gemfile|\.gemspec|requirements\.txt|setup\.py|setup\.cfg|pyproject\.toml|poetry\.lock|uv\.lock|Cargo\.toml|Cargo\.lock|go\.mod|go\.sum|composer\.json|composer\.lock|Pipfile)' \
+  && gemini -p "/security:scan-deps" \
+       --yolo \
+       -e gemini-cli-security \
+       -m gemini-3-pro-preview
 ```
+
+Skip the scan when only non-dependency files changed. The scan
+analyzes the entire project's dependency tree regardless of diff
+scope, so it adds significant time for no value when dependencies
+weren't touched.
 
 ## Adding Project Context
 

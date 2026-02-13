@@ -146,6 +146,26 @@ If the diff is very large (>2000 lines changed), warn the user
 that high-effort reasoning on a large diff will be slow and ask
 whether to proceed or narrow the scope.
 
+## Skipping Inapplicable Checks
+
+After determining the diff scope, skip checks that don't apply
+to the files actually changed.
+
+### Dependency Scanning
+
+Only run `/security:scan-deps` when the diff touches dependency
+manifest files. Check with:
+
+```bash
+git diff --name-only <scope> \
+  | grep -qiE '(package\.json|package-lock|yarn\.lock|pnpm-lock|Gemfile|\.gemspec|requirements\.txt|setup\.py|setup\.cfg|pyproject\.toml|poetry\.lock|uv\.lock|Cargo\.toml|Cargo\.lock|go\.mod|go\.sum|composer\.json|composer\.lock|Pipfile)'
+```
+
+If no dependency files are in the diff, skip the scan even when
+security focus is selected. The scan analyzes the entire project's
+dependency tree regardless of diff scope, so it adds significant
+time for zero value when dependencies weren't touched.
+
 ## Auto-detect Default Branch
 
 For branch diff scope, detect the default branch name:
@@ -184,7 +204,9 @@ Summary:
 - Security extension name is `gemini-cli-security` (not `security`)
 - `/security:analyze` is interactive-only — use `-p` with a
   security prompt instead
-- Run `/security:scan-deps` as bonus when security focus selected
+- Run `/security:scan-deps` only when security focus is selected
+  AND the diff touches dependency manifest files (see Diff-Aware
+  Optimizations)
 - Set `timeout: 600000` on the Bash call
 
 **Scope mapping for `git diff`** (Gemini has no built-in scope flags):
