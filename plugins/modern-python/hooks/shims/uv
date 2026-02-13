@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# PATH shim for uv — intercepts `uv pip` (legacy interface) and passes
+# everything else through to the real uv binary.
+
+if [[ "${1:-}" == "pip" ]]; then
+  echo "ERROR: \`uv pip\` is the legacy interface. Use instead:" >&2
+  echo "  uv add <package>       # instead of uv pip install" >&2
+  echo "  uv remove <package>    # instead of uv pip uninstall" >&2
+  echo "  uv sync                # instead of uv pip sync" >&2
+  exit 1
+fi
+
+# Find the real uv by skipping this shim's directory in PATH
+shim_dir="$(cd "$(dirname "$0")" && pwd)"
+IFS=: read -ra path_entries <<<"${PATH:-}"
+for dir in "${path_entries[@]}"; do
+  resolved="$(cd "$dir" 2>/dev/null && pwd)" || continue
+  [[ "$resolved" == "$shim_dir" ]] && continue
+  if [[ -x "$dir/uv" ]]; then
+    exec "$dir/uv" "$@"
+  fi
+done
+
+echo "ERROR: real uv binary not found on PATH" >&2
+exit 127
