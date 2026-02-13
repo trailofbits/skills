@@ -14,9 +14,10 @@ fi
 
 # Find the real uv by skipping this shim's directory in PATH
 shim_dir="$(cd "$(dirname "$0")" && pwd)"
-IFS=: read -ra path_entries <<< "$PATH"
+IFS=: read -ra path_entries <<<"${PATH:-}"
 for dir in "${path_entries[@]}"; do
-  [[ "$dir" == "$shim_dir" ]] && continue
+  resolved="$(cd "$dir" 2>/dev/null && pwd)" || continue
+  [[ "$resolved" == "$shim_dir" ]] && continue
   if [[ -x "$dir/uv" ]]; then
     exec "$dir/uv" "$@"
   fi

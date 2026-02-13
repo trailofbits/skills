@@ -20,6 +20,12 @@ teardown() {
   rm -rf "$FAKE_BIN"
 }
 
+@test "exits silently when CLAUDE_ENV_FILE is not set" {
+  run env -u CLAUDE_ENV_FILE PATH="${FAKE_BIN}:${ORIG_PATH}" \
+    bash "$SETUP_SCRIPT"
+  [[ $status -eq 0 ]]
+}
+
 @test "exits silently when uv is not available" {
   # Remove fake uv dir from PATH; keep rest so bash/coreutils work
   local path_without_uv=""
