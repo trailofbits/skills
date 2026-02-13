@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# PATH shim for pip/pip3 — intercepts bare invocations and
+# suggests the uv equivalent.  Works for both names via $0.
+cmd="$(basename "$0")"
+
+case "${1:-}" in
+  install)
+    echo "ERROR: Use \`uv add <package>\` instead of \`$cmd install\`" >&2
+    echo "  For one-off usage without adding to project: uv run --with <package> ..." >&2
+    ;;
+  uninstall)
+    echo "ERROR: Use \`uv remove <package>\` instead of \`$cmd uninstall\`" >&2
+    ;;
+  freeze)
+    echo "ERROR: Use \`uv export\` instead of \`$cmd freeze\`" >&2
+    ;;
+  *)
+    echo "ERROR: Use \`uv\` commands instead of \`$cmd\`" >&2
+    echo "  uv add <package>       # install a dependency" >&2
+    echo "  uv remove <package>    # remove a dependency" >&2
+    echo "  uv sync                # sync environment" >&2
+    ;;
+esac
+
+exit 1
