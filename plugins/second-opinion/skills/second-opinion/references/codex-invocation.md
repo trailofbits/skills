@@ -3,7 +3,7 @@
 ## Default Configuration
 
 - Model: `gpt-5.3-codex`
-- Reasoning effort: `high`
+- Reasoning effort: `xhigh`
 
 ## Approach
 
@@ -16,7 +16,7 @@ stdout.
 ## Review Prompt
 
 Use this prompt verbatim — it is from OpenAI's [Build Code Review
-with the Codex SDK](https://cookbook.openai.com/examples/codex/build_code_review_with_codex_sdk)
+with the Codex SDK](https://developers.openai.com/cookbook/examples/codex/build_code_review_with_codex_sdk)
 cookbook, and GPT-5.2-codex and later received specific training
 on it:
 
@@ -87,7 +87,7 @@ been staged would be silently excluded. Generate the full diff:
 ```bash
 codex exec \
   -c model='"gpt-5.3-codex"' \
-  -c model_reasoning_effort='"high"' \
+  -c model_reasoning_effort='"xhigh"' \
   --sandbox read-only \
   --ephemeral \
   --output-schema {baseDir}/references/codex-review-schema.json \

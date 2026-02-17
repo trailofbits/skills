@@ -177,7 +177,7 @@ structured output schema.
 
 Summary:
 - Uses `codex exec` (not `codex review`) for headless operation
-- Model: `gpt-5.3-codex`, reasoning: `high`
+- Model: `gpt-5.3-codex`, reasoning: `xhigh`
 - Uses OpenAI's published code review prompt (fine-tuned into the model)
 - Diff is generated manually and piped via stdin with the prompt
 - `--output-schema` produces structured JSON findings
