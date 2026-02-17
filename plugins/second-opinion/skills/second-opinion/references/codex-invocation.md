@@ -8,14 +8,17 @@
 ## Approach
 
 Use `codex exec` in headless mode with the published code review
-prompt, structured JSON output, and `--output-last-message` to
-capture only the final review. This avoids the verbose `[thinking]`
-and `[exec]` blocks that `codex review` dumps to stdout.
+prompt, structured JSON output, and `-o` (`--output-last-message`)
+to capture only the final review. This avoids the verbose
+`[thinking]` and `[exec]` blocks that `codex review` dumps to
+stdout.
 
 ## Review Prompt
 
-Use this prompt verbatim — GPT-5.2-codex and later received specific
-training on it:
+Use this prompt verbatim — it is from OpenAI's [Build Code Review
+with the Codex SDK](https://cookbook.openai.com/examples/codex/build_code_review_with_codex_sdk)
+cookbook, and GPT-5.2-codex and later received specific training
+on it:
 
 ```
 You are acting as a reviewer for a proposed code change made by another engineer.
@@ -74,7 +77,7 @@ been staged would be silently excluded. Generate the full diff:
 {
   git diff HEAD
   git ls-files --others --exclude-standard | while IFS= read -r f; do
-    git diff --no-index /dev/null "$f" 2>/dev/null
+    git diff --no-index /dev/null "$f" 2>/dev/null || true
   done
 }
 ```

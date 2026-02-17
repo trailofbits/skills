@@ -41,8 +41,8 @@ tool actions its extensions request without prompting.
 ```
 # Codex (headless exec with structured JSON output)
 codex exec --sandbox read-only --ephemeral \
-  --output-schema schema.json -o "$output_file" \
-  - < "$prompt_file"
+  --output-schema codex-review-schema.json \
+  -o "$output_file" - < "$prompt_file"
 
 # Gemini (code review extension)
 gemini -p "/code-review" --yolo -e code-review

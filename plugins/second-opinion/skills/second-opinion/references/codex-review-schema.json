@@ -39,11 +39,17 @@
                   "end": {
                     "type": "integer"
                   }
-                }
+                },
+                "required": ["start", "end"],
+                "additionalProperties": false
               }
-            }
+            },
+            "required": ["file_path"],
+            "additionalProperties": false
           }
-        }
+        },
+        "required": ["title", "body", "priority"],
+        "additionalProperties": false
       }
     },
     "overall_correctness": {
@@ -57,5 +63,7 @@
       "minimum": 0,
       "maximum": 1
     }
-  }
+  },
+  "required": ["findings", "overall_correctness", "overall_confidence_score"],
+  "additionalProperties": false
 }
