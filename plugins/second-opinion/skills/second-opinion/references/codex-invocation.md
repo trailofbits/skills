@@ -29,8 +29,15 @@ Ensure that file citations and line numbers are exactly correct using the tools 
 
 ## Prompt Assembly
 
-Write a temp file (`/tmp/codex-review-prompt.md`) with these
-sections in order:
+Create temp files for the prompt and output:
+
+```bash
+prompt_file="$(mktemp)"
+output_file="$(mktemp)"
+stderr_log="$(mktemp)"
+```
+
+Write the prompt file with these sections in order:
 
 ```
 <review prompt from above>
@@ -54,9 +61,23 @@ Diff to review:
 
 | Scope | Command |
 |-------|---------|
-| Uncommitted | `git diff HEAD` |
+| Uncommitted (tracked) | `git diff HEAD` |
+| Uncommitted (untracked) | `git ls-files --others --exclude-standard` — for each file, append `git diff --no-index /dev/null <file>` |
 | Branch diff | `git diff <branch>...HEAD` |
 | Specific commit | `git diff <sha>~1..<sha>` |
+
+**Uncommitted scope must include untracked files.** `git diff HEAD`
+alone only shows changes to tracked files. New files that haven't
+been staged would be silently excluded. Generate the full diff:
+
+```bash
+{
+  git diff HEAD
+  git ls-files --others --exclude-standard | while IFS= read -r f; do
+    git diff --no-index /dev/null "$f" 2>/dev/null
+  done
+}
+```
 
 ## Base Command
 
@@ -67,12 +88,13 @@ codex exec \
   --sandbox read-only \
   --ephemeral \
   --output-schema {baseDir}/references/codex-review-schema.json \
-  -o /tmp/codex-review-output.json \
-  - < /tmp/codex-review-prompt.md \
-  > /dev/null 2>&1
+  -o "$output_file" \
+  - < "$prompt_file" \
+  > /dev/null 2>"$stderr_log"
 ```
 
-Then read `/tmp/codex-review-output.json` with the Read tool.
+Then read `$output_file` with the Read tool. If empty or missing,
+read `$stderr_log` to diagnose the failure.
 
 ## Output Format
 
@@ -87,7 +109,7 @@ The output is structured JSON matching `codex-review-schema.json`:
       "confidence_score": 0.95,
       "priority": 1,
       "code_location": {
-        "absolute_file_path": "src/main.rs",
+        "file_path": "src/main.rs",
         "line_range": { "start": 42, "end": 48 }
       }
     }
@@ -111,8 +133,8 @@ first). For each finding, show:
 
 End with the overall verdict and confidence.
 
-If the JSON file is empty or missing, fall back to reading stdout
-from the command (remove `> /dev/null 2>&1` on retry).
+If the output file is empty or missing, read `$stderr_log` to
+diagnose the failure.
 
 ## Model Fallback
 
@@ -128,4 +150,4 @@ when using Codex with a ChatGPT account"), retry with
 | Model auth error | Retry with `gpt-5.2-codex` |
 | Timeout | Suggest narrowing the diff scope |
 | `EPERM` / sandbox errors | Expected — `codex exec` runs sandboxed. Ignore these. |
-| Empty/missing output file | Re-run without `> /dev/null 2>&1` and read stdout |
+| Empty/missing output file | Read `$stderr_log` to diagnose the failure |

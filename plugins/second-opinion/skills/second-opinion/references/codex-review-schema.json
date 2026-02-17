@@ -27,7 +27,7 @@
           "code_location": {
             "type": "object",
             "properties": {
-              "absolute_file_path": {
+              "file_path": {
                 "type": "string"
               },
               "line_range": {

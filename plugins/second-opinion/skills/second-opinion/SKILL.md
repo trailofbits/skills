@@ -41,8 +41,8 @@ tool actions its extensions request without prompting.
 ```
 # Codex (headless exec with structured JSON output)
 codex exec --sandbox read-only --ephemeral \
-  --output-schema schema.json -o /tmp/codex-review-output.json \
-  - < /tmp/codex-review-prompt.md
+  --output-schema schema.json -o "$output_file" \
+  - < "$prompt_file"
 
 # Gemini (code review extension)
 gemini -p "/code-review" --yolo -e code-review
@@ -80,7 +80,7 @@ options:
 header: "Review scope"
 question: "What should be reviewed?"
 options:
-  - "Uncommitted changes" → git diff HEAD
+  - "Uncommitted changes" → git diff HEAD + untracked files
   - "Branch diff vs main" → git diff <branch>...HEAD (auto-detect default branch)
   - "Specific commit"     → git diff <sha>~1..<sha> (follow up for SHA)
 ```
@@ -124,8 +124,9 @@ selected, run only the available one).
 After collecting answers, show the diff stats:
 
 ```bash
-# For uncommitted:
+# For uncommitted (tracked + untracked):
 git diff --stat HEAD
+git ls-files --others --exclude-standard
 
 # For branch diff:
 git diff --stat <branch>...HEAD
@@ -208,7 +209,7 @@ Summary:
 
 | Scope | Diff command |
 |-------|-------------|
-| Uncommitted | `git diff HEAD` |
+| Uncommitted | `git diff HEAD` + untracked (see codex-invocation.md) |
 | Branch diff | `git diff <branch>...HEAD` |
 | Specific commit | `git diff <sha>~1..<sha>` |
 
@@ -256,7 +257,7 @@ Claude: [detects default branch = main]
 Claude: [shows diff --stat: 6 files, +103 -15]
 Claude: [assembles prompt with review instructions + CLAUDE.md + security focus + diff]
 Claude: [runs codex exec and gemini in parallel]
-Claude: [reads /tmp/codex-review-output.json, parses structured findings]
+Claude: [reads codex output file, parses structured findings]
 Claude: [presents both reviews, highlights agreements/differences]
 ```
 
