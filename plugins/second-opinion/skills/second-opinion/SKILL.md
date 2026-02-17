@@ -39,10 +39,10 @@ tool actions its extensions request without prompting.
 ## Quick Reference
 
 ```
-# Codex
-codex review --uncommitted
-codex review --base <branch>
-codex review --commit <sha>
+# Codex (headless exec with structured JSON output)
+codex exec --sandbox read-only --ephemeral \
+  --output-schema codex-review-schema.json \
+  -o "$output_file" - < "$prompt_file"
 
 # Gemini (code review extension)
 gemini -p "/code-review" --yolo -e code-review
@@ -70,7 +70,7 @@ header: "Review tool"
 question: "Which tool should run the review?"
 options:
   - "Both Codex and Gemini (Recommended)" → run both in parallel
-  - "Codex only"                          → codex review
+  - "Codex only"                          → codex exec
   - "Gemini only"                         → gemini CLI
 ```
 
@@ -80,9 +80,9 @@ options:
 header: "Review scope"
 question: "What should be reviewed?"
 options:
-  - "Uncommitted changes" → --uncommitted / git diff HEAD
-  - "Branch diff vs main" → --base (auto-detect default branch)
-  - "Specific commit"     → --commit (follow up for SHA)
+  - "Uncommitted changes" → git diff HEAD + untracked files
+  - "Branch diff vs main" → git diff <branch>...HEAD (auto-detect default branch)
+  - "Specific commit"     → git diff <sha>~1..<sha> (follow up for SHA)
 ```
 
 **Question 3 — Project context** (skip if neither CLAUDE.md nor AGENTS.md exists):
@@ -98,12 +98,6 @@ options:
   - "Yes, include it"
   - "No, standard review"
 ```
-
-**Note:** Project context only applies to Gemini and to Codex
-with `--uncommitted`. For Codex with `--base`/`--commit`, the
-positional prompt is not supported — inform the user that Codex
-will review without custom instructions in this mode (it still
-reads `AGENTS.md` if one exists in the repo).
 
 **Question 4 — Review focus** (always ask):
 
@@ -130,8 +124,9 @@ selected, run only the available one).
 After collecting answers, show the diff stats:
 
 ```bash
-# For uncommitted:
+# For uncommitted (tracked + untracked):
 git diff --stat HEAD
+git ls-files --others --exclude-standard
 
 # For branch diff:
 git diff --stat <branch>...HEAD
@@ -143,8 +138,7 @@ git diff --stat <sha>~1..<sha>
 If the diff is empty, stop and tell the user.
 
 If the diff is very large (>2000 lines changed), warn the user
-that high-effort reasoning on a large diff will be slow and ask
-whether to proceed or narrow the scope.
+and ask whether to proceed or narrow the scope.
 
 ## Skipping Inapplicable Checks
 
@@ -178,18 +172,20 @@ git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null \
 ## Codex Invocation
 
 See [references/codex-invocation.md](references/codex-invocation.md)
-for full details on command syntax, prompt passing, and model
-fallback.
+for full details on command syntax, prompt assembly, and the
+structured output schema.
 
 Summary:
+- Uses `codex exec` (not `codex review`) for headless operation
 - Model: `gpt-5.3-codex`, reasoning: `xhigh`
-- `--uncommitted` takes a positional prompt
-- `--base` and `--commit` do NOT accept custom prompts
-  (Codex reads `AGENTS.md` if present, but the skill will
-  not create one; note this limitation to the user)
+- Uses OpenAI's published code review prompt (fine-tuned into the model)
+- Diff is generated manually and piped via stdin with the prompt
+- `--output-schema` produces structured JSON findings
+- `-o` captures only the final message (no thinking/exec noise)
+- All three scopes (uncommitted, branch, commit) support project
+  context and focus instructions (no limitations)
 - Falls back to `gpt-5.2-codex` on auth errors
-- Output is verbose — summarize findings, don't dump raw
-  (see references/codex-invocation.md § Parsing Output)
+- Output is clean JSON — parse and present findings by priority
 - Set `timeout: 600000` on the Bash call
 
 ## Gemini Invocation
@@ -213,7 +209,7 @@ Summary:
 
 | Scope | Diff command |
 |-------|-------------|
-| Uncommitted | `git diff HEAD` |
+| Uncommitted | `git diff HEAD` + untracked (see codex-invocation.md) |
 | Branch diff | `git diff <branch>...HEAD` |
 | Specific commit | `git diff <sha>~1..<sha>` |
 
@@ -259,8 +255,9 @@ Claude: [asks 4 questions: tool, scope, context, focus]
 User: picks "Both", "Branch diff", "Yes include CLAUDE.md", "Security"
 Claude: [detects default branch = main]
 Claude: [shows diff --stat: 6 files, +103 -15]
-Claude: [runs Codex review with security prompt]
-Claude: [runs Gemini review with security prompt + dep scan]
+Claude: [assembles prompt with review instructions + CLAUDE.md + security focus + diff]
+Claude: [runs codex exec and gemini in parallel]
+Claude: [reads codex output file, parses structured findings]
 Claude: [presents both reviews, highlights agreements/differences]
 ```
 
@@ -271,8 +268,9 @@ Claude: [scope known: uncommitted, focus known: custom]
 Claude: [asks 2 questions: tool, project context]
 User: picks "Codex only", "No context"
 Claude: [shows diff --stat: 3 files, +45 -10]
-Claude: [runs codex review --uncommitted with prompt]
-Claude: [presents review]
+Claude: [writes prompt file with review instructions + diff]
+Claude: [runs codex exec, reads structured JSON output]
+Claude: [presents findings by priority with file:line refs]
 ```
 
 **Gemini only:**
@@ -290,8 +288,7 @@ Claude: [presents review]
 User: /second-opinion
 Claude: [asks questions] → user picks "Both", "Uncommitted", "General"
 Claude: [shows diff --stat: 45 files, +3200 -890]
-Claude: "Large diff (3200+ lines). High-effort reasoning will be
-  slow. Proceed, or narrow the scope?"
+Claude: "Large diff (3200+ lines). Proceed, or narrow the scope?"
 User: "proceed"
 Claude: [runs both reviews]
 ```

@@ -1,6 +1,6 @@
 {
   "name": "second-opinion",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Runs code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on uncommitted changes, branch diffs, or specific commits",
   "author": {
     "name": "Dan Guido"
