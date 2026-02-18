@@ -68,7 +68,7 @@
     },
     {
       "name": "culture-index",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Interprets Culture Index survey results for individuals and teams",
       "author": {
         "name": "Dan Guido"
