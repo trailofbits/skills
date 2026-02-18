@@ -130,4 +130,3 @@ I'll analyze areas automated tools miss:
 - Protocol assumption violations?
 
 I'll search your codebase for these patterns and flag risks
-

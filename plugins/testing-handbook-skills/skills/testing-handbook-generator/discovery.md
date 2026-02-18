@@ -254,7 +254,7 @@ Present to user in this format:
 - [ ] Cancel generation
 ```
 
-Make the actions navigable and selectable if possible using built-in tool like TodoWrite. 
+Make the actions navigable and selectable if possible using built-in tool like TodoWrite.
 
 ### 2.2 User Interaction
 

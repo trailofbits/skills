@@ -296,4 +296,3 @@ and lack of upgrade timelock. Testing needs improvement.
 
 Analysis completed using Trail of Bits Development Guidelines
 ```
-

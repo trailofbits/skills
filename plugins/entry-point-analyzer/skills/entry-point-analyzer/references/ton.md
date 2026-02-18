@@ -32,16 +32,16 @@ contract MyContract {
     receive(msg: Transfer) {
         // Handle Transfer message
     }
-    
+
     receive("increment") {
         // Handle text message
     }
-    
+
     // External receiver
     external(msg: Deploy) {
         // Handle external message
     }
-    
+
     // Bounce handler
     bounced(src: bounced<Transfer>) {
         // Handle bounced message
@@ -82,12 +82,12 @@ contract MyContract {
 ```tact
 contract Owned {
     owner: Address;
-    
+
     receive(msg: AdminAction) {
         require(sender() == self.owner, "Not owner");
         // ...
     }
-    
+
     // Using traits
     receive(msg: Transfer) {
         self.requireOwner();  // From Ownable trait
@@ -100,11 +100,11 @@ contract Owned {
 ```func
 () recv_internal(...) impure {
     int op = in_msg_body~load_uint(32);
-    
+
     ;; Public operations
     if (op == op::transfer) { return handle_transfer(); }
     if (op == op::swap) { return handle_swap(); }
-    
+
     ;; Admin operations
     if (op == op::set_fee) {
         check_owner();
