@@ -1,5 +1,5 @@
 # Writing, Modifying, or Reviewing Code That Interacts With DWARF Data.
-You may be tasked with writing, modifying, or reviewing code that handles, parses, or otherwise interacts with DWARF data. 
+You may be tasked with writing, modifying, or reviewing code that handles, parses, or otherwise interacts with DWARF data.
 
 ## General Guidelines
 - **Rely on Authoritative Sources**: For ground-truth information about DWARF sections, DIE nodes, and attributes, use web search for dwarfstd.org specifications or reference LLVM/libdwarf source code implementations.

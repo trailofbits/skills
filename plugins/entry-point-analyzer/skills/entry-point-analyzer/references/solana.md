@@ -25,7 +25,7 @@ pub fn process_instruction(
 #[program]
 mod my_program {
     use super::*;
-    
+
     // Each pub fn is an entry point
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> { }
     pub fn transfer(ctx: Context<Transfer>, amount: u64) -> Result<()> { }
@@ -49,7 +49,7 @@ mod my_program {
 pub struct AdminOnly<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
-    
+
     #[account(
         constraint = config.admin == admin.key() @ ErrorCode::Unauthorized
     )]
@@ -123,12 +123,12 @@ let ix = load_current_index_checked(&ctx.accounts.instruction_sysvar)?;
 1. **Detect Framework**:
    - Check `Cargo.toml` for `anchor-lang` → Anchor
    - Check for `entrypoint!` macro → Native
-   
+
 2. **For Anchor**:
    - Find `#[program]` module
    - Extract all `pub fn` within it
    - Parse `#[derive(Accounts)]` structs for constraints
-   
+
 3. **For Native**:
    - Find instruction enum (usually in `instruction.rs`)
    - Map variants to handler functions in `processor.rs`
