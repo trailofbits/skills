@@ -235,6 +235,6 @@ Run the Semgrep rule you created using: `semgrep --config <rule-id>.yaml <rule-i
 
 Ensure that message:
  1. Contains a short and concise explanation of the matched pattern
- 2. Has no uninterpolated metavariables (e.g., $OP, $VAR). All metavariables referenced in the message must be captured by the pattern so they interpolate to actual code. 
+ 2. Has no uninterpolated metavariables (e.g., $OP, $VAR). All metavariables referenced in the message must be captured by the pattern so they interpolate to actual code.
 
 Fix any message issues and re-run that Semgrep rule after each fix.
