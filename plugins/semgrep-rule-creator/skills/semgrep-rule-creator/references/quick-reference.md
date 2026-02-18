@@ -200,4 +200,3 @@ semgrep -f <rule-id>.yaml <rule-id>.<ext>
 2. Add sanitizers for validation functions
 3. Use `pattern-inside` to limit scope
 4. Use `metavariable-regex` to filter
-
