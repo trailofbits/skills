@@ -61,6 +61,17 @@ SKILL.md stays under 500 lines. It contains only what the LLM needs for every in
 Every workflow instruction becomes tool calls at runtime. If a workflow searches N files for M patterns, combine into one regex — not N×M calls. If a workflow spawns subagents per item, use batching — not one subagent per file. Apply the 10,000-file test: mentally run the workflow against a large repo and check that tool call count stays bounded. See [anti-patterns.md](references/anti-patterns.md) AP-18 and AP-19.
 </principle>
 
+<principle name="degrees-of-freedom">
+**Match instruction specificity to task fragility.**
+
+Not every step needs the same level of prescription. Calibrate per step:
+- **Low freedom** (exact commands, no variation): Fragile operations — database migrations, crypto, destructive actions. "Run exactly this script."
+- **Medium freedom** (pseudocode with parameters): Preferred patterns where variation is acceptable. "Use this template and customize as needed."
+- **High freedom** (heuristics and judgment): Variable tasks — code review, exploration, documentation. "Analyze the structure and suggest improvements."
+
+A skill can mix freedom levels. A security audit skill might use high freedom for the discovery phase ("explore the codebase for auth patterns") and low freedom for the reporting phase ("use exactly this severity classification table").
+</principle>
+
 </essential_principles>
 
 ## When to Use
@@ -178,8 +189,9 @@ The most common mistakes. Full catalog with before/after fixes in [anti-patterns
 | AP-17 | No concrete examples | Show input -> output for key instructions |
 | AP-18 | Cartesian product tool calls | Combine patterns into single regex, grep once, then filter |
 | AP-19 | Unbounded subagent spawning | Batch items into groups, one subagent per batch |
+| AP-20 | Description summarizes workflow | Description = triggering conditions only, never workflow steps |
 
-*AP-10 (No Default/Fallback Route) and AP-14 (Missing Tool Justification in Agents) are in the [full catalog](references/anti-patterns.md) but omitted from this quick reference.*
+*AP-10 (No Default/Fallback Route), AP-14 (Missing Tool Justification in Agents), and AP-20 (Description Summarizes Workflow) are in the [full catalog](references/anti-patterns.md). AP-20 is included in the quick reference above due to its high impact.*
 
 ## Tool Assignment Quick Reference
 
@@ -219,7 +231,7 @@ When designing workflow skills, reject these shortcuts:
 | File | Content |
 |------|---------|
 | [workflow-patterns.md](references/workflow-patterns.md) | 5 patterns with structural skeletons and examples |
-| [anti-patterns.md](references/anti-patterns.md) | 19 anti-patterns with before/after fixes |
+| [anti-patterns.md](references/anti-patterns.md) | 20 anti-patterns with before/after fixes |
 | [tool-assignment-guide.md](references/tool-assignment-guide.md) | Tool selection matrix, component comparison, subagent guidance |
 | [progressive-disclosure-guide.md](references/progressive-disclosure-guide.md) | Content splitting rules, the 500-line rule, sizing guidelines |
 

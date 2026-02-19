@@ -266,3 +266,32 @@ Report completed vs failed tasks.
 - Not checking TaskList after completing a task (missing newly unblocked work)
 - Marking tasks complete before verifying they actually succeeded
 - Using task tracking for linear workflows where it adds overhead without value
+
+---
+
+## Cross-Pattern Guidance: Feedback Loops
+
+Any pattern can incorporate a validation loop — not just a final check.
+
+**When to use:** The workflow modifies state iteratively and intermediate results can be validated.
+
+**Structure:**
+```
+Execute step → Validate → Pass? → Next step
+                       → Fail? → Fix → Re-validate
+```
+
+**Examples:**
+- TDD: write test → run → fail → write code → run → pass → refactor → run → pass
+- PR iteration: push → CI checks → fix failures → push → re-check
+- Form filling: map fields → validate mapping → fix errors → re-validate → fill
+
+**Key design decisions:**
+- Define a maximum loop count (e.g., "if 3+ attempts fail, stop and ask for help")
+- Each loop iteration must make the validation command explicit ("Run: `python validate.py`")
+- Distinguish between "fix and retry" loops (automated) and "escalate" exits (human intervention)
+
+**Common mistakes:**
+- Verification only at the end, not after each mutation
+- No loop bound, causing infinite retry spirals
+- Loop body that doesn't re-run the same validation command

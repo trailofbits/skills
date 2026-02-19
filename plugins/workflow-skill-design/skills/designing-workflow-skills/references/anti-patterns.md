@@ -46,6 +46,8 @@ description: >-
 
 The `description` controls activation. The body sections scope behavior after activation.
 
+**Format rule:** Start descriptions with triggering conditions ("Use when..."), use third-person voice ("Analyzes X" not "I analyze X"), and include specific trigger keywords. See also AP-20 for the related trap of putting workflow steps in the description.
+
 ---
 
 ### AP-2: Monolithic SKILL.md
@@ -492,3 +494,35 @@ Batch discovered files into groups of 10-20. For each batch, spawn a single Task
 ```
 
 Batch items into fixed-size groups. One subagent per batch, not one per item.
+
+---
+
+## Description Anti-Patterns
+
+### AP-20: Description Summarizes Workflow
+
+**Symptom:** The `description` field summarizes the skill's workflow steps instead of listing triggering conditions.
+
+**Why it's wrong:** Claude treats the description as an executive summary. When it contains workflow steps ("dispatches subagent per task with code review between tasks"), Claude follows the description and shortcuts past the actual SKILL.md body. A description saying "code review between tasks" caused Claude to do ONE review, even though the SKILL.md flowchart showed TWO reviews (spec compliance then code quality). When the description was changed to triggering conditions only, Claude correctly read and followed the full process.
+
+**Before:**
+```markdown
+---
+name: subagent-driven-development
+description: >-
+  Use when executing plans — dispatches subagent per task
+  with code review between tasks for quality assurance
+---
+```
+
+**After:**
+```markdown
+---
+name: subagent-driven-development
+description: >-
+  Use when executing implementation plans with independent
+  tasks in the current session
+---
+```
+
+The description should contain ONLY triggering conditions ("Use when..."), never workflow steps. Process details belong in the SKILL.md body.
