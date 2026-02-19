@@ -47,3 +47,13 @@ Inline arguments pre-fill the scope and focus, skipping redundant questions.
 ## How It Works
 
 Shells out to `codex review` and/or `gemini` CLI with high-capability model configurations. When both tools are selected (the default), runs Codex first then Gemini, presenting results side by side for comparison.
+
+## Codex MCP Tools
+
+This plugin bundles a [codex-mcp-server](https://github.com/trailofbits/codex-mcp) that auto-starts when the plugin is installed, providing three MCP tools:
+
+- **codex_ask** — ask Codex a question inline, swapping in an OpenAI model mid-session
+- **codex_exec** — send a raw prompt to Codex with full control over the input
+- **codex_review** — review a git diff for bugs, security issues, and correctness
+
+These tools work independently of the `/second-opinion` slash command. Use them when you want direct, programmatic access to Codex without the interactive prompt workflow.
