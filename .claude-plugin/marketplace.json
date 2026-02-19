@@ -273,6 +273,17 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/git-cleanup"
+    },
+    {
+      "name": "workflow-skill-design",
+      "version": "1.0.0",
+      "description": "Teaches design patterns for workflow-based Claude Code skills and provides a review agent for auditing existing skills",
+      "author": {
+        "name": "Benjamin Samuels",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/workflow-skill-design"
     }
   ]
 }

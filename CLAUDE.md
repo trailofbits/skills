@@ -4,9 +4,11 @@
 
 **Official Anthropic documentation (always check these first):**
 
-- [Claude Code Plugins](https://docs.anthropic.com/en/docs/claude-code/plugins)
-- [Agent Skills](https://docs.anthropic.com/en/docs/claude-code/skills)
-- [Best Practices](https://docs.anthropic.com/en/docs/claude-code/skills#best-practices)
+- [Claude Code Plugins](https://code.claude.com/docs/en/plugins)
+- [Agent Skills](https://code.claude.com/docs/en/skills)
+- [Best Practices](https://code.claude.com/docs/en/skills#best-practices)
+- [Skill Authoring Best Practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) — progressive disclosure, degrees of freedom, workflow checklists
+- [The Complete Guide to Building Skills](https://resources.anthropic.com/hubfs/The-Complete-Guide-to-Building-Skill-for-Claude.pdf) ([text](https://gist.github.com/liskl/269ae33835ab4bfdd6140f0beb909873)) — evaluation-driven development, iterative testing
 
 **Reference skills** - learn by example at different complexity levels:
 
@@ -20,11 +22,11 @@
 
 **Deep dives on skill authoring:**
 - [Claude Skills Deep Dive](https://leehanchung.github.io/blogs/2025/10/26/claude-skills-deep-dive/) - Comprehensive analysis of skill architecture
-- [Claude Code Skills Training](https://huggingface.co/blog/sionic-ai/claude-code-skills-training) - Practical authoring guide
 
 **Example plugins worth studying:**
 - [superpowers](https://github.com/obra/superpowers) - Advanced workflow patterns, TDD enforcement, multi-skill orchestration
 - [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) - Production plugin structure
+- [getsentry/skills](https://github.com/getsentry/skills) — Production Sentry skills; `security-review` is a standout routing + progressive disclosure example
 
 **For Claude:** Use the `claude-code-guide` subagent for plugin/skill questions - it has access to official documentation.
 
