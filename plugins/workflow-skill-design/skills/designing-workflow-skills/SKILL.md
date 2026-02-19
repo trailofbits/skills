@@ -120,6 +120,13 @@ name: kebab-case-name
 description: "Third-person description with trigger keywords — this is how Claude decides to activate the skill"
 allowed-tools:
   - [minimum tools needed]
+# Optional fields — see tool-assignment-guide.md for full reference:
+# disable-model-invocation: true    # Only user can invoke (not Claude)
+# user-invocable: false             # Only Claude can invoke (hidden from / menu)
+# context: fork                     # Run in isolated subagent context
+# agent: Explore                    # Subagent type (requires context: fork)
+# model: [model-name]               # Switch model when skill is active
+# argument-hint: "[filename]"       # Hint shown during autocomplete
 ---
 
 # Title
@@ -146,29 +153,33 @@ allowed-tools:
 [Checklist for output validation]
 ```
 
+Skills support string substitutions in their content: `$ARGUMENTS` (all args passed after `/skill-name`), `$ARGUMENTS[N]` or `$N` (positional args), `${CLAUDE_SESSION_ID}`, and `` !`command` `` (shell preprocessing — output replaces the placeholder before Claude sees it). See [tool-assignment-guide.md](references/tool-assignment-guide.md) for details.
+
 ## Anti-Pattern Quick Reference
 
 The most common mistakes. Full catalog with before/after fixes in [anti-patterns.md](references/anti-patterns.md).
 
-| # | Anti-Pattern | One-Line Fix |
-|---|-------------|-------------|
-| 1 | Missing goals/anti-goals | Add When to Use AND When NOT to Use sections |
-| 2 | Monolithic SKILL.md (>500 lines) | Split into references/ and workflows/ |
-| 3 | Reference chains (A -> B -> C) | All files one hop from SKILL.md |
-| 4 | Hardcoded paths | Use `{baseDir}` for all internal paths |
-| 5 | Broken file references | Verify every path resolves before submitting |
-| 6 | Unnumbered phases | Number every phase with entry/exit criteria |
-| 7 | Missing exit criteria | Define what "done" means for every phase |
-| 8 | No verification step | Add validation at the end of every workflow |
-| 9 | Vague routing keywords | Use distinctive keywords per workflow route |
-| 10 | Wrong tool for the job | Use Glob/Grep/Read, not Bash equivalents |
-| 11 | Overprivileged tools | Remove tools not actually used |
-| 12 | Vague subagent prompts | Specify what to analyze, look for, and return |
-| 13 | Reference dumps | Teach judgment, not raw documentation |
-| 14 | Missing rationalizations | Add "Rationalizations to Reject" for audit skills |
-| 15 | No concrete examples | Show input -> output for key instructions |
-| 16 | Cartesian product tool calls | Combine patterns into single regex, grep once, then filter |
-| 17 | Unbounded subagent spawning | Batch items into groups, one subagent per batch |
+| AP | Anti-Pattern | One-Line Fix |
+|----|-------------|-------------|
+| AP-1 | Missing goals/anti-goals | Add When to Use AND When NOT to Use sections |
+| AP-2 | Monolithic SKILL.md (>500 lines) | Split into references/ and workflows/ |
+| AP-3 | Reference chains (A -> B -> C) | All files one hop from SKILL.md |
+| AP-4 | Hardcoded paths | Use `{baseDir}` for all internal paths |
+| AP-5 | Broken file references | Verify every path resolves before submitting |
+| AP-6 | Unnumbered phases | Number every phase with entry/exit criteria |
+| AP-7 | Missing exit criteria | Define what "done" means for every phase |
+| AP-8 | No verification step | Add validation at the end of every workflow |
+| AP-9 | Vague routing keywords | Use distinctive keywords per workflow route |
+| AP-11 | Wrong tool for the job | Use Glob/Grep/Read, not Bash equivalents |
+| AP-12 | Overprivileged tools | Remove tools not actually used |
+| AP-13 | Vague subagent prompts | Specify what to analyze, look for, and return |
+| AP-15 | Reference dumps | Teach judgment, not raw documentation |
+| AP-16 | Missing rationalizations | Add "Rationalizations to Reject" for audit skills |
+| AP-17 | No concrete examples | Show input -> output for key instructions |
+| AP-18 | Cartesian product tool calls | Combine patterns into single regex, grep once, then filter |
+| AP-19 | Unbounded subagent spawning | Batch items into groups, one subagent per batch |
+
+*AP-10 (No Default/Fallback Route) and AP-14 (Missing Tool Justification in Agents) are in the [full catalog](references/anti-patterns.md) but omitted from this quick reference.*
 
 ## Tool Assignment Quick Reference
 

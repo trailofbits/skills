@@ -13,8 +13,53 @@ How to choose the right tools for skills, agents, and subagents.
 | **Subagent** | Agent spawned by another agent | Delegating subtasks within a larger workflow | Parent agent uses Task tool |
 | **Command** | User-invoked action (commands/*.md) | Explicit operations the user triggers with `/command-name` | User types the slash command |
 | **Hook** | Event-driven interceptor (hooks/) | Validating or transforming tool calls automatically | System events (PreToolUse, PostToolUse, etc.) |
+| **LSP Server** | Code intelligence provider (.lsp.json) | Language-specific completions, diagnostics, hover info | Plugin includes `.lsp.json` config |
 
 **Decision:** If the user should invoke it explicitly, make it a command. If it should trigger automatically based on context, make it a skill. If it runs autonomously to produce output, make it an agent.
+
+---
+
+## Skill Frontmatter Reference
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | No | Display name (kebab-case, max 64 chars). Defaults to directory name. |
+| `description` | Recommended | What it does and when to use it. **Controls skill activation.** |
+| `allowed-tools` | No | Tools Claude can use without asking when skill is active. |
+| `disable-model-invocation` | No | Set `true` to prevent Claude from auto-loading. User invokes with `/name`. |
+| `user-invocable` | No | Set `false` to hide from `/` menu. Claude can still invoke. |
+| `context` | No | Set `fork` to run in an isolated subagent context. Skill content becomes the subagent prompt. |
+| `agent` | No | Subagent type when `context: fork` is set (e.g., `Explore`, `Plan`). Defaults to `general-purpose`. |
+| `model` | No | Switch model when skill is active. |
+| `argument-hint` | No | Hint shown during autocomplete (e.g., `[issue-number]`). |
+| `hooks` | No | Lifecycle-scoped hooks for this skill. |
+
+**Invocation control:**
+
+| Setting | User can invoke | Claude can invoke | Description in context |
+|---------|----------------|-------------------|----------------------|
+| (default) | Yes | Yes | Yes |
+| `disable-model-invocation: true` | Yes | No | No |
+| `user-invocable: false` | No | Yes | Yes |
+
+---
+
+## String Substitutions
+
+Skill content supports dynamic values at invocation time:
+
+| Variable | Description |
+|----------|-------------|
+| `$ARGUMENTS` | All arguments passed after `/skill-name`. Appended as `ARGUMENTS: <value>` if placeholder absent. |
+| `$ARGUMENTS[N]` | Specific argument by 0-based index. |
+| `$N` | Shorthand for `$ARGUMENTS[N]` (e.g., `$0`, `$1`). |
+| `${CLAUDE_SESSION_ID}` | Current session ID. |
+| `` !`command` `` | Shell preprocessing. Command runs before Claude sees the content; output replaces the placeholder. |
+
+**Design implications:**
+- Use `$ARGUMENTS` when the skill accepts free-form input (file paths, issue numbers)
+- Use positional args (`$0`, `$1`) when the skill expects structured input (e.g., `/migrate-component SearchBar React Vue`)
+- Use `` !`command` `` to inject live context (git status, PR diff) — pairs well with `context: fork`
 
 ---
 
@@ -160,6 +205,17 @@ Return a pass/fail checklist with details for each failure.
 ```
 Review the skill and tell me if it's good.
 ```
+
+### Skills with `context: fork`
+
+A skill with `context: fork` runs its content as a subagent prompt in isolation (no conversation history). This differs from spawning subagents via the Task tool:
+
+| Approach | System prompt | Task prompt | Use when |
+|----------|--------------|-------------|----------|
+| Skill + `context: fork` | From `agent` field type | SKILL.md content | Self-contained actions needing isolation (deploy, research, review) |
+| Task tool subagent | Subagent's definition | Parent's delegation message | Dynamic delegation within a workflow |
+
+**Design rule:** If the skill represents one action the user triggers directly, use `context: fork`. If a workflow needs to delegate variable subtasks at runtime, use the Task tool.
 
 ---
 

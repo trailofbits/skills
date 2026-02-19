@@ -4,9 +4,9 @@
 
 **Official Anthropic documentation (always check these first):**
 
-- [Claude Code Plugins](https://docs.anthropic.com/en/docs/claude-code/plugins)
-- [Agent Skills](https://docs.anthropic.com/en/docs/claude-code/skills)
-- [Best Practices](https://docs.anthropic.com/en/docs/claude-code/skills#best-practices)
+- [Claude Code Plugins](https://code.claude.com/docs/en/plugins)
+- [Agent Skills](https://code.claude.com/docs/en/skills)
+- [Best Practices](https://code.claude.com/docs/en/skills#best-practices)
 
 **Reference skills** - learn by example at different complexity levels:
 

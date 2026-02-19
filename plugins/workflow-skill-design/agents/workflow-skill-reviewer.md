@@ -48,6 +48,15 @@ Execute these 6 phases in order. Do not skip any phase.
 
 3. Build a file inventory with paths and line counts.
 
+4. Use TodoWrite to create a phase progress tracker:
+   - [ ] Phase 1: Discovery
+   - [ ] Phase 2: Structural Analysis
+   - [ ] Phase 3: Workflow Pattern Analysis
+   - [ ] Phase 4: Content Quality Analysis
+   - [ ] Phase 5: Tool Assignment Analysis
+   - [ ] Phase 6: Anti-Pattern Scan
+   Mark Phase 1 complete.
+
 **Exit:** Complete file inventory. All files read.
 
 ### Phase 2: Structural Analysis
@@ -55,6 +64,8 @@ Execute these 6 phases in order. Do not skip any phase.
 **Entry:** Phase 1 complete.
 
 **Actions:**
+
+0. Update phase progress via TodoWrite — mark this phase in-progress.
 
 Check each item and record pass/fail:
 
@@ -74,6 +85,8 @@ Check each item and record pass/fail:
 **Entry:** Phase 2 complete.
 
 **Actions:**
+
+0. Update phase progress via TodoWrite — mark this phase in-progress.
 
 1. **Identify the pattern** used (routing, sequential pipeline, linear progression, safety gate, task-driven, or none/unclear).
 
@@ -119,6 +132,8 @@ Check each item and record pass/fail:
 
 **Actions:**
 
+0. Update phase progress via TodoWrite — mark this phase in-progress.
+
 Check each item:
 
 1. **When to Use** — Present, 4+ specific scenarios (scopes behavior after activation, does not affect triggering)
@@ -139,6 +154,8 @@ Check each item:
 **Entry:** Phase 4 complete.
 
 **Actions:**
+
+0. Update phase progress via TodoWrite — mark this phase in-progress.
 
 1. **Extract declared tools** from frontmatter (`allowed-tools` or `tools`).
 
@@ -163,6 +180,8 @@ Check each item:
 **Entry:** Phase 5 complete.
 
 **Actions:**
+
+0. Update phase progress via TodoWrite — mark this phase in-progress.
 
 Scan for these specific anti-patterns:
 
