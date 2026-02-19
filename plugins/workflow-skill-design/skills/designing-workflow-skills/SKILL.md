@@ -164,7 +164,7 @@ allowed-tools:
 [Checklist for output validation]
 ```
 
-Skills support string substitutions in their content: `$ARGUMENTS` (all args passed after `/skill-name`), `$ARGUMENTS[N]` or `$N` (positional args), `${CLAUDE_SESSION_ID}`, and `` !`command` `` (shell preprocessing — output replaces the placeholder before Claude sees it). See [tool-assignment-guide.md](references/tool-assignment-guide.md) for details.
+Skills support string substitutions in their content. The skill loader processes these before Claude sees the file, so do not use the raw syntax in documentation text — it will be interpreted literally. Substitution types: dollar-prefixed variables for arguments and session ID, and exclamation-backtick syntax for shell preprocessing (command output replaces the placeholder). See [tool-assignment-guide.md](references/tool-assignment-guide.md) for the full variable reference and usage guidance.
 
 ## Anti-Pattern Quick Reference
 
