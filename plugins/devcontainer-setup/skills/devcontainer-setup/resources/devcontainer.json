@@ -63,6 +63,7 @@
     "PYTHONDONTWRITEBYTECODE": "1",
     "PIP_DISABLE_PIP_VERSION_CHECK": "1"
   },
+  "initializeCommand": "test -f \"$HOME/.gitconfig\" || touch \"$HOME/.gitconfig\"",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
   "postCreateCommand": "uv run --no-project /opt/post_install.py"

@@ -76,7 +76,8 @@ ENV PATH="/home/vscode/.local/bin:$PATH"
 # Install Claude Code natively with marketplace plugins
 RUN curl -fsSL https://claude.ai/install.sh | bash && \
   claude plugin marketplace add anthropics/skills && \
-  claude plugin marketplace add trailofbits/skills
+  claude plugin marketplace add trailofbits/skills && \
+  claude plugin marketplace add trailofbits/skills-curated
 
 # Install Python 3.13 via uv (fast binary download, not source compilation)
 RUN uv python install 3.13 --default
