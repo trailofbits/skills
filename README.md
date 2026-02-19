@@ -43,6 +43,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [audit-context-building](plugins/audit-context-building/) | Build deep architectural context through ultra-granular code analysis |
 | [burpsuite-project-parser](plugins/burpsuite-project-parser/) | Search and extract data from Burp Suite project files |
 | [differential-review](plugins/differential-review/) | Security-focused differential review of code changes with git history analysis |
+| [http-fuzz](plugins/http-fuzz/) | Smart HTTP fuzzing with agent-driven semantic input generation and anomaly detection |
 | [insecure-defaults](plugins/insecure-defaults/) | Detect insecure default configurations, hardcoded credentials, and fail-open security patterns |
 | [semgrep-rule-creator](plugins/semgrep-rule-creator/) | Create and refine Semgrep rules for custom vulnerability detection |
 | [semgrep-rule-variant-creator](plugins/semgrep-rule-variant-creator/) | Port existing Semgrep rules to new target languages with test-driven validation |

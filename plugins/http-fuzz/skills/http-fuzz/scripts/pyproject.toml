@@ -1,0 +1,15 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "http-fuzz"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["requests>=2.31", "urllib3>=2.0"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]

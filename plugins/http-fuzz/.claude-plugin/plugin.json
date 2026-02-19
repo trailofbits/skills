@@ -1,0 +1,10 @@
+{
+  "name": "http-fuzz",
+  "version": "0.1.0",
+  "description": "Smart HTTP request fuzzing with agent-driven semantic input generation and anomaly detection",
+  "author": {
+    "name": "Darius Houle & Graham Sutherland",
+    "email": "opensource@trailofbits.com",
+    "url": "https://github.com/trailofbits"
+  }
+}
