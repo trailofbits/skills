@@ -28,4 +28,5 @@
 /plugins/static-analysis/ @axelm-tob @dguido
 /plugins/testing-handbook-skills/ @GrosQuildu @dguido
 /plugins/variant-analysis/ @axelm-tob @dguido
+/plugins/workflow-skill-design/ @bsamuels453 @dguido
 /plugins/yara-authoring/ @dguido

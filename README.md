@@ -87,6 +87,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [git-cleanup](plugins/git-cleanup/) | Safely clean up git worktrees and local branches with gated confirmation workflow |
 | [modern-python](plugins/modern-python/) | Modern Python tooling and best practices with uv, ruff, and pytest |
 | [second-opinion](plugins/second-opinion/) | Run code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on changes, diffs, or commits |
+| [workflow-skill-design](plugins/workflow-skill-design/) | Design patterns for workflow-based Claude Code skills with review agent |
 
 ### Team Management
 
