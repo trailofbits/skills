@@ -1,6 +1,6 @@
 {
   "name": "workflow-skill-design",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Teaches design patterns for workflow-based Claude Code skills and provides a review agent for auditing existing skills",
   "author": {
     "name": "Benjamin Samuels",

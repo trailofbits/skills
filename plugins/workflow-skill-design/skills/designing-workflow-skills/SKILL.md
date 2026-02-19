@@ -164,7 +164,7 @@ allowed-tools:
 [Checklist for output validation]
 ```
 
-Skills support string substitutions in their content. The skill loader processes these before Claude sees the file, so do not use the raw syntax in documentation text — it will be interpreted literally. Substitution types: dollar-prefixed variables for arguments and session ID, and exclamation-backtick syntax for shell preprocessing (command output replaces the placeholder). See [tool-assignment-guide.md](references/tool-assignment-guide.md) for the full variable reference and usage guidance.
+Skills support three types of string substitutions: dollar-prefixed variables for arguments and session ID, and exclamation-backtick syntax for shell preprocessing. The skill loader processes these before Claude sees the file — even inside code fences — so never use the raw syntax in documentation text. See [tool-assignment-guide.md](references/tool-assignment-guide.md) for the full variable reference and usage guidance.
 
 ## Anti-Pattern Quick Reference
 
