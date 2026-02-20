@@ -1,15 +1,13 @@
 ---
 name: http-fuzz
 description: >
-  Performs smart, context-aware HTTP request fuzzing against a target endpoint. Accepts a raw
-  HTTP request, curl command, or HAR file; extracts all fuzz targets (query params, body params,
-  headers); generates semantically meaningful inputs per parameter using LLM reasoning (not blind
-  mutation); saves a reusable corpus; and produces a markdown report of anomalous findings with
-  explanations. Use this skill when conducting authorized API security testing, bug bounty research,
-  pre-deployment security review, or any time you need to probe an HTTP endpoint for input
-  handling bugs. Trigger when the user says "fuzz this endpoint", "test this API for injection",
-  "check how this request handles bad input", or provides a curl command/HAR file for security
-  testing.
+  Performs authorized HTTP endpoint fuzzing using semantic input generation. Accepts a raw HTTP
+  request, curl command, or HAR file; extracts fuzz targets (query params, body params, path
+  segments, headers); generates category-matched payloads using parameter names and types; and
+  produces a markdown report of anomalous findings. For OpenAPI/Swagger specs, uses the
+  openapi-to-manifest skill first. Triggers on: "fuzz this endpoint", "test this API for
+  injection", "check how this request handles bad input", user provides a curl command or HAR
+  file for security testing.
 allowed-tools:
   - Bash
   - Read
@@ -18,9 +16,9 @@ allowed-tools:
 
 # HTTP Fuzzing
 
-This skill probes an HTTP endpoint by generating contextually meaningful fuzz inputs for each
-parameter — using the names and types of parameters to create targeted test cases rather than
-random noise. A Python script handles the actual HTTP requests; you handle the reasoning.
+Probes an HTTP endpoint by generating contextually meaningful fuzz inputs for each parameter,
+using parameter names and types to create targeted test cases rather than random noise.
+A Python script handles HTTP requests; Claude handles the reasoning.
 
 ## When to Use
 
@@ -32,24 +30,24 @@ random noise. A Python script handles the actual HTTP requests; you handle the r
 
 ## When NOT to Use
 
-- A consistent baseline cannot be established (see Step 4) - fuzzing relies on detecting anomalies against a stable baseline
-- A non-HTTP target (use a different skill for TCP fuzzing, smart contract fuzzing, etc.)
-- Testing that requires protocol-level mutation (use a network fuzzing tool instead)
+- No explicit authorization to test the target
+- A consistent baseline cannot be established (see Step 4) — fuzzing relies on detecting anomalies against a stable baseline
+- Non-HTTP target — use a different skill for TCP fuzzing, smart contract fuzzing, etc.
+- Testing that requires protocol-level mutation — use a network fuzzing tool instead
+- User provides an OpenAPI/Swagger spec — use the `openapi-to-manifest` skill first, then return to Step 2 here
 
 ## Rationalizations to Reject
 
 - "It's just a staging/dev server" — staging servers often contain real data and credentials
-- "I'll only send a few requests" — fuzzing requires enough volume to be meaningful; if rate is
-  a concern, use gentle mode but still obtain authorization
-- "The endpoint looks safe, skipping the baseline" — inconsistent baselines produce noise;
-  always establish a baseline before fuzzing
+- "I'll only send a few requests" — fuzzing requires enough volume to be meaningful; obtain authorization regardless of volume
+- "The endpoint looks safe, skipping the baseline" — inconsistent baselines produce noise; always establish a baseline before fuzzing
 - "I'll skip the auth headers in the corpus to be safe" — that's correct behavior, not a shortcut
 
 ## Prerequisites
 
 - `uv` installed (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - Network access to the target
-- Explicit authorization to test the target (document it before starting)
+- Explicit authorization to test the target — confirm this with the user before starting
 
 ---
 
@@ -57,12 +55,10 @@ random noise. A Python script handles the actual HTTP requests; you handle the r
 
 ### Step 1: Parse the Input Request
 
-Detect the format (raw HTTP, curl, HAR) and extract a normalized parameter manifest.
-
-Save the input to a file first, then run:
+Save the input to a file, then run:
 
 ```bash
-# Auto-detect format
+# Auto-detect format (raw HTTP, curl, or HAR)
 uv run {baseDir}/scripts/parse_input.py --format auto request.txt > manifest.json
 
 # Or specify format explicitly
@@ -71,7 +67,7 @@ uv run {baseDir}/scripts/parse_input.py --format har --list-entries export.har
 uv run {baseDir}/scripts/parse_input.py --format har --entry 3 export.har > manifest.json
 ```
 
-Read the manifest and present the extracted parameters as a table to the user:
+Read the manifest and present the extracted parameters as a table:
 
 | Parameter | Location | Type | Value (truncated) | Fuzz? |
 |---|---|---|---|---|
@@ -79,8 +75,8 @@ Read the manifest and present the extracted parameters as a table to the user:
 | role | body (JSON) | string | member | Yes |
 | Authorization | header | string | Bearer eyJ... | **No** (auth token) |
 
-Ask the user to confirm or remove any parameters before proceeding. This is important: fuzzing
-CSRF tokens or session cookies produces noise, not findings.
+Ask the user to confirm or remove parameters before proceeding. Fuzzing CSRF tokens or session
+cookies produces noise, not findings.
 
 See `references/input-formats.md` for format-specific details and known limitations.
 
@@ -94,29 +90,15 @@ corresponding values, and write them to corpus files:
 ./corpus/<param-name>.txt   (one value per line, UTF-8, blank lines ignored)
 ```
 
-**Use the Write tool** to create each corpus file. The fuzzer reads these files directly.
+Use the Write tool to create each corpus file — the fuzzer reads them directly.
 
 Key principles:
 - Generate inputs that test what the parameter *means*, not random garbage
-- When a parameter matches multiple categories (e.g. `user_id` matches both "Numeric ID" and
-  general fuzz), include inputs from all matching categories
+- When a parameter matches multiple categories (e.g. `user_id` matches both "Numeric ID" and general fuzz), include inputs from all matching categories
 - For parameters with no category match, use the "Unmatched" fallback set from fuzz-strategies.md
-- After writing the files, summarize how many values were generated per parameter
+- Summarize how many values were generated per parameter before proceeding
 
-### Step 3: Choose Aggression Level
-
-Ask the user: **How aggressive should the fuzz be?**
-
-| Level | Threads | Delay | Use when |
-|---|---|---|---|
-| **Gentle** | 1–5 | 3000ms | Rate-limited APIs, WAFs, shared/staging environments |
-| **Moderate** | 10–20 | 500ms | Dedicated test environments, most common choice |
-| **Aggressive** | 50+ | 0ms | Isolated test environments, high-throughput APIs |
-
-Warn: aggressive mode against rate-limited APIs produces connection failures that look like
-anomalies — reduce thread count if you see many `"error": "timeout"` results.
-
-### Step 4: Establish Baseline
+### Step 3: Establish Baseline
 
 Run 5 baseline requests with the original parameter values:
 
@@ -142,6 +124,19 @@ If the user asks to proceed despite an inconsistent baseline, note this in the r
 that anomaly detection reliability will be reduced. See `references/anomaly-detection.md` for
 guidance on this case.
 
+### Step 4: Choose Aggression Level
+
+Ask the user: **How aggressive should the fuzz be?**
+
+| Level | Threads | Delay | Use when |
+|---|---|---|---|
+| **Gentle** | 1–5 | 3000ms | Rate-limited APIs, WAFs, shared/staging environments |
+| **Moderate** | 10–20 | 500ms | Dedicated test environments, most common choice |
+| **Aggressive** | 50+ | 0ms | Isolated test environments, high-throughput APIs |
+
+Note: aggressive mode against rate-limited APIs produces connection failures that look like
+anomalies. Reduce thread count if many `"error": "timeout"` results appear.
+
 ### Step 5: Run the Fuzzer
 
 ```bash
@@ -160,7 +155,7 @@ Use `--dry-run` first to preview the full request plan without sending:
 uv run {baseDir}/scripts/run_fuzz.py --manifest manifest.json --corpus-dir ./corpus --dry-run
 ```
 
-The fuzzer streams NDJSON to stdout — one result per line. Each line looks like:
+The fuzzer streams NDJSON to stdout — one result per line:
 ```json
 {"param": "email", "value": "a@b.c'--", "status_code": 500, "response_time_ms": 89,
  "content_length": 1203, "content_type": "text/html", "body_preview": "...SQL syntax...", "error": null}
@@ -189,62 +184,8 @@ Accumulate anomalies with their reason. Ignore the noise cases listed in anomaly
 
 ### Step 7: Write the Report
 
-Use the Write tool to create `./http-fuzz-report.md`:
-
-```markdown
-# HTTP Fuzz Report
-
-**Target**: <METHOD> <URL>
-**Date**: <date>
-**Aggression**: <level> (<N> threads, <MS>ms delay)
-**Parameters fuzzed**: <list> (<N> of <total>; <excluded> excluded)
-
-## Summary
-
-- Requests sent: <N>
-- Anomalies found: <N>
-- Connection failures: <N>
-- Baseline: <status> OK, median <N>ms
-
-## Anomalies
-
-| # | Parameter | Value | Status | Time (ms) | Finding |
-|---|-----------|-------|--------|-----------|---------|
-| 1 | email | `a@b.c'--` | 500 | 89 | SQL syntax in response body |
-
-### Anomaly 1: <Short Title>
-
-**Parameter**: `email`
-**Value**: `a@b.c'--`
-**Response**: 500 Internal Server Error
-**Body preview**: `...SQL syntax error near '--'...`
-
-<One sentence explaining what the anomaly indicates.>
-
-[... one section per anomaly ...]
-
-## Corpus Files
-
-Reusable corpus files were written to `./corpus/`:
-- `./corpus/email.txt` (<N> values)
-- `./corpus/role.txt` (<N> values)
-
-## Raw Evidence Appendix
-
-<details>
-<summary>Baseline responses</summary>
-
-[full baseline JSON]
-
-</details>
-
-<details>
-<summary>Full anomalous responses</summary>
-
-[full response bodies for each anomaly]
-
-</details>
-```
+Use the Write tool to create `./http-fuzz-report.md`. See `references/report-template.md` for
+the full report structure.
 
 After writing the report, tell the user its location and summarize the key findings in 2–3
 sentences.
@@ -253,6 +194,13 @@ sentences.
 
 ## Reference Files
 
-- `references/input-formats.md` — detailed parsing guide for raw HTTP, curl, and HAR formats
+- `references/input-formats.md` — parsing guide for raw HTTP, curl, and HAR formats
 - `references/fuzz-strategies.md` — semantic fuzz table: what values to generate per parameter type
 - `references/anomaly-detection.md` — signal vs noise rules; when to stop; how to write explanations
+- `references/report-template.md` — report structure and example output
+
+## Related Skills
+
+- `openapi-to-manifest` — converts an OpenAPI/Swagger spec into a fuzz manifest; invoke this
+  skill first when the user provides a spec file or URL rather than a captured request. Verify
+  the document is actually an OpenAPI or Swagger spec before invoking; if unclear, ask the user.

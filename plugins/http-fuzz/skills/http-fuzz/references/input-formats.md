@@ -3,6 +3,9 @@
 `parse_input.py` accepts three formats. Pass `--format auto` (the default) to auto-detect,
 or specify `--format raw-http`, `--format curl`, or `--format har` explicitly.
 
+**OpenAPI/Swagger specs** are handled by a separate script (`parse_openapi.py`) invoked via
+the `openapi-to-manifest` skill — see that skill for usage details.
+
 ---
 
 ## Raw HTTP Text
@@ -123,7 +126,7 @@ Index  Method  URL                                               Status
 
 ## Parsed Manifest Format
 
-All three formats produce the same normalized manifest JSON:
+All formats — including OpenAPI via `parse_openapi.py` — produce the same normalized manifest JSON:
 
 ```json
 {
