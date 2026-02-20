@@ -27,6 +27,9 @@ These strings in the response body (case-insensitive) indicate the server leaked
 - `Internal Server Error` (when paired with a body that has details, not just the HTTP status)
 - `Warning:`, `Notice:`, `Fatal error:` (PHP error prefixes)
 - `Traceback (most recent call last)` (Python tracebacks)
+- `jsonpickle`, `cannot restore`, `py/object` (Python unsafe deserialization)
+- `unserialize(): Error`, `Class '` (PHP unsafe deserialization)
+- `Could not load type`, `JsonSerializationException`, `was not resolved` (ASP.NET Json.NET `TypeNameHandling`)
 
 **Content-type change**
 The server sent JSON in the baseline but HTML in the fuzz response — or vice versa. This often

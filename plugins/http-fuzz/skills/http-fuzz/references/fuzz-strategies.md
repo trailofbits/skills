@@ -25,6 +25,7 @@ When a parameter name doesn't match any category, use the **Unmatched** fallback
 | **Amount / quantity** | `amount`, `price`, `quantity`, `count`, `total`, `balance`, `fee`, `cost`, `rate`, `limit`, `offset` | `0`, `-1`, `-0.01`, `0.001`, `2147483647`, `9999999999.99`, `"NaN"`, `"Infinity"`, `"-Infinity"`, `null`, `""`, `1e308` |
 | **Age / size / length** | `age`, `size`, `length`, `width`, `height`, `max`, `min`, `duration`, `timeout`, `retry` | `0`, `-1`, `2147483647`, `99999`, `1.5`, `"0"`, `null`, `""`, `"unlimited"` |
 | **Search / query** | `query`, `q`, `search`, `filter`, `keyword`, `term`, `s` | `""`, `*`, `%`, `_`, `' OR 1=1--`, `"; SELECT * FROM users; --`, `<script>alert(1)</script>`, `{{7*7}}`, (1000-char string), `\x00` |
+| **JSON string** | `data`, `payload`, `body`, `object`, `config`, `options`, `settings`, `params`, `args`, `input`, `value`, `json`, `*_json`, `*_data`, `*_payload` | `{}`, `[]`, `""`, `null`, `{"__proto__":{"polluted":"yes"}}`, `{"constructor":{"prototype":{"polluted":"yes"}}}`, `{"py/object":"datetime.date","year":2025,"month":1,"day":1}`, `{"$type":"System.Uri, System","UriString":"http://example.com"}`, `{"__type":"System.Object"}`, `O:8:"stdClass":0:{}`, `b:1;` |
 
 ---
 
@@ -63,7 +64,60 @@ the standard role-escalation probes.
 
 **Nested JSON bodies**: If a body param's type is `object` or `array`, include the scalar fuzz
 inputs for that top-level key (the fuzzer replaces the entire value). This catches type-confusion
-bugs where the server expects an object but receives a string.
+bugs where the server expects an object but receives a string. Also apply the **JSON string**
+category probes to object/array parameters — a field typed as an object that is internally
+re-serialized and passed to a secondary deserializer is a common unsafe deserialization pattern.
+
+**Unsafe deserialization**: When a parameter matches the **JSON string** category (or when the
+baseline value is a JSON string embedded inside a JSON string — i.e., a double-encoded value),
+generate platform-specific deserialization probes in addition to the standard inputs:
+
+- **Node.js prototype pollution** — target any endpoint backed by a deep-merge or
+  `Object.assign()` call. Include `__proto__` and `constructor.prototype` keys at the top level
+  and nested inside objects. A successful pollution attempt may show up as unexpected properties
+  reflected in subsequent responses, or as a change in response headers:
+  ```
+  {"__proto__":{"polluted":"yes"}}
+  {"constructor":{"prototype":{"polluted":"yes"}}}
+  {"a":{"b":{"__proto__":{"polluted":"yes"}}}}
+  ```
+
+- **Python (jsonpickle)** — jsonpickle uses `py/object`, `py/reduce`, and `py/function` keys to
+  instantiate arbitrary Python objects. Sending a safe known class (`datetime.date`) probes
+  whether the endpoint calls `jsonpickle.decode()`. A 500 error mentioning `jsonpickle`,
+  `cannot restore`, or an `AttributeError` referencing an unexpected module confirms the sink:
+  ```
+  {"py/object":"datetime.date","year":2025,"month":1,"day":1}
+  {"py/object":"__main__.Nonexistent"}
+  ```
+
+- **ASP.NET (Json.NET `TypeNameHandling`)** — when `TypeNameHandling` is set to any value other
+  than `None`, Json.NET resolves the `$type` key to a .NET type and instantiates it. Sending an
+  invalid type name triggers a `JsonSerializationException` with the message
+  `"Could not load type"` or `"Type specified in JSON ... was not resolved"` — either confirms
+  the vulnerable setting. Legacy `JavaScriptSerializer` uses `__type` instead:
+  ```
+  {"$type":"INVALID_TYPE_DOES_NOT_EXIST"}
+  {"$type":"System.Uri, System","UriString":"http://example.com"}
+  {"__type":"System.Object"}
+  ```
+
+- **PHP (`unserialize()` on a JSON-decoded field)** — PHP serialized strings embedded as JSON
+  string values indicate the server is calling `unserialize()` on the decoded field. `stdClass`
+  is always available; a truncated payload triggers `"unserialize(): Error at offset"` directly
+  in the response body if error reporting is on:
+  ```
+  O:8:"stdClass":0:{}
+  b:1;
+  O:1:
+  ```
+
+Classify any of the following response signals as an anomaly when these probes are used:
+- Body contains `jsonpickle`, `cannot restore`, `py/object`, `py/reduce` (Python)
+- Body contains `unserialize(): Error`, `Class 'X' not found` (PHP)
+- Body contains `Could not load type`, `JsonSerializationException`, `TypeNameHandling` (ASP.NET)
+- A subsequent baseline request shows unexpected properties or header values (Node.js pollution)
+- Response time > 5s when using `{"py/object":"time.sleep","args":[5]}` style probes (timing)
 
 **Corpus file format**: Write one value per line to `./corpus/<param-name>.txt`. Blank lines are
 ignored by the fuzzer. Values that would be JSON non-strings (numbers, booleans, null) are written
