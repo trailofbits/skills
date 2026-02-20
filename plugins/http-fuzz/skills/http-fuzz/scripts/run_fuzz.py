@@ -77,14 +77,17 @@ def _extract_preview(body: str, cfg: PreviewConfig) -> str:
     """Extract a preview string from *body* according to *cfg*.
 
     Modes (applied in this order of precedence):
-    1. fuzzy_needle — find the first occurrence of the needle, build a window of
+    1. length == 0 — return the full body (no truncation).
+    2. fuzzy_needle — find the first occurrence of the needle, build a window of
        cfg.length centred on it, snap start/end to HTML element boundaries.
-    2. offset + length — return body[offset : offset + length].
-    3. length only — return body[:length].
+    3. offset + length — return body[offset : offset + length].
+    4. length only — return body[:length].
 
     In all modes the result has internal newlines/carriage-returns collapsed to
     a single space so NDJSON output stays on one line.
     """
+    if cfg.length == 0:
+        return body.replace("\n", " ").replace("\r", "")
     if cfg.fuzzy_needle is not None:
         needle_pos = body.find(cfg.fuzzy_needle)
         if needle_pos == -1:

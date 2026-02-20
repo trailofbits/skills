@@ -456,6 +456,17 @@ class TestExtractPreviewDefault:
     def test_empty_body(self):
         assert _extract_preview("", PreviewConfig()) == ""
 
+    def test_zero_length_returns_full_body(self):
+        body = "x" * (DEFAULT_PREVIEW_LENGTH + 500)
+        result = _extract_preview(body, PreviewConfig(length=0))
+        assert result == body
+
+    def test_zero_length_collapses_newlines(self):
+        body = "line1\nline2\r\nline3"
+        result = _extract_preview(body, PreviewConfig(length=0))
+        assert "\n" not in result
+        assert "\r" not in result
+
 
 # ── _extract_preview — offset ─────────────────────────────────────────────────
 
