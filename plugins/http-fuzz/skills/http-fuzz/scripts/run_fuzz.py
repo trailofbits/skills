@@ -29,7 +29,7 @@ import requests
 import urllib3
 
 
-DEFAULT_PREVIEW_LENGTH = 1000
+DEFAULT_PREVIEW_LENGTH = 0  # 0 = no truncation (full body)
 # Maximum distance (chars) we'll travel from a desired cut point to find an
 # HTML element boundary (<  or  >) before giving up and cutting at the raw position.
 _HTML_BOUNDARY_SEARCH = 80
@@ -532,15 +532,25 @@ def main() -> None:
 
     preview_group = parser.add_argument_group(
         "preview truncation",
-        "Control how the response body is captured in body_preview.",
+        "Control how the response body is captured in body_preview. "
+        "Default is 0 (no truncation — full body). Use a positive --preview-length "
+        "to limit output size for large runs where context budget is a concern.",
     )
     preview_group.add_argument(
         "--preview-length", type=int, default=DEFAULT_PREVIEW_LENGTH, metavar="N",
-        help=f"Number of characters to capture (default: {DEFAULT_PREVIEW_LENGTH}).",
+        help=(
+            "Characters of response body to capture in body_preview. "
+            "0 (default) = full body, no truncation. "
+            "Use a positive value when result volume would exceed the model's context window."
+        ),
     )
     preview_group.add_argument(
         "--preview-offset", type=int, default=0, metavar="N",
-        help="Skip the first N characters of the body before capturing (default: 0).",
+        help=(
+            "Skip the first N characters of the body before capturing (default: 0). "
+            "Useful when responses have a large fixed header (e.g. full HTML <head>) "
+            "that you want to skip. Has no effect when --preview-length is 0."
+        ),
     )
     preview_group.add_argument(
         "--preview-find", metavar="STRING",
@@ -548,7 +558,8 @@ def main() -> None:
             "Fuzzy truncation: find the first occurrence of STRING in the body and return "
             "--preview-length characters centred on it. Start/end are snapped to the nearest "
             "HTML element boundary (< or >) within 80 characters. Falls back to "
-            "--preview-offset + --preview-length if STRING is not found."
+            "--preview-offset + --preview-length if STRING is not found. "
+            "Has no effect when --preview-length is 0 (full body is returned regardless)."
         ),
     )
 
