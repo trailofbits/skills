@@ -1,10 +1,10 @@
 # Input Format Reference
 
-`parse_input.py` accepts three formats. Pass `--format auto` (the default) to auto-detect,
-or specify `--format raw-http`, `--format curl`, or `--format har` explicitly.
+`parse_input.py` accepts four formats. Pass `--format auto` (the default) to auto-detect,
+or specify `--format raw-http`, `--format curl`, `--format har`, or `--format pcap` explicitly.
 
-**OpenAPI/Swagger specs** are handled by a separate script (`parse_openapi.py`) invoked via
-the `openapi-to-manifest` skill — see that skill for usage details.
+**OpenAPI/Swagger specs** are not handled by `parse_input.py` — use the `openapi-to-manifest`
+skill to convert a spec into a fuzz manifest first.
 
 ---
 
@@ -124,9 +124,42 @@ Index  Method  URL                                               Status
 
 ---
 
+## PCAP / PCAPNG
+
+`--format auto` detects PCAP and PCAPNG by their file magic bytes; no extension is required.
+
+**Listing and selecting requests**:
+```bash
+# List all HTTP requests found in the capture
+uv run {baseDir}/scripts/parse_input.py --format pcap --list-entries capture.pcap
+
+# Parse request at index 0
+uv run {baseDir}/scripts/parse_input.py --format pcap --entry 0 capture.pcap > manifest.json
+```
+
+**Example `--list-entries` output**:
+```
+Index  Method  URL
+----------------------------------------------------------------------
+0      POST    http://localhost:5000/say-hello
+1      POST    http://localhost:5000/say-hello
+```
+
+**Notes**:
+- TCP streams are reassembled and deduplicated (retransmissions are ignored).
+- Only HTTP/1.0 and HTTP/1.1 are supported. HTTP/2 uses binary framing that requires TLS
+  decryption or `h2c` cleartext — not currently supported.
+- HTTPS/TLS traffic is **not** decryptable from a capture alone. Capture on the loopback
+  interface (unencrypted) or use a proxy that performs TLS termination.
+- Both PCAP (classic, `tcpdump` default) and PCAPNG (Wireshark default) are supported.
+- Link layers supported: Ethernet (DLT_EN10MB), BSD loopback/macOS lo0 (DLT_NULL),
+  raw IP (DLT_RAW), Linux cooked/Linux lo (DLT_LINUX_SLL).
+
+---
+
 ## Parsed Manifest Format
 
-All formats — including OpenAPI via `parse_openapi.py` — produce the same normalized manifest JSON:
+All formats produce the same normalized manifest JSON:
 
 ```json
 {

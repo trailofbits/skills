@@ -1,13 +1,6 @@
 ---
 name: http-fuzz
-description: >
-  Performs authorized HTTP endpoint fuzzing using semantic input generation. Accepts a raw HTTP
-  request, curl command, or HAR file; extracts fuzz targets (query params, body params, path
-  segments, headers); generates category-matched payloads using parameter names and types; and
-  produces a markdown report of anomalous findings. For OpenAPI/Swagger specs, uses the
-  openapi-to-manifest skill first. Triggers on: "fuzz this endpoint", "test this API for
-  injection", "check how this request handles bad input", user provides a curl command or HAR
-  file for security testing.
+description: Performs HTTP endpoint fuzzing using semantic input generation. Accepts recorded HTTP requests in many formats, extracts fuzz targets, generates tailored payloads using parameter names and types, and produces a report of anomalous findings. 
 allowed-tools:
   - Bash
   - Read
@@ -31,7 +24,7 @@ A Python script handles HTTP requests; Claude handles the reasoning.
 ## When NOT to Use
 
 - No explicit authorization to test the target
-- A consistent baseline cannot be established (see Step 4) — fuzzing relies on detecting anomalies against a stable baseline
+- A consistent baseline cannot be established (see Step 3) — fuzzing relies on detecting anomalies against a stable baseline
 - Non-HTTP target — use a different skill for TCP fuzzing, smart contract fuzzing, etc.
 - Testing that requires protocol-level mutation — use a network fuzzing tool instead
 - User provides an OpenAPI/Swagger spec — use the `openapi-to-manifest` skill first, then return to Step 2 here
@@ -54,15 +47,30 @@ A Python script handles HTTP requests; Claude handles the reasoning.
 
 ## Workflow
 
-### Step 0: Capture the Working Directory
+### Step 0: Preflight — Verify Dependencies and Capture Working Directory
 
-Before writing any file, run:
+**Check that `uv` is installed** — all fuzzer scripts require it:
+
+```bash
+uv --version
+```
+
+If this fails, stop immediately and tell the user:
+> "`uv` is required but not found. Install it with:
+> `curl -LsSf https://astral.sh/uv/install.sh | sh`
+> Then restart your shell and try again."
+
+Do not proceed to any other step without a working `uv`. Python package dependencies
+(`requests`, `dpkt`, `urllib3`) are declared inline in each script via PEP 723 and are
+resolved automatically by `uv run` — no separate install step is needed for them.
+
+**Capture the working directory** — before writing any file, run:
 
 ```bash
 pwd
 ```
 
-Store the result with `/http-fuzz/` appended as `WORK_DIR`. Use `$WORK_DIR/<filename>` as the absolute path for every
+Store the result with `/http-fuzz-report/` appended as `WORK_DIR`. Use `$WORK_DIR/<filename>` as the absolute path for every
 subsequent write — the Write tool requires absolute paths, and `./` is ambiguous. All paths
 below that start with `$WORK_DIR` refer to this captured value.
 
@@ -71,13 +79,19 @@ below that start with `$WORK_DIR` refer to this captured value.
 Save the input to a file, then run:
 
 ```bash
-# Auto-detect format (raw HTTP, curl, or HAR)
+# Auto-detect format (raw HTTP, curl, HAR, or PCAP/PCAPNG)
 uv run {baseDir}/scripts/parse_input.py --format auto request.txt > "$WORK_DIR/manifest.json"
 
 # Or specify format explicitly
 uv run {baseDir}/scripts/parse_input.py --format curl curl.txt > "$WORK_DIR/manifest.json"
+
+# HAR: list entries first, then parse a specific one
 uv run {baseDir}/scripts/parse_input.py --format har --list-entries export.har
 uv run {baseDir}/scripts/parse_input.py --format har --entry 3 export.har > "$WORK_DIR/manifest.json"
+
+# PCAP/PCAPNG: list captured requests first, then parse a specific one
+uv run {baseDir}/scripts/parse_input.py --format pcap --list-entries capture.pcap
+uv run {baseDir}/scripts/parse_input.py --format pcap --entry 0 capture.pcap > "$WORK_DIR/manifest.json"
 ```
 
 Read the manifest and present the extracted parameters as a table:
@@ -151,7 +165,49 @@ If the user asks to proceed despite an inconsistent baseline, note this in the r
 that anomaly detection reliability will be reduced. See `references/anomaly-detection.md` for
 guidance on this case.
 
-### Step 4: Choose Aggression Level
+### Step 4: Encoding Variation Probes
+
+**This step runs on every fuzz session, no exceptions.** Do not skip it. Do not move on to
+Step 5 until the probes have been sent and their responses evaluated.
+
+Format-level variation reaches attack surfaces that parameter value fuzzing cannot — an
+endpoint that silently accepts XML when it expects JSON may have external entity resolution
+enabled; one that accepts form-encoded data when expecting JSON may expose nested objects
+that flat fields can't represent. These vulnerability classes only appear when you change
+the encoding, not the values.
+
+Preview what probes will be sent, then run them:
+
+```bash
+# Preview (no requests sent)
+uv run {baseDir}/scripts/run_fuzz.py \
+  --manifest "$WORK_DIR/manifest.json" \
+  --probe-encodings \
+  --dry-run
+
+# Send probes
+uv run {baseDir}/scripts/run_fuzz.py \
+  --manifest "$WORK_DIR/manifest.json" \
+  --probe-encodings \
+  [--timeout 10] \
+  [--no-verify]
+```
+
+The script automatically constructs and sends the appropriate probes for the manifest's
+`body_format`: XML with a DOCTYPE XXE entity injection, form-encoded, and JSON (when the
+original is not already that format). Results stream as NDJSON with `probe_encoding` set.
+
+For each result: compare `status_code` and `body_preview` against the baseline. Apply the
+anomaly rules from `references/anomaly-detection.md`.
+
+**Any 2xx for an alternative encoding is a finding** even before looking for deeper
+vulnerabilities — unexpected content negotiation is worth documenting on its own. A response
+body containing `root:x:0:0` or a file path is a confirmed XXE. See
+`references/fuzz-strategies.md` (Encoding Variation section) for full signal guidance.
+
+Include all encoding probe results in the final report under their own section.
+
+### Step 5: Choose Aggression Level
 
 Ask the user: **How aggressive should the fuzz be?**
 
@@ -164,7 +220,7 @@ Ask the user: **How aggressive should the fuzz be?**
 Note: aggressive mode against rate-limited APIs produces connection failures that look like
 anomalies. Reduce thread count if many `"error": "timeout"` results appear.
 
-### Step 5: Run the Fuzzer
+### Step 6: Run the Fuzzer
 
 ```bash
 uv run {baseDir}/scripts/run_fuzz.py \
@@ -191,10 +247,10 @@ The fuzzer streams NDJSON to stdout — one result per line:
  "content_length": 1203, "content_type": "text/html", "body_preview": "...SQL syntax...", "error": null}
 ```
 
-Read each line as it arrives and classify it using the rules in the next step.
+Read each line as it arrives and classify it using the rules in Step 7.
 For large runs (>500 requests), batch in groups of 50 to manage context.
 
-### Step 6: Classify Anomalies
+### Step 7: Classify Anomalies
 
 Apply the rules from `references/anomaly-detection.md` to each result.
 
@@ -231,7 +287,7 @@ it — it was server-side queuing from concurrent requests, not a payload-trigge
 See `references/anomaly-detection.md` for full details on concurrency queuing noise and the
 other noise cases to ignore.
 
-### Step 7: Write the Report
+### Step 8: Write the Report
 
 Use the Write tool to create `$WORK_DIR/http-fuzz-report.md` (absolute path). Write this
 alongside the corpus files so the user can refer to both.
@@ -243,7 +299,7 @@ sentences.
 
 ## Reference Files
 
-- `references/input-formats.md` — parsing guide for raw HTTP, curl, and HAR formats
+- `references/input-formats.md` — parsing guide for raw HTTP, curl, HAR, and PCAP/PCAPNG formats
 - `references/fuzz-strategies.md` — semantic fuzz table: what values to generate per parameter type
 - `references/anomaly-detection.md` — signal vs noise rules; when to stop; how to write explanations
 - `references/report-template.md` — report structure and example output

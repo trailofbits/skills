@@ -58,6 +58,84 @@ the risk of accidental data loss or service disruption is not acceptable in an a
 
 ---
 
+## Encoding Variation Probes
+
+Beyond mutating individual parameter values, probe whether the endpoint accepts alternative
+body encodings. Servers that accept multiple Content-Types without strict enforcement may
+inadvertently expose different attack surfaces depending on the format:
+
+- A JSON endpoint that also accepts XML may have an XML parser with external entities enabled
+  — an XXE vulnerability that's unreachable through the JSON path
+- An endpoint that only exposes a flat form-encoded interface may accept JSON, exposing
+  nested object and array inputs that form fields can't represent (prototype pollution,
+  type confusion, secondary deserializer sinks)
+- Switching from JSON to form-encoded may bypass JSON schema validation applied only to
+  the structured path
+
+### Encoding Variation Table
+
+| Original `body_format` | Alternative to probe | Specific concern |
+|---|---|---|
+| `json` | `application/xml` + XXE probe | XXE if XML parser resolves external entities |
+| `json` | `application/x-www-form-urlencoded` | May bypass JSON schema validation; different coercion |
+| `json` | `multipart/form-data` | May expose file upload handling or bypass CSRF enforcement |
+| `form` | `application/json` | JSON allows nested objects — prototype pollution, type confusion, secondary deserializer sinks |
+| `form` | `application/xml` + XXE probe | XXE |
+| `xml` | `application/json` | May bypass XML-specific validation or input sanitization |
+| `text/plain` | `application/json`, `application/xml` + XXE probe | Server may auto-detect and attempt to parse as structured data |
+
+Skip alternatives only when the body contains exclusively binary or file upload fields that
+cannot be represented in the target encoding. If there is at least one text parameter, the
+probe can always be constructed.
+
+### XXE Probe Template
+
+When probing an XML alternative, always inject a DOCTYPE external entity reference.
+Use the first fuzzable body parameter as the entity reference insertion point:
+
+```xml
+<?xml version="1.0"?>
+<!DOCTYPE x [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+<root><PARAM_NAME>&xxe;</PARAM_NAME></root>
+```
+
+A response that echoes `root:x:0:0` or similar file content confirms XXE. A 200 response
+with any body change, or an error mentioning `entity`, `DOCTYPE`, or `DTD`, is a strong
+candidate anomaly.
+
+### Constructing the Probes
+
+Re-encode all baseline body parameters in the target format with values **unchanged** from
+the original baseline — the encoding change must be the only variable. Run each probe as
+a curl command via the Bash tool.
+
+**JSON → form-encoded**:
+```bash
+# Original: {"email": "user@example.com", "role": "member", "age": 25}
+curl -s -X POST <url> \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "email=user%40example.com&role=member&age=25"
+```
+
+**JSON → XML with XXE probe**:
+```bash
+curl -s -X POST <url> \
+  -H "Content-Type: application/xml" \
+  -d '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><request><email>&xxe;</email><role>member</role><age>25</age></request>'
+```
+
+### What Counts as a Finding
+
+Any of these is reportable:
+- Server returns 2xx for an alternative encoding — unexpected content negotiation is itself
+  a finding, regardless of whether a deeper vulnerability is exploited
+- Status code differs from baseline
+- Response body echoes file path content (XXE confirmed)
+- Body contains parser error signals from the alternative format
+- Response Content-Type changes
+
+---
+
 ## Unmatched Parameters
 
 When a parameter doesn't match any category above, generate this broad set:
