@@ -141,7 +141,17 @@ Additional principles:
 
 ### Step 3: Establish Baseline
 
-Run 5 baseline requests with the original parameter values:
+Run 5 baseline requests with the original parameter values. The baseline script defaults to
+`--preview-length 0` (full body, no truncation). **Do not override this default.** Reading
+the full baseline body is the only way to:
+
+- Confirm the session is active (look for authenticated UI elements, not a login page)
+- Locate where errors appear in the response (character offset, HTML context) so you can
+  set `--preview-find` or `--preview-offset` for the fuzz run
+- Establish the true content-length and structure for anomaly comparison
+
+Five full responses fit well within Claude's 200 K-token context window. Token cost here is
+negligible compared to the risk of missing a signal that only appears deep in the body.
 
 ```bash
 uv run {baseDir}/scripts/run_baseline.py \
@@ -149,6 +159,7 @@ uv run {baseDir}/scripts/run_baseline.py \
   --count 5 \
   [--timeout 10] \
   [--no-verify]
+# --preview-length defaults to 0 (full body) — do not change for baseline
 ```
 
 Read the summary JSON and evaluate consistency:
@@ -253,21 +264,58 @@ The fuzzer streams NDJSON to stdout — one result per line:
 Read each line as it arrives and classify it using the rules in Step 7.
 For large runs (>500 requests), batch in groups of 50 to manage context.
 
-#### Body preview truncation options
+#### Choosing preview settings
 
-The `body_preview` field captures a slice of the response body. By default, 1000 characters from the start are captured. Three options control this behaviour:
+Truncation exists solely to keep fuzz result data within Claude's context window. A typical
+fuzz run of ~200 requests × 1 000 chars each ≈ 200 K chars ≈ 50 K tokens, which fits
+within the standard 200 K-token limit alongside the skill prompt and corpus. Larger runs or
+larger responses require more care. **Always err towards larger previews and targeted
+capture over aggressive truncation — a missed signal costs far more than extra tokens.**
+
+Use the baseline bodies (captured in full in Step 3) to decide how to configure preview for
+the fuzz run.
 
 | Option | Default | Purpose |
 |--------|---------|---------|
-| `--preview-length N` | 1000 | Number of characters to capture |
+| `--preview-length N` | 1000 | Characters to capture per response |
 | `--preview-offset N` | 0 | Skip the first N characters before capturing |
-| `--preview-find STRING` | (off) | Fuzzy mode: centre the window on the first occurrence of STRING |
+| `--preview-find STRING` | (off) | Fuzzy: centre the window on the first occurrence of STRING |
 
-**When to use each:**
+**Decision procedure — apply in order, stop when one matches:**
 
-- **Default** — sufficient for most APIs where errors appear early in the response.
-- **`--preview-offset`** — use when responses have a large fixed header (e.g. a full HTML `<head>` block) that you want to skip. Example: `--preview-offset 400 --preview-length 600` skips the boilerplate and captures from `<body>` onwards.
-- **`--preview-find`** — use when you know what error signal to look for but don't know where in the body it will appear. The fuzzer finds the first occurrence, centres a window of `--preview-length` chars on it, and snaps the window boundaries to the nearest HTML element edge (`<` or `>`). Falls back to `--preview-offset` + `--preview-length` if the string is not found.
+1. **You know what error string to look for** (identified from baseline or prior runs):
+   Use `--preview-find` with that string. This is the preferred option — it guarantees the
+   relevant signal is centred in the preview regardless of where it appears in the body.
+   ```bash
+   --preview-find "SQLSTATE" --preview-length 600
+   --preview-find "Traceback" --preview-length 800
+   --preview-find "Warning:" --preview-length 600
+   ```
+
+2. **Errors appear after a large fixed header** (identified from baseline offset):
+   Use `--preview-offset` to skip boilerplate HTML, then capture from the dynamic region.
+   ```bash
+   --preview-offset 800 --preview-length 1200   # skip <head> + nav, capture <body> content
+   ```
+
+3. **API responses are short and structured (JSON/XML)** or errors appear at the start:
+   The default `--preview-length 1000` is sufficient. No additional flags needed.
+
+4. **Responses are large and you cannot predict error location**:
+   Increase `--preview-length` to 3000–5000. At 200 requests this is still ~60 K tokens —
+   acceptable. Beyond 500 requests, prefer option 1 or 2 to avoid context pressure.
+
+5. **Small run (≤50 requests) or you want to do offline analysis**:
+   Use `--preview-length 0` (no truncation). Full bodies for 50 responses ≈ 50–500 K tokens
+   depending on response size — verify your estimates before using this at scale.
+
+**Context budget guidance:**
+Claude's standard context window is 200 K tokens. With the skill prompt (~5 K tokens),
+corpus files, and NDJSON results, a rough budget for fuzz result data is ~100 K tokens.
+At 1 000 chars/response ≈ 250 tokens, that accommodates ~400 responses comfortably.
+Increase `--preview-length` when you have few results; use `--preview-find` when you have
+many. Do not silently drop `--preview-find` to save tokens if it was chosen because a known
+error signal is buried deep in the body — that tradeoff always loses.
 
 **Example — hunt for SQL errors in a PHP app:**
 ```bash
@@ -276,10 +324,11 @@ uv run {baseDir}/scripts/run_fuzz.py \
   --corpus-dir "$WORK_DIR/corpus" \
   --threads 5 --delay-ms 500 \
   --preview-find "SQLSTATE" \
-  --preview-length 400
+  --preview-length 600
 ```
 
-If a response contains `SQLSTATE[HY000]: General error: unrecognized token`, the preview will be centred on that string rather than showing the first 1000 characters of the page header.
+`SQLSTATE[HY000]: General error: unrecognized token` will be centred in the preview even if
+it appears at character 700 of a 2 000-character page.
 
 ### Step 7: Classify Anomalies
 

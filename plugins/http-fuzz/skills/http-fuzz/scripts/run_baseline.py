@@ -60,17 +60,28 @@ def _build_request(manifest: dict[str, Any]) -> dict[str, Any]:
     return {"method": method, "url": url, **kwargs}
 
 
+def _extract_body(text: str, preview_length: int) -> str:
+    """Return the body for display.
+
+    preview_length == 0  → full body (newlines collapsed to spaces)
+    preview_length  > 0  → first N characters (newlines collapsed)
+    """
+    raw = text if preview_length == 0 else text[:preview_length]
+    return raw.replace("\n", " ").replace("\r", "")
+
+
 def _send_request(
     session: requests.Session,
     req_kwargs: dict[str, Any],
     timeout: float,
     index: int,
+    preview_length: int = 0,
 ) -> dict[str, Any]:
     start = time.monotonic()
     try:
         resp = session.request(timeout=timeout, **req_kwargs)
         elapsed_ms = int((time.monotonic() - start) * 1000)
-        body = resp.text[:500].replace("\n", " ").replace("\r", "")
+        body = _extract_body(resp.text, preview_length)
         return {
             "index": index,
             "status_code": resp.status_code,
@@ -171,6 +182,16 @@ def main() -> None:
         action="store_true",
         help="Disable TLS certificate verification (for self-signed certs in test environments)",
     )
+    parser.add_argument(
+        "--preview-length",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "Characters of response body to capture in body_preview. "
+            "0 (default) = full body. Use a positive value to limit output size."
+        ),
+    )
     args = parser.parse_args()
 
     manifest = _load_manifest(args.manifest)
@@ -189,7 +210,7 @@ def main() -> None:
 
     responses = []
     for i in range(args.count):
-        result = _send_request(session, req_kwargs, args.timeout, i)
+        result = _send_request(session, req_kwargs, args.timeout, i, args.preview_length)
         status = result["status_code"] if result["status_code"] else f"ERROR: {result['error']}"
         ms = result["response_time_ms"]
         print(f"  [{i + 1}/{args.count}] {status} ({ms}ms)", file=sys.stderr)
