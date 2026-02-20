@@ -14,7 +14,7 @@ When a parameter name doesn't match any category, use the **Unmatched** fallback
 |---|---|---|
 | **Numeric ID** | `id`, `*_id`, `user_id`, `account_id`, `item_id`, `record_id`, `*Id`, `*ID` | `0`, `-1`, `-2147483648`, `2147483648`, `9999999999`, `1.5`, `null`, `""`, `undefined`, `NaN` |
 | **Email address** | `email`, `email_address`, `login`, `username`, `*_email` | `user@`, `@example.com`, `user@@example.com`, `user @example.com`, `a@b.c'--`, `admin@example.com`, `"><script>alert(1)</script>@x.com`, (500-char `a` string + `@x.com`), `user+test@example.com`, `user@bücher.de` |
-| **Password / secret** | `password`, `passwd`, `secret`, `pass`, `pwd`, `*_password`, `*_secret` | `""`, `null`, `password`, `admin`, `' OR '1'='1`, `'; DROP TABLE users; --`, (500-char string), `\x00`, `password\nX-Injected: true` |
+| **Password / secret** | `password`, `passwd`, `secret`, `pass`, `pwd`, `*_password`, `*_secret` | `""`, `null`, `password`, `admin`, `' OR '1'='1`, `'; SELECT * FROM users; --`, (500-char string), `\x00`, `password\nX-Injected: true` |
 | **Date / time** | `date`, `*_date`, `*_at`, `created_at`, `updated_at`, `timestamp`, `start`, `end`, `from`, `to`, `expires` | `0`, `-1`, `2038-01-19`, `9999-12-31`, `0000-00-00`, `13/32/2024`, `now`, `yesterday`, `1' OR '1'='1`, `2024-02-30`, `9999999999` (Unix epoch far future), `2024-01-01T00:00:00Z` |
 | **Role / permission** | `role`, `roles`, `permission`, `permissions`, `scope`, `access`, `access_level`, `privilege`, `type`, `account_type` | `admin`, `root`, `superuser`, `administrator`, `ADMIN`, `Admin`, `system`, `internal`, `owner`, `god`, `sudo`, `staff`, `moderator`, `super_admin`, `null`, `""` |
 | **Filename / path** | `file`, `filename`, `file_name`, `path`, `filepath`, `file_path`, `attachment`, `document`, `resource`, `uri`, `location` | `../../../etc/passwd`, `....//....//etc/passwd`, `/etc/passwd`, `/etc/passwd%00.jpg`, `%2e%2e%2f%2e%2e%2fetc%2fpasswd`, `CON`, `NUL`, `PRN`, `AUX`, `.htaccess`, `index.php`, `web.config`, `app.config`, `null`, `""`, (500-char string) |
@@ -24,7 +24,7 @@ When a parameter name doesn't match any category, use the **Unmatched** fallback
 | **Boolean flag** | `enabled`, `active`, `is_admin`, `is_staff`, `verified`, `confirmed`, `flag`, `*_enabled`, `*_active`, `*_flag` | `true`, `false`, `1`, `0`, `"true"`, `"false"`, `"yes"`, `"no"`, `null`, `""`, `2`, `-1` |
 | **Amount / quantity** | `amount`, `price`, `quantity`, `count`, `total`, `balance`, `fee`, `cost`, `rate`, `limit`, `offset` | `0`, `-1`, `-0.01`, `0.001`, `2147483647`, `9999999999.99`, `"NaN"`, `"Infinity"`, `"-Infinity"`, `null`, `""`, `1e308` |
 | **Age / size / length** | `age`, `size`, `length`, `width`, `height`, `max`, `min`, `duration`, `timeout`, `retry` | `0`, `-1`, `2147483647`, `99999`, `1.5`, `"0"`, `null`, `""`, `"unlimited"` |
-| **Search / query** | `query`, `q`, `search`, `filter`, `keyword`, `term`, `s` | `""`, `*`, `%`, `_`, `' OR 1=1--`, `"; DROP TABLE users; --`, `<script>alert(1)</script>`, `{{7*7}}`, (1000-char string), `\x00` |
+| **Search / query** | `query`, `q`, `search`, `filter`, `keyword`, `term`, `s` | `""`, `*`, `%`, `_`, `' OR 1=1--`, `"; SELECT * FROM users; --`, `<script>alert(1)</script>`, `{{7*7}}`, (1000-char string), `\x00` |
 
 ---
 
