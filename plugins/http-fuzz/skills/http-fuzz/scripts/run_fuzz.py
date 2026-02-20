@@ -15,6 +15,7 @@ using original manifest parameter values. Does not run corpus fuzz.
 import argparse
 import json
 import queue
+import re
 import sys
 import threading
 import time
@@ -26,6 +27,89 @@ from xml.sax.saxutils import escape as xml_escape
 
 import requests
 import urllib3
+
+
+DEFAULT_PREVIEW_LENGTH = 1000
+# Maximum distance (chars) we'll travel from a desired cut point to find an
+# HTML element boundary (<  or  >) before giving up and cutting at the raw position.
+_HTML_BOUNDARY_SEARCH = 80
+
+
+@dataclass
+class PreviewConfig:
+    length: int = DEFAULT_PREVIEW_LENGTH
+    offset: int = 0
+    fuzzy_needle: str | None = None
+
+
+def _snap_to_html_boundary(
+    body: str,
+    pos: int,
+    search_range: int,
+    prefer_open: bool,
+    floor: int = 0,
+) -> int:
+    """Move pos to the nearest HTML element boundary within search_range chars.
+
+    When cutting the *start* of a window (prefer_open=True) we search *backwards*
+    from pos for '>' and return the position just after it.  The result is <= pos.
+
+    When cutting the *end* of a window (prefer_open=False) we search *backwards*
+    from pos for '<' and return that position, but never below *floor* (so we
+    can't accidentally snap end back before the window start).
+
+    Returns the adjusted position, or the original pos if no boundary is found
+    within search_range.
+    """
+    lo = max(floor, pos - search_range)
+    if prefer_open:
+        idx = body.rfind(">", lo, pos)
+        if idx != -1:
+            return idx + 1
+    else:
+        idx = body.rfind("<", lo, pos)
+        if idx != -1:
+            return idx
+    return pos
+
+
+def _extract_preview(body: str, cfg: PreviewConfig) -> str:
+    """Extract a preview string from *body* according to *cfg*.
+
+    Modes (applied in this order of precedence):
+    1. fuzzy_needle — find the first occurrence of the needle, build a window of
+       cfg.length centred on it, snap start/end to HTML element boundaries.
+    2. offset + length — return body[offset : offset + length].
+    3. length only — return body[:length].
+
+    In all modes the result has internal newlines/carriage-returns collapsed to
+    a single space so NDJSON output stays on one line.
+    """
+    if cfg.fuzzy_needle is not None:
+        needle_pos = body.find(cfg.fuzzy_needle)
+        if needle_pos == -1:
+            # Needle not found — fall back to offset+length window so the caller
+            # still gets something useful.
+            start = cfg.offset
+            end = start + cfg.length
+        else:
+            half = cfg.length // 2
+            # Centre the window on the middle of the needle.
+            mid = needle_pos + len(cfg.fuzzy_needle) // 2
+            start = max(0, mid - half)
+            end = min(len(body), start + cfg.length)
+            # Snap boundaries to HTML element edges.
+            # start snaps backwards (result <= original start).
+            start = _snap_to_html_boundary(body, start, _HTML_BOUNDARY_SEARCH, prefer_open=True)
+            # end snaps backwards but never below start (floor=start prevents
+            # an opening '<' from collapsing the entire window to zero).
+            end   = _snap_to_html_boundary(body, end, _HTML_BOUNDARY_SEARCH,
+                                           prefer_open=False, floor=start)
+    else:
+        start = cfg.offset
+        end = start + cfg.length
+
+    return body[start:end].replace("\n", " ").replace("\r", "")
 
 
 @dataclass
@@ -74,6 +158,10 @@ def _get_fuzzable_params(manifest: dict[str, Any], only: list[str] | None) -> li
     """Return names of all fuzzable parameters from the manifest."""
     params: list[str] = []
 
+    for p in manifest.get("path_segments", []):
+        if p.get("fuzzable", True):
+            params.append(f"path_{p['index']}")
+
     for p in manifest.get("query_params", []):
         if p.get("fuzzable", True):
             params.append(p["name"])
@@ -96,7 +184,24 @@ def _build_base_request(manifest: dict[str, Any]) -> dict[str, Any]:
     body_format = manifest.get("body_format", "")
     body_params = manifest.get("body_params", [])
 
+    # Bake all baseline query param values into the URL so that
+    # _build_fuzz_request sees them when it calls parse_qsl and can preserve
+    # non-fuzzed params while substituting just the one being fuzzed.
+    query_params = manifest.get("query_params", [])
+    if query_params:
+        parsed = urllib.parse.urlparse(url)
+        qs = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+        for p in query_params:
+            qs[p["name"]] = str(p["value"])
+        url = urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(qs)))
+
     base: dict[str, Any] = {"method": method, "url": url, "headers": headers}
+
+    # Store path segments by index for URL substitution during fuzzing.
+    # Key format: "_path_segments" -> {index: value}
+    path_segments = manifest.get("path_segments", [])
+    if path_segments:
+        base["_path_segments"] = {p["index"]: p["value"] for p in path_segments}
 
     if body_params and body_format == "json":
         base["_body_json"] = {p["name"]: p["value"] for p in body_params}
@@ -124,7 +229,26 @@ def _build_fuzz_request(
 
     parsed_url = req["url"]
 
-    if param in all_query:
+    if param.startswith("path_") and param[5:].isdigit():
+        # Path segment fuzzing: replace the segment at the given index.
+        # Reconstructs the URL path from base["_path_segments"] with this
+        # segment substituted, then re-attaches query string and fragment.
+        index = int(param[5:])
+        segments = dict(base.get("_path_segments", {}))
+        segments[index] = value
+        parsed = urllib.parse.urlparse(parsed_url)
+        # Split path on "/" preserving leading slash; segments live after it.
+        path_parts = parsed.path.split("/")
+        # path_parts[0] is "" (before the leading "/"), real segments start at [1].
+        # Overwrite using stored segment count so extra parts aren't silently dropped.
+        for idx, seg_value in segments.items():
+            pos = idx + 1  # +1 because path_parts[0] == ""
+            if pos < len(path_parts):
+                path_parts[pos] = seg_value
+        new_path = "/".join(path_parts)
+        req["url"] = urllib.parse.urlunparse(parsed._replace(path=new_path))
+
+    elif param in all_query:
         parsed = urllib.parse.urlparse(parsed_url)
         qs = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
         qs[param] = value
@@ -209,6 +333,7 @@ def _run_encoding_probes(
     manifest: dict[str, Any],
     timeout: float,
     no_verify: bool,
+    preview_cfg: PreviewConfig | None = None,
     dry_run: bool = False,
 ) -> None:
     """Send encoding variation probes and stream NDJSON results."""
@@ -272,7 +397,8 @@ def _run_encoding_probes(
                     method=method, url=url, headers=headers, data=body, timeout=timeout,
                 )
                 elapsed_ms = int((time.monotonic() - start) * 1000)
-                body_preview = resp.text[:500].replace("\n", " ").replace("\r", "")
+                cfg = preview_cfg or PreviewConfig()
+                body_preview = _extract_preview(resp.text, cfg)
                 result = FuzzResult(
                     param="Content-Type", value=label,
                     status_code=resp.status_code, response_time_ms=elapsed_ms,
@@ -304,12 +430,14 @@ def _send_one(
     param: str,
     value: str,
     timeout: float,
+    preview_cfg: PreviewConfig | None = None,
 ) -> FuzzResult:
     start = time.monotonic()
+    cfg = preview_cfg or PreviewConfig()
     try:
         resp = session.request(timeout=timeout, **req_kwargs)
         elapsed_ms = int((time.monotonic() - start) * 1000)
-        body = resp.text[:500].replace("\n", " ").replace("\r", "")
+        body = _extract_preview(resp.text, cfg)
         return FuzzResult(
             param=param, value=value, status_code=resp.status_code,
             response_time_ms=elapsed_ms, content_length=len(resp.content),
@@ -340,6 +468,7 @@ def _worker(
     manifest: dict[str, Any],
     timeout: float,
     delay_ms: float,
+    preview_cfg: PreviewConfig | None = None,
 ) -> None:
     while True:
         item = task_queue.get()
@@ -349,7 +478,7 @@ def _worker(
         param, value = item
         try:
             req = _build_fuzz_request(base_request, param, value, manifest)
-            result = _send_one(session, req, param, value, timeout)
+            result = _send_one(session, req, param, value, timeout, preview_cfg)
         except Exception as exc:
             result_queue.put(exc)
         else:
@@ -397,14 +526,44 @@ def main() -> None:
             "manifest values. Mutually exclusive with corpus fuzz — does not read corpus files."
         ),
     )
+
+    preview_group = parser.add_argument_group(
+        "preview truncation",
+        "Control how the response body is captured in body_preview.",
+    )
+    preview_group.add_argument(
+        "--preview-length", type=int, default=DEFAULT_PREVIEW_LENGTH, metavar="N",
+        help=f"Number of characters to capture (default: {DEFAULT_PREVIEW_LENGTH}).",
+    )
+    preview_group.add_argument(
+        "--preview-offset", type=int, default=0, metavar="N",
+        help="Skip the first N characters of the body before capturing (default: 0).",
+    )
+    preview_group.add_argument(
+        "--preview-find", metavar="STRING",
+        help=(
+            "Fuzzy truncation: find the first occurrence of STRING in the body and return "
+            "--preview-length characters centred on it. Start/end are snapped to the nearest "
+            "HTML element boundary (< or >) within 80 characters. Falls back to "
+            "--preview-offset + --preview-length if STRING is not found."
+        ),
+    )
+
     args = parser.parse_args()
 
     manifest = _load_manifest(args.manifest)
 
+    preview_cfg = PreviewConfig(
+        length=args.preview_length,
+        offset=args.preview_offset,
+        fuzzy_needle=args.preview_find,
+    )
+
     if args.probe_encodings:
         if args.no_verify:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        _run_encoding_probes(manifest, args.timeout, args.no_verify, dry_run=args.dry_run)
+        _run_encoding_probes(manifest, args.timeout, args.no_verify,
+                             preview_cfg=preview_cfg, dry_run=args.dry_run)
         return
 
     fuzzable = _get_fuzzable_params(manifest, args.params)
@@ -460,7 +619,7 @@ def main() -> None:
         t = threading.Thread(
             target=_worker,
             args=(task_q, result_q, sessions[i], base_request, manifest,
-                  args.timeout, args.delay_ms),
+                  args.timeout, args.delay_ms, preview_cfg),
             daemon=True,
         )
         t.start()

@@ -41,7 +41,7 @@ the risk of accidental data loss or service disruption is not acceptable in an a
 
 | Category | Name signals | Generated inputs |
 |---|---|---|
-| **Numeric ID** | `id`, `*_id`, `user_id`, `account_id`, `item_id`, `record_id`, `*Id`, `*ID` | `0`, `-1`, `-2147483648`, `2147483648`, `9999999999`, `1.5`, `null`, `""`, `undefined`, `NaN` |
+| **Numeric ID** | `id`, `*_id`, `user_id`, `account_id`, `item_id`, `record_id`, `*Id`, `*ID` | `0`, `-1`, `-2147483648`, `2147483648`, `9999999999`, `1.5`, `null`, `""`, `undefined`, `NaN`, `1 OR 1=1--`, `1 AND 1=2--`, `1 UNION SELECT NULL--`, `1 UNION SELECT NULL,NULL--`, `1 UNION SELECT NULL,NULL,NULL--`, `'`, `1'` |
 | **Email address** | `email`, `email_address`, `login`, `username`, `*_email` | `user@`, `@example.com`, `user@@example.com`, `user @example.com`, `a@b.c'--`, `admin@example.com`, `"><script>alert(1)</script>@x.com`, (246-char `a` string + `@x.com`), `user+test@example.com`, `user@bücher.de` |
 | **Password / secret** | `password`, `passwd`, `secret`, `pass`, `pwd`, `*_password`, `*_secret` | `""`, `null`, `password`, `admin`, `' OR '1'='1`, `'; SELECT * FROM users; --`, (256-char `a` string), `\x00`, `password\nX-Injected: true` |
 | **Date / time** | `date`, `*_date`, `*_at`, `created_at`, `updated_at`, `timestamp`, `start`, `end`, `from`, `to`, `expires` | `0`, `-1`, `2038-01-19`, `9999-12-31`, `0000-00-00`, `13/32/2024`, `now`, `yesterday`, `1' OR '1'='1`, `2024-02-30`, `9999999999` (Unix epoch far future), `2024-01-01T00:00:00Z` |

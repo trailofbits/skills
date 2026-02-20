@@ -158,6 +158,9 @@ Read the summary JSON and evaluate consistency:
 - `p95_response_ms / median_response_ms > 3.0` (high timing variance)
 - `content_length_variance_pct > 50` (high size variance)
 
+**If the manifest includes auth credentials (Cookie, Authorization header), also verify the session is active:**
+Inspect the baseline response bodies. If they show a login page, redirect to `/login`, or lack the authenticated UI elements you expect (e.g. navigation links only visible when logged in), the session has expired. Stop and ask the user to provide a fresh session token. Re-login, update the Cookie/Authorization header in the manifest, and re-run the baseline before proceeding. **A fuzz run against an expired session produces zero signal — every probe returns the same login page regardless of payload.**
+
 **If the baseline is consistent**, confirm to the user:
 > "Baseline established: 200 OK, median 145ms, p95 201ms. Consistent across 5 requests. Ready to fuzz."
 
@@ -250,7 +253,40 @@ The fuzzer streams NDJSON to stdout — one result per line:
 Read each line as it arrives and classify it using the rules in Step 7.
 For large runs (>500 requests), batch in groups of 50 to manage context.
 
+#### Body preview truncation options
+
+The `body_preview` field captures a slice of the response body. By default, 1000 characters from the start are captured. Three options control this behaviour:
+
+| Option | Default | Purpose |
+|--------|---------|---------|
+| `--preview-length N` | 1000 | Number of characters to capture |
+| `--preview-offset N` | 0 | Skip the first N characters before capturing |
+| `--preview-find STRING` | (off) | Fuzzy mode: centre the window on the first occurrence of STRING |
+
+**When to use each:**
+
+- **Default** — sufficient for most APIs where errors appear early in the response.
+- **`--preview-offset`** — use when responses have a large fixed header (e.g. a full HTML `<head>` block) that you want to skip. Example: `--preview-offset 400 --preview-length 600` skips the boilerplate and captures from `<body>` onwards.
+- **`--preview-find`** — use when you know what error signal to look for but don't know where in the body it will appear. The fuzzer finds the first occurrence, centres a window of `--preview-length` chars on it, and snaps the window boundaries to the nearest HTML element edge (`<` or `>`). Falls back to `--preview-offset` + `--preview-length` if the string is not found.
+
+**Example — hunt for SQL errors in a PHP app:**
+```bash
+uv run {baseDir}/scripts/run_fuzz.py \
+  --manifest "$WORK_DIR/manifest.json" \
+  --corpus-dir "$WORK_DIR/corpus" \
+  --threads 5 --delay-ms 500 \
+  --preview-find "SQLSTATE" \
+  --preview-length 400
+```
+
+If a response contains `SQLSTATE[HY000]: General error: unrecognized token`, the preview will be centred on that string rather than showing the first 1000 characters of the page header.
+
 ### Step 7: Classify Anomalies
+
+**Before classifying, verify the session did not expire mid-run.** Check a sample of results across the run (first 10%, last 10%): if the majority share an identical small content_length that matches a login page size, or if `body_preview` shows navigation links like "Login / Sign Up" rather than authenticated UI, the session expired. In this case:
+1. Note the approximate point where content_length collapsed to the login-page size.
+2. Discard all results from that point onward — they are unauthenticated and produce no signal.
+3. Warn the user that a fresh session is needed and the affected operations must be re-run.
 
 Apply the rules from `references/anomaly-detection.md` to each result.
 

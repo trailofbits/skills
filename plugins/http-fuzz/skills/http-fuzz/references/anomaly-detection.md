@@ -18,7 +18,10 @@ so a 400 may confirm the input reaches validation, but a 500 confirms it reached
   in the baseline distribution.
 
 **Error internals visible in the response body**
-These strings in the response body (case-insensitive) indicate the server leaked internal state:
+These strings in the response body (case-insensitive) indicate the server leaked internal state.
+
+> **Tip:** Error strings often appear deep in the response body (after a full HTML header and nav), beyond the default 1000-character preview window. If you suspect an error signal but body_preview is clean, re-run with `--preview-find "SQLSTATE"` (or the relevant keyword) to centre the capture window on the error. See Step 6 for full preview options.
+
 - `stack trace`, `stacktrace`, `stack_trace`
 - `exception`, `unhandled exception`, `NullPointerException`, `RuntimeError`
 - `syntax error`, `parse error`
