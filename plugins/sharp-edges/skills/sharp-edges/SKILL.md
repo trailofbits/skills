@@ -25,6 +25,10 @@ Evaluates whether APIs, configurations, and interfaces are resistant to develope
 - Business logic flaws (use domain-specific analysis)
 - Performance optimization (different concern)
 
+## Agent
+
+The `sharp-edges-analyzer` agent runs the full sharp edges analysis workflow autonomously. Use it when you want a dedicated analysis of APIs, configurations, or interfaces for misuse resistance and footgun potential. The agent follows the four-phase workflow (Surface Identification, Edge Case Probing, Threat Modeling, Validate Findings) and reads language-specific references on demand.
+
 ## Core Principle
 
 **The pit of success**: Secure usage should be the path of least resistance. If developers must understand cryptography, read documentation carefully, or remember special rules to avoid vulnerabilities, the API has failed.
