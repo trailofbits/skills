@@ -438,14 +438,19 @@ class TestSnapToHtmlBoundary:
 # ── _extract_preview — default (length only) ─────────────────────────────────
 
 class TestExtractPreviewDefault:
-    def test_shorter_than_limit(self):
-        body = "hello world"
-        assert _extract_preview(body, PreviewConfig()) == "hello world"
+    def test_default_is_no_truncation(self):
+        # DEFAULT_PREVIEW_LENGTH == 0: full body returned unchanged (modulo newlines)
+        body = "x" * 5000
+        assert _extract_preview(body, PreviewConfig()) == body
 
-    def test_truncated_to_default_length(self):
-        body = "x" * (DEFAULT_PREVIEW_LENGTH + 50)
-        result = _extract_preview(body, PreviewConfig())
-        assert len(result) == DEFAULT_PREVIEW_LENGTH
+    def test_shorter_than_explicit_limit(self):
+        body = "hello world"
+        assert _extract_preview(body, PreviewConfig(length=100)) == "hello world"
+
+    def test_truncated_to_explicit_length(self):
+        body = "x" * 1050
+        result = _extract_preview(body, PreviewConfig(length=1000))
+        assert len(result) == 1000
 
     def test_newlines_collapsed(self):
         body = "line1\nline2\r\nline3"
@@ -457,7 +462,7 @@ class TestExtractPreviewDefault:
         assert _extract_preview("", PreviewConfig()) == ""
 
     def test_zero_length_returns_full_body(self):
-        body = "x" * (DEFAULT_PREVIEW_LENGTH + 500)
+        body = "x" * 5000
         result = _extract_preview(body, PreviewConfig(length=0))
         assert result == body
 
