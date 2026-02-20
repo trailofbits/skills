@@ -2,7 +2,7 @@
 
 ## Default Configuration
 
-- Model: `gemini-3-pro-preview`
+- Model: `gemini-3.1-pro-preview`
 - Extensions: `code-review`, `gemini-cli-security`
 
 ## Key Flags
@@ -37,7 +37,7 @@ automatically picks up the working tree diff:
 gemini -p "/code-review" \
   --yolo \
   -e code-review \
-  -m gemini-3-pro-preview
+  -m gemini-3.1-pro-preview
 ```
 
 For branch diffs or specific commits, pipe the diff with a
@@ -48,7 +48,7 @@ that break shell expansion):
 git diff <branch>...HEAD > /tmp/review-diff.txt
 { printf '%s\n\n' 'Review this diff for code quality issues. <focus prompt>'; \
   cat /tmp/review-diff.txt; } \
-  | gemini -p - -m gemini-3-pro-preview --yolo
+  | gemini -p - -m gemini-3.1-pro-preview --yolo
 ```
 
 ## Security Review
@@ -60,7 +60,7 @@ headless mode with a security-focused prompt instead:
 git diff HEAD > /tmp/review-diff.txt
 { printf '%s\n\n' 'Analyze this diff for security vulnerabilities, including injection, auth bypass, data exposure, and input validation issues. Report each finding with severity, location, and remediation.'; \
   cat /tmp/review-diff.txt; } \
-  | gemini -p - -e gemini-cli-security -m gemini-3-pro-preview --yolo
+  | gemini -p - -e gemini-cli-security -m gemini-3.1-pro-preview --yolo
 ```
 
 When security focus is selected, only run the supply chain scan
@@ -73,7 +73,7 @@ git diff --name-only <scope> \
   && gemini -p "/security:scan-deps" \
        --yolo \
        -e gemini-cli-security \
-       -m gemini-3-pro-preview
+       -m gemini-3.1-pro-preview
 ```
 
 Skip the scan when only non-dependency files changed. The scan
@@ -91,7 +91,7 @@ git diff HEAD > /tmp/review-diff.txt
   cat CLAUDE.md; \
   printf '\n---\n\n%s\n\n' '<review instructions and focus>'; \
   cat /tmp/review-diff.txt; } \
-  | gemini -p - -m gemini-3-pro-preview --yolo
+  | gemini -p - -m gemini-3.1-pro-preview --yolo
 ```
 
 ## Error Handling
