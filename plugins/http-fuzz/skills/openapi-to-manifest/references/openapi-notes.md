@@ -31,14 +31,15 @@ real value. Most APIs return 404 for literal brace-wrapped strings.
 
 ## OData-style Paths
 
-Business Central and some Microsoft APIs use OData key syntax:
+Some APIs use OData key syntax, where entity keys appear inside parentheses within a path segment:
 ```
-/companies({company_id})/items({item_id})
+/entities({entity_id})/children({child_id})
 ```
 
-These are preserved verbatim — the `{var}` is embedded inside the segment, not a standalone
-segment. The path segment is marked `fuzzable: false` because the segment boundary heuristics
-don't apply. A fuzzer targeting these values needs to reconstruct the OData key syntax.
+These path segments are preserved verbatim — the `{var}` is embedded inside the segment rather
+than standing alone, so normal path-variable substitution does not apply. Affected segments are
+marked `fuzzable: false`. To fuzz OData key values, reconstruct the full segment (e.g.
+`entities(TARGET_VALUE)`) in the corpus rather than targeting just the key.
 
 ## Synthetic Example Values
 

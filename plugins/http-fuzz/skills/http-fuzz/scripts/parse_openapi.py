@@ -145,6 +145,15 @@ def _resolve_obj(obj: Any, doc: dict, visited: frozenset) -> dict:
     return obj if isinstance(obj, dict) else {}
 
 
+def _is_external_ref(obj: Any) -> str | None:
+    """Return the ref string if obj is an unresolvable external $ref, else None."""
+    if isinstance(obj, dict) and "$ref" in obj:
+        ref = obj["$ref"]
+        if isinstance(ref, str) and not ref.startswith("#/"):
+            return ref
+    return None
+
+
 # ---------------------------------------------------------------------------
 # OpenAPI version and base URL
 # ---------------------------------------------------------------------------
@@ -278,16 +287,22 @@ def _openapi_params_from_operation(
             extra_headers.append(_classify_header("Cookie", f"{name}={value}"))
         elif location == "body":
             # Swagger 2.0 body parameter
-            body_schema = _resolve_obj(param.get("schema", {}), doc, visited)
-            if body_schema:
-                for prop_name, prop_schema in body_schema.get("properties", {}).items():
-                    prop_schema = _resolve_obj(prop_schema, doc, visited)
-                    body_params.append(Param(
-                        name=prop_name,
-                        value=_schema_example(prop_schema, doc, visited),
-                        type=prop_schema.get("type", "string"),
-                    ))
+            raw_schema = param.get("schema", {})
+            ext = _is_external_ref(raw_schema)
+            if ext:
+                notes.append(f"Body schema uses an external $ref '{ext}' — not resolved; body params not extracted.")
                 body_format = "json"
+            else:
+                body_schema = _resolve_obj(raw_schema, doc, visited)
+                if body_schema:
+                    for prop_name, prop_schema in body_schema.get("properties", {}).items():
+                        prop_schema = _resolve_obj(prop_schema, doc, visited)
+                        body_params.append(Param(
+                            name=prop_name,
+                            value=_schema_example(prop_schema, doc, visited),
+                            type=prop_schema.get("type", "string"),
+                        ))
+                    body_format = "json"
         elif location == "formData":
             swagger_form_params.append(Param(name=name, value=value, type=param_type))
 
@@ -298,36 +313,51 @@ def _openapi_params_from_operation(
     # OpenAPI 3.x requestBody
     if request_body and not body_params:
         rb = _resolve_obj(request_body, doc, visited)
-        content = rb.get("content", {})
-        if "application/json" in content:
-            schema = _resolve_obj(content["application/json"].get("schema", {}), doc, visited)
-            for prop_name, prop_schema in schema.get("properties", {}).items():
-                prop_schema = _resolve_obj(prop_schema, doc, visited)
-                body_params.append(Param(
-                    name=prop_name,
-                    value=_schema_example(prop_schema, doc, visited),
-                    type=prop_schema.get("type", "string"),
-                ))
-            body_format = "json"
-        elif "application/x-www-form-urlencoded" in content:
-            schema = _resolve_obj(
-                content["application/x-www-form-urlencoded"].get("schema", {}), doc, visited
-            )
-            for prop_name, prop_schema in schema.get("properties", {}).items():
-                prop_schema = _resolve_obj(prop_schema, doc, visited)
-                body_params.append(Param(
-                    name=prop_name,
-                    value=_schema_example(prop_schema, doc, visited),
-                    type=prop_schema.get("type", "string"),
-                ))
-            body_format = "form"
-        elif content:
-            first_ct = next(iter(content))
-            notes.append(
-                f"requestBody content type '{first_ct}' is not application/json or "
-                "application/x-www-form-urlencoded — body params not extracted."
-            )
+        ext_rb = _is_external_ref(request_body)
+        if ext_rb:
+            notes.append(f"requestBody uses an external $ref '{ext_rb}' — not resolved; body params not extracted.")
             body_format = "raw"
+        else:
+            content = rb.get("content", {})
+            if "application/json" in content:
+                raw_schema = content["application/json"].get("schema", {})
+                ext = _is_external_ref(raw_schema)
+                if ext:
+                    notes.append(f"requestBody schema uses an external $ref '{ext}' — not resolved; body params not extracted.")
+                    body_format = "json"
+                else:
+                    schema = _resolve_obj(raw_schema, doc, visited)
+                    for prop_name, prop_schema in schema.get("properties", {}).items():
+                        prop_schema = _resolve_obj(prop_schema, doc, visited)
+                        body_params.append(Param(
+                            name=prop_name,
+                            value=_schema_example(prop_schema, doc, visited),
+                            type=prop_schema.get("type", "string"),
+                        ))
+                    body_format = "json"
+            elif "application/x-www-form-urlencoded" in content:
+                raw_schema = content["application/x-www-form-urlencoded"].get("schema", {})
+                ext = _is_external_ref(raw_schema)
+                if ext:
+                    notes.append(f"requestBody schema uses an external $ref '{ext}' — not resolved; body params not extracted.")
+                    body_format = "form"
+                else:
+                    schema = _resolve_obj(raw_schema, doc, visited)
+                    for prop_name, prop_schema in schema.get("properties", {}).items():
+                        prop_schema = _resolve_obj(prop_schema, doc, visited)
+                        body_params.append(Param(
+                            name=prop_name,
+                            value=_schema_example(prop_schema, doc, visited),
+                            type=prop_schema.get("type", "string"),
+                        ))
+                    body_format = "form"
+            elif content:
+                first_ct = next(iter(content))
+                notes.append(
+                    f"requestBody content type '{first_ct}' is not application/json or "
+                    "application/x-www-form-urlencoded — body params not extracted."
+                )
+                body_format = "raw"
 
     return query_params, body_params, extra_headers, body_format, notes
 
