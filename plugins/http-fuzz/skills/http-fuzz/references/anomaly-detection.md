@@ -82,9 +82,41 @@ With high thread counts and short delays, some requests will fail with timeouts 
 resets. These indicate rate limiting, not vulnerabilities. Log them separately as "connection
 failures" in the report summary, don't classify them as anomalies.
 
+**Concurrency queuing noise (timing false positives)**
+When threads > 1 and the server has limited concurrency (PHP built-in dev server, simple Node
+`http.createServer`, SQLite-backed apps with write locks), multiple in-flight requests queue
+behind each other. The measured `response_time_ms` includes time spent waiting in the server's
+accept queue, not just processing time. A 1ms computation can appear as 1000ms+ if 9 other
+requests are ahead of it.
+
+**Do not report a timing anomaly found during a multi-threaded run without first verifying it
+in isolation.** See the "Timing Anomaly Verification" guidance in the Ambiguous Cases section.
+
 ---
 
 ## Ambiguous Cases (Use Judgment)
+
+**Timing anomaly verification (mandatory for multi-threaded runs)**
+Any `response_time_ms > 10× baseline median` result from a run with `--threads > 1` must be
+re-verified in isolation before it can be reported as an anomaly. Re-run the specific parameter
+with a single thread and no delay:
+
+```bash
+uv run {baseDir}/scripts/run_fuzz.py \
+  --manifest manifest.json \
+  --corpus-dir ./corpus \
+  --threads 1 \
+  --delay-ms 0 \
+  --param <param-name>
+```
+
+Filter the output to the specific value that triggered the timing hit. If the isolation run
+shows normal timing (within 3× baseline), discard the original result — it was concurrency
+queuing noise, not a server-side anomaly. Only report timing anomalies that reproduce in
+isolation.
+
+Exception: if the entire isolation run shows elevated timing across all values for that parameter,
+the server may have entered a degraded state. Re-run the baseline to confirm.
 
 **404 Not Found**
 Report if the baseline never returned 404. A parameter value that causes a 404 when the baseline

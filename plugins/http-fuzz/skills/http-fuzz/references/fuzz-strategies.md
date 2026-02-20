@@ -8,23 +8,52 @@ When a parameter name doesn't match any category, use the **Unmatched** fallback
 
 ---
 
+## Safety Constraints (Non-Negotiable)
+
+These apply to every value in every corpus file, no exceptions:
+
+**No write-operation SQL.** SQL injection probes must be read-only. Permitted: `SELECT`,
+`UNION SELECT`, `OR 1=1`, `AND 1=2`, comment terminators (`--`, `#`, `/**/`). Prohibited in
+any form: `INSERT`, `UPDATE`, `DELETE`, `DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `EXEC`,
+`EXECUTE`, `xp_cmdshell`, `INTO OUTFILE`, `LOAD_FILE`. A vulnerable application would execute
+these against a real database — data loss and corruption are irreversible.
+
+**No time-delay SQL.** Exclude `SLEEP()`, `WAITFOR DELAY`, `pg_sleep()`, `BENCHMARK()`, and
+equivalent timing functions from SQL injection payloads. These probe blind injection via latency
+but risk triggering a denial-of-service condition on shared infrastructure.
+
+**No destructive deserialization payloads.** Deserialization probes must use known-safe classes
+(`datetime.date`, `stdClass`, `System.Uri`) that verify the sink exists without executing
+arbitrary code. Never include classes that invoke shell commands, file operations, or network
+calls (e.g. no `os.system`, `subprocess`, `Runtime.exec`, `ProcessBuilder`).
+
+**No command injection payloads.** Do not include shell metacharacters intended to execute
+commands: backtick execution (`` `id` ``), `$(id)`, `; rm -rf /`, `| cat /etc/passwd`.
+Command injection detection is out of scope for this skill — it requires controlled output
+comparison that HTTP response fuzzing cannot provide safely.
+
+If the user explicitly asks to add any of the above categories anyway, decline and explain that
+the risk of accidental data loss or service disruption is not acceptable in an automated fuzz run.
+
+---
+
 ## Semantic Category Table
 
 | Category | Name signals | Generated inputs |
 |---|---|---|
 | **Numeric ID** | `id`, `*_id`, `user_id`, `account_id`, `item_id`, `record_id`, `*Id`, `*ID` | `0`, `-1`, `-2147483648`, `2147483648`, `9999999999`, `1.5`, `null`, `""`, `undefined`, `NaN` |
-| **Email address** | `email`, `email_address`, `login`, `username`, `*_email` | `user@`, `@example.com`, `user@@example.com`, `user @example.com`, `a@b.c'--`, `admin@example.com`, `"><script>alert(1)</script>@x.com`, (500-char `a` string + `@x.com`), `user+test@example.com`, `user@bücher.de` |
-| **Password / secret** | `password`, `passwd`, `secret`, `pass`, `pwd`, `*_password`, `*_secret` | `""`, `null`, `password`, `admin`, `' OR '1'='1`, `'; SELECT * FROM users; --`, (500-char string), `\x00`, `password\nX-Injected: true` |
+| **Email address** | `email`, `email_address`, `login`, `username`, `*_email` | `user@`, `@example.com`, `user@@example.com`, `user @example.com`, `a@b.c'--`, `admin@example.com`, `"><script>alert(1)</script>@x.com`, (246-char `a` string + `@x.com`), `user+test@example.com`, `user@bücher.de` |
+| **Password / secret** | `password`, `passwd`, `secret`, `pass`, `pwd`, `*_password`, `*_secret` | `""`, `null`, `password`, `admin`, `' OR '1'='1`, `'; SELECT * FROM users; --`, (256-char `a` string), `\x00`, `password\nX-Injected: true` |
 | **Date / time** | `date`, `*_date`, `*_at`, `created_at`, `updated_at`, `timestamp`, `start`, `end`, `from`, `to`, `expires` | `0`, `-1`, `2038-01-19`, `9999-12-31`, `0000-00-00`, `13/32/2024`, `now`, `yesterday`, `1' OR '1'='1`, `2024-02-30`, `9999999999` (Unix epoch far future), `2024-01-01T00:00:00Z` |
 | **Role / permission** | `role`, `roles`, `permission`, `permissions`, `scope`, `access`, `access_level`, `privilege`, `type`, `account_type` | `admin`, `root`, `superuser`, `administrator`, `ADMIN`, `Admin`, `system`, `internal`, `owner`, `god`, `sudo`, `staff`, `moderator`, `super_admin`, `null`, `""` |
-| **Filename / path** | `file`, `filename`, `file_name`, `path`, `filepath`, `file_path`, `attachment`, `document`, `resource`, `uri`, `location` | `../../../etc/passwd`, `....//....//etc/passwd`, `/etc/passwd`, `/etc/passwd%00.jpg`, `%2e%2e%2f%2e%2e%2fetc%2fpasswd`, `CON`, `NUL`, `PRN`, `AUX`, `.htaccess`, `index.php`, `web.config`, `app.config`, `null`, `""`, (500-char string) |
+| **Filename / path** | `file`, `filename`, `file_name`, `path`, `filepath`, `file_path`, `attachment`, `document`, `resource`, `uri`, `location` | `../../../etc/passwd`, `....//....//etc/passwd`, `/etc/passwd`, `/etc/passwd%00.jpg`, `%2e%2e%2f%2e%2e%2fetc%2fpasswd`, `CON`, `NUL`, `PRN`, `AUX`, `.htaccess`, `index.php`, `web.config`, `app.config`, `null`, `""`, (256-char `a` string) |
 | **URL / redirect** | `url`, `redirect`, `redirect_url`, `return_url`, `callback`, `next`, `dest`, `destination`, `ref`, `referrer` | `http://attacker.com`, `//attacker.com`, `/\attacker.com`, `javascript:alert(1)`, `data:text/html,<h1>x</h1>`, `http://localhost/admin`, `http://169.254.169.254/latest/meta-data/`, `""`, `null` |
-| **Free text / name** | `name`, `title`, `description`, `comment`, `message`, `content`, `body`, `text`, `label`, `note`, `subject` | `""`, `a`, (1000-char `a` string), (10000-char `a` string), `<script>alert(1)</script>`, `<img src=x onerror=alert(1)>`, `' OR 1=1--`, `\x00`, `\r\nX-Injected: true`, `{{7*7}}`, `${7*7}`, `<%= 7*7 %>` |
-| **Token / key / hash** | `token`, `api_key`, `apikey`, `key`, `hash`, `nonce`, `auth`, `jwt`, `bearer`, `access_token`, `refresh_token` | `""`, `null`, `0000000000000000000000000000000000000000`, `aaaa`, (4-char string), (10000-char string), `eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.e30.` (JWT with alg:none), `../../../etc/passwd` |
+| **Free text / name** | `name`, `title`, `description`, `comment`, `message`, `content`, `body`, `text`, `label`, `note`, `subject` | `""`, `a`, (256-char `a` string), (1024-char `a` string — the one oversized probe), `<script>alert(1)</script>`, `<img src=x onerror=alert(1)>`, `' OR 1=1--`, `\x00`, `\r\nX-Injected: true`, `{{7*7}}`, `${7*7}`, `<%= 7*7 %>` |
+| **Token / key / hash** | `token`, `api_key`, `apikey`, `key`, `hash`, `nonce`, `auth`, `jwt`, `bearer`, `access_token`, `refresh_token` | `""`, `null`, `0000000000000000000000000000000000000000`, `aaaa`, (4-char `a` string), (256-char `a` string), `eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.e30.` (JWT with alg:none), `../../../etc/passwd` |
 | **Boolean flag** | `enabled`, `active`, `is_admin`, `is_staff`, `verified`, `confirmed`, `flag`, `*_enabled`, `*_active`, `*_flag` | `true`, `false`, `1`, `0`, `"true"`, `"false"`, `"yes"`, `"no"`, `null`, `""`, `2`, `-1` |
 | **Amount / quantity** | `amount`, `price`, `quantity`, `count`, `total`, `balance`, `fee`, `cost`, `rate`, `limit`, `offset` | `0`, `-1`, `-0.01`, `0.001`, `2147483647`, `9999999999.99`, `"NaN"`, `"Infinity"`, `"-Infinity"`, `null`, `""`, `1e308` |
 | **Age / size / length** | `age`, `size`, `length`, `width`, `height`, `max`, `min`, `duration`, `timeout`, `retry` | `0`, `-1`, `2147483647`, `99999`, `1.5`, `"0"`, `null`, `""`, `"unlimited"` |
-| **Search / query** | `query`, `q`, `search`, `filter`, `keyword`, `term`, `s` | `""`, `*`, `%`, `_`, `' OR 1=1--`, `"; SELECT * FROM users; --`, `<script>alert(1)</script>`, `{{7*7}}`, (1000-char string), `\x00` |
+| **Search / query** | `query`, `q`, `search`, `filter`, `keyword`, `term`, `s` | `""`, `*`, `%`, `_`, `' OR 1=1--`, `"; SELECT * FROM users; --`, `<script>alert(1)</script>`, `{{7*7}}`, (256-char `a` string), `\x00` |
 | **JSON string** | `data`, `payload`, `body`, `object`, `config`, `options`, `settings`, `params`, `args`, `input`, `value`, `json`, `*_json`, `*_data`, `*_payload` | `{}`, `[]`, `""`, `null`, `{"__proto__":{"polluted":"yes"}}`, `{"constructor":{"prototype":{"polluted":"yes"}}}`, `{"py/object":"datetime.date","year":2025,"month":1,"day":1}`, `{"$type":"System.Uri, System","UriString":"http://example.com"}`, `{"__type":"System.Object"}`, `O:8:"stdClass":0:{}`, `b:1;` |
 
 ---
@@ -45,7 +74,7 @@ false
 ' OR 1=1--
 <script>alert(1)</script>
 {{7*7}}
-(500-char 'a' string)
+(256-char 'a' string)
 ../../../etc/passwd
 \r\nX-Injected: true
 \x00
@@ -119,10 +148,16 @@ Classify any of the following response signals as an anomaly when these probes a
 - A subsequent baseline request shows unexpected properties or header values (Node.js pollution)
 - Response time > 5s when using `{"py/object":"time.sleep","args":[5]}` style probes (timing)
 
-**Corpus file format**: Write one value per line to `./corpus/<param-name>.txt`. Blank lines are
-ignored by the fuzzer. Values that would be JSON non-strings (numbers, booleans, null) are written
-as their raw literal — the fuzzer injects them preserving the original field's JSON type context
-unless the original type was a string.
+**Line length limit — 256 characters maximum.** No single corpus value may exceed 256 characters.
+This covers every common field-length validation boundary (VARCHAR(255), 128-char limits, etc.)
+without burning output tokens on giant strings. The one exception is the free-text category,
+which includes a single 1024-char probe to catch completely unvalidated fields — that is the
+only value that may exceed 256 chars, and only in that category.
+
+**Corpus file format**: Write one value per line. Blank lines are ignored by the fuzzer. Values
+that would be JSON non-strings (numbers, booleans, null) are written as their raw literal —
+the fuzzer injects them preserving the original field's JSON type context unless the original
+type was a string.
 
 ---
 

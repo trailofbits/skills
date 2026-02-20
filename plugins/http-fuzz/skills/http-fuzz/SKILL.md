@@ -42,6 +42,7 @@ A Python script handles HTTP requests; Claude handles the reasoning.
 - "I'll only send a few requests" — fuzzing requires enough volume to be meaningful; obtain authorization regardless of volume
 - "The endpoint looks safe, skipping the baseline" — inconsistent baselines produce noise; always establish a baseline before fuzzing
 - "I'll skip the auth headers in the corpus to be safe" — that's correct behavior, not a shortcut
+- "I'll add INSERT/UPDATE/DELETE payloads to test for SQL injection more thoroughly" — write-operation SQL in an automated fuzz run can cause irreversible data loss; read-only probes (`SELECT`, `OR 1=1`) are sufficient to confirm a SQL injection sink exists
 
 ## Prerequisites
 
@@ -53,18 +54,30 @@ A Python script handles HTTP requests; Claude handles the reasoning.
 
 ## Workflow
 
+### Step 0: Capture the Working Directory
+
+Before writing any file, run:
+
+```bash
+pwd
+```
+
+Store the result with `/http-fuzz/` appended as `WORK_DIR`. Use `$WORK_DIR/<filename>` as the absolute path for every
+subsequent write — the Write tool requires absolute paths, and `./` is ambiguous. All paths
+below that start with `$WORK_DIR` refer to this captured value.
+
 ### Step 1: Parse the Input Request
 
 Save the input to a file, then run:
 
 ```bash
 # Auto-detect format (raw HTTP, curl, or HAR)
-uv run {baseDir}/scripts/parse_input.py --format auto request.txt > manifest.json
+uv run {baseDir}/scripts/parse_input.py --format auto request.txt > "$WORK_DIR/manifest.json"
 
 # Or specify format explicitly
-uv run {baseDir}/scripts/parse_input.py --format curl curl.txt > manifest.json
+uv run {baseDir}/scripts/parse_input.py --format curl curl.txt > "$WORK_DIR/manifest.json"
 uv run {baseDir}/scripts/parse_input.py --format har --list-entries export.har
-uv run {baseDir}/scripts/parse_input.py --format har --entry 3 export.har > manifest.json
+uv run {baseDir}/scripts/parse_input.py --format har --entry 3 export.har > "$WORK_DIR/manifest.json"
 ```
 
 Read the manifest and present the extracted parameters as a table:
@@ -75,8 +88,10 @@ Read the manifest and present the extracted parameters as a table:
 | role | body (JSON) | string | member | Yes |
 | Authorization | header | string | Bearer eyJ... | **No** (auth token) |
 
-Ask the user to confirm or remove parameters before proceeding. Fuzzing CSRF tokens or session
-cookies produces noise, not findings.
+Ask the user to confirm or remove parameters before proceeding. Generally, fuzzing CSRF tokens or session
+cookies produces noise, not findings. 
+
+**Important:** If multiple requests are present (e.g. HAR file), ensure the user selects the correct one for fuzzing. The manifest should only contain one request.
 
 See `references/input-formats.md` for format-specific details and known limitations.
 
@@ -84,19 +99,31 @@ See `references/input-formats.md` for format-specific details and known limitati
 
 For each fuzz target, generate a curated set of inputs using the semantic strategy table in
 `references/fuzz-strategies.md`. Match the parameter name to a category, generate the
-corresponding values, and write them to corpus files:
+corresponding values, and write them to corpus files using the absolute path from Step 0:
 
 ```
-./corpus/<param-name>.txt   (one value per line, UTF-8, blank lines ignored)
+$WORK_DIR/corpus/<param-name>.txt   (one value per line, UTF-8, blank lines ignored)
 ```
 
-Use the Write tool to create each corpus file — the fuzzer reads them directly.
+Use the Write tool with the full absolute path (e.g. `/home/user/project/corpus/email.txt`).
+Never use `./` or `/tmp/` — the corpus files should live alongside the user's project.
 
-Key principles:
-- Generate inputs that test what the parameter *means*, not random garbage
-- When a parameter matches multiple categories (e.g. `user_id` matches both "Numeric ID" and general fuzz), include inputs from all matching categories
-- For parameters with no category match, use the "Unmatched" fallback set from fuzz-strategies.md
-- Summarize how many values were generated per parameter before proceeding
+**One parameter per turn — hard turn boundary.** For each parameter:
+1. Silently decide which values to include (no narration, no explanation of reasoning).
+2. Call the Write tool with the complete file content.
+3. Output exactly one line: `✓ corpus/<name>.txt — N values` and nothing else.
+4. End your response there. The next parameter starts in the next turn.
+
+Do not mention what category the parameter matched. Do not preview the values. Do not
+say "Next I will…". Any text beyond the single confirmation line is a token budget violation
+that will cause the overall run to fail.
+
+Additional principles:
+- Ask the user which parameters to exclude before generating anything
+- Cap at 50 values per parameter; prioritize coverage of distinct vulnerability classes over
+  exhaustive enumeration within one class
+- When a parameter matches multiple categories, include inputs from each but still stay under 50
+- For no-category-match parameters, use the "Unmatched" fallback set from fuzz-strategies.md
 
 ### Step 3: Establish Baseline
 
@@ -104,7 +131,7 @@ Run 5 baseline requests with the original parameter values:
 
 ```bash
 uv run {baseDir}/scripts/run_baseline.py \
-  --manifest manifest.json \
+  --manifest "$WORK_DIR/manifest.json" \
   --count 5 \
   [--timeout 10] \
   [--no-verify]
@@ -141,8 +168,8 @@ anomalies. Reduce thread count if many `"error": "timeout"` results appear.
 
 ```bash
 uv run {baseDir}/scripts/run_fuzz.py \
-  --manifest manifest.json \
-  --corpus-dir ./corpus \
+  --manifest "$WORK_DIR/manifest.json" \
+  --corpus-dir "$WORK_DIR/corpus" \
   --threads <N> \
   --delay-ms <MS> \
   [--timeout 10] \
@@ -152,7 +179,10 @@ uv run {baseDir}/scripts/run_fuzz.py \
 
 Use `--dry-run` first to preview the full request plan without sending:
 ```bash
-uv run {baseDir}/scripts/run_fuzz.py --manifest manifest.json --corpus-dir ./corpus --dry-run
+uv run {baseDir}/scripts/run_fuzz.py \
+  --manifest "$WORK_DIR/manifest.json" \
+  --corpus-dir "$WORK_DIR/corpus" \
+  --dry-run
 ```
 
 The fuzzer streams NDJSON to stdout — one result per line:
@@ -177,15 +207,34 @@ For each NDJSON result, check:
 1. Status code ≠ baseline most-common → anomaly
 2. Body contains error signal keywords → anomaly
 3. Content-type changed → anomaly
-4. Response time > 10× baseline median → anomaly
+4. Response time > 10× baseline median → **candidate** (see verification step below)
 5. Network error (`"error": "timeout"`) → log separately as connection failure, not anomaly
 
-Accumulate anomalies with their reason. Ignore the noise cases listed in anomaly-detection.md.
+Accumulate non-timing anomalies directly. Timing candidates require an extra step.
+
+**Timing anomaly verification (required when threads > 1):**
+Before reporting any timing candidate, re-run that parameter in isolation:
+
+```bash
+uv run {baseDir}/scripts/run_fuzz.py \
+  --manifest "$WORK_DIR/manifest.json" \
+  --corpus-dir "$WORK_DIR/corpus" \
+  --threads 1 \
+  --delay-ms 0 \
+  --param <param-name>
+```
+
+Only promote a timing candidate to a confirmed anomaly if the isolation run also exceeds 10×
+the baseline median for that specific value. If the isolation run shows normal timing, discard
+it — it was server-side queuing from concurrent requests, not a payload-triggered delay.
+
+See `references/anomaly-detection.md` for full details on concurrency queuing noise and the
+other noise cases to ignore.
 
 ### Step 7: Write the Report
 
-Use the Write tool to create `./http-fuzz-report.md`. See `references/report-template.md` for
-the full report structure.
+Use the Write tool to create `$WORK_DIR/http-fuzz-report.md` (absolute path). Write this
+alongside the corpus files so the user can refer to both.
 
 After writing the report, tell the user its location and summarize the key findings in 2–3
 sentences.

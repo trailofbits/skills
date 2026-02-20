@@ -5,10 +5,10 @@ Write `./http-fuzz-report.md` using this structure:
 ```markdown
 # HTTP Fuzz Report
 
-**Target**: <METHOD> <URL>
-**Date**: <date>
-**Aggression**: <level> (<N> threads, <MS>ms delay)
-**Parameters fuzzed**: <list> (<N> of <total>; <excluded> excluded)
+- **Target**: <METHOD> <URL>
+- **Date**: <date>
+- **Aggression**: <level> (<N> threads, <MS>ms delay)
+- **Parameters fuzzed**: <list> (<N> of <total>; <excluded> excluded)
 
 ## Summary
 
