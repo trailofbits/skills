@@ -47,7 +47,7 @@ A Python script handles HTTP requests; Claude handles the reasoning.
 
 ## Workflow
 
-### Step 0: Preflight — Verify Dependencies and Capture Working Directory
+### Step 0: Preflight — Verify Dependencies, Capture Working Directory, and Plan Operation Order
 
 **Check that `uv` is installed** — all fuzzer scripts require it:
 
@@ -74,6 +74,28 @@ If the user specified a working directory, use that as `WORK_DIR`. Otherwise, st
 with `/http-fuzz-report/` appended as `WORK_DIR`. Use `$WORK_DIR/<filename>` as the absolute
 path for every subsequent write — the Write tool requires absolute paths, and `./` is
 ambiguous. All paths below that start with `$WORK_DIR` refer to this captured value.
+
+**Plan operation order before fuzzing multiple endpoints.** When the scope includes more than
+one operation and the session is authenticated, classify each operation by its effect on the
+session before starting any fuzz run:
+
+| Class | Examples | When to fuzz |
+|---|---|---|
+| **Session-neutral** | GET pages, search, booking details, profile view | First — these are safe to run with any valid session |
+| **Session-mutating** | Profile update, password change, role change | After session-neutral operations; re-verify session after each |
+| **Session-terminating** | Logout (`/logout`, `/signout`, session destroy) | Last — a single hit destroys the session for all concurrent operations |
+| **Session-creating** | Login, signup, OAuth callback | Last — test after all authenticated operations are complete; a successful auth-bypass payload may also create a new session that masks subsequent results |
+
+**Why this matters:** The fuzzer sends many requests concurrently. If a logout endpoint is
+fuzzed at the same time as an authenticated page, a successful (or even partially successful)
+logout request will invalidate the session mid-run — every subsequent result returns the login
+page regardless of payload, producing zero signal and no findings for those operations.
+
+**Concrete rule:** When any logout or login endpoint is in scope alongside authenticated
+endpoints, always complete all authenticated fuzz operations first, then fuzz login/logout
+last — in separate runs with freshly obtained sessions. Security-sensitive flows (login, logout,
+password change, role assignment) must still be thoroughly tested; the constraint is on *when*,
+not *whether*.
 
 ### Step 1: Parse the Input Request
 
@@ -149,7 +171,14 @@ uv run {baseDir}/scripts/run_baseline.py \
   --count 5 \
   --preview-length 0 \
   [--timeout 10] \
-  [--no-verify]
+  [--no-verify] \
+  > "$WORK_DIR/baseline.json"
+```
+
+**Always redirect to a file** — `uv run` does not reliably forward stdout through a shell pipe on all platforms. Read the file after the command completes:
+
+```bash
+cat "$WORK_DIR/baseline.json"
 ```
 
 Read the summary JSON and evaluate consistency:
@@ -189,17 +218,19 @@ uv run {baseDir}/scripts/run_fuzz.py \
   --probe-encodings \
   --dry-run
 
-# Send probes
+# Send probes (redirect to file — uv run stdout pipe is unreliable)
 uv run {baseDir}/scripts/run_fuzz.py \
   --manifest "$WORK_DIR/manifest.json" \
   --probe-encodings \
   [--timeout 10] \
-  [--no-verify]
+  [--no-verify] \
+  > "$WORK_DIR/encoding-probes.ndjson"
+cat "$WORK_DIR/encoding-probes.ndjson"
 ```
 
 The script automatically constructs and sends the appropriate probes for the manifest's
 `body_format`: XML with a DOCTYPE XXE entity injection, form-encoded, and JSON (when the
-original is not already that format). Results stream as NDJSON with `probe_encoding` set.
+original is not already that format). Results are written as NDJSON with `probe_encoding` set.
 
 For each result: compare `status_code` and `body_preview` against the baseline. Apply the
 anomaly rules from `references/anomaly-detection.md`.
@@ -228,6 +259,12 @@ anomalies. Reduce `--threads` if many `"error": "timeout"` results appear.
 
 ### Step 6: Run the Fuzzer
 
+**If fuzzing multiple operations in an authenticated session, follow the order established in
+Step 0:** session-neutral first, session-mutating next, session-terminating (logout) and
+session-creating (login) last. Do not run logout or login operations concurrently with any
+other authenticated operation. Obtain a fresh session immediately before fuzzing each
+session-creating or session-terminating operation.
+
 ```bash
 uv run {baseDir}/scripts/run_fuzz.py \
   --manifest "$WORK_DIR/manifest.json" \
@@ -236,7 +273,14 @@ uv run {baseDir}/scripts/run_fuzz.py \
   --delay-ms <MS> \
   [--timeout 10] \
   [--no-verify] \
-  [--param email]    # optional: limit to specific parameters
+  [--param email] \   # optional: limit to specific parameters
+  > "$WORK_DIR/fuzz-results.ndjson"
+```
+
+**Always redirect to a file** — `uv run` does not reliably forward stdout through a shell pipe on all platforms. Read the file after the command completes:
+
+```bash
+cat "$WORK_DIR/fuzz-results.ndjson"
 ```
 
 Use `--dry-run` first to preview the full request plan without sending:
@@ -247,13 +291,13 @@ uv run {baseDir}/scripts/run_fuzz.py \
   --dry-run
 ```
 
-The fuzzer streams NDJSON to stdout — one result per line:
+The fuzzer writes NDJSON to stdout — one result per line:
 ```json
 {"param": "email", "value": "a@b.c'--", "status_code": 500, "response_time_ms": 89,
  "content_length": 1203, "content_type": "text/html", "body_preview": "...SQL syntax...", "error": null}
 ```
 
-Read each line as it arrives and classify it using the rules in Step 7.
+Read the results file and classify each line using the rules in Step 7.
 For large runs (>500 requests), batch in groups of 50 to manage context.
 
 #### Choosing preview settings
@@ -289,7 +333,9 @@ uv run {baseDir}/scripts/run_fuzz.py \
   --manifest "$WORK_DIR/manifest.json" \
   --corpus-dir "$WORK_DIR/corpus" \
   --threads 1 --delay-ms 0 \
-  --param <param-name>
+  --param <param-name> \
+  > "$WORK_DIR/timing-rerun.ndjson"
+cat "$WORK_DIR/timing-rerun.ndjson"
 ```
 Only report a timing anomaly if it reproduces in isolation. Discard otherwise — it was
 server-side queuing, not a payload-triggered delay.

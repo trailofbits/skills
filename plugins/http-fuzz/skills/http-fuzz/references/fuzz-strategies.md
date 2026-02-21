@@ -47,7 +47,7 @@ the risk of accidental data loss or service disruption is not acceptable in an a
 | **Date / time** | `date`, `*_date`, `*_at`, `created_at`, `updated_at`, `timestamp`, `start`, `end`, `from`, `to`, `expires` | `0`, `-1`, `2038-01-19`, `9999-12-31`, `0000-00-00`, `13/32/2024`, `now`, `yesterday`, `1' OR '1'='1`, `2024-02-30`, `9999999999` (Unix epoch far future), `2024-01-01T00:00:00Z` |
 | **Role / permission** | `role`, `roles`, `permission`, `permissions`, `scope`, `access`, `access_level`, `privilege`, `type`, `account_type` | `admin`, `root`, `superuser`, `administrator`, `ADMIN`, `Admin`, `system`, `internal`, `owner`, `god`, `sudo`, `staff`, `moderator`, `super_admin`, `null`, `""` |
 | **Filename / path** | `file`, `filename`, `file_name`, `path`, `filepath`, `file_path`, `attachment`, `document`, `resource`, `uri`, `location` | `../../../etc/passwd`, `....//....//etc/passwd`, `/etc/passwd`, `/etc/passwd%00.jpg`, `%2e%2e%2f%2e%2e%2fetc%2fpasswd`, `CON`, `NUL`, `PRN`, `AUX`, `.htaccess`, `index.php`, `web.config`, `app.config`, `null`, `""`, (256-char `a` string) |
-| **URL / redirect** | `url`, `redirect`, `redirect_url`, `return_url`, `callback`, `next`, `dest`, `destination`, `ref`, `referrer` | `http://attacker.com`, `//attacker.com`, `/\attacker.com`, `javascript:alert(1)`, `data:text/html,<h1>x</h1>`, `http://localhost/admin`, `http://169.254.169.254/latest/meta-data/`, `""`, `null` |
+| **URL / redirect** | `url`, `redirect`, `redirect_url`, `redirect_uri`, `return`, `return_to`, `return_url`, `returnTo`, `returnUrl`, `callback`, `next`, `dest`, `destination`, `go`, `goto`, `target`, `redir`, `rurl`, `continue`, `forward`, `to`, `out`, `ref`, `referrer`, `checkout_url`, `post_logout_redirect_uri` | `http://attacker.com`, `//attacker.com`, `////attacker.com`, `/\attacker.com`, `\\attacker.com`, `https:attacker.com`, `%2F%2Fattacker.com`, `%2F%5Cattacker.com`, `https://attacker.com%2F@127.0.0.1`, `https://127.0.0.1@attacker.com`, `https://127.0.0.1.attacker.com`, `https://attacker.com?127.0.0.1`, `https://attacker.com%00.127.0.0.1`, `javascript:alert(document.domain)`, `data:text/html,<h1>x</h1>`, `http://localhost/admin`, `http://169.254.169.254/latest/meta-data/`, `""`, `null` |
 | **Free text / name** | `name`, `title`, `description`, `comment`, `message`, `content`, `body`, `text`, `label`, `note`, `subject` | `""`, `a`, (256-char `a` string), (1024-char `a` string — the one oversized probe), `<script>alert(1)</script>`, `<img src=x onerror=alert(1)>`, `' OR 1=1--`, `\x00`, `\r\nX-Injected: true`, `{{7*7}}`, `${7*7}`, `<%= 7*7 %>` |
 | **Token / key / hash** | `token`, `api_key`, `apikey`, `key`, `hash`, `nonce`, `auth`, `jwt`, `bearer`, `access_token`, `refresh_token` | `""`, `null`, `0000000000000000000000000000000000000000`, `aaaa`, (4-char `a` string), (256-char `a` string), `eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.e30.` (JWT with alg:none), `../../../etc/passwd` |
 | **Boolean flag** | `enabled`, `active`, `is_admin`, `is_staff`, `verified`, `confirmed`, `flag`, `*_enabled`, `*_active`, `*_flag` | `true`, `false`, `1`, `0`, `"true"`, `"false"`, `"yes"`, `"no"`, `null`, `""`, `2`, `-1` |
@@ -133,6 +133,91 @@ Any of these is reportable:
 - Response body echoes file path content (XXE confirmed)
 - Body contains parser error signals from the alternative format
 - Response Content-Type changes
+
+---
+
+## Open Redirect Detection
+
+Open redirect parameters deserve special treatment because the vulnerability signal is in the
+**response `Location` header**, not the body — a fuzz run that only watches status codes and
+body content will miss every redirect finding.
+
+### What to look for in fuzz results
+
+After running the fuzzer against a **URL / redirect** category parameter, read each result and
+check:
+
+1. **3xx status code + `Location` header contains your payload (or a decoded form of it)** →
+   confirmed open redirect. The server is reflecting your injected URL into the redirect target.
+
+2. **`Location` header redirects to the same domain regardless of payload** → whitelist is
+   enforced; not vulnerable (but note it for the report).
+
+3. **Payload appears in the response body but NOT in `Location`** → reflected but not executed
+   as a redirect; not an open redirect finding (may still be XSS if unsanitised).
+
+4. **`javascript:` or `data:` scheme accepted in `Location`** → escalate severity; this is
+   exploitable as XSS in addition to phishing.
+
+5. **Response is 200 with no `Location` header** → endpoint ignored the parameter entirely.
+
+**The fuzzer captures `Location` in `body_preview` only if the response body contains it.**
+For redirect responses, the signal is in the response header, not the body. To check for it,
+re-run suspicious payloads with a one-off Python or `wget` invocation that prints headers:
+
+```bash
+python3 -c "
+import urllib.request, urllib.parse
+url = 'http://TARGET/path?' + urllib.parse.urlencode({'next': '//attacker.com'})
+req = urllib.request.Request(url, headers={'Cookie': 'SESS=...'})
+# disable redirect following so we see the raw 3xx
+opener = urllib.request.build_opener()
+opener.handlers = [h for h in opener.handlers
+                   if not isinstance(h, urllib.request.HTTPRedirectHandler)]
+resp = opener.open(req, timeout=10)
+print(resp.status, resp.headers.get('Location'))
+"
+```
+
+### Using a canary domain
+
+For blind redirects (the `Location` header is not returned in the initial response, or the
+redirect is triggered by JavaScript), use an out-of-band callback domain instead of
+`attacker.com`. Replace `attacker.com` in every **URL / redirect** corpus value with a unique
+subdomain from an OOB interaction tool (Burp Collaborator, interactsh, canarytokens.org). A
+DNS or HTTP callback from the target confirms the redirect was followed even when you cannot
+see the `Location` header directly.
+
+### Bypass technique coverage
+
+The **URL / redirect** corpus values above cover the most common filter bypasses:
+
+| Payload | Bypass target |
+|---|---|
+| `//attacker.com` | Protocol-relative — servers that only block `http://` / `https://` prefix |
+| `////attacker.com` | Extra slashes — some parsers normalize to `//attacker.com` |
+| `/\attacker.com` | Backslash — Windows path parsing; browsers treat `\` as `/` in URLs |
+| `\\attacker.com` | UNC path — same backslash trick, different prefix |
+| `https:attacker.com` | Missing slashes — accepted by some URL parsers |
+| `%2F%2Fattacker.com` | URL-encoded double slash — bypasses string-match filters |
+| `%2F%5Cattacker.com` | URL-encoded `/\` backslash variant |
+| `https://attacker.com%2F@127.0.0.1` | `@` authority confusion — browser navigates to `attacker.com`; server may see `127.0.0.1` |
+| `https://127.0.0.1@attacker.com` | Reversed `@` — userinfo before host; browser navigates to `attacker.com` |
+| `https://127.0.0.1.attacker.com` | Subdomain suffix spoofing — server suffix-checks `127.0.0.1` but browser resolves `attacker.com` |
+| `https://attacker.com?127.0.0.1` | Query string confusion — server may see `127.0.0.1` as the path |
+| `https://attacker.com%00.127.0.0.1` | Null byte truncation — some parsers strip at `%00` |
+| `javascript:alert(document.domain)` | XSS escalation — if accepted in `Location`, exploitable as XSS |
+
+### Severity escalators
+
+Raise severity from Medium to High or Critical when:
+- The vulnerable parameter is `redirect_uri` in an OAuth or OIDC flow — attacker can capture
+  authorization codes or access tokens
+- The redirect is on a login or logout endpoint of a high-value application — enables account
+  takeover via token theft
+- `javascript:` or `data:` URI is accepted — open redirect becomes XSS
+- The application uses the redirect destination as an SSRF target (e.g. server-side fetches the
+  redirect URL) — escalates to SSRF
 
 ---
 

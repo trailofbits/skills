@@ -50,6 +50,19 @@ If the baseline returned `{"id": 1, "status": "ok"}` and the fuzz response retur
 `{"error": "...", "debug": {...}}`, that's a structural change. Parse both as JSON and compare
 top-level key sets. If the key sets differ and the status code changed, report it.
 
+**Open redirect — 3xx + attacker-controlled `Location`**
+When fuzzing a URL / redirect category parameter, a 3xx response where the `Location` header
+contains your injected domain (verbatim or URL-decoded) is a confirmed open redirect. The
+fuzzer's `body_preview` may not capture this — the signal is in the response header. For any
+result with a 3xx status on a redirect parameter, re-verify by sending the payload manually
+with redirect-following disabled and inspect the `Location` header directly. See
+`fuzz-strategies.md` (Open Redirect Detection section) for the verification procedure.
+
+Also report:
+- A `javascript:` or `data:` URI appearing in a `Location` header — severity escalates to XSS
+- Any 3xx where the baseline was 200 (or vice versa) on a redirect parameter — unexpected
+  redirect behavior even without an external domain is worth investigating
+
 ---
 
 ## Ignore (Noise)
