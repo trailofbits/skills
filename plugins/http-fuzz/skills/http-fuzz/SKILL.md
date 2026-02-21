@@ -340,6 +340,106 @@ cat "$WORK_DIR/timing-rerun.ndjson"
 Only report a timing anomaly if it reproduces in isolation. Discard otherwise — it was
 server-side queuing, not a payload-triggered delay.
 
+### Step 7.5: Source-Assisted Fuzzing
+
+**Trigger:** Any finding that can retrieve server-side source files — LFI, path traversal, arbitrary file download, SSRF to a local file endpoint, SQL `LOAD_FILE()` output, XXE with `file://`, or any other mechanism that returns raw file content.
+
+**Goal:** Use source code to confirm injection sinks, discover hidden parameters and endpoints, and identify code paths that are not reachable through the API spec alone.
+
+#### Collect known filenames
+
+Before attempting any download, compile the list of filenames already seen in fuzzing results:
+
+- Stack traces, PHP warnings, and error messages often contain absolute paths
+  (e.g. `in /var/www/html/bookings.php on line 37`)
+- `include()`/`require()` paths in LFI warning responses
+- `Location` headers and HTML `action=""` attributes in response bodies
+- Path segments from the OpenAPI spec (e.g. `/cancel.php`, `/uploads/{filename}`)
+
+Collect all unique filenames into a working list. Do not attempt any download yet.
+
+#### Check for risk before proceeding
+
+Before retrieving source files, assess whether the download mechanism could cause side effects:
+
+| Mechanism | Proceed automatically? |
+|---|---|
+| LFI / path traversal (read-only GET) | **Yes** — reading a file is non-destructive |
+| Arbitrary file download endpoint | **Yes** — if it is a GET with no observable state change |
+| SQL `LOAD_FILE()` | **No** — ask the user; reads arbitrary server files outside the web root |
+| SQL `INTO OUTFILE` | **Never** — this writes files to the server; prohibited by the safety constraints in `references/fuzz-strategies.md` |
+| SSRF fetching `file://` | **No** — ask the user; SSRF may trigger internal requests |
+| POST body with server-side render | **No** — ask the user; rendering can trigger side effects |
+
+If a "No" mechanism is the only available path, stop and ask the user:
+> "I can attempt to retrieve source files using [mechanism]. This may [specific risk]. Shall I proceed?"
+
+Do not proceed until the user confirms. Never use `INTO OUTFILE` regardless of user instruction — it writes attacker-controlled content to the server filesystem, which is an irreversible destructive action outside the scope of read-only source disclosure.
+
+#### Retrieve and read the source files
+
+For each file in the working list, attempt to fetch it using the confirmed download mechanism. Use Python (`urllib.request`) rather than curl — curl is often unavailable. Retrieve files one at a time and read each response immediately:
+
+```python
+import urllib.request, urllib.parse
+
+def fetch(url, headers=None):
+    req = urllib.request.Request(url, headers=headers or {})
+    # disable redirect following so 302s are visible
+    class NoRedirect(urllib.request.HTTPErrorProcessor):
+        def http_response(self, r, resp): return resp
+        https_response = http_response
+    opener = urllib.request.build_opener(NoRedirect())
+    resp = opener.open(req, timeout=10)
+    return resp.status, resp.read().decode('utf-8', 'replace')
+```
+
+A successful retrieval returns the raw PHP/Python/JS source, not rendered HTML. If the response is HTML (contains `<!DOCTYPE` or `<html`), the server executed the file rather than serving its source — note this but do not treat it as a source disclosure.
+
+**Stop after 10 files** unless the user explicitly asks for more. Source reading can expand indefinitely; focus on files directly relevant to confirmed findings.
+
+#### Use source to enhance findings
+
+For each source file retrieved, look for:
+
+1. **SQL query construction** — find every place user input is interpolated into a query string
+   without `prepare()`/`bindParam()`. Add the parameter names to the corpus if they are not
+   already fuzz targets.
+
+2. **Hidden parameters** — `$_GET`, `$_POST`, `$_REQUEST`, `request.args`, `req.body` reads
+   that are not in the API spec. Add them to a new manifest and fuzz them.
+
+3. **Secondary sinks** — input that is passed to `include()`, `file_get_contents()`, `exec()`,
+   `system()`, `eval()`, `unserialize()`, `pickle.loads()`, or similar. These are high-priority
+   follow-up fuzz targets.
+
+4. **Authentication and authorization logic** — look for conditions that gate access (e.g.
+   `if ($role === 'admin')`). Check whether the condition can be bypassed using values already
+   in the corpus.
+
+5. **Cryptographic weaknesses** — `md5()`, `sha1()`, hardcoded secrets, weak token generation.
+   Note these in the report even if they are not directly fuzzable.
+
+6. **File paths and include targets** — new filenames to add to the working list for further
+   retrieval.
+
+#### Update the report and re-fuzz if warranted
+
+After reading source, do two things before moving to Step 8:
+
+1. **Add a "Source-Assisted Analysis" section** to the findings — for each file retrieved,
+   note the filename, how it was obtained, and what it revealed.
+
+2. **Re-fuzz any newly discovered parameters or endpoints** — go back to Step 2 and generate
+   corpus files for them, then run a targeted fuzz (use `--param <name>` to limit scope). Report
+   the results in the same report under the relevant finding or as a new finding.
+
+**All follow-up fuzzing and any manual exploitation performed in this step must comply with
+the safety constraints in `references/fuzz-strategies.md`** — no write-operation SQL, no
+destructive deserialization payloads, no command injection, no time-delay SQL. Source code
+may reveal tempting new attack surfaces (e.g. an `unserialize()` call or a raw `exec()`); the
+same rules apply regardless of how the sink was discovered.
+
 ### Step 8: Write the Report
 
 Use the Write tool to create `$WORK_DIR/http-fuzz-report.md` (absolute path). Write this
