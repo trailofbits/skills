@@ -70,9 +70,10 @@ resolved automatically by `uv run` — no separate install step is needed for th
 pwd
 ```
 
-Store the result with `/http-fuzz-report/` appended as `WORK_DIR`. Use `$WORK_DIR/<filename>` as the absolute path for every
-subsequent write — the Write tool requires absolute paths, and `./` is ambiguous. All paths
-below that start with `$WORK_DIR` refer to this captured value.
+If the user specified a working directory, use that as `WORK_DIR`. Otherwise, store the result
+with `/http-fuzz-report/` appended as `WORK_DIR`. Use `$WORK_DIR/<filename>` as the absolute
+path for every subsequent write — the Write tool requires absolute paths, and `./` is
+ambiguous. All paths below that start with `$WORK_DIR` refer to this captured value.
 
 ### Step 1: Parse the Input Request
 
@@ -212,16 +213,18 @@ Include all encoding probe results in the final report under their own section.
 
 ### Step 5: Choose Aggression Level
 
-Ask the user: **How aggressive should the fuzz be?**
+Ask the user how aggressive the fuzz should be, then select `--threads` and `--delay-ms`
+values accordingly. There is **no `--aggression` flag** — set thread count and delay directly
+in Step 6.
 
-| Level | Threads | Delay | Use when |
+| Level | `--threads` | `--delay-ms` | Use when |
 |---|---|---|---|
-| **Gentle** | 1–5 | 3000ms | Rate-limited APIs, WAFs, shared/staging environments |
-| **Moderate** | 10–20 | 500ms | Dedicated test environments, most common choice |
-| **Aggressive** | 50+ | 0ms | Isolated test environments, high-throughput APIs |
+| **Gentle** | 1–5 | 3000 | Rate-limited APIs, WAFs, shared/staging environments |
+| **Moderate** | 10–20 | 500 | Dedicated test environments, most common choice |
+| **Aggressive** | 50+ | 0 | Isolated test environments, high-throughput APIs |
 
-Note: aggressive mode against rate-limited APIs produces connection failures that look like
-anomalies. Reduce thread count if many `"error": "timeout"` results appear.
+Note: high thread counts against rate-limited APIs produce connection failures that look like
+anomalies. Reduce `--threads` if many `"error": "timeout"` results appear.
 
 ### Step 6: Run the Fuzzer
 
