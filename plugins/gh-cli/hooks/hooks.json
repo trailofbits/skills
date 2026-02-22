@@ -30,6 +30,24 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/intercept-github-curl.sh\""
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/intercept-gh-clone-path.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/intercept-gh-api-contents.sh\""
+          }
+        ]
       }
     ],
     "SessionEnd": [

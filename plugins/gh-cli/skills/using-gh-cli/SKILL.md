@@ -44,6 +44,8 @@ mkdir -p "$clonedir"
 gh repo clone owner/repo "$clonedir/repo" -- --depth 1
 ```
 
+> **IMPORTANT:** Always use `$TMPDIR/gh-clones-${CLAUDE_SESSION_ID}` exactly as shown. Do NOT invent alternative paths like `/tmp/claude/gh-clones/` — they conflict across sessions and won't be cleaned up.
+
 After cloning, use the **Explore agent** (via the Task tool with `subagent_type=Explore`) to investigate the cloned repo. The Explore agent can use Read, Glob, and Grep across the clone efficiently — much better than calling them one at a time:
 
 ```
@@ -55,7 +57,7 @@ For targeted lookups on a clone you already understand, use Read/Glob/Grep direc
 - `gh repo clone` uses the user's authenticated token — works with private repos
 - `--depth 1` keeps the clone fast (only latest commit)
 - No cleanup needed — a SessionEnd hook removes the clone directory automatically
-- Use `gh api` only when you need a quick single-file lookup without cloning
+- **Never use `gh api` to fetch and base64-decode file contents** — always clone instead
 
 ## Quick Start
 
@@ -89,6 +91,7 @@ gh api repos/owner/repo/pulls --paginate --jq '.[].title'
 | `curl https://api.github.com/...` | `gh api <endpoint>` |
 | `curl` with `-H "Authorization: token ..."` | `gh api <endpoint>` (auth is automatic) |
 | `wget` to download a release asset | `gh release download --repo owner/repo` |
+| `gh api repos/.../contents/... --jq '.content' \| base64 -d` | Clone with `gh repo clone` and use Read |
 
 ## References
 

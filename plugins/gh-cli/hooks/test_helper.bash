@@ -6,6 +6,8 @@
 # Paths to the hook scripts under test
 FETCH_HOOK="${BATS_TEST_DIRNAME}/intercept-github-fetch.sh"
 CURL_HOOK="${BATS_TEST_DIRNAME}/intercept-github-curl.sh"
+CLONE_HOOK="${BATS_TEST_DIRNAME}/intercept-gh-clone-path.sh"
+API_CONTENTS_HOOK="${BATS_TEST_DIRNAME}/intercept-gh-api-contents.sh"
 
 # Run the WebFetch hook with a URL
 # Usage: run_fetch_hook "https://github.com/owner/repo"
@@ -39,6 +41,28 @@ run_fetch_hook_no_gh() {
   safe_path="$(_make_path_without_gh)"
   run env PATH="$safe_path" bash -c 'jq -n --arg url "$1" '"'"'{"tool_input":{"url":$url,"prompt":"test"}}'"'"' 2>/dev/null | "$2"' _ "$url" "$FETCH_HOOK"
   rm -rf "$safe_path"
+}
+
+# Run the clone-path hook with a command
+# Usage: run_clone_hook "gh repo clone owner/repo /tmp/foo"
+run_clone_hook() {
+  local cmd="$1"
+  run bash -c 'jq -n --arg cmd "$1" '"'"'{"tool_input":{"command":$cmd}}'"'"' | "$2"' _ "$cmd" "$CLONE_HOOK"
+}
+
+# Run the clone-path hook with CLAUDE_SESSION_ID set
+# Usage: run_clone_hook_with_session "gh repo clone ..." "session-id-value"
+run_clone_hook_with_session() {
+  local cmd="$1"
+  local session_id="$2"
+  run env CLAUDE_SESSION_ID="$session_id" bash -c 'jq -n --arg cmd "$1" '"'"'{"tool_input":{"command":$cmd}}'"'"' | "$2"' _ "$cmd" "$CLONE_HOOK"
+}
+
+# Run the gh-api-contents hook with a command
+# Usage: run_api_contents_hook "gh api repos/owner/repo/contents/file --jq '.content' | base64 -d"
+run_api_contents_hook() {
+  local cmd="$1"
+  run bash -c 'jq -n --arg cmd "$1" '"'"'{"tool_input":{"command":$cmd}}'"'"' | "$2"' _ "$cmd" "$API_CONTENTS_HOOK"
 }
 
 run_curl_hook_no_gh() {

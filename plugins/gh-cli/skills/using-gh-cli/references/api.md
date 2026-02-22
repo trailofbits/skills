@@ -30,8 +30,8 @@ gh api 'repos/owner/repo/issues?per_page=10' --jq '.[].title'
 ## Headers
 
 ```bash
-# Raw file content (skip base64 encoding)
-gh api repos/owner/repo/contents/file.md \
+# Raw file content at a specific ref (prefer cloning for general browsing)
+gh api 'repos/owner/repo/contents/file.md?ref=abc123' \
   -H "Accept: application/vnd.github.raw+json"
 
 # Check rate limit

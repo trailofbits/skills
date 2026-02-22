@@ -41,6 +41,8 @@ This plugin provides:
 - Git commands (`git clone`, `git push`, etc.)
 - Search commands that mention GitHub URLs (`grep`, `rg`, etc.)
 
+**Note:** When hooks deny blob/tree/raw URLs, the denial message explicitly warns against using `gh api` to fetch and base64-decode file contents as a fallback — clone the repo instead.
+
 ### Automatic Cleanup
 
 Cloned repositories are stored in session-scoped temp directories (`$TMPDIR/gh-clones-<session-id>/`). A SessionEnd hook automatically removes them when the session ends, so there's no manual cleanup needed and concurrent sessions don't interfere with each other.
