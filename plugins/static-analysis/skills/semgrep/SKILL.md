@@ -10,14 +10,11 @@ allowed-tools:
   - Bash
   - Read
   - Glob
-  - Grep
-  - Write
   - Task
   - AskUserQuestion
   - TaskCreate
   - TaskList
   - TaskUpdate
-  - WebFetch
 ---
 
 # Semgrep Security Scan
@@ -60,6 +57,14 @@ Pro enables: cross-file taint tracking, inter-procedural analysis, and additiona
 - Need cross-file analysis but no Pro license → Consider CodeQL as alternative
 - Creating custom Semgrep rules → Use `semgrep-rule-creator` skill
 - Porting existing rules to other languages → Use `semgrep-rule-variant-creator` skill
+
+## Essential Principles
+
+1. **Always use `--metrics=off`** — Semgrep sends telemetry by default; `--config auto` also phones home. Every `semgrep` command must include `--metrics=off` to prevent data leakage during security audits.
+2. **User must approve the scan plan (Step 3 is a hard gate)** — The original "scan this codebase" request is NOT approval. Present exact rulesets, target, engine, and mode; wait for explicit "yes"/"proceed" before spawning scanners.
+3. **Third-party rulesets are required, not optional** — Trail of Bits, 0xdea, and Decurity rules catch vulnerabilities absent from the official registry. Include them whenever the detected language matches.
+4. **Spawn all scan Tasks in a single message** — Parallel execution is the core performance advantage. Never spawn Tasks sequentially; always emit all Task tool calls in one response.
+5. **Always check for Semgrep Pro before scanning** — Pro enables cross-file taint tracking and catches ~250% more true positives. Skipping the check means silently missing critical inter-file vulnerabilities.
 
 ---
 
@@ -149,24 +154,20 @@ TaskCreate: "Merge results and report" (Step 5) - blockedBy: Step 4
 
 ### Step 1: Detect Languages and Pro Availability (Main Agent)
 
+> **Entry:** User has specified or confirmed the target directory.
+> **Exit:** Language list with file counts produced; Pro availability determined.
+
+**Detect Pro availability** (requires Bash — semgrep CLI check):
+
 ```bash
-# Check if Semgrep Pro is available (non-destructive check)
-SEMGREP_PRO=false
-if semgrep --pro --validate --config p/default 2>/dev/null; then
-  SEMGREP_PRO=true
-  echo "Semgrep Pro: AVAILABLE (cross-file analysis enabled)"
-else
-  echo "Semgrep Pro: NOT AVAILABLE (OSS mode, single-file analysis)"
-fi
-
-# Find languages by file extension
-fd -t f -e py -e js -e ts -e jsx -e tsx -e go -e rb -e java -e php -e c -e cpp -e rs | \
-  sed 's/.*\.//' | sort | uniq -c | sort -rn
-
-# Check for frameworks/technologies
-ls -la package.json pyproject.toml Gemfile go.mod Cargo.toml pom.xml 2>/dev/null
-fd -t f "Dockerfile" "docker-compose" ".tf" "*.yaml" "*.yml" | head -20
+semgrep --pro --validate --config p/default 2>/dev/null && echo "Pro: AVAILABLE" || echo "Pro: NOT AVAILABLE"
 ```
+
+**Detect languages** using Glob (not Bash). Run these patterns against the target directory and count matches:
+
+`**/*.py`, `**/*.js`, `**/*.ts`, `**/*.tsx`, `**/*.jsx`, `**/*.go`, `**/*.rb`, `**/*.java`, `**/*.php`, `**/*.c`, `**/*.cpp`, `**/*.rs`, `**/Dockerfile`, `**/*.tf`
+
+Also check for framework markers: `package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `Cargo.toml`, `pom.xml`.
 
 Map findings to categories:
 
@@ -185,6 +186,9 @@ Map findings to categories:
 | k8s manifests | Kubernetes |
 
 ### Step 2: Select Scan Mode and Rulesets
+
+> **Entry:** Step 1 complete — languages detected, Pro status known.
+> **Exit:** Scan mode selected; structured rulesets JSON compiled for all detected languages.
 
 **First, select scan mode** using `AskUserQuestion`:
 
@@ -224,6 +228,9 @@ The algorithm covers:
 ```
 
 ### Step 3: CRITICAL GATE - Present Plan and Get Approval
+
+> **Entry:** Step 2 complete — scan mode and rulesets selected.
+> **Exit:** User has explicitly approved the plan (quoted confirmation).
 
 > **⛔ MANDATORY CHECKPOINT - DO NOT SKIP**
 >
@@ -265,15 +272,6 @@ Present plan to user with **explicit ruleset listing**:
 
 **Third-party (auto-included for detected languages):**
 - [x] Trail of Bits rules - https://github.com/trailofbits/semgrep-rules
-
-**Available but not selected:**
-- [ ] `p/owasp-top-ten` - OWASP Top 10 (overlaps with security-audit)
-
-### Execution Strategy:
-- Spawn 3 parallel scan Tasks (Python, JavaScript, Docker)
-- Total rulesets: 9
-- [If Pro] Cross-file taint tracking enabled
-- Scan agent: `static-analysis:semgrep-scanner`
 
 **Want to modify rulesets?** Tell me which to add or remove.
 **Ready to scan?** Say "proceed" or "yes".
@@ -319,6 +317,9 @@ Before marking Step 3 complete, verify:
 
 ### Step 4: Spawn Parallel Scan Tasks
 
+> **Entry:** Step 3 approved — user explicitly confirmed the plan.
+> **Exit:** All scan Tasks completed; result files exist in output directory.
+
 Create output directory with run number to avoid collisions, then spawn Tasks with **approved rulesets from Step 3**:
 
 ```bash
@@ -356,37 +357,19 @@ Spawn these 3 Tasks in a SINGLE message:
 
 ### Step 5: Merge Results and Report (Main Agent)
 
+> **Entry:** Step 4 complete — all scan Tasks finished.
+> **Exit:** `findings.sarif` exists in output directory and is valid JSON.
+
 After all scan Tasks complete, apply mode-dependent filtering (if applicable), then generate merged SARIF and report.
 
 **Important-only mode: Post-filter before merge**
 
-In important-only mode, filter each scan result JSON to remove non-security and low-confidence findings before merging. See [scan-modes.md](references/scan-modes.md) for the complete jq filter.
-
-```bash
-# Apply important-only filter to all scan result JSON files
-for f in "$OUTPUT_DIR"/*-*.json; do
-  [[ "$f" == *-important.json ]] && continue
-  jq '{
-    results: [.results[] |
-      ((.extra.metadata.category // "security") | ascii_downcase) as $cat |
-      ((.extra.metadata.confidence // "HIGH") | ascii_upcase) as $conf |
-      ((.extra.metadata.impact // "HIGH") | ascii_upcase) as $imp |
-      select(
-        ($cat == "security") and
-        ($conf == "MEDIUM" or $conf == "HIGH") and
-        ($imp == "MEDIUM" or $imp == "HIGH")
-      )
-    ],
-    errors: .errors,
-    paths: .paths
-  }' "$f" > "${f%.json}-important.json"
-done
-```
+In important-only mode, apply the post-filter from [scan-modes.md](references/scan-modes.md) ("Filter All Result Files in a Directory" section) to each scan result JSON before merging.
 
 **Generate merged SARIF:**
 
 ```bash
-uv run scripts/merge_triaged_sarif.py [OUTPUT_DIR]
+uv run {baseDir}/scripts/merge_triaged_sarif.py [OUTPUT_DIR]
 ```
 
 This script:
@@ -427,6 +410,14 @@ Results written to:
 - semgrep-results-001/*.json (raw scan results per ruleset)
 - semgrep-results-001/*.sarif (raw SARIF per ruleset)
 ```
+
+**Verify merged SARIF is valid** before reporting:
+
+```bash
+python -c "import json; d=json.load(open('[OUTPUT_DIR]/findings.sarif')); print(f'{sum(len(r.get(\"results\",[]))for r in d.get(\"runs\",[]))} findings in merged SARIF')"
+```
+
+If this fails, the merge script produced invalid output — investigate before reporting results.
 
 ---
 
@@ -479,3 +470,18 @@ Use `subagent_type: static-analysis:semgrep-scanner` in Step 4 when spawning Tas
 | "OSS is good enough" | OSS misses inter-file taint flows; always prefer Pro when available |
 | "Semgrep handles GitHub URLs natively" | URL handling is unreliable for repos with non-standard YAML (floats as keys, etc.); always clone first |
 | "Cleanup is optional" | Cloned repos left behind pollute the user's workspace and accumulate across runs |
+
+## Success Criteria
+
+A scan is complete and correct when ALL of the following are true:
+
+- [ ] Languages detected with file counts; Pro status checked
+- [ ] Scan mode selected by user (run all / important only)
+- [ ] Rulesets include third-party rules for all detected languages
+- [ ] User explicitly approved the scan plan (Step 3 gate passed)
+- [ ] All scan Tasks spawned in a single message and completed
+- [ ] Every `semgrep` command used `--metrics=off`
+- [ ] `findings.sarif` exists in the output directory and is valid JSON
+- [ ] Important-only mode: post-filter applied before merge
+- [ ] Results summary reported with severity and category breakdown
+- [ ] Cloned repos (if any) cleaned up from `[OUTPUT_DIR]/repos/`
