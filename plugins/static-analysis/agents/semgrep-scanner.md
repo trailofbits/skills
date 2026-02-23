@@ -1,6 +1,6 @@
 ---
 name: semgrep-scanner
-description: "Executes semgrep CLI scans for a language category. Use when running automated static analysis scans with semgrep against a codebase."
+description: "Executes Semgrep CLI scans for a specific language category and produces SARIF output. Spawned by the semgrep skill as a parallel worker — one agent per detected language. Reads source context to classify findings as true or false positives."
 tools: Bash(semgrep scan:*), Bash
 ---
 

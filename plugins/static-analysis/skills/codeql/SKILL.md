@@ -1,14 +1,11 @@
 ---
 name: codeql
 description: >-
-  Runs CodeQL static analysis for security vulnerability detection
-  using interprocedural data flow and taint tracking. Supports two
-  scan modes - "run all" (all queries from all packs via security-and-quality suite) and
-  "important only" (security vulnerabilities filtered by precision and security-severity score). Applicable
-  when finding vulnerabilities, running a security scan, performing a
-  security audit, running CodeQL, building a CodeQL database, selecting
-  query rulesets, creating data extension models, or processing CodeQL
-  SARIF output.
+  Scans a codebase for security vulnerabilities using CodeQL's interprocedural data flow and
+  taint tracking analysis. Triggers on "run codeql", "codeql scan", "codeql analysis", "build
+  codeql database", or "find vulnerabilities with codeql". Supports "run all" (security-and-quality
+  suite) and "important only" (high-precision security findings) scan modes. Also handles
+  creating data extension models and processing CodeQL SARIF output.
 allowed-tools:
   - Bash
   - Read
