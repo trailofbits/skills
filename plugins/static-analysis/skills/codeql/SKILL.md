@@ -10,6 +10,7 @@ allowed-tools:
   - Bash
   - Read
   - Write
+  - Edit
   - Glob
   - Grep
   - AskUserQuestion
@@ -17,6 +18,8 @@ allowed-tools:
   - TaskList
   - TaskUpdate
   - TaskGet
+  - TodoRead
+  - TodoWrite
 ---
 
 # CodeQL Analysis

@@ -27,6 +27,9 @@ TaskCreate: "Validate with re-analysis" (Step 5) - blockedBy: Step 4
 
 ### Step 1: Check for Existing Data Extensions
 
+**Entry:** CodeQL database exists (`codeql resolve database` succeeds)
+**Exit:** Either existing extensions found (report and finish) OR no extensions found (proceed to Step 2)
+
 Search the project for existing data extensions and model packs.
 
 ```bash
@@ -51,6 +54,9 @@ codeql resolve qlpacks 2>/dev/null | grep -iE 'model|extension'
 ---
 
 ### Step 2: Query Known Sources and Sinks
+
+**Entry:** Step 1 found no existing extensions; database and language identified
+**Exit:** `sources.csv` and `sinks.csv` exist in `$DIAG_DIR` with enumerated source/sink locations
 
 Run custom QL queries against the database to enumerate all sources and sinks CodeQL currently recognizes.
 
@@ -90,6 +96,9 @@ Read both CSV files and present a summary showing source types and sink kinds wi
 ---
 
 ### Step 3: Identify Missing Sources and Sinks
+
+**Entry:** Step 2 complete (`sources.csv` and `sinks.csv` available)
+**Exit:** Either no gaps found (report adequate coverage and finish) OR user confirms which gaps to model (proceed to Step 4)
 
 Cross-reference the project's API surface against CodeQL's known models.
 
@@ -140,6 +149,9 @@ options:
 
 ### Step 4: Create Data Extension Files
 
+**Entry:** Step 3 identified gaps and user confirmed which to model
+**Exit:** YAML extension files created in `codeql-extensions/` and deployed to `<lang>-all` ext/ directory
+
 Generate YAML data extension files for the gaps confirmed by the user.
 
 #### File Structure
@@ -162,6 +174,9 @@ Use the `Write` tool to create each file. Only create files that have entries â€
 ---
 
 ### Step 5: Validate with Re-Analysis
+
+**Entry:** Step 4 complete (extension files deployed)
+**Exit:** Finding delta measured (with-extensions count >= baseline count); extensions validated as loading correctly
 
 Run a full security analysis with and without extensions to measure the finding delta.
 

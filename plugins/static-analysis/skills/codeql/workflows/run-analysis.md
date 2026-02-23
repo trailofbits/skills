@@ -42,6 +42,9 @@ TaskCreate: "Process and report results" (Step 5) - blockedBy: Step 4
 
 ### Step 1: Select Database and Detect Language
 
+**Entry:** At least one CodeQL database exists in the working directory
+**Exit:** `DB_NAME` and `LANG` variables set; database resolves successfully
+
 ```bash
 DB_NAME=$(ls -dt codeql_*.db 2>/dev/null | head -1)
 [[ -z "$DB_NAME" ]] && echo "ERROR: No CodeQL database found." && exit 1
@@ -54,6 +57,9 @@ If multiple databases exist, use `AskUserQuestion` to let user select. If multi-
 ---
 
 ### Step 2: Select Scan Mode, Check Additional Packs
+
+**Entry:** Step 1 complete (`DB_NAME` and `LANG` set)
+**Exit:** Scan mode selected; all available packs (official, ToB, community) checked for installation status; model packs detected
 
 #### 2a: Select Scan Mode
 
@@ -97,6 +103,9 @@ Record all detected packs for Step 3.
 ---
 
 ### Step 3: Select Query Packs and Model Packs
+
+**Entry:** Step 2 complete (scan mode, pack availability, and model packs all determined)
+**Exit:** User confirmed query packs, model packs, and threat model selection; all flags built (`THREAT_MODEL_FLAG`, `MODEL_PACK_FLAGS`, `ADDITIONAL_PACK_FLAGS`)
 
 > **CHECKPOINT** — Present available packs to user for confirmation.
 > **Skip if user already specified pack preferences.**
@@ -144,6 +153,9 @@ Build the flag: `THREAT_MODEL_FLAG=""` (remote only needs no flag), `--threat-mo
 
 ### Step 4: Execute Analysis
 
+**Entry:** Step 3 complete (all flags and pack selections finalized)
+**Exit:** `$RESULTS_DIR/results.sarif` exists and contains valid SARIF output
+
 #### Generate custom suite
 
 **Important-only mode:** Generate the custom `.qls` suite using the template and script in [important-only-suite.md](../references/important-only-suite.md).
@@ -187,6 +199,9 @@ If codebase is large, read [performance-tuning.md](../references/performance-tun
 ---
 
 ### Step 5: Process and Report Results
+
+**Entry:** Step 4 complete (`results.sarif` exists)
+**Exit:** Findings summarized by severity, rule, and location; zero-finding results investigated; final report presented to user
 
 Process the SARIF output using the jq commands in [sarif-processing.md](../references/sarif-processing.md): count findings, summarize by level, summarize by security severity, summarize by rule.
 

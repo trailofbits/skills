@@ -81,6 +81,9 @@ log_result() { echo "[$(date -Iseconds)] RESULT: $1" >> "$LOG_FILE"; echo "" >> 
 
 ## Step 1: Detect Language and Configure
 
+**Entry:** CodeQL CLI installed and on PATH (`codeql --version` succeeds)
+**Exit:** `LANG` variable set to a valid CodeQL language identifier; exclusion config created (interpreted) or skipped (compiled)
+
 ### 1a. Detect Language
 
 ```bash
@@ -110,6 +113,9 @@ Scan for irrelevant directories and create `codeql-config.yml` with `paths-ignor
 ---
 
 ## Step 2: Build Database
+
+**Entry:** Step 1 complete (`LANG` set, `DB_NAME` assigned, log file initialized)
+**Exit:** `codeql resolve database -- "$DB_NAME"` succeeds (database exists and is valid)
 
 ### For Interpreted Languages
 
@@ -218,11 +224,18 @@ $CMD 2>&1 | tee -a "$LOG_FILE"
 
 ## Step 3: Apply Fixes (if build failed)
 
+**Entry:** Step 2 build method failed (non-zero exit or `codeql resolve database` fails)
+**Exit:** Fix applied and current build method retried; either succeeds (go to Step 4) or all fixes exhausted (try next build method in Step 2)
+
 Try fixes in order, then retry current build method. See [build-fixes.md](../references/build-fixes.md) for the full fix catalog: clean state, clean build cache, install dependencies, handle private registries.
 
 ---
 
 ## Steps 4-5: Assess and Improve Quality
+
+**Entry:** Database exists and `codeql resolve database` succeeds
+**Exit (Step 4):** Quality metrics collected (baseline LoC, file counts, extractor errors, finalization status)
+**Exit (Step 5):** Quality is GOOD (baseline LoC > 0, errors < 5%, project files present) OR user accepts current state
 
 Run quality checks and compare against expected source files. See [quality-assessment.md](../references/quality-assessment.md) for metric collection, quality criteria table, and improvement steps.
 
