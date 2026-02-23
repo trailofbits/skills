@@ -77,7 +77,7 @@ Generate this file as `important-only.qls` in the results directory before runni
       - modelgenerator
 ```
 
-> **Post-analysis step required:** After running the analysis, apply the jq filter from [run-analysis.md](../workflows/run-analysis.md) Step 5 to remove medium-precision results with `security-severity` < 6.0.
+> **Post-analysis step required:** After running the analysis, apply the post-analysis jq filter (defined in the run-analysis workflow Step 5) to remove medium-precision results with `security-severity` < 6.0.
 
 ## Generation Script
 
