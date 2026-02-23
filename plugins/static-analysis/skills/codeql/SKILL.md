@@ -2,11 +2,13 @@
 name: codeql
 description: >-
   Runs CodeQL static analysis for security vulnerability detection
-  using interprocedural data flow and taint tracking. Applicable when
-  finding vulnerabilities, running a security scan, performing a security
-  audit, running CodeQL, building a CodeQL database, selecting query
-  rulesets, creating data extension models, or processing CodeQL SARIF
-  output. NOT for writing custom QL queries or CI/CD pipeline setup.
+  using interprocedural data flow and taint tracking. Supports two
+  scan modes - "run all" (all queries from all packs, unfiltered) and
+  "important only" (security vulnerabilities filtered by precision and severity). Applicable
+  when finding vulnerabilities, running a security scan, performing a
+  security audit, running CodeQL, building a CodeQL database, selecting
+  query rulesets, creating data extension models, or processing CodeQL
+  SARIF output. NOT for writing custom QL queries or CI/CD pipeline setup.
 allowed-tools:
   - Bash
   - Read
@@ -24,7 +26,7 @@ allowed-tools:
 
 Supported languages: Python, JavaScript/TypeScript, Go, Java/Kotlin, C/C++, C#, Ruby, Swift.
 
-**Skill resources:** Reference files and templates are located at `{baseDir}/references/` and `{baseDir}/workflows/`. Use `{baseDir}` to resolve paths to these files at runtime.
+**Skill resources:** Reference files and templates are located at `references/` and `workflows/` (relative to this skill directory).
 
 ## Quick Start
 

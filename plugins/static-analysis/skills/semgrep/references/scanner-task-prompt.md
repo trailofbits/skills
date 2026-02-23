@@ -12,6 +12,8 @@ Run Semgrep scans for [LANGUAGE] files and save results to [OUTPUT_DIR].
 
 ## Pro Engine Status: [PRO_AVAILABLE: true/false]
 
+## Scan Mode: [SCAN_MODE: run-all/important-only]
+
 ## APPROVED RULESETS (from user-confirmed plan)
 [LIST EXACT RULESETS USER APPROVED - DO NOT SUBSTITUTE]
 
@@ -26,7 +28,7 @@ Example:
 
 ### Generate commands for EACH approved ruleset:
 ```bash
-semgrep [--pro if available] --metrics=off --config [RULESET] --json -o [OUTPUT_DIR]/[lang]-[ruleset].json --sarif-output=[OUTPUT_DIR]/[lang]-[ruleset].sarif [TARGET] &
+semgrep [--pro if available] --metrics=off [SEVERITY_FLAGS] --config [RULESET] --json -o [OUTPUT_DIR]/[lang]-[ruleset].json --sarif-output=[OUTPUT_DIR]/[lang]-[ruleset].sarif [TARGET] &
 ```
 
 Wait for all to complete:
@@ -38,6 +40,8 @@ wait
 - Use ONLY the rulesets listed above - do not add or remove any
 - Always use --metrics=off (prevents sending telemetry to Semgrep servers)
 - Use --pro when Pro is available (enables cross-file taint tracking)
+- If scan mode is **important-only**, add `--severity MEDIUM --severity HIGH --severity CRITICAL` to every command
+- If scan mode is **run-all**, do NOT add severity flags
 - Run all rulesets in parallel with & and wait
 - For GitHub URLs, clone the repo first if not cached locally
 
@@ -57,6 +61,7 @@ Report:
 | `[LANGUAGE]` | Specific language | Python, TypeScript, Go |
 | `[OUTPUT_DIR]` | Results directory with run number | semgrep-results-001 |
 | `[PRO_AVAILABLE]` | Whether Pro engine is available | true, false |
+| `[SEVERITY_FLAGS]` | Severity pre-filter flags | *(empty)* for run-all, `--severity MEDIUM --severity HIGH --severity CRITICAL` for important-only |
 | `[RULESET]` | Semgrep ruleset identifier | p/python, https://github.com/... |
 | `[TARGET]` | Directory to scan | . (current dir) |
 
@@ -69,6 +74,8 @@ You are a Semgrep scanner for Python.
 Run Semgrep scans for Python files and save results to semgrep-results-001.
 
 ## Pro Engine Status: true
+
+## Scan Mode: run-all
 
 ## APPROVED RULESETS (from user-confirmed plan)
 - p/python

@@ -459,11 +459,11 @@ def check_for_regressions(baseline: str, current: str) -> int:
 
 ## Skill Resources
 
-For ready-to-use query templates, see [{baseDir}/resources/jq-queries.md]({baseDir}/resources/jq-queries.md):
+For ready-to-use query templates, see [resources/jq-queries.md](resources/jq-queries.md):
 - 40+ jq queries for common SARIF operations
 - Severity filtering, rule extraction, aggregation patterns
 
-For Python utilities, see [{baseDir}/resources/sarif_helpers.py]({baseDir}/resources/sarif_helpers.py):
+For Python utilities, see [resources/sarif_helpers.py](resources/sarif_helpers.py):
 - `normalize_path()` - Handle tool-specific path formats
 - `compute_fingerprint()` - Stable fingerprinting ignoring paths
 - `deduplicate_results()` - Remove duplicates across runs

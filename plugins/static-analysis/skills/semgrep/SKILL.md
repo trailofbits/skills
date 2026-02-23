@@ -1,9 +1,11 @@
 ---
 name: semgrep
-description: Run Semgrep static analysis scan on a codebase using parallel subagents. Automatically
-  detects and uses Semgrep Pro for cross-file analysis when available. Use when asked to scan
-  code for vulnerabilities, run a security audit with Semgrep, find bugs, or perform
-  static analysis. Spawns parallel workers for multi-language codebases and triage.
+description: Run Semgrep static analysis scan on a codebase using parallel subagents. Supports
+  two scan modes - "run all" (full coverage) and "important only" (high-confidence security
+  vulnerabilities). Automatically detects and uses Semgrep Pro for cross-file analysis when
+  available. Use when asked to scan code for vulnerabilities, run a security audit with Semgrep,
+  find bugs, or perform static analysis. Spawns parallel workers for multi-language codebases
+  and triage.
 allowed-tools:
   - Bash
   - Read
@@ -61,6 +63,23 @@ Pro enables: cross-file taint tracking, inter-procedural analysis, and additiona
 
 ---
 
+## Scan Modes
+
+Two modes control scan scope and result filtering. Select mode early in the workflow (Step 2).
+
+| Mode | Coverage | Findings Reported |
+|------|----------|-------------------|
+| **Run all** | All rulesets, all severity levels | Everything (triaged for true/false positives) |
+| **Important only** | All rulesets, but pre-filtered and post-filtered | Security vulnerabilities only, medium-high confidence and impact |
+
+**Important only** applies two layers of filtering:
+1. **Pre-filter**: `--severity MEDIUM --severity HIGH --severity CRITICAL` (CLI flag, excludes LOW/INFO at scan time)
+2. **Post-filter**: JSON metadata filtering — keeps only findings where `category=security`, `confidence∈{MEDIUM,HIGH}`, `impact∈{MEDIUM,HIGH}`
+
+See [scan-modes.md](references/scan-modes.md) for detailed metadata criteria and jq filter commands.
+
+---
+
 ## Orchestration Architecture
 
 This skill uses **parallel Task subagents** for maximum efficiency:
@@ -69,11 +88,11 @@ This skill uses **parallel Task subagents** for maximum efficiency:
 ┌─────────────────────────────────────────────────────────────────┐
 │ MAIN AGENT                                                      │
 │ 1. Detect languages + check Pro availability                    │
-│ 2. Select rulesets based on detection (ref: rulesets.md)        │
+│ 2. Select scan mode + rulesets (ref: rulesets.md, scan-modes.md)│
 │ 3. Present plan + rulesets, get approval [⛔ HARD GATE]         │
-│ 4. Spawn parallel scan Tasks (with approved rulesets)           │
+│ 4. Spawn parallel scan Tasks (with approved rulesets + mode)    │
 │ 5. Spawn parallel triage Tasks                                  │
-│ 6. Collect and report results                                   │
+│ 6. Collect and report results (mode-dependent filtering)        │
 └─────────────────────────────────────────────────────────────────┘
           │ Step 4                           │ Step 5
           ▼                                  ▼
@@ -96,11 +115,11 @@ This skill uses the **Task system** to enforce workflow compliance. On invocatio
 
 ```
 TaskCreate: "Detect languages and Pro availability" (Step 1)
-TaskCreate: "Select rulesets based on detection" (Step 2) - blockedBy: Step 1
+TaskCreate: "Select scan mode and rulesets" (Step 2) - blockedBy: Step 1
 TaskCreate: "Present plan with rulesets, get approval" (Step 3) - blockedBy: Step 2
-TaskCreate: "Execute scans with approved rulesets" (Step 4) - blockedBy: Step 3
+TaskCreate: "Execute scans with approved rulesets and mode" (Step 4) - blockedBy: Step 3
 TaskCreate: "Triage findings" (Step 5) - blockedBy: Step 4
-TaskCreate: "Report results" (Step 6) - blockedBy: Step 5
+TaskCreate: "Report results (with mode-dependent filtering)" (Step 6) - blockedBy: Step 5
 ```
 
 ### Mandatory Gates
@@ -168,9 +187,24 @@ Map findings to categories:
 | `.tf` | Terraform |
 | k8s manifests | Kubernetes |
 
-### Step 2: Select Rulesets Based on Detection
+### Step 2: Select Scan Mode and Rulesets
 
-Using the detected languages and frameworks from Step 1, select rulesets by following the **Ruleset Selection Algorithm** in [rulesets.md]({baseDir}/references/rulesets.md).
+**First, select scan mode** using `AskUserQuestion`:
+
+```
+header: "Scan Mode"
+question: "Which scan mode should be used?"
+multiSelect: false
+options:
+  - label: "Run all (Recommended)"
+    description: "Full coverage — all rulesets, all severity levels, triaged for true/false positives"
+  - label: "Important only"
+    description: "Security vulnerabilities only — medium-high confidence and impact, no code quality"
+```
+
+Record the selected mode. It affects Steps 4 and 6.
+
+**Then, select rulesets.** Using the detected languages and frameworks from Step 1, select rulesets by following the **Ruleset Selection Algorithm** in [rulesets.md](references/rulesets.md).
 
 The algorithm covers:
 1. Security baseline (always included)
@@ -207,6 +241,7 @@ Present plan to user with **explicit ruleset listing**:
 **Target:** /path/to/codebase
 **Output directory:** ./semgrep-results-001/
 **Engine:** Semgrep Pro (cross-file analysis) | Semgrep OSS (single-file)
+**Scan mode:** Run all | Important only (security vulns, medium-high confidence/impact)
 
 ### Detected Languages/Technologies:
 - Python (1,234 files) - Django framework detected
@@ -301,7 +336,11 @@ echo "Output directory: $OUTPUT_DIR"
 
 **Spawn N Tasks in a SINGLE message** (one per language category) using `subagent_type: static-analysis:semgrep-scanner`.
 
-Use the scanner task prompt template from [scanner-task-prompt.md]({baseDir}/references/scanner-task-prompt.md).
+Use the scanner task prompt template from [scanner-task-prompt.md](references/scanner-task-prompt.md).
+
+**Mode-dependent scanner flags:**
+- **Run all**: No additional flags
+- **Important only**: Add `--severity MEDIUM --severity HIGH --severity CRITICAL` to every `semgrep` command (set `[SEVERITY_FLAGS]` in the template)
 
 **Example - 3 Language Scan (with approved rulesets):**
 
@@ -323,16 +362,43 @@ Spawn these 3 Tasks in a SINGLE message:
 
 After scan Tasks complete, spawn triage Tasks using `subagent_type: static-analysis:semgrep-triager` (triage requires reading code context, not just running commands).
 
-Use the triage task prompt template from [triage-task-prompt.md]({baseDir}/references/triage-task-prompt.md).
+Use the triage task prompt template from [triage-task-prompt.md](references/triage-task-prompt.md).
 
 ### Step 6: Collect Results (Main Agent)
 
-After all Tasks complete, generate merged SARIF and report:
+After all Tasks complete, apply mode-dependent filtering (if applicable), then generate merged SARIF and report.
+
+**Important-only mode: Post-filter before triage/merge**
+
+In important-only mode, filter each scan result JSON to remove non-security and low-confidence findings before triage. See [scan-modes.md](references/scan-modes.md) for the complete jq filter.
+
+```bash
+# Apply important-only filter to all scan result JSON files
+for f in "$OUTPUT_DIR"/*-*.json; do
+  [[ "$f" == *-triage.json || "$f" == *-important.json ]] && continue
+  jq '{
+    results: [.results[] |
+      ((.extra.metadata.category // "security") | ascii_downcase) as $cat |
+      ((.extra.metadata.confidence // "HIGH") | ascii_upcase) as $conf |
+      ((.extra.metadata.impact // "HIGH") | ascii_upcase) as $imp |
+      select(
+        ($cat == "security") and
+        ($conf == "MEDIUM" or $conf == "HIGH") and
+        ($imp == "MEDIUM" or $imp == "HIGH")
+      )
+    ],
+    errors: .errors,
+    paths: .paths
+  }' "$f" > "${f%.json}-important.json"
+done
+```
+
+Then use the `-important.json` files as input for triage instead of the raw scan files.
 
 **Generate merged SARIF with only triaged true positives:**
 
 ```bash
-uv run {baseDir}/scripts/merge_triaged_sarif.py [OUTPUT_DIR]
+uv run scripts/merge_triaged_sarif.py [OUTPUT_DIR]
 ```
 
 This script:

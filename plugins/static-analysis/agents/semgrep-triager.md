@@ -104,4 +104,4 @@ After triage, provide a summary:
 
 For the complete triage task prompt template with variable
 substitutions and examples, see:
-`{baseDir}/skills/semgrep/references/triage-task-prompt.md`
+`skills/semgrep/references/triage-task-prompt.md`
