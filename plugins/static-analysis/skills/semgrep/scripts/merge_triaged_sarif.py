@@ -2,13 +2,13 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Merge and filter SARIF files to include only triaged true positives.
+"""Merge SARIF files into a single consolidated output.
 
 Usage:
     uv run merge_triaged_sarif.py OUTPUT_DIR
 
-Reads *-triage.json and *.sarif files from OUTPUT_DIR, produces
-OUTPUT_DIR/findings-triaged.sarif containing only true positives.
+Reads *.sarif files from OUTPUT_DIR, produces
+OUTPUT_DIR/findings.sarif containing all findings merged.
 
 Attempts to use SARIF Multitool for merging if available, falls back to
 pure Python implementation.
@@ -22,53 +22,6 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-
-
-def load_true_positives(triage_dir: Path) -> set[tuple[str, str, int]]:
-    """Load true positives from all triage files as (rule_id, file, line) tuples."""
-    true_positives: set[tuple[str, str, int]] = set()
-
-    for triage_file in triage_dir.glob("*-triage.json"):
-        try:
-            data = json.loads(triage_file.read_text())
-        except json.JSONDecodeError as e:
-            print(f"Warning: Failed to parse {triage_file}: {e}", file=sys.stderr)
-            continue
-
-        for tp in data.get("true_positives", []):
-            rule = tp.get("rule", "")
-            file_path = tp.get("file", "")
-            line = tp.get("line", 0)
-            if rule and file_path and line:
-                true_positives.add((rule, file_path, line))
-
-    return true_positives
-
-
-def extract_result_key(result: dict) -> tuple[str, str, int] | None:
-    """Extract (rule_id, file, line) from a SARIF result."""
-    rule_id = result.get("ruleId", "")
-    locations = result.get("locations", [])
-    if not locations:
-        return None
-
-    phys_loc = locations[0].get("physicalLocation", {})
-    artifact_loc = phys_loc.get("artifactLocation", {})
-    uri = artifact_loc.get("uri", "")
-    region = phys_loc.get("region", {})
-    line = region.get("startLine", 0)
-
-    if not (rule_id and uri and line):
-        return None
-
-    return (rule_id, uri, line)
-
-
-def normalize_file_path(uri: str) -> str:
-    """Normalize file path for matching (handle relative vs absolute)."""
-    if uri.startswith("file://"):
-        uri = uri[7:]
-    return uri.lstrip("./")
 
 
 def has_sarif_multitool() -> bool:
@@ -129,9 +82,10 @@ def merge_sarif_pure_python(sarif_dir: Path) -> dict:
 
     seen_rules: dict[str, dict] = {}
     all_results: list[dict] = []
+    seen_results: set[tuple[str, str, int]] = set()
     tool_info: dict | None = None
 
-    for sarif_file in sarif_dir.glob("*.sarif"):
+    for sarif_file in sorted(sarif_dir.glob("*.sarif")):
         try:
             data = json.loads(sarif_file.read_text())
         except json.JSONDecodeError as e:
@@ -148,7 +102,20 @@ def merge_sarif_pure_python(sarif_dir: Path) -> dict:
                 if rule_id and rule_id not in seen_rules:
                     seen_rules[rule_id] = rule
 
-            all_results.extend(run.get("results", []))
+            for result in run.get("results", []):
+                rule_id = result.get("ruleId", "")
+                uri = ""
+                start_line = 0
+                locations = result.get("locations", [])
+                if locations:
+                    phys = locations[0].get("physicalLocation", {})
+                    uri = phys.get("artifactLocation", {}).get("uri", "")
+                    start_line = phys.get("region", {}).get("startLine", 0)
+                dedup_key = (rule_id, uri, start_line)
+                if dedup_key in seen_results:
+                    continue
+                seen_results.add(dedup_key)
+                all_results.append(result)
 
     if all_results:
         merged_run = {
@@ -161,50 +128,6 @@ def merge_sarif_pure_python(sarif_dir: Path) -> dict:
     return merged
 
 
-def filter_sarif_by_triage(sarif: dict, true_positives: set[tuple[str, str, int]]) -> dict:
-    """Filter SARIF results to include only triaged true positives."""
-    normalized_tps: set[tuple[str, str, int]] = set()
-    for rule, file_path, line in true_positives:
-        normalized_tps.add((rule, normalize_file_path(file_path), line))
-
-    filtered = {
-        "version": sarif.get("version", "2.1.0"),
-        "$schema": sarif.get("$schema", "https://json.schemastore.org/sarif-2.1.0.json"),
-        "runs": [],
-    }
-
-    for run in sarif.get("runs", []):
-        filtered_results = []
-        for result in run.get("results", []):
-            key = extract_result_key(result)
-            if key is None:
-                continue
-
-            rule_id, uri, line = key
-            normalized_key = (rule_id, normalize_file_path(uri), line)
-
-            if normalized_key in normalized_tps:
-                filtered_results.append(result)
-
-        if filtered_results:
-            result_rule_ids = {r.get("ruleId") for r in filtered_results}
-            driver = run.get("tool", {}).get("driver", {})
-            filtered_rules = [r for r in driver.get("rules", []) if r.get("id") in result_rule_ids]
-
-            filtered_run = {
-                "tool": {
-                    "driver": {
-                        **driver,
-                        "rules": filtered_rules,
-                    }
-                },
-                "results": filtered_results,
-            }
-            filtered["runs"].append(filtered_run)
-
-    return filtered
-
-
 def main() -> int:
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} OUTPUT_DIR", file=sys.stderr)
@@ -215,12 +138,13 @@ def main() -> int:
         print(f"Error: {output_dir} is not a directory", file=sys.stderr)
         return 1
 
-    # Load true positives from triage files
-    true_positives = load_true_positives(output_dir)
-    if not true_positives:
-        print("Warning: No true positives found in triage files", file=sys.stderr)
+    # Count SARIF files
+    sarif_files = list(output_dir.glob("*.sarif"))
+    print(f"Found {len(sarif_files)} SARIF files to merge")
 
-    print(f"Found {len(true_positives)} true positives from triage")
+    if not sarif_files:
+        print("No SARIF files found, nothing to merge", file=sys.stderr)
+        return 1
 
     # Try SARIF Multitool first, fall back to pure Python
     merged: dict | None = None
@@ -234,15 +158,12 @@ def main() -> int:
         print("Using pure Python merge (SARIF Multitool not available or failed)")
         merged = merge_sarif_pure_python(output_dir)
 
-    # Filter to true positives only
-    filtered = filter_sarif_by_triage(merged, true_positives)
-
-    result_count = sum(len(run.get("results", [])) for run in filtered.get("runs", []))
-    print(f"Filtered SARIF contains {result_count} true positives")
+    result_count = sum(len(run.get("results", [])) for run in merged.get("runs", []))
+    print(f"Merged SARIF contains {result_count} findings")
 
     # Write output
-    output_file = output_dir / "findings-triaged.sarif"
-    output_file.write_text(json.dumps(filtered, indent=2))
+    output_file = output_dir / "findings.sarif"
+    output_file.write_text(json.dumps(merged, indent=2))
     print(f"Written to {output_file}")
 
     return 0

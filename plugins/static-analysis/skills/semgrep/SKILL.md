@@ -4,8 +4,7 @@ description: Run Semgrep static analysis scan on a codebase using parallel subag
   two scan modes - "run all" (full coverage) and "important only" (high-confidence security
   vulnerabilities). Automatically detects and uses Semgrep Pro for cross-file analysis when
   available. Use when asked to scan code for vulnerabilities, run a security audit with Semgrep,
-  find bugs, or perform static analysis. Spawns parallel workers for multi-language codebases
-  and triage.
+  find bugs, or perform static analysis. Spawns parallel workers for multi-language codebases.
 allowed-tools:
   - Bash
   - Read
@@ -22,7 +21,7 @@ allowed-tools:
 
 # Semgrep Security Scan
 
-Run a complete Semgrep scan with automatic language detection, parallel execution via Task subagents, and parallel triage. Automatically uses Semgrep Pro for cross-file taint analysis when available.
+Run a complete Semgrep scan with automatic language detection, parallel execution via Task subagents, and merged SARIF output. Automatically uses Semgrep Pro for cross-file taint analysis when available.
 
 ## Prerequisites
 
@@ -69,7 +68,7 @@ Two modes control scan scope and result filtering. Select mode early in the work
 
 | Mode | Coverage | Findings Reported |
 |------|----------|-------------------|
-| **Run all** | All rulesets, all severity levels | Everything (triaged for true/false positives) |
+| **Run all** | All rulesets, all severity levels | Everything |
 | **Important only** | All rulesets, but pre-filtered and post-filtered | Security vulnerabilities only, medium-high confidence and impact |
 
 **Important only** applies two layers of filtering:
@@ -91,20 +90,19 @@ This skill uses **parallel Task subagents** for maximum efficiency:
 │ 2. Select scan mode + rulesets (ref: rulesets.md, scan-modes.md)│
 │ 3. Present plan + rulesets, get approval [⛔ HARD GATE]         │
 │ 4. Spawn parallel scan Tasks (with approved rulesets + mode)    │
-│ 5. Spawn parallel triage Tasks                                  │
-│ 6. Collect and report results (mode-dependent filtering)        │
+│ 5. Merge results and report                                     │
 └─────────────────────────────────────────────────────────────────┘
-          │ Step 4                           │ Step 5
-          ▼                                  ▼
-┌─────────────────┐              ┌─────────────────┐
-│ Scan Tasks      │              │ Triage Tasks    │
-│ (parallel)      │              │ (parallel)      │
-├─────────────────┤              ├─────────────────┤
-│ Python scanner  │              │ Python triager  │
-│ JS/TS scanner   │              │ JS/TS triager   │
-│ Go scanner      │              │ Go triager      │
-│ Docker scanner  │              │ Docker triager  │
-└─────────────────┘              └─────────────────┘
+          │ Step 4
+          ▼
+┌─────────────────┐
+│ Scan Tasks      │
+│ (parallel)      │
+├─────────────────┤
+│ Python scanner  │
+│ JS/TS scanner   │
+│ Go scanner      │
+│ Docker scanner  │
+└─────────────────┘
 ```
 
 ---
@@ -118,8 +116,7 @@ TaskCreate: "Detect languages and Pro availability" (Step 1)
 TaskCreate: "Select scan mode and rulesets" (Step 2) - blockedBy: Step 1
 TaskCreate: "Present plan with rulesets, get approval" (Step 3) - blockedBy: Step 2
 TaskCreate: "Execute scans with approved rulesets and mode" (Step 4) - blockedBy: Step 3
-TaskCreate: "Triage findings" (Step 5) - blockedBy: Step 4
-TaskCreate: "Report results (with mode-dependent filtering)" (Step 6) - blockedBy: Step 5
+TaskCreate: "Merge results and report" (Step 5) - blockedBy: Step 4
 ```
 
 ### Mandatory Gates
@@ -127,14 +124,13 @@ TaskCreate: "Report results (with mode-dependent filtering)" (Step 6) - blockedB
 | Task | Gate Type | Cannot Proceed Until |
 |------|-----------|---------------------|
 | Step 3: Get approval | **HARD GATE** | User explicitly approves rulesets + plan |
-| Step 5: Triage | **SOFT GATE** | All scan JSON files exist |
 
 **Step 3 is a HARD GATE**: Mark as `completed` ONLY after user says "yes", "proceed", "approved", or equivalent.
 
 ### Task Flow Example
 
 ```
-1. Create all 6 tasks with dependencies
+1. Create all 5 tasks with dependencies
 2. TaskUpdate Step 1 → in_progress, execute detection
 3. TaskUpdate Step 1 → completed
 4. TaskUpdate Step 2 → in_progress, select rulesets
@@ -197,12 +193,12 @@ question: "Which scan mode should be used?"
 multiSelect: false
 options:
   - label: "Run all (Recommended)"
-    description: "Full coverage — all rulesets, all severity levels, triaged for true/false positives"
+    description: "Full coverage — all rulesets, all severity levels"
   - label: "Important only"
     description: "Security vulnerabilities only — medium-high confidence and impact, no code quality"
 ```
 
-Record the selected mode. It affects Steps 4 and 6.
+Record the selected mode. It affects Steps 4 and 5.
 
 **Then, select rulesets.** Using the detected languages and frameworks from Step 1, select rulesets by following the **Ruleset Selection Algorithm** in [rulesets.md](references/rulesets.md).
 
@@ -277,7 +273,6 @@ Present plan to user with **explicit ruleset listing**:
 - Total rulesets: 9
 - [If Pro] Cross-file taint tracking enabled
 - Scan agent: `static-analysis:semgrep-scanner`
-- Triage agent: `static-analysis:semgrep-triager`
 
 **Want to modify rulesets?** Tell me which to add or remove.
 **Ready to scan?** Say "proceed" or "yes".
@@ -319,7 +314,7 @@ Before marking Step 3 complete, verify:
 - [ ] User given opportunity to modify rulesets
 - [ ] User explicitly approved (quote their confirmation)
 - [ ] **Final ruleset list captured for Step 4**
-- [ ] Agent types listed: `static-analysis:semgrep-scanner` and `static-analysis:semgrep-triager`
+- [ ] Agent type listed: `static-analysis:semgrep-scanner`
 
 ### Step 4: Spawn Parallel Scan Tasks
 
@@ -358,24 +353,18 @@ Spawn these 3 Tasks in a SINGLE message:
    - Approved rulesets: p/dockerfile
    - Output: semgrep-results-001/docker-*.json
 
-### Step 5: Spawn Parallel Triage Tasks
+### Step 5: Merge Results and Report (Main Agent)
 
-After scan Tasks complete, spawn triage Tasks using `subagent_type: static-analysis:semgrep-triager` (triage requires reading code context, not just running commands).
+After all scan Tasks complete, apply mode-dependent filtering (if applicable), then generate merged SARIF and report.
 
-Use the triage task prompt template from [triage-task-prompt.md](references/triage-task-prompt.md).
+**Important-only mode: Post-filter before merge**
 
-### Step 6: Collect Results (Main Agent)
-
-After all Tasks complete, apply mode-dependent filtering (if applicable), then generate merged SARIF and report.
-
-**Important-only mode: Post-filter before triage/merge**
-
-In important-only mode, filter each scan result JSON to remove non-security and low-confidence findings before triage. See [scan-modes.md](references/scan-modes.md) for the complete jq filter.
+In important-only mode, filter each scan result JSON to remove non-security and low-confidence findings before merging. See [scan-modes.md](references/scan-modes.md) for the complete jq filter.
 
 ```bash
 # Apply important-only filter to all scan result JSON files
 for f in "$OUTPUT_DIR"/*-*.json; do
-  [[ "$f" == *-triage.json || "$f" == *-important.json ]] && continue
+  [[ "$f" == *-important.json ]] && continue
   jq '{
     results: [.results[] |
       ((.extra.metadata.category // "security") | ascii_downcase) as $cat |
@@ -393,9 +382,7 @@ for f in "$OUTPUT_DIR"/*-*.json; do
 done
 ```
 
-Then use the `-important.json` files as input for triage instead of the raw scan files.
-
-**Generate merged SARIF with only triaged true positives:**
+**Generate merged SARIF:**
 
 ```bash
 uv run scripts/merge_triaged_sarif.py [OUTPUT_DIR]
@@ -404,9 +391,8 @@ uv run scripts/merge_triaged_sarif.py [OUTPUT_DIR]
 This script:
 1. Attempts to use [SARIF Multitool](https://www.npmjs.com/package/@microsoft/sarif-multitool) for merging (if `npx` is available)
 2. Falls back to pure Python merge if Multitool unavailable
-3. Reads all `*-triage.json` files to extract true positive findings
-4. Filters merged SARIF to include only triaged true positives
-5. Writes output to `[OUTPUT_DIR]/findings-triaged.sarif`
+3. Merges all `*.sarif` files into a single SARIF output
+4. Writes output to `[OUTPUT_DIR]/findings.sarif`
 
 **Optional: Install SARIF Multitool for better merge quality:**
 
@@ -421,8 +407,7 @@ npm install -g @microsoft/sarif-multitool
 
 **Scanned:** 1,804 files
 **Rulesets used:** 9 (including Trail of Bits)
-**Total raw findings:** 156
-**After triage:** 32 true positives
+**Total findings:** 156
 
 ### By Severity:
 - ERROR: 5
@@ -437,9 +422,8 @@ npm install -g @microsoft/sarif-multitool
 - Code quality: 8
 
 Results written to:
-- semgrep-results-001/findings-triaged.sarif (SARIF, true positives only)
-- semgrep-results-001/*-triage.json (triage details per language)
-- semgrep-results-001/*.json (raw scan results)
+- semgrep-results-001/findings.sarif (merged SARIF)
+- semgrep-results-001/*.json (raw scan results per ruleset)
 - semgrep-results-001/*.sarif (raw SARIF per ruleset)
 ```
 
@@ -452,29 +436,28 @@ Results written to:
 | Running without `--metrics=off` | Always use `--metrics=off` to prevent telemetry |
 | Running rulesets sequentially | Run in parallel with `&` and `wait` |
 | Not scoping rulesets to languages | Use `--include="*.py"` for language-specific rules |
-| Reporting raw findings without triage | Always triage to remove false positives |
 | Single-threaded for multi-lang | Spawn parallel Tasks per language |
 | Sequential Tasks | Spawn all Tasks in SINGLE message for parallelism |
 | Using OSS when Pro is available | Check login status; use `--pro` for deeper analysis |
 | Assuming Pro is unavailable | Always check with login detection before scanning |
+| Passing GitHub URLs directly to `--config` | Clone repos into `[OUTPUT_DIR]/repos/` first; semgrep's URL handling fails on repos with non-standard YAML |
+| Leaving cloned repos on disk after scan | Delete `[OUTPUT_DIR]/repos/` after all scans complete |
+| Using `.` or relative path as `[TARGET]` | Always use an absolute path for `[TARGET]` to avoid ambiguity in subagents |
 
 ## Limitations
 
 1. **OSS mode:** Cannot track data flow across files (login with `semgrep login` and run `semgrep install-semgrep-pro` to enable)
 2. **Pro mode:** Cross-file analysis uses `-j 1` (single job) which is slower per ruleset, but parallel rulesets compensate
-3. Triage requires reading code context - parallelized via Tasks
-4. Some false positive patterns require human judgment
 
 ## Agents
 
-This plugin provides two specialized agents for the scan and triage phases:
+This plugin provides a specialized agent for the scan phase:
 
 | Agent | Tools | Purpose |
 |-------|-------|---------|
 | `static-analysis:semgrep-scanner` | Bash | Executes parallel semgrep scans for a language category |
-| `static-analysis:semgrep-triager` | Read, Grep, Glob, Write | Classifies findings as true/false positives by reading source context |
 
-Use `subagent_type: static-analysis:semgrep-scanner` in Step 4 and `subagent_type: static-analysis:semgrep-triager` in Step 5 when spawning Task subagents.
+Use `subagent_type: static-analysis:semgrep-scanner` in Step 4 when spawning Task subagents.
 
 ## Rationalizations to Reject
 
@@ -487,11 +470,11 @@ Use `subagent_type: static-analysis:semgrep-scanner` in Step 4 and `subagent_typ
 | "Add extra rulesets without asking" | Modifying approved list without consent breaks trust |
 | "Skip showing ruleset list" | User can't make informed decision without seeing what will run |
 | "Third-party rulesets are optional" | Trail of Bits, 0xdea, Decurity rules catch vulnerabilities not in official registry - they are REQUIRED when language matches |
-| "Skip triage, report everything" | Floods user with noise; true issues get lost |
 | "Run one ruleset at a time" | Wastes time; parallel execution is faster |
 | "Use --config auto" | Sends metrics; less control over rulesets |
-| "Triage later" | Findings without context are harder to evaluate |
 | "One Task at a time" | Defeats parallelism; spawn all Tasks together |
 | "Pro is too slow, skip --pro" | Cross-file analysis catches 250% more true positives; worth the time |
 | "Don't bother checking for Pro" | Missing Pro = missing critical cross-file vulnerabilities |
 | "OSS is good enough" | OSS misses inter-file taint flows; always prefer Pro when available |
+| "Semgrep handles GitHub URLs natively" | URL handling is unreliable for repos with non-standard YAML (floats as keys, etc.); always clone first |
+| "Cleanup is optional" | Cloned repos left behind pollute the user's workspace and accumulate across runs |

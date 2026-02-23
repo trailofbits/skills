@@ -26,14 +26,26 @@ Example:
 
 ## Commands to Run (in parallel)
 
+### Clone GitHub URL rulesets first:
+```bash
+mkdir -p [OUTPUT_DIR]/repos
+# For each GitHub URL ruleset, clone into [OUTPUT_DIR]/repos/[name]:
+git clone --depth 1 https://github.com/org/repo [OUTPUT_DIR]/repos/repo-name
+```
+
 ### Generate commands for EACH approved ruleset:
 ```bash
-semgrep [--pro if available] --metrics=off [SEVERITY_FLAGS] --config [RULESET] --json -o [OUTPUT_DIR]/[lang]-[ruleset].json --sarif-output=[OUTPUT_DIR]/[lang]-[ruleset].sarif [TARGET] &
+semgrep [--pro if available] --metrics=off [SEVERITY_FLAGS] [INCLUDE_FLAGS] --config [RULESET] --json -o [OUTPUT_DIR]/[lang]-[ruleset].json --sarif-output=[OUTPUT_DIR]/[lang]-[ruleset].sarif [TARGET] &
 ```
 
 Wait for all to complete:
 ```bash
 wait
+```
+
+### Clean up cloned repos:
+```bash
+rm -rf [OUTPUT_DIR]/repos
 ```
 
 ## Critical Rules
@@ -43,7 +55,9 @@ wait
 - If scan mode is **important-only**, add `--severity MEDIUM --severity HIGH --severity CRITICAL` to every command
 - If scan mode is **run-all**, do NOT add severity flags
 - Run all rulesets in parallel with & and wait
-- For GitHub URLs, clone the repo first if not cached locally
+- For GitHub URL rulesets, always clone into [OUTPUT_DIR]/repos/ and use the local path as --config (do NOT pass URLs directly to semgrep — its URL handling is unreliable for repos with non-standard YAML)
+- Add `--include` flags for language-specific rulesets (e.g., `--include="*.py"` for p/python). Do NOT add `--include` to cross-language rulesets like p/security-audit, p/secrets, or third-party repos
+- After all scans complete, delete [OUTPUT_DIR]/repos/ to avoid leaving cloned repos behind
 
 ## Output
 Report:
@@ -62,8 +76,9 @@ Report:
 | `[OUTPUT_DIR]` | Results directory with run number | semgrep-results-001 |
 | `[PRO_AVAILABLE]` | Whether Pro engine is available | true, false |
 | `[SEVERITY_FLAGS]` | Severity pre-filter flags | *(empty)* for run-all, `--severity MEDIUM --severity HIGH --severity CRITICAL` for important-only |
-| `[RULESET]` | Semgrep ruleset identifier | p/python, https://github.com/... |
-| `[TARGET]` | Directory to scan | . (current dir) |
+| `[INCLUDE_FLAGS]` | File extension filter for language-specific rulesets | `--include="*.py"` for Python rulesets, *(empty)* for cross-language rulesets like p/security-audit, p/secrets, or third-party repos |
+| `[RULESET]` | Semgrep ruleset identifier or local clone path | p/python, [OUTPUT_DIR]/repos/semgrep-rules |
+| `[TARGET]` | Absolute path to directory to scan | /path/to/codebase |
 
 ## Example: Python Scanner Task
 
@@ -71,7 +86,7 @@ Report:
 You are a Semgrep scanner for Python.
 
 ## Task
-Run Semgrep scans for Python files and save results to semgrep-results-001.
+Run Semgrep scans for Python files and save results to /path/to/semgrep-results-001.
 
 ## Pro Engine Status: true
 
@@ -85,13 +100,26 @@ Run Semgrep scans for Python files and save results to semgrep-results-001.
 - https://github.com/trailofbits/semgrep-rules
 
 ## Commands to Run (in parallel)
+
+### Clone GitHub URL rulesets first:
 ```bash
-semgrep --pro --metrics=off --config p/python --json -o semgrep-results-001/python-python.json --sarif-output=semgrep-results-001/python-python.sarif . &
-semgrep --pro --metrics=off --config p/django --json -o semgrep-results-001/python-django.json --sarif-output=semgrep-results-001/python-django.sarif . &
-semgrep --pro --metrics=off --config p/security-audit --json -o semgrep-results-001/python-security-audit.json --sarif-output=semgrep-results-001/python-security-audit.sarif . &
-semgrep --pro --metrics=off --config p/secrets --json -o semgrep-results-001/python-secrets.json --sarif-output=semgrep-results-001/python-secrets.sarif . &
-semgrep --pro --metrics=off --config https://github.com/trailofbits/semgrep-rules --json -o semgrep-results-001/python-trailofbits.json --sarif-output=semgrep-results-001/python-trailofbits.sarif . &
+mkdir -p /path/to/semgrep-results-001/repos
+git clone --depth 1 https://github.com/trailofbits/semgrep-rules /path/to/semgrep-results-001/repos/trailofbits
+```
+
+### Run scans:
+```bash
+semgrep --pro --metrics=off --include="*.py" --config p/python --json -o /path/to/semgrep-results-001/python-python.json --sarif-output=/path/to/semgrep-results-001/python-python.sarif /path/to/codebase &
+semgrep --pro --metrics=off --include="*.py" --config p/django --json -o /path/to/semgrep-results-001/python-django.json --sarif-output=/path/to/semgrep-results-001/python-django.sarif /path/to/codebase &
+semgrep --pro --metrics=off --config p/security-audit --json -o /path/to/semgrep-results-001/python-security-audit.json --sarif-output=/path/to/semgrep-results-001/python-security-audit.sarif /path/to/codebase &
+semgrep --pro --metrics=off --config p/secrets --json -o /path/to/semgrep-results-001/python-secrets.json --sarif-output=/path/to/semgrep-results-001/python-secrets.sarif /path/to/codebase &
+semgrep --pro --metrics=off --config /path/to/semgrep-results-001/repos/trailofbits --json -o /path/to/semgrep-results-001/python-trailofbits.json --sarif-output=/path/to/semgrep-results-001/python-trailofbits.sarif /path/to/codebase &
 wait
+```
+
+### Clean up cloned repos:
+```bash
+rm -rf /path/to/semgrep-results-001/repos
 ```
 
 ## Critical Rules
@@ -99,6 +127,9 @@ wait
 - Always use --metrics=off
 - Use --pro when Pro is available
 - Run all rulesets in parallel with & and wait
+- Clone GitHub URL rulesets into the output dir repos/ subfolder, use local path as --config
+- Add --include="*.py" to language-specific rulesets (p/python, p/django) but NOT to p/security-audit, p/secrets, or third-party repos
+- Delete repos/ after scanning
 
 ## Output
 Report:

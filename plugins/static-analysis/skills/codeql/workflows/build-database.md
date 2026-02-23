@@ -31,8 +31,11 @@ Database creation differs by language type:
 - Try build methods in order until one succeeds:
   1. **Autobuild** - CodeQL auto-detects and runs the build
   2. **Custom Command** - Explicit build command for the detected build system
+  2m. **macOS arm64 Toolchain** - Homebrew compiler + multi-step tracing (Apple Silicon workaround, see Step 2a)
   3. **Multi-step** - Fine-grained control with init → trace-command → finalize
   4. **No-build fallback** - `--build-mode=none` (partial analysis, last resort)
+
+> **macOS Apple Silicon:** On arm64 Macs, system tools (`/usr/bin/make`, `/usr/bin/clang`, `/usr/bin/ar`) are built for `arm64e` (pointer-authenticated ABI), but CodeQL's `libtrace.dylib` only has `arm64`. macOS kills any `arm64e` process with a non-`arm64e` injected dylib (SIGKILL, exit 137). Step 2a detects this and routes to Method 2m which uses Homebrew tools (plain `arm64`) or Rosetta (`x86_64`).
 
 ---
 
@@ -220,9 +223,45 @@ fi
 
 ### For Compiled Languages (Java, C/C++, C#, Rust, Swift)
 
+#### Step 2a: macOS arm64e Detection (C/C++ only)
+
+On macOS with Apple Silicon, CodeQL's build tracer (`preload_tracer`) injects `libtrace.dylib` into every spawned process via `DYLD_INSERT_LIBRARIES`. This dylib ships with `x86_64` + `arm64` slices, but Apple's system binaries (`/usr/bin/make`, `/usr/bin/clang`, `/usr/bin/ar`, `/bin/mkdir`, etc.) are built for `arm64e` (pointer-authenticated ABI). macOS kills any `arm64e` process that tries to load a non-`arm64e` injected dylib with **SIGKILL (signal 9, exit code 137)**.
+
+**This affects C/C++ builds on macOS Apple Silicon when the build invokes any `arm64e` system tool under tracing.** Java, Swift, and other languages may also be affected if their build tools are `arm64e`.
+
+**Detection:**
+
+```bash
+IS_MACOS_ARM64E=false
+if [[ "$(uname -s)" == "Darwin" ]] && [[ "$(uname -m)" == "arm64" ]]; then
+  # Check if libtrace.dylib lacks arm64e
+  LIBTRACE=$(find "$(dirname "$(command -v codeql)")" -name libtrace.dylib 2>/dev/null | head -1)
+  if [ -n "$LIBTRACE" ]; then
+    LIBTRACE_ARCHS=$(lipo -archs "$LIBTRACE" 2>/dev/null)
+    if [[ "$LIBTRACE_ARCHS" != *"arm64e"* ]]; then
+      # Check if system tools are arm64e
+      MAKE_ARCHS=$(lipo -archs /usr/bin/make 2>/dev/null)
+      if [[ "$MAKE_ARCHS" == *"arm64e"* ]]; then
+        IS_MACOS_ARM64E=true
+        log_step "DETECTED: macOS arm64e tracer incompatibility"
+        log_result "libtrace.dylib archs: $LIBTRACE_ARCHS | /usr/bin/make archs: $MAKE_ARCHS"
+      fi
+    fi
+  fi
+fi
+```
+
+**If `IS_MACOS_ARM64E=true`:** Skip Method 1 (autobuild) and Method 2 (custom command) — they will fail with exit code 137. Go directly to **Method 2m (macOS arm64 toolchain)**.
+
+**If `IS_MACOS_ARM64E=false`:** Proceed with Method 1, 2, 3 in normal order.
+
+---
+
 Try build methods in sequence until one succeeds:
 
 #### Method 1: Autobuild
+
+> **Skip if `IS_MACOS_ARM64E=true`** — autobuild spawns system tools that will be killed.
 
 ```bash
 log_step "METHOD 1: Autobuild"
@@ -239,6 +278,8 @@ fi
 ```
 
 #### Method 2: Custom Command
+
+> **Skip if `IS_MACOS_ARM64E=true`** — custom command wraps the entire build in the tracer, which will inject `libtrace.dylib` into `arm64e` system tools called by make/cmake/etc.
 
 Detect build system and use explicit command:
 
@@ -281,9 +322,191 @@ else
 fi
 ```
 
+#### Method 2m: macOS arm64 Toolchain (Apple Silicon workaround)
+
+> **Use this method when `IS_MACOS_ARM64E=true`.** It replaces Methods 1 and 2 on affected systems.
+
+The strategy is to use Homebrew-installed tools (which are plain `arm64`, not `arm64e`) so `libtrace.dylib` can be injected successfully. Try these sub-methods in order:
+
+##### Sub-method 2m-a: Homebrew clang/gcc with multi-step tracing
+
+Trace only the compiler invocations individually, avoiding system tools (`/usr/bin/ar`, `/bin/mkdir`) that would be killed. This requires a multi-step build: init → trace each compiler call → finalize.
+
+```bash
+log_step "METHOD 2m-a: macOS arm64 — Homebrew compiler with multi-step tracing"
+
+# 1. Find Homebrew C/C++ compiler (arm64, not arm64e)
+BREW_CC=""
+# Prefer Homebrew clang
+if [ -x "/opt/homebrew/opt/llvm/bin/clang" ]; then
+  BREW_CC="/opt/homebrew/opt/llvm/bin/clang"
+# Try Homebrew GCC (e.g. gcc-14, gcc-13)
+elif command -v gcc-14 >/dev/null 2>&1; then
+  BREW_CC="$(command -v gcc-14)"
+elif command -v gcc-13 >/dev/null 2>&1; then
+  BREW_CC="$(command -v gcc-13)"
+fi
+
+if [ -z "$BREW_CC" ]; then
+  log_result "No Homebrew C/C++ compiler found — skipping 2m-a"
+  # Fall through to 2m-b
+else
+  # Verify it's arm64 (not arm64e)
+  BREW_CC_ARCH=$(lipo -archs "$BREW_CC" 2>/dev/null)
+  if [[ "$BREW_CC_ARCH" == *"arm64e"* ]]; then
+    log_result "Homebrew compiler is arm64e — skipping 2m-a"
+  else
+    log_step "Using Homebrew compiler: $BREW_CC (arch: $BREW_CC_ARCH)"
+
+    # 2. Run the build normally (without tracing) to create build dirs and artifacts
+    #    Use Homebrew make (gmake) if available, otherwise system make outside tracer
+    if command -v gmake >/dev/null 2>&1; then
+      MAKE_CMD="gmake"
+    else
+      MAKE_CMD="make"
+    fi
+    $MAKE_CMD clean 2>/dev/null || true
+    $MAKE_CMD CC="$BREW_CC" 2>&1 | tee -a "$LOG_FILE"
+
+    # 3. Extract compiler commands from the Makefile / build system
+    #    Use make's dry-run mode to get the exact compiler invocations
+    $MAKE_CMD clean 2>/dev/null || true
+    COMPILE_CMDS=$($MAKE_CMD CC="$BREW_CC" --dry-run 2>/dev/null \
+      | grep -E "^\s*$BREW_CC\b.*\s-c\s" \
+      | sed 's/^[[:space:]]*//')
+
+    if [ -z "$COMPILE_CMDS" ]; then
+      log_result "Could not extract compile commands from dry-run — skipping 2m-a"
+    else
+      # 4. Init database
+      codeql database init $DB_NAME --language=cpp --source-root=. --overwrite 2>&1 \
+        | tee -a "$LOG_FILE"
+
+      # 5. Ensure build directories exist (outside tracer — avoids arm64e mkdir)
+      $MAKE_CMD clean 2>/dev/null || true
+      #    Parse -o flags to find output dirs, or just create common dirs
+      echo "$COMPILE_CMDS" | grep -oP '(?<=-o\s)\S+' | xargs -I{} dirname {} \
+        | sort -u | xargs mkdir -p 2>/dev/null || true
+
+      # 6. Trace each compiler invocation individually
+      TRACE_OK=true
+      while IFS= read -r cmd; do
+        [ -z "$cmd" ] && continue
+        log_cmd "codeql database trace-command $DB_NAME -- $cmd"
+        if ! codeql database trace-command $DB_NAME -- $cmd 2>&1 | tee -a "$LOG_FILE"; then
+          log_result "FAILED on: $cmd"
+          TRACE_OK=false
+          break
+        fi
+      done <<< "$COMPILE_CMDS"
+
+      if $TRACE_OK; then
+        # 7. Finalize
+        codeql database finalize $DB_NAME 2>&1 | tee -a "$LOG_FILE"
+        if codeql resolve database -- "$DB_NAME" >/dev/null 2>&1; then
+          log_result "SUCCESS (macOS arm64 multi-step)"
+          # Done — skip to Step 4
+        else
+          log_result "FAILED (finalize failed)"
+        fi
+      fi
+    fi
+  fi
+fi
+```
+
+##### Sub-method 2m-b: Rosetta x86_64 emulation
+
+Force the entire CodeQL pipeline to run under Rosetta, which uses the `x86_64` slice of both `libtrace.dylib` and system tools — no `arm64e` mismatch.
+
+```bash
+log_step "METHOD 2m-b: macOS arm64 — Rosetta x86_64 emulation"
+
+# Check if Rosetta is available
+if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+  log_result "Rosetta not available — skipping 2m-b"
+else
+  BUILD_CMD="<BUILD_CMD>"  # e.g. "make clean && make -j4"
+  CMD="arch -x86_64 codeql database create $DB_NAME --language=<LANG> --source-root=. --command='$BUILD_CMD' --overwrite"
+  log_cmd "$CMD"
+
+  arch -x86_64 codeql database create $DB_NAME --language=<LANG> --source-root=. \
+    --command="$BUILD_CMD" --overwrite 2>&1 | tee -a "$LOG_FILE"
+
+  if codeql resolve database -- "$DB_NAME" >/dev/null 2>&1; then
+    log_result "SUCCESS (Rosetta x86_64)"
+  else
+    log_result "FAILED (Rosetta)"
+  fi
+fi
+```
+
+##### Sub-method 2m-c: System compiler (direct attempt)
+
+As a verification step, try the standard autobuild with the system compiler. This will likely fail with exit code 137 on affected systems, but confirms the arm64e issue is the cause.
+
+> **This sub-method is optional.** Skip it if arm64e incompatibility was already confirmed in Step 2a.
+
+```bash
+log_step "METHOD 2m-c: System compiler (expected to fail on arm64e)"
+CMD="codeql database create $DB_NAME --language=<LANG> --source-root=. --overwrite"
+log_cmd "$CMD"
+
+$CMD 2>&1 | tee -a "$LOG_FILE"
+
+EXIT_CODE=$?
+if [ $EXIT_CODE -eq 137 ] || [ $EXIT_CODE -eq 134 ]; then
+  log_result "FAILED: exit code $EXIT_CODE confirms arm64e/libtrace incompatibility"
+elif codeql resolve database -- "$DB_NAME" >/dev/null 2>&1; then
+  log_result "SUCCESS (unexpected — system compiler worked)"
+else
+  log_result "FAILED (exit code: $EXIT_CODE)"
+fi
+```
+
+##### Sub-method 2m-d: Ask user
+
+If all macOS workarounds fail, present options:
+
+```
+AskUserQuestion:
+  header: "macOS Build"
+  question: "Build tracing failed due to macOS arm64e incompatibility. How to proceed?"
+  multiSelect: false
+  options:
+    - label: "Use build-mode=none (Recommended)"
+      description: "Source-level analysis only. Misses some interprocedural data flow but catches most C/C++ vulnerabilities (format strings, buffer overflows, unsafe functions)."
+    - label: "Install arm64 tools and retry"
+      description: "Run: brew install llvm make — then retry with Homebrew toolchain"
+    - label: "Install Rosetta and retry"
+      description: "Run: softwareupdate --install-rosetta — then retry under x86_64 emulation"
+    - label: "Abort"
+      description: "Stop database creation"
+```
+
+**If "Use build-mode=none":** Proceed to Method 4.
+
+**If "Install arm64 tools and retry":**
+```bash
+log_step "Installing Homebrew arm64 toolchain"
+brew install llvm make 2>&1 | tee -a "$LOG_FILE"
+# Retry Method 2m-a
+```
+
+**If "Install Rosetta and retry":**
+```bash
+log_step "Installing Rosetta"
+softwareupdate --install-rosetta --agree-to-license 2>&1 | tee -a "$LOG_FILE"
+# Retry Method 2m-b
+```
+
+---
+
 #### Method 3: Multi-step Build
 
 For complex builds needing fine-grained control:
+
+> **On macOS with `IS_MACOS_ARM64E=true`:** Only trace compiler commands (arm64 Homebrew binaries). Do NOT trace system tools like `make`, `ar`, `mkdir` — they are arm64e and will be killed. Run non-compiler build steps outside the tracer.
 
 ```bash
 log_step "METHOD 3: Multi-step build"
@@ -469,27 +692,40 @@ echo "Finalized: $FINALIZED"
 
 ### 4b. Compare Against Expected Source
 
-Estimate the expected source file count from the working directory and compare:
+Estimate the expected source file count from the working directory and compare.
+
+> **Compiled languages (C/C++, Java, C#):** The source archive (`src.zip`) includes system headers and SDK files alongside project source files. For C/C++, this can inflate the archive count 10-20x (e.g., 111 archive files for 5 project source files). Compare against **project-relative files only** by filtering the archive listing.
 
 ```bash
 # Count source files in the project (adjust extensions per language)
-EXPECTED=$(fd -t f -e java -e kt --exclude 'codeql_*.db' \
-  --exclude node_modules --exclude vendor --exclude .git . | wc -l)
+# C/C++: -e c -e cpp -e h -e hpp
+# Java:  -e java -e kt
+# Python: -e py
+# JS/TS: -e js -e ts -e jsx -e tsx
+EXPECTED=$(fd -t f -e c -e cpp -e h -e hpp -e java -e kt -e py -e js -e ts \
+  --exclude 'codeql_*.db' --exclude node_modules --exclude vendor --exclude .git . \
+  2>/dev/null | wc -l)
 echo "Expected source files: $EXPECTED"
-echo "Extracted source files: $SRC_FILE_COUNT"
 
-# Baseline LOC from database metadata
+# Count PROJECT files in source archive (exclude system/SDK paths)
+# For compiled languages, src.zip contains system headers under SDK paths
+PROJECT_SRC_COUNT=$(unzip -Z1 "$DB_NAME/src.zip" 2>/dev/null \
+  | grep -v -E '^(Library/|usr/|System/|opt/|Applications/)' | wc -l)
+echo "Project files in source archive: $PROJECT_SRC_COUNT"
+echo "Total files in source archive: $SRC_FILE_COUNT (includes system headers for compiled langs)"
+
+# Baseline LOC from database metadata (most reliable single metric)
 DB_LOC=$(grep '^baselineLinesOfCode:' "$DB_NAME/codeql-database.yml" \
   | awk '{print $2}')
 echo "Baseline LoC: $DB_LOC"
 
-# Error ratio
-if [ "$SRC_FILE_COUNT" -gt 0 ]; then
-  ERROR_RATIO=$(python3 -c "print(f'{$EXTRACTOR_ERRORS/$SRC_FILE_COUNT*100:.1f}%')")
+# Error ratio — use project file count for compiled langs, total for interpreted
+if [ "$PROJECT_SRC_COUNT" -gt 0 ]; then
+  ERROR_RATIO=$(python3 -c "print(f'{$EXTRACTOR_ERRORS/$PROJECT_SRC_COUNT*100:.1f}%')")
 else
   ERROR_RATIO="N/A (no files)"
 fi
-echo "Error ratio: $ERROR_RATIO ($EXTRACTOR_ERRORS errors / $SRC_FILE_COUNT files)"
+echo "Error ratio: $ERROR_RATIO ($EXTRACTOR_ERRORS errors / $PROJECT_SRC_COUNT project files)"
 ```
 
 ### 4c. Log Assessment
@@ -497,12 +733,15 @@ echo "Error ratio: $ERROR_RATIO ($EXTRACTOR_ERRORS errors / $SRC_FILE_COUNT file
 ```bash
 log_step "Quality assessment results"
 log_result "Baseline LoC: $DB_LOC"
-log_result "Source archive files: $SRC_FILE_COUNT (expected: ~$EXPECTED)"
+log_result "Project source files: $PROJECT_SRC_COUNT (expected: ~$EXPECTED)"
+log_result "Total archive files: $SRC_FILE_COUNT (includes system headers for compiled langs)"
 log_result "Extractor errors: $EXTRACTOR_ERRORS (ratio: $ERROR_RATIO)"
 log_result "Finalized: $FINALIZED"
 
-# Sample extracted files
-unzip -Z1 "$DB_NAME/src.zip" 2>/dev/null | head -20 >> "$LOG_FILE"
+# Sample extracted project files (exclude system paths)
+unzip -Z1 "$DB_NAME/src.zip" 2>/dev/null \
+  | grep -v -E '^(Library/|usr/|System/|opt/|Applications/)' \
+  | head -20 >> "$LOG_FILE"
 ```
 
 ### Quality Criteria
@@ -510,11 +749,13 @@ unzip -Z1 "$DB_NAME/src.zip" 2>/dev/null | head -20 >> "$LOG_FILE"
 | Metric | Source | Good | Poor |
 |--------|--------|------|------|
 | Baseline LoC | `print-baseline` / `baseline-info.json` | > 0, proportional to project size | 0 or far below expected |
-| Source archive files | `src.zip` | Close to expected source file count | 0 or < 50% of expected |
-| Extractor errors | `diagnostic/extractors/*.jsonl` | 0 or < 5% of files | > 5% of files |
+| Project source files | `src.zip` (filtered) | Close to expected source file count | 0 or < 50% of expected |
+| Extractor errors | `diagnostic/extractors/*.jsonl` | 0 or < 5% of project files | > 5% of project files |
 | Finalized | `codeql-database.yml` | `true` | `false` (incomplete build) |
 | Key directories | `src.zip` listing | Application code directories present | Missing `src/main`, `lib/`, `app/` etc. |
 | "No source code seen" | build log | Absent | Present (cached build — compiled languages) |
+
+**Interpreting archive file counts for compiled languages:** C/C++ databases include system headers (e.g., `<stdio.h>`, SDK headers) in `src.zip`. A project with 5 source files may have 100+ files in the archive. Always filter to project-relative paths when comparing against expected counts. Use `baselineLinesOfCode` as the primary quality indicator.
 
 **Interpreting baseline LoC:** A small number of extractor errors is normal and does not significantly impact analysis. However, if `baselineLinesOfCode` is 0 or the source archive contains no files, the database is empty — likely a cached build (compiled languages) or wrong `--source-root`.
 
@@ -665,5 +906,17 @@ codeql database create $DB_NAME --language=python --threads=0 \
 | Java | Maven | `mvn clean compile -DskipTests` |
 | Rust | Cargo | `cargo clean && cargo build` |
 | C# | .NET | `dotnet clean && dotnet build` |
+
+### macOS Apple Silicon (arm64e workaround)
+
+| Priority | Method | Command |
+|----------|--------|---------|
+| 1st | Homebrew clang + multi-step | `codeql database init` → `codeql database trace-command -- /opt/homebrew/opt/llvm/bin/clang -c file.c` (per file) → `codeql database finalize` |
+| 2nd | Rosetta x86_64 | `arch -x86_64 codeql database create --command='make'` |
+| 3rd | `build-mode=none` | `codeql database create --build-mode=none` (source-level only) |
+
+**Why:** CodeQL's `libtrace.dylib` has `x86_64`+`arm64` slices but Apple system tools are `arm64e`. macOS kills `arm64e` processes that load non-`arm64e` injected dylibs.
+
+**Key constraint:** Only trace `arm64` binaries (Homebrew tools). Never trace `arm64e` binaries (`/usr/bin/*`, `/bin/*`) — they will be killed with signal 9.
 
 See [language-details.md](../references/language-details.md) for more.

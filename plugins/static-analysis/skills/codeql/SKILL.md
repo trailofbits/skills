@@ -3,12 +3,12 @@ name: codeql
 description: >-
   Runs CodeQL static analysis for security vulnerability detection
   using interprocedural data flow and taint tracking. Supports two
-  scan modes - "run all" (all queries from all packs, unfiltered) and
-  "important only" (security vulnerabilities filtered by precision and severity). Applicable
+  scan modes - "run all" (all queries from all packs via security-and-quality suite) and
+  "important only" (security vulnerabilities filtered by precision and security-severity score). Applicable
   when finding vulnerabilities, running a security scan, performing a
   security audit, running CodeQL, building a CodeQL database, selecting
   query rulesets, creating data extension models, or processing CodeQL
-  SARIF output. NOT for writing custom QL queries or CI/CD pipeline setup.
+  SARIF output.
 allowed-tools:
   - Bash
   - Read
@@ -64,9 +64,11 @@ These shortcuts lead to missed findings. Do not accept them:
 - **"security-extended is enough"** - It is the baseline. Always check if Trail of Bits packs and Community Packs are available for the language. They catch categories `security-extended` misses entirely.
 - **"The database built, so it's good"** - A database that builds does not mean it extracted well. Always run Step 4 (quality assessment) and check file counts against expected source files. A cached build produces zero useful extraction.
 - **"Data extensions aren't needed for standard frameworks"** - Even Django/Spring apps have custom wrappers around ORM calls, request parsing, or shell execution that CodeQL does not model. Skipping the extensions workflow means missing vulnerabilities in project-specific code.
-- **"build-mode=none is fine for compiled languages"** - It produces severely incomplete analysis. No interprocedural data flow through compiled code is traced. Only use as an absolute last resort and clearly flag the limitation.
+- **"build-mode=none is fine for compiled languages"** - It produces severely incomplete analysis. No interprocedural data flow through compiled code is traced. Only use as an absolute last resort and clearly flag the limitation. On macOS Apple Silicon, try the arm64 toolchain workaround (Method 2m) or Rosetta before falling back to `build-mode=none`.
+- **"The build fails on macOS, just use build-mode=none"** - On Apple Silicon Macs, exit code 137 during tracing is caused by `arm64e`/`arm64` architecture mismatch in `libtrace.dylib`, not a fundamental build failure. Try Homebrew arm64 tools (Method 2m-a), then Rosetta (Method 2m-b) before accepting `build-mode=none`.
 - **"No findings means the code is secure"** - Zero findings can indicate poor database quality, missing models, or wrong query packs. Investigate before reporting clean results.
-- **"I'll just run the default suite"** - The default suite varies by how CodeQL is invoked. Always explicitly specify the suite (e.g., `security-extended`) so results are reproducible.
+- **"I'll just run the default suite"** - The default suite varies by how CodeQL is invoked. Passing a pack name directly (e.g., `-- codeql/cpp-queries`) uses the pack's `defaultSuiteFile` from `qlpack.yml` (typically `code-scanning.qls`), which silently applies strict filters and can produce zero results. Always use an explicit suite reference or generate a custom `.qls` file.
+- **"I'll just pass the pack names directly"** - Same issue as above. Each pack's `defaultSuiteFile` applies hidden filters. Always generate a custom suite that explicitly references the desired built-in suite (e.g., `security-and-quality`) or loads queries with known filtering.
 
 ---
 
