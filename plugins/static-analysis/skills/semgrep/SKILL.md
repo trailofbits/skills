@@ -46,6 +46,45 @@ Run a Semgrep scan with automatic language detection, parallel execution via Tas
 - Creating custom Semgrep rules → Use `semgrep-rule-creator` skill
 - Porting existing rules to other languages → Use `semgrep-rule-variant-creator` skill
 
+## Output Directory
+
+All scan results, SARIF files, and temporary data are stored in a single output directory.
+
+- **If the user specifies an output directory** in their prompt, use it as `OUTPUT_DIR`.
+- **If not specified**, default to `./static_analysis_semgrep_1`. If that already exists, increment to `_2`, `_3`, etc.
+
+In both cases, **always create the directory** with `mkdir -p` before writing any files.
+
+```bash
+# Resolve output directory
+if [ -n "$USER_SPECIFIED_DIR" ]; then
+  OUTPUT_DIR="$USER_SPECIFIED_DIR"
+else
+  BASE="static_analysis_semgrep"
+  N=1
+  while [ -e "${BASE}_${N}" ]; do
+    N=$((N + 1))
+  done
+  OUTPUT_DIR="${BASE}_${N}"
+fi
+mkdir -p "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results"
+```
+
+The output directory is resolved **once** at the start of Step 1 and used throughout all subsequent steps.
+
+```
+$OUTPUT_DIR/
+├── rulesets.txt                 # Approved rulesets (logged after Step 3)
+├── raw/                         # Per-scan raw output (unfiltered)
+│   ├── python-python.json
+│   ├── python-python.sarif
+│   ├── python-django.json
+│   ├── python-django.sarif
+│   └── ...
+└── results/                     # Final merged output
+    └── results.sarif
+```
+
 ## Prerequisites
 
 **Required:** Semgrep CLI (`semgrep --version`). If not installed, see [Semgrep installation docs](https://semgrep.dev/docs/getting-started/).
@@ -103,7 +142,7 @@ See [scan-modes.md](references/scan-modes.md) for metadata criteria and jq filte
 
 | Step | Action | Gate | Key Reference |
 |------|--------|------|---------------|
-| 1 | Detect languages + Pro availability | — | Use Glob, not Bash |
+| 1 | Resolve output dir, detect languages + Pro availability | — | Use Glob, not Bash |
 | 2 | Select scan mode + rulesets | — | [rulesets.md](references/rulesets.md) |
 | 3 | Present plan, get explicit approval | ⛔ HARD | AskUserQuestion |
 | 4 | Spawn parallel scan Tasks | — | [scanner-task-prompt.md](references/scanner-task-prompt.md) |
@@ -114,7 +153,7 @@ See [scan-modes.md](references/scan-modes.md) for metadata criteria and jq filte
 **Merge command (Step 5):**
 
 ```bash
-uv run {baseDir}/scripts/merge_triaged_sarif.py [OUTPUT_DIR]
+uv run {baseDir}/scripts/merge_triaged_sarif.py $OUTPUT_DIR/raw $OUTPUT_DIR/results/results.sarif
 ```
 
 ## Agents
@@ -141,6 +180,7 @@ Use `subagent_type: static-analysis:semgrep-scanner` in Step 4 when spawning Tas
 | "Semgrep handles GitHub URLs natively" | URL handling fails on repos with non-standard YAML; always clone first |
 | "Cleanup is optional" | Cloned repos pollute the user's workspace and accumulate across runs |
 | "Use `.` or relative path as target" | Subagents need absolute paths to avoid ambiguity |
+| "Let the user pick an output dir later" | Output directory must be resolved at Step 1, before any files are created |
 
 ## Reference Index
 
@@ -156,13 +196,17 @@ Use `subagent_type: static-analysis:semgrep-scanner` in Step 4 when spawning Tas
 
 ## Success Criteria
 
+- [ ] Output directory resolved (user-specified or auto-incremented default)
+- [ ] All generated files stored inside `$OUTPUT_DIR`
 - [ ] Languages detected with file counts; Pro status checked
 - [ ] Scan mode selected by user (run all / important only)
 - [ ] Rulesets include third-party rules for all detected languages
 - [ ] User explicitly approved the scan plan (Step 3 gate passed)
 - [ ] All scan Tasks spawned in a single message and completed
 - [ ] Every `semgrep` command used `--metrics=off`
-- [ ] `findings.sarif` exists in the output directory and is valid JSON
-- [ ] Important-only mode: post-filter applied before merge
+- [ ] Approved rulesets logged to `$OUTPUT_DIR/rulesets.txt`
+- [ ] Raw per-scan outputs stored in `$OUTPUT_DIR/raw/`
+- [ ] `results.sarif` exists in `$OUTPUT_DIR/results/` and is valid JSON
+- [ ] Important-only mode: post-filter applied before merge; unfiltered results preserved in `raw/`
 - [ ] Results summary reported with severity and category breakdown
-- [ ] Cloned repos (if any) cleaned up from `[OUTPUT_DIR]/repos/`
+- [ ] Cloned repos (if any) cleaned up from `$OUTPUT_DIR/repos/`

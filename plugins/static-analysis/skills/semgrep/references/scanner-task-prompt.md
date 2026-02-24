@@ -8,7 +8,7 @@ Use this prompt template when spawning scanner Tasks in Step 4. Use `subagent_ty
 You are a Semgrep scanner for [LANGUAGE_CATEGORY].
 
 ## Task
-Run Semgrep scans for [LANGUAGE] files and save results to [OUTPUT_DIR].
+Run Semgrep scans for [LANGUAGE] files and save results to [OUTPUT_DIR]/raw.
 
 ## Pro Engine Status: [PRO_AVAILABLE: true/false]
 
@@ -35,7 +35,7 @@ git clone --depth 1 https://github.com/org/repo [OUTPUT_DIR]/repos/repo-name
 
 ### Generate commands for EACH approved ruleset:
 ```bash
-semgrep [--pro if available] --metrics=off [SEVERITY_FLAGS] [INCLUDE_FLAGS] --config [RULESET] --json -o [OUTPUT_DIR]/[lang]-[ruleset].json --sarif-output=[OUTPUT_DIR]/[lang]-[ruleset].sarif [TARGET] &
+semgrep [--pro if available] --metrics=off [SEVERITY_FLAGS] [INCLUDE_FLAGS] --config [RULESET] --json -o [OUTPUT_DIR]/raw/[lang]-[ruleset].json --sarif-output=[OUTPUT_DIR]/raw/[lang]-[ruleset].sarif [TARGET] &
 ```
 
 Wait for all to complete:
@@ -63,7 +63,7 @@ rm -rf [OUTPUT_DIR]/repos
 Report:
 - Number of findings per ruleset
 - Any scan errors
-- File paths of JSON results
+- File paths of JSON results (in [OUTPUT_DIR]/raw/)
 - [If Pro] Note any cross-file findings detected
 ```
 
@@ -73,7 +73,7 @@ Report:
 |----------|-------------|---------|
 | `[LANGUAGE_CATEGORY]` | Language group being scanned | Python, JavaScript, Docker |
 | `[LANGUAGE]` | Specific language | Python, TypeScript, Go |
-| `[OUTPUT_DIR]` | Results directory with run number | semgrep-results-001 |
+| `[OUTPUT_DIR]` | Output directory (absolute path, resolved in Step 1) | /path/to/static_analysis_semgrep_1 |
 | `[PRO_AVAILABLE]` | Whether Pro engine is available | true, false |
 | `[SEVERITY_FLAGS]` | Severity pre-filter flags | *(empty)* for run-all, `--severity MEDIUM --severity HIGH --severity CRITICAL` for important-only |
 | `[INCLUDE_FLAGS]` | File extension filter for language-specific rulesets | `--include="*.py"` for Python rulesets, *(empty)* for cross-language rulesets like p/security-audit, p/secrets, or third-party repos |
@@ -86,7 +86,7 @@ Report:
 You are a Semgrep scanner for Python.
 
 ## Task
-Run Semgrep scans for Python files and save results to /path/to/semgrep-results-001.
+Run Semgrep scans for Python files and save results to /path/to/static_analysis_semgrep_1/raw.
 
 ## Pro Engine Status: true
 
@@ -103,23 +103,23 @@ Run Semgrep scans for Python files and save results to /path/to/semgrep-results-
 
 ### Clone GitHub URL rulesets first:
 ```bash
-mkdir -p /path/to/semgrep-results-001/repos
-git clone --depth 1 https://github.com/trailofbits/semgrep-rules /path/to/semgrep-results-001/repos/trailofbits
+mkdir -p /path/to/static_analysis_semgrep_1/repos
+git clone --depth 1 https://github.com/trailofbits/semgrep-rules /path/to/static_analysis_semgrep_1/repos/trailofbits
 ```
 
 ### Run scans:
 ```bash
-semgrep --pro --metrics=off --include="*.py" --config p/python --json -o /path/to/semgrep-results-001/python-python.json --sarif-output=/path/to/semgrep-results-001/python-python.sarif /path/to/codebase &
-semgrep --pro --metrics=off --include="*.py" --config p/django --json -o /path/to/semgrep-results-001/python-django.json --sarif-output=/path/to/semgrep-results-001/python-django.sarif /path/to/codebase &
-semgrep --pro --metrics=off --config p/security-audit --json -o /path/to/semgrep-results-001/python-security-audit.json --sarif-output=/path/to/semgrep-results-001/python-security-audit.sarif /path/to/codebase &
-semgrep --pro --metrics=off --config p/secrets --json -o /path/to/semgrep-results-001/python-secrets.json --sarif-output=/path/to/semgrep-results-001/python-secrets.sarif /path/to/codebase &
-semgrep --pro --metrics=off --config /path/to/semgrep-results-001/repos/trailofbits --json -o /path/to/semgrep-results-001/python-trailofbits.json --sarif-output=/path/to/semgrep-results-001/python-trailofbits.sarif /path/to/codebase &
+semgrep --pro --metrics=off --include="*.py" --config p/python --json -o /path/to/static_analysis_semgrep_1/raw/python-python.json --sarif-output=/path/to/static_analysis_semgrep_1/raw/python-python.sarif /path/to/codebase &
+semgrep --pro --metrics=off --include="*.py" --config p/django --json -o /path/to/static_analysis_semgrep_1/raw/python-django.json --sarif-output=/path/to/static_analysis_semgrep_1/raw/python-django.sarif /path/to/codebase &
+semgrep --pro --metrics=off --config p/security-audit --json -o /path/to/static_analysis_semgrep_1/raw/python-security-audit.json --sarif-output=/path/to/static_analysis_semgrep_1/raw/python-security-audit.sarif /path/to/codebase &
+semgrep --pro --metrics=off --config p/secrets --json -o /path/to/static_analysis_semgrep_1/raw/python-secrets.json --sarif-output=/path/to/static_analysis_semgrep_1/raw/python-secrets.sarif /path/to/codebase &
+semgrep --pro --metrics=off --config /path/to/static_analysis_semgrep_1/repos/trailofbits --json -o /path/to/static_analysis_semgrep_1/raw/python-trailofbits.json --sarif-output=/path/to/static_analysis_semgrep_1/raw/python-trailofbits.sarif /path/to/codebase &
 wait
 ```
 
 ### Clean up cloned repos:
 ```bash
-rm -rf /path/to/semgrep-results-001/repos
+rm -rf /path/to/static_analysis_semgrep_1/repos
 ```
 
 ## Critical Rules
@@ -135,6 +135,6 @@ rm -rf /path/to/semgrep-results-001/repos
 Report:
 - Number of findings per ruleset
 - Any scan errors
-- File paths of JSON results
+- File paths of JSON results (in raw/ subdirectory)
 - Note any cross-file findings detected
 ```

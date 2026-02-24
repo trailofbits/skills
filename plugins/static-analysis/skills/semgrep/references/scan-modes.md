@@ -71,9 +71,11 @@ Default values (`// "security"`, `// "HIGH"`) handle third-party rules without m
 
 ### Filter All Result Files in a Directory
 
+Raw scan output lives in `$OUTPUT_DIR/raw/`. The filter creates `*-important.json` files alongside the originals — the raw files are preserved unmodified.
+
 ```bash
-# Apply important-only filter to all scan result JSON files
-for f in "$OUTPUT_DIR"/*-*.json; do
+# Apply important-only filter to all scan result JSON files in raw/
+for f in "$OUTPUT_DIR/raw"/*-*.json; do
   [[ "$f" == *-triage.json || "$f" == *-important.json ]] && continue
   jq '{
     results: [.results[] |
@@ -100,7 +102,7 @@ done
 In important-only mode, add `[SEVERITY_FLAGS]` to the scanner template:
 
 ```bash
-semgrep [--pro if available] --metrics=off [SEVERITY_FLAGS] --config [RULESET] --json -o [OUTPUT_DIR]/[lang]-[ruleset].json --sarif-output=[OUTPUT_DIR]/[lang]-[ruleset].sarif [TARGET] &
+semgrep [--pro if available] --metrics=off [SEVERITY_FLAGS] --config [RULESET] --json -o [OUTPUT_DIR]/raw/[lang]-[ruleset].json --sarif-output=[OUTPUT_DIR]/raw/[lang]-[ruleset].sarif [TARGET] &
 ```
 
 Where `[SEVERITY_FLAGS]` is:

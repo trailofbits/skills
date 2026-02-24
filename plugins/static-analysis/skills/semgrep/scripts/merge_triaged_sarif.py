@@ -5,10 +5,11 @@
 """Merge SARIF files into a single consolidated output.
 
 Usage:
-    uv run merge_triaged_sarif.py OUTPUT_DIR
+    uv run merge_triaged_sarif.py RAW_DIR OUTPUT_FILE
 
-Reads *.sarif files from OUTPUT_DIR, produces
-OUTPUT_DIR/findings.sarif containing all findings merged.
+Reads *.sarif files from RAW_DIR (e.g., $OUTPUT_DIR/raw), produces
+OUTPUT_FILE (e.g., $OUTPUT_DIR/results/results.sarif) containing all
+findings merged and deduplicated.
 
 Attempts to use SARIF Multitool for merging if available, falls back to
 pure Python implementation.
@@ -39,9 +40,8 @@ def has_sarif_multitool() -> bool:
         return False
 
 
-def merge_with_multitool(sarif_dir: Path) -> dict | None:
+def merge_with_multitool(sarif_files: list[Path]) -> dict | None:
     """Use SARIF Multitool to merge SARIF files. Returns merged SARIF or None."""
-    sarif_files = list(sarif_dir.glob("*.sarif"))
     if not sarif_files:
         return None
 
@@ -72,7 +72,7 @@ def merge_with_multitool(sarif_dir: Path) -> dict | None:
         tmp_path.unlink(missing_ok=True)
 
 
-def merge_sarif_pure_python(sarif_dir: Path) -> dict:
+def merge_sarif_pure_python(sarif_files: list[Path]) -> dict:
     """Pure Python SARIF merge (fallback)."""
     merged = {
         "version": "2.1.0",
@@ -85,7 +85,7 @@ def merge_sarif_pure_python(sarif_dir: Path) -> dict:
     seen_results: set[tuple[str, str, int]] = set()
     tool_info: dict | None = None
 
-    for sarif_file in sorted(sarif_dir.glob("*.sarif")):
+    for sarif_file in sorted(sarif_files):
         try:
             data = json.loads(sarif_file.read_text())
         except json.JSONDecodeError as e:
@@ -129,40 +129,44 @@ def merge_sarif_pure_python(sarif_dir: Path) -> dict:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} OUTPUT_DIR", file=sys.stderr)
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} RAW_DIR OUTPUT_FILE", file=sys.stderr)
         return 1
 
-    output_dir = Path(sys.argv[1])
-    if not output_dir.is_dir():
-        print(f"Error: {output_dir} is not a directory", file=sys.stderr)
+    raw_dir = Path(sys.argv[1])
+    output_file = Path(sys.argv[2])
+
+    if not raw_dir.is_dir():
+        print(f"Error: {raw_dir} is not a directory", file=sys.stderr)
         return 1
 
-    # Count SARIF files
-    sarif_files = list(output_dir.glob("*.sarif"))
-    print(f"Found {len(sarif_files)} SARIF files to merge")
+    # Collect SARIF files from raw directory only
+    sarif_files = sorted(raw_dir.glob("*.sarif"))
+    print(f"Found {len(sarif_files)} SARIF files to merge in {raw_dir}")
 
     if not sarif_files:
         print("No SARIF files found, nothing to merge", file=sys.stderr)
         return 1
 
+    # Ensure output directory exists
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
     # Try SARIF Multitool first, fall back to pure Python
     merged: dict | None = None
     if has_sarif_multitool():
         print("Using SARIF Multitool for merge...")
-        merged = merge_with_multitool(output_dir)
+        merged = merge_with_multitool(sarif_files)
         if merged:
             print("SARIF Multitool merge successful")
 
     if merged is None:
         print("Using pure Python merge (SARIF Multitool not available or failed)")
-        merged = merge_sarif_pure_python(output_dir)
+        merged = merge_sarif_pure_python(sarif_files)
 
     result_count = sum(len(run.get("results", [])) for run in merged.get("runs", []))
     print(f"Merged SARIF contains {result_count} findings")
 
     # Write output
-    output_file = output_dir / "findings.sarif"
     output_file.write_text(json.dumps(merged, indent=2))
     print(f"Written to {output_file}")
 

@@ -38,7 +38,7 @@ Generate this file as `run-all.qls` in the results directory before running anal
 ## Generation Script
 
 ```bash
-RESULTS_DIR="${DB_NAME%.db}-results"
+RESULTS_DIR="$OUTPUT_DIR/results"
 SUITE_FILE="$RESULTS_DIR/run-all.qls"
 
 # NOTE: LANG must be set before running this script (e.g., LANG=cpp)

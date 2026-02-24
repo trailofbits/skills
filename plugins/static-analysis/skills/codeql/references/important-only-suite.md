@@ -84,7 +84,7 @@ Generate this file as `important-only.qls` in the results directory before runni
 The agent should generate the suite file dynamically based on installed packs:
 
 ```bash
-RESULTS_DIR="${DB_NAME%.db}-results"
+RESULTS_DIR="$OUTPUT_DIR/results"
 SUITE_FILE="$RESULTS_DIR/important-only.qls"
 
 # NOTE: LANG must be set before running this script (e.g., LANG=cpp)

@@ -33,15 +33,15 @@ TaskCreate: "Validate with re-analysis" (Step 5) - blockedBy: Step 4
 Search the project for existing data extensions and model packs.
 
 ```bash
-# 1. In-repo model packs
-fd '(qlpack|codeql-pack)\.yml$' . --exclude codeql_*.db | while read -r f; do
+# 1. In-repo model packs (exclude output dirs and legacy database dirs)
+fd '(qlpack|codeql-pack)\.yml$' . --exclude 'static_analysis_codeql_*' --exclude 'codeql_*.db' | while read -r f; do
   if grep -q 'dataExtensions' "$f"; then
     echo "MODEL PACK: $(dirname "$f") - $(grep '^name:' "$f")"
   fi
 done
 
 # 2. Standalone data extension files
-rg -l '^extensions:' --glob '*.yml' --glob '!codeql_*.db/**' | head -20
+rg -l '^extensions:' --glob '*.yml' --glob '!static_analysis_codeql_*/**' --glob '!codeql_*.db/**' | head -20
 
 # 3. Installed model packs
 codeql resolve qlpacks 2>/dev/null | grep -iE 'model|extension'
@@ -62,10 +62,27 @@ Run custom QL queries against the database to enumerate all sources and sinks Co
 
 #### 2a: Select Database and Language
 
+A CodeQL database is a directory containing a `codeql-database.yml` marker file. `$DB_NAME` may already be set by the parent skill. If not, discover inside `$OUTPUT_DIR`.
+
 ```bash
-DB_NAME=$(ls -dt codeql_*.db 2>/dev/null | head -1)
+if [ -z "$DB_NAME" ]; then
+  FOUND_DBS=()
+  while IFS= read -r yml; do
+    FOUND_DBS+=("$(dirname "$yml")")
+  done < <(find "$OUTPUT_DIR" -maxdepth 2 -name "codeql-database.yml" 2>/dev/null)
+
+  if [ ${#FOUND_DBS[@]} -eq 0 ]; then
+    echo "ERROR: No CodeQL database found in $OUTPUT_DIR"; exit 1
+  elif [ ${#FOUND_DBS[@]} -eq 1 ]; then
+    DB_NAME="${FOUND_DBS[0]}"
+  else
+    # Multiple databases — use AskUserQuestion to select
+    # SKIP if user already specified which database in their prompt
+  fi
+fi
+
 LANG=$(codeql resolve database --format=json -- "$DB_NAME" | jq -r '.languages[0]')
-DIAG_DIR="${DB_NAME%.db}-diagnostics"
+DIAG_DIR="$OUTPUT_DIR/diagnostics"
 mkdir -p "$DIAG_DIR"
 ```
 
@@ -150,16 +167,16 @@ options:
 ### Step 4: Create Data Extension Files
 
 **Entry:** Step 3 identified gaps and user confirmed which to model
-**Exit:** YAML extension files created in `codeql-extensions/` and deployed to `<lang>-all` ext/ directory
+**Exit:** YAML extension files created in `$OUTPUT_DIR/extensions/` and deployed to `<lang>-all` ext/ directory
 
 Generate YAML data extension files for the gaps confirmed by the user.
 
 #### File Structure
 
-Create files in a `codeql-extensions/` directory at project root:
+Create files in `$OUTPUT_DIR/extensions/`:
 
 ```
-codeql-extensions/
+$OUTPUT_DIR/extensions/
   sources.yml       # sourceModel entries
   sinks.yml         # sinkModel entries
   summaries.yml     # summaryModel and neutralModel entries
@@ -182,11 +199,11 @@ Run a full security analysis with and without extensions to measure the finding 
 
 #### 5a: Run Baseline Analysis (without extensions)
 
+Validation artifacts go in `$DIAG_DIR` (not `results/`) since these are intermediate comparisons, not the final analysis output.
+
 ```bash
-RESULTS_DIR="${DB_NAME%.db}-results"
-mkdir -p "$RESULTS_DIR"
 codeql database analyze "$DB_NAME" \
-  --format=sarif-latest --output="$RESULTS_DIR/baseline.sarif" --threads=0 \
+  --format=sarif-latest --output="$DIAG_DIR/baseline.sarif" --threads=0 \
   -- codeql/<lang>-queries:codeql-suites/<lang>-security-extended.qls
 ```
 
@@ -195,7 +212,7 @@ codeql database analyze "$DB_NAME" \
 ```bash
 codeql database cleanup "$DB_NAME"
 codeql database analyze "$DB_NAME" \
-  --format=sarif-latest --output="$RESULTS_DIR/with-extensions.sarif" --threads=0 --rerun \
+  --format=sarif-latest --output="$DIAG_DIR/with-extensions.sarif" --threads=0 --rerun \
   -- codeql/<lang>-queries:codeql-suites/<lang>-security-extended.qls
 ```
 
@@ -204,8 +221,8 @@ Use `-vvv` flag to verify extensions are being loaded.
 #### 5c: Compare Findings
 
 ```bash
-BASELINE=$(python3 -c "import json; print(sum(len(r.get('results',[])) for r in json.load(open('$RESULTS_DIR/baseline.sarif')).get('runs',[])))")
-WITH_EXT=$(python3 -c "import json; print(sum(len(r.get('results',[])) for r in json.load(open('$RESULTS_DIR/with-extensions.sarif')).get('runs',[])))")
+BASELINE=$(python3 -c "import json; print(sum(len(r.get('results',[])) for r in json.load(open('$DIAG_DIR/baseline.sarif')).get('runs',[])))")
+WITH_EXT=$(python3 -c "import json; print(sum(len(r.get('results',[])) for r in json.load(open('$DIAG_DIR/with-extensions.sarif')).get('runs',[])))")
 echo "Findings: $BASELINE → $WITH_EXT (+$((WITH_EXT - BASELINE)))"
 ```
 
@@ -218,13 +235,14 @@ echo "Findings: $BASELINE → $WITH_EXT (+$((WITH_EXT - BASELINE)))"
 ```
 ## Data Extensions Created
 
+**Output directory:** $OUTPUT_DIR
 **Database:** $DB_NAME
 **Language:** <LANG>
 
 ### Files Created:
-- codeql-extensions/sources.yml — <N> source models
-- codeql-extensions/sinks.yml — <N> sink models
-- codeql-extensions/summaries.yml — <N> summary/neutral models
+- $OUTPUT_DIR/extensions/sources.yml — <N> source models
+- $OUTPUT_DIR/extensions/sinks.yml — <N> sink models
+- $OUTPUT_DIR/extensions/summaries.yml — <N> summary/neutral models
 
 ### Model Coverage:
 - Sources: <BEFORE> → <AFTER> (+<DELTA>)
@@ -232,7 +250,7 @@ echo "Findings: $BASELINE → $WITH_EXT (+$((WITH_EXT - BASELINE)))"
 
 ### Usage:
 Extensions deployed to `<lang>-all` ext/ directory (auto-loaded).
-Source files in `codeql-extensions/` for version control.
+Source files in `$OUTPUT_DIR/extensions/` for version control.
 Run the run-analysis workflow to use them.
 ```
 

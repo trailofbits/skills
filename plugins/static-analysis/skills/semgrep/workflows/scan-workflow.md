@@ -24,10 +24,31 @@ Mark Step 3 as `completed` ONLY after user says "yes", "proceed", "approved", or
 
 ---
 
-## Step 1: Detect Languages and Pro Availability
+## Step 1: Resolve Output Directory, Detect Languages and Pro Availability
 
 > **Entry:** User has specified or confirmed the target directory.
-> **Exit:** Language list with file counts produced; Pro availability determined.
+> **Exit:** `OUTPUT_DIR` resolved and created; language list with file counts produced; Pro availability determined.
+
+### Resolve Output Directory
+
+If the user specified an output directory in their prompt, use it as `OUTPUT_DIR`. Otherwise, auto-increment. In both cases, **always `mkdir -p`** to ensure the directory exists.
+
+```bash
+if [ -n "$USER_SPECIFIED_DIR" ]; then
+  OUTPUT_DIR="$USER_SPECIFIED_DIR"
+else
+  BASE="static_analysis_semgrep"
+  N=1
+  while [ -e "${BASE}_${N}" ]; do
+    N=$((N + 1))
+  done
+  OUTPUT_DIR="${BASE}_${N}"
+fi
+mkdir -p "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results"
+echo "Output directory: $OUTPUT_DIR"
+```
+
+`$OUTPUT_DIR` is used by all subsequent steps. Pass its **absolute path** to scanner subagents. Scanners write raw output to `$OUTPUT_DIR/raw/`; merged/filtered results go to `$OUTPUT_DIR/results/`.
 
 **Detect Pro availability** (requires Bash):
 
@@ -119,7 +140,7 @@ Present plan to user with **explicit ruleset listing**:
 ## Semgrep Scan Plan
 
 **Target:** /path/to/codebase
-**Output directory:** ./semgrep-results-001/
+**Output directory:** $OUTPUT_DIR
 **Engine:** Semgrep Pro (cross-file analysis) | Semgrep OSS (single-file)
 **Scan mode:** Run all | Important only (security vulns, medium-high confidence/impact)
 
@@ -176,22 +197,34 @@ Before marking Step 3 complete:
 - [ ] **Final ruleset list captured for Step 4**
 - [ ] Agent type listed: `static-analysis:semgrep-scanner`
 
+### Log Approved Rulesets
+
+After approval, write the approved rulesets to `$OUTPUT_DIR/rulesets.txt`:
+
+```bash
+cat > "$OUTPUT_DIR/rulesets.txt" << 'RULESETS'
+# Semgrep Scan — Approved Rulesets
+# Generated: $(date -Iseconds)
+# Scan mode: <run-all|important-only>
+
+## Rulesets:
+<one ruleset per line, e.g.:>
+p/security-audit
+p/secrets
+p/python
+p/django
+https://github.com/trailofbits/semgrep-rules
+RULESETS
+```
+
 ---
 
 ## Step 4: Spawn Parallel Scan Tasks
 
 > **Entry:** Step 3 approved — user explicitly confirmed the plan.
-> **Exit:** All scan Tasks completed; result files exist in output directory.
+> **Exit:** All scan Tasks completed; result files exist in `$OUTPUT_DIR/raw/`.
 
-**Create output directory** with run number to avoid collisions:
-
-```bash
-LAST=$(ls -d semgrep-results-[0-9][0-9][0-9] 2>/dev/null | sort | tail -1 | grep -o '[0-9]*$' || true)
-NEXT_NUM=$(printf "%03d" $(( ${LAST:-0} + 1 )))
-OUTPUT_DIR="semgrep-results-${NEXT_NUM}"
-mkdir -p "$OUTPUT_DIR"
-echo "Output directory: $OUTPUT_DIR"
-```
+**Use `$OUTPUT_DIR` resolved in Step 1.** It already exists; no need to create it again. Scanners write all output to `$OUTPUT_DIR/raw/`.
 
 **Spawn N Tasks in a SINGLE message** (one per language category) using `subagent_type: static-analysis:semgrep-scanner`.
 
@@ -205,15 +238,15 @@ Use the scanner task prompt template from [scanner-task-prompt.md](../references
 
 Spawn these 3 Tasks in a SINGLE message:
 
-1. **Task: Python Scanner** — Rulesets: p/python, p/django, p/security-audit, p/secrets, trailofbits → `semgrep-results-001/python-*.json`
-2. **Task: JavaScript Scanner** — Rulesets: p/javascript, p/react, p/nodejs, p/security-audit, p/secrets, trailofbits → `semgrep-results-001/js-*.json`
-3. **Task: Docker Scanner** — Rulesets: p/dockerfile → `semgrep-results-001/docker-*.json`
+1. **Task: Python Scanner** — Rulesets: p/python, p/django, p/security-audit, p/secrets, trailofbits → `$OUTPUT_DIR/raw/python-*.json`
+2. **Task: JavaScript Scanner** — Rulesets: p/javascript, p/react, p/nodejs, p/security-audit, p/secrets, trailofbits → `$OUTPUT_DIR/raw/js-*.json`
+3. **Task: Docker Scanner** — Rulesets: p/dockerfile → `$OUTPUT_DIR/raw/docker-*.json`
 
 ### Operational Notes
 
 - Always use **absolute paths** for `[TARGET]` — subagents can't resolve relative paths
-- Clone GitHub URL rulesets into `[OUTPUT_DIR]/repos/` — never pass URLs directly to `--config` (semgrep's URL handling fails on repos with non-standard YAML)
-- Delete `[OUTPUT_DIR]/repos/` after all scans complete
+- Clone GitHub URL rulesets into `$OUTPUT_DIR/repos/` — never pass URLs directly to `--config` (semgrep's URL handling fails on repos with non-standard YAML)
+- Delete `$OUTPUT_DIR/repos/` after all scans complete
 - Run rulesets in parallel with `&` and `wait`, not sequentially
 - Use `--include="*.py"` for language-specific rulesets, but NOT for cross-language rulesets (p/security-audit, p/secrets, third-party repos)
 
@@ -222,20 +255,23 @@ Spawn these 3 Tasks in a SINGLE message:
 ## Step 5: Merge Results and Report
 
 > **Entry:** Step 4 complete — all scan Tasks finished.
-> **Exit:** `findings.sarif` exists in output directory and is valid JSON.
+> **Exit:** `results.sarif` exists in `$OUTPUT_DIR/results/` and is valid JSON.
 
-**Important-only mode: Post-filter before merge.** Apply the filter from [scan-modes.md](../references/scan-modes.md) ("Filter All Result Files in a Directory" section) to each result JSON.
+**Important-only mode: Post-filter before merge.** Apply the filter from [scan-modes.md](../references/scan-modes.md) ("Filter All Result Files in a Directory" section) to each result JSON in `$OUTPUT_DIR/raw/`. The filter creates `*-important.json` files alongside the originals — the originals are preserved unmodified.
 
 **Generate merged SARIF** using the merge script. The resolved path is in SKILL.md's "Merge command" section — use that exact path:
 
 ```bash
-uv run {baseDir}/scripts/merge_triaged_sarif.py [OUTPUT_DIR]
+uv run {baseDir}/scripts/merge_triaged_sarif.py $OUTPUT_DIR/raw $OUTPUT_DIR/results/results.sarif
 ```
+
+- **Run-all mode:** The script merges all `*.sarif` files from `$OUTPUT_DIR/raw/`.
+- **Important-only mode:** Run the post-filter first (creates `*-important.json` in `raw/`), then run the merge script. Raw SARIF files are unaffected by the JSON post-filter, so the merge operates on the unfiltered SARIF. For SARIF-level filtering, apply the jq post-filter from scan-modes.md to `$OUTPUT_DIR/results/results.sarif` after merge.
 
 **Verify merged SARIF is valid:**
 
 ```bash
-python -c "import json; d=json.load(open('[OUTPUT_DIR]/findings.sarif')); print(f'{sum(len(r.get(\"results\",[]))for r in d.get(\"runs\",[]))} findings in merged SARIF')"
+python -c "import json; d=json.load(open('$OUTPUT_DIR/results/results.sarif')); print(f'{sum(len(r.get(\"results\",[]))for r in d.get(\"runs\",[]))} findings in merged SARIF')"
 ```
 
 If verification fails, the merge script produced invalid output — investigate before reporting.
@@ -262,9 +298,9 @@ If verification fails, the merge script produced invalid output — investigate 
 - Code quality: 8
 
 Results written to:
-- semgrep-results-001/findings.sarif (merged SARIF)
-- semgrep-results-001/*.json (raw scan results per ruleset)
-- semgrep-results-001/*.sarif (raw SARIF per ruleset)
+- $OUTPUT_DIR/results/results.sarif (merged SARIF)
+- $OUTPUT_DIR/raw/ (per-scan raw results, unfiltered)
+- $OUTPUT_DIR/rulesets.txt (approved rulesets)
 ```
 
-**Verify** before reporting: confirm `findings.sarif` exists and is valid JSON.
+**Verify** before reporting: confirm `results.sarif` exists and is valid JSON.

@@ -39,20 +39,12 @@ Database creation differs by language type:
 
 ---
 
-## Database Naming
+## Output Directory
+
+This workflow receives `$OUTPUT_DIR` from the parent skill (resolved once at invocation). All files go inside it.
 
 ```bash
-get_next_db_name() {
-  local prefix="${1:-codeql}"
-  local max=0
-  for db in ${prefix}_*.db; do
-    [[ -d "$db" ]] || continue
-    num="${db#${prefix}_}"; num="${num%.db}"
-    [[ "$num" =~ ^[0-9]+$ ]] && (( num > max )) && max=$num
-  done
-  echo "${prefix}_$((max + 1)).db"
-}
-DB_NAME=$(get_next_db_name)
+DB_NAME="$OUTPUT_DIR/codeql.db"
 ```
 
 ---
@@ -62,9 +54,10 @@ DB_NAME=$(get_next_db_name)
 Maintain a log file throughout. Initialize at start:
 
 ```bash
-LOG_FILE="${DB_NAME%.db}-build.log"
+LOG_FILE="$OUTPUT_DIR/build.log"
 echo "=== CodeQL Database Build Log ===" > "$LOG_FILE"
 echo "Started: $(date -Iseconds)" >> "$LOG_FILE"
+echo "Output dir: $OUTPUT_DIR" >> "$LOG_FILE"
 echo "Database: $DB_NAME" >> "$LOG_FILE"
 ```
 
@@ -108,7 +101,7 @@ ls -la Makefile CMakeLists.txt build.gradle pom.xml Cargo.toml *.sln 2>/dev/null
 
 > **Skip for compiled languages** — exclusion config is not supported when build tracing is required.
 
-Scan for irrelevant directories and create `codeql-config.yml` with `paths-ignore` entries for `node_modules`, `vendor`, `venv`, third-party code, and generated/minified files.
+Scan for irrelevant directories and create `$OUTPUT_DIR/codeql-config.yml` with `paths-ignore` entries for `node_modules`, `vendor`, `venv`, third-party code, and generated/minified files.
 
 ---
 
@@ -121,7 +114,7 @@ Scan for irrelevant directories and create `codeql-config.yml` with `paths-ignor
 
 ```bash
 log_step "Building database for interpreted language: <LANG>"
-CMD="codeql database create $DB_NAME --language=<LANG> --source-root=. --codescanning-config=codeql-config.yml --overwrite"
+CMD="codeql database create $DB_NAME --language=<LANG> --source-root=. --codescanning-config=$OUTPUT_DIR/codeql-config.yml --overwrite"
 log_cmd "$CMD"
 $CMD 2>&1 | tee -a "$LOG_FILE"
 ```
@@ -269,6 +262,7 @@ Report to user:
 ```
 ## Database Build Complete
 
+**Output directory:** $OUTPUT_DIR
 **Database:** $DB_NAME
 **Language:** <LANG>
 **Build method:** autobuild | custom | multi-step
@@ -279,7 +273,7 @@ Report to user:
 - Coverage: <good/partial/poor>
 
 ### Build Log:
-See `$LOG_FILE` for complete details.
+See `$OUTPUT_DIR/build.log` for complete details.
 
 **Final command used:** <EXACT_COMMAND>
 **Ready for analysis.**

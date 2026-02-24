@@ -42,17 +42,48 @@ TaskCreate: "Process and report results" (Step 5) - blockedBy: Step 4
 
 ### Step 1: Select Database and Detect Language
 
-**Entry:** At least one CodeQL database exists in the working directory
-**Exit:** `DB_NAME` and `LANG` variables set; database resolves successfully
+**Entry:** `$OUTPUT_DIR` is set (from parent skill). `$DB_NAME` may already be set if the parent skill resolved database selection.
+**Exit:** `DB_NAME` and `LANG` variables set; database resolves successfully.
+
+**If `$DB_NAME` is already set** (parent skill handled database selection): validate it and proceed.
+
+**If `$DB_NAME` is not set:** discover databases by looking for `codeql-database.yml` marker files. Search inside `$OUTPUT_DIR` first, then fall back to the project root (top-level and one subdirectory deep).
 
 ```bash
-DB_NAME=$(ls -dt codeql_*.db 2>/dev/null | head -1)
-[[ -z "$DB_NAME" ]] && echo "ERROR: No CodeQL database found." && exit 1
+# Skip discovery if DB_NAME was already resolved by parent skill
+if [ -z "$DB_NAME" ]; then
+  # Discover databases inside OUTPUT_DIR
+  FOUND_DBS=()
+  while IFS= read -r yml; do
+    FOUND_DBS+=("$(dirname "$yml")")
+  done < <(find "$OUTPUT_DIR" -maxdepth 2 -name "codeql-database.yml" 2>/dev/null)
+
+  # Fallback: search project root (top-level and one subdir deep)
+  if [ ${#FOUND_DBS[@]} -eq 0 ]; then
+    while IFS= read -r yml; do
+      FOUND_DBS+=("$(dirname "$yml")")
+    done < <(find . -maxdepth 3 -name "codeql-database.yml" -not -path "*/\.*" 2>/dev/null)
+  fi
+
+  if [ ${#FOUND_DBS[@]} -eq 0 ]; then
+    echo "ERROR: No CodeQL database found in $OUTPUT_DIR or project root"
+    exit 1
+  elif [ ${#FOUND_DBS[@]} -eq 1 ]; then
+    DB_NAME="${FOUND_DBS[0]}"
+  else
+    # Multiple databases found — present to user
+    # Use AskUserQuestion with each DB's path and language
+    # SKIP if user already specified which database in their prompt
+  fi
+fi
+
 LANG=$(codeql resolve database --format=json -- "$DB_NAME" | jq -r '.languages[0]')
 echo "Using: $DB_NAME (language: $LANG)"
 ```
 
-If multiple databases exist, use `AskUserQuestion` to let user select. If multi-language database, ask which language to analyze.
+**When multiple databases are found**, use `AskUserQuestion` to let user select — list each database with its path and language. **Skip `AskUserQuestion` if the user already specified which database to use in their prompt.**
+
+If multi-language database, ask which language to analyze.
 
 ---
 
@@ -154,7 +185,30 @@ Build the flag: `THREAT_MODEL_FLAG=""` (remote only needs no flag), `--threat-mo
 ### Step 4: Execute Analysis
 
 **Entry:** Step 3 complete (all flags and pack selections finalized)
-**Exit:** `$RESULTS_DIR/results.sarif` exists and contains valid SARIF output
+**Exit:** `$RAW_DIR/results.sarif` exists and contains valid SARIF output
+
+#### Log selected query packs
+
+Write the selected query packs, model packs, and threat models to `$OUTPUT_DIR/rulesets.txt`:
+
+```bash
+cat > "$OUTPUT_DIR/rulesets.txt" << RULESETS
+# CodeQL Analysis — Selected Query Packs
+# Generated: $(date -Iseconds)
+# Scan mode: <run-all|important-only>
+# Database: $DB_NAME
+# Language: $LANG
+
+## Query packs:
+<one pack per line>
+
+## Model packs:
+<one pack per line, or "None">
+
+## Threat models:
+<threat model selection, or "default (remote)">
+RULESETS
+```
 
 #### Generate custom suite
 
@@ -163,9 +217,10 @@ Build the flag: `THREAT_MODEL_FLAG=""` (remote only needs no flag), `--threat-mo
 **Run-all mode:** Generate the custom `.qls` suite using the template in [run-all-suite.md](../references/run-all-suite.md).
 
 ```bash
-RESULTS_DIR="${DB_NAME%.db}-results"
-mkdir -p "$RESULTS_DIR"
-SUITE_FILE="$RESULTS_DIR/<mode>.qls"
+RAW_DIR="$OUTPUT_DIR/raw"
+RESULTS_DIR="$OUTPUT_DIR/results"
+mkdir -p "$RAW_DIR" "$RESULTS_DIR"
+SUITE_FILE="$RAW_DIR/<mode>.qls"
 
 # Verify suite resolves correctly before running
 codeql resolve queries "$SUITE_FILE" | wc -l
@@ -173,10 +228,12 @@ codeql resolve queries "$SUITE_FILE" | wc -l
 
 #### Run analysis
 
+Output goes to `$RAW_DIR/results.sarif` (unfiltered). The final results are produced in Step 5.
+
 ```bash
 codeql database analyze $DB_NAME \
   --format=sarif-latest \
-  --output="$RESULTS_DIR/results.sarif" \
+  --output="$RAW_DIR/results.sarif" \
   --threads=0 \
   $THREAT_MODEL_FLAG \
   $MODEL_PACK_FLAGS \
@@ -200,12 +257,19 @@ If codebase is large, read [performance-tuning.md](../references/performance-tun
 
 ### Step 5: Process and Report Results
 
-**Entry:** Step 4 complete (`results.sarif` exists)
-**Exit:** Findings summarized by severity, rule, and location; zero-finding results investigated; final report presented to user
+**Entry:** Step 4 complete (`$RAW_DIR/results.sarif` exists)
+**Exit:** `$RESULTS_DIR/results.sarif` contains final results; findings summarized by severity, rule, and location; zero-finding results investigated; final report presented to user
 
-Process the SARIF output using the jq commands in [sarif-processing.md](../references/sarif-processing.md): count findings, summarize by level, summarize by security severity, summarize by rule.
+#### Produce final results
 
-**Important-only mode:** Apply the post-analysis filter from [sarif-processing.md](../references/sarif-processing.md#important-only-post-filter) to remove medium-precision results with `security-severity` < 6.0.
+- **Run-all mode:** Copy unfiltered results to the final location:
+  ```bash
+  cp "$RAW_DIR/results.sarif" "$RESULTS_DIR/results.sarif"
+  ```
+
+- **Important-only mode:** Apply the post-analysis filter from [sarif-processing.md](../references/sarif-processing.md#important-only-post-filter) to remove medium-precision results with `security-severity` < 6.0. The filter reads from `$RAW_DIR/results.sarif` and writes to `$RESULTS_DIR/results.sarif`, preserving the unfiltered original.
+
+Process the final SARIF output (`$RESULTS_DIR/results.sarif`) using the jq commands in [sarif-processing.md](../references/sarif-processing.md): count findings, summarize by level, summarize by security severity, summarize by rule.
 
 ---
 
@@ -216,6 +280,7 @@ Report to user:
 ```
 ## CodeQL Analysis Complete
 
+**Output directory:** $OUTPUT_DIR
 **Database:** $DB_NAME
 **Language:** <LANG>
 **Scan mode:** Run all | Important only
@@ -230,5 +295,7 @@ Report to user:
 - Note: <N>
 
 ### Output Files:
-- SARIF: $RESULTS_DIR/results.sarif
+- SARIF (final): $OUTPUT_DIR/results/results.sarif
+- SARIF (unfiltered): $OUTPUT_DIR/raw/results.sarif
+- Rulesets: $OUTPUT_DIR/rulesets.txt
 ```

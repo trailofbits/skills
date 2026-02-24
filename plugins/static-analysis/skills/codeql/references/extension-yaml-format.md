@@ -40,7 +40,7 @@ Columns: `[package, type, subtypes, name, signature, ext, output, kind, provenan
 Example (Python):
 
 ```yaml
-# codeql-extensions/sources.yml
+# $OUTPUT_DIR/extensions/sources.yml
 extensions:
   - addsTo:
       pack: codeql/python-all
@@ -53,7 +53,7 @@ extensions:
 Example (Java — note `True`, `Parameter[N]`, and signature):
 
 ```yaml
-# codeql-extensions/sources.yml
+# $OUTPUT_DIR/extensions/sources.yml
 extensions:
   - addsTo:
       pack: codeql/java-all
@@ -82,7 +82,7 @@ Note: column 7 is `input` (which argument receives tainted data), not `output`.
 Example (Python):
 
 ```yaml
-# codeql-extensions/sinks.yml
+# $OUTPUT_DIR/extensions/sinks.yml
 extensions:
   - addsTo:
       pack: codeql/python-all
@@ -115,7 +115,7 @@ Columns: `[package, type, subtypes, name, signature, ext, input, output, kind, p
 Example:
 
 ```yaml
-# codeql-extensions/summaries.yml
+# $OUTPUT_DIR/extensions/summaries.yml
 extensions:
   # Pass-through: taint propagates
   - addsTo:
@@ -162,9 +162,9 @@ JAVA_ALL_EXT=$(find "$(codeql resolve qlpacks 2>/dev/null | grep 'java-queries' 
 
 if [ -n "$JAVA_ALL_EXT" ]; then
   PROJECT_NAME=$(basename "$(pwd)")
-  cp codeql-extensions/sources.yml "$JAVA_ALL_EXT/${PROJECT_NAME}.sources.model.yml"
-  [ -f codeql-extensions/sinks.yml ] && cp codeql-extensions/sinks.yml "$JAVA_ALL_EXT/${PROJECT_NAME}.sinks.model.yml"
-  [ -f codeql-extensions/summaries.yml ] && cp codeql-extensions/summaries.yml "$JAVA_ALL_EXT/${PROJECT_NAME}.summaries.model.yml"
+  cp $OUTPUT_DIR/extensions/sources.yml "$JAVA_ALL_EXT/${PROJECT_NAME}.sources.model.yml"
+  [ -f $OUTPUT_DIR/extensions/sinks.yml ] && cp $OUTPUT_DIR/extensions/sinks.yml "$JAVA_ALL_EXT/${PROJECT_NAME}.sinks.model.yml"
+  [ -f $OUTPUT_DIR/extensions/summaries.yml ] && cp $OUTPUT_DIR/extensions/summaries.yml "$JAVA_ALL_EXT/${PROJECT_NAME}.summaries.model.yml"
 
   # Verify deployment — confirm files landed correctly
   DEPLOYED=$(ls "$JAVA_ALL_EXT/${PROJECT_NAME}".*.model.yml 2>/dev/null | wc -l)
@@ -186,7 +186,7 @@ fi
 **Alternative (if query packs are NOT pre-compiled):** Use `--additional-packs=./codeql-extensions` with a proper model pack `qlpack.yml`:
 
 ```yaml
-# codeql-extensions/qlpack.yml
+# $OUTPUT_DIR/extensions/qlpack.yml
 name: custom/<project>-extensions
 version: 0.0.1
 library: true
