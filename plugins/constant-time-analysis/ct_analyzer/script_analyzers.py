@@ -2605,7 +2605,7 @@ class CSharpAnalyzer(ScriptAnalyzer):
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="{_saxutils.escape(str(source_path.absolute()), {chr(34): '&quot;'})}" />
+    <Compile Include="{_saxutils.escape(str(source_path.absolute()), {chr(34): "&quot;"})}" />
   </ItemGroup>
 </Project>
 """
