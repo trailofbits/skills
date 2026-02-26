@@ -23,6 +23,7 @@
 /plugins/modern-python/ @Ninja3047 @dguido
 /plugins/property-based-testing/ @hbrodin @dguido
 /plugins/seatbelt-sandboxer/ @smichaels-tob @dguido
+/plugins/skill-improver/ @GrosQuildu @dguido
 /plugins/second-opinion/ @dguido
 /plugins/semgrep-rule-creator/ @ahpaleus @dguido
 /plugins/semgrep-rule-variant-creator/ @ahpaleus @dguido

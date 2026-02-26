@@ -1,0 +1,9 @@
+{
+  "name": "skill-improver",
+  "version": "1.0.0",
+  "description": "Automatically reviews and fixes Claude Code skills through iterative refinement until they meet quality standards. Requires plugin-dev plugin.",
+  "author": {
+    "name": "Paweł Płatek",
+    "url": "https://github.com/GrosQuildu"
+  }
+}
