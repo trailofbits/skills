@@ -323,6 +323,15 @@
         "url": "https://github.com/tob-scott-a"
       },
       "source": "./plugins/let-fate-decide"
+    },
+    {
+      "name": "agentic-actions-auditor",
+      "version": "1.2.0",
+      "description": "Audits GitHub Actions workflows for security vulnerabilities in AI agent integrations (Claude Code Action, Gemini CLI, OpenAI Codex, GitHub AI Inference)",
+      "author": {
+        "name": "Emilio López & Will Vandevanter"
+      },
+      "source": "./plugins/agentic-actions-auditor"
     }
   ]
 }

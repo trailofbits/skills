@@ -40,6 +40,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 
 | Plugin | Description |
 |--------|-------------|
+| [agentic-actions-auditor](plugins/agentic-actions-auditor/) | Audit GitHub Actions workflows for AI agent security vulnerabilities |
 | [audit-context-building](plugins/audit-context-building/) | Build deep architectural context through ultra-granular code analysis |
 | [burpsuite-project-parser](plugins/burpsuite-project-parser/) | Search and extract data from Burp Suite project files |
 | [differential-review](plugins/differential-review/) | Security-focused differential review of code changes with git history analysis |
