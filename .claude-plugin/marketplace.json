@@ -284,6 +284,45 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/workflow-skill-design"
+    },
+    {
+      "name": "seatbelt-sandboxer",
+      "version": "1.0.0",
+      "description": "Generate minimal macOS Seatbelt sandbox configurations for applications",
+      "author": {
+        "name": "Spencer Michaels"
+      },
+      "source": "./plugins/seatbelt-sandboxer"
+    },
+    {
+      "name": "supply-chain-risk-auditor",
+      "version": "1.0.0",
+      "description": "Audit supply-chain threat landscape of project dependencies for exploitation or takeover risk",
+      "author": {
+        "name": "Spencer Michaels"
+      },
+      "source": "./plugins/supply-chain-risk-auditor"
+    },
+    {
+      "name": "zeroize-audit",
+      "version": "0.1.0",
+      "description": "Detects missing or compiler-optimized zeroization of sensitive data with assembly and control-flow analysis",
+      "author": {
+        "name": "Trail of Bits",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/zeroize-audit"
+    },
+    {
+      "name": "let-fate-decide",
+      "version": "1.0.0",
+      "description": "Draws Tarot cards using cryptographic randomness to add entropy to vague or underspecified planning",
+      "author": {
+        "name": "Scott Arciszewski",
+        "url": "https://github.com/tob-scott-a"
+      },
+      "source": "./plugins/let-fate-decide"
     }
   ]
 }

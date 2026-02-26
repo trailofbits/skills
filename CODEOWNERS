@@ -18,15 +18,19 @@
 /plugins/gh-cli/ @Ninja3047 @dguido
 /plugins/git-cleanup/ @hbrodin @dguido
 /plugins/insecure-defaults/ @dariushoule @dguido
+/plugins/let-fate-decide/ @tob-scott-a @dguido
 /plugins/modern-python/ @Ninja3047 @dguido
 /plugins/property-based-testing/ @hbrodin @dguido
+/plugins/seatbelt-sandboxer/ @smichaels-tob @dguido
 /plugins/second-opinion/ @dguido
 /plugins/semgrep-rule-creator/ @ahpaleus @dguido
 /plugins/semgrep-rule-variant-creator/ @ahpaleus @dguido
 /plugins/sharp-edges/ @tob-scott-a @dguido
 /plugins/spec-to-code-compliance/ @omarinuwa @dguido
 /plugins/static-analysis/ @axelm-tob @dguido
+/plugins/supply-chain-risk-auditor/ @smichaels-tob @dguido
 /plugins/testing-handbook-skills/ @GrosQuildu @dguido
 /plugins/variant-analysis/ @axelm-tob @dguido
 /plugins/workflow-skill-design/ @bsamuels453 @dguido
 /plugins/yara-authoring/ @dguido
+/plugins/zeroize-audit/ @kumarak @dguido
