@@ -72,6 +72,6 @@ EXTRA=("$@")
 mkdir -p "$(dirname "$OUT")"
 
 # Emit IR
-"$CC" "-$OPT" -S -emit-llvm "$SRC" -o "$OUT" "${EXTRA[@]}"
+"$CC" "-$OPT" -S -emit-llvm "$SRC" -o "$OUT" ${EXTRA[@]+"${EXTRA[@]}"}
 
 echo "OK: wrote IR to $OUT"

@@ -62,6 +62,6 @@ esac
 EXTRA=("$@")
 mkdir -p "$(dirname "$OUT")"
 
-"$CC" "-$OPT" -S "$SRC" -o "$OUT" "${EXTRA[@]}"
+"$CC" "-$OPT" -S "$SRC" -o "$OUT" ${EXTRA[@]+"${EXTRA[@]}"}
 
 echo "OK: wrote asm to $OUT"

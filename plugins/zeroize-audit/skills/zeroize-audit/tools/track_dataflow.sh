@@ -16,6 +16,15 @@ usage() {
   echo "Usage: $0 --src <file> --out <analysis.json> [--config <config.yaml>]" >&2
 }
 
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\t'/\\t}"
+  printf '%s' "$s"
+}
+
 SRC=""
 CONFIG=""
 OUT=""
@@ -93,7 +102,7 @@ while IFS= read -r line; do
     FUNC="${BASH_REMATCH[1]}"
     SRC_VAR="${BASH_REMATCH[2]}"
     if [[ "$SRC_VAR" =~ $SENSITIVE_PATTERN ]]; then
-      MEMCPY_COPIES+=("{\"line\": $LINE_NUM, \"function\": \"$FUNC\", \"variable\": \"$SRC_VAR\", \"context\": \"${line//\"/\\\"}\"}")
+      MEMCPY_COPIES+=("{\"line\": $LINE_NUM, \"function\": \"$FUNC\", \"variable\": \"$SRC_VAR\", \"context\": \"$(json_escape "$line")\"}")
     fi
   fi
 
@@ -102,7 +111,7 @@ while IFS= read -r line; do
     DEST="${BASH_REMATCH[1]}"
     MATCH_SRC="${BASH_REMATCH[2]}"
     if [[ "$MATCH_SRC" =~ $SENSITIVE_PATTERN ]] || [[ "$DEST" =~ $SENSITIVE_PATTERN ]]; then
-      STRUCT_ASSIGNS+=("{\"line\": $LINE_NUM, \"dest\": \"$DEST\", \"source\": \"$MATCH_SRC\", \"context\": \"${line//\"/\\\"}\"}")
+      STRUCT_ASSIGNS+=("{\"line\": $LINE_NUM, \"dest\": \"$DEST\", \"source\": \"$MATCH_SRC\", \"context\": \"$(json_escape "$line")\"}")
     fi
   fi
 
@@ -110,7 +119,7 @@ while IFS= read -r line; do
   if [[ "$line" =~ $RETURN_RE ]]; then
     RET_VAR="${BASH_REMATCH[1]}"
     if [[ "$RET_VAR" =~ $SENSITIVE_PATTERN ]]; then
-      RETURN_VALUES+=("{\"line\": $LINE_NUM, \"function\": \"$IN_FUNCTION\", \"variable\": \"$RET_VAR\", \"context\": \"${line//\"/\\\"}\"}")
+      RETURN_VALUES+=("{\"line\": $LINE_NUM, \"function\": \"$IN_FUNCTION\", \"variable\": \"$RET_VAR\", \"context\": \"$(json_escape "$line")\"}")
     fi
   fi
 
@@ -122,9 +131,10 @@ while IFS= read -r line; do
     if [[ "$ARGS" =~ $SENSITIVE_PATTERN ]]; then
       # Extract variable names from arguments
       for arg in ${ARGS//,/ }; do
-        arg=$(echo "$arg" | xargs) # trim whitespace
+        arg="${arg#"${arg%%[! ]*}"}" # trim leading spaces
+        arg="${arg%"${arg##*[! ]}"}" # trim trailing spaces
         if [[ "$arg" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] && [[ "$arg" =~ $SENSITIVE_PATTERN ]]; then
-          FUNC_ARGS+=("{\"line\": $LINE_NUM, \"called_function\": \"$CALLED_FUNC\", \"argument\": \"$arg\", \"context\": \"${line//\"/\\\"}\"}")
+          FUNC_ARGS+=("{\"line\": $LINE_NUM, \"called_function\": \"$CALLED_FUNC\", \"argument\": \"$arg\", \"context\": \"$(json_escape "$line")\"}")
         fi
       done
     fi

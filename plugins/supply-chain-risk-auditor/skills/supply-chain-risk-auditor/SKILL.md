@@ -1,6 +1,12 @@
 ---
 name: supply-chain-risk-auditor
 description: "Identifies dependencies at heightened risk of exploitation or takeover. Use when assessing supply chain attack surface, evaluating dependency health, or scoping security engagements."
+allowed-tools:
+  - Read
+  - Write
+  - Bash
+  - Glob
+  - Grep
 ---
 
 # Supply Chain Risk Auditor
@@ -58,4 +64,4 @@ You achieve your purpose by:
 2. Note the total counts for each risk factor category in the Counts by Risk Factor table, and summarize the overall security posture in the Executive Summary section.
 3. Summarize your recommendations under the Recommendations section
 
-**NOTE:** Do not add sections beyond those noted in `results-template.md`..
+**NOTE:** Do not add sections beyond those noted in `results-template.md`.

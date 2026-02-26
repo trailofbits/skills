@@ -15,6 +15,15 @@ usage() {
   echo "Usage: $0 --src <file> --out <analysis.json> [--config <config.yaml>]" >&2
 }
 
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\t'/\\t}"
+  printf '%s' "$s"
+}
+
 SRC=""
 CONFIG=""
 OUT=""
@@ -95,7 +104,7 @@ while IFS= read -r line; do
     ALLOC_FUNC="${BASH_REMATCH[2]}"
 
     if [[ "$PTR" =~ $SENSITIVE_PATTERN ]]; then
-      INSECURE_ALLOCS+=("{\"line\": $LINE_NUM, \"pointer\": \"$PTR\", \"allocator\": \"$ALLOC_FUNC\", \"severity\": \"high\", \"context\": \"${line//\"/\\\"}\"}")
+      INSECURE_ALLOCS+=("{\"line\": $LINE_NUM, \"pointer\": \"$PTR\", \"allocator\": \"$ALLOC_FUNC\", \"severity\": \"high\", \"context\": \"$(json_escape "$line")\"}")
       ALLOCATED_PTRS["$PTR"]="insecure:$LINE_NUM"
     fi
   fi
@@ -105,7 +114,7 @@ while IFS= read -r line; do
     PTR="${BASH_REMATCH[1]}"
     ALLOC_FUNC="${BASH_REMATCH[2]}"
 
-    SECURE_ALLOCS+=("{\"line\": $LINE_NUM, \"pointer\": \"$PTR\", \"allocator\": \"$ALLOC_FUNC\", \"context\": \"${line//\"/\\\"}\"}")
+    SECURE_ALLOCS+=("{\"line\": $LINE_NUM, \"pointer\": \"$PTR\", \"allocator\": \"$ALLOC_FUNC\", \"context\": \"$(json_escape "$line")\"}")
     ALLOCATED_PTRS["$PTR"]="secure:$LINE_NUM"
   fi
 

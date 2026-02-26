@@ -126,6 +126,17 @@ dapi_pos_cats = categories(dapi_pos)
 sem_pos_cats  = categories(sem_pos)
 
 # ---------------------------------------------------------------------------
+# Minimum count assertions (guard against silent detector regressions)
+# ---------------------------------------------------------------------------
+assert len(mir) >= 5, f"MIR smoke: expected >= 5 findings, got {len(mir)}"
+assert len(ir) >= 4, f"IR smoke: expected >= 4 findings, got {len(ir)}"
+assert len(asm) >= 2, f"ASM smoke: expected >= 2 findings, got {len(asm)}"
+assert len(a64) >= 2, f"AArch64 smoke: expected >= 2 findings, got {len(a64)}"
+assert len(asm_leaf) >= 1, f"ASM leaf smoke: expected >= 1 findings, got {len(asm_leaf)}"
+assert len(dapi_pos) >= 10, f"DangerousAPI smoke: expected >= 10 findings, got {len(dapi_pos)}"
+assert len(sem_pos) >= 2, f"Semantic smoke: expected >= 2 findings, got {len(sem_pos)}"
+
+# ---------------------------------------------------------------------------
 # MIR assertions
 # ---------------------------------------------------------------------------
 

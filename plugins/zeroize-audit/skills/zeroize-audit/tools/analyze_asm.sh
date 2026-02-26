@@ -16,6 +16,15 @@ usage() {
   echo "Usage: $0 --asm <file.s> --out <analysis.json> [--symbol <func_name>]" >&2
 }
 
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\t'/\\t}"
+  printf '%s' "$s"
+}
+
 ASM=""
 SYMBOL=""
 OUT=""
@@ -94,20 +103,20 @@ while IFS= read -r line; do
     REG="${BASH_REMATCH[2]}"
     OFFSET="${BASH_REMATCH[3]}"
     BASE="${BASH_REMATCH[4]}"
-    REGISTER_SPILLS+=("{\"register\": \"$REG\", \"offset\": -$OFFSET, \"base\": \"$BASE\", \"line\": \"$line\"}")
+    REGISTER_SPILLS+=("{\"register\": \"$REG\", \"offset\": -$OFFSET, \"base\": \"$BASE\", \"line\": \"$(json_escape "$line")\"}")
   fi
 
   # Detect stores to stack (mov* reg/imm, -offset(%rsp/%rbp))
   if [[ "$line" =~ mov[a-z]*[[:space:]]+[^,]+,[[:space:]]*-([0-9]+)\(%(rsp|rbp)\) ]]; then
     OFFSET="${BASH_REMATCH[1]}"
     BASE="${BASH_REMATCH[2]}"
-    STACK_STORES+=("{\"offset\": -$OFFSET, \"base\": \"$BASE\", \"line\": \"$line\"}")
+    STACK_STORES+=("{\"offset\": -$OFFSET, \"base\": \"$BASE\", \"line\": \"$(json_escape "$line")\"}")
   fi
 
   # Detect callee-saved register pushes (pushq %rbx/%r12/%r13/%r14/%r15/%rbp)
   if [[ "$line" =~ pushq[[:space:]]+%(rbx|r12|r13|r14|r15|rbp) ]]; then
     REG="${BASH_REMATCH[1]}"
-    CALLEE_SAVED_PUSHES+=("{\"register\": \"$REG\", \"line\": \"$line\"}")
+    CALLEE_SAVED_PUSHES+=("{\"register\": \"$REG\", \"line\": \"$(json_escape "$line")\"}")
   fi
 
   # Detect red-zone clearing (movq $0, -offset(%rsp) for offset <= 128)

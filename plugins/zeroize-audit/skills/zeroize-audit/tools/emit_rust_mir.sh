@@ -135,7 +135,7 @@ echo "target:   $TARGET_DIR"
 echo "output:   $OUT"
 
 if ! CARGO_TARGET_DIR="$TARGET_DIR" cargo "${CARGO_ARGS[@]}" \
-  "${EXTRA_ARGS[@]}" \
+  "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}" \
   -- --emit=mir -C opt-level="$LEVEL"; then
   die_run "cargo rustc failed for opt=${OPT}"
 fi

@@ -12,7 +12,7 @@ This skill should NOT be used to run an untrusted process, since it requires run
 
 ## What It Does
 
-This skill provides a systematic four-step process for variant analysis:
+This skill provides a systematic four-step process for sandbox profiling:
 1. **Profile a target application** - Identify the actual set of permissions required for the application to run normally.
 2. **Generate a minimal Seatbelt profile** - Start from a default-deny profile.
 3. **Iteratively expand permissions as needed** - Test the application empirically to identify what calls fail with the minimal profile, and add the needed permissions until the application runs normally.

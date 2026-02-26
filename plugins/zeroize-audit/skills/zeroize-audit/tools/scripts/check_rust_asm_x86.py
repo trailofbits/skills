@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 check_rust_asm_x86.py — x86-64 Rust assembly analysis backend.
 

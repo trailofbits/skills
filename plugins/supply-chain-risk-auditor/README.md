@@ -2,7 +2,7 @@
 
 Generate a report on the supply-chain threat landscape of a project's direct dependencies, considering factors like popularity, number of maintainers, CVE history, and frequency of maintenance. Flag dependencies that have high-risk factors and suggest alternatives if any are available.
 
-**Note:** This skill does NOT scan source code for CVEs or credentials — we recommend using it in tandem with `leak-hunter` to do so.
+**Note:** This skill does NOT scan source code for CVEs or credentials.
 
 **Author:** Spencer Michaels
 
@@ -20,7 +20,3 @@ This skill enumerates all of the direct dependencies of a target project, then u
 ```
 	/plugin install trailofbits/skills/plugins/supply-chain-risk-auditor
 ```
-
-## Related skills
-
-- `leak-hunter`
