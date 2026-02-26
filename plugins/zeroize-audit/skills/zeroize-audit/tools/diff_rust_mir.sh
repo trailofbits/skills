@@ -81,7 +81,7 @@ has_drop_glue() {
   grep -qE 'drop_in_place|drop\(_[0-9]+\)' "$1"
 }
 
-# shellcheck disable=SC2329 # invoked indirectly by agent prompts
+# shellcheck disable=SC2329,SC2317 # invoked indirectly by agent prompts
 has_storage_dead_sensitive() {
   grep -qE 'StorageDead\(_[0-9]+\)' "$1" &&
     grep -qE '(key|secret|password|token|nonce|seed|priv|master|credential)' "$1"
