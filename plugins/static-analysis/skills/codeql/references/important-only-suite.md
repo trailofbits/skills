@@ -43,12 +43,12 @@ Generate this file as `important-only.qls` in the results directory before runni
 - description: Important-only — security vulnerabilities, medium-high confidence
 # Official queries
 - queries: .
-  from: codeql/<LANG>-queries
+  from: codeql/<CODEQL_LANG>-queries
 # Third-party packs (include only if installed, one entry per pack)
 # - queries: .
-#   from: trailofbits/<LANG>-queries
+#   from: trailofbits/<CODEQL_LANG>-queries
 # - queries: .
-#   from: GitHubSecurityLab/CodeQL-Community-Packs-<LANG>
+#   from: GitHubSecurityLab/CodeQL-Community-Packs-<CODEQL_LANG>
 # Filtering: security only, high/very-high precision (any severity),
 # medium precision (any severity — low-severity filtered post-analysis by security-severity score).
 # Experimental queries included.
@@ -84,17 +84,17 @@ Generate this file as `important-only.qls` in the results directory before runni
 The agent should generate the suite file dynamically based on installed packs:
 
 ```bash
-RESULTS_DIR="$OUTPUT_DIR/results"
-SUITE_FILE="$RESULTS_DIR/important-only.qls"
+RAW_DIR="$OUTPUT_DIR/raw"
+SUITE_FILE="$RAW_DIR/important-only.qls"
 
-# NOTE: LANG must be set before running this script (e.g., LANG=cpp)
+# NOTE: CODEQL_LANG must be set before running this script (e.g., CODEQL_LANG=cpp)
 # NOTE: INSTALLED_THIRD_PARTY_PACKS must be a space-separated list of pack names
 
-# Use a heredoc WITHOUT quotes so ${LANG} expands
+# Use a heredoc WITHOUT quotes so ${CODEQL_LANG} expands
 cat > "$SUITE_FILE" << HEADER
 - description: Important-only — security vulnerabilities, medium-high confidence
 - queries: .
-  from: codeql/${LANG}-queries
+  from: codeql/${CODEQL_LANG}-queries
 HEADER
 
 # Add each installed third-party pack
@@ -133,7 +133,12 @@ cat >> "$SUITE_FILE" << 'FILTERS'
 FILTERS
 
 # Verify the suite resolves correctly
-codeql resolve queries "$SUITE_FILE" | head -20
+: "${CODEQL_LANG:?ERROR: CODEQL_LANG must be set before generating suite}"
+: "${SUITE_FILE:?ERROR: SUITE_FILE must be set}"
+
+if ! codeql resolve queries "$SUITE_FILE" | head -20; then
+  echo "ERROR: Suite file failed to resolve. Check CODEQL_LANG=$CODEQL_LANG and installed packs."
+fi
 echo "Suite generated: $SUITE_FILE"
 ```
 

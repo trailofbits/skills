@@ -1,6 +1,6 @@
 ---
 name: semgrep-scanner
-description: "Executes Semgrep CLI scans for a specific language category and produces SARIF output. Spawned by the semgrep skill as a parallel worker — one agent per detected language. Reads source context to classify findings as true or false positives."
+description: "Executes Semgrep CLI scans for a specific language category and produces SARIF output. Spawned by the semgrep skill as a parallel worker — one agent per detected language."
 tools: Bash(semgrep scan:*), Bash
 ---
 
@@ -65,7 +65,7 @@ For rulesets specified as GitHub URLs (e.g.,
   the URL directly — semgrep's URL handling is unreliable
   for repos with non-standard YAML)
 - After all scans complete, delete the cloned repos:
-  `rm -rf [OUTPUT_DIR]/repos`
+  `[ -n "[OUTPUT_DIR]" ] && rm -rf [OUTPUT_DIR]/repos`
 
 ## Output Requirements
 
@@ -87,4 +87,4 @@ After all scans complete, report:
 
 For the complete scanner task prompt template with variable
 substitutions and examples, see:
-`skills/semgrep/references/scanner-task-prompt.md`
+`{baseDir}/skills/semgrep/references/scanner-task-prompt.md`

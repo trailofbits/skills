@@ -125,7 +125,17 @@ extensions:
       - ["myapp.cache", "Cache", true, "get", "", "", "Argument[0]", "ReturnValue", "taint", "manual"]
       - ["myapp.utils", "JSON", false, "parse", "", "", "Argument[0]", "ReturnValue", "taint", "manual"]
 
-  # Sanitizer: taint blocked
+```
+
+## Neutral Models
+
+Columns: `[package, type, name, signature, kind, provenance]` (6 columns, NOT the 10-column `summaryModel` format).
+
+Use `neutralModel` to explicitly block taint propagation through known-safe functions.
+
+Example:
+
+```yaml
   - addsTo:
       pack: codeql/python-all
       extensible: neutralModel
@@ -162,9 +172,9 @@ JAVA_ALL_EXT=$(find "$(codeql resolve qlpacks 2>/dev/null | grep 'java-queries' 
 
 if [ -n "$JAVA_ALL_EXT" ]; then
   PROJECT_NAME=$(basename "$(pwd)")
-  cp $OUTPUT_DIR/extensions/sources.yml "$JAVA_ALL_EXT/${PROJECT_NAME}.sources.model.yml"
-  [ -f $OUTPUT_DIR/extensions/sinks.yml ] && cp $OUTPUT_DIR/extensions/sinks.yml "$JAVA_ALL_EXT/${PROJECT_NAME}.sinks.model.yml"
-  [ -f $OUTPUT_DIR/extensions/summaries.yml ] && cp $OUTPUT_DIR/extensions/summaries.yml "$JAVA_ALL_EXT/${PROJECT_NAME}.summaries.model.yml"
+  cp "$OUTPUT_DIR/extensions/sources.yml" "$JAVA_ALL_EXT/${PROJECT_NAME}.sources.model.yml"
+  [ -f "$OUTPUT_DIR/extensions/sinks.yml" ] && cp "$OUTPUT_DIR/extensions/sinks.yml" "$JAVA_ALL_EXT/${PROJECT_NAME}.sinks.model.yml"
+  [ -f "$OUTPUT_DIR/extensions/summaries.yml" ] && cp "$OUTPUT_DIR/extensions/summaries.yml" "$JAVA_ALL_EXT/${PROJECT_NAME}.summaries.model.yml"
 
   # Verify deployment — confirm files landed correctly
   DEPLOYED=$(ls "$JAVA_ALL_EXT/${PROJECT_NAME}".*.model.yml 2>/dev/null | wc -l)

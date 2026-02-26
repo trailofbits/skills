@@ -63,7 +63,7 @@ else
       # 5. Ensure build directories exist (outside tracer — avoids arm64e mkdir)
       $MAKE_CMD clean 2>/dev/null || true
       #    Parse -o flags to find output dirs, or just create common dirs
-      echo "$COMPILE_CMDS" | grep -oP '(?<=-o\s)\S+' | xargs -I{} dirname {} \
+      echo "$COMPILE_CMDS" | sed -n 's/.*-o[[:space:]]\{1,\}\([^[:space:]]\{1,\}\).*/\1/p' | xargs -I{} dirname {} \
         | sort -u | xargs mkdir -p 2>/dev/null || true
 
       # 6. Trace each compiler invocation individually
@@ -105,10 +105,10 @@ if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
   log_result "Rosetta not available — skipping 2m-b"
 else
   BUILD_CMD="<BUILD_CMD>"  # e.g. "make clean && make -j4"
-  CMD="arch -x86_64 codeql database create $DB_NAME --language=<LANG> --source-root=. --command='$BUILD_CMD' --overwrite"
+  CMD="arch -x86_64 codeql database create $DB_NAME --language=$CODEQL_LANG --source-root=. --command='$BUILD_CMD' --overwrite"
   log_cmd "$CMD"
 
-  arch -x86_64 codeql database create $DB_NAME --language=<LANG> --source-root=. \
+  arch -x86_64 codeql database create $DB_NAME --language=$CODEQL_LANG --source-root=. \
     --command="$BUILD_CMD" --overwrite 2>&1 | tee -a "$LOG_FILE"
 
   if codeql resolve database -- "$DB_NAME" >/dev/null 2>&1; then
@@ -127,7 +127,7 @@ As a verification step, try the standard autobuild with the system compiler. Thi
 
 ```bash
 log_step "METHOD 2m-c: System compiler (expected to fail on arm64e)"
-CMD="codeql database create $DB_NAME --language=<LANG> --source-root=. --overwrite"
+CMD="codeql database create $DB_NAME --language=$CODEQL_LANG --source-root=. --overwrite"
 log_cmd "$CMD"
 
 $CMD 2>&1 | tee -a "$LOG_FILE"

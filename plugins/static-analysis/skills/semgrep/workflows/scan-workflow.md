@@ -53,6 +53,11 @@ echo "Output directory: $OUTPUT_DIR"
 **Detect Pro availability** (requires Bash):
 
 ```bash
+if ! command -v semgrep >/dev/null 2>&1; then
+  echo "ERROR: semgrep is not installed. Install from https://semgrep.dev/docs/getting-started/"
+  exit 1
+fi
+semgrep --version
 semgrep --pro --validate --config p/default 2>/dev/null && echo "Pro: AVAILABLE" || echo "Pro: NOT AVAILABLE"
 ```
 
@@ -202,7 +207,7 @@ Before marking Step 3 complete:
 After approval, write the approved rulesets to `$OUTPUT_DIR/rulesets.txt`:
 
 ```bash
-cat > "$OUTPUT_DIR/rulesets.txt" << 'RULESETS'
+cat > "$OUTPUT_DIR/rulesets.txt" << RULESETS
 # Semgrep Scan — Approved Rulesets
 # Generated: $(date -Iseconds)
 # Scan mode: <run-all|important-only>
@@ -262,7 +267,7 @@ Spawn these 3 Tasks in a SINGLE message:
 **Generate merged SARIF** using the merge script. The resolved path is in SKILL.md's "Merge command" section — use that exact path:
 
 ```bash
-uv run {baseDir}/scripts/merge_triaged_sarif.py $OUTPUT_DIR/raw $OUTPUT_DIR/results/results.sarif
+uv run {baseDir}/scripts/merge_sarif.py $OUTPUT_DIR/raw $OUTPUT_DIR/results/results.sarif
 ```
 
 - **Run-all mode:** The script merges all `*.sarif` files from `$OUTPUT_DIR/raw/`.

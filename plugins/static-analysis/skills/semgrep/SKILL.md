@@ -153,7 +153,7 @@ See [scan-modes.md](references/scan-modes.md) for metadata criteria and jq filte
 **Merge command (Step 5):**
 
 ```bash
-uv run {baseDir}/scripts/merge_triaged_sarif.py $OUTPUT_DIR/raw $OUTPUT_DIR/results/results.sarif
+uv run {baseDir}/scripts/merge_sarif.py $OUTPUT_DIR/raw $OUTPUT_DIR/results/results.sarif
 ```
 
 ## Agents

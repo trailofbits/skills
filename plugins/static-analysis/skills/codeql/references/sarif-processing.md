@@ -3,6 +3,8 @@
 jq commands for processing CodeQL SARIF output. Used in the run-analysis workflow Step 5.
 
 > **SARIF structure note:** `security-severity` and `level` are stored on rule definitions (`.runs[].tool.driver.rules[]`), NOT on individual result objects. Results reference rules by `ruleIndex`. The jq commands below join results with their rule metadata.
+>
+> **Portability note:** These jq patterns assume CodeQL SARIF output where `ruleIndex` is populated. For SARIF from other tools (e.g., Semgrep), use `ruleId`-based lookups instead.
 
 > **Directory convention:** Unfiltered output lives in `$RAW_DIR` (`$OUTPUT_DIR/raw`). Final results live in `$RESULTS_DIR` (`$OUTPUT_DIR/results`). The summary commands below operate on `$RESULTS_DIR/results.sarif` (the final output).
 

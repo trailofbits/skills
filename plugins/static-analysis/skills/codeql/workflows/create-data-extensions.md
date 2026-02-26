@@ -81,14 +81,14 @@ if [ -z "$DB_NAME" ]; then
   fi
 fi
 
-LANG=$(codeql resolve database --format=json -- "$DB_NAME" | jq -r '.languages[0]')
+CODEQL_LANG=$(codeql resolve database --format=json -- "$DB_NAME" | jq -r '.languages[0]')
 DIAG_DIR="$OUTPUT_DIR/diagnostics"
 mkdir -p "$DIAG_DIR"
 ```
 
 #### 2b: Write Source Enumeration Query
 
-Use the `Write` tool to create `$DIAG_DIR/list-sources.ql` using the source template from [diagnostic-query-templates.md](../references/diagnostic-query-templates.md#source-enumeration-query). Pick the correct import block for `$LANG`.
+Use the `Write` tool to create `$DIAG_DIR/list-sources.ql` using the source template from [diagnostic-query-templates.md](../references/diagnostic-query-templates.md#source-enumeration-query). Pick the correct import block for `$CODEQL_LANG`.
 
 #### 2c: Write Sink Enumeration Query
 

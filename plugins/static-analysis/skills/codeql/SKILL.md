@@ -107,9 +107,9 @@ For each discovered database, collect metadata to help the user choose:
 ```bash
 # For each database, extract language and creation time
 for db in $FOUND_DBS; do
-  LANG=$(codeql resolve database --format=json -- "$db" 2>/dev/null | jq -r '.languages[0]')
+  CODEQL_LANG=$(codeql resolve database --format=json -- "$db" 2>/dev/null | jq -r '.languages[0]')
   CREATED=$(grep '^creationMetadata:' -A5 "$db/codeql-database.yml" 2>/dev/null | grep 'creationTime' | awk '{print $2}')
-  echo "$db — language: $LANG, created: $CREATED"
+  echo "$db — language: $CODEQL_LANG, created: $CREATED"
 done
 ```
 
@@ -121,7 +121,11 @@ For the common case ("scan this codebase for vulnerabilities"):
 
 ```bash
 # 1. Verify CodeQL is installed
-command -v codeql >/dev/null 2>&1 && codeql --version || echo "NOT INSTALLED"
+if ! command -v codeql >/dev/null 2>&1; then
+  echo "NOT INSTALLED: codeql binary not found on PATH"
+else
+  codeql --version || echo "ERROR: codeql found but --version failed (check installation)"
+fi
 
 # 2. Resolve output directory
 BASE="static_analysis_codeql"; N=1

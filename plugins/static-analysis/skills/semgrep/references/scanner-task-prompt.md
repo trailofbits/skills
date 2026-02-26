@@ -45,7 +45,7 @@ wait
 
 ### Clean up cloned repos:
 ```bash
-rm -rf [OUTPUT_DIR]/repos
+[ -n "[OUTPUT_DIR]" ] && rm -rf [OUTPUT_DIR]/repos
 ```
 
 ## Critical Rules

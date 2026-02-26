@@ -75,7 +75,7 @@ log_result() { echo "[$(date -Iseconds)] RESULT: $1" >> "$LOG_FILE"; echo "" >> 
 ## Step 1: Detect Language and Configure
 
 **Entry:** CodeQL CLI installed and on PATH (`codeql --version` succeeds)
-**Exit:** `LANG` variable set to a valid CodeQL language identifier; exclusion config created (interpreted) or skipped (compiled)
+**Exit:** `CODEQL_LANG` variable set to a valid CodeQL language identifier; exclusion config created (interpreted) or skipped (compiled)
 
 ### 1a. Detect Language
 
@@ -107,14 +107,14 @@ Scan for irrelevant directories and create `$OUTPUT_DIR/codeql-config.yml` with 
 
 ## Step 2: Build Database
 
-**Entry:** Step 1 complete (`LANG` set, `DB_NAME` assigned, log file initialized)
+**Entry:** Step 1 complete (`CODEQL_LANG` set, `DB_NAME` assigned, log file initialized)
 **Exit:** `codeql resolve database -- "$DB_NAME"` succeeds (database exists and is valid)
 
 ### For Interpreted Languages
 
 ```bash
 log_step "Building database for interpreted language: <LANG>"
-CMD="codeql database create $DB_NAME --language=<LANG> --source-root=. --codescanning-config=$OUTPUT_DIR/codeql-config.yml --overwrite"
+CMD="codeql database create $DB_NAME --language=$CODEQL_LANG --source-root=. --codescanning-config=$OUTPUT_DIR/codeql-config.yml --overwrite"
 log_cmd "$CMD"
 $CMD 2>&1 | tee -a "$LOG_FILE"
 ```
@@ -153,7 +153,7 @@ Try build methods in sequence until one succeeds:
 
 ```bash
 log_step "METHOD 1: Autobuild"
-CMD="codeql database create $DB_NAME --language=<LANG> --source-root=. --overwrite"
+CMD="codeql database create $DB_NAME --language=$CODEQL_LANG --source-root=. --overwrite"
 log_cmd "$CMD"
 $CMD 2>&1 | tee -a "$LOG_FILE"
 ```
@@ -177,7 +177,7 @@ Also check for project-specific build scripts (`build.sh`, `compile.sh`) and REA
 
 ```bash
 log_step "METHOD 2: Custom command"
-CMD="codeql database create $DB_NAME --language=<LANG> --source-root=. --command='$BUILD_CMD' --overwrite"
+CMD="codeql database create $DB_NAME --language=$CODEQL_LANG --source-root=. --command='$BUILD_CMD' --overwrite"
 log_cmd "$CMD"
 $CMD 2>&1 | tee -a "$LOG_FILE"
 ```
@@ -196,7 +196,7 @@ For complex builds needing fine-grained control:
 
 ```bash
 log_step "METHOD 3: Multi-step build"
-codeql database init $DB_NAME --language=<LANG> --source-root=. --overwrite
+codeql database init $DB_NAME --language=$CODEQL_LANG --source-root=. --overwrite
 codeql database trace-command $DB_NAME -- <build step 1>
 codeql database trace-command $DB_NAME -- <build step 2>
 codeql database finalize $DB_NAME
@@ -208,7 +208,7 @@ codeql database finalize $DB_NAME
 
 ```bash
 log_step "METHOD 4: No-build fallback (partial analysis)"
-CMD="codeql database create $DB_NAME --language=<LANG> --source-root=. --build-mode=none --overwrite"
+CMD="codeql database create $DB_NAME --language=$CODEQL_LANG --source-root=. --build-mode=none --overwrite"
 log_cmd "$CMD"
 $CMD 2>&1 | tee -a "$LOG_FILE"
 ```

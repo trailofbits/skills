@@ -15,13 +15,13 @@ Generate this file as `run-all.qls` in the results directory before running anal
 ```yaml
 - description: Run-all — all security and quality queries from all installed packs
 # Official queries: use security-and-quality suite (broadest built-in suite)
-- import: codeql-suites/<LANG>-security-and-quality.qls
-  from: codeql/<LANG>-queries
+- import: codeql-suites/<CODEQL_LANG>-security-and-quality.qls
+  from: codeql/<CODEQL_LANG>-queries
 # Third-party packs (include only if installed, one entry per pack)
 # - queries: .
-#   from: trailofbits/<LANG>-queries
+#   from: trailofbits/<CODEQL_LANG>-queries
 # - queries: .
-#   from: GitHubSecurityLab/CodeQL-Community-Packs-<LANG>
+#   from: GitHubSecurityLab/CodeQL-Community-Packs-<CODEQL_LANG>
 # Minimal filtering — only select alert-type queries
 - include:
     kind:
@@ -38,16 +38,16 @@ Generate this file as `run-all.qls` in the results directory before running anal
 ## Generation Script
 
 ```bash
-RESULTS_DIR="$OUTPUT_DIR/results"
-SUITE_FILE="$RESULTS_DIR/run-all.qls"
+RAW_DIR="$OUTPUT_DIR/raw"
+SUITE_FILE="$RAW_DIR/run-all.qls"
 
-# NOTE: LANG must be set before running this script (e.g., LANG=cpp)
+# NOTE: CODEQL_LANG must be set before running this script (e.g., CODEQL_LANG=cpp)
 # NOTE: INSTALLED_THIRD_PARTY_PACKS must be a space-separated list of pack names
 
 cat > "$SUITE_FILE" << HEADER
 - description: Run-all — all security and quality queries from all installed packs
-- import: codeql-suites/${LANG}-security-and-quality.qls
-  from: codeql/${LANG}-queries
+- import: codeql-suites/${CODEQL_LANG}-security-and-quality.qls
+  from: codeql/${CODEQL_LANG}-queries
 HEADER
 
 # Add each installed third-party pack
@@ -73,7 +73,12 @@ cat >> "$SUITE_FILE" << 'FILTERS'
 FILTERS
 
 # Verify the suite resolves correctly
-codeql resolve queries "$SUITE_FILE" | wc -l
+: "${CODEQL_LANG:?ERROR: CODEQL_LANG must be set before generating suite}"
+: "${SUITE_FILE:?ERROR: SUITE_FILE must be set}"
+
+if ! codeql resolve queries "$SUITE_FILE" | wc -l; then
+  echo "ERROR: Suite file failed to resolve. Check CODEQL_LANG=$CODEQL_LANG and installed packs."
+fi
 echo "Suite generated: $SUITE_FILE"
 ```
 

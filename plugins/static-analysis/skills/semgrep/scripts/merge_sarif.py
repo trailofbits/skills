@@ -5,7 +5,7 @@
 """Merge SARIF files into a single consolidated output.
 
 Usage:
-    uv run merge_triaged_sarif.py RAW_DIR OUTPUT_FILE
+    uv run merge_sarif.py RAW_DIR OUTPUT_FILE
 
 Reads *.sarif files from RAW_DIR (e.g., $OUTPUT_DIR/raw), produces
 OUTPUT_FILE (e.g., $OUTPUT_DIR/results/results.sarif) containing all
@@ -36,7 +36,13 @@ def has_sarif_multitool() -> bool:
             timeout=30,
         )
         return result.returncode == 0
-    except (subprocess.TimeoutExpired, OSError):
+    except subprocess.TimeoutExpired:
+        print("Warning: SARIF Multitool version check timed out", file=sys.stderr)
+        return False
+    except FileNotFoundError:
+        return False
+    except OSError as e:
+        print(f"Warning: Failed to check SARIF Multitool: {e}", file=sys.stderr)
         return False
 
 
@@ -65,8 +71,17 @@ def merge_with_multitool(sarif_files: list[Path]) -> dict | None:
             return None
 
         return json.loads(tmp_path.read_text())
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError) as e:
-        print(f"SARIF Multitool error: {e}", file=sys.stderr)
+    except subprocess.TimeoutExpired as e:
+        print(f"SARIF Multitool timed out: {e}", file=sys.stderr)
+        return None
+    except json.JSONDecodeError as e:
+        print(f"SARIF Multitool produced invalid JSON: {e}", file=sys.stderr)
+        return None
+    except FileNotFoundError as e:
+        print(f"SARIF Multitool not found: {e}", file=sys.stderr)
+        return None
+    except OSError as e:
+        print(f"SARIF Multitool OS error ({type(e).__name__}): {e}", file=sys.stderr)
         return None
     finally:
         tmp_path.unlink(missing_ok=True)
@@ -84,12 +99,14 @@ def merge_sarif_pure_python(sarif_files: list[Path]) -> dict:
     all_results: list[dict] = []
     seen_results: set[tuple[str, str, int]] = set()
     tool_info: dict | None = None
+    skipped_files: list[str] = []
 
     for sarif_file in sorted(sarif_files):
         try:
             data = json.loads(sarif_file.read_text())
         except json.JSONDecodeError as e:
             print(f"Warning: Failed to parse {sarif_file}: {e}", file=sys.stderr)
+            skipped_files.append(str(sarif_file))
             continue
 
         for run in data.get("runs", []):
@@ -124,6 +141,15 @@ def merge_sarif_pure_python(sarif_files: list[Path]) -> dict:
         }
         merged_run["tool"]["driver"]["rules"] = list(seen_rules.values())
         merged["runs"].append(merged_run)
+
+    if skipped_files:
+        print(
+            f"WARNING: {len(skipped_files)} of {len(sarif_files)} SARIF files "
+            f"could not be parsed. Results may be incomplete.",
+            file=sys.stderr,
+        )
+        for sf in skipped_files:
+            print(f"  Skipped: {sf}", file=sys.stderr)
 
     return merged
 

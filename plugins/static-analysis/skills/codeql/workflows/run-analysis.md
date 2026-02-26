@@ -43,7 +43,7 @@ TaskCreate: "Process and report results" (Step 5) - blockedBy: Step 4
 ### Step 1: Select Database and Detect Language
 
 **Entry:** `$OUTPUT_DIR` is set (from parent skill). `$DB_NAME` may already be set if the parent skill resolved database selection.
-**Exit:** `DB_NAME` and `LANG` variables set; database resolves successfully.
+**Exit:** `DB_NAME` and `CODEQL_LANG` variables set; database resolves successfully.
 
 **If `$DB_NAME` is already set** (parent skill handled database selection): validate it and proceed.
 
@@ -77,8 +77,8 @@ if [ -z "$DB_NAME" ]; then
   fi
 fi
 
-LANG=$(codeql resolve database --format=json -- "$DB_NAME" | jq -r '.languages[0]')
-echo "Using: $DB_NAME (language: $LANG)"
+CODEQL_LANG=$(codeql resolve database --format=json -- "$DB_NAME" | jq -r '.languages[0]')
+echo "Using: $DB_NAME (language: $CODEQL_LANG)"
 ```
 
 **When multiple databases are found**, use `AskUserQuestion` to let user select — list each database with its path and language. **Skip `AskUserQuestion` if the user already specified which database to use in their prompt.**
@@ -89,7 +89,7 @@ If multi-language database, ask which language to analyze.
 
 ### Step 2: Select Scan Mode, Check Additional Packs
 
-**Entry:** Step 1 complete (`DB_NAME` and `LANG` set)
+**Entry:** Step 1 complete (`DB_NAME` and `CODEQL_LANG` set)
 **Exit:** Scan mode selected; all available packs (official, ToB, community) checked for installation status; model packs detected
 
 #### 2a: Select Scan Mode
@@ -197,7 +197,7 @@ cat > "$OUTPUT_DIR/rulesets.txt" << RULESETS
 # Generated: $(date -Iseconds)
 # Scan mode: <run-all|important-only>
 # Database: $DB_NAME
-# Language: $LANG
+# Language: $CODEQL_LANG
 
 ## Query packs:
 <one pack per line>

@@ -118,8 +118,8 @@ log_step "Quality improvement: adjust source root"
 NEW_ROOT="./src"  # or detected subdirectory
 # For interpreted: add --codescanning-config=codeql-config.yml
 # For compiled: omit config flag
-log_cmd "codeql database create $DB_NAME --language=<LANG> --source-root=$NEW_ROOT --overwrite"
-codeql database create $DB_NAME --language=<LANG> --source-root=$NEW_ROOT --overwrite
+log_cmd "codeql database create $DB_NAME --language=$CODEQL_LANG --source-root=$NEW_ROOT --overwrite"
+codeql database create $DB_NAME --language=$CODEQL_LANG --source-root=$NEW_ROOT --overwrite
 log_result "Changed source-root to: $NEW_ROOT"
 ```
 
@@ -128,7 +128,7 @@ log_result "Changed source-root to: $NEW_ROOT"
 ```bash
 log_step "Quality improvement: force rebuild (cached build detected)"
 log_cmd "make clean && rebuild"
-make clean && codeql database create $DB_NAME --language=<LANG> --overwrite
+make clean && codeql database create $DB_NAME --language=$CODEQL_LANG --overwrite
 log_result "Forced clean rebuild"
 ```
 
