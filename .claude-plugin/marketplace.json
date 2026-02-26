@@ -12,7 +12,7 @@
     {
       "name": "ask-questions-if-underspecified",
       "version": "1.0.1",
-      "description": "Clarify requirements before implementing. When doubting, ask questions.",
+      "description": "Clarify ambiguous requirements by asking questions before implementing. Only when invoked explicitly.",
       "author": {
         "name": "Kevin Valerio",
         "email": "opensource@trailofbits.com",
@@ -23,7 +23,7 @@
     {
       "name": "audit-context-building",
       "description": "Build deep architectural context through ultra-granular code analysis before vulnerability hunting",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": {
         "name": "Omar Inuwa"
       },
@@ -41,11 +41,20 @@
     {
       "name": "burpsuite-project-parser",
       "version": "1.0.0",
-      "description": "Search and extract data from Burp Suite project files (.burp) for use in Claude",
+      "description": "Search and extract data from Burp Suite project files (.burp) for security analysis",
       "author": {
         "name": "Will Vandevanter"
       },
       "source": "./plugins/burpsuite-project-parser"
+    },
+    {
+      "name": "claude-in-chrome-troubleshooting",
+      "version": "1.0.0",
+      "description": "Diagnose and fix Claude in Chrome MCP extension connectivity issues",
+      "author": {
+        "name": "Dan Guido"
+      },
+      "source": "./plugins/claude-in-chrome-troubleshooting"
     },
     {
       "name": "constant-time-analysis",
@@ -59,7 +68,7 @@
     },
     {
       "name": "culture-index",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Interprets Culture Index survey results for individuals and teams",
       "author": {
         "name": "Dan Guido"
@@ -106,7 +115,7 @@
     },
     {
       "name": "gh-cli",
-      "version": "1.0.0",
+      "version": "1.3.0",
       "description": "Intercepts GitHub URL fetches and curl/wget commands, redirecting to the authenticated gh CLI. Includes gh CLI usage guidance.",
       "author": {
         "name": "William Tan",
@@ -114,16 +123,6 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/gh-cli"
-    },
-    {
-      "name": "fix-review",
-      "description": "Verify fix commits address audit findings without introducing bugs",
-      "version": "0.1.0",
-      "author": {
-        "name": "Trail of Bits",
-        "email": "opensource@trailofbits.com"
-      },
-      "source": "./plugins/fix-review"
     },
     {
       "name": "dwarf-expert",
@@ -188,7 +187,7 @@
     },
     {
       "name": "static-analysis",
-      "version": "1.0.3",
+      "version": "1.1.0",
       "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
       "author": {
         "name": "Axel Mierczuk & Paweł Płatek"
@@ -198,7 +197,7 @@
     {
       "name": "spec-to-code-compliance",
       "description": "Specification-to-code compliance checker for blockchain audits with evidence-based alignment analysis",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": {
         "name": "Omar Inuwa"
       },
@@ -224,7 +223,7 @@
     },
     {
       "name": "modern-python",
-      "version": "1.3.0",
+      "version": "1.5.0",
       "description": "Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools.",
       "author": {
         "name": "William Tan",
@@ -236,7 +235,7 @@
     {
       "name": "insecure-defaults",
       "version": "1.0.0",
-      "description": "Detects and verifies insecure default configurations including hardcoded credentials, fallback secrets, weak authentication defaults, and dangerous configuration values that remain active in production",
+      "description": "Detects insecure default configurations including hardcoded credentials, fallback secrets, weak authentication defaults, and dangerous values in production",
       "author": {
         "name": "Trail of Bits",
         "email": "opensource@trailofbits.com",
@@ -246,8 +245,8 @@
     },
     {
       "name": "second-opinion",
-      "version": "1.0.0",
-      "description": "Runs code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on uncommitted changes, branch diffs, or specific commits",
+      "version": "1.5.1",
+      "description": "Runs code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on uncommitted changes, branch diffs, or specific commits. Bundles codex-mcp-server for direct MCP tool access to Codex.",
       "author": {
         "name": "Dan Guido"
       },
@@ -274,6 +273,17 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/git-cleanup"
+    },
+    {
+      "name": "workflow-skill-design",
+      "version": "1.0.1",
+      "description": "Teaches design patterns for workflow-based Claude Code skills and provides a review agent for auditing existing skills",
+      "author": {
+        "name": "Benjamin Samuels",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/workflow-skill-design"
     }
   ]
 }

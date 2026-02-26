@@ -89,7 +89,7 @@ Then apply language-specific modifications below.
 
 The base template includes:
 
-- **Claude Code** with marketplace plugins (anthropics/skills, trailofbits/skills)
+- **Claude Code** with marketplace plugins (anthropics/skills, trailofbits/skills, trailofbits/skills-curated)
 - **Python 3.13** via uv (fast binary download)
 - **Node 22** via fnm (Fast Node Manager)
 - **ast-grep** for AST-based code search

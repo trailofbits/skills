@@ -2,6 +2,8 @@
 
 A Claude Code plugin marketplace from Trail of Bits providing skills to enhance AI-assisted security analysis, testing, and development workflows.
 
+> Also see: [claude-code-config](https://github.com/trailofbits/claude-code-config) · [skills-curated](https://github.com/trailofbits/skills-curated) · [claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) · [dropkit](https://github.com/trailofbits/dropkit)
+
 ## Installation
 
 ### Add the Marketplace
@@ -63,12 +65,6 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [property-based-testing](plugins/property-based-testing/) | Property-based testing guidance for multiple languages and smart contracts |
 | [spec-to-code-compliance](plugins/spec-to-code-compliance/) | Specification-to-code compliance checker for blockchain audits |
 
-### Audit Lifecycle
-
-| Plugin | Description |
-|--------|-------------|
-| [fix-review](plugins/fix-review/) | Verify fix commits address audit findings without introducing bugs |
-
 ### Reverse Engineering
 
 | Plugin | Description |
@@ -90,7 +86,8 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [gh-cli](plugins/gh-cli/) | Intercept GitHub URL fetches and redirect to the authenticated `gh` CLI |
 | [git-cleanup](plugins/git-cleanup/) | Safely clean up git worktrees and local branches with gated confirmation workflow |
 | [modern-python](plugins/modern-python/) | Modern Python tooling and best practices with uv, ruff, and pytest |
-| [second-opinion](plugins/second-opinion/) | Run code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on changes, diffs, or commits |
+| [second-opinion](plugins/second-opinion/) | Run code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on changes, diffs, or commits. Bundles codex-mcp-server. |
+| [workflow-skill-design](plugins/workflow-skill-design/) | Design patterns for workflow-based Claude Code skills with review agent |
 
 ### Team Management
 

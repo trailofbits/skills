@@ -2,7 +2,7 @@
 
 ## Default Configuration
 
-- Model: `gemini-3-pro-preview`
+- Model: `gemini-3.1-pro-preview`
 - Extensions: `code-review`, `gemini-cli-security`
 
 ## Key Flags
@@ -37,21 +37,18 @@ automatically picks up the working tree diff:
 gemini -p "/code-review" \
   --yolo \
   -e code-review \
-  -m gemini-3-pro-preview
+  -m gemini-3.1-pro-preview
 ```
 
-For branch diffs or specific commits, pipe the diff into a
-heredoc-based prompt to avoid shell expansion issues:
+For branch diffs or specific commits, pipe the diff with a
+prompt header (avoids heredocs — diffs contain `$` and backticks
+that break shell expansion):
 
 ```bash
 git diff <branch>...HEAD > /tmp/review-diff.txt
-cat <<'PROMPT' | gemini -p - \
-  -m gemini-3-pro-preview \
-  --yolo
-Review this diff for code quality issues. <focus prompt>
-
-$(cat /tmp/review-diff.txt)
-PROMPT
+{ printf '%s\n\n' 'Review this diff for code quality issues. <focus prompt>'; \
+  cat /tmp/review-diff.txt; } \
+  | gemini -p - -m gemini-3.1-pro-preview --yolo
 ```
 
 ## Security Review
@@ -61,27 +58,28 @@ headless mode with a security-focused prompt instead:
 
 ```bash
 git diff HEAD > /tmp/review-diff.txt
-cat <<'PROMPT' | gemini -p - \
-  -e gemini-cli-security \
-  -m gemini-3-pro-preview \
-  --yolo
-Analyze this diff for security vulnerabilities, including
-injection, auth bypass, data exposure, and input validation
-issues. Report each finding with severity, location, and
-remediation.
-
-$(cat /tmp/review-diff.txt)
-PROMPT
+{ printf '%s\n\n' 'Analyze this diff for security vulnerabilities, including injection, auth bypass, data exposure, and input validation issues. Report each finding with severity, location, and remediation.'; \
+  cat /tmp/review-diff.txt; } \
+  | gemini -p - -e gemini-cli-security -m gemini-3.1-pro-preview --yolo
 ```
 
-When security focus is selected, also run dependency scanning:
+When security focus is selected, only run the supply chain scan
+if the diff touches dependency manifest files:
 
 ```bash
-gemini -p "/security:scan-deps" \
-  --yolo \
-  -e gemini-cli-security \
-  -m gemini-3-pro-preview
+# Check whether dependency files changed before scanning
+git diff --name-only <scope> \
+  | grep -qiE '(package\.json|package-lock|yarn\.lock|pnpm-lock|Gemfile|\.gemspec|requirements\.txt|setup\.py|setup\.cfg|pyproject\.toml|poetry\.lock|uv\.lock|Cargo\.toml|Cargo\.lock|go\.mod|go\.sum|composer\.json|composer\.lock|Pipfile)' \
+  && gemini -p "/security:scan-deps" \
+       --yolo \
+       -e gemini-cli-security \
+       -m gemini-3.1-pro-preview
 ```
+
+Skip the scan when only non-dependency files changed. The scan
+analyzes the entire project's dependency tree regardless of diff
+scope, so it adds significant time for no value when dependencies
+weren't touched.
 
 ## Adding Project Context
 
@@ -89,18 +87,11 @@ If project context was requested, prepend it to the prompt:
 
 ```bash
 git diff HEAD > /tmp/review-diff.txt
-cat <<'PROMPT' | gemini -p - \
-  -m gemini-3-pro-preview \
-  --yolo
-Project conventions:
----
-<CLAUDE.md or AGENTS.md contents>
----
-
-<review instructions and focus>
-
-$(cat /tmp/review-diff.txt)
-PROMPT
+{ printf 'Project conventions:\n---\n'; \
+  cat CLAUDE.md; \
+  printf '\n---\n\n%s\n\n' '<review instructions and focus>'; \
+  cat /tmp/review-diff.txt; } \
+  | gemini -p - -m gemini-3.1-pro-preview --yolo
 ```
 
 ## Error Handling

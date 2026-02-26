@@ -37,19 +37,27 @@ Modern Python tooling and best practices using uv, ruff, ty, and pytest. Based o
 
 ## Hook: Legacy Command Interception
 
-This plugin includes a `PreToolUse` hook that intercepts legacy Python/pip commands and suggests uv alternatives. When Claude attempts to run commands like `python` or `pip install`, the hook blocks the command and provides guidance:
+This plugin includes a `SessionStart` hook that prepends PATH shims for `python`, `pip`, `pipx`, and `uv`. When Claude runs a bare `python`, `pip`, or `pipx` command, the shell resolves to the shim, which prints an error with the correct `uv` alternative and exits non-zero. `uv run` is unaffected because it prepends its managed virtualenv's `bin/` to PATH, shadowing the shims.
 
-| Legacy Command | Suggested Alternative |
-|----------------|----------------------|
-| `python` | `uv run python` |
-| `python script.py` | `uv run script.py` |
+| Intercepted Command | Suggested Alternative |
+|---------------------|----------------------|
+| `python ...` | `uv run python ...` |
+| `python -m module` | `uv run python -m module` |
+| `python -m pip` | `uv add`/`uv remove` |
 | `pip install pkg` | `uv add pkg` or `uv run --with pkg` |
 | `pip uninstall pkg` | `uv remove pkg` |
 | `pip freeze` | `uv export` |
-| `python -m pip` | `uv add`/`uv remove` |
-| `uv pip` | `uv add`/`uv remove`/`uv sync` |
+| `uv pip ...` | `uv add`/`uv remove`/`uv sync` |
+| `pipx install <pkg>` | `uv tool install <pkg>` |
+| `pipx run <pkg>` | `uvx <pkg>` |
+| `pipx uninstall <pkg>` | `uv tool uninstall <pkg>` |
+| `pipx upgrade <pkg>` | `uv tool upgrade <pkg>` |
+| `pipx upgrade-all` | `uv tool upgrade --all` |
+| `pipx ensurepath` | `uv tool update-shell` |
+| `pipx inject <pkg> <dep>` | `uv tool install --with <dep> <pkg>` |
+| `pipx list` | `uv tool list` |
 
-Commands using `uv run` are allowed through without interception.
+Commands like `grep python`, `which python`, and `cat python.txt` work normally because `python` is a shell argument, not the command being invoked.
 
 ## Installation
 

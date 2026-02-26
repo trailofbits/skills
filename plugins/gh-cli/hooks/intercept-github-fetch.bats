@@ -88,10 +88,21 @@ load test_helper
   assert_suggestion_contains "gh repo view trailofbits/cookiecutter-python"
 }
 
-@test "fetch: denies github.com blob URL with gh api suggestion" {
+@test "fetch: denies github.com blob URL with clone suggestion" {
   run_fetch_hook "https://github.com/owner/repo/blob/main/src/index.js"
   assert_deny
-  assert_suggestion_contains "gh api repos/owner/repo/contents"
+  assert_suggestion_contains "gh repo clone owner/repo"
+}
+
+@test "fetch: denies github.com tree URL with clone suggestion" {
+  run_fetch_hook "https://github.com/owner/repo/tree/main/src/lib"
+  assert_deny
+  assert_suggestion_contains "gh repo clone owner/repo"
+}
+
+@test "fetch: allows github.com site pages (single segment path)" {
+  run_fetch_hook "https://github.com/settings"
+  assert_allow
 }
 
 # =============================================================================
@@ -132,16 +143,23 @@ load test_helper
 # Deny: raw.githubusercontent.com
 # =============================================================================
 
-@test "fetch: denies raw.githubusercontent.com" {
+@test "fetch: denies raw.githubusercontent.com with clone suggestion" {
   run_fetch_hook "https://raw.githubusercontent.com/astral-sh/uv/main/README.md"
   assert_deny
-  assert_suggestion_contains "gh api repos/astral-sh/uv/contents/README.md"
+  assert_suggestion_contains "gh repo clone astral-sh/uv"
 }
 
-@test "fetch: denies raw.githubusercontent.com nested path" {
+@test "fetch: denies raw.githubusercontent.com nested path with clone suggestion" {
   run_fetch_hook "https://raw.githubusercontent.com/owner/repo/main/src/lib/utils.py"
   assert_deny
-  assert_suggestion_contains "gh api repos/owner/repo/contents/src/lib/utils.py"
+  assert_suggestion_contains "gh repo clone owner/repo"
+}
+
+@test "fetch: clone suggestion includes session-scoped path and shallow clone" {
+  run_fetch_hook "https://raw.githubusercontent.com/astral-sh/uv/main/README.md"
+  assert_deny
+  assert_suggestion_contains "CLAUDE_SESSION_ID"
+  assert_suggestion_contains "--depth 1"
 }
 
 # =============================================================================

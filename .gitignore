@@ -31,3 +31,5 @@ build/
 
 # MCP server config (contains API keys)
 .mcp.json
+# Allow plugin-bundled MCP configs (no secrets, just uvx commands)
+!plugins/**/.mcp.json

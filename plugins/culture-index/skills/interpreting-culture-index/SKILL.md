@@ -1,6 +1,12 @@
 ---
 name: interpreting-culture-index
-description: Use when interpreting Culture Index surveys, CI profiles, behavioral assessments, or personality data. Supports individual interpretation, team composition (gas/brake/glue), burnout detection, profile comparison, hiring profiles, manager coaching, interview transcript analysis for trait prediction, candidate debrief, onboarding planning, and conflict mediation. Handles PDF vision or JSON input.
+description: Interprets Culture Index (CI) surveys, behavioral profiles, and personality assessment data. Supports individual profile interpretation, team composition analysis (gas/brake/glue), burnout detection, profile comparison, hiring profiles, manager coaching, interview transcript analysis for trait prediction, candidate debrief, onboarding planning, and conflict mediation. Accepts extracted JSON or PDF input via OpenCV extraction script.
+allowed-tools:
+  - Bash
+  - Read
+  - Grep
+  - Glob
+  - Write
 ---
 
 <essential_principles>
@@ -57,6 +63,23 @@ Only these two traits break the "no absolute comparison" rule.
 </principle>
 
 </essential_principles>
+
+## When to Use
+
+- Interpreting Culture Index survey results (individual or team)
+- Analyzing CI profiles from PDF or JSON data
+- Assessing team composition using Gas/Brake/Glue framework
+- Detecting burnout risk by comparing Survey vs Job graphs
+- Defining hiring profiles based on CI trait patterns
+- Coaching managers on how to work with specific CI profiles
+- Predicting CI traits from interview transcripts
+- Mediating team conflict using CI profile data
+
+## When NOT to Use
+
+- For non-CI behavioral assessments (DISC, Myers-Briggs, StrengthsFinder, Predictive Index, Enneagram)
+- For clinical psychological assessments or diagnoses
+- As the sole basis for hiring/firing decisions — CI is one data point among many
 
 <input_formats>
 
