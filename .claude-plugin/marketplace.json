@@ -245,8 +245,8 @@
     },
     {
       "name": "second-opinion",
-      "version": "1.5.1",
-      "description": "Runs code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on uncommitted changes, branch diffs, or specific commits. Bundles codex-mcp-server for direct MCP tool access to Codex.",
+      "version": "1.6.0",
+      "description": "Runs code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on uncommitted changes, branch diffs, or specific commits. Bundles Codex's built-in MCP server for direct tool access.",
       "author": {
         "name": "Dan Guido"
       },
