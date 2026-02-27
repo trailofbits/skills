@@ -13,6 +13,7 @@ __pycache__/
 venv/
 ENV/
 .uv/
+uv.lock
 
 # IDE
 .idea/
