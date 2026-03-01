@@ -89,3 +89,9 @@ jobs:
 
       - name: Validate plugin metadata
         run: python3 .github/scripts/validate_plugin_metadata.py
+
+      - name: Validate OpenCode skill compatibility
+        run: python3 scripts/validate_opencode_compat.py
+
+      - name: Smoke test OpenCode installer script
+        run: bash scripts/install_opencode_skills.sh --source local --bundle smart-contracts --dry-run --target /tmp/opencode-skills-smoke --commands-target /tmp/opencode-commands-smoke

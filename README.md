@@ -27,6 +27,28 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 /plugins marketplace add ./skills
 ```
 
+### OpenCode Compatibility
+
+Plugins in this repository can be installed for OpenCode without cloning this repository by using the shell installer. It installs both skills and plugin commands so the OpenCode UX remains command-first:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/trailofbits/skills/main/scripts/install_opencode_skills.sh | bash
+```
+
+Install only smart contract auditing plugins:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/trailofbits/skills/main/scripts/install_opencode_skills.sh | bash -s -- --bundle smart-contracts
+```
+
+Then run commands directly in OpenCode, for example:
+
+```text
+/trailofbits:entry-points .
+```
+
+See [`docs/opencode.md`](docs/opencode.md) for full instructions, uninstall options, and compatibility caveats.
+
 ## Available Plugins
 
 ### Smart Contract Security
