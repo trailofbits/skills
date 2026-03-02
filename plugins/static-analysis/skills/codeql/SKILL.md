@@ -4,8 +4,8 @@ description: >-
   Scans a codebase for security vulnerabilities using CodeQL's interprocedural data flow and
   taint tracking analysis. Triggers on "run codeql", "codeql scan", "codeql analysis", "build
   codeql database", or "find vulnerabilities with codeql". Supports "run all" (security-and-quality
-  suite) and "important only" (high-precision security findings) scan modes. Also handles
-  creating data extension models and processing CodeQL SARIF output.
+  + security-experimental suites) and "important only" (high-precision security findings) scan
+  modes. Also handles creating data extension models and processing CodeQL SARIF output.
 allowed-tools:
   - Bash
   - Read
@@ -155,6 +155,7 @@ Then execute the full pipeline: **build database → create data extensions → 
 These shortcuts lead to missed findings. Do not accept them:
 
 - **"security-extended is enough"** - It is the baseline. Always check if Trail of Bits packs and Community Packs are available for the language. They catch categories `security-extended` misses entirely.
+- **"security-and-quality is the broadest suite"** - `security-and-quality` excludes all `experimental/` query paths. For run-all mode, import both `security-and-quality` and `security-experimental`. The delta is 1–52 queries depending on the language.
 - **"The database built, so it's good"** - A database that builds does not mean it extracted well. Always run quality assessment and check file counts against expected source files.
 - **"Data extensions aren't needed for standard frameworks"** - Even Django/Spring apps have custom wrappers that CodeQL does not model. Skipping extensions means missing vulnerabilities.
 - **"build-mode=none is fine for compiled languages"** - It produces severely incomplete analysis. Only use as an absolute last resort. On macOS, try the arm64 toolchain workaround or Rosetta first.
