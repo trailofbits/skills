@@ -6,16 +6,22 @@ In run-all mode, generate a custom `.qls` query suite file at runtime. This ensu
 
 When you pass a pack name directly to `codeql database analyze` (e.g., `-- codeql/cpp-queries`), CodeQL uses the pack's `defaultSuiteFile` field from `qlpack.yml`. For official packs, this is typically `codeql-suites/<lang>-code-scanning.qls`, which applies strict precision and severity filters. This silently drops many queries and can produce zero results for small codebases.
 
-The run-all suite explicitly references the broadest built-in suite (`security-and-quality`) for official packs and loads third-party packs with minimal filtering.
+The run-all suite explicitly imports both `security-and-quality` and `security-experimental` from official packs, plus third-party packs with minimal filtering.
+
+> **Why both suites?** `security-and-quality` = stable security + code quality (excludes `experimental/` paths). `security-experimental` = stable security + experimental security (re-includes `experimental/` paths tagged `security`). They are complementary — importing both is safe since CodeQL deduplicates shared queries automatically.
 
 ## Suite Template
 
 Generate this file as `run-all.qls` in the results directory before running analysis:
 
 ```yaml
-- description: Run-all — all security and quality queries from all installed packs
-# Official queries: use security-and-quality suite (broadest built-in suite)
+- description: Run-all — all security, experimental, and quality queries from all installed packs
+# Official queries: import BOTH suites (they are complementary, not hierarchical)
+# security-and-quality = stable security + code quality (excludes experimental/ paths)
+# security-experimental = stable security + experimental security (re-includes experimental/ with security tag)
 - import: codeql-suites/<CODEQL_LANG>-security-and-quality.qls
+  from: codeql/<CODEQL_LANG>-queries
+- import: codeql-suites/<CODEQL_LANG>-security-experimental.qls
   from: codeql/<CODEQL_LANG>-queries
 # Third-party packs (include only if installed, one entry per pack)
 # - queries: .
@@ -45,8 +51,10 @@ SUITE_FILE="$RAW_DIR/run-all.qls"
 # NOTE: INSTALLED_THIRD_PARTY_PACKS must be a space-separated list of pack names
 
 cat > "$SUITE_FILE" << HEADER
-- description: Run-all — all security and quality queries from all installed packs
+- description: Run-all — all security, experimental, and quality queries from all installed packs
 - import: codeql-suites/${CODEQL_LANG}-security-and-quality.qls
+  from: codeql/${CODEQL_LANG}-queries
+- import: codeql-suites/${CODEQL_LANG}-security-experimental.qls
   from: codeql/${CODEQL_LANG}-queries
 HEADER
 
@@ -86,7 +94,7 @@ echo "Suite generated: $SUITE_FILE"
 
 | Aspect | Run all | Important only |
 |--------|---------|----------------|
-| Official pack suite | `security-and-quality` (all security + code quality) | All queries loaded, filtered by precision |
+| Official pack suites | `security-and-quality` + `security-experimental` (stable security + code quality + experimental security) | All queries loaded, filtered by precision |
 | Third-party packs | All `problem`/`path-problem` queries | Only `security`-tagged queries with precision metadata |
 | Precision filter | None | high/very-high always; medium only if security-severity >= 6.0 |
 | Post-analysis filter | None | Drops medium-precision results with security-severity < 6.0 |

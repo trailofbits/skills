@@ -5,8 +5,10 @@
 | Suite | False Positives | Use Case |
 |-------|-----------------|----------|
 | `security-extended` | Low | **Default** - Security audits |
-| `security-and-quality` | Medium | Comprehensive review |
-| `security-experimental` | Higher | Research, vulnerability hunting |
+| `security-and-quality` | Medium | Comprehensive review (stable security + code quality) |
+| `security-experimental` | Higher | Research, vulnerability hunting (stable security + experimental security) |
+
+> **Suite hierarchy:** `security-and-quality` and `security-experimental` are complementary. `security-and-quality` excludes `experimental/` query paths. `security-experimental` includes them but excludes code quality queries. For maximum coverage (run-all mode), import both.
 
 **Usage:** `codeql/<lang>-queries:codeql-suites/<lang>-security-extended.qls`
 
