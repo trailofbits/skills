@@ -58,6 +58,11 @@ assert_blocked() {
 # Passthrough tests
 # =============================================================================
 
+@test "shim: passes through bare gh (no arguments)" {
+  run_shim
+  assert_passthrough
+}
+
 @test "shim: passes through gh pr list" {
   run_shim pr list
   assert_passthrough
@@ -224,6 +229,17 @@ assert_blocked() {
 
 @test "shim: allows clone to absolute non-temp path" {
   run_shim repo clone owner/repo /home/user/repos/repo
+  assert_passthrough
+}
+
+@test "shim: allows clone to path containing tmp but not starting with /tmp/" {
+  run_shim repo clone owner/repo /home/user/tmp/repo
+  assert_passthrough
+}
+
+@test "shim: allows clone to session-scoped /var/folders/ path" {
+  export CLAUDE_SESSION_ID="test-session-abc"
+  run_shim repo clone owner/repo /var/folders/xx/yy/T/gh-clones-test-session-abc/repo
   assert_passthrough
 }
 

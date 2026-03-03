@@ -44,10 +44,7 @@ for dir in "${path_entries[@]}"; do
   resolved="$(cd "$dir" 2>/dev/null && pwd)" || continue
   [[ "$resolved" == "$shim_dir" ]] && continue
   if [[ -x "$dir/gh" ]]; then
-    exec "$dir/gh" "$@" || {
-      echo "ERROR: failed to exec $dir/gh" >&2
-      exit 126
-    }
+    exec "$dir/gh" "$@"
   fi
 done
 

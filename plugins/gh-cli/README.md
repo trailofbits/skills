@@ -40,7 +40,7 @@ This plugin provides:
 
 - Non-GitHub URLs (any domain that isn't `github.com`, `api.github.com`, `raw.githubusercontent.com`, or `gist.github.com`)
 - GitHub Pages sites (`*.github.io`)
-- Commands already using `gh`
+- Commands already using `gh` (except anti-patterns blocked by the shim; see table above)
 - Git commands (`git clone`, `git push`, etc.)
 - Search commands that mention GitHub URLs (`grep`, `rg`, etc.)
 

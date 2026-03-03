@@ -60,6 +60,17 @@ teardown() {
   [[ "$line" =~ export\ PATH=\"/ ]]
 }
 
+@test "exits with error when shims directory is missing" {
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  cp "$SETUP_SCRIPT" "$tmpdir/setup-shims.sh"
+  run env PATH="${FAKE_BIN}:${ORIG_PATH}" CLAUDE_ENV_FILE="$CLAUDE_ENV_FILE" \
+    bash "$tmpdir/setup-shims.sh" 2>&1
+  [[ $status -ne 0 ]]
+  [[ "$output" == *"shims directory not found"* ]]
+  rm -rf "$tmpdir"
+}
+
 @test "appends to existing CLAUDE_ENV_FILE content" {
   echo 'export FOO=bar' >"$CLAUDE_ENV_FILE"
   env PATH="${FAKE_BIN}:${ORIG_PATH}" bash "$SETUP_SCRIPT"

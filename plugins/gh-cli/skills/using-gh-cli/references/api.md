@@ -27,14 +27,18 @@ gh api repos/owner/repo/issues --paginate --jq '.[].title'
 gh api 'repos/owner/repo/issues?per_page=10' --jq '.[].title'
 ```
 
-## Headers
+## Headers and Options
 
 ```bash
-# Note: /contents/ endpoints are blocked — clone the repo instead
-
 # Check rate limit
 gh api rate_limit --jq '.rate'
+
+# Specify media type
+gh api repos/owner/repo/readme \
+  -H "Accept: application/vnd.github.raw+json"
 ```
+
+> **Note:** `/contents/` endpoints are blocked by the gh shim — clone the repo instead.
 
 ## GraphQL
 
