@@ -1,0 +1,10 @@
+{
+  "name": "corellium-workflows",
+  "version": "1.0.0",
+  "description": "Manages Corellium virtual iOS devices for security research and malware analysis. Configures snapshots, network monitoring, CoreTrace, and Frida integration for isolated analysis environments.",
+  "author": {
+    "name": "Trail of Bits",
+    "email": "opensource@trailofbits.com",
+    "url": "https://github.com/trailofbits"
+  }
+}

@@ -267,6 +267,28 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/skill-generator-v2"
+    },
+    {
+      "name": "ios-malware-analysis",
+      "version": "1.0.0",
+      "description": "Analyzes iOS malware behavior through dynamic instrumentation, classifying samples by capability, extracting indicators of compromise, and mapping to MITRE ATT&CK Mobile.",
+      "author": {
+        "name": "Trail of Bits",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/ios-malware-analysis"
+    },
+    {
+      "name": "corellium-workflows",
+      "version": "1.0.0",
+      "description": "Manages Corellium virtual iOS devices for security research and malware analysis. Configures snapshots, network monitoring, CoreTrace, and Frida integration for isolated analysis environments.",
+      "author": {
+        "name": "Trail of Bits",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/corellium-workflows"
     }
   ]
 }

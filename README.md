@@ -53,6 +53,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 
 | Plugin | Description |
 |--------|-------------|
+| [ios-malware-analysis](plugins/ios-malware-analysis/) | iOS malware behavioral analysis with classification, C2 analysis, and MITRE ATT&CK mapping |
 | [yara-authoring](plugins/yara-authoring/) | YARA detection rule authoring with linting, atom analysis, and best practices |
 
 ### Verification
@@ -80,6 +81,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 
 | Plugin | Description |
 |--------|-------------|
+| [corellium-workflows](plugins/corellium-workflows/) | Corellium virtual iOS device management for security research and malware analysis |
 | [firebase-apk-scanner](plugins/firebase-apk-scanner/) | Scan Android APKs for Firebase security misconfigurations |
 | [frida-ios-security](plugins/frida-ios-security/) | iOS application security assessment using Frida (MASVS-aligned) |
 
