@@ -16,6 +16,7 @@
 /plugins/dwarf-expert/ @xintenseapple @dguido
 /plugins/entry-point-analyzer/ @nisedo @dguido
 /plugins/firebase-apk-scanner/ @nicksellier @dguido
+/plugins/fp-check/ @ahpaleus @dguido
 /plugins/gh-cli/ @Ninja3047 @dguido
 /plugins/git-cleanup/ @hbrodin @dguido
 /plugins/insecure-defaults/ @dariushoule @dguido

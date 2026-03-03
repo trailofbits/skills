@@ -342,6 +342,15 @@
         "url": "https://github.com/GrosQuildu"
       },
       "source": "./plugins/skill-improver"
+    },
+    {
+      "name": "fp-check",
+      "version": "1.0.0",
+      "description": "Systematic false positive verification for security bug analysis with mandatory gate reviews",
+      "author": {
+        "name": "Maciej Domanski"
+      },
+      "source": "./plugins/fp-check"
     }
   ]
 }
