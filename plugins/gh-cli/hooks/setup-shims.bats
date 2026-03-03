@@ -19,13 +19,13 @@ teardown() {
   rm -rf "$FAKE_BIN"
 }
 
-@test "exits silently when CLAUDE_ENV_FILE is not set" {
+@test "exits gracefully when CLAUDE_ENV_FILE is not set" {
   run env -u CLAUDE_ENV_FILE PATH="${FAKE_BIN}:${ORIG_PATH}" \
     bash "$SETUP_SCRIPT"
   [[ $status -eq 0 ]]
 }
 
-@test "exits silently when gh is not available" {
+@test "exits gracefully when gh is not available" {
   local path_without_gh=""
   local IFS=:
   for dir in $ORIG_PATH; do
@@ -34,9 +34,10 @@ teardown() {
     path_without_gh="${path_without_gh:+${path_without_gh}:}$dir"
   done
   run env PATH="$path_without_gh" CLAUDE_ENV_FILE="$CLAUDE_ENV_FILE" \
-    bash "$SETUP_SCRIPT"
+    bash "$SETUP_SCRIPT" 2>&1
   [[ $status -eq 0 ]]
   [[ ! -s "$CLAUDE_ENV_FILE" ]]
+  [[ "$output" == *"gh not found on PATH"* ]]
 }
 
 @test "writes PATH export to CLAUDE_ENV_FILE" {

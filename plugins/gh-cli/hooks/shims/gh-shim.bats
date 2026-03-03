@@ -187,6 +187,11 @@ assert_blocked() {
   assert_blocked
 }
 
+@test "shim: blocks clone with flags before target path" {
+  run_shim repo clone -u upstream owner/repo /tmp/repos/repo
+  assert_blocked
+}
+
 # =============================================================================
 # Clone path allow tests
 # =============================================================================

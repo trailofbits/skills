@@ -5,7 +5,10 @@ set -euo pipefail
 # gh invocations are intercepted with anti-pattern checks.
 
 # Guard: only activate when gh is available
-command -v gh &>/dev/null || exit 0
+if ! command -v gh &>/dev/null; then
+  echo "gh-cli: gh not found on PATH; shims will not be installed" >&2
+  exit 0
+fi
 
 # Guard: CLAUDE_ENV_FILE must be set by the runtime
 if [[ -z "${CLAUDE_ENV_FILE:-}" ]]; then
@@ -18,4 +21,7 @@ shims_dir="$(cd "$(dirname "$0")/shims" && pwd)" || {
   exit 1
 }
 
-echo "export PATH=\"${shims_dir}:\${PATH}\"" >>"$CLAUDE_ENV_FILE"
+echo "export PATH=\"${shims_dir}:\${PATH}\"" >>"$CLAUDE_ENV_FILE" || {
+  echo "gh-cli: failed to write to CLAUDE_ENV_FILE ($CLAUDE_ENV_FILE)" >&2
+  exit 1
+}

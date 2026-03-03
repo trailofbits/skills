@@ -19,19 +19,22 @@ if [[ "${1:-}" == "api" ]]; then
   done
 fi
 
-# Check 2: Block gh repo clone to non-session-scoped temp paths
+# Check 2: Block gh repo clone to non-session-scoped temp paths.
+# Scan all non-flag args after "clone" rather than hardcoding a positional index,
+# so flags like -u/--upstream-remote-name don't shift the target past the check.
 if [[ "${1:-}" == "repo" && "${2:-}" == "clone" ]]; then
-  target="${4:-}"
-  if [[ -n "$target" && "$target" != "--" && "$target" != -* ]]; then
-    if [[ "$target" =~ ^(/tmp/|/private/tmp/|/var/folders/) ]]; then
-      if [[ -z "${CLAUDE_SESSION_ID:-}" ]] || [[ "$target" != *"gh-clones-${CLAUDE_SESSION_ID}"* ]]; then
+  for arg in "${@:3}"; do
+    [[ "$arg" == "--" ]] && break
+    [[ "$arg" == -* ]] && continue
+    if [[ "$arg" =~ ^(/tmp/|/private/tmp/|/var/folders/) ]]; then
+      if [[ -z "${CLAUDE_SESSION_ID:-}" ]] || [[ "$arg" != *"gh-clones-${CLAUDE_SESSION_ID}"* ]]; then
         echo "ERROR: Clone to a session-scoped directory instead:" >&2
         echo "  \${TMPDIR:-/tmp}/gh-clones-\${CLAUDE_SESSION_ID}/<repo-name>" >&2
         echo "Do NOT invent paths like /tmp/claude/gh-clones/ — they conflict across sessions and won't be cleaned up." >&2
         exit 1
       fi
     fi
-  fi
+  done
 fi
 
 # Find the real gh by skipping this shim's directory in PATH
@@ -41,7 +44,10 @@ for dir in "${path_entries[@]}"; do
   resolved="$(cd "$dir" 2>/dev/null && pwd)" || continue
   [[ "$resolved" == "$shim_dir" ]] && continue
   if [[ -x "$dir/gh" ]]; then
-    exec "$dir/gh" "$@"
+    exec "$dir/gh" "$@" || {
+      echo "ERROR: failed to exec $dir/gh" >&2
+      exit 126
+    }
   fi
 done
 

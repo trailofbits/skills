@@ -37,6 +37,6 @@ The gh shim blocks all `gh api repos/.../contents/` access. This endpoint fetche
 |----------|----------|
 | Explore/understand a codebase | Clone, then use Explore agent |
 | Search code with Grep/Glob | Clone, then search directly |
-| Read a single file at a specific commit SHA | Clone with `--depth 1 --branch <sha>` |
+| Read a single file at a specific commit SHA | Clone, then `git checkout <sha>` |
 | Read a single known file (current branch) | Clone — faster than API for follow-up reads |
 | List directory contents | Clone, then use Glob |
