@@ -14,9 +14,10 @@ Claude Code's `WebFetch` tool and Bash `curl`/`wget` commands don't use the user
 
 This plugin provides:
 
-1. **PreToolUse hooks** that intercept GitHub URL access and suggest the correct `gh` CLI command
-2. **A skill** with comprehensive `gh` CLI reference documentation, including clone-and-read patterns for browsing code
-3. **A SessionEnd hook** that automatically cleans up cloned repositories when the session ends
+1. **PreToolUse hooks** that intercept GitHub URL access via `WebFetch` or `curl`/`wget`, and suggest the correct `gh` CLI command
+2. **A `gh` PATH shim** that blocks anti-patterns: API `/contents/` fetching and non-session-scoped temp directory clones
+3. **A skill** with comprehensive `gh` CLI reference documentation, including clone-and-read patterns for browsing code
+4. **A SessionEnd hook** that automatically cleans up cloned repositories when the session ends
 
 ### What Gets Intercepted
 
@@ -32,6 +33,8 @@ This plugin provides:
 | `Bash` | `curl https://api.github.com/...` | `gh api <endpoint>` |
 | `Bash` | `curl https://raw.githubusercontent.com/...` | `gh repo clone` + Read |
 | `Bash` | `wget https://github.com/...` | `gh release download` |
+| `Bash` (shim) | `gh api repos/.../contents/...` | `gh repo clone` + Read |
+| `Bash` (shim) | `gh repo clone ... /tmp/...` (non-session-scoped) | Session-scoped clone path |
 
 ### What Passes Through
 

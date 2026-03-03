@@ -20,33 +20,16 @@ gh repo clone owner/repo "$clonedir/repo" -- --depth 1 --branch develop
 
 After cloning, use the **Explore agent** (via the Task tool with `subagent_type=Explore`) to explore the codebase — it can search, read, and navigate across the clone efficiently in a single invocation. For targeted lookups where you already know what you're looking for, use Read, Glob, and Grep directly.
 
-## Anti-Pattern: Fetching and Base64-Decoding File Contents via API
+## Anti-Pattern: Fetching File Contents via API
 
 **Never do this:**
 
 ```bash
-# BAD — slow, lossy, and wasteful compared to cloning
+# BAD — blocked by the gh shim; slow and wasteful compared to cloning
 gh api repos/owner/repo/contents/path/to/file.py --jq '.content' | base64 -d
 ```
 
-This is a common fallback when direct URL access is denied. It fetches files one-by-one through the API, requires base64 decoding, has a 1 MB size limit per file, and is far slower than cloning. **Clone the repo instead.**
-
-## Quick Single-File Lookup (Last Resort)
-
-When you need a single file at a **specific commit SHA** and cloning is impractical, use the raw accept header (not base64 decoding):
-
-```bash
-# Get raw file content directly (skips base64)
-gh api repos/owner/repo/contents/path/to/file.py \
-  -H "Accept: application/vnd.github.raw+json"
-
-# Get file from a specific branch/ref
-gh api repos/owner/repo/contents/path/to/file.py?ref=develop \
-  -H "Accept: application/vnd.github.raw+json"
-
-# List directory contents
-gh api repos/owner/repo/contents/src/ --jq '.[].name'
-```
+The gh shim blocks all `gh api repos/.../contents/` access. This endpoint fetches files one-by-one, requires base64 decoding, and is far slower than cloning. **Clone the repo instead.**
 
 ## When to Clone vs. Use API
 
@@ -54,6 +37,6 @@ gh api repos/owner/repo/contents/src/ --jq '.[].name'
 |----------|----------|
 | Explore/understand a codebase | Clone, then use Explore agent |
 | Search code with Grep/Glob | Clone, then search directly |
-| Read a single file at a specific commit SHA | `gh api` with raw accept header and `?ref=<sha>` |
+| Read a single file at a specific commit SHA | Clone with `--depth 1 --branch <sha>` |
 | Read a single known file (current branch) | Clone — faster than API for follow-up reads |
-| List directory contents | Either works |
+| List directory contents | Clone, then use Glob |

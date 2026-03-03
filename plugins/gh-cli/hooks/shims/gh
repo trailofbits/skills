@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# PATH shim for gh — intercepts anti-patterns (API contents fetching,
+# non-session-scoped temp clones) and passes everything else through
+# to the real gh binary.
+
+# Check 1: Block all gh api repos/.../contents/ access
+if [[ "${1:-}" == "api" ]]; then
+  for arg in "$@"; do
+    if [[ "$arg" =~ repos/([^/]+)/([^/]+)/contents ]]; then
+      owner="${BASH_REMATCH[1]}"
+      repo="${BASH_REMATCH[2]}"
+      echo "ERROR: Do not use \`gh api\` to access /contents/ endpoints. Clone the repo instead:" >&2
+      echo "  gh repo clone ${owner}/${repo} \"\${TMPDIR:-/tmp}/gh-clones-\${CLAUDE_SESSION_ID}/${repo}\" -- --depth 1" >&2
+      echo "Then use Read, Glob, and Grep on the clone." >&2
+      exit 1
+    fi
+  done
+fi
+
+# Check 2: Block gh repo clone to non-session-scoped temp paths
+if [[ "${1:-}" == "repo" && "${2:-}" == "clone" ]]; then
+  target="${4:-}"
+  if [[ -n "$target" && "$target" != "--" && "$target" != -* ]]; then
+    if [[ "$target" =~ ^(/tmp/|/private/tmp/|/var/folders/) ]]; then
+      if [[ -z "${CLAUDE_SESSION_ID:-}" ]] || [[ "$target" != *"gh-clones-${CLAUDE_SESSION_ID}"* ]]; then
+        echo "ERROR: Clone to a session-scoped directory instead:" >&2
+        echo "  \${TMPDIR:-/tmp}/gh-clones-\${CLAUDE_SESSION_ID}/<repo-name>" >&2
+        echo "Do NOT invent paths like /tmp/claude/gh-clones/ — they conflict across sessions and won't be cleaned up." >&2
+        exit 1
+      fi
+    fi
+  fi
+fi
+
+# Find the real gh by skipping this shim's directory in PATH
+shim_dir="$(cd "$(dirname "$0")" && pwd)"
+IFS=: read -ra path_entries <<<"${PATH:-}"
+for dir in "${path_entries[@]}"; do
+  resolved="$(cd "$dir" 2>/dev/null && pwd)" || continue
+  [[ "$resolved" == "$shim_dir" ]] && continue
+  if [[ -x "$dir/gh" ]]; then
+    exec "$dir/gh" "$@"
+  fi
+done
+
+echo "ERROR: real gh binary not found on PATH" >&2
+exit 127
