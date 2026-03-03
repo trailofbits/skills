@@ -74,7 +74,7 @@ gh issue list --repo owner/repo
 gh issue view 456 --repo owner/repo
 
 # Call any REST API endpoint
-gh api repos/owner/repo/readme --jq '.name'
+gh api repos/owner/repo --jq '.stargazers_count'
 
 # Call with pagination and jq filtering
 gh api repos/owner/repo/pulls --paginate --jq '.[].title'

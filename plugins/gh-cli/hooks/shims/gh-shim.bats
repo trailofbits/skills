@@ -132,6 +132,11 @@ assert_blocked() {
   assert_blocked
 }
 
+@test "shim: blocks gh api contents with query parameters" {
+  run_shim api "repos/owner/repo/contents/file.py?ref=develop"
+  assert_blocked
+}
+
 # =============================================================================
 # API contents allow tests (non-contents endpoints pass through)
 # =============================================================================
@@ -192,8 +197,13 @@ assert_blocked() {
   assert_blocked
 }
 
-@test "shim: blocks clone with flags before target path" {
+@test "shim: blocks clone to /tmp/ even when short flags precede the target path" {
   run_shim repo clone -u upstream owner/repo /tmp/repos/repo
+  assert_blocked
+}
+
+@test "shim: blocks clone to /tmp/ even when long flags precede the target path" {
+  run_shim repo clone --upstream-remote-name upstream owner/repo /tmp/repos/repo
   assert_blocked
 }
 
@@ -224,6 +234,12 @@ assert_blocked() {
 @test "shim: allows clone to session-scoped temp path" {
   export CLAUDE_SESSION_ID="test-session-abc"
   run_shim repo clone owner/repo /tmp/gh-clones-test-session-abc/repo
+  assert_passthrough
+}
+
+@test "shim: allows canonical clone pattern from docs (session path + -- --depth 1)" {
+  export CLAUDE_SESSION_ID="test-session-abc"
+  run_shim repo clone owner/repo /tmp/gh-clones-test-session-abc/repo -- --depth 1
   assert_passthrough
 }
 

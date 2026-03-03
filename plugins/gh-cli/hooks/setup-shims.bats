@@ -60,6 +60,20 @@ teardown() {
   [[ "$line" =~ export\ PATH=\"/ ]]
 }
 
+@test "exits with error when shims/gh is not executable" {
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  cp "$SETUP_SCRIPT" "$tmpdir/setup-shims.sh"
+  mkdir -p "$tmpdir/shims"
+  # Create a non-executable gh file
+  echo '#!/usr/bin/env bash' >"$tmpdir/shims/gh"
+  run env PATH="${FAKE_BIN}:${ORIG_PATH}" CLAUDE_ENV_FILE="$CLAUDE_ENV_FILE" \
+    bash "$tmpdir/setup-shims.sh" 2>&1
+  [[ $status -ne 0 ]]
+  [[ "$output" == *"shims/gh not found or not executable"* ]]
+  rm -rf "$tmpdir"
+}
+
 @test "exits with error when shims directory is missing" {
   local tmpdir
   tmpdir="$(mktemp -d)"

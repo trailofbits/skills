@@ -20,8 +20,10 @@ if [[ "${1:-}" == "api" ]]; then
 fi
 
 # Check 2: Block gh repo clone to non-session-scoped temp paths.
-# Scan all non-flag args after "clone" rather than hardcoding a positional index,
-# so flags like -u/--upstream-remote-name don't shift the target past the check.
+# Scan args after "clone", skipping flags (dash-prefixed), so options like
+# --upstream-remote-name don't shift the target past the check. Note: flag
+# values (e.g., "upstream" in -u upstream) are examined but harmlessly pass
+# the temp-path regex since they never start with /tmp/ or /var/folders/.
 if [[ "${1:-}" == "repo" && "${2:-}" == "clone" ]]; then
   for arg in "${@:3}"; do
     [[ "$arg" == "--" ]] && break

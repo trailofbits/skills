@@ -21,6 +21,11 @@ shims_dir="$(cd "$(dirname "$0")/shims" && pwd)" || {
   exit 1
 }
 
+if [[ ! -x "${shims_dir}/gh" ]]; then
+  echo "gh-cli: shims/gh not found or not executable" >&2
+  exit 1
+fi
+
 echo "export PATH=\"${shims_dir}:\${PATH}\"" >>"$CLAUDE_ENV_FILE" || {
   echo "gh-cli: failed to write to CLAUDE_ENV_FILE ($CLAUDE_ENV_FILE)" >&2
   exit 1

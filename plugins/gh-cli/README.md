@@ -53,7 +53,7 @@ Cloned repositories are stored in session-scoped temp directories (`$TMPDIR/gh-c
 ## Prerequisites
 
 - [GitHub CLI (`gh`)](https://cli.github.com/) must be installed and authenticated (`gh auth login`)
-- If `gh` is not installed, the hooks silently pass through (no disruption)
+- If `gh` is not installed, the hooks pass through without disruption
 
 ## Installation
 

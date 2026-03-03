@@ -29,7 +29,7 @@ After cloning, use the **Explore agent** (via the Task tool with `subagent_type=
 gh api repos/owner/repo/contents/path/to/file.py
 ```
 
-The gh shim blocks all `gh api repos/.../contents/` access — regardless of flags (`--jq`, `-H Accept: ...raw+json`, etc.). This endpoint fetches files one-by-one, requires base64 decoding, and is far slower than cloning. **Clone the repo instead.**
+The gh shim blocks all `gh api repos/.../contents/` access — regardless of flags (`--jq`, `-H Accept: ...raw+json`, etc.). This endpoint fetches files one-by-one and is far slower than cloning. **Clone the repo instead.**
 
 ## When to Clone vs. Use API
 
@@ -37,6 +37,6 @@ The gh shim blocks all `gh api repos/.../contents/` access — regardless of fla
 |----------|----------|
 | Explore/understand a codebase | Clone, then use Explore agent |
 | Search code with Grep/Glob | Clone, then search directly |
-| Read a single file at a specific commit SHA | Clone (omit `--depth 1`), then `git checkout <sha>` |
+| Read a single file at a specific commit SHA | Clone with `--depth 1`, then `git fetch --depth 1 origin <sha>` and `git show <sha>:path/to/file` |
 | Read a single known file (current branch) | Clone — faster than API for follow-up reads |
 | List directory contents | Clone, then use Glob |
