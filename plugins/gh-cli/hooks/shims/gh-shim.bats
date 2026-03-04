@@ -140,6 +140,16 @@ assert_blocked() {
   assert_blocked
 }
 
+@test "shim: blocks gh api /repos/.../contents/ with leading slash" {
+  run_shim api /repos/owner/repo/contents/file.txt
+  assert_blocked
+}
+
+@test "shim: blocks gh api /repos/.../contents/ with leading slash and flags" {
+  run_shim api --jq '.content' /repos/owner/repo/contents/file.txt
+  assert_blocked
+}
+
 # =============================================================================
 # API contents allow tests (non-contents endpoints pass through)
 # =============================================================================
@@ -265,6 +275,12 @@ assert_blocked() {
 @test "shim: allows clone to session-scoped /var/folders/ path" {
   export CLAUDE_SESSION_ID="test-session-abc"
   run_shim repo clone owner/repo /var/folders/xx/yy/T/gh-clones-test-session-abc/repo
+  assert_passthrough
+}
+
+@test "shim: allows clone to session-scoped /private/tmp/ path" {
+  export CLAUDE_SESSION_ID="test-session-abc"
+  run_shim repo clone owner/repo /private/tmp/gh-clones-test-session-abc/repo
   assert_passthrough
 }
 

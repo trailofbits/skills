@@ -40,6 +40,8 @@ case "$host" in
       suggestion="Use \`gh pr list --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` or \`gh pr view\` instead"
     elif [[ $path =~ ^repos/([^/]+)/([^/]+)/issues ]]; then
       suggestion="Use \`gh issue list --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` or \`gh issue view\` instead"
+    elif [[ $path =~ ^repos/([^/]+)/([^/]+)/contents ]]; then
+      suggestion="Use \`gh repo clone ${BASH_REMATCH[1]}/${BASH_REMATCH[2]} \"\${TMPDIR:-/tmp}/gh-clones-\${CLAUDE_SESSION_ID}/${BASH_REMATCH[2]}\" -- --depth 1\`, then use the Explore agent on the clone. Do NOT use \`gh api\` to fetch and base64-decode file contents — clone the repo instead"
     elif [[ $path =~ ^repos/([^/]+)/([^/]+)/releases ]]; then
       suggestion="Use \`gh release list --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` or \`gh api ${path}\` instead"
     elif [[ $path =~ ^repos/([^/]+)/([^/]+)/actions ]]; then

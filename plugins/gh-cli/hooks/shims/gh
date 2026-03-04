@@ -6,13 +6,14 @@ set -euo pipefail
 # to the real gh binary.
 
 # Check 1: Block gh api repos/.../contents/ access.
-# Anchor regex to ^repos/ so flag values (e.g., --jq filters containing
+# Anchor regex to ^/?repos/ so flag values (e.g., --jq filters containing
 # "contents") don't cause false positives — only the endpoint arg starts
-# with "repos/". Flags (dash-prefixed) are skipped entirely.
+# with "repos/" (or "/repos/"). Flags (dash-prefixed args) are skipped;
+# their values are examined but don't match ^/?repos/ so pass harmlessly.
 if [[ "${1:-}" == "api" ]]; then
   for arg in "${@:2}"; do
     [[ "$arg" == -* ]] && continue
-    if [[ "$arg" =~ ^repos/([^/]+)/([^/]+)/contents ]]; then
+    if [[ "$arg" =~ ^/?repos/([^/]+)/([^/]+)/contents ]]; then
       owner="${BASH_REMATCH[1]}"
       repo="${BASH_REMATCH[2]}"
       echo "ERROR: Do not use \`gh api\` to access /contents/ endpoints. Clone the repo instead:" >&2
@@ -54,11 +55,13 @@ IFS=: read -ra path_entries <<<"${PATH:-}"
 for dir in "${path_entries[@]}"; do
   resolved="$(cd "$dir" 2>/dev/null && pwd)" || continue
   [[ "$resolved" == "$shim_dir" ]] && continue
-  if [[ -x "$dir/gh" ]]; then
-    exec "$dir/gh" "$@" || {
-      echo "ERROR: gh-cli shim: failed to exec $dir/gh" >&2
-      exit 126
-    }
+  if [[ -x "$resolved/gh" ]]; then
+    # exec replaces the process on success. On failure, set -e would
+    # exit before any error handler runs, so disable it briefly.
+    set +e
+    exec "$resolved/gh" "$@"
+    echo "ERROR: gh-cli shim: failed to exec $resolved/gh (exit $?)" >&2
+    exit 126
   fi
 done
 

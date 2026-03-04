@@ -19,10 +19,11 @@ teardown() {
   rm -rf "$FAKE_BIN"
 }
 
-@test "exits gracefully when CLAUDE_ENV_FILE is not set" {
+@test "exits with error when CLAUDE_ENV_FILE is not set" {
   run env -u CLAUDE_ENV_FILE PATH="${FAKE_BIN}:${ORIG_PATH}" \
-    bash "$SETUP_SCRIPT"
-  [[ $status -eq 0 ]]
+    bash "$SETUP_SCRIPT" 2>&1
+  [[ $status -eq 1 ]]
+  [[ "$output" == *"CLAUDE_ENV_FILE not set"* ]]
 }
 
 @test "exits gracefully when gh is not available" {
