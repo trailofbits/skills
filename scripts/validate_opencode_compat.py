@@ -109,7 +109,7 @@ def collect_skill_records(
         # OpenCode requires skill directory name to match frontmatter name
         skill_dir_name = skill_path.parent.name
         if skill_dir_name != name:
-            errors.append(
+            warnings.append(
                 f"{relative}: directory name '{skill_dir_name}' does not match "
                 f"frontmatter name '{name}' (OpenCode requires these to match)"
             )
