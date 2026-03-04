@@ -12,9 +12,10 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-
 FRONTMATTER_RE = re.compile(r"^---\r?\n(.*?)\r?\n---(?:\r?\n|$)", re.DOTALL)
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+CLAUDE_ONLY_COMMAND_FIELDS = {"allowed-tools", "argument-hint"}
 
 
 @dataclass(frozen=True)
@@ -34,7 +35,11 @@ def unquote(value: str) -> str:
 
 
 def parse_frontmatter(text: str, path: Path) -> dict[str, str]:
-    """Parse simple YAML frontmatter key/value pairs."""
+    """Parse simple YAML frontmatter scalar key/value pairs.
+
+    Does not handle YAML lists (e.g. allowed-tools entries). List keys
+    will have an empty string value.
+    """
     match = FRONTMATTER_RE.match(text)
     if not match:
         raise ValueError(f"{path}: missing or malformed YAML frontmatter")
@@ -50,7 +55,9 @@ def parse_frontmatter(text: str, path: Path) -> dict[str, str]:
     return parsed
 
 
-def collect_skill_records(repo_root: Path) -> tuple[list[SkillRecord], list[str], list[str]]:
+def collect_skill_records(
+    repo_root: Path,
+) -> tuple[list[SkillRecord], list[str], list[str]]:
     """Collect skill metadata and compatibility warnings/errors."""
     records: list[SkillRecord] = []
     errors: list[str] = []
@@ -63,9 +70,17 @@ def collect_skill_records(repo_root: Path) -> tuple[list[SkillRecord], list[str]
             errors.append(f"{relative}: expected plugins/<plugin>/skills/.../SKILL.md path layout")
             continue
 
-        text = skill_path.read_text(encoding="utf-8")
+        try:
+            text = skill_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            errors.append(f"{relative}: cannot read file ({exc})")
+            continue
+
         if "{baseDir}" in text:
-            warnings.append(f"{relative}: contains '{{baseDir}}' (Claude-specific variable)")
+            warnings.append(
+                f"{relative}: contains '{{baseDir}}' (Claude-specific variable, "
+                "not substituted by OpenCode)"
+            )
 
         try:
             metadata = parse_frontmatter(text, skill_path)
@@ -91,6 +106,14 @@ def collect_skill_records(repo_root: Path) -> tuple[list[SkillRecord], list[str]
                 "(must match ^[a-z0-9]+(-[a-z0-9]+)*$)"
             )
 
+        # OpenCode requires skill directory name to match frontmatter name
+        skill_dir_name = skill_path.parent.name
+        if skill_dir_name != name:
+            errors.append(
+                f"{relative}: directory name '{skill_dir_name}' does not match "
+                f"frontmatter name '{name}' (OpenCode requires these to match)"
+            )
+
         records.append(SkillRecord(name=name, description=description, path=relative))
 
     return records, errors, warnings
@@ -112,11 +135,61 @@ def check_duplicate_names(records: list[SkillRecord]) -> list[str]:
     return errors
 
 
+def validate_command_files(
+    repo_root: Path,
+) -> tuple[list[str], list[str]]:
+    """Check command files for OpenCode compatibility issues."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    command_count = 0
+
+    for cmd_path in sorted(repo_root.glob("plugins/*/commands/*.md")):
+        relative = cmd_path.relative_to(repo_root)
+        command_count += 1
+
+        try:
+            text = cmd_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            errors.append(f"{relative}: cannot read file ({exc})")
+            continue
+
+        if "${CLAUDE_PLUGIN_ROOT}" in text:
+            warnings.append(
+                f"{relative}: uses ${{CLAUDE_PLUGIN_ROOT}} (incompatible with OpenCode)"
+            )
+
+        try:
+            metadata = parse_frontmatter(text, cmd_path)
+        except ValueError:
+            continue
+
+        found = CLAUDE_ONLY_COMMAND_FIELDS & set(metadata)
+        if found:
+            warnings.append(
+                f"{relative}: uses Claude-specific frontmatter "
+                f"fields {found} (silently ignored by OpenCode)"
+            )
+
+    return errors, warnings
+
+
 def main() -> int:
     """Run validation and print a concise report."""
     repo_root = Path(__file__).resolve().parents[1]
+    plugins_dir = repo_root / "plugins"
+    if not plugins_dir.is_dir():
+        print(
+            f"Error: {plugins_dir} not found. Is this script in the right location?",
+            file=sys.stderr,
+        )
+        return 1
+
     records, errors, warnings = collect_skill_records(repo_root)
     errors.extend(check_duplicate_names(records))
+
+    cmd_errors, cmd_warnings = validate_command_files(repo_root)
+    errors.extend(cmd_errors)
+    warnings.extend(cmd_warnings)
 
     print(f"Checked {len(records)} skills for OpenCode compatibility.")
 

@@ -90,6 +90,17 @@ jobs:
       - name: Validate plugin metadata
         run: python3 .github/scripts/validate_plugin_metadata.py
 
+      - name: Lint installer script
+        run: shellcheck scripts/install_opencode_skills.sh
+
+      - name: Check shell script formatting
+        run: |
+          shfmt_version="v3.10.0"
+          shfmt_url="https://github.com/mvdan/sh/releases/download/${shfmt_version}/shfmt_${shfmt_version}_linux_amd64"
+          curl -fsSL "$shfmt_url" -o /tmp/shfmt
+          chmod +x /tmp/shfmt
+          /tmp/shfmt -d -i 2 scripts/install_opencode_skills.sh
+
       - name: Validate OpenCode skill compatibility
         run: python3 scripts/validate_opencode_compat.py
 

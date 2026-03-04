@@ -32,13 +32,17 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 Plugins in this repository can be installed for OpenCode without cloning this repository by using the shell installer. It installs both skills and plugin commands so the OpenCode UX remains command-first:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/trailofbits/skills/main/scripts/install_opencode_skills.sh | bash
+# Download and inspect the installer first
+curl -fsSL -o /tmp/install_opencode_skills.sh \
+  https://raw.githubusercontent.com/trailofbits/skills/main/scripts/install_opencode_skills.sh
+less /tmp/install_opencode_skills.sh  # review the script
+bash /tmp/install_opencode_skills.sh
 ```
 
 Install only smart contract auditing plugins:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/trailofbits/skills/main/scripts/install_opencode_skills.sh | bash -s -- --bundle smart-contracts
+bash /tmp/install_opencode_skills.sh --bundle smart-contracts
 ```
 
 Then run commands directly in OpenCode, for example:

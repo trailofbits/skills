@@ -25,7 +25,8 @@ This keeps the same flow users expect from Claude plugins:
 
 - Claude plugin wrappers (`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`)
 - Claude hooks/commands runtime behavior
-- `allowed-tools` frontmatter enforcement (OpenCode ignores unknown frontmatter fields)
+- **Command frontmatter differences:** Claude commands use `allowed-tools` (restricts tool access) and `argument-hint` (placeholder text in the UI). OpenCode silently ignores these fields — commands still work but without tool restrictions or argument hints.
+- **`{baseDir}` variable:** Claude Code substitutes `{baseDir}` with the skill directory path at runtime. OpenCode does not perform this substitution (see [Portability Notes](#portability-notes)).
 
 ## Install For OpenCode (No Clone Required)
 
@@ -36,16 +37,19 @@ By default, the installer:
 - downloads this repository archive from GitHub
 - copies both skills and commands into OpenCode config directories
 
-### Install All Plugins
+### Recommended: Download and Inspect
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/trailofbits/skills/main/scripts/install_opencode_skills.sh | bash
+curl -fsSL -o /tmp/install_opencode_skills.sh \
+  https://raw.githubusercontent.com/trailofbits/skills/main/scripts/install_opencode_skills.sh
+less /tmp/install_opencode_skills.sh  # review the script
+bash /tmp/install_opencode_skills.sh
 ```
 
 ### Install Smart Contract Bundle
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/trailofbits/skills/main/scripts/install_opencode_skills.sh | bash -s -- --bundle smart-contracts
+bash /tmp/install_opencode_skills.sh --bundle smart-contracts
 ```
 
 The smart contract bundle includes these plugins:
@@ -55,11 +59,12 @@ The smart contract bundle includes these plugins:
 - `spec-to-code-compliance`
 - `property-based-testing`
 
-### Inspect Before Running (Safer Two-Step)
+### Quick Install (Piped)
+
+If you trust the source, you can pipe directly:
 
 ```bash
-curl -fsSL -o /tmp/install_opencode_skills.sh https://raw.githubusercontent.com/trailofbits/skills/main/scripts/install_opencode_skills.sh
-bash /tmp/install_opencode_skills.sh --bundle smart-contracts
+curl -fsSL https://raw.githubusercontent.com/trailofbits/skills/main/scripts/install_opencode_skills.sh | bash
 ```
 
 ## Use Installed Plugin Commands
@@ -73,6 +78,18 @@ After installation, run plugin commands directly in OpenCode (same command-first
 ```
 
 These commands invoke the associated skills automatically.
+
+### How Skills and Commands Interact in OpenCode
+
+OpenCode automatically registers each installed skill as a slash command using the skill's frontmatter `name`. For example, installing the `entry-point-analyzer` skill automatically creates `/entry-point-analyzer`.
+
+The installer also copies explicit command files (like `entry-points.md` with name `trailofbits:entry-points`), which register as `/trailofbits:entry-points`. These command files add value beyond auto-registration:
+
+- They provide a **different invocation name** (namespaced with `trailofbits:`)
+- They include a **specific prompt template** (e.g., argument parsing, workflow instructions)
+- They reference the associated skill by name, keeping the command-first workflow
+
+Both the auto-registered `/entry-point-analyzer` and the explicit `/trailofbits:entry-points` ultimately use the same skill content.
 
 ## List, Filter, and Scope Installation
 
@@ -141,9 +158,13 @@ bash scripts/install_opencode_skills.sh --source local --bundle smart-contracts 
 
 ## Portability Notes
 
-Some skills use `{baseDir}` in instructions. Treat `{baseDir}` as the skill directory root when running outside Claude Code.
+### `{baseDir}` references
 
-The repository includes a compatibility validator:
+Some skills use `{baseDir}` in their instructions to reference files relative to the skill directory. Claude Code replaces this variable at runtime. **OpenCode does not perform this substitution** — `{baseDir}` will appear as a literal string.
+
+In practice, references like `{baseDir}/references/guide.md` will not resolve automatically. When an OpenCode agent encounters these, it should navigate to the corresponding file within the skill's directory (e.g., `~/.config/opencode/skills/<skill-name>/references/guide.md`).
+
+The repository includes a compatibility validator that flags skills using `{baseDir}`:
 
 ```bash
 python3 scripts/validate_opencode_compat.py
@@ -151,7 +172,7 @@ python3 scripts/validate_opencode_compat.py
 
 ## Optional: Install With OpenPackage
 
-OpenPackage can also install this repository for OpenCode. This is optional and not required for the first-party installer flow above.
+[OpenPackage](https://github.com/enulus/openpackage) (`opkg`) can also install from this repository. This is an alternative to the first-party installer above. Note: this repo does not include an `openpackage.yml` manifest, so OpenPackage auto-detects the structure.
 
 ```bash
 npm install -g opkg

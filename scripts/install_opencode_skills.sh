@@ -79,12 +79,13 @@ trim() {
   printf '%s' "$value"
 }
 
+# shellcheck disable=SC2088
 expand_path() {
   local path="$1"
 
   if [[ "$path" == "~" ]]; then
     path="$HOME"
-  elif [[ "$path" == "~/"* ]]; then
+  elif [[ "$path" == '~/'* ]]; then
     path="$HOME/${path#\~/}"
   fi
 
@@ -95,7 +96,7 @@ expand_path() {
   printf '%s' "$path"
 }
 
-extract_skill_name_from_file() {
+extract_frontmatter_name() {
   local file="$1"
   local line
   local in_frontmatter=0
@@ -133,50 +134,7 @@ extract_skill_name_from_file() {
       printf '%s' "$value"
       return 0
     fi
-  done < "$file"
-
-  return 1
-}
-
-extract_command_frontmatter_name_from_file() {
-  local file="$1"
-  local line
-  local in_frontmatter=0
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%$'\r'}"
-
-    if [[ $in_frontmatter -eq 0 ]]; then
-      if [[ "$line" == "---" ]]; then
-        in_frontmatter=1
-        continue
-      fi
-      return 1
-    fi
-
-    if [[ "$line" == "---" ]]; then
-      return 1
-    fi
-
-    if [[ "$line" =~ ^[[:space:]]*name:[[:space:]]*(.*)$ ]]; then
-      local value
-      value="$(trim "${BASH_REMATCH[1]}")"
-      if [[ -z "$value" ]]; then
-        return 1
-      fi
-
-      if [[ "$value" == "\""*"\"" ]]; then
-        value="${value#\"}"
-        value="${value%\"}"
-      elif [[ "$value" == "'"*"'" ]]; then
-        value="${value#\'}"
-        value="${value%\'}"
-      fi
-
-      printf '%s' "$value"
-      return 0
-    fi
-  done < "$file"
+  done <"$file"
 
   return 1
 }
@@ -189,7 +147,7 @@ extract_skill_name_from_dir() {
     return 1
   fi
 
-  extract_skill_name_from_file "$skill_file"
+  extract_frontmatter_name "$skill_file"
 }
 
 extract_command_referenced_skills() {
@@ -219,7 +177,7 @@ extract_command_referenced_skills() {
         fi
       fi
     fi
-  done < "$file"
+  done <"$file"
 
   printf '%s' "$refs_csv"
 }
@@ -230,7 +188,7 @@ csv_contains() {
   local item
   declare -a items=()
   if [[ -n "$csv" ]]; then
-    IFS=',' read -r -a items <<< "$csv"
+    IFS=',' read -r -a items <<<"$csv"
   fi
   for item in "${items[@]-}"; do
     if [[ "$item" == "$needle" ]]; then
@@ -259,7 +217,7 @@ matches_selected_skill_names() {
 
 is_smart_contract_plugin() {
   case "$1" in
-    building-secure-contracts|entry-point-analyzer|spec-to-code-compliance|property-based-testing)
+    building-secure-contracts | entry-point-analyzer | spec-to-code-compliance | property-based-testing)
       return 0
       ;;
     *)
@@ -295,6 +253,7 @@ is_symlink_to() {
     return 1
   fi
 
+  # realpath may fail for dangling symlinks; fall through to raw readlink
   if command -v realpath >/dev/null 2>&1; then
     target_real="$(realpath "$target" 2>/dev/null || true)"
     expected_real="$(realpath "$expected" 2>/dev/null || true)"
@@ -316,6 +275,11 @@ files_equal() {
 
 is_command_compatible_with_opencode() {
   local file="$1"
+  if [[ ! -r "$file" ]]; then
+    return 1
+  fi
+  # Literal match for ${CLAUDE_PLUGIN_ROOT}, not shell expansion
+  # shellcheck disable=SC2016
   if grep -q '\${CLAUDE_PLUGIN_ROOT}' "$file"; then
     return 1
   fi
@@ -324,13 +288,273 @@ is_command_compatible_with_opencode() {
 
 safe_remove_path() {
   local path="$1"
+  if [[ -z "$path" ]]; then
+    fail "safe_remove_path called with empty path"
+  fi
+  case "$path" in
+    / | /bin | /boot | /dev | /etc | /home | /lib* | /opt | /proc | /root | /run | /sbin | /srv | /sys | /tmp | /usr | /var)
+      fail "safe_remove_path refusing dangerous path: $path"
+      ;;
+  esac
+  local depth
+  depth="$(printf '%s' "$path" | tr -cd '/' | wc -c)"
+  if [[ "$depth" -lt 3 ]]; then
+    fail "safe_remove_path refusing shallow path: $path"
+  fi
+  # rm -rf is used instead of trash(1) because this installer runs
+  # on CI and remote machines where trash may not be available.
   rm -rf "$path"
 }
+
+install_or_uninstall_skill() {
+  local idx="$1"
+  local name="${SKILL_NAMES[$idx]}"
+  local source_dir="${SKILL_DIRS[$idx]}"
+  local target_dir="$SKILLS_TARGET/$name"
+
+  if [[ "$ACTION" == "install" ]]; then
+    local exists=0
+    if [[ -e "$target_dir" || -L "$target_dir" ]]; then
+      exists=1
+    fi
+
+    if [[ $exists -eq 1 ]]; then
+      if [[ "$MODE" == "link" ]] && is_symlink_to "$target_dir" "$source_dir"; then
+        skill_unchanged=$((skill_unchanged + 1))
+        log_result "unchanged" "skill" "$name" "already linked: $target_dir"
+        return
+      fi
+
+      local existing_name=""
+      if [[ -d "$target_dir" || -L "$target_dir" ]]; then
+        existing_name="$(extract_skill_name_from_dir "$target_dir" || true)"
+      fi
+
+      if [[ "$MODE" == "copy" && -d "$target_dir" && ! -L "$target_dir" && "$existing_name" == "$name" ]]; then
+        if [[ "$SOURCE" == "local" ]]; then
+          skill_unchanged=$((skill_unchanged + 1))
+          log_result "unchanged" "skill" "$name" "already installed: $target_dir"
+          return
+        fi
+        # Remote source: replace with fresh content
+        if [[ $DRY_RUN -eq 1 ]]; then
+          printf '[dry-run] replacing %s with fresh download\n' "$target_dir"
+        else
+          safe_remove_path "$target_dir"
+        fi
+      elif [[ $FORCE -ne 1 ]]; then
+        skill_error=$((skill_error + 1))
+        log_result "error" "skill" "$name" "target exists ($target_dir); use --force to replace"
+        return
+      else
+        if [[ $DRY_RUN -eq 1 ]]; then
+          printf '[dry-run] rm -rf %s\n' "$target_dir"
+        else
+          safe_remove_path "$target_dir"
+        fi
+      fi
+    fi
+
+    if [[ "$MODE" == "copy" ]]; then
+      if [[ $DRY_RUN -eq 1 ]]; then
+        skill_installed=$((skill_installed + 1))
+        log_result "installed" "skill" "$name" "[dry-run] cp -R $source_dir $target_dir"
+      elif cp -R "$source_dir" "$target_dir"; then
+        skill_installed=$((skill_installed + 1))
+        log_result "installed" "skill" "$name" "copied: $target_dir"
+      else
+        skill_error=$((skill_error + 1))
+        log_result "error" "skill" "$name" "failed to copy to $target_dir"
+      fi
+    else
+      if [[ $DRY_RUN -eq 1 ]]; then
+        skill_installed=$((skill_installed + 1))
+        log_result "installed" "skill" "$name" "[dry-run] ln -s $source_dir $target_dir"
+      elif ln -s "$source_dir" "$target_dir"; then
+        skill_installed=$((skill_installed + 1))
+        log_result "installed" "skill" "$name" "linked: $target_dir -> $source_dir"
+      else
+        skill_error=$((skill_error + 1))
+        log_result "error" "skill" "$name" "failed to link $source_dir to $target_dir"
+      fi
+    fi
+  else
+    if [[ ! -e "$target_dir" && ! -L "$target_dir" ]]; then
+      skill_skipped=$((skill_skipped + 1))
+      log_result "skipped" "skill" "$name" "not installed: $target_dir"
+      return
+    fi
+
+    local removable=0
+    if [[ $FORCE -eq 1 ]]; then
+      removable=1
+    elif [[ -L "$target_dir" ]] && is_symlink_to "$target_dir" "$source_dir"; then
+      removable=1
+    else
+      local target_name
+      target_name="$(extract_skill_name_from_dir "$target_dir" || true)"
+      if [[ "$target_name" == "$name" ]]; then
+        removable=1
+      fi
+    fi
+
+    if [[ $removable -ne 1 ]]; then
+      skill_error=$((skill_error + 1))
+      log_result "error" "skill" "$name" "refusing to remove unmanaged path ($target_dir); use --force"
+      return
+    fi
+
+    if [[ $DRY_RUN -eq 1 ]]; then
+      skill_removed=$((skill_removed + 1))
+      log_result "removed" "skill" "$name" "[dry-run] rm -rf $target_dir"
+    else
+      safe_remove_path "$target_dir"
+      skill_removed=$((skill_removed + 1))
+      log_result "removed" "skill" "$name" "removed: $target_dir"
+    fi
+  fi
+}
+
+install_or_uninstall_command() {
+  local idx="$1"
+  local name="${COMMAND_NAMES[$idx]}"
+  local file_name="${COMMAND_FILE_NAMES[$idx]}"
+  local source_file="${COMMAND_FILES[$idx]}"
+  local target_file="$COMMANDS_TARGET/$file_name.md"
+
+  if [[ "$ACTION" == "install" ]]; then
+    local exists=0
+    if [[ -e "$target_file" || -L "$target_file" ]]; then
+      exists=1
+    fi
+
+    if [[ $exists -eq 1 ]]; then
+      if [[ "$MODE" == "link" ]] && is_symlink_to "$target_file" "$source_file"; then
+        command_unchanged=$((command_unchanged + 1))
+        log_result "unchanged" "command" "$name" "already linked: $target_file"
+        return
+      fi
+
+      if [[ "$MODE" == "copy" && -f "$target_file" && ! -L "$target_file" ]] && files_equal "$source_file" "$target_file"; then
+        command_unchanged=$((command_unchanged + 1))
+        log_result "unchanged" "command" "$name" "already installed: $target_file"
+        return
+      fi
+
+      if [[ $FORCE -ne 1 ]]; then
+        command_error=$((command_error + 1))
+        log_result "error" "command" "$name" "target exists ($target_file); use --force to replace"
+        return
+      fi
+
+      if [[ $DRY_RUN -eq 1 ]]; then
+        printf '[dry-run] rm -rf %s\n' "$target_file"
+      else
+        safe_remove_path "$target_file"
+      fi
+    fi
+
+    if [[ "$MODE" == "copy" ]]; then
+      if [[ $DRY_RUN -eq 1 ]]; then
+        command_installed=$((command_installed + 1))
+        log_result "installed" "command" "$name" "[dry-run] cp $source_file $target_file"
+      elif cp "$source_file" "$target_file"; then
+        command_installed=$((command_installed + 1))
+        log_result "installed" "command" "$name" "copied: $target_file"
+      else
+        command_error=$((command_error + 1))
+        log_result "error" "command" "$name" "failed to copy to $target_file"
+      fi
+    else
+      if [[ $DRY_RUN -eq 1 ]]; then
+        command_installed=$((command_installed + 1))
+        log_result "installed" "command" "$name" "[dry-run] ln -s $source_file $target_file"
+      elif ln -s "$source_file" "$target_file"; then
+        command_installed=$((command_installed + 1))
+        log_result "installed" "command" "$name" "linked: $target_file -> $source_file"
+      else
+        command_error=$((command_error + 1))
+        log_result "error" "command" "$name" "failed to link $source_file to $target_file"
+      fi
+    fi
+  else
+    if [[ ! -e "$target_file" && ! -L "$target_file" ]]; then
+      command_skipped=$((command_skipped + 1))
+      log_result "skipped" "command" "$name" "not installed: $target_file"
+      return
+    fi
+
+    local removable=0
+    if [[ $FORCE -eq 1 ]]; then
+      removable=1
+    elif [[ -L "$target_file" ]] && is_symlink_to "$target_file" "$source_file"; then
+      removable=1
+    elif [[ -f "$target_file" && ! -L "$target_file" ]]; then
+      if files_equal "$source_file" "$target_file"; then
+        removable=1
+      else
+        local target_frontmatter_name
+        target_frontmatter_name="$(extract_frontmatter_name "$target_file" || true)"
+        if [[ "$target_frontmatter_name" == trailofbits:* ]]; then
+          removable=1
+        fi
+      fi
+    fi
+
+    if [[ $removable -ne 1 ]]; then
+      command_error=$((command_error + 1))
+      log_result "error" "command" "$name" "refusing to remove unmanaged path ($target_file); use --force"
+      return
+    fi
+
+    if [[ $DRY_RUN -eq 1 ]]; then
+      command_removed=$((command_removed + 1))
+      log_result "removed" "command" "$name" "[dry-run] rm -rf $target_file"
+    else
+      safe_remove_path "$target_file"
+      command_removed=$((command_removed + 1))
+      log_result "removed" "command" "$name" "removed: $target_file"
+    fi
+  fi
+}
+
+print_summary() {
+  echo
+  echo "Summary:"
+
+  if [[ $INSTALL_SKILLS -eq 1 ]]; then
+    echo "  skills:"
+    printf '    installed: %d\n' "$skill_installed"
+    printf '    removed: %d\n' "$skill_removed"
+    printf '    unchanged: %d\n' "$skill_unchanged"
+    printf '    skipped: %d\n' "$skill_skipped"
+    printf '    error: %d\n' "$skill_error"
+  fi
+
+  if [[ $INSTALL_COMMANDS -eq 1 ]]; then
+    echo "  commands:"
+    printf '    installed: %d\n' "$command_installed"
+    printf '    removed: %d\n' "$command_removed"
+    printf '    unchanged: %d\n' "$command_unchanged"
+    printf '    skipped: %d\n' "$command_skipped"
+    printf '    error: %d\n' "$command_error"
+  fi
+
+  if [[ $INSTALL_COMMANDS -eq 1 && ${#SELECTED_COMMAND_INDEXES[@]} -eq 0 ]]; then
+    echo
+    echo "Note: no compatible commands matched the selected filters."
+  fi
+}
+
+# --- Argument parsing ---
 
 SOURCE="remote"
 REPO="trailofbits/skills"
 REF="main"
+# Tilde is expanded later by expand_path()
+# shellcheck disable=SC2088
 SKILLS_TARGET="~/.config/opencode/skills"
+# shellcheck disable=SC2088
 COMMANDS_TARGET="~/.config/opencode/commands"
 ACTION="install"
 MODE="copy"
@@ -377,7 +601,7 @@ while [[ $# -gt 0 ]]; do
       ALL=1
       shift
       ;;
-    --target|--skills-target)
+    --target | --skills-target)
       [[ $# -ge 2 ]] || fail "$1 requires a value"
       SKILLS_TARGET="$2"
       shift 2
@@ -420,7 +644,7 @@ while [[ $# -gt 0 ]]; do
       MODE="copy"
       shift
       ;;
-    --link|--symlink)
+    --link | --symlink)
       MODE="link"
       shift
       ;;
@@ -436,7 +660,7 @@ while [[ $# -gt 0 ]]; do
       DRY_RUN=1
       shift
       ;;
-    -h|--help)
+    -h | --help)
       usage
       exit 0
       ;;
@@ -446,6 +670,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# --- Validate arguments ---
+
 if [[ "$SOURCE" != "remote" && "$SOURCE" != "local" ]]; then
   fail "--source must be 'remote' or 'local'"
 fi
@@ -454,7 +680,7 @@ if [[ "$BUNDLE" != "" && "$BUNDLE" != "smart-contracts" ]]; then
   fail "Unsupported bundle '$BUNDLE' (supported: smart-contracts)"
 fi
 
-if [[ $ALL -eq 1 && ( "$BUNDLE" != "" || ${#PLUGIN_FILTERS[@]} -gt 0 || ${#SKILL_FILTERS[@]} -gt 0 || ${#COMMAND_FILTERS[@]} -gt 0 ) ]]; then
+if [[ $ALL -eq 1 && ("$BUNDLE" != "" || ${#PLUGIN_FILTERS[@]} -gt 0 || ${#SKILL_FILTERS[@]} -gt 0 || ${#COMMAND_FILTERS[@]} -gt 0) ]]; then
   fail "--all cannot be combined with --bundle, --plugin, --skill, or --command"
 fi
 
@@ -466,8 +692,19 @@ if [[ $INSTALL_SKILLS -eq 0 && $INSTALL_COMMANDS -eq 0 ]]; then
   fail "Nothing to do: choose one of --skills-only or --commands-only"
 fi
 
+if [[ "$SOURCE" == "remote" ]]; then
+  if [[ ! "$REPO" =~ ^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$ ]]; then
+    fail "--repo must match owner/repo format (got '$REPO')"
+  fi
+  if [[ ! "$REF" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+    fail "--ref contains invalid characters (got '$REF')"
+  fi
+fi
+
 SKILLS_TARGET="$(expand_path "$SKILLS_TARGET")"
 COMMANDS_TARGET="$(expand_path "$COMMANDS_TARGET")"
+
+# --- Fetch source ---
 
 TMP_DIR=""
 cleanup() {
@@ -498,7 +735,8 @@ if [[ "$SOURCE" == "remote" ]]; then
     fail "Failed to extract downloaded archive"
   fi
 
-  SOURCE_ROOT="$(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  mapfile -t _extracted_dirs < <(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -type d)
+  SOURCE_ROOT="${_extracted_dirs[0]:-}"
   [[ -n "$SOURCE_ROOT" ]] || fail "Could not locate extracted repository root"
 else
   command -v find >/dev/null 2>&1 || fail "find is required"
@@ -516,17 +754,24 @@ if [[ ! -d "$SOURCE_ROOT/plugins" ]]; then
   fail "No plugins directory found at $SOURCE_ROOT/plugins"
 fi
 
+# --- Discover skills ---
+
 declare -a SKILL_NAMES=()
 declare -a SKILL_PLUGINS=()
 declare -a SKILL_DIRS=()
 declare -a SKILL_FILES=()
 
-while IFS= read -r skill_file; do
+mapfile -t _skill_files < <(find "$SOURCE_ROOT/plugins" -type f -name 'SKILL.md' | sort)
+if [[ ${#_skill_files[@]} -eq 0 ]]; then
+  fail "No SKILL.md files found under $SOURCE_ROOT/plugins"
+fi
+
+for skill_file in "${_skill_files[@]}"; do
   rel_path="${skill_file#"$SOURCE_ROOT/plugins/"}"
   plugin_name="${rel_path%%/*}"
   skill_dir="$(cd "$(dirname "$skill_file")" && pwd -P)"
 
-  skill_name="$(extract_skill_name_from_file "$skill_file" || true)"
+  skill_name="$(extract_frontmatter_name "$skill_file" || true)"
   if [[ -z "$skill_name" ]]; then
     fail "Could not read frontmatter name from $skill_file"
   fi
@@ -535,8 +780,15 @@ while IFS= read -r skill_file; do
     fail "Invalid skill name '$skill_name' in $skill_file"
   fi
 
-  if (( ${#skill_name} > 64 )); then
+  if ((${#skill_name} > 64)); then
     fail "Skill name '$skill_name' exceeds 64 characters ($skill_file)"
+  fi
+
+  # OpenCode requires skill directory name to match frontmatter name
+  source_dir_name="$(basename "$skill_dir")"
+  if [[ "$source_dir_name" != "$skill_name" ]]; then
+    printf 'Warning: skill dir "%s" != frontmatter name "%s" (%s)\n' \
+      "$source_dir_name" "$skill_name" "$skill_file" >&2
   fi
 
   if [[ ${#SKILL_NAMES[@]} -gt 0 ]] && contains_exact "$skill_name" "${SKILL_NAMES[@]}"; then
@@ -547,11 +799,9 @@ while IFS= read -r skill_file; do
   SKILL_PLUGINS+=("$plugin_name")
   SKILL_DIRS+=("$skill_dir")
   SKILL_FILES+=("$skill_file")
-done < <(find "$SOURCE_ROOT/plugins" -type f -name 'SKILL.md' | sort)
+done
 
-if [[ ${#SKILL_NAMES[@]} -eq 0 ]]; then
-  fail "No SKILL.md files found under $SOURCE_ROOT/plugins"
-fi
+# --- Discover commands ---
 
 declare -a COMMAND_NAMES=()
 declare -a COMMAND_FILE_NAMES=()
@@ -560,12 +810,14 @@ declare -a COMMAND_FILES=()
 declare -a COMMAND_REFERENCED_SKILLS=()
 declare -a COMMAND_COMPATIBLE=()
 
-while IFS= read -r command_file; do
+mapfile -t _command_files < <(find "$SOURCE_ROOT/plugins" -type f -path '*/commands/*.md' | sort)
+
+for command_file in "${_command_files[@]}"; do
   rel_path="${command_file#"$SOURCE_ROOT/plugins/"}"
   plugin_name="${rel_path%%/*}"
   command_file_name="$(basename "$command_file" .md)"
 
-  command_frontmatter_name="$(extract_command_frontmatter_name_from_file "$command_file" || true)"
+  command_frontmatter_name="$(extract_frontmatter_name "$command_file" || true)"
   if [[ -n "$command_frontmatter_name" ]]; then
     command_name="$command_frontmatter_name"
   else
@@ -586,7 +838,9 @@ while IFS= read -r command_file; do
   COMMAND_FILES+=("$command_file")
   COMMAND_REFERENCED_SKILLS+=("$command_refs")
   COMMAND_COMPATIBLE+=("$command_compatible")
-done < <(find "$SOURCE_ROOT/plugins" -type f -path '*/commands/*.md' | sort)
+done
+
+# --- Validate cross-references ---
 
 for idx in "${!COMMAND_NAMES[@]}"; do
   command_name="${COMMAND_NAMES[$idx]}"
@@ -597,7 +851,7 @@ for idx in "${!COMMAND_NAMES[@]}"; do
     continue
   fi
 
-  IFS=',' read -r -a refs <<< "$refs_csv"
+  IFS=',' read -r -a refs <<<"$refs_csv"
   for ref in "${refs[@]-}"; do
     if [[ -z "$ref" ]]; then
       continue
@@ -621,6 +875,8 @@ for idx in "${!COMMAND_NAMES[@]}"; do
     fi
   done
 done
+
+# --- Build known plugins and validate filters ---
 
 declare -a KNOWN_PLUGINS=()
 for plugin_name in "${SKILL_PLUGINS[@]}"; do
@@ -664,6 +920,8 @@ if [[ ${#COMMAND_FILTERS[@]} -gt 0 ]]; then
     fi
   done
 fi
+
+# --- Select items ---
 
 declare -a SELECTED_SKILL_INDEXES=()
 for idx in "${!SKILL_NAMES[@]}"; do
@@ -752,6 +1010,8 @@ if [[ $INSTALL_COMMANDS -eq 1 && ${#SELECTED_COMMAND_INDEXES[@]} -gt 0 ]]; then
   done
 fi
 
+# --- Print status ---
+
 source_info="$SOURCE"
 if [[ "$SOURCE" == "remote" ]]; then
   source_info+=" (${REPO}@${REF})"
@@ -781,6 +1041,8 @@ if [[ ${#SKIPPED_INCOMPATIBLE_COMMANDS[@]} -gt 0 ]]; then
   done
 fi
 
+# --- List mode ---
+
 if [[ $LIST_ONLY -eq 1 ]]; then
   if [[ $INSTALL_SKILLS -eq 1 ]]; then
     echo
@@ -798,15 +1060,17 @@ if [[ $LIST_ONLY -eq 1 ]]; then
     printf '%-28s %-28s %s\n' "COMMAND" "PLUGIN" "SKILL REFERENCES"
     printf '%-28s %-28s %s\n' "-------" "------" "----------------"
     for idx in "${SELECTED_COMMAND_INDEXES[@]}"; do
-      refs="${COMMAND_REFERENCED_SKILLS[$idx]}"
-      if [[ -z "$refs" ]]; then
-        refs="(none detected)"
+      cmd_refs="${COMMAND_REFERENCED_SKILLS[$idx]}"
+      if [[ -z "$cmd_refs" ]]; then
+        cmd_refs="(none detected)"
       fi
-      printf '%-28s %-28s %s\n' "/${COMMAND_NAMES[$idx]}" "${COMMAND_PLUGINS[$idx]}" "$refs"
+      printf '%-28s %-28s %s\n' "/${COMMAND_NAMES[$idx]}" "${COMMAND_PLUGINS[$idx]}" "$cmd_refs"
     done
   fi
   exit 0
 fi
+
+# --- Create target directories ---
 
 if [[ "$ACTION" == "install" ]]; then
   if [[ $INSTALL_SKILLS -eq 1 && ! -d "$SKILLS_TARGET" ]]; then
@@ -825,6 +1089,8 @@ if [[ "$ACTION" == "install" ]]; then
     fi
   fi
 fi
+
+# --- Install/uninstall ---
 
 skill_installed=0
 skill_removed=0
@@ -848,227 +1114,17 @@ log_result() {
 
 if [[ $INSTALL_SKILLS -eq 1 ]]; then
   for idx in "${SELECTED_SKILL_INDEXES[@]}"; do
-    name="${SKILL_NAMES[$idx]}"
-    source_dir="${SKILL_DIRS[$idx]}"
-    target_dir="$SKILLS_TARGET/$name"
-
-    if [[ "$ACTION" == "install" ]]; then
-      exists=0
-      if [[ -e "$target_dir" || -L "$target_dir" ]]; then
-        exists=1
-      fi
-
-      if [[ $exists -eq 1 ]]; then
-        if [[ "$MODE" == "link" ]] && is_symlink_to "$target_dir" "$source_dir"; then
-          skill_unchanged=$((skill_unchanged + 1))
-          log_result "unchanged" "skill" "$name" "already linked: $target_dir"
-          continue
-        fi
-
-        existing_name=""
-        if [[ -d "$target_dir" || -L "$target_dir" ]]; then
-          existing_name="$(extract_skill_name_from_dir "$target_dir" || true)"
-        fi
-
-        if [[ "$MODE" == "copy" && -d "$target_dir" && ! -L "$target_dir" && "$existing_name" == "$name" ]]; then
-          skill_unchanged=$((skill_unchanged + 1))
-          log_result "unchanged" "skill" "$name" "already installed: $target_dir"
-          continue
-        fi
-
-        if [[ $FORCE -ne 1 ]]; then
-          skill_error=$((skill_error + 1))
-          log_result "error" "skill" "$name" "target exists ($target_dir); use --force to replace"
-          continue
-        fi
-
-        if [[ $DRY_RUN -eq 1 ]]; then
-          printf '[dry-run] rm -rf %s\n' "$target_dir"
-        else
-          safe_remove_path "$target_dir"
-        fi
-      fi
-
-      if [[ "$MODE" == "copy" ]]; then
-        if [[ $DRY_RUN -eq 1 ]]; then
-          skill_installed=$((skill_installed + 1))
-          log_result "installed" "skill" "$name" "[dry-run] cp -R $source_dir $target_dir"
-        else
-          cp -R "$source_dir" "$target_dir"
-          skill_installed=$((skill_installed + 1))
-          log_result "installed" "skill" "$name" "copied: $target_dir"
-        fi
-      else
-        if [[ $DRY_RUN -eq 1 ]]; then
-          skill_installed=$((skill_installed + 1))
-          log_result "installed" "skill" "$name" "[dry-run] ln -s $source_dir $target_dir"
-        else
-          ln -s "$source_dir" "$target_dir"
-          skill_installed=$((skill_installed + 1))
-          log_result "installed" "skill" "$name" "linked: $target_dir -> $source_dir"
-        fi
-      fi
-    else
-      if [[ ! -e "$target_dir" && ! -L "$target_dir" ]]; then
-        skill_skipped=$((skill_skipped + 1))
-        log_result "skipped" "skill" "$name" "not installed: $target_dir"
-        continue
-      fi
-
-      removable=0
-      if [[ $FORCE -eq 1 ]]; then
-        removable=1
-      elif [[ -L "$target_dir" ]] && is_symlink_to "$target_dir" "$source_dir"; then
-        removable=1
-      else
-        target_name="$(extract_skill_name_from_dir "$target_dir" || true)"
-        if [[ "$target_name" == "$name" ]]; then
-          removable=1
-        fi
-      fi
-
-      if [[ $removable -ne 1 ]]; then
-        skill_error=$((skill_error + 1))
-        log_result "error" "skill" "$name" "refusing to remove unmanaged path ($target_dir); use --force"
-        continue
-      fi
-
-      if [[ $DRY_RUN -eq 1 ]]; then
-        skill_removed=$((skill_removed + 1))
-        log_result "removed" "skill" "$name" "[dry-run] rm -rf $target_dir"
-      else
-        safe_remove_path "$target_dir"
-        skill_removed=$((skill_removed + 1))
-        log_result "removed" "skill" "$name" "removed: $target_dir"
-      fi
-    fi
+    install_or_uninstall_skill "$idx"
   done
 fi
 
 if [[ $INSTALL_COMMANDS -eq 1 ]]; then
   for idx in "${SELECTED_COMMAND_INDEXES[@]}"; do
-    name="${COMMAND_NAMES[$idx]}"
-    file_name="${COMMAND_FILE_NAMES[$idx]}"
-    source_file="${COMMAND_FILES[$idx]}"
-    target_file="$COMMANDS_TARGET/$file_name.md"
-
-    if [[ "$ACTION" == "install" ]]; then
-      exists=0
-      if [[ -e "$target_file" || -L "$target_file" ]]; then
-        exists=1
-      fi
-
-      if [[ $exists -eq 1 ]]; then
-        if [[ "$MODE" == "link" ]] && is_symlink_to "$target_file" "$source_file"; then
-          command_unchanged=$((command_unchanged + 1))
-          log_result "unchanged" "command" "$name" "already linked: $target_file"
-          continue
-        fi
-
-        if [[ "$MODE" == "copy" && -f "$target_file" && ! -L "$target_file" ]] && files_equal "$source_file" "$target_file"; then
-          command_unchanged=$((command_unchanged + 1))
-          log_result "unchanged" "command" "$name" "already installed: $target_file"
-          continue
-        fi
-
-        if [[ $FORCE -ne 1 ]]; then
-          command_error=$((command_error + 1))
-          log_result "error" "command" "$name" "target exists ($target_file); use --force to replace"
-          continue
-        fi
-
-        if [[ $DRY_RUN -eq 1 ]]; then
-          printf '[dry-run] rm -rf %s\n' "$target_file"
-        else
-          safe_remove_path "$target_file"
-        fi
-      fi
-
-      if [[ "$MODE" == "copy" ]]; then
-        if [[ $DRY_RUN -eq 1 ]]; then
-          command_installed=$((command_installed + 1))
-          log_result "installed" "command" "$name" "[dry-run] cp $source_file $target_file"
-        else
-          cp "$source_file" "$target_file"
-          command_installed=$((command_installed + 1))
-          log_result "installed" "command" "$name" "copied: $target_file"
-        fi
-      else
-        if [[ $DRY_RUN -eq 1 ]]; then
-          command_installed=$((command_installed + 1))
-          log_result "installed" "command" "$name" "[dry-run] ln -s $source_file $target_file"
-        else
-          ln -s "$source_file" "$target_file"
-          command_installed=$((command_installed + 1))
-          log_result "installed" "command" "$name" "linked: $target_file -> $source_file"
-        fi
-      fi
-    else
-      if [[ ! -e "$target_file" && ! -L "$target_file" ]]; then
-        command_skipped=$((command_skipped + 1))
-        log_result "skipped" "command" "$name" "not installed: $target_file"
-        continue
-      fi
-
-      removable=0
-      if [[ $FORCE -eq 1 ]]; then
-        removable=1
-      elif [[ -L "$target_file" ]] && is_symlink_to "$target_file" "$source_file"; then
-        removable=1
-      elif [[ -f "$target_file" && ! -L "$target_file" ]]; then
-        if files_equal "$source_file" "$target_file"; then
-          removable=1
-        else
-          target_frontmatter_name="$(extract_command_frontmatter_name_from_file "$target_file" || true)"
-          if [[ "$target_frontmatter_name" == trailofbits:* ]]; then
-            removable=1
-          fi
-        fi
-      fi
-
-      if [[ $removable -ne 1 ]]; then
-        command_error=$((command_error + 1))
-        log_result "error" "command" "$name" "refusing to remove unmanaged path ($target_file); use --force"
-        continue
-      fi
-
-      if [[ $DRY_RUN -eq 1 ]]; then
-        command_removed=$((command_removed + 1))
-        log_result "removed" "command" "$name" "[dry-run] rm -rf $target_file"
-      else
-        safe_remove_path "$target_file"
-        command_removed=$((command_removed + 1))
-        log_result "removed" "command" "$name" "removed: $target_file"
-      fi
-    fi
+    install_or_uninstall_command "$idx"
   done
 fi
 
-echo
-echo "Summary:"
-
-if [[ $INSTALL_SKILLS -eq 1 ]]; then
-  echo "  skills:"
-  printf '    installed: %d\n' "$skill_installed"
-  printf '    removed: %d\n' "$skill_removed"
-  printf '    unchanged: %d\n' "$skill_unchanged"
-  printf '    skipped: %d\n' "$skill_skipped"
-  printf '    error: %d\n' "$skill_error"
-fi
-
-if [[ $INSTALL_COMMANDS -eq 1 ]]; then
-  echo "  commands:"
-  printf '    installed: %d\n' "$command_installed"
-  printf '    removed: %d\n' "$command_removed"
-  printf '    unchanged: %d\n' "$command_unchanged"
-  printf '    skipped: %d\n' "$command_skipped"
-  printf '    error: %d\n' "$command_error"
-fi
-
-if [[ $INSTALL_COMMANDS -eq 1 && ${#SELECTED_COMMAND_INDEXES[@]} -eq 0 ]]; then
-  echo
-  echo "Note: no compatible commands matched the selected filters."
-fi
+print_summary
 
 if [[ $skill_error -gt 0 || $command_error -gt 0 ]]; then
   exit 1
