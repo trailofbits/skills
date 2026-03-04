@@ -139,8 +139,8 @@ Run tests (from rule directory): `semgrep --test --config <rule-id>.yaml <rule-i
 
 ## Quick Reference
 
-- For commands, pattern operators, and taint mode syntax, see [quick-reference.md]({baseDir}/references/quick-reference.md).
-- For detailed workflow and examples, you MUST see [workflow.md]({baseDir}/references/workflow.md)
+- For commands, pattern operators, and taint mode syntax, see [quick-reference.md](references/quick-reference.md).
+- For detailed workflow and examples, you MUST see [workflow.md](references/workflow.md)
 
 ## Workflow
 
@@ -159,10 +159,11 @@ Semgrep Rule Progress:
 
 ## Documentation
 
-**REQUIRED**: Before writing any rule, use WebFetch to read **all** of these 4 links with Semgrep documentation:
+**REQUIRED**: Before writing any rule, use WebFetch to read **all** of these 6 links with Semgrep documentation:
 
 1. [Rule Syntax](https://semgrep.dev/docs/writing-rules/rule-syntax)
 2. [Pattern Syntax](https://semgrep.dev/docs/writing-rules/pattern-syntax)
-3. [ToB Testing Handbook - Semgrep](https://appsec.guide/docs/static-analysis/semgrep/advanced/)
-4. [Constant propagation](https://semgrep.dev/docs/writing-rules/data-flow/constant-propagation)
-5. [Writing Rules Index](https://github.com/semgrep/semgrep-docs/tree/main/docs/writing-rules/)
+3. [Taint analysis overview](https://semgrep.dev/docs/writing-rules/data-flow/taint-mode/overview)
+4. [Advanced taint analysis techniques](https://semgrep.dev/docs/writing-rules/data-flow/taint-mode/advanced)
+5. [Constant propagation](https://semgrep.dev/docs/writing-rules/data-flow/constant-propagation)
+6. [Trail of Bits Testing Handbook - Semgrep chapter](https://appsec.guide/docs/static-analysis/semgrep/advanced/)
