@@ -1,4 +1,7 @@
 #!/usr/bin/env bats
+# shellcheck disable=SC2030,SC2031,SC2016
+# SC2030/SC2031: bats @test functions run in subshells by design
+# SC2016: single-quoted '$0'/'$@' in bash -c is intentional
 # Tests for gh PATH shim
 
 bats_require_minimum_version 1.5.0

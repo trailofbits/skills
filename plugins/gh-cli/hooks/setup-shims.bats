@@ -33,8 +33,11 @@ teardown() {
     [[ -x "$dir/gh" ]] && continue
     path_without_gh="${path_without_gh:+${path_without_gh}:}$dir"
   done
+  # Use absolute bash path since filtering gh may remove /usr/bin from PATH
+  local bash_path
+  bash_path="$(command -v bash)"
   run env PATH="$path_without_gh" CLAUDE_ENV_FILE="$CLAUDE_ENV_FILE" \
-    bash "$SETUP_SCRIPT" 2>&1
+    "$bash_path" "$SETUP_SCRIPT" 2>&1
   [[ $status -eq 0 ]]
   [[ ! -s "$CLAUDE_ENV_FILE" ]]
   [[ "$output" == *"gh not found on PATH"* ]]
