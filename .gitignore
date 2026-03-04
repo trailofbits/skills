@@ -34,3 +34,5 @@ build/
 .mcp.json
 # Allow plugin-bundled MCP configs (no secrets, just CLI commands)
 !plugins/**/.mcp.json
+
+.env
