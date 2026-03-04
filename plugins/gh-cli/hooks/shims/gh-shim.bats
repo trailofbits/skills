@@ -120,7 +120,7 @@ assert_blocked() {
   assert_blocked
 }
 
-@test "shim: blocks gh api repos/.../contents/ regardless of arg order" {
+@test "shim: blocks gh api repos/.../contents/ when flags precede the endpoint" {
   run_shim api --jq '.content' repos/owner/repo/contents/file.txt
   assert_blocked
 }
@@ -164,6 +164,11 @@ assert_blocked() {
   assert_passthrough
 }
 
+@test "shim: allows gh api with jq filter containing 'contents' string" {
+  run_shim api repos/owner/repo/commits --jq '.[] | select(.message | contains("repos/x/y/contents"))'
+  assert_passthrough
+}
+
 # =============================================================================
 # Clone path deny tests
 # =============================================================================
@@ -192,6 +197,7 @@ assert_blocked() {
   unset CLAUDE_SESSION_ID 2>/dev/null || true
   run_shim repo clone owner/repo /tmp/gh-clones-someid/repo
   assert_blocked
+  [[ "$output" == *"CLAUDE_SESSION_ID is not set"* ]]
 }
 
 @test "shim: blocks clone with wrong session ID in path" {
@@ -290,15 +296,19 @@ assert_blocked() {
   [[ "$output" == *"gh repo clone apple/container"* ]]
 }
 
-@test "shim: clone deny suggests CLAUDE_SESSION_ID" {
+@test "shim: clone deny with unset CLAUDE_SESSION_ID suggests workaround" {
+  unset CLAUDE_SESSION_ID 2>/dev/null || true
   run_shim repo clone owner/repo /tmp/gh-clones/repo
   assert_blocked
-  [[ "$output" == *"CLAUDE_SESSION_ID"* ]]
+  [[ "$output" == *"CLAUDE_SESSION_ID is not set"* ]]
+  [[ "$output" == *"uuidgen"* ]]
 }
 
-@test "shim: clone deny warns against invented paths" {
-  run_shim repo clone owner/repo /tmp/gh-clones/repo
+@test "shim: clone deny with wrong session ID suggests session-scoped path" {
+  export CLAUDE_SESSION_ID="correct-session"
+  run_shim repo clone owner/repo /tmp/gh-clones-wrong/repo
   assert_blocked
+  [[ "$output" == *"CLAUDE_SESSION_ID"* ]]
   [[ "$output" == *"Do NOT invent paths"* ]]
 }
 

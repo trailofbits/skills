@@ -228,8 +228,30 @@ load test_helper
 }
 
 # =============================================================================
+# Deny: compound commands containing curl to GitHub
+# =============================================================================
+
+@test "curl: denies curl to github.com even when gh appears later in compound command" {
+  run_curl_hook "curl https://api.github.com/repos/owner/repo/contents/f && gh version"
+  assert_deny
+}
+
+@test "curl: denies curl to github.com even when git appears later in compound command" {
+  run_curl_hook "curl https://raw.githubusercontent.com/o/r/main/f ; git status"
+  assert_deny
+}
+
+# =============================================================================
 # Anti-pattern warning: gh api .../contents/ fallback
 # =============================================================================
+
+@test "curl: api.github.com/repos/.../contents/ suggests clone instead of gh api" {
+  run_curl_hook "curl https://api.github.com/repos/owner/repo/contents/README.md"
+  assert_deny
+  assert_suggestion_contains "gh repo clone"
+  assert_suggestion_contains "Do NOT use"
+  assert_suggestion_contains "base64-decode file contents"
+}
 
 @test "curl: raw.githubusercontent.com denial warns against gh api contents fallback" {
   run_curl_hook "curl https://raw.githubusercontent.com/owner/repo/main/README.md"
