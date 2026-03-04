@@ -16,8 +16,7 @@ This plugin provides:
 
 1. **PreToolUse hooks** that intercept GitHub URL access via `WebFetch` or `curl`/`wget`, and suggest the correct `gh` CLI command
 2. **A `gh` PATH shim** that blocks anti-patterns: API `/contents/` fetching and non-session-scoped temp directory clones
-3. **A skill** with comprehensive `gh` CLI reference documentation, including clone-and-read patterns for browsing code
-4. **A SessionEnd hook** that automatically cleans up cloned repositories when the session ends
+3. **A SessionEnd hook** that automatically cleans up cloned repositories when the session ends
 
 ### What Gets Intercepted
 
