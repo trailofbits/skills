@@ -159,11 +159,12 @@ Semgrep Rule Progress:
 
 ## Documentation
 
-**REQUIRED**: Before writing any rule, use WebFetch to read **all** of these 6 links with Semgrep documentation:
+**REQUIRED**: Before writing any rule, use WebFetch to read **all** of these 7 links with Semgrep documentation:
 
-1. [Rule Syntax](https://semgrep.dev/docs/writing-rules/rule-syntax)
-2. [Pattern Syntax](https://semgrep.dev/docs/writing-rules/pattern-syntax)
-3. [Taint analysis overview](https://semgrep.dev/docs/writing-rules/data-flow/taint-mode/overview)
-4. [Advanced taint analysis techniques](https://semgrep.dev/docs/writing-rules/data-flow/taint-mode/advanced)
-5. [Constant propagation](https://semgrep.dev/docs/writing-rules/data-flow/constant-propagation)
-6. [Trail of Bits Testing Handbook - Semgrep chapter](https://appsec.guide/docs/static-analysis/semgrep/advanced/)
+1. [Rule Syntax](https://raw.githubusercontent.com/semgrep/semgrep-docs/refs/heads/main/docs/writing-rules/rule-syntax.md)
+2. [Pattern Syntax](https://raw.githubusercontent.com/semgrep/semgrep-docs/refs/heads/main/docs/writing-rules/pattern-syntax.mdx)
+3. [Testing Rules](https://raw.githubusercontent.com/semgrep/semgrep-docs/refs/heads/main/docs/writing-rules/testing-rules.md)
+4. [Taint analysis](https://raw.githubusercontent.com/semgrep/semgrep-docs/refs/heads/main/docs/writing-rules/data-flow/taint-mode/overview.md)
+5. [Advanced techniques for taint analysis](https://raw.githubusercontent.com/semgrep/semgrep-docs/refs/heads/main/docs/writing-rules/data-flow/taint-mode/advanced.md)
+6. [Constant propagation](https://raw.githubusercontent.com/semgrep/semgrep-docs/refs/heads/main/docs/writing-rules/data-flow/constant-propagation.md)
+7. [Trail of Bits Testing Handbook - Semgrep chapter](https://raw.githubusercontent.com/trailofbits/testing-handbook/refs/heads/main/content/docs/static-analysis/semgrep/10-advanced.md)
