@@ -25,7 +25,7 @@ Taint mode is a powerful feature in Semgrep that can track the flow of data from
 
 **Why test-first?** Writing tests before the rule forces you to think about both vulnerable AND safe cases. Rules written without tests often have hidden false positives (matching safe cases) or false negatives (missing vulnerable variants). Tests make these visible immediately.
 
-Create directory and test file with annotations (`# ruleid:`, `# ok:` only). See [quick-reference.md]({baseDir}/references/quick-reference.md#test-file-annotations) for full syntax.
+Create directory and test file with annotations (`# ruleid:`, `# ok:` only). See [quick-reference.md](quick-reference.md#test-file-annotations) for full syntax.
 
 ### Directory Structure
 
@@ -55,7 +55,7 @@ You must include test cases for:
 **Why analyze AST?** Semgrep matches against the AST, not raw text. Code that looks similar may parse differently (e.g., `foo.bar()` vs `foo().bar`). The AST dump shows exactly what Semgrep sees, preventing patterns that fail due to unexpected tree structure. Understanding how exactly Semgrep parses code is crucial for writing precise patterns.
 
 ```bash
-semgrep --dump-ast -l <language> <rule-id>.<ext>
+semgrep --dump-ast --lang <language> <rule-id>.<ext>
 ```
 
 Example output helps understand:
@@ -103,7 +103,7 @@ If tests fail, check:
 #### Debug Taint Mode Rules
 
 ```bash
-semgrep --dataflow-traces -f <rule-id>.yaml <rule-id>.<ext>
+semgrep --dataflow-traces --config <rule-id>.yaml <rule-id>.<ext>
 ```
 
 Shows:
@@ -123,7 +123,7 @@ semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
 
 For debugging taint mode rules:
 ```bash
-semgrep --dataflow-traces -f <rule-id>.yaml <rule-id>.<ext>
+semgrep --dataflow-traces --config <rule-id>.yaml <rule-id>.<ext>
 ```
 
 **Verification checkpoint**: Output MUST show "All tests passed". **Only proceed when validation passes**.
