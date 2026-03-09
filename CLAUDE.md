@@ -4,9 +4,11 @@
 
 **Official Anthropic documentation (always check these first):**
 
-- [Claude Code Plugins](https://docs.anthropic.com/en/docs/claude-code/plugins)
-- [Agent Skills](https://docs.anthropic.com/en/docs/claude-code/skills)
-- [Best Practices](https://docs.anthropic.com/en/docs/claude-code/skills#best-practices)
+- [Claude Code Plugins](https://code.claude.com/docs/en/plugins)
+- [Agent Skills](https://code.claude.com/docs/en/skills)
+- [Best Practices](https://code.claude.com/docs/en/skills#best-practices)
+- [Skill Authoring Best Practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) — progressive disclosure, degrees of freedom, workflow checklists
+- [The Complete Guide to Building Skills](https://resources.anthropic.com/hubfs/The-Complete-Guide-to-Building-Skill-for-Claude.pdf) ([text](https://gist.github.com/liskl/269ae33835ab4bfdd6140f0beb909873)) — evaluation-driven development, iterative testing
 
 **Reference skills** - learn by example at different complexity levels:
 
@@ -20,11 +22,11 @@
 
 **Deep dives on skill authoring:**
 - [Claude Skills Deep Dive](https://leehanchung.github.io/blogs/2025/10/26/claude-skills-deep-dive/) - Comprehensive analysis of skill architecture
-- [Claude Code Skills Training](https://huggingface.co/blog/sionic-ai/claude-code-skills-training) - Practical authoring guide
 
 **Example plugins worth studying:**
 - [superpowers](https://github.com/obra/superpowers) - Advanced workflow patterns, TDD enforcement, multi-skill orchestration
 - [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) - Production plugin structure
+- [getsentry/skills](https://github.com/getsentry/skills) — Production Sentry skills; `security-review` is a standout routing + progressive disclosure example
 
 **For Claude:** Use the `claude-code-guide` subagent for plugin/skill questions - it has access to official documentation.
 
@@ -195,8 +197,10 @@ Before submitting:
 **Documentation:**
 - [ ] Plugin has README.md
 - [ ] Added to root README.md table
-- [ ] Registered in marketplace.json
+- [ ] Registered in root `.claude-plugin/marketplace.json` (repo-level, not the plugin's own `.claude-plugin/`)
+- [ ] Added to CODEOWNERS with plugin-specific ownership (`/plugins/<name>/ @gh-username @dguido`)
+  - To find the GitHub username: run `gh api user --jq .login` (most reliable — uses authenticated GitHub identity)
 
 **Version updates (for existing plugins):**
-- [ ] Increment version in both `plugin.json` and `.claude-plugin/marketplace.json` when making substantive changes (clients only update plugins when the version number increases)
-- [ ] Ensure version numbers match between `plugin.json` and `.claude-plugin/marketplace.json`
+- [ ] Increment version in both `plugins/<name>/.claude-plugin/plugin.json` and the root `.claude-plugin/marketplace.json` when making substantive changes (clients only update plugins when the version number increases)
+- [ ] Ensure version numbers match between the plugin's `plugin.json` and its entry in the root `.claude-plugin/marketplace.json`

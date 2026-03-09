@@ -76,6 +76,9 @@ TASK: Code is difficult to test (mixed I/O, missing inverses)
 TASK: Reviewing existing PBT tests
   → Read [{baseDir}/references/reviewing.md]({baseDir}/references/reviewing.md) (quality checklist and anti-patterns)
 
+TASK: Test failed, need to interpret
+  → Read [{baseDir}/references/interpreting-failures.md]({baseDir}/references/interpreting-failures.md) (failure analysis and bug classification)
+
 TASK: Need library reference
   → Read [{baseDir}/references/libraries.md]({baseDir}/references/libraries.md) (PBT libraries by language, includes smart contract tools)
 ```
@@ -107,3 +110,14 @@ When you detect a high-value pattern while writing tests, **offer PBT as an opti
 - Ignoring type hints (well-typed = easier to test)
 - Overwhelming user with candidates (limit to top 5-10)
 - Being pushy after user declines
+
+## Rationalizations to Reject
+
+Do not accept these shortcuts:
+
+- **"Example tests are good enough"** - If serialization/parsing/normalization is involved, PBT finds edge cases examples miss
+- **"The function is simple"** - Simple functions with complex input domains (strings, floats, nested structures) benefit most from PBT
+- **"We don't have time"** - PBT tests are often shorter than comprehensive example suites
+- **"It's too hard to write generators"** - Most PBT libraries have excellent built-in strategies; custom generators are rarely needed
+- **"The test failed, so it's a bug"** - Failures require validation; see [interpreting-failures.md]({baseDir}/references/interpreting-failures.md)
+- **"No crash means it works"** - "No exception" is the weakest property; always push for stronger guarantees

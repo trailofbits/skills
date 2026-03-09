@@ -1,0 +1,83 @@
+{
+  "type": "object",
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1
+          },
+          "confidence_score": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "code_location": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "file_path": {
+                    "type": "string"
+                  },
+                  "line_range": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "start": {
+                            "type": "integer"
+                          },
+                          "end": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": ["start", "end"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["file_path", "line_range"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["title", "body", "confidence_score", "priority", "code_location"],
+        "additionalProperties": false
+      }
+    },
+    "overall_correctness": {
+      "type": "string"
+    },
+    "overall_explanation": {
+      "type": ["string", "null"]
+    },
+    "overall_confidence_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
+  "required": ["findings", "overall_correctness", "overall_explanation", "overall_confidence_score"],
+  "additionalProperties": false
+}

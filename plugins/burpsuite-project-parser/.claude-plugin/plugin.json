@@ -1,7 +1,7 @@
 {
   "name": "burpsuite-project-parser",
   "version": "1.0.0",
-  "description": "Search and extract data from Burp Suite project files (.burp) directly from the command line for use in Claude",
+  "description": "Search and extract data from Burp Suite project files (.burp) for security analysis",
   "author": {
     "name": "Will Vandevanter",
     "email": "opensource@trailofbits.com",

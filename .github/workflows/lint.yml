@@ -14,43 +14,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ruff:
-    name: Python (ruff)
+  pre-commit:
+    name: Pre-commit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false
-      - uses: astral-sh/ruff-action@57714a7c8a2e59f32539362ba31877a1957dded1  # v3.5.1
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
-          args: check --output-format=github
-      - uses: astral-sh/ruff-action@57714a7c8a2e59f32539362ba31877a1957dded1  # v3.5.1
-        with:
-          args: format --check
-
-  shellcheck:
-    name: Shell (shellcheck)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-        with:
-          persist-credentials: false
-      - name: Run shellcheck
-        run: find plugins -name "*.sh" -type f -exec shellcheck -x {} +
-
-  shfmt:
-    name: Shell (shfmt)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-        with:
-          persist-credentials: false
-      - name: Install shfmt
-        run: |
-          curl -sS https://webinstall.dev/shfmt | bash
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Run shfmt
-        run: find plugins -name "*.sh" -type f -exec shfmt -i 2 -ci -d {} +
+          python-version: "3.13"
+      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd  # v3.0.1
 
   bats:
     name: Shell (bats)
@@ -65,5 +39,5 @@ jobs:
           sudo apt-get install -y bats
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Run hook tests
-        run: bats plugins/modern-python/hooks/*.bats
+      - name: Run bats tests
+        run: find plugins -name "*.bats" -type f -print0 | xargs -0 --no-run-if-empty bats
