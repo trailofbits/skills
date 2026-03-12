@@ -22,7 +22,14 @@ A Claude Code plugin marketplace from Trail of Bits providing skills to enhance 
 
 Codex-native skill discovery is supported via the sidecar `.codex/skills/` tree in this repository.
 
-See [`.codex/INSTALL.md`](.codex/INSTALL.md) for installation and linking instructions.
+Install with:
+
+```sh
+git clone https://github.com/trailofbits/skills.git ~/.codex/trailofbits-skills
+~/.codex/trailofbits-skills/.codex/scripts/install-for-codex.sh
+```
+
+See [`.codex/INSTALL.md`](.codex/INSTALL.md) for additional details.
 
 ### Local Development
 
