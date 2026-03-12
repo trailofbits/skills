@@ -85,7 +85,8 @@ for search_dir in \
   "$HOME/.claude-code/plugins/plugin-dev" \
   "$HOME/.claude/plugins/cache"/*/plugin-dev/* \
   "$HOME/.claude/plugins/cache"/*/*/plugin-dev/*; do
-  if [[ -d "$search_dir/.claude-plugin" ]]; then
+  if [[ -d "$search_dir/.claude-plugin" ]] ||
+     [[ -f "$search_dir/agents/skill-reviewer.md" ]]; then
     PLUGIN_DEV_FOUND=true
     break
   fi
