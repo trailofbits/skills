@@ -6,7 +6,7 @@ A Claude Code plugin marketplace from Trail of Bits providing skills to enhance 
 
 ## Installation
 
-### Add the Marketplace
+### Claude Code Marketplace
 
 ```
 /plugin marketplace add trailofbits/skills
@@ -17,6 +17,12 @@ A Claude Code plugin marketplace from Trail of Bits providing skills to enhance 
 ```
 /plugin menu
 ```
+
+### Codex
+
+Codex-native skill discovery is supported via the sidecar `.codex/skills/` tree in this repository.
+
+See [`.codex/INSTALL.md`](.codex/INSTALL.md) for installation and linking instructions.
 
 ### Local Development
 
