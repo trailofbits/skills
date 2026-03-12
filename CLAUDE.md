@@ -32,6 +32,22 @@
 
 ## Technical Reference
 
+### Codex Compatibility
+
+This repository now supports both Claude plugin discovery and Codex-native skill discovery.
+
+Rules:
+
+- If a plugin adds `skills/<name>/SKILL.md`, it must also remain reachable through `.codex/skills/<name>`.
+- If a plugin is command/hook/agent-only and has no `skills/` directory, add an explicit Codex wrapper skill under `.codex/skills/<plugin-name>/SKILL.md` or document why no Codex equivalent is intended.
+- Before submitting, run:
+
+```sh
+python3 .github/scripts/validate_codex_skills.py
+```
+
+- If this check fails in CI, the remediation path should be local and mechanical: run the installer or update the `.codex/skills/` mapping, then commit the resulting changes.
+
 ### Plugin Structure
 
 ```
@@ -187,6 +203,7 @@ Before submitting:
 - [ ] Name is kebab-case, ≤64 characters
 - [ ] All referenced files exist
 - [ ] No hardcoded paths (`/Users/...`, `/home/...`)
+- [ ] `python3 .github/scripts/validate_codex_skills.py` passes
 
 **Quality (reviewers check these):**
 - [ ] Description triggers correctly (third-person, specific)
