@@ -108,7 +108,7 @@ pattern-sources:
    - patterns:
       - pattern: mutate_argument(&$REF_VAR)
       - focus-metavariable: $REF_VAR
-   by-side-effect: only
+     by-side-effect: only
 ```
 
 ## Taint Mode
