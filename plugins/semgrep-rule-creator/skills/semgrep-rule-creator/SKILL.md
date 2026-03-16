@@ -75,6 +75,8 @@ pattern: os.system("rm " + $VAR)
 
 # GOOD: Matches all os.system calls with taint tracking
 mode: taint
+pattern-sources:
+  - pattern: input(...)
 pattern-sinks:
   - pattern: os.system(...)
 ```
