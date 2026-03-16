@@ -136,7 +136,7 @@ rules:
 pattern-sources:
   - pattern: source(...)
     exact: true                   # Only exact match is source (default: false)
-    by-side-effect: (true|only)   # Taints variable by side effect
+    by-side-effect: true          # Also accepts: only
 
 pattern-sanitizers:
   - pattern: sanitize($X)
