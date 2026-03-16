@@ -4,9 +4,8 @@
 
 ```yaml
 rules:
-  - id: rule-id          # Unique identifier (lowercase, hyphens)
-    languages:                 # Target language(s)
-      - python
+  - id: rule-id               # Unique identifier (lowercase, hyphens)
+    languages: [python]       # Target language(s)
     severity: HIGH            # LOW, MEDIUM, HIGH, CRITICAL (ERROR/WARNING/INFO are legacy)
     message: Description      # Shown when rule matches
     pattern: code(...)        # OR use patterns/pattern-either/mode:taint
@@ -16,22 +15,30 @@ rules:
 
 ### Basic Matching
 ```yaml
-pattern: foo(...)              # Match function call
-patterns:                      # AND - all must match
+# 'pattern' is the basic unit of matching
+pattern: foo(...)
+
+# 'patterns' forms a logical AND - all must match
+patterns:
   - pattern: $X
   - pattern-not: safe($X)
-pattern-either:                # OR - any can match
+
+# 'pattern-either' forms a logical OR - any can match
+pattern-either:
   - pattern: foo(...)
   - pattern: bar(...)
-pattern-regex: ^foo.*bar$      # PCRE2 regex matching (multiline mode)
+
+# 'pattern-regex' performs PCRE2 regex matching (multiline mode)
+pattern-regex: ^foo.*bar$
 ```
 
-### Metavariables
-- `$VAR` - Match any single expression
+### Matching Operators
+- `$VAR` - Metavariable, match a single expression
   - **Must be uppercase**: `$X`, `$FUNC`, `$VAR_1` (NOT `$x`, `$var`)
-- `$_` - Anonymous metavariable (matches but doesn't bind)
-- `$...VAR` - Match zero or more arguments (ellipsis metavariable)
-- `...` - Ellipsis, match anything in between
+- `$_` - Anonymous metavariable, matches but doesn't bind
+- `$...VAR` - Ellipsis metavariable, match zero or more arguments
+- `...` - Ellipsis, match anything in between statements or expressions
+- `<... [pattern] ...>` - Deep expression operator, match nested expression
 
 ### Typed Metavariables
 
@@ -53,16 +60,11 @@ pattern: ($READER : *zip.Reader).Open($INPUT)
 # TypeScript - match specific type
 pattern: ($X: DomSanitizer).sanitize(...)
 
-Use in taint mode to track only specific types as sources:
+# Use in taint mode to track only specific types as sources:
 pattern-sources:
   - pattern: (int $X)        # Only int parameters are taint sources
   - pattern: (int16_t $X)    # Only int16_t parameters
   - pattern: int $X = $INIT; # Local variable declarations
-
-
-### Deep Expression Matching
-```yaml
-<... $EXPR ...>               # Recursively match pattern in nested expressions
 ```
 
 ### Scope Operators
@@ -98,7 +100,15 @@ metavariable-comparison:
 
 ### Focus
 ```yaml
-focus-metavariable: $TARGET    # Report finding on this metavariable only
+# In pattern matching mode: report finding on this metavariable only
+focus-metavariable: $TARGET
+
+# In taint mode: constrain where taint flows in sources, sinks, and sanitizers
+pattern-sources:
+  - patterns:
+      - pattern: mutate_argument(&$REF_VAR)
+      - focus-metavariable: $REF_VAR
+    by-side-effect: only
 ```
 
 ## Taint Mode
@@ -126,7 +136,7 @@ rules:
 pattern-sources:
   - pattern: source(...)
     exact: true                   # Only exact match is source (default: false)
-    by-side-effect: true          # Taints variable by side effect
+    by-side-effect: true          # Taints by side effect (also accepts: only)
 
 pattern-sanitizers:
   - pattern: sanitize($X)
@@ -140,7 +150,7 @@ pattern-sinks:
 
 ## Test File Annotations
 
-Only allowed annotations are `ok: rule-id` and `ok: rule-id`.
+Only allowed annotations are `ruleid: rule-id` and `ok: rule-id`.
 
 ```python
 # ruleid: rule-id
@@ -151,7 +161,7 @@ safe_code()                    # This line MUST NOT match
 ```
 
 DO NOT use multi-line comments for test annotations, for example:
-/* ruleid: ... */
+`/* ruleid: ... */`
 
 ## Debugging Commands
 
@@ -163,13 +173,16 @@ semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
 semgrep --validate --config <rule-id>.yaml
 
 # Run with dataflow traces (for taint mode rules)
-semgrep --dataflow-traces -f <rule-id>.yaml <rule-id>.<ext>
+semgrep --dataflow-traces --config <rule-id>.yaml <rule-id>.<ext>
 
 # Dump AST to understand code structure
-semgrep --dump-ast -l <language> <rule-id>.<ext>
+semgrep --dump-ast --lang <language> <rule-id>.<ext>
 
 # Run single rule
-semgrep -f <rule-id>.yaml <rule-id>.<ext>
+semgrep --config <rule-id>.yaml <rule-id>.<ext>
+
+# Run single pattern
+semgrep --lang <language> --pattern <pattern> <rule-id>.<ext>
 ```
 
 ## Troubleshooting
@@ -182,7 +195,7 @@ semgrep -f <rule-id>.yaml <rule-id>.<ext>
 
 ### Pattern Not Matching
 
-1. Check AST structure: `semgrep --dump-ast -l <language> <rule-id>.<ext>`
+1. Check AST structure: `semgrep --dump-ast --lang <language> <rule-id>.<ext>`
 2. Verify metavariable binding
 3. Check for whitespace/formatting differences
 4. Try more general pattern first, then narrow down
