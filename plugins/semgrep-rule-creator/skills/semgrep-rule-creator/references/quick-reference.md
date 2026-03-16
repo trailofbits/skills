@@ -161,7 +161,7 @@ safe_code()                    # This line MUST NOT match
 ```
 
 DO NOT use multi-line comments for test annotations, for example:
-/* ruleid: ... */
+`/* ruleid: ... */`
 
 ## Debugging Commands
 
