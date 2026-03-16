@@ -25,7 +25,7 @@ Taint mode is a powerful feature in Semgrep that can track the flow of data from
 
 **Why test-first?** Writing tests before the rule forces you to think about both vulnerable AND safe cases. Rules written without tests often have hidden false positives (matching safe cases) or false negatives (missing vulnerable variants). Tests make these visible immediately.
 
-Create directory and test file with annotations (`# ruleid:`, `# ok:` only). See [quick-reference.md](quick-reference.md#test-file-annotations) for full syntax.
+Create directory and test file with annotations (`# ruleid:`, `# ok:` only). See [quick-reference.md]({baseDir}/references/quick-reference.md#test-file-annotations) for full syntax.
 
 ### Directory Structure
 

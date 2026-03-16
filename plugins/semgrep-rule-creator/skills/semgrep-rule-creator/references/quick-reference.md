@@ -32,7 +32,7 @@ pattern-either:
 pattern-regex: ^foo.*bar$
 ```
 
-### Operators
+### Matching Operators
 - `$VAR` - Metavariable, match a single expression
   - **Must be uppercase**: `$X`, `$FUNC`, `$VAR_1` (NOT `$x`, `$var`)
 - `$_` - Anonymous metavariable, matches but doesn't bind
@@ -105,10 +105,10 @@ focus-metavariable: $TARGET
 
 # In taint mode: constrain where taint flows in sources, sinks, and sanitizers
 pattern-sources:
-   - patterns:
+  - patterns:
       - pattern: mutate_argument(&$REF_VAR)
       - focus-metavariable: $REF_VAR
-     by-side-effect: only
+    by-side-effect: only
 ```
 
 ## Taint Mode
@@ -136,7 +136,7 @@ rules:
 pattern-sources:
   - pattern: source(...)
     exact: true                   # Only exact match is source (default: false)
-    by-side-effect: true          # Also accepts: only
+    by-side-effect: true          # Taints by side effect (also accepts: only)
 
 pattern-sanitizers:
   - pattern: sanitize($X)
