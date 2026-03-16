@@ -1,6 +1,6 @@
 ---
 name: gh-cli
-description: Use when working with GitHub URLs or API access so Codex prefers authenticated gh CLI workflows over unauthenticated WebFetch/curl patterns.
+description: Enforces authenticated gh CLI workflows over unauthenticated curl/WebFetch patterns. Use when working with GitHub URLs, API access, pull requests, or issues.
 ---
 
 # gh-cli
