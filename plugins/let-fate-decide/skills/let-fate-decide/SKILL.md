@@ -1,6 +1,6 @@
 ---
 name: let-fate-decide
-description: "Draws 4 Tarot cards using os.urandom() to inject entropy into planning when prompts are vague or underspecified. Interprets the spread to guide next steps. Use when the user is nonchalant, feeling lucky, says 'let fate decide', makes Yu-Gi-Oh references ('heart of the cards'), demonstrates indifference about approach, or says 'try again' on a system with no changes. Also triggers on sufficiently ambiguous prompts where multiple approaches are equally valid."
+description: "Draws 4 Tarot cards using secrets.randbelow() to inject entropy into planning when prompts are vague or underspecified. Interprets the spread to guide next steps. Use when the user is nonchalant, feeling lucky, says 'let fate decide', makes Yu-Gi-Oh references ('heart of the cards'), demonstrates indifference about approach, or says 'try again' on a system with no changes. Also triggers on sufficiently ambiguous prompts where multiple approaches are equally valid."
 allowed-tools:
   - Bash
   - Read
@@ -48,7 +48,7 @@ When the path forward is unclear, let the cards speak.
 
 ### The Draw
 
-The script uses `os.urandom()` for cryptographic randomness:
+The script uses `secrets.randbelow()` for cryptographic randomness:
 
 1. Builds a standard 78-card Tarot deck (22 Major Arcana + 56 Minor Arcana)
 2. Performs a Fisher-Yates shuffle using rejection sampling (no modulo bias)
