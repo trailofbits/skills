@@ -12,6 +12,7 @@ Culture Index identifies 19 distinct behavioral patterns based on the configurat
 | Rainmaker/Persuader | High A, High B, Low C | Aggressive, charming, fast. Closes deals, builds relationships. | Sales Hunter, BD, Account Executive |
 | Scholar/Specialist | Low B, High C, High D | Introverted, patient, detail-oriented. Deep expertise. | Engineer, CFO, Analyst |
 | Accommodator | Low A, High B, High C | Team player, patient, people-focused. Service orientation. | HR, Customer Success |
+| Influencer | Low A, High B, Low C, Low D | Open, optimistic, people-oriented. Avoids confrontation, easily distracted. | Customer Service, Retail, Event Hosting, Telemarketing |
 | Debater | High B, Low A, Low D | Charming, non-conforming, unfiltered. Good storyteller. | Sales (relationship), Creative |
 | Technical Expert | Low A, Low B, Low C, High D | Efficient specialists. Fast-moving detail people. | Security, QC, Ops |
 | Craftsman | Low A, Low B, High C, High D | Patient, precise executors. Expert taskmasters. | Finance, Compliance |
