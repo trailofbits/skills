@@ -51,7 +51,7 @@ When the path forward is unclear, let the cards speak.
 The script uses `secrets.randbelow()` for cryptographic randomness:
 
 1. Builds a standard 78-card Tarot deck (22 Major Arcana + 56 Minor Arcana)
-2. Performs a Fisher-Yates shuffle using rejection sampling (no modulo bias)
+2. Performs a Fisher-Yates shuffle via `secrets.randbelow()` (no modulo bias)
 3. Draws 4 cards from the top
 4. Each card independently has a 50% chance of being reversed
 
