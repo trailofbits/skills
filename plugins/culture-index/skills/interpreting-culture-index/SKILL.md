@@ -235,6 +235,25 @@ Report to user:
 **Patterns:**
 - `patterns-archetypes.md` - Behavioral patterns, trait combinations, archetypes
 
+**Archetype Deep Profiles** (`archetype-*.md`):
+- `archetype-administrator.md` - The Administrator (High A, High B, Low C, Mid D)
+- `archetype-coordinator.md` - The Coordinator (Low A, High B, Mid C, Low D)
+- `archetype-craftsman.md` - The Craftsman (Low A, Low B, High C, High D)
+- `archetype-daredevil.md` - The Daredevil (High A, Low B, Low C, Low D)
+- `archetype-debater.md` - The Debater (Mid A, Mid-High B, Low C, High D)
+- `archetype-facilitator.md` - The Facilitator (Low A, Mid B, Mid C, Low D)
+- `archetype-influencer.md` - The Influencer (Low A, High B, Low C, Low D)
+- `archetype-operator.md` - The Operator (Low A, Low B, High C, Mid-High D)
+- `archetype-persuader.md` - The Persuader (High A, High B, Low C, Low D)
+- `archetype-philosopher.md` - The Philosopher (Low A, Low B, High C, Low D)
+- `archetype-rainmaker.md` - The Rainmaker (High A, High B, Low C, Low D)
+- `archetype-scholar.md` - The Scholar (High A, Low B, Low C, High D)
+- `archetype-socializer.md` - The Socializer (Low A, High B, Low C, Low D)
+- `archetype-specialist.md` - The Specialist (Low A, Low B, High C, Mid D)
+- `archetype-technical-expert.md` - The Technical Expert (Low A, Low B, High C, Low D)
+- `archetype-traditionalist.md` - The Traditionalist (Low A, Low B, High C, High D)
+- `archetype-trailblazer.md` - The Trailblazer (High A, Mid B, Mid C, Low D)
+
 **Application:**
 - `motivators.md` - How to motivate each trait type
 - `team-composition.md` - Gas, brake, glue framework
