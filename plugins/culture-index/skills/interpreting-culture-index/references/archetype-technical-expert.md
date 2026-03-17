@@ -22,7 +22,7 @@
 
 ## Variations
 
-Technical Expert patterns share Low A + Low B + High C but vary in D position. All variations are private, accuracy-driven, and knowledge-focused. The graphs show consistent low social energy with high analytical drive across variations.
+Technical Expert patterns share Low A + Low B + High C but vary in D position. All variations are private, accuracy-driven, and knowledge-focused, with consistent low social energy and high analytical drive across variations.
 
 ## Summary
 

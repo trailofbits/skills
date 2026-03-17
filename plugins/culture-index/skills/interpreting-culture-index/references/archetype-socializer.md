@@ -17,7 +17,8 @@
 | Motivation | Social interaction, financial rewards, public recognition |
 | Communication | Enthusiastic, conceptual, phone call or text preferred. Sell rather than tell. Voicemail rather than email. |
 | Management Style | Needs direction, no direct reports, delegation. Motivates others easily. Inconsistent behaviors if held to strict schedules. |
-| Organization / Environment | Socially oriented, steady, detail assistance needed. Very loose documentation and organizational skills. |
+| Organization | Very loose documentation and organizational skills. Detail assistance needed. |
+| Environment | Socially oriented, steady atmosphere. People and stable environment. |
 
 ## Variations
 

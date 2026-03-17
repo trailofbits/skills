@@ -17,11 +17,12 @@
 | Motivation | Risk free environment, constant reassurance, private recognition |
 | Communication | Lengthy, factual. Email preferred. Must have their full attention before communicating new information. |
 | Management Style | Needs direction. No direct reports — shies from managing people as it is too confrontative. Task management oriented. |
-| Organization / Environment | Systematic, stable, harmonic. Orderly — usually follows a numeric or alpha system. |
+| Organization | Systematic, orderly. Usually follows a numeric or alpha system. |
+| Environment | Stable, harmonic, consistent. Needs to feel appreciated. Requires direction and removal of fear from new events. |
 
 ## Variations
 
-Traditionalist patterns share Low A + Low B + High C + High D. All variations are diligent, detail-oriented, and risk-averse. The variations shown in the PDF differ in the relative positions of the four traits but maintain the core pattern of low autonomy and sociability with high patience and conformity. Some variations show D extending further right (more rule-bound), while others show slight shifts in B or C positions.
+Traditionalist patterns share Low A + Low B + High C + High D. All variations are diligent, detail-oriented, and risk-averse. Variations differ in the relative positions of the four traits but maintain the core pattern of low autonomy and sociability with high patience and conformity. Some variations show D extending further right (more rule-bound), while others show slight shifts in B or C positions.
 
 ## Summary
 

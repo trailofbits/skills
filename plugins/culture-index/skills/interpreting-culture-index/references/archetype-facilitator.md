@@ -17,7 +17,8 @@
 | Motivation | Social interaction, constant reassurance, recognition |
 | Communication | Detailed, casual, phone call preferred. Open, calm, somewhat chatty and specific with those they know and trust. Current on social trends, can be gossipy. Relaxed demeanor — takes longer to convey specifics. |
 | Management Style | Needs direction. No direct reports. Task management of consistent events. Shies from managing people due to confrontation. |
-| Organization / Environment | Orderly, stable, detail oriented. Usually follows a numeric or alpha system. |
+| Organization | Orderly, detail oriented. Usually follows a numeric or alpha system. |
+| Environment | Stable, consistent, predictable. Needs to feel appreciated. Requires direction and removal of fear from new events. |
 
 ## Variations
 

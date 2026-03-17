@@ -22,7 +22,7 @@
 
 ## Variations
 
-Debater patterns share Mid A + Mid-High B + Low C but vary in D position. The variations on page 2 show different configurations of the A, B, C, D traits, but all maintain the core social-persuasive nature with low analytical drive. Higher D variations are more patient and steady; lower D variations are more restless and risk-taking.
+Debater patterns share Mid A + Mid-High B + Low C but vary in D position. All variations maintain the core social-persuasive nature with low analytical drive. Higher D variations are more patient and steady; lower D variations are more restless and risk-taking.
 
 ## Summary
 

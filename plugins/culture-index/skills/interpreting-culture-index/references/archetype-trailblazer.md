@@ -1,4 +1,4 @@
-# The Trailblazer (High A, Moderate B, Moderate C, Low D)
+# The Trailblazer (High A, Mid B, Mid C, Low D)
 
 **Core:** Proactive, confident self-starter that thrives in competitive situations. Focused on winning and driven to be the best at work or hobbies. Tenacious and determined in conquering objectives. More analytical in thinking style but also comfortable externalizing thoughts in conversation — a deductive thinker who can talk through situations easily with others.
 
