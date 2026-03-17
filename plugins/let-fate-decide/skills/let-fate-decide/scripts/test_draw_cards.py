@@ -203,8 +203,7 @@ def test_no_secure_randbelow_function():
     """Regression: the custom secure_randbelow must be removed."""
     source = Path(__file__).parent / "draw_cards.py"
     text = source.read_text()
-    assert "def secure_randbelow" not in text, \
-        "Custom secure_randbelow still exists"
+    assert "def secure_randbelow" not in text, "Custom secure_randbelow still exists"
 
 
 if __name__ == "__main__":
