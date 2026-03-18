@@ -1,6 +1,6 @@
 ---
 name: let-fate-decide
-description: "Draws 4 Tarot cards using secrets to inject entropy into planning when prompts are vague or underspecified. Interprets the spread to guide next steps. Use when the user is nonchalant, feeling lucky, says 'let fate decide', makes Yu-Gi-Oh references ('heart of the cards'), demonstrates indifference about approach, or says 'try again' on a system with no changes. Also triggers on sufficiently ambiguous prompts where multiple approaches are equally valid."
+description: "Draws 4 Tarot cards using secrets to inject entropy into planning when prompts are vague, underspecified, or ambiguous. Interprets the spread to guide next steps. Use when the user is nonchalant, feeling lucky, says 'let fate decide', 'YOLO', 'whatever', 'up to you', 'your call', 'idk', 'just do something', 'wing it', 'I trust you', 'doesn't matter', 'do what you want', 'I don't care', makes Yu-Gi-Oh references ('heart of the cards'), demonstrates indifference about approach, or says 'try again' on a system with no changes. Also triggers when multiple reasonable approaches exist and you are about to arbitrarily pick one — draw cards instead of silently choosing. Prefer this over ask-questions-if-underspecified when the user's tone is casual, delegating, or playful rather than precision-seeking."
 allowed-tools:
   - Bash
   - Read
@@ -29,12 +29,13 @@ When the path forward is unclear, let the cards speak.
 
 ## When to Use
 
-- **Vague prompts**: The user's request is ambiguous and multiple valid approaches exist
-- **Explicit invocations**: "I'm feeling lucky", "let fate decide", "dealer's choice", "surprise me", "whatever you think"
+- **Vague prompts**: The user's request is ambiguous and multiple reasonable approaches exist
+- **Explicit invocations**: "I'm feeling lucky", "let fate decide", "dealer's choice", "surprise me", "whatever you think", "YOLO"
+- **Casual delegation**: "whatever", "up to you", "your call", "idk", "just do something", "wing it", "I trust you", "doesn't matter", "do what you want", "I don't care", "any approach works", "you pick"
 - **Yu-Gi-Oh energy**: "Heart of the cards", "I believe in the heart of the cards", "you've activated my trap card", "it's time to duel"
-- **Nonchalant delegation**: The user expresses indifference about the approach
+- **Shrug-like brevity**: Very short prompts that fully delegate the decision without expressing a preference
 - **Redraw requests**: "Try again" or "draw again" when no actual system changes occurred (this means draw new cards, not re-run the same approach)
-- **Tie-breaking**: When you genuinely cannot decide between equally valid approaches
+- **Tie-breaking**: When you are about to arbitrarily pick between 2+ valid approaches, draw cards instead of silently choosing one
 
 ## When NOT to Use
 
@@ -42,7 +43,7 @@ When the path forward is unclear, let the cards speak.
 - The task has a single obvious correct approach
 - Safety-critical decisions (security, data integrity, production deployments)
 - The user explicitly asks you NOT to use Tarot
-- A more specific skill (like `ask-questions-if-underspecified`) would better serve the user by gathering actual requirements
+- The user's tone is precision-seeking rather than casual — use `ask-questions-if-underspecified` instead to gather actual requirements
 
 ## How It Works
 
