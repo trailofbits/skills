@@ -1,6 +1,6 @@
 # let-fate-decide
 
-A Claude Code skill that draws Tarot cards using `secrets.randbelow()` to inject
+A Claude Code skill that draws Tarot cards using `secrets` to inject
 entropy into vague or underspecified planning decisions.
 
 ## What It Does
@@ -12,16 +12,17 @@ spread and uses the reading to inform its approach.
 
 ## Triggers
 
-- Vague or underspecified prompts where multiple approaches are equally valid
-- "I'm feeling lucky"
-- "Let fate decide"
-- Nonchalant delegation ("whatever you think", "surprise me", "dealer's choice")
-- Yu-Gi-Oh references ("heart of the cards", "I believe in the heart of the cards")
+- Vague or ambiguous prompts where multiple reasonable approaches exist
+- "I'm feeling lucky", "let fate decide", "dealer's choice", "surprise me", "whatever you think", "YOLO"
+- Casual delegation ("whatever", "up to you", "your call", "idk", "just do something", "wing it", "I trust you", "doesn't matter", "do what you want", "I don't care", "any approach works", "you pick")
+- Yu-Gi-Oh references ("heart of the cards", "I believe in the heart of the cards", "you've activated my trap card", "it's time to duel")
+- Shrug-like brevity -- very short prompts that fully delegate the decision
+- About to arbitrarily pick between 2+ valid approaches (draw cards instead)
 - "Try again" on a system with no actual changes (redraw)
 
 ## How It Works
 
-1. A Python script uses `secrets.randbelow()` to perform a Fisher-Yates shuffle
+1. A Python script uses `secrets` to perform a Fisher-Yates shuffle
 2. 4 cards are drawn from the top of the shuffled deck
 3. Each card has an independent 50% chance of being reversed
 4. Claude reads the drawn cards' meaning files and interprets the spread

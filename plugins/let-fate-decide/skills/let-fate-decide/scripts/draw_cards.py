@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draw Tarot cards using secrets.randbelow() for cryptographic randomness.
+"""Draw Tarot cards using the secrets module for cryptographic randomness.
 
 Shuffles a full 78-card deck via Fisher-Yates and draws 4 from the top.
 Each card has an independent 50/50 chance of being reversed.
@@ -13,7 +13,7 @@ import json
 import secrets
 import sys
 
-MAJOR_ARCANA = [
+MAJOR_ARCANA = (
     ("major", "00-the-fool"),
     ("major", "01-the-magician"),
     ("major", "02-the-high-priestess"),
@@ -36,9 +36,9 @@ MAJOR_ARCANA = [
     ("major", "19-the-sun"),
     ("major", "20-judgement"),
     ("major", "21-the-world"),
-]
+)
 
-RANKS = [
+RANKS = (
     "ace",
     "two",
     "three",
@@ -53,9 +53,9 @@ RANKS = [
     "knight",
     "queen",
     "king",
-]
+)
 
-SUITS = ["wands", "cups", "swords", "pentacles"]
+SUITS = ("wands", "cups", "swords", "pentacles")
 
 
 def build_deck():
@@ -76,12 +76,14 @@ def fisher_yates_shuffle(deck):
 
 
 def is_reversed():
-    """Return True with 50% probability using secrets.randbelow()."""
-    return secrets.randbelow(2) == 1
+    """Return True with 50% probability using secrets.randbits()."""
+    return secrets.randbits(1) == 1
 
 
 def draw(n=4):
     """Shuffle deck and draw n cards, each possibly reversed."""
+    if not isinstance(n, int) or isinstance(n, bool):
+        raise TypeError(f"n must be int, got {type(n).__name__}")
     deck = build_deck()
     fisher_yates_shuffle(deck)
     hand = []
