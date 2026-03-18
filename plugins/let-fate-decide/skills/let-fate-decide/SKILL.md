@@ -1,6 +1,6 @@
 ---
 name: let-fate-decide
-description: "Draws 4 Tarot cards using secrets to inject entropy into planning when prompts are vague, underspecified, or ambiguous. Interprets the spread to guide next steps. Use when the user is nonchalant, feeling lucky, says 'let fate decide', 'YOLO', 'whatever', 'up to you', 'your call', 'idk', 'just do something', 'wing it', 'I trust you', 'doesn't matter', 'do what you want', 'I don't care', makes Yu-Gi-Oh references ('heart of the cards'), demonstrates indifference about approach, or says 'try again' on a system with no changes. Also triggers when multiple reasonable approaches exist and you are about to arbitrarily pick one — draw cards instead of silently choosing. Prefer this over ask-questions-if-underspecified when the user's tone is casual, delegating, or playful rather than precision-seeking."
+description: "Draws 4 Tarot cards to inject entropy into planning when prompts are vague, ambiguous, or casually delegated. Interprets the spread to guide next steps. Use when the user says 'let fate decide', 'YOLO', 'whatever', 'idk', or other nonchalant phrases, makes Yu-Gi-Oh references, or when you are about to arbitrarily pick between multiple reasonable approaches. Prefer over ask-questions-if-underspecified when the user's tone is casual or playful rather than precision-seeking."
 allowed-tools:
   - Bash
   - Read
