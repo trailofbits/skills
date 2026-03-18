@@ -1,6 +1,6 @@
 # let-fate-decide
 
-A Claude Code skill that draws Tarot cards using `os.urandom()` to inject
+A Claude Code skill that draws Tarot cards using `secrets` to inject
 entropy into vague or underspecified planning decisions.
 
 ## What It Does
@@ -21,7 +21,7 @@ spread and uses the reading to inform its approach.
 
 ## How It Works
 
-1. A Python script uses `os.urandom()` to perform a Fisher-Yates shuffle
+1. A Python script uses `secrets` to perform a Fisher-Yates shuffle
 2. 4 cards are drawn from the top of the shuffled deck
 3. Each card has an independent 50% chance of being reversed
 4. Claude reads the drawn cards' meaning files and interprets the spread

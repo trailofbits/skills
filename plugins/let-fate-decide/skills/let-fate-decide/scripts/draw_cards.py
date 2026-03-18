@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draw Tarot cards using os.urandom() for cryptographic randomness.
+"""Draw Tarot cards using the secrets module for cryptographic randomness.
 
 Shuffles a full 78-card deck via Fisher-Yates and draws 4 from the top.
 Each card has an independent 50/50 chance of being reversed.
@@ -10,7 +10,7 @@ Each card has an independent 50/50 chance of being reversed.
 # ///
 
 import json
-import os
+import secrets
 import sys
 
 MAJOR_ARCANA = [
@@ -67,38 +67,17 @@ def build_deck():
     return deck
 
 
-def secure_randbelow(n):
-    """Return a cryptographically random integer in [0, n).
-
-    Uses os.urandom() with rejection sampling to avoid modulo bias.
-    """
-    if n <= 0:
-        raise ValueError("n must be positive")
-    if n == 1:
-        return 0
-    # Number of bytes needed to cover range
-    k = (n - 1).bit_length()
-    num_bytes = (k + 7) // 8
-    # Rejection sampling: discard values >= n to avoid bias
-    while True:
-        raw = int.from_bytes(os.urandom(num_bytes), "big")
-        # Mask to k bits to reduce rejection rate
-        raw = raw & ((1 << k) - 1)
-        if raw < n:
-            return raw
-
-
 def fisher_yates_shuffle(deck):
-    """Shuffle deck in-place using Fisher-Yates with os.urandom()."""
+    """Shuffle deck in-place using Fisher-Yates with secrets.randbelow()."""
     for i in range(len(deck) - 1, 0, -1):
-        j = secure_randbelow(i + 1)
+        j = secrets.randbelow(i + 1)
         deck[i], deck[j] = deck[j], deck[i]
     return deck
 
 
 def is_reversed():
-    """Return True with 50% probability using os.urandom()."""
-    return os.urandom(1)[0] & 1 == 1
+    """Return True with 50% probability using secrets.randbits()."""
+    return secrets.randbits(1) == 1
 
 
 def draw(n=4):
