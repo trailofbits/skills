@@ -148,6 +148,7 @@ def test_uses_secrets_module():
     text = source.read_text()
     assert "import secrets" in text
     assert "secrets.randbelow" in text
+    assert "secrets.randbits" in text
 
 
 def test_cli_default_output():
@@ -203,8 +204,24 @@ def test_no_secure_randbelow_function():
     """Regression: the custom secure_randbelow must be removed."""
     source = Path(__file__).parent / "draw_cards.py"
     text = source.read_text()
-    assert "def secure_randbelow" not in text, \
-        "Custom secure_randbelow still exists"
+    assert "def secure_randbelow" not in text, "Custom secure_randbelow still exists"
+
+
+def test_constants_are_immutable():
+    """Constants must be tuples to prevent mutation."""
+    assert isinstance(draw_cards.MAJOR_ARCANA, tuple), "MAJOR_ARCANA is not a tuple"
+    assert isinstance(draw_cards.RANKS, tuple), "RANKS is not a tuple"
+    assert isinstance(draw_cards.SUITS, tuple), "SUITS is not a tuple"
+
+
+def test_draw_rejects_non_int():
+    """draw() must reject non-int types cleanly."""
+    for bad in [None, "3", 2.5, True, False, [4]]:
+        try:
+            draw_cards.draw(bad)
+            assert False, f"draw({bad!r}) should have raised TypeError"
+        except TypeError:
+            pass
 
 
 if __name__ == "__main__":
