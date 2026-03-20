@@ -85,6 +85,10 @@ Key rules:
 - Major Arcana cards carry more weight than Minor Arcana
 - The spread tells a story across all 4 positions; don't interpret cards in isolation
 - Map abstract meanings to concrete technical decisions
+- **Never output interpretation as a text-only turn.** Include the
+  interpretation alongside your next tool call (the action that
+  implements the chosen option). Read all 4 cards in parallel if
+  possible.
 
 ## Example Session
 
