@@ -313,6 +313,57 @@ apt install gnuplot
 | `-m 1000` | Memory limit in megabytes (default: 0 = unlimited) |
 | `-x ./dict.dict` | Use dictionary file to guide mutations |
 
+## Environment Variables That Matter
+
+AFL++ has [many environment variables](https://aflplus.plus/docs/env_variables/), but most are niche. These are the ones that matter in practice.
+
+### Always Set These
+
+```bash
+# Every campaign should use tmpfs — SSDs will thank you, and it's faster
+AFL_TMPDIR=/dev/shm
+
+# 2.5x faster calibration with negligible precision loss
+AFL_FAST_CAL=1
+```
+
+These are free performance wins with no downsides. Not setting `AFL_TMPDIR` wears out your SSD and slows fuzzing. Not setting `AFL_FAST_CAL` wastes time on startup for marginal precision gains.
+
+### Multi-Core Campaigns
+
+```bash
+# On the primary (-M) instance only
+AFL_FINAL_SYNC=1
+
+# On all instances — share findings faster
+AFL_TESTCACHE_SIZE=100
+```
+
+Without `AFL_FINAL_SYNC`, your primary instance might miss late-discovered paths from secondary instances. Default cache is too small for large campaigns.
+
+### CI/Automated Fuzzing
+
+```bash
+# Fail fast if fuzzing isn't finding anything
+AFL_EXIT_ON_TIME=3600  # 1 hour with no new paths = stop
+
+# Or run until "done" (all queue entries processed)
+AFL_EXIT_WHEN_DONE=1
+
+# Headless environments
+AFL_NO_UI=1
+```
+
+Unbounded fuzzing in CI wastes resources. Set time limits or use exit conditions.
+
+### Variables to Avoid
+
+| Variable | Why Skip It |
+|----------|-------------|
+| `AFL_NO_ARITH` | Rarely helps, can hurt coverage |
+| `AFL_SHUFFLE_QUEUE` | Only for exotic setups, usually harmful |
+| `AFL_DISABLE_TRIM` | Trimming is valuable, don't disable without reason |
+
 ## Multi-Core Fuzzing
 
 AFL++ excels at multi-core fuzzing with two major advantages:
