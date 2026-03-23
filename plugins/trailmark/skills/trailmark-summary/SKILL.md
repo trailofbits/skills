@@ -24,6 +24,15 @@ Runs `trailmark analyze --summary` on a target directory.
 - Detailed code graph queries (use the main `trailmark` skill directly)
 - You need hotspot scores or taint data (use `trailmark-structural`)
 
+## Rationalizations to Reject
+
+| Rationalization | Why It's Wrong | Required Action |
+|-----------------|----------------|-----------------|
+| "I can read the code manually instead" | Manual reading misses dependency graph shape and entry point enumeration | Install and run trailmark |
+| "Language detection doesn't matter" | Wrong language flag produces empty or incorrect analysis | Detect language from file extensions first |
+| "Partial output is good enough" | Missing any of the three required outputs (language, entry points, dependencies) means incomplete analysis | Verify all three are present |
+| "Tool isn't installed, I'll skip it" | This skill exists specifically to run trailmark | Report the installation gap instead of skipping |
+
 ## Usage
 
 The target directory is passed via the `args` parameter.

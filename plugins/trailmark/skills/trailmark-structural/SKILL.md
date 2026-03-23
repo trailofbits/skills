@@ -24,6 +24,15 @@ Runs `trailmark analyze` with all four pre-analysis passes.
 - Ad-hoc code graph queries (use the main `trailmark` skill directly)
 - Target is a single small file where structural analysis adds no value
 
+## Rationalizations to Reject
+
+| Rationalization | Why It's Wrong | Required Action |
+|-----------------|----------------|-----------------|
+| "Summary analysis is enough" | Summary skips taint, blast radius, and privilege boundary data | Run full structural analysis when detailed data is needed |
+| "One pass is sufficient" | Passes cross-reference each other — taint without blast radius misses critical nodes | Run all four passes |
+| "Tool isn't installed, I'll analyze manually" | Manual analysis misses what tooling catches | Install trailmark first |
+| "Empty pass output means the pass failed" | Some passes produce no data for some codebases (e.g., no privilege boundaries) | Return full output regardless |
+
 ## Usage
 
 The target directory is passed via the `args` parameter.
