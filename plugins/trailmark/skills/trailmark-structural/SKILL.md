@@ -1,0 +1,77 @@
+---
+name: trailmark-structural
+description: "Runs full trailmark structural analysis with all pre-analysis passes (blast radius, taint propagation, privilege boundaries, complexity hotspots). Use when vivisect needs detailed structural data for a target. Triggers: structural analysis, blast radius, taint analysis, complexity hotspots."
+allowed-tools:
+  - Bash
+  - Read
+  - Grep
+  - Glob
+---
+
+# Trailmark Structural Analysis
+
+Runs `trailmark analyze` with all four pre-analysis passes.
+
+## When to Use
+
+- Vivisect Phase 1 needs full structural data (hotspots, taint, blast radius, privilege boundaries)
+- Detailed pre-analysis passes for a specific target scope
+- Generating complexity and taint data for audit prioritization
+
+## When NOT to Use
+
+- Quick overview only (use `trailmark-summary` instead)
+- Ad-hoc code graph queries (use the main `trailmark` skill directly)
+- Target is a single small file where structural analysis adds no value
+
+## Usage
+
+The target directory is passed via the `args` parameter.
+
+## Execution
+
+**Step 1: Check that trailmark is available.**
+
+```bash
+trailmark analyze --help 2>/dev/null || \
+  uv run trailmark analyze --help 2>/dev/null
+```
+
+If neither command works, report "trailmark is not installed"
+and return. Do NOT run `pip install`, `uv pip install`,
+`git clone`, or any install command. The user must install
+trailmark themselves.
+
+**Step 2: Detect the primary language.**
+
+```bash
+find {args} -type f \( -name '*.rs' -o -name '*.py' \
+  -o -name '*.go' -o -name '*.js' -o -name '*.ts' \
+  -o -name '*.sol' -o -name '*.lean' -o -name '*.c' \
+  -o -name '*.cpp' \) 2>/dev/null | \
+  sed 's/.*\.//' | sort | uniq -c | sort -rn | head -5
+```
+
+Map to language flag (same as trailmark-summary).
+
+**Step 3: Run the full structural analysis.**
+
+```bash
+trailmark analyze \
+  --passes blast_radius,taint,privilege_boundary,complexity \
+  {language_flag} {args} 2>&1 || \
+uv run trailmark analyze \
+  --passes blast_radius,taint,privilege_boundary,complexity \
+  {language_flag} {args} 2>&1
+```
+
+**Step 4: Verify the output.**
+
+The output should include:
+- Hotspot scores (complexity data)
+- Tainted node list (taint propagation data)
+- Blast radius data
+- Privilege boundary information
+
+Some passes may produce no data for some codebases (this is
+normal). Return the full output regardless.
