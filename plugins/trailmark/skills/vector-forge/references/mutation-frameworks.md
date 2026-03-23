@@ -774,5 +774,5 @@ Normalize each finding before feeding into Phase 3 triage:
 
 The `source` field distinguishes necessist findings from mutation testing
 results during triage and reporting. Map the removed statement to a
-production function using the algorithm in
-[graph-analysis.md](../../genotoxic/references/graph-analysis.md).
+production function using the graph analysis algorithm described in the
+`genotoxic` skill.

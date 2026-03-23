@@ -42,7 +42,7 @@ flowchart TB
 **Script invocation:**
 
 ```bash
-python {baseDir}/scripts/diagram.py \
+uv run {baseDir}/scripts/diagram.py \
     --target {targetDir} --type call-graph \
     --focus QueryEngine --depth 2
 ```
@@ -75,7 +75,7 @@ classDiagram
 **Script invocation:**
 
 ```bash
-python {baseDir}/scripts/diagram.py \
+uv run {baseDir}/scripts/diagram.py \
     --target {targetDir} --type class-hierarchy
 ```
 
@@ -103,7 +103,7 @@ flowchart LR
 **Script invocation:**
 
 ```bash
-python {baseDir}/scripts/diagram.py \
+uv run {baseDir}/scripts/diagram.py \
     --target {targetDir} --type module-deps --direction LR
 ```
 
@@ -130,7 +130,7 @@ classDiagram
 **Script invocation:**
 
 ```bash
-python {baseDir}/scripts/diagram.py \
+uv run {baseDir}/scripts/diagram.py \
     --target {targetDir} --type containment
 ```
 
@@ -163,7 +163,7 @@ flowchart TB
 **Script invocation:**
 
 ```bash
-python {baseDir}/scripts/diagram.py \
+uv run {baseDir}/scripts/diagram.py \
     --target {targetDir} --type complexity --threshold 5
 ```
 
@@ -196,11 +196,11 @@ flowchart TB
 
 ```bash
 # Focus on a specific sensitive function
-python {baseDir}/scripts/diagram.py \
+uv run {baseDir}/scripts/diagram.py \
     --target {targetDir} --type data-flow \
     --focus execute_query
 
 # Auto-detect: entrypoints to top complexity hotspots
-python {baseDir}/scripts/diagram.py \
+uv run {baseDir}/scripts/diagram.py \
     --target {targetDir} --type data-flow
 ```

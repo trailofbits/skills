@@ -164,8 +164,8 @@ Run the diff script on the two exported JSON files (using the same
 
 ```bash
 python {baseDir}/scripts/graph_diff.py \
-    --before "$BEFORE_JSON" \
-    --after "$AFTER_JSON" > "$WORK_DIR/evolution_diff.json"
+    --before "{before_json}" \
+    --after "{after_json}" > "{work_dir}/evolution_diff.json"
 ```
 
 The output JSON contains:

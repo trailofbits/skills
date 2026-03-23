@@ -32,7 +32,7 @@ trailmark/
 ├── README.md
 └── skills/
     ├── trailmark/                    # Core graph querying
-    ├── diagram/                      # Mermaid diagram generation
+    ├── diagramming-code/              # Mermaid diagram generation
     │   └── scripts/diagram.py
     ├── crypto-protocol-diagram/      # Protocol flow extraction
     │   └── examples/
