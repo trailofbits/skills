@@ -154,6 +154,11 @@ fun hash(bitstring): bitstring.
 (* DH *)
 fun dh(skey, pkey): key.
 fun dhpk(skey): pkey.
+
+(* Serialization — ProVerif is strongly typed: pkey cannot appear
+ * where bitstring is expected. Use these to build signed payloads. *)
+fun pkey2bs(pkey): bitstring.
+fun concat(bitstring, bitstring): bitstring.
 ```
 
 4. **Equations** — algebraic identities on constructors only (not on destructors,
@@ -266,22 +271,23 @@ let Initiator(sk_I: skey, pk_R: pkey) =
     (* Step: generate ephemeral key *)
     new ek_I: skey;
     let epk_I = dhpk(ek_I) in
-    (* Step: sign and send msg1 *)
-    let sig_I = sign((msg1_label, epk_I), sk_I) in
+    (* Step: sign and send msg1 — pkey2bs casts pkey to bitstring *)
+    let sig_I = sign(concat(msg1_label, pkey2bs(epk_I)), sk_I) in
     out(c, (epk_I, sig_I));
     (* Step: receive msg2 *)
     in(c, (epk_R: pkey, sig_R: bitstring));
-    (* Step: verify responder signature *)
-    let (=msg2_label, =epk_I, =epk_R) = verify(sig_R, (msg2_label, epk_I, epk_R), pk_R) in
+    (* Step: verify responder signature — destructor aborts on failure *)
+    let transcript = concat(pkey2bs(epk_I), pkey2bs(epk_R)) in
+    let _ = verify(sig_R, concat(msg2_label, transcript), pk_R) in
     (* Step: derive session key *)
     let dh_val = dh(ek_I, epk_R) in
-    let sk_session = hkdf((dh_val, epk_I, epk_R), info_session_key) in
+    let sk_session = hkdf(dh_val, concat(info_session_key, transcript)) in
     event endInitiator(pk(sk_I), pk_R, sk_session);
     (* Secrecy witness: encrypt a fresh secret under the session key.
      * The query attacker(secret_I) checks that the attacker cannot read it.
      * See references/security-properties.md for the full secrecy query pattern. *)
     new secret_I: bitstring;
-    out(c, senc(secret_I, sk_session)).
+    out(c, aead_enc(secret_I, sk_session)).
 ```
 
 **Rules for writing processes:**

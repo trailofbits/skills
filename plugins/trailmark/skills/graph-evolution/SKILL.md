@@ -163,7 +163,7 @@ Run the diff script on the two exported JSON files (using the same
 `work_dir` from Phase 2):
 
 ```bash
-python {baseDir}/scripts/graph_diff.py \
+python3 {baseDir}/scripts/graph_diff.py \
     --before "{before_json}" \
     --after "{after_json}" > "{work_dir}/evolution_diff.json"
 ```
@@ -231,7 +231,7 @@ git worktree remove "$AFTER_DIR"
 ## Diff Script Reference
 
 ```
-python {baseDir}/scripts/graph_diff.py [OPTIONS]
+python3 {baseDir}/scripts/graph_diff.py [OPTIONS]
 ```
 
 | Argument | Default | Description |

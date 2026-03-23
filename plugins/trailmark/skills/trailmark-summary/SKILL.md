@@ -58,7 +58,8 @@ Map the most common extension to a language flag:
 - `.rs` -> `--language rust`
 - `.py` -> (no flag, Python is default)
 - `.go` -> `--language go`
-- `.js`/`.ts` -> `--language javascript`
+- `.js` -> `--language javascript`
+- `.ts` -> `--language typescript`
 - `.sol` -> `--language solidity`
 - `.c` -> `--language c`
 - `.cpp` -> `--language cpp`
