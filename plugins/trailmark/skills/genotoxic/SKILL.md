@@ -53,7 +53,7 @@ false positives, missing unit tests, and fuzzing targets.
 
 ---
 
-## Rationalizations (Do Not Skip)
+## Rationalizations to Reject
 
 | Rationalization | Why It's Wrong | Required Action |
 |-----------------|----------------|-----------------|

@@ -38,7 +38,7 @@ Measures effectiveness by comparing mutation kill rates before and after.
 
 ---
 
-## Rationalizations (Do Not Skip)
+## Rationalizations to Reject
 
 | Rationalization | Why It's Wrong | Required Action |
 |-----------------|----------------|-----------------|

@@ -28,7 +28,7 @@ Mermaid `sequenceDiagram` annotated with cryptographic operations (`Sign`,
 - User wants to verify properties of non-cryptographic systems (state machines, access control)
 - User wants to run ProVerif on an existing .pv file — just run `proverif model.pv` directly
 
-## Rationalizations (Do Not Skip)
+## Rationalizations to Reject
 
 | Rationalization | Why It's Wrong | Required Action |
 |-----------------|----------------|-----------------|
@@ -272,7 +272,7 @@ let Initiator(sk_I: skey, pk_R: pkey) =
     (* Step: receive msg2 *)
     in(c, (epk_R: pkey, sig_R: bitstring));
     (* Step: verify responder signature *)
-    if verify(sig_R, (msg2_label, epk_I, epk_R), pk_R) = true then
+    let (=msg2_label, =epk_I, =epk_R) = verify(sig_R, (msg2_label, epk_I, epk_R), pk_R) in
     (* Step: derive session key *)
     let dh_val = dh(ek_I, epk_R) in
     let sk_session = hkdf((dh_val, epk_I, epk_R), info_session_key) in
@@ -290,8 +290,8 @@ let Initiator(sk_I: skey, pk_R: pkey) =
   - `out(c, msg_contents)` in A's process
   - `in(c, x)` (with matching destructuring) in B's process
 - Each `Note over A: op → result` becomes a `let result = op in` binding
-- Each `Note over A: Verify(...)` becomes an `if verify(...) = true then`
-  branch (the `else` branch is implicit — the process simply stops on failure,
+- Each `Note over A: Verify(...)` becomes a `let _ = verify(...) in`
+  binding (the destructor aborts on failure — no explicit else needed,
   modeling abort)
 - Use `alt` blocks in the diagram as `if/then/else` in the process
 - Long-term keys are process parameters; ephemeral values use `new`

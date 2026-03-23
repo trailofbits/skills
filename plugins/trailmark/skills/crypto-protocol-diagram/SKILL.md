@@ -34,7 +34,7 @@ For call graphs, class hierarchies, or module dependency maps, use the
 - User wants to formally verify a protocol — use `mermaid-to-proverif` (after generating the diagram)
 - Input has no cryptographic protocol semantics (no parties, no message exchange)
 
-## Rationalizations (Do Not Skip)
+## Rationalizations to Reject
 
 | Rationalization | Why It's Wrong | Required Action |
 |-----------------|----------------|-----------------|

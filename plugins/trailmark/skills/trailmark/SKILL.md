@@ -25,7 +25,7 @@ semantic metadata for security analysis. Supports 16 languages.
 - Mutation testing triage (use the genotoxic skill, which calls trailmark internally)
 - Runtime behavior analysis (trailmark is static, not dynamic)
 
-## Rationalizations (Do Not Skip)
+## Rationalizations to Reject
 
 | Rationalization | Why It's Wrong | Required Action |
 |-----------------|----------------|-----------------|

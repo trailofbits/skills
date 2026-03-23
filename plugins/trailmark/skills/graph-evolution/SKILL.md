@@ -33,7 +33,7 @@ taint propagation changes, and privilege boundary modifications.
 - Diagram generation from a single snapshot (use the `diagramming-code` skill)
 - Mutation testing triage (use the `genotoxic` skill)
 
-## Rationalizations (Do Not Skip)
+## Rationalizations to Reject
 
 | Rationalization | Why It's Wrong | Required Action |
 |-----------------|----------------|-----------------|

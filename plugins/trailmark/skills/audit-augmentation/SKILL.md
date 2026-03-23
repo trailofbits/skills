@@ -29,7 +29,7 @@ onto Trailmark code graphs as annotations and subgraphs.
 - Building the code graph itself (use the `trailmark` skill)
 - Generating diagrams (use the `diagramming-code` skill after augmenting)
 
-## Rationalizations (Do Not Skip)
+## Rationalizations to Reject
 
 | Rationalization | Why It's Wrong | Required Action |
 |-----------------|----------------|-----------------|

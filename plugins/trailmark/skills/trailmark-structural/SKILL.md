@@ -47,12 +47,15 @@ trailmark themselves.
 ```bash
 find {args} -type f \( -name '*.rs' -o -name '*.py' \
   -o -name '*.go' -o -name '*.js' -o -name '*.ts' \
-  -o -name '*.sol' -o -name '*.lean' -o -name '*.c' \
-  -o -name '*.cpp' \) 2>/dev/null | \
+  -o -name '*.sol' -o -name '*.c' -o -name '*.cpp' \
+  -o -name '*.rb' -o -name '*.php' -o -name '*.cs' \
+  -o -name '*.java' -o -name '*.hs' -o -name '*.erl' \
+  -o -name '*.cairo' -o -name '*.circom' \) 2>/dev/null | \
   sed 's/.*\.//' | sort | uniq -c | sort -rn | head -5
 ```
 
-Map to language flag (same as trailmark-summary).
+Map to language flag (same as trailmark-summary). Note: `.c` maps
+to `--language c`, `.cpp` maps to `--language cpp` (separate parsers).
 
 **Step 3: Run the full structural analysis.**
 
