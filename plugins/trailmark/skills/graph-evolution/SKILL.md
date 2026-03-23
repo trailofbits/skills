@@ -33,6 +33,19 @@ taint propagation changes, and privilege boundary modifications.
 - Diagram generation from a single snapshot (use the `diagramming-code` skill)
 - Mutation testing triage (use the `genotoxic` skill)
 
+## Rationalizations (Do Not Skip)
+
+| Rationalization | Why It's Wrong | Required Action |
+|-----------------|----------------|-----------------|
+| "We just need the structural diff, skip pre-analysis" | Without pre-analysis, you miss taint changes, blast radius growth, and privilege boundary shifts | Run `engine.preanalysis()` on both snapshots |
+| "Text diff covers what changed" | Text diffs miss new attack paths, transitive complexity shifts, and subgraph membership changes | Use structural diff to complement text diff |
+| "Only added nodes matter" | Removed security functions and shifted privilege boundaries are equally dangerous | Review removals and modifications, not just additions |
+| "Low-severity structural changes can be ignored" | INFO-level changes (dead code removal) can mask removed security checks | Classify every change, review removals for replaced functionality |
+| "One snapshot's graph is enough for comparison" | Single-snapshot analysis can't detect evolution — you need both before and after | Always build and export both graphs |
+| "Tool isn't installed, I'll compare manually" | Manual comparison misses what graph analysis catches | Install trailmark first |
+
+---
+
 ## Prerequisites
 
 **trailmark** must be installed. If `uv run trailmark` fails, run:

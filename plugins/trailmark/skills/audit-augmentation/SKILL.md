@@ -29,6 +29,19 @@ onto Trailmark code graphs as annotations and subgraphs.
 - Building the code graph itself (use the `trailmark` skill)
 - Generating diagrams (use the `diagramming-code` skill after augmenting)
 
+## Rationalizations (Do Not Skip)
+
+| Rationalization | Why It's Wrong | Required Action |
+|-----------------|----------------|-----------------|
+| "The user only asked about SARIF, skip pre-analysis" | Without pre-analysis, you can't cross-reference findings with blast radius or taint | Always run `engine.preanalysis()` before augmenting |
+| "Unmatched findings don't matter" | Unmatched findings may indicate parsing gaps or out-of-scope files | Report unmatched count and investigate if high |
+| "One severity subgraph is enough" | Different severities need different triage workflows | Query all severity subgraphs, not just `error` |
+| "SARIF results speak for themselves" | Findings without graph context lack blast radius and taint reachability | Cross-reference with pre-analysis subgraphs |
+| "weAudit and SARIF overlap, pick one" | Human auditors and tools find different things | Import both when available |
+| "Tool isn't installed, I'll do it manually" | Manual analysis misses what tooling catches | Install trailmark first |
+
+---
+
 ## Installation
 
 **MANDATORY:** If `uv run trailmark` fails, install trailmark first:

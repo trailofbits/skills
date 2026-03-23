@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.13"
+# requires-python = ">=3.12"
 # dependencies = ["trailmark"]
 # ///
 """Generate Mermaid diagrams from Trailmark code graphs.

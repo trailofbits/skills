@@ -34,6 +34,17 @@ For call graphs, class hierarchies, or module dependency maps, use the
 - User wants to formally verify a protocol — use `mermaid-to-proverif` (after generating the diagram)
 - Input has no cryptographic protocol semantics (no parties, no message exchange)
 
+## Rationalizations (Do Not Skip)
+
+| Rationalization | Why It's Wrong | Required Action |
+|-----------------|----------------|-----------------|
+| "The protocol is simple, I can diagram from memory" | Memory-based diagrams miss steps and invert arrows | Read the source or spec systematically |
+| "I'll skip the spec path since code exists" | Code may diverge from the spec — both paths catch different bugs | When both exist, run spec workflow first, then annotate code divergences |
+| "Crypto annotations are optional decoration" | Without crypto annotations, the diagram is just a message flow — useless for security review | Annotate every cryptographic operation |
+| "The abort path is obvious, no need for alt blocks" | Implicit abort handling hides missing error checks | Show every abort/error path with `alt` blocks |
+| "I don't need to check the examples first" | The examples define the expected output quality bar | Study the relevant example before working on unfamiliar input |
+| "ProVerif/Tamarin models are code, not specs" | Formal models are specifications — they describe intended behavior, not implementation | Use the spec workflow (S1–S5) for `.pv` and `.spthy` files |
+
 ---
 
 ## Workflow

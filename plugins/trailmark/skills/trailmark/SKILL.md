@@ -25,6 +25,19 @@ semantic metadata for security analysis. Supports 16 languages.
 - Mutation testing triage (use the genotoxic skill, which calls trailmark internally)
 - Runtime behavior analysis (trailmark is static, not dynamic)
 
+## Rationalizations (Do Not Skip)
+
+| Rationalization | Why It's Wrong | Required Action |
+|-----------------|----------------|-----------------|
+| "I'll just read the source files manually" | Manual reading misses call paths, blast radius, and taint data | Install trailmark and use the API |
+| "Pre-analysis isn't needed for a quick query" | Blast radius, taint, and privilege data are only available after `preanalysis()` | Always run `engine.preanalysis()` before handing off to other skills |
+| "The graph is too large, I'll sample" | Sampling misses cross-module attack paths | Build the full graph; use subgraph queries to focus |
+| "Uncertain edges don't matter" | Dynamic dispatch is where type confusion bugs hide | Account for `uncertain` edges in security claims |
+| "Single-language analysis is enough" | Polyglot repos have FFI boundaries where bugs cluster | Use the correct `--language` flag per component |
+| "Complexity hotspots are the only thing worth checking" | Low-complexity functions on tainted paths are high-value targets | Combine complexity with taint and blast radius data |
+
+---
+
 ## Installation
 
 **MANDATORY:** If `uv run trailmark` fails (command not found, import error,

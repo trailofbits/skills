@@ -28,6 +28,17 @@ Mermaid `sequenceDiagram` annotated with cryptographic operations (`Sign`,
 - User wants to verify properties of non-cryptographic systems (state machines, access control)
 - User wants to run ProVerif on an existing .pv file — just run `proverif model.pv` directly
 
+## Rationalizations (Do Not Skip)
+
+| Rationalization | Why It's Wrong | Required Action |
+|-----------------|----------------|-----------------|
+| "Reachability queries are just busywork" | If events aren't reachable, all other query results are meaningless | Always add reachability queries first as a sanity check |
+| "Public channels are fine for all messages" | Private channels for internal state prevent false attacks | Use private channels for intra-process state threading |
+| "I'll skip the forward secrecy test" | Ephemeral keys demand forward secrecy verification | Add the ForwardSecrecyTest process whenever the diagram shows ephemeral keys |
+| "Unused declarations are harmless" | ProVerif may report spurious results from orphan declarations | Clean up all unused types, functions, and events |
+| "The model compiles, so it's correct" | A compiling model can have dead receives, type mismatches, or impossible guards that make queries vacuously true | Validate reachability before trusting any security query |
+| "I don't need to check the example first" | The example defines the expected output quality bar | Study `examples/simple-handshake/` before working on unfamiliar protocols |
+
 ---
 
 ## Workflow
