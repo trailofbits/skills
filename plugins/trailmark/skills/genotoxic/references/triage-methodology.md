@@ -253,8 +253,8 @@ providing broader coverage.
 
 Necessist findings differ from mutation testing: they identify test
 statements whose removal doesn't cause test failure. Triage maps each
-removal to a production function (see
-[graph-analysis.md](graph-analysis.md)) and then classifies it.
+removal to a production function using the graph analysis algorithm
+and then classifies it.
 
 ### False Positive Detection (Necessist)
 

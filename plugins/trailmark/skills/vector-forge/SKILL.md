@@ -26,6 +26,10 @@ Measures effectiveness by comparing mutation kill rates before and after.
 
 ## Prerequisites
 
+- **trailmark** installed — if `uv run trailmark` fails, run:
+  ```bash
+  uv pip install trailmark
+  ```
 - At least one implementation of the target algorithm in a
   language with mutation testing support
 - A test harness that consumes test vectors and exercises
@@ -208,10 +212,10 @@ triaging mutations:
 
 ```bash
 # Go
-trailmark analyze --language go --summary /path/to/impl
+uv run trailmark analyze --language go --summary {targetDir}
 
 # Rust
-trailmark analyze --language rust --summary /path/to/impl
+uv run trailmark analyze --language rust --summary {targetDir}
 ```
 
 The graph provides:

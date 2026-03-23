@@ -77,7 +77,7 @@ Alice                    Bob
    |  [on verify failure] |
    |                      | (abort)
 
-⚠️ Tamarin/ProVerif note: all messages transit adversary network (Dolev-Yao model)
+⚠️ ProVerif note: all messages transit adversary network (Dolev-Yao model)
 ```
 
 ## Protocol Summary

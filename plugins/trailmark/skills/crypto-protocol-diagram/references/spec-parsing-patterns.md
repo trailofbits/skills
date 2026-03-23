@@ -172,8 +172,7 @@ Informal descriptions vary the most. Apply these heuristics systematically.
 
 ### Extracting message flow — sentence patterns
 
-Arrow syntax in the table below maps to Mermaid; see
-[mermaid-sequence-syntax.md](mermaid-sequence-syntax.md) for full details.
+Arrow syntax in the table below maps to Mermaid (`->>` solid, `-->>` dashed).
 
 | Pattern | Arrow |
 |---------|-------|

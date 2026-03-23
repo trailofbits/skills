@@ -5,7 +5,7 @@
 """Generate Mermaid diagrams from Trailmark code graphs.
 
 Thin wrapper — all logic lives in ``trailmark.diagram``.
-Run via ``uv run python {this_file} --target ... --type ...``.
+Run via ``uv run {this_file} --target ... --type ...``.
 """
 
 from __future__ import annotations

@@ -74,7 +74,7 @@ Arrow syntax varies by edge confidence:
 |---|---|---|
 | `certain` | `-->` | Direct call or `self.method()` |
 | `inferred` | `-.->` | Attribute access on non-self object |
-| `uncertain` | `-.->` | Dynamic dispatch, reflection |
+| `uncertain` | `..->` | Dynamic dispatch, reflection |
 
 For class diagrams, arrows are different:
 - `<\|--` = inherits

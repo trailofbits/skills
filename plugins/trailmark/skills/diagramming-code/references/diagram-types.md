@@ -24,7 +24,7 @@ produce unreadable diagrams. Start with `--depth 2` and increase if needed.
 **Arrow styles reflect edge confidence:**
 - Solid (`-->`) = certain (direct call)
 - Dashed (`-.->`) = inferred (attribute access on non-self)
-- Dotted (`..->`)) = uncertain (dynamic dispatch)
+- Dotted (`..->`) = uncertain (dynamic dispatch)
 
 **Example output:**
 

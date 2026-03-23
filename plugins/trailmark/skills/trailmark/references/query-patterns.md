@@ -9,7 +9,7 @@ Find all entrypoints and trace what they can reach:
 ```python
 from trailmark.query.api import QueryEngine
 
-engine = QueryEngine.from_directory("path/to/project")
+engine = QueryEngine.from_directory("{targetDir}")
 
 # All entrypoints
 for ep in engine.attack_surface():
@@ -83,27 +83,27 @@ Analyze non-Python projects by specifying the language:
 ```python
 from trailmark.query.api import QueryEngine
 
-engine = QueryEngine.from_directory("path/to/project", language="rust")
-engine = QueryEngine.from_directory("path/to/project", language="go")
-engine = QueryEngine.from_directory("path/to/project", language="typescript")
+engine = QueryEngine.from_directory("{targetDir}", language="rust")
+engine = QueryEngine.from_directory("{targetDir}", language="go")
+engine = QueryEngine.from_directory("{targetDir}", language="typescript")
 ```
 
 Supported `--language` values: `python`, `javascript`, `typescript`, `php`,
 `ruby`, `c`, `cpp`, `c_sharp`, `java`, `go`, `rust`, `solidity`, `cairo`,
-`haskell`, `erlang`.
+`haskell`, `circom`, `erlang`.
 
 ## 8. CLI Patterns
 
 ```bash
 # Quick summary (Python, default)
-trailmark analyze --summary path/to/project
+uv run trailmark analyze --summary {targetDir}
 
 # Analyze other languages
-trailmark analyze --language rust --summary path/to/project
-trailmark analyze --language go --complexity 8 path/to/project
+uv run trailmark analyze --language rust --summary {targetDir}
+uv run trailmark analyze --language go --complexity 8 {targetDir}
 
 # Full JSON output for piping to other tools
-trailmark analyze path/to/project | jq '.nodes | to_entries[] | select(.value.cyclomatic_complexity > 10)'
+uv run trailmark analyze {targetDir} | jq '.nodes | to_entries[] | select(.value.cyclomatic_complexity > 10)'
 ```
 
 ## 9. Annotation Workflow
@@ -130,7 +130,8 @@ engine.clear_annotations("handle_request", kind=AnnotationKind.ASSUMPTION)
 engine.clear_annotations("handle_request")
 ```
 
-**Annotation kinds:** `ASSUMPTION`, `PRECONDITION`, `POSTCONDITION`, `INVARIANT`
+**Annotation kinds:** `ASSUMPTION`, `PRECONDITION`, `POSTCONDITION`, `INVARIANT`.
+Pre-analysis adds: `BLAST_RADIUS`, `PRIVILEGE_BOUNDARY`, `TAINT_PROPAGATION`.
 
 **Source convention:** Use `"llm"` for LLM-inferred annotations, `"docstring"`
 for annotations extracted from source, `"manual"` for human-added annotations.
