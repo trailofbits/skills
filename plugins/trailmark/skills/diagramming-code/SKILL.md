@@ -47,7 +47,7 @@ report the error to the user.
 ## Quick Start
 
 ```bash
-python {baseDir}/scripts/diagram.py \
+uv run {baseDir}/scripts/diagram.py \
     --target {targetDir} --type call-graph \
     --focus main --depth 2
 ```
@@ -123,7 +123,7 @@ contains at least one node. If empty or malformed, consult
 ## Script Reference
 
 ```
-python {baseDir}/scripts/diagram.py [OPTIONS]
+uv run {baseDir}/scripts/diagram.py [OPTIONS]
 ```
 
 | Argument | Short | Default | Description |
@@ -140,22 +140,22 @@ python {baseDir}/scripts/diagram.py [OPTIONS]
 
 ```bash
 # Call graph centered on a function
-python {baseDir}/scripts/diagram.py -t src/ -T call-graph -f parse_file
+uv run {baseDir}/scripts/diagram.py -t src/ -T call-graph -f parse_file
 
 # Class hierarchy for a Rust project
-python {baseDir}/scripts/diagram.py -t src/ -l rust -T class-hierarchy
+uv run {baseDir}/scripts/diagram.py -t src/ -l rust -T class-hierarchy
 
 # Module dependency map, left-to-right
-python {baseDir}/scripts/diagram.py -t src/ -T module-deps --direction LR
+uv run {baseDir}/scripts/diagram.py -t src/ -T module-deps --direction LR
 
 # Class members
-python {baseDir}/scripts/diagram.py -t src/ -T containment
+uv run {baseDir}/scripts/diagram.py -t src/ -T containment
 
 # Complexity heatmap (threshold 5)
-python {baseDir}/scripts/diagram.py -t src/ -T complexity --threshold 5
+uv run {baseDir}/scripts/diagram.py -t src/ -T complexity --threshold 5
 
 # Data flow from entrypoints to a specific function
-python {baseDir}/scripts/diagram.py -t src/ -T data-flow -f execute_query
+uv run {baseDir}/scripts/diagram.py -t src/ -T data-flow -f execute_query
 ```
 
 ---
