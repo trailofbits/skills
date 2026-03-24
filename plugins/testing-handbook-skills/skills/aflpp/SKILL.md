@@ -323,11 +323,11 @@ AFL++ has [many environment variables](https://aflplus.plus/docs/env_variables/)
 # Every campaign should use tmpfs — SSDs will thank you, and it's faster
 AFL_TMPDIR=/dev/shm
 
-# 2.5x faster calibration with negligible precision loss
+# Faster calibration — recommended for slow targets
 AFL_FAST_CAL=1
 ```
 
-These are free performance wins with no downsides. Not setting `AFL_TMPDIR` wears out your SSD and slows fuzzing. Not setting `AFL_FAST_CAL` wastes time on startup for marginal precision gains.
+`AFL_TMPDIR` is a free performance win with no downsides — not setting it wears out your SSD and slows fuzzing. `AFL_FAST_CAL` speeds up calibration by ~2.5x with negligible precision loss, especially useful for slow targets.
 
 ### Multi-Core Campaigns
 
@@ -335,11 +335,11 @@ These are free performance wins with no downsides. Not setting `AFL_TMPDIR` wear
 # On the primary (-M) instance only
 AFL_FINAL_SYNC=1
 
-# On all instances — share findings faster
+# On all instances — share findings faster (default: 50 MB, good range: 50-250)
 AFL_TESTCACHE_SIZE=100
 ```
 
-Without `AFL_FINAL_SYNC`, your primary instance might miss late-discovered paths from secondary instances. Default cache is too small for large campaigns.
+`AFL_FINAL_SYNC` ensures the primary instance does a final import from secondary instances, which is important for `afl-cmin` corpus minimization. `AFL_TESTCACHE_SIZE` defaults to 50 MB; values between 50-250 MB work well for large campaigns.
 
 ### CI/Automated Fuzzing
 
@@ -360,7 +360,7 @@ Unbounded fuzzing in CI wastes resources. Set time limits or use exit conditions
 
 | Variable | Why Skip It |
 |----------|-------------|
-| `AFL_NO_ARITH` | Rarely helps, can hurt coverage |
+| `AFL_NO_ARITH` | Can hurt coverage on binary formats; may help for text-based targets |
 | `AFL_SHUFFLE_QUEUE` | Only for exotic setups, usually harmful |
 | `AFL_DISABLE_TRIM` | Trimming is valuable, don't disable without reason |
 
