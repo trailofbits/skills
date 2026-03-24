@@ -131,10 +131,10 @@ fun adec(bitstring, skey): bitstring
 fun pk(skey): pkey.
 
 (* Symmetric encryption / AEAD *)
-fun senc(bitstring, key): bitstring.
-fun sdec(bitstring, key): bitstring
+fun aead_enc(bitstring, key): bitstring.
+fun aead_dec(bitstring, key): bitstring
     reduc forall m: bitstring, k: key;
-        sdec(senc(m, k), k) = m.
+        aead_dec(aead_enc(m, k), k) = m.
 
 (* Digital signatures — verify returns the message on success, aborts on failure *)
 fun sign(bitstring, skey): bitstring.
@@ -142,8 +142,8 @@ fun verify(bitstring, bitstring, pkey): bitstring
     reduc forall m: bitstring, k: skey;
         verify(sign(m, k), m, pk(k)) = m.
 
-(* KDF *)
-fun hkdf(bitstring, bitstring): key.
+(* KDF — first arg is key (from DH), second is bitstring (info/context) *)
+fun hkdf(key, bitstring): key.
 
 (* MAC *)
 fun mac(bitstring, key): bitstring.

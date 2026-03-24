@@ -101,14 +101,14 @@ domain-separation info.
 
 ```proverif
 (* Function declaration *)
-fun hkdf(bitstring, bitstring): key.
+fun hkdf(key, bitstring): key.
 
 (* Constants for domain separation labels *)
 const info_session_key: bitstring.
 const info_handshake: bitstring.
 
 (* In process — concatenate IKM and call hkdf *)
-let sk_session = hkdf((dh_val, epk_A, epk_B), info_session_key) in
+let sk_session = hkdf(dh_val, concat(info_session_key, concat(pkey2bs(epk_A), pkey2bs(epk_B)))) in
 ```
 
 **Tuple vs concatenation:** Use tuples `(a, b, c)` rather than a `concat`
@@ -355,7 +355,7 @@ proofs).
 | `keygen() → sk, pk` | `pk(skey): pkey` | No |
 | `keygen() → ek, epk` | `dhpk(skey): pkey` | No |
 | `DH(ek, epk)` | `dh(skey, pkey): key` | Yes — commutativity |
-| `HKDF(ikm, info)` | `hkdf(bitstring, bitstring): key` | No |
+| `HKDF(ikm, info)` | `hkdf(key, bitstring): key` | No |
 | `Sign(sk, msg)` | `sign(bitstring, skey): bitstring` | No |
 | `Verify(pk, msg, σ)` | `verify(bitstring, bitstring, pkey): bitstring` | Yes — inline `reduc` |
 | `Enc(k, m)` / `Dec(k, ct)` | `senc` / `sdec` | Yes — correctness |

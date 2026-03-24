@@ -222,8 +222,8 @@ For detailed metric definitions, see
 Remove git worktrees after the report is written:
 
 ```bash
-git worktree remove "$BEFORE_DIR"
-git worktree remove "$AFTER_DIR"
+git worktree remove "{before_dir}"
+git worktree remove "{after_dir}"
 ```
 
 ---
