@@ -116,6 +116,7 @@ type nonce.
 
 ```proverif
 const msg1_label: bitstring.
+const msg2_label: bitstring.
 const info_session_key: bitstring.
 ```
 
@@ -282,7 +283,7 @@ let Initiator(sk_I: skey, pk_R: pkey) =
     (* Step: derive session key *)
     let dh_val = dh(ek_I, epk_R) in
     let sk_session = hkdf(dh_val, concat(info_session_key, transcript)) in
-    event endInitiator(pk(sk_I), pk_R, sk_session);
+    event endI(pk(sk_I), pk_R, sk_session);
     (* Secrecy witness: encrypt a fresh secret under the session key.
      * The query attacker(secret_I) checks that the attacker cannot read it.
      * See references/security-properties.md for the full secrecy query pattern. *)
