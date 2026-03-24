@@ -124,21 +124,21 @@ directions:
 (* Responder accepts => Initiator ran *)
 query pk_i: pkey, pk_r: pkey, k: key;
     inj-event(endR(pk_i, pk_r, k)) ==>
-    inj-event(beginI(pk_i, pk_r, k)).
+    inj-event(beginI(pk_i, pk_r)).
 
 (* Initiator accepts => Responder ran *)
 query pk_i: pkey, pk_r: pkey, k: key;
     inj-event(endI(pk_i, pk_r, k)) ==>
-    inj-event(beginR(pk_i, pk_r, k)).
+    inj-event(beginR(pk_i, pk_r)).
 ```
 
 ### Placing Events in the Process
 
 | Event | Where to trigger |
 |-------|-----------------|
-| `beginI(pk_I, pk_R, ...)` | Just before Initiator sends the first authenticated message (the one signed with sk_I) |
+| `beginI(pk_I, pk_R)` | Just before Initiator sends the first authenticated message (the one signed with sk_I) |
 | `endI(pk_I, pk_R, sk)` | Just after Initiator successfully verifies Responder's identity AND derives session key |
-| `beginR(pk_I, pk_R, ...)` | Just before Responder sends its signed reply |
+| `beginR(pk_I, pk_R)` | Just before Responder sends its signed reply |
 | `endR(pk_I, pk_R, sk)` | Just after Responder successfully verifies Initiator's identity AND derives session key |
 
 The session key `sk` in the event parameters binds authentication to the
@@ -281,9 +281,9 @@ query attacker(private_R).
 
 (* Mutual injective authentication *)
 query pk_i: pkey, pk_r: pkey, k: key;
-    inj-event(endR(pk_i, pk_r, k)) ==> inj-event(beginI(pk_i, pk_r, k)).
+    inj-event(endR(pk_i, pk_r, k)) ==> inj-event(beginI(pk_i, pk_r)).
 query pk_i: pkey, pk_r: pkey, k: key;
-    inj-event(endI(pk_i, pk_r, k)) ==> inj-event(beginR(pk_i, pk_r, k)).
+    inj-event(endI(pk_i, pk_r, k)) ==> inj-event(beginR(pk_i, pk_r)).
 ```
 
 ### Unilateral authentication (server authenticates, client does not)

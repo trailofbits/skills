@@ -274,6 +274,7 @@ let Initiator(sk_I: skey, pk_R: pkey) =
     let epk_I = dhpk(ek_I) in
     (* Step: sign and send msg1 — pkey2bs casts pkey to bitstring *)
     let sig_I = sign(concat(msg1_label, pkey2bs(epk_I)), sk_I) in
+    event beginI(pk(sk_I), pk_R);
     out(c, (epk_I, sig_I));
     (* Step: receive msg2 *)
     in(c, (epk_R: pkey, sig_R: bitstring));
@@ -284,11 +285,10 @@ let Initiator(sk_I: skey, pk_R: pkey) =
     let dh_val = dh(ek_I, epk_R) in
     let sk_session = hkdf(dh_val, concat(info_session_key, transcript)) in
     event endI(pk(sk_I), pk_R, sk_session);
-    (* Secrecy witness: encrypt a fresh secret under the session key.
-     * The query attacker(secret_I) checks that the attacker cannot read it.
-     * See references/security-properties.md for the full secrecy query pattern. *)
-    new secret_I: bitstring;
-    out(c, aead_enc(secret_I, sk_session)).
+    (* Secrecy witness: encrypt private_I under the session key.
+     * Declared as: free private_I: bitstring [private].
+     * The query attacker(private_I) checks the attacker cannot derive it. *)
+    out(c, aead_enc(private_I, sk_session)).
 ```
 
 **Rules for writing processes:**
