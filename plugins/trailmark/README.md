@@ -22,6 +22,8 @@ uv pip install trailmark
 | `graph-evolution` | Compare code graphs at two snapshots to surface security-relevant structural changes text diffs miss |
 | `mermaid-to-proverif` | Convert Mermaid sequence diagrams into ProVerif formal verification models |
 | `audit-augmentation` | Project SARIF and weAudit findings onto code graphs as annotations and subgraphs |
+| `trailmark-summary` | Quick structural overview (language detection, entry points, dependencies) for vivisect/galvanize |
+| `trailmark-structural` | Full structural analysis with all pre-analysis passes (blast radius, taint, privilege boundaries, complexity) |
 
 ## Directory Structure
 
@@ -32,7 +34,7 @@ trailmark/
 ├── README.md
 └── skills/
     ├── trailmark/                    # Core graph querying
-    ├── diagramming-code/              # Mermaid diagram generation
+    ├── diagramming-code/             # Mermaid diagram generation
     │   └── scripts/diagram.py
     ├── crypto-protocol-diagram/      # Protocol flow extraction
     │   └── examples/
@@ -43,7 +45,9 @@ trailmark/
     │   └── scripts/graph_diff.py
     ├── mermaid-to-proverif/          # Sequence diagram → ProVerif
     │   └── examples/
-    └── audit-augmentation/           # SARIF/weAudit integration
+    ├── audit-augmentation/           # SARIF/weAudit integration
+    ├── trailmark-summary/            # Quick overview for vivisect/galvanize
+    └── trailmark-structural/         # Full structural analysis
 ```
 
 ## Related Skills

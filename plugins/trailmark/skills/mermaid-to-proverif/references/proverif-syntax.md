@@ -73,10 +73,10 @@ Functions are **constructors** by default — the attacker can apply them freely
 fun pk(skey): pkey.          (* derive public key *)
 fun sign(bitstring, skey): bitstring.
 fun aenc(bitstring, pkey): bitstring.
-fun senc(bitstring, key): bitstring.
+fun aead_enc(bitstring, key): bitstring.
 fun mac(bitstring, key): bitstring.
 fun hash(bitstring): bitstring.
-fun hkdf(bitstring, bitstring): key.
+fun hkdf(key, bitstring): key.
 fun concat2(bitstring, bitstring): bitstring.
 fun concat3(bitstring, bitstring, bitstring): bitstring.
 ```
@@ -98,9 +98,9 @@ fun adec(bitstring, skey): bitstring
     reduc forall m: bitstring, k: skey;
         adec(aenc(m, pk(k)), k) = m.
 
-fun sdec(bitstring, key): bitstring
+fun aead_dec(bitstring, key): bitstring
     reduc forall m: bitstring, k: key;
-        sdec(senc(m, k), k) = m.
+        aead_dec(aead_enc(m, k), k) = m.
 
 fun verify(bitstring, bitstring, pkey): bitstring
     reduc forall m: bitstring, k: skey;
@@ -301,9 +301,10 @@ let Initiator(sk_I: skey, pk_R: pkey) =
     out(c, (epk_I, sig_I));
 
     in(c, (epk_R: pkey, sig_R: bitstring));
-    let _ = verify(sig_R, (msg2, epk_I, epk_R), pk_R) in
+    let transcript = concat2(pkey2bs(epk_I), pkey2bs(epk_R)) in
+    let _ = verify(sig_R, concat2(msg2, transcript), pk_R) in
     let dh_val = dh(ek_I, epk_R) in
-    let sk_session = hkdf((dh_val, epk_I, epk_R), info_session) in
+    let sk_session = hkdf(dh_val, concat2(info_session, transcript)) in
     event endI(pk(sk_I), pk_R, sk_session).
 ```
 

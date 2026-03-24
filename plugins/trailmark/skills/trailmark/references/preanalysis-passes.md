@@ -1,7 +1,7 @@
 # Pre-Analysis Passes
 
 Four passes that enrich the code graph before downstream skills (genotoxic,
-diagram) consume it. Run via `engine.preanalysis()`.
+diagramming-code) consume it. Run via `engine.preanalysis()`.
 
 ## Contents
 

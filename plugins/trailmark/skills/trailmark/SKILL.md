@@ -21,7 +21,7 @@ semantic metadata for security analysis. Supports 16 languages.
 ## When NOT to Use
 
 - Single-file scripts where call graph adds no value (read the file directly)
-- Architecture diagrams not derived from code (use the diagram skill or draw by hand)
+- Architecture diagrams not derived from code (use the `diagramming-code` skill or draw by hand)
 - Mutation testing triage (use the genotoxic skill, which calls trailmark internally)
 - Runtime behavior analysis (trailmark is static, not dynamic)
 
@@ -111,7 +111,7 @@ engine.annotations_of("function_name",
 ## Pre-Analysis Passes
 
 **Always run `engine.preanalysis()` before handing off to genotoxic or
-diagram skills.** Pre-analysis enriches the graph with four passes:
+`diagramming-code` skills.** Pre-analysis enriches the graph with four passes:
 
 1. **Blast radius estimation** — counts downstream and upstream nodes per
    function, identifies critical high-complexity descendants

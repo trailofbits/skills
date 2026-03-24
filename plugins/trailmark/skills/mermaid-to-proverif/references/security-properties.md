@@ -88,8 +88,12 @@ ephemeral key in the signature).
 
 ```proverif
 query pk_i: pkey, pk_r: pkey, k: key;
-    event(endR(pk_i, pk_r, k)) ==> event(beginI(pk_i, pk_r, k)).
+    event(endR(pk_i, pk_r, k)) ==> event(beginI(pk_i, pk_r)).
 ```
+
+Note: `beginI` fires before the session key is known, so it typically
+has fewer parameters than `endR`. Match the parameter list to what the
+`begin` event actually receives when it fires.
 
 ### Injective Authentication
 
@@ -103,7 +107,7 @@ default for most modern protocols.
 ```proverif
 query pk_i: pkey, pk_r: pkey, k: key;
     inj-event(endR(pk_i, pk_r, k)) ==>
-    inj-event(beginI(pk_i, pk_r, k)).
+    inj-event(beginI(pk_i, pk_r)).
 ```
 
 **Note on `inj-event`:** ProVerif will report this as `true` if there is a
@@ -158,36 +162,9 @@ Add when:
 
 ### Modeling Pattern
 
-Add a `ForwardSecrecyTest` process that leaks long-term keys to the attacker
-AFTER the session completes, then checks that the session key is still secret:
-
-```proverif
-free c_fs: channel [private].
-free past_session_key: key [private].
-
-let ForwardSecrecyTest(sk_I: skey, sk_R: skey) =
-    (* Wait for session to complete (modeled by receiving a signal) *)
-    in(c_fs, ());
-    (* Leak long-term keys *)
-    out(c, sk_I);
-    out(c, sk_R).
-
-(* In main process — add alongside the protocol processes *)
-!ForwardSecrecyTest(sk_I, sk_R)
-```
-
-**Query:**
-
-```proverif
-query attacker(past_session_key).
-```
-
-**Simpler approach for two-party protocols:**
-
-Rather than modeling timing explicitly, ProVerif can model forward secrecy by
-running a variant where long-term keys are always public (worst-case) and
-checking that session key secrecy still holds. If it does, forward secrecy is
-achieved because the session key depends only on ephemeral material.
+Leak long-term keys to the attacker and check that session key secrecy
+still holds. If it does, forward secrecy is achieved because the session
+key depends only on ephemeral material.
 
 ```proverif
 (* In main process — leak long-term keys immediately *)
@@ -196,8 +173,10 @@ new sk_R: skey; out(c, pk(sk_R)); out(c, sk_R);  (* attacker knows sk_R *)
 (!Initiator(sk_I, pk(sk_R)) | !Responder(sk_R, pk(sk_I)))
 ```
 
-If the session key secrecy query still holds in this variant, the protocol
-has forward secrecy. If it fails, the session key depended on a long-term key.
+The existing session key secrecy query (`query attacker(private_I).`) now
+tests forward secrecy: if the attacker knows both long-term keys but still
+cannot derive the session key, the protocol has forward secrecy. If the
+query fails, the session key depended on a long-term key.
 
 ---
 

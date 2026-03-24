@@ -176,13 +176,13 @@ different keys for signing and verification (rare).
 
 ```proverif
 (* Function declarations *)
-fun senc(bitstring, key): bitstring.
-fun sdec(bitstring, key): bitstring
+fun aead_enc(bitstring, key): bitstring.
+fun aead_dec(bitstring, key): bitstring
     reduc forall m: bitstring, k: key;
-        sdec(senc(m, k), k) = m.
+        aead_dec(aead_enc(m, k), k) = m.
 
 (* In process *)
-let ct = senc(plaintext, sk_session) in
+let ct = aead_enc(plaintext, sk_session) in
 out(c, ct);
 ```
 
@@ -193,11 +193,11 @@ out(c, ct);
 ```proverif
 (* In process *)
 in(c, ct: bitstring);
-let plaintext = sdec(ct, sk_session) in
+let plaintext = aead_dec(ct, sk_session) in
 ```
 
 **AEAD vs unauthenticated encryption:** ProVerif does not distinguish AEAD
-from unauthenticated encryption at the equational level — both use `senc`/`sdec`.
+from unauthenticated encryption at the equational level — both use `aead_enc`/`aead_dec`.
 Authentication is modeled implicitly: if decryption succeeds (the equation
 fires), the ciphertext was produced with the correct key. This is a standard
 simplification in symbolic models.
@@ -358,7 +358,7 @@ proofs).
 | `HKDF(ikm, info)` | `hkdf(key, bitstring): key` | No |
 | `Sign(sk, msg)` | `sign(bitstring, skey): bitstring` | No |
 | `Verify(pk, msg, σ)` | `verify(bitstring, bitstring, pkey): bitstring` | Yes — inline `reduc` |
-| `Enc(k, m)` / `Dec(k, ct)` | `senc` / `sdec` | Yes — correctness |
+| `Enc(k, m)` / `Dec(k, ct)` | `aead_enc` / `aead_dec` | Yes — correctness |
 | `AEnc(pk, m)` / `ADec(sk, ct)` | `aenc` / `adec` | Yes — correctness |
 | `MAC(k, m)` | `mac(bitstring, key): bitstring` | No |
 | `H(data)` | `hash(bitstring): bitstring` | No |

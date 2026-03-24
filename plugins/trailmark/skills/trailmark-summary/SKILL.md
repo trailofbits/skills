@@ -55,8 +55,10 @@ trailmark themselves.
 
 ```bash
 find {args} -type f \( -name '*.rs' -o -name '*.py' \
-  -o -name '*.go' -o -name '*.js' -o -name '*.ts' \
-  -o -name '*.sol' -o -name '*.c' -o -name '*.cpp' \
+  -o -name '*.go' -o -name '*.js' -o -name '*.jsx' \
+  -o -name '*.ts' -o -name '*.tsx' -o -name '*.sol' \
+  -o -name '*.c' -o -name '*.h' -o -name '*.cpp' \
+  -o -name '*.hpp' -o -name '*.cc' -o -name '*.cxx' \
   -o -name '*.rb' -o -name '*.php' -o -name '*.cs' \
   -o -name '*.java' -o -name '*.hs' -o -name '*.erl' \
   -o -name '*.cairo' -o -name '*.circom' \) 2>/dev/null | \
@@ -67,11 +69,11 @@ Map the most common extension to a language flag:
 - `.rs` -> `--language rust`
 - `.py` -> (no flag, Python is default)
 - `.go` -> `--language go`
-- `.js` -> `--language javascript`
-- `.ts` -> `--language typescript`
+- `.js`/`.jsx` -> `--language javascript`
+- `.ts`/`.tsx` -> `--language typescript`
 - `.sol` -> `--language solidity`
-- `.c` -> `--language c`
-- `.cpp` -> `--language cpp`
+- `.c`/`.h` -> `--language c`
+- `.cpp`/`.hpp`/`.cc`/`.cxx` -> `--language cpp`
 - `.rb` -> `--language ruby`
 - `.php` -> `--language php`
 - `.cs` -> `--language c_sharp`

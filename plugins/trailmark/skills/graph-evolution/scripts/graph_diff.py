@@ -1,4 +1,6 @@
-#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12"
+# ///
 """Compute structural diff between two Trailmark graph JSON exports.
 
 Compares nodes, edges, complexity, subgraph membership, and
