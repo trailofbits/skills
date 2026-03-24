@@ -53,6 +53,7 @@ Declare fixed domain-separation labels or protocol identifiers:
 ```proverif
 const msg1: bitstring.
 const msg2: bitstring.
+const info_session: bitstring.
 const info_handshake: bitstring.
 const info_app: bitstring.
 ```
@@ -77,6 +78,7 @@ fun aead_enc(bitstring, key): bitstring.
 fun mac(bitstring, key): bitstring.
 fun hash(bitstring): bitstring.
 fun hkdf(key, bitstring): key.
+fun pkey2bs(pkey): bitstring.    (* cast pkey to bitstring *)
 fun concat2(bitstring, bitstring): bitstring.
 fun concat3(bitstring, bitstring, bitstring): bitstring.
 ```
@@ -283,7 +285,7 @@ Map each `Verify(pk, msg, sig)` annotation to a `let _ = ... in` destructor
 call. The destructor fails and aborts the branch when the signature is invalid:
 
 ```proverif
-let _ = verify(sig_R, (msg2_label, epk_I, epk_R), pk_R) in
+let _ = verify(sig_R, concat2(msg2, concat2(pkey2bs(epk_I), pkey2bs(epk_R))), pk_R) in
 (* reaches here only if sig_R is a valid signature under pk_R *)
 (* else: branch is pruned — models abort on invalid signature *)
 ```
@@ -296,7 +298,7 @@ The `else` branch is implicit; ProVerif prunes the branch on destructor failure.
 let Initiator(sk_I: skey, pk_R: pkey) =
     new ek_I: skey;
     let epk_I = dhpk(ek_I) in
-    let sig_I = sign((msg1, epk_I), sk_I) in
+    let sig_I = sign(concat2(msg1, pkey2bs(epk_I)), sk_I) in
     event beginI(pk(sk_I), pk_R);    (* session key not yet known *)
     out(c, (epk_I, sig_I));
 

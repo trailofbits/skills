@@ -30,7 +30,7 @@ Runs `trailmark analyze` with all four pre-analysis passes.
 |-----------------|----------------|-----------------|
 | "Summary analysis is enough" | Summary skips taint, blast radius, and privilege boundary data | Run full structural analysis when detailed data is needed |
 | "One pass is sufficient" | Passes cross-reference each other — taint without blast radius misses critical nodes | Run all four passes |
-| "Tool isn't installed, I'll analyze manually" | Manual analysis misses what tooling catches | Install trailmark first |
+| "Tool isn't installed, I'll analyze manually" | Manual analysis misses what tooling catches | Report "trailmark is not installed" and return |
 | "Empty pass output means the pass failed" | Some passes produce no data for some codebases (e.g., no privilege boundaries) | Return full output regardless |
 
 ## Usage
