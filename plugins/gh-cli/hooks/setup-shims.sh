@@ -13,7 +13,7 @@ fi
 # Guard: CLAUDE_ENV_FILE must be set by the runtime
 if [[ -z "${CLAUDE_ENV_FILE:-}" ]]; then
   echo "gh-cli: CLAUDE_ENV_FILE not set; shims will not be installed" >&2
-  exit 1
+  exit 0
 fi
 
 shims_dir="$(cd "$(dirname "$0")/shims" && pwd)" || {
