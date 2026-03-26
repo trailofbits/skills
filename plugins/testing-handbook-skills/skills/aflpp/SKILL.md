@@ -322,24 +322,30 @@ AFL++ has [many environment variables](https://aflplus.plus/docs/env_variables/)
 ```bash
 # Every campaign should use tmpfs — SSDs will thank you, and it's faster
 AFL_TMPDIR=/dev/shm
+```
 
-# Faster calibration — recommended for slow targets
+`AFL_TMPDIR` is a free performance win with no downsides — not setting it wears out your SSD and slows fuzzing.
+
+### Slow Targets
+
+```bash
+# Speeds up calibration ~2.5x — use when targets are slow (e.g., >10 ms/exec)
 AFL_FAST_CAL=1
 ```
 
-`AFL_TMPDIR` is a free performance win with no downsides — not setting it wears out your SSD and slows fuzzing. `AFL_FAST_CAL` speeds up calibration by ~2.5x with negligible precision loss, especially useful for slow targets.
+`AFL_FAST_CAL` reduces calibration time with negligible precision loss. Recommended specifically for slow targets where calibration would otherwise take a long time.
 
 ### Multi-Core Campaigns
 
 ```bash
-# On the primary (-M) instance only
+# On the primary (-M) instance only — needed for afl-cmin, not for fuzzing itself
 AFL_FINAL_SYNC=1
 
-# On all instances — share findings faster (default: 50 MB, good range: 50-250)
+# On all instances — cache test cases in memory (default: 50 MB, good range: 50-250 MB)
 AFL_TESTCACHE_SIZE=100
 ```
 
-`AFL_FINAL_SYNC` ensures the primary instance does a final import from secondary instances, which is important for `afl-cmin` corpus minimization. `AFL_TESTCACHE_SIZE` defaults to 50 MB; values between 50-250 MB work well for large campaigns.
+`AFL_FINAL_SYNC` tells the primary instance to do a final import from all secondaries when stopping. This does not affect the fuzzing process itself — it only matters when you later run `afl-cmin` for corpus minimization, ensuring the primary's queue has the full combined corpus. `AFL_TESTCACHE_SIZE` caches test cases in memory to reduce disk I/O; the default is 50 MB and values between 50-250 MB work well for most campaigns.
 
 ### CI/Automated Fuzzing
 
@@ -360,7 +366,7 @@ Unbounded fuzzing in CI wastes resources. Set time limits or use exit conditions
 
 | Variable | Why Skip It |
 |----------|-------------|
-| `AFL_NO_ARITH` | Can hurt coverage on binary formats; may help for text-based targets |
+| `AFL_NO_ARITH` | Can hurt coverage on binary formats, but may be useful for text-based targets |
 | `AFL_SHUFFLE_QUEUE` | Only for exotic setups, usually harmful |
 | `AFL_DISABLE_TRIM` | Trimming is valuable, don't disable without reason |
 
