@@ -59,4 +59,3 @@ std::function.*=.*\[
 std::thread.*\[|async.*\[|detach.*\[
 callback.*\[|handler.*\[
 ```
-

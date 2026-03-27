@@ -61,4 +61,3 @@ reinterpret_cast|\(\w+\s*\*\)\s*\w+
 \bint\b.*\+|\bint\b.*\*
 __attribute__.*packed|#pragma pack
 ```
-

@@ -60,4 +60,3 @@ override|final
 \(\s*\w+\s+\w+\s*\)|vector<\w+>
 ~\w+\s*\(\s*\)\s*[^=]
 ```
-

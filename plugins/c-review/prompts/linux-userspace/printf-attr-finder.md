@@ -75,4 +75,3 @@ vprintf|vfprintf|vsprintf|vsnprintf|vsyslog
 __attribute__.*format.*printf
 void\s+\w+\s*\([^)]*const\s+char\s*\*[^)]*\.\.\.\s*\)
 ```
-

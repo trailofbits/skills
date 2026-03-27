@@ -67,4 +67,3 @@ bsearch\s*\(
 int\s+\w+\s*\(.*const\s+void\s*\*.*const\s+void\s*\*
 return.*-\s*\*.*\(int\s*\*\)
 ```
-

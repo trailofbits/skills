@@ -72,4 +72,3 @@ abs\s*\(|labs\s*\(
 <=\s*0|>=\s*0.*unsigned
 malloc\s*\(.*\*|calloc\s*\(
 ```
-

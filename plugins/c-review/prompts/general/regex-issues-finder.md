@@ -57,4 +57,3 @@ std::regex|boost::regex|pcre_
 REG_EXTENDED|REG_NEWLINE|REG_ICASE
 \(\[.*\]\+\)\+|\(\.\*\)\+  # ReDoS patterns
 ```
-

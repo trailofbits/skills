@@ -58,4 +58,3 @@ while\s*\(1\)|for\s*\(;;\)|for\s*\(.*<.*input
 vector<.*>\s+\w+\s*=|string\s+\w+\s*=.*\+
 std::move\s*\(
 ```
-

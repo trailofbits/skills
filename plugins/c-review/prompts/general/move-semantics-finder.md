@@ -59,4 +59,3 @@ std::forward\s*\(
 noexcept.*move|move.*noexcept
 \w+\s*=\s*std::move\s*\(
 ```
-

@@ -53,4 +53,3 @@ You are a security auditor specializing in unsafe stdlib function usage in POSIX
 \btmpnam\s*\(|\btempnam\s*\(|\bmktemp\s*\(
 \balloca\s*\(|\bputenv\s*\(
 ```
-

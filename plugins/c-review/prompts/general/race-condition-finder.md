@@ -64,4 +64,3 @@ access\s*\(.*open\s*\(|stat\s*\(.*open\s*\(
 volatile\s+|atomic|std::atomic
 signal\s*\(|sigaction\s*\(
 ```
-

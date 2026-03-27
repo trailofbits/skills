@@ -60,4 +60,3 @@ LocalSystem|LocalService|NetworkService
 RegCreateKey|RegSetValue.*ImagePath
 PROCESS_CREATION_MITIGATION_POLICY
 ```
-

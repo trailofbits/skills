@@ -75,4 +75,3 @@ union\s+\w+\s*\{
 ->type|\.type|type_id|typeid
 \*\*\w+|\*\s*\*\s*\w+
 ```
-

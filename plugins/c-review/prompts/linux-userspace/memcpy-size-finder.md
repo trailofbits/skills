@@ -63,4 +63,3 @@ memcpy\s*\(|memmove\s*\(|memset\s*\(
 \w+\s*-\s*\w+.*\)$|sizeof.*-
 ssize_t|int\s+\w+\s*=.*-
 ```
-

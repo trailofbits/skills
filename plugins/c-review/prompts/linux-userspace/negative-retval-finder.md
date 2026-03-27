@@ -61,4 +61,3 @@ size_t.*=.*read|size_t.*=.*write
 memcpy.*,\s*\w+\)|memset.*,\s*\w+\)
 \[\s*\w+\s*\].*=
 ```
-

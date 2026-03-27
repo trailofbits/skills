@@ -62,4 +62,3 @@ pthread_spin_init\s*\(|pthread_spin_destroy\s*\(
 pthread_spin_lock\s*\(|pthread_spin_unlock\s*\(
 pthread_spin_trylock\s*\(
 ```
-

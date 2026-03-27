@@ -64,4 +64,3 @@ AF_UNSPEC
 sockaddr.*sa_family
 bind\s*\(|listen\s*\(|accept\s*\(
 ```
-

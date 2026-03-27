@@ -59,4 +59,3 @@ fopen\s*\(|open\s*\(|socket\s*\(
 fclose\s*\(|close\s*\(
 return.*\berr|goto\s+err
 ```
-

@@ -54,4 +54,3 @@ scanf\s*\(|sscanf\s*\(|fscanf\s*\(
 %n|%\d*\$
 __attribute__.*format
 ```
-

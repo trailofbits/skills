@@ -56,4 +56,3 @@ GMEM_ZEROINIT|LMEM_ZEROINIT|HEAP_ZERO_MEMORY
 RtlSecureZeroMemory|SecureZeroMemory|memset_s
 CryptProtectMemory|CryptUnprotectMemory
 ```
-

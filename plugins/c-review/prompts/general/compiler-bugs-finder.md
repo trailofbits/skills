@@ -55,4 +55,3 @@ assert\s*\(|ASSERT\s*\(|DEBUG_ASSERT
 -O[23s]|-fdelete-null-pointer-checks
 if\s*\(\s*\w+\s*!=\s*NULL\s*\).*\*\w+
 ```
-

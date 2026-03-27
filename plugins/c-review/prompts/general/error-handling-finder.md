@@ -58,4 +58,3 @@ if\s*\(.*==\s*-1|if\s*\(.*!=\s*0
 catch\s*\(|throw\s+
 errno\s*=|perror\s*\(
 ```
-

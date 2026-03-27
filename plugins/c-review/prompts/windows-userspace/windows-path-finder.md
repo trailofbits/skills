@@ -63,4 +63,3 @@ PathCch|PathIs|PathFind|PathAppend
 \\\\\\.|\\\\\\?\\|GLOBALROOT
 FILE_FLAG_POSIX_SEMANTICS|O_NOFOLLOW
 ```
-

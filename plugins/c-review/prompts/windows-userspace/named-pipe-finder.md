@@ -57,4 +57,3 @@ PIPE_REJECT_REMOTE_CLIENTS|PIPE_ACCESS
 ImpersonateNamedPipeClient|RevertToSelf
 lpSecurityAttributes|SECURITY_ATTRIBUTES
 ```
-

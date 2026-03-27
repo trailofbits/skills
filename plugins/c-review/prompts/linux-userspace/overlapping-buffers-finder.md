@@ -50,4 +50,3 @@ sprintf\s*\([^,]+,\s*[^,]*%s[^,]*,\s*\1
 memcpy\s*\(|strcpy\s*\(|strncpy\s*\(
 memmove\s*\(  # This is the safe one
 ```
-

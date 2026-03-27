@@ -65,4 +65,3 @@ tmpnam|tempnam|mktemp|mkstemp|tmpfile
 fsync\s*\(|fdatasync\s*\(
 O_NOFOLLOW|O_DIRECTORY
 ```
-

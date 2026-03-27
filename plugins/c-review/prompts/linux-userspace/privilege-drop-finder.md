@@ -64,4 +64,3 @@ getuid\s*\(|geteuid\s*\(|getgid\s*\(|getegid\s*\(
 initgroups\s*\(|setgroups\s*\(
 cap_set_proc|prctl\s*\(.*CAP
 ```
-

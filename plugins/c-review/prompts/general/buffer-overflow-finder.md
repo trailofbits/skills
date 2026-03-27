@@ -66,4 +66,3 @@ sprintf|snprintf|vsprintf
 \+\+.*\]|\[.*\+\+  # Increment in index
 for\s*\(.*<=  # Potential off-by-one loops
 ```
-

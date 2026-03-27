@@ -63,4 +63,3 @@ strlen\s*\([^)]+\)\s*[^+]  # strlen not followed by +
 memcpy.*strlen|memmove.*strlen
 char\s+\w+\s*\[\s*strlen
 ```
-

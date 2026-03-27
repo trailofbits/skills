@@ -54,4 +54,3 @@ You are a security auditor specializing in operator precedence vulnerabilities.
 <<\s*\w+\s*[+\-*/]|>>\s*\w+\s*[+\-*/]
 #define\s+\w+\s*\([^)]*\)\s+[^(]
 ```
-

@@ -78,4 +78,3 @@ va_list\s+\w+
 return\s*;|return\s+\w+;
 throw\s+|goto\s+
 ```
-

@@ -63,4 +63,3 @@ localtime\s*\((?!_r)|gmtime\s*\((?!_r)|ctime\s*\((?!_r)
 getpwnam\s*\((?!_r)|getpwuid\s*\((?!_r)
 getenv\s*\(|setenv\s*\(
 ```
-

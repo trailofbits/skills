@@ -60,4 +60,3 @@ SeAssignPrimaryTokenPrivilege|SeRestorePrivilege
 ImpersonateLoggedOnUser|SetThreadToken|RevertToSelf
 OpenProcessToken|OpenThreadToken|DuplicateToken
 ```
-

@@ -61,4 +61,3 @@ accept\s*\(|connect\s*\(|close\s*\(
 select\s*\(|poll\s*\(|epoll_wait\s*\(
 EINTR|while.*errno
 ```
-

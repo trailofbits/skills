@@ -51,4 +51,3 @@ std::equal\s*\(|memcmp\s*\(|strncmp\s*\(|bcmp\s*\(
 wcsncmp\s*\(|wmemcmp\s*\(
 \.begin\(\).*\.begin\(\)(?!.*\.end\(\).*\.end\(\))
 ```
-

@@ -59,4 +59,3 @@ sleep\s*\(|usleep\s*\(|nanosleep\s*\(
 difftime\s*\(|mktime\s*\(
 CLOCK_MONOTONIC|CLOCK_REALTIME
 ```
-

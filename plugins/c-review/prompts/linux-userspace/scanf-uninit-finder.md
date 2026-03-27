@@ -55,4 +55,3 @@ int\s+\w+\s*;|long\s+\w+\s*;|unsigned\s+\w+\s*;
 %d|%ld|%u|%lu|%x|%f
 if\s*\(\s*scanf|if\s*\(\s*sscanf
 ```
-

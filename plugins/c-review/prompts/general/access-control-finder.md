@@ -59,4 +59,3 @@ cap_set|cap_clear|prctl\s*\(.*PR_SET
 execve\s*\(|execv\s*\(|system\s*\(
 getuid\s*\(|geteuid\s*\(|getgid\s*\(
 ```
-

@@ -75,4 +75,3 @@ exec[lv]p?\s*\([^)]*,\s*0\s*\)
 \*\s*\w+\s*=\s*0\s*;  # Pointer = 0
 ==\s*0\s*[^0-9]|!=\s*0\s*[^0-9]  # Comparison to 0
 ```
-

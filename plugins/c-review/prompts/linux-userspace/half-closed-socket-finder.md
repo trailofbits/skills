@@ -69,4 +69,3 @@ shutdown\s*\(.*SHUT_WR|shutdown\s*\(.*SHUT_RD|shutdown\s*\(.*SHUT_RDWR
 shutdown\s*\(.*[12]\)  # SHUT_RD=0, SHUT_WR=1, SHUT_RDWR=2
 close\s*\(.*sock|closesocket\s*\(
 ```
-

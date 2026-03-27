@@ -52,4 +52,3 @@ static\s+\w+\s+\w+\s*=.*::
 Singleton|GetInstance|Instance\(\)
 :\s*\w+\(.*\),\s*\w+\(  # Initialization lists
 ```
-

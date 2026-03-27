@@ -65,4 +65,3 @@ strncat\s*\(\s*\w+\s*,\s*\w+\s*,\s*sizeof\s*\(
 strncat\s*\(
 wcsncat\s*\(
 ```
-

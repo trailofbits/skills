@@ -56,4 +56,3 @@ toupper|tolower|setlocale
 UTF-8|UTF-16|encoding|charset
 wchar_t|char16_t|char32_t
 ```
-

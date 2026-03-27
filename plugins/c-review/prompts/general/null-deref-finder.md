@@ -57,4 +57,3 @@ new\s+\w+|new\s*\(
 ->|\.find\(|\.get\(
 if\s*\(\s*\w+\s*==\s*NULL|if\s*\(\s*!\w+\s*\)
 ```
-

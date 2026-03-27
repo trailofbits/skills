@@ -52,4 +52,3 @@ LOAD_LIBRARY_SEARCH|LOAD_LIBRARY_REQUIRE_SIGNED
 GetModuleHandle[AW]?\s*\(.*NULL
 delay.?load|__delayLoadHelper
 ```
-

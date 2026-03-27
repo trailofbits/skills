@@ -76,4 +76,3 @@ struct\s+\w+\s*\{[^}]*\[\s*[01]\s*\]
 sizeof\s*\(.*\)\s*\+|offsetof\s*\(
 flexible|FAM\b
 ```
-

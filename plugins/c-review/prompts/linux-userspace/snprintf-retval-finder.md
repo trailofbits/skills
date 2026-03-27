@@ -67,4 +67,3 @@ snprintf\s*\(|vsnprintf\s*\(
 =\s*snprintf|=\s*vsnprintf
 \+=\s*snprintf|\-=.*snprintf
 ```
-

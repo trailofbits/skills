@@ -59,4 +59,3 @@ rename\s*\(|renameat\s*\(
 O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY
 realpath\s*\(|readlink\s*\(
 ```
-

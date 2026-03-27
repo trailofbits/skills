@@ -55,4 +55,3 @@ LD_PRELOAD|LD_LIBRARY_PATH|PATH
 environ\b|/proc/.*environ
 execve\s*\(|execle\s*\(
 ```
-

@@ -58,4 +58,3 @@ struct\s+\w+\s*\{  # Struct definitions
 memset\s*\(|bzero\s*\(  # Initialization functions
 send\s*\(|write\s*\(|fwrite\s*\(  # Output functions
 ```
-

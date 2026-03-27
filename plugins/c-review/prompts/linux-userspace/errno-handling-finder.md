@@ -55,4 +55,3 @@ atoi\s*\(|atol\s*\(|atof\s*\(
 errno\s*=\s*0|if\s*\(.*errno
 if\s*\(.*!=\s*0|if\s*\(.*==\s*-1
 ```
-

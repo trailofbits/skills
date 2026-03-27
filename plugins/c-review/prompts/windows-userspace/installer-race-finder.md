@@ -59,4 +59,3 @@ SetFileSecurity|SetSecurityInfo|SetNamedSecurityInfo
 MsiInstall|MsiOpenPackage|MsiDoAction
 INSTALLSTATE_|MsiSetProperty|MsiGetProperty
 ```
-

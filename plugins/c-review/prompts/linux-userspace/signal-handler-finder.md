@@ -57,4 +57,3 @@ SIG[A-Z]+\s*,|SIGINT|SIGTERM|SIGHUP|SIGUSR
 malloc\s*\(|free\s*\(|printf\s*\(|fprintf\s*\(
 errno\s*=|errno\s*$
 ```
-

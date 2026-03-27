@@ -68,4 +68,3 @@ strncpy\s*\(
 wcsncpy\s*\(
 \[\s*sizeof.*-\s*1\s*\]\s*=\s*['"\\]0|=\s*'\0'
 ```
-

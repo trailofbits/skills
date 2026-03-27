@@ -62,4 +62,3 @@ noexcept\s*\(|noexcept\s*\{
 catch\s*\(|try\s*\{
 fopen\s*\(.*\{|open\s*\(.*\{
 ```
-

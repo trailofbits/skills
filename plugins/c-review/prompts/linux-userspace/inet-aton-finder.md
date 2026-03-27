@@ -69,4 +69,3 @@ inet_addr\s*\(  # Also has issues but different
 inet_pton\s*\(  # This is the safer one
 if\s*\(\s*inet_aton
 ```
-

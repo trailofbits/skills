@@ -61,4 +61,3 @@ BCryptOpenAlgorithmProvider|BCryptGenRandom|BCryptCreateHash
 CALG_MD5|CALG_SHA[^2]|CALG_RC[24]|CALG_DES
 BCRYPT_MD5|BCRYPT_SHA1_|BCRYPT_RC4|BCRYPT_DES_
 ```
-

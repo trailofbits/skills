@@ -53,4 +53,3 @@ for\s*\(.*begin\(\)|for\s*\(.*:\s*
 \.resize\(|\.reserve\(
 iterator|::iterator|auto.*=.*begin
 ```
-

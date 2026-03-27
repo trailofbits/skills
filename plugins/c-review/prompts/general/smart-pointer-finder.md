@@ -59,4 +59,3 @@ make_shared|make_unique
 enable_shared_from_this|shared_from_this
 weak_ptr.*lock\(\)
 ```
-

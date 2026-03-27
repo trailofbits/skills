@@ -75,4 +75,3 @@ shared_ptr|unique_ptr|weak_ptr
 return.*\.c_str\(\)|return.*\.data\(\)
 close\s*\(|fclose\s*\(
 ```
-

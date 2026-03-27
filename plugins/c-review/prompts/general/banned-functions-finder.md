@@ -60,4 +60,3 @@ You are a security auditor specializing in identifying banned/deprecated functio
 \brand\s*\(|\bsrand\s*\(
 \balloca\s*\(
 ```
-

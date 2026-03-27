@@ -58,4 +58,3 @@ WriteProcessMemory\s*\(|ReadProcessMemory\s*\(
 CreateRemoteThread\s*\(|NtCreateThreadEx\s*\(
 OpenProcess\s*\(.*PROCESS_VM|PROCESS_ALL_ACCESS
 ```
-
