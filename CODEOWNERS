@@ -10,6 +10,7 @@
 /plugins/claude-in-chrome-troubleshooting/ @dguido
 /plugins/constant-time-analysis/ @tob-scott-a @dguido
 /plugins/culture-index/ @dguido
+/plugins/c-review/ @dguido @GrosQuildu
 /plugins/debug-buttercup/ @reytchison @dguido
 /plugins/devcontainer-setup/ @DarkaMaul @dguido
 /plugins/differential-review/ @omarinuwa @dguido

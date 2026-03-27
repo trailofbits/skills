@@ -383,6 +383,15 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/dimensional-analysis"
+    },
+    {
+      "name": "c-review",
+      "version": "1.1.0",
+      "description": "Comprehensive C/C++ security code review with parallel workers scanning (Linux/macOS/Windows)",
+      "author": {
+        "name": "Paweł Płatek"
+      },
+      "source": "./plugins/c-review"
     }
   ]
 }
