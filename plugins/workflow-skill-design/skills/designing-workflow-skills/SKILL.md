@@ -7,12 +7,7 @@ description: >-
   sequential pipelines, routing patterns, safety gates, task tracking,
   phased execution, or any multi-step workflow. Also applies when
   reviewing or refactoring existing workflow skills for quality.
-allowed-tools:
-  - Read
-  - Glob
-  - Grep
-  - TodoRead
-  - TodoWrite
+allowed-tools: Read Glob Grep TodoRead TodoWrite
 ---
 
 # Designing Workflow Skills
@@ -129,8 +124,7 @@ Every workflow skill needs this skeleton, regardless of pattern:
 ---
 name: kebab-case-name
 description: "Third-person description with trigger keywords — this is how Claude decides to activate the skill"
-allowed-tools:
-  - [minimum tools needed]
+allowed-tools: "[minimum tools needed, space-delimited]"
 # Optional fields — see tool-assignment-guide.md for full reference:
 # disable-model-invocation: true    # Only user can invoke (not Claude)
 # user-invocable: false             # Only Claude can invoke (hidden from / menu)
