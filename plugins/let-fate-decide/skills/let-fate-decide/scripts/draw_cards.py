@@ -101,35 +101,49 @@ def is_reversed():
     return os.urandom(1)[0] & 1 == 1
 
 
-def draw(n=4):
+def draw(n=4, include_content=False):
     """Shuffle deck and draw n cards, each possibly reversed."""
     deck = build_deck()
     fisher_yates_shuffle(deck)
+    # Resolve cards directory relative to this script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    cards_dir = os.path.join(os.path.dirname(script_dir), "cards")
     hand = []
     for i in range(min(n, len(deck))):
         suit, card_id = deck[i]
         reversed_flag = is_reversed()
-        hand.append(
-            {
-                "suit": suit,
-                "card_id": card_id,
-                "reversed": reversed_flag,
-                "position": i + 1,
-                "file": f"cards/{suit}/{card_id}.md",
-            }
-        )
+        card = {
+            "suit": suit,
+            "card_id": card_id,
+            "reversed": reversed_flag,
+            "position": i + 1,
+            "file": f"cards/{suit}/{card_id}.md",
+        }
+        if include_content:
+            path = os.path.join(cards_dir, suit, f"{card_id}.md")
+            try:
+                with open(path) as f:
+                    card["content"] = f.read()
+            except FileNotFoundError:
+                card["content"] = f"(card file not found: {path})"
+        hand.append(card)
     return hand
 
 
 def main():
     n = 4
-    if len(sys.argv) > 1:
+    include_content = False
+    args = sys.argv[1:]
+    if "--content" in args:
+        include_content = True
+        args.remove("--content")
+    if args:
         try:
-            n = int(sys.argv[1])
+            n = int(args[0])
         except ValueError:
             print(
-                f"Error: '{sys.argv[1]}' is not a valid integer. "
-                f"Usage: draw_cards.py [count]  (1-78, default 4)",
+                f"Error: '{args[0]}' is not a valid integer. "
+                f"Usage: draw_cards.py [--content] [count]",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -140,7 +154,7 @@ def main():
             )
             sys.exit(1)
     try:
-        hand = draw(n)
+        hand = draw(n, include_content=include_content)
     except OSError as e:
         print(
             f"Error: failed to read system entropy source: {e}",
