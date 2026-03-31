@@ -16,10 +16,7 @@ of options for fate to choose between).
 **Step 1:** Draw cards with content in ONE Bash call.
 
 ```bash
-SKILL_DIR=$(find ~/.claude/plugins -name draw_cards.py \
-  -path '*/let-fate-decide/*' 2>/dev/null | head -1 \
-  | xargs dirname | xargs dirname)
-uv run "$SKILL_DIR/scripts/draw_cards.py" --content
+uv run "${CLAUDE_PLUGIN_ROOT}/skills/let-fate-decide/scripts/draw_cards.py" --content
 ```
 
 The `--content` flag includes card file text in the

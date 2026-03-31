@@ -122,7 +122,8 @@ def draw(n=4, include_content=False):
         if include_content:
             path = os.path.join(cards_dir, suit, f"{card_id}.md")
             try:
-                card["content"] = open(path).read()
+                with open(path) as f:
+                    card["content"] = f.read()
             except FileNotFoundError:
                 card["content"] = f"(card file not found: {path})"
         hand.append(card)
