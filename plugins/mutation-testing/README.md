@@ -2,7 +2,7 @@
 
 Helps configure [mewt](https://github.com/trailofbits/mewt) or [muton](https://github.com/trailofbits/muton) mutation testing campaigns — scoping targets, tuning timeouts, and optimizing long-running runs so you can execute `mewt run` or `muton run` with confidence.
 
-> **Note**: muton and mewt share identical interfaces. This plugin uses `mewt` in examples, but all commands work the same with `muton`. File names change accordingly: `mewt.toml` → `muton.toml`, `mewt.sqlite` → `muton.sqlite`.
+> **Note**: muton and mewt share identical interfaces but target different languages — mewt for general-purpose languages, muton for TON smart contracts (Tact, Tolk, FunC). All commands and configuration patterns in this plugin apply to both tools. File names change accordingly: `mewt.toml` → `muton.toml`, `mewt.sqlite` → `muton.sqlite`.
 
 ## What It Does
 
@@ -24,7 +24,9 @@ Walks through a 5-phase configuration workflow:
 
 - [mewt](https://github.com/trailofbits/mewt) v3.0.0+ or [muton](https://github.com/trailofbits/muton) v3.0.0+ installed
 - A test suite runnable from the command line
-- Source code in a supported language (Rust, Solidity, Go, Python, JavaScript, C/C++)
+- Source code in a supported language:
+  - **mewt**: Rust, Solidity, Go, TypeScript, JavaScript
+  - **muton**: Tact, Tolk, FunC (TON smart contract languages)
 
 ## Example Usage
 

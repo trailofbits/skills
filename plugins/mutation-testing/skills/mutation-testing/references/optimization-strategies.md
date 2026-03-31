@@ -116,6 +116,13 @@ include = ["src/auth/**/*.rs"]
 # include = ["src/auth/**/*.rs", "src/core/**/*.rs"]
 ```
 
+After editing `mewt.toml`, purge removed targets then mutate any newly included files:
+```bash
+mewt purge        # removes targets no longer matching [targets].include/ignore
+mewt mutate src/  # adds mutants for any newly included files
+mewt status       # confirm reduced mutant count
+```
+
 ### Option C: High/Medium Severity Only
 
 - "Limit to high/medium severity mutations (X mutants, ~Y hours)"
@@ -128,7 +135,14 @@ include = ["src/auth/**/*.rs"]
 mutations = ["ER", "CR", "IF", "IT"]  # Specific types (high/medium)
 ```
 
-Or use severity filtering during analysis:
+After editing `mewt.toml`, full regeneration is required since existing mutants may no longer be valid under the new filter:
+```bash
+mewt purge --all  # clear all existing mutants
+mewt mutate src/  # regenerate with restricted mutation types
+mewt status       # confirm reduced mutant count
+```
+
+Or use severity filtering during analysis instead (no database changes needed):
 ```bash
 # Run all mutants but filter results by severity
 mewt results --severity high,medium
@@ -143,8 +157,8 @@ mewt print mutants --severity high
 
 ### Option D: Two-Phase Campaign (Integration-Heavy Only)
 
-- "Phase 1: Targeted tests (~6 hours), Phase 2: Re-test uncaught with full suite (~2 hours)"
-- "Total: ~8 hours vs ~25 hours naive"
+- "Phase 1: Targeted tests (estimable upfront), Phase 2: Re-test uncaught with full suite (duration depends on Phase 1 survivor count)"
+- "Total: Phase 1 estimate + (survivors × full-suite time) vs naive total"
 - **When to suggest:** Integration tests dominate, unit tests don't map cleanly to files
 
 See Two-Phase Campaigns section below for detailed setup.
@@ -172,8 +186,8 @@ See Two-Phase Campaigns section below for detailed setup.
 
 ```toml
 # TWO-PHASE CAMPAIGN
-# Phase 1: Targeted tests (~6 hours)
-# Phase 2: Re-test uncaught with full suite (~2 hours)
+# Phase 1: Targeted tests (duration estimable upfront)
+# Phase 2: Re-test uncaught mutants (duration depends on Phase 1 survivor count)
 
 [test]
 # PHASE 2: Uncomment after phase 1 completes
@@ -190,6 +204,13 @@ timeout = 10
 glob = "src/core/*.rs"
 cmd = "cargo test core::unit"
 timeout = 15
+
+# Catch-all: full suite for any file not matched above.
+# Required unless [targets] is scoped to exactly the globs listed above.
+[[test.per_target]]
+glob = "**/*.rs"
+cmd = "cargo test"
+timeout = 60
 ```
 
 **Rationale:** Phase 1 uses fast targeted tests. Phase 2 re-tests only the survivors with the comprehensive suite.
@@ -210,7 +231,7 @@ Wait for completion.
    ```
 
 2. **Update mewt.toml:**
-   - Comment out `[[test.per_target]]` sections
+   - Comment out all `[[test.per_target]]` sections (including the catch-all)
    - Uncomment Phase 2 `[test]` section
 
 3. **Re-test with full suite:**
@@ -229,9 +250,14 @@ Naive approach:
   2,000 mutants × 45s = 25 hours
 
 Two-phase approach:
-  Phase 1: 2,000 mutants × 8s = 4.4 hours → 450 uncaught
-  Phase 2: 450 mutants × 45s = 5.6 hours → 180 truly uncaught
-  Total: 10 hours (2.5× speedup)
+  Phase 1: 2,000 mutants × 8s = 4.4 hours → 450 uncaught (example outcome)
+  Phase 2: 450 uncaught × 45s = 5.6 hours → 180 truly uncaught
+  Total: ~10 hours (2.5× speedup)
+
+Note: Phase 2 duration is unknowable before Phase 1 completes — it depends entirely
+on how many mutants survive. The figures above illustrate one possible outcome.
+Present Phase 1 as a firm estimate; present Phase 2 as (survivors × full-suite time)
+once Phase 1 results are available.
 ```
 
 ---

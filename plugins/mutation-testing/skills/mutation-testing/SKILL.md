@@ -10,7 +10,7 @@ allowed-tools:
 
 # Mutation Testing — Campaign Configuration (mewt/muton)
 
-> **Note**: muton and mewt share identical interfaces. All examples use `mewt` commands, but they work exactly the same with `muton`. File names change accordingly: `mewt.toml` → `muton.toml`, `mewt.sqlite` → `muton.sqlite`.
+> **Note**: muton and mewt share identical interfaces but target different languages — mewt for general-purpose languages (Rust, Solidity, Go, TypeScript, JavaScript), muton for TON smart contracts (Tact, Tolk, FunC). All examples use `mewt` commands, but they work exactly the same with `muton`. File names change accordingly: `mewt.toml` → `muton.toml`, `mewt.sqlite` → `muton.sqlite`.
 
 ## When to Use
 

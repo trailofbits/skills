@@ -31,7 +31,7 @@ Configure mewt so the user can run `mewt run` with optimal settings that balance
 3. **Verify target patterns:**
    - **Include patterns** should match only source code: `src/`, `lib/`, `contracts/`
    - **Ignore patterns** should exclude tests, dependencies, generated code
-   - Note: Ignore patterns use substring matching (e.g., `"test"` matches `tests/`, `test_utils.py`)
+   - Note: Ignore patterns use substring matching (e.g., `"test"` matches `tests/`, `test_utils.rs`)
 
 4. **Edit `mewt.toml` if needed** to fix target patterns:
    ```toml
@@ -105,8 +105,22 @@ Read `references/optimization-strategies.md` for detailed strategies and example
 2. Analyze project structure (`mewt print mutants --target 'src/component/**'` per component)
 3. Present options to user with time estimates (full campaign / target critical components / high-severity only / two-phase)
 4. Apply chosen optimization to `mewt.toml`
+5. **If `[targets]` or `[run].mutations` changed**, update the database and recalculate duration:
+   - **Target scope narrowed** (Option B): purge removed targets, then mutate any newly included files:
+     ```bash
+     mewt purge           # removes targets no longer in [targets].include/ignore
+     mewt mutate src/     # adds mutants for any newly included files
+     mewt status          # verify reduced mutant count
+     ```
+   - **Mutation types restricted** (Option C): full regeneration required since existing mutants may no longer be valid:
+     ```bash
+     mewt purge --all
+     mewt mutate src/
+     mewt status          # verify reduced mutant count
+     ```
+   Update the duration estimate before proceeding to Phase 4.
 
-**Exit:** Either campaign duration is acceptable, or `mewt.toml` has been optimized to reduce duration.
+**Exit:** Either campaign duration is acceptable, or `mewt.toml` has been optimized, the database updated, and the new duration estimate confirmed.
 
 ---
 
@@ -126,7 +140,7 @@ Read `references/optimization-strategies.md` for detailed strategies and example
 
    **Default:** Mewt auto-calculates timeout (baseline test time × 2), which accounts for incremental recompilation in most cases.
 
-   **Exception:** For compiled languages where recompilation of dependents dominates test time (Solidity/Foundry, heavy C++ builds):
+   **Exception:** For compiled languages where recompilation of dependents dominates test time (Solidity/Foundry):
 
    ```bash
    # Test with warm cache
@@ -163,7 +177,7 @@ Read `references/optimization-strategies.md` for detailed strategies and example
 Run through the validation checklist to verify all prior phases completed successfully:
 
 - [ ] `mewt print config` — Configuration syntax valid, no errors
-- [ ] `mewt status` — Mutant count matches expectations from Phase 2
+- [ ] `mewt status` — Mutant count matches expected count (Phase 2 count if no optimization applied; lower post-optimization count if `[targets]` or `[run].mutations` was narrowed)
 - [ ] `mewt print targets` — Only intended files mutated (no tests, mocks, dependencies)
 - [ ] Test command verified — Already validated in Phase 2 (and Phase 4 if modified)
 - [ ] Timeout set — Auto-calculated or manually set for recompilation-heavy languages
@@ -218,10 +232,10 @@ ignore = ["test", "mock", "generated"]
 include = ["contracts/**/*.sol"]
 ignore = ["test", "interfaces", "mocks"]
 
-# Python project
+# Go project
 [targets]
-include = ["src/**/*.py", "lib/**/*.py"]
-ignore = ["test", "conftest"]
+include = ["**/*.go"]
+ignore = ["test", "mock", "generated"]
 
 # JavaScript/TypeScript
 [targets]
@@ -235,7 +249,7 @@ ignore = ["test", "spec", "mock"]
 
 Mutants trigger incremental recompilation (only mutated file + dependents). Mewt's auto-calculated timeout (2× baseline) usually accounts for this.
 
-**Edge case:** In some compiled languages (Solidity/Foundry, heavy C++), recompiling dependent files takes much longer than running tests. Verify by timing tests, touching a file, and timing again. If drastically different, set manual timeout based on the slower measurement.
+**Edge case:** In some compiled languages (Solidity/Foundry), recompiling dependent files takes much longer than running tests. Verify by timing tests, touching a file, and timing again. If drastically different, set manual timeout based on the slower measurement.
 
 ```toml
 # Option 1: Auto-calculate (recommended for most languages)
