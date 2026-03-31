@@ -14,8 +14,8 @@ Claude Code's `WebFetch` tool and Bash `curl`/`wget` commands don't use the user
 
 This plugin provides:
 
-1. **PreToolUse hooks** that intercept GitHub URL access and suggest the correct `gh` CLI command
-2. **A skill** with comprehensive `gh` CLI reference documentation, including clone-and-read patterns for browsing code
+1. **PreToolUse hooks** that intercept GitHub URL access via `WebFetch` or `curl`/`wget`, and suggest the correct `gh` CLI command
+2. **A `gh` PATH shim** that blocks anti-patterns: API `/contents/` fetching and non-session-scoped temp directory clones
 3. **A SessionEnd hook** that automatically cleans up cloned repositories when the session ends
 
 ### What Gets Intercepted
@@ -32,14 +32,18 @@ This plugin provides:
 | `Bash` | `curl https://api.github.com/...` | `gh api <endpoint>` |
 | `Bash` | `curl https://raw.githubusercontent.com/...` | `gh repo clone` + Read |
 | `Bash` | `wget https://github.com/...` | `gh release download` |
+| `Bash` (shim) | `gh api repos/.../contents/...` | `gh repo clone` + Read |
+| `Bash` (shim) | `gh repo clone ... /tmp/...` (non-session-scoped) | Session-scoped clone path |
 
 ### What Passes Through
 
 - Non-GitHub URLs (any domain that isn't `github.com`, `api.github.com`, `raw.githubusercontent.com`, or `gist.github.com`)
 - GitHub Pages sites (`*.github.io`)
-- Commands already using `gh`
+- Commands already using `gh` (except anti-patterns blocked by the shim; see table above)
 - Git commands (`git clone`, `git push`, etc.)
 - Search commands that mention GitHub URLs (`grep`, `rg`, etc.)
+
+**Note:** When hooks deny blob/tree/raw URLs, the denial message explicitly warns against using `gh api` to fetch and base64-decode file contents as a fallback — clone the repo instead.
 
 ### Automatic Cleanup
 
@@ -48,7 +52,7 @@ Cloned repositories are stored in session-scoped temp directories (`$TMPDIR/gh-c
 ## Prerequisites
 
 - [GitHub CLI (`gh`)](https://cli.github.com/) must be installed and authenticated (`gh auth login`)
-- If `gh` is not installed, the hooks silently pass through (no disruption)
+- If `gh` is not installed, the hooks pass through without disruption
 
 ## Installation
 

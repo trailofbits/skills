@@ -1,6 +1,6 @@
 ---
 name: semgrep-scanner
-description: "Executes semgrep CLI scans for a language category. Use when running automated static analysis scans with semgrep against a codebase."
+description: "Executes Semgrep CLI scans for a specific language category and produces SARIF output. Spawned by the semgrep skill as a parallel worker — one agent per detected language."
 tools: Bash(semgrep scan:*), Bash
 ---
 
@@ -40,13 +40,32 @@ After launching all rulesets:
 wait
 ```
 
+## Language Scoping
+
+For language-specific rulesets (e.g., `p/python`, `p/java`),
+add `--include` to restrict parsing to relevant files:
+
+```bash
+--include="*.java" --include="*.jsp"  # for Java
+--include="*.py"                       # for Python
+--include="*.js" --include="*.jsx"     # for JavaScript
+```
+
+Do NOT add `--include` to cross-language rulesets like
+`p/security-audit`, `p/secrets`, or third-party repos that
+contain rules for multiple languages.
+
 ## GitHub URL Rulesets
 
 For rulesets specified as GitHub URLs (e.g.,
 `https://github.com/trailofbits/semgrep-rules`):
-- Clone the repository first if not already cached locally
-- Use the local path as the `--config` value, or pass the
-  URL directly to semgrep (it handles GitHub URLs natively)
+- Clone into `[OUTPUT_DIR]/repos/[repo-name]` so cloned
+  repos stay inside the results directory
+- Use the local path as the `--config` value (do NOT pass
+  the URL directly — semgrep's URL handling is unreliable
+  for repos with non-standard YAML)
+- After all scans complete, delete the cloned repos:
+  `[ -n "[OUTPUT_DIR]" ] && rm -rf [OUTPUT_DIR]/repos`
 
 ## Output Requirements
 

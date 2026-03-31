@@ -49,7 +49,7 @@ gemini -p "/code-review" --yolo -e code-review
 # Gemini (headless with diff — see references/ for full pattern)
 git diff HEAD > /tmp/review-diff.txt
 { printf '%s\n\n' 'Review this diff for issues.'; cat /tmp/review-diff.txt; } \
-  | gemini -p - --yolo -m gemini-3-pro-preview
+  | gemini -p - --yolo -m gemini-3.1-pro-preview
 ```
 
 ## Invocation
@@ -194,7 +194,7 @@ See [references/gemini-invocation.md](references/gemini-invocation.md)
 for full details on flags, scope mapping, and extension usage.
 
 Summary:
-- Model: `gemini-3-pro-preview`, flags: `--yolo`, `-e`, `-m`
+- Model: `gemini-3.1-pro-preview`, flags: `--yolo`, `-e`, `-m`
 - For uncommitted general review: `gemini -p "/code-review" --yolo -e code-review`
 - For branch/commit diffs: pipe `git diff` into `gemini -p`
 - Security extension name is `gemini-cli-security` (not `security`)
@@ -227,7 +227,7 @@ When the user picks "Both" (the default):
 ## Codex Review (gpt-5.3-codex)
 <codex output>
 
-## Gemini Review (gemini-3-pro-preview)
+## Gemini Review (gemini-3.1-pro-preview)
 <gemini output>
 ```
 

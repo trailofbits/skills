@@ -21,4 +21,7 @@ if [[ -z "${CLAUDE_ENV_FILE:-}" ]]; then
   exit 0
 fi
 
-echo "export CLAUDE_SESSION_ID=\"$session_id\"" >>"$CLAUDE_ENV_FILE"
+echo "export CLAUDE_SESSION_ID=\"$session_id\"" >>"$CLAUDE_ENV_FILE" || {
+  echo "gh-cli: failed to write CLAUDE_SESSION_ID to CLAUDE_ENV_FILE ($CLAUDE_ENV_FILE)" >&2
+  exit 1
+}

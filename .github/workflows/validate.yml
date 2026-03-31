@@ -89,3 +89,6 @@ jobs:
 
       - name: Validate plugin metadata
         run: python3 .github/scripts/validate_plugin_metadata.py
+
+      - name: Validate Codex skill mappings
+        run: python3 .github/scripts/validate_codex_skills.py

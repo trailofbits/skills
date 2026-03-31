@@ -2,6 +2,7 @@
 * @dguido
 
 # Plugin-specific owners (alphabetical)
+/plugins/agentic-actions-auditor/ @BuffaloWill @elopez @dguido
 /plugins/ask-questions-if-underspecified/ @kevin-valerio @dguido
 /plugins/audit-context-building/ @omarinuwa @dguido
 /plugins/building-secure-contracts/ @omarinuwa @dguido
@@ -12,21 +13,28 @@
 /plugins/debug-buttercup/ @reytchison @dguido
 /plugins/devcontainer-setup/ @DarkaMaul @dguido
 /plugins/differential-review/ @omarinuwa @dguido
+/plugins/dimensional-analysis/ @bsamuels453 @dguido
 /plugins/dwarf-expert/ @xintenseapple @dguido
 /plugins/entry-point-analyzer/ @nisedo @dguido
 /plugins/firebase-apk-scanner/ @nicksellier @dguido
+/plugins/fp-check/ @ahpaleus @dguido
 /plugins/gh-cli/ @Ninja3047 @dguido
 /plugins/git-cleanup/ @hbrodin @dguido
 /plugins/insecure-defaults/ @dariushoule @dguido
+/plugins/let-fate-decide/ @tob-scott-a @dguido
 /plugins/modern-python/ @Ninja3047 @dguido
 /plugins/property-based-testing/ @hbrodin @dguido
+/plugins/seatbelt-sandboxer/ @smichaels-tob @dguido
+/plugins/skill-improver/ @GrosQuildu @dguido
 /plugins/second-opinion/ @dguido
 /plugins/semgrep-rule-creator/ @ahpaleus @dguido
 /plugins/semgrep-rule-variant-creator/ @ahpaleus @dguido
 /plugins/sharp-edges/ @tob-scott-a @dguido
 /plugins/spec-to-code-compliance/ @omarinuwa @dguido
 /plugins/static-analysis/ @axelm-tob @dguido
+/plugins/supply-chain-risk-auditor/ @smichaels-tob @dguido
 /plugins/testing-handbook-skills/ @GrosQuildu @dguido
 /plugins/variant-analysis/ @axelm-tob @dguido
 /plugins/workflow-skill-design/ @bsamuels453 @dguido
 /plugins/yara-authoring/ @dguido
+/plugins/zeroize-audit/ @kumarak @dguido

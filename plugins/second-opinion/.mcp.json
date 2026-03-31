@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "codex-mcp-server": {
-      "command": "uvx",
-      "args": ["codex-mcp-server"]
+    "codex": {
+      "command": "codex",
+      "args": ["mcp-server"]
     }
   }
 }

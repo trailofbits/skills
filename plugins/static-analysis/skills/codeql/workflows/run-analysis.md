@@ -2,24 +2,39 @@
 
 Execute CodeQL security queries on an existing database with ruleset selection and result formatting.
 
+## Scan Modes
+
+Two modes control analysis scope. Both use all installed packs — the difference is filtering.
+
+| Mode | Description | Suite Reference |
+|------|-------------|-----------------|
+| **Run all** | All queries from all installed packs via `security-and-quality` suite | [run-all-suite.md](../references/run-all-suite.md) |
+| **Important only** | Security queries filtered by precision and security-severity threshold | [important-only-suite.md](../references/important-only-suite.md) |
+
+> **WARNING:** Do NOT pass pack names directly to `codeql database analyze` (e.g., `-- codeql/cpp-queries`). Each pack's `defaultSuiteFile` silently applies strict filters and can produce zero results. Always use an explicit suite reference.
+
+---
+
 ## Task System
 
 Create these tasks on workflow start:
 
 ```
 TaskCreate: "Select database and detect language" (Step 1)
-TaskCreate: "Check additional query packs and detect model packs" (Step 2) - blockedBy: Step 1
+TaskCreate: "Select scan mode, check additional packs" (Step 2) - blockedBy: Step 1
 TaskCreate: "Select query packs, model packs, and threat models" (Step 3) - blockedBy: Step 2
 TaskCreate: "Execute analysis" (Step 4) - blockedBy: Step 3
 TaskCreate: "Process and report results" (Step 5) - blockedBy: Step 4
 ```
 
-### Mandatory Gates
+### Gates
 
 | Task | Gate Type | Cannot Proceed Until |
 |------|-----------|---------------------|
-| Step 2 | **SOFT GATE** | User confirms installed/ignored for each missing pack |
-| Step 3 | **HARD GATE** | User approves query packs, model packs, and threat model selection |
+| Step 2 | **SOFT GATE** | User selects mode; confirms installed/ignored for each missing pack |
+| Step 3 | **SOFT GATE** | User approves query packs, model packs, and threat model selection |
+
+**Auto-skip rule:** If the user already specified a choice in the invocation, skip the corresponding `AskUserQuestion` and use the provided value directly.
 
 ---
 
@@ -27,319 +42,203 @@ TaskCreate: "Process and report results" (Step 5) - blockedBy: Step 4
 
 ### Step 1: Select Database and Detect Language
 
-**Find available databases:**
+**Entry:** `$OUTPUT_DIR` is set (from parent skill). `$DB_NAME` may already be set if the parent skill resolved database selection.
+**Exit:** `DB_NAME` and `CODEQL_LANG` variables set; database resolves successfully.
+
+**If `$DB_NAME` is already set** (parent skill handled database selection): validate it and proceed.
+
+**If `$DB_NAME` is not set:** discover databases by looking for `codeql-database.yml` marker files. Search inside `$OUTPUT_DIR` first, then fall back to the project root (top-level and one subdirectory deep).
 
 ```bash
-# List all CodeQL databases
-ls -dt codeql_*.db 2>/dev/null | head -10
+# Skip discovery if DB_NAME was already resolved by parent skill
+if [ -z "$DB_NAME" ]; then
+  # Discover databases inside OUTPUT_DIR
+  FOUND_DBS=()
+  while IFS= read -r yml; do
+    FOUND_DBS+=("$(dirname "$yml")")
+  done < <(find "$OUTPUT_DIR" -maxdepth 2 -name "codeql-database.yml" 2>/dev/null)
 
-# Get the most recent database
-get_latest_db() {
-  ls -dt codeql_*.db 2>/dev/null | head -1
-}
+  # Fallback: search project root (top-level and one subdir deep)
+  if [ ${#FOUND_DBS[@]} -eq 0 ]; then
+    while IFS= read -r yml; do
+      FOUND_DBS+=("$(dirname "$yml")")
+    done < <(find . -maxdepth 3 -name "codeql-database.yml" -not -path "*/\.*" 2>/dev/null)
+  fi
 
-DB_NAME=$(get_latest_db)
-if [[ -z "$DB_NAME" ]]; then
-  echo "ERROR: No CodeQL database found. Run build-database workflow first."
-  exit 1
+  if [ ${#FOUND_DBS[@]} -eq 0 ]; then
+    echo "ERROR: No CodeQL database found in $OUTPUT_DIR or project root"
+    exit 1
+  elif [ ${#FOUND_DBS[@]} -eq 1 ]; then
+    DB_NAME="${FOUND_DBS[0]}"
+  else
+    # Multiple databases found — present to user
+    # Use AskUserQuestion with each DB's path and language
+    # SKIP if user already specified which database in their prompt
+  fi
 fi
-echo "Using database: $DB_NAME"
+
+CODEQL_LANG=$(codeql resolve database --format=json -- "$DB_NAME" | jq -r '.languages[0]')
+echo "Using: $DB_NAME (language: $CODEQL_LANG)"
 ```
 
-**If multiple databases exist**, use `AskUserQuestion` to let user select:
+**When multiple databases are found**, use `AskUserQuestion` to let user select — list each database with its path and language. **Skip `AskUserQuestion` if the user already specified which database to use in their prompt.**
 
-```
-header: "Database"
-question: "Multiple databases found. Which one to analyze?"
-options:
-  - label: "codeql_3.db (latest)"
-    description: "Created: <timestamp>"
-  - label: "codeql_2.db"
-    description: "Created: <timestamp>"
-  - label: "codeql_1.db"
-    description: "Created: <timestamp>"
-```
-
-**Verify and detect language:**
-
-```bash
-# Check database exists and get language(s)
-codeql resolve database -- "$DB_NAME"
-
-# Get primary language from database
-LANG=$(codeql resolve database --format=json -- "$DB_NAME" \
-  | jq -r '.languages[0]')
-LANG_COUNT=$(codeql resolve database --format=json -- "$DB_NAME" \
-  | jq '.languages | length')
-echo "Primary language: $LANG"
-if [ "$LANG_COUNT" -gt 1 ]; then
-  echo "WARNING: Multi-language database ($LANG_COUNT languages)"
-  codeql resolve database --format=json -- "$DB_NAME" \
-    | jq -r '.languages[]'
-fi
-```
-
-**Multi-language databases:** If more than one language is detected, ask the user which language to analyze or run separate analyses for each.
+If multi-language database, ask which language to analyze.
 
 ---
 
-### Step 2: Check Additional Query Packs and Detect Model Packs
+### Step 2: Select Scan Mode, Check Additional Packs
 
-Check if recommended third-party query packs are installed and detect available model packs. For each missing pack, prompt user to install or ignore.
+**Entry:** Step 1 complete (`DB_NAME` and `CODEQL_LANG` set)
+**Exit:** Scan mode selected; all available packs (official, ToB, community) checked for installation status; model packs detected
 
-#### 2a: Query Packs
+#### 2a: Select Scan Mode
 
-**Available packs by language** (see [ruleset-catalog.md](../references/ruleset-catalog.md)):
+**Skip if user already specified.** Otherwise use `AskUserQuestion`:
+
+```
+header: "Scan Mode"
+question: "Which scan mode should be used?"
+options:
+  - label: "Run all (Recommended)"
+    description: "Maximum coverage — all queries from all installed packs"
+  - label: "Important only"
+    description: "Security vulnerabilities only — medium-high precision, security-severity threshold"
+```
+
+#### 2b: Query Packs
+
+For each pack available for the detected language (see [ruleset-catalog.md](../references/ruleset-catalog.md)):
 
 | Language | Trail of Bits | Community Pack |
 |----------|---------------|----------------|
 | C/C++ | `trailofbits/cpp-queries` | `GitHubSecurityLab/CodeQL-Community-Packs-CPP` |
 | Go | `trailofbits/go-queries` | `GitHubSecurityLab/CodeQL-Community-Packs-Go` |
 | Java | `trailofbits/java-queries` | `GitHubSecurityLab/CodeQL-Community-Packs-Java` |
-| JavaScript | - | `GitHubSecurityLab/CodeQL-Community-Packs-JavaScript` |
-| Python | - | `GitHubSecurityLab/CodeQL-Community-Packs-Python` |
-| C# | - | `GitHubSecurityLab/CodeQL-Community-Packs-CSharp` |
-| Ruby | - | `GitHubSecurityLab/CodeQL-Community-Packs-Ruby` |
+| JavaScript | — | `GitHubSecurityLab/CodeQL-Community-Packs-JavaScript` |
+| Python | — | `GitHubSecurityLab/CodeQL-Community-Packs-Python` |
+| C# | — | `GitHubSecurityLab/CodeQL-Community-Packs-CSharp` |
+| Ruby | — | `GitHubSecurityLab/CodeQL-Community-Packs-Ruby` |
 
-**For each pack available for the detected language:**
+Check if installed (`codeql resolve qlpacks | grep -i "<PACK_NAME>"`). If not, ask user to install or ignore.
 
-```bash
-# Check if pack is installed
-codeql resolve qlpacks | grep -i "<PACK_NAME>"
-```
+#### 2c: Detect Model Packs
 
-**If NOT installed**, use `AskUserQuestion`:
+Search three locations for data extension model packs:
+1. **In-repo model packs** — `qlpack.yml`/`codeql-pack.yml` with `dataExtensions`
+2. **In-repo standalone data extensions** — `.yml` files with `extensions:` key
+3. **Installed model packs** — resolved by CodeQL
 
-```
-header: "<PACK_TYPE>"
-question: "<PACK_NAME> for <LANG> is not installed. Install it?"
-options:
-  - label: "Install (Recommended)"
-    description: "Run: codeql pack download <PACK_NAME>"
-  - label: "Ignore"
-    description: "Skip this pack for this analysis"
-```
-
-**On "Install":**
-```bash
-codeql pack download <PACK_NAME>
-```
-
-**On "Ignore":** Mark pack as skipped, continue to next pack.
-
-#### 2b: Detect Model Packs
-
-Model packs contain data extensions (custom sources, sinks, flow summaries) that improve CodeQL's data flow analysis for project-specific or framework-specific APIs. To create new extensions, run the [create-data-extensions](create-data-extensions.md) workflow first.
-
-**Search three locations:**
-
-**1. In-repo model packs** — `qlpack.yml` or `codeql-pack.yml` with `dataExtensions`:
-
-```bash
-# Find CodeQL pack definitions in the codebase
-fd '(qlpack|codeql-pack)\.yml$' . --exclude codeql_*.db | while read -r f; do
-  if grep -q 'dataExtensions' "$f"; then
-    echo "MODEL PACK: $(dirname "$f") - $(grep '^name:' "$f")"
-  fi
-done
-```
-
-**2. In-repo standalone data extensions** — `.yml` files with `extensions:` key (auto-discovered by CodeQL):
-
-```bash
-# Find data extension YAML files in the codebase
-rg -l '^extensions:' --glob '*.yml' --glob '!codeql_*.db/**' | head -20
-```
-
-**3. Installed model packs** — library packs resolved by CodeQL that contain models:
-
-```bash
-# List all resolved packs and filter for model/library packs
-# Model packs typically have "model" in the name or are library packs
-codeql resolve qlpacks 2>/dev/null | grep -iE 'model|extension'
-```
-
-**Record all detected model packs for presentation in Step 3.** If no model packs are found, note this and proceed — model packs are optional.
+Record all detected packs for Step 3.
 
 ---
 
-### Step 3: CRITICAL GATE - Select Query Packs and Model Packs
+### Step 3: Select Query Packs and Model Packs
 
-> **⛔ MANDATORY CHECKPOINT - DO NOT SKIP**
->
-> Present all available packs as checklists. Query packs first, then model packs.
+**Entry:** Step 2 complete (scan mode, pack availability, and model packs all determined)
+**Exit:** User confirmed query packs, model packs, and threat model selection; all flags built (`THREAT_MODEL_FLAG`, `MODEL_PACK_FLAGS`, `ADDITIONAL_PACK_FLAGS`)
 
-#### 3a: Select Query Packs
+> **CHECKPOINT** — Present available packs to user for confirmation.
+> **Skip if user already specified pack preferences.**
 
-Use `AskUserQuestion` tool with `multiSelect: true`:
+#### 3a: Confirm Query Packs
 
-```
-header: "Query Packs"
-question: "Select query packs to run:"
-multiSelect: false
-options:
-  - label: "Use all (Recommended)"
-    description: "Run all installed query packs for maximum coverage"
-  - label: "security-extended"
-    description: "codeql/<lang>-queries - Core security queries, low false positives"
-  - label: "security-and-quality"
-    description: "Includes code quality checks - more findings, more noise"
-  - label: "Select individually"
-    description: "Choose specific packs from the full list"
-```
+**Important-only mode:** Inform user all installed packs included with filtering. Proceed to 3b.
 
-**If "Use all":** Include all installed query packs: `security-extended` + Trail of Bits + Community Packs (whichever are installed).
-
-**If "Select individually":** Follow up with a `multiSelect: true` question listing all installed packs:
-
-```
-header: "Query Packs"
-question: "Select query packs to run:"
-multiSelect: true
-options:
-  - label: "security-extended"
-    description: "codeql/<lang>-queries - Core security queries, low false positives"
-  - label: "security-and-quality"
-    description: "Includes code quality checks - more findings, more noise"
-  - label: "security-experimental"
-    description: "Bleeding-edge queries - may have higher false positives"
-  - label: "Trail of Bits"
-    description: "trailofbits/<lang>-queries - Memory safety, domain expertise"
-  - label: "Community Packs"
-    description: "GitHubSecurityLab/CodeQL-Community-Packs-<Lang> - Additional security queries"
-```
-
-**Only show built-in and third-party packs that are installed (from Step 2a)**
-
-**⛔ STOP: Await user selection**
+**Run-all mode:** Use `AskUserQuestion` to confirm "Use all" or "Select individually".
 
 #### 3b: Select Model Packs (if any detected)
 
-**Skip this sub-step if no model packs were detected in Step 2b.**
+**Skip if no model packs detected in Step 2c.**
 
-Present detected model packs from Step 2b. Categorize by source:
-
-Use `AskUserQuestion` tool:
-
-```
-header: "Model Packs"
-question: "Model packs add custom data flow models (sources, sinks, summaries). Select which to include:"
-multiSelect: false
-options:
-  - label: "Use all (Recommended)"
-    description: "Include all detected model packs and data extensions"
-  - label: "Select individually"
-    description: "Choose specific model packs from the list"
-  - label: "Skip"
-    description: "Run without model packs"
-```
-
-**If "Use all":** Include all model packs and data extensions detected in Step 2b.
-
-**If "Select individually":** Follow up with a `multiSelect: true` question:
-
-```
-header: "Model Packs"
-question: "Select model packs to include:"
-multiSelect: true
-options:
-  # For each in-repo model pack found in 2b:
-  - label: "<pack-name>"
-    description: "In-repo model pack at <path> - custom data flow models"
-  # For each standalone data extension found in 2b:
-  - label: "In-repo extensions"
-    description: "<N> data extension files found in codebase (auto-discovered)"
-  # For each installed model pack found in 2b:
-  - label: "<pack-name>"
-    description: "Installed model pack - <description if available>"
-```
+Use `AskUserQuestion`: "Use all (Recommended)" / "Select individually" / "Skip".
 
 **Notes:**
-- In-repo standalone data extensions (`.yml` files with `extensions:` key) are auto-discovered by CodeQL during analysis — selecting them here ensures the source directory is passed via `--additional-packs`
-- In-repo model packs (with `qlpack.yml`) need their parent directory passed via `--additional-packs`
-- Installed model packs are passed via `--model-packs`
+- In-repo standalone extensions (`.yml`) are auto-discovered — pass source directory via `--additional-packs`
+- In-repo model packs (with `qlpack.yml`) need parent directory via `--additional-packs`
+- Installed model packs use `--model-packs`
 
-**⛔ STOP: Await user selection**
+#### 3c: Select Threat Models
 
----
-
-### Step 3c: Select Threat Models
-
-Threat models control which input sources CodeQL treats as tainted. The default (`remote`) covers HTTP/network input only. Expanding the threat model finds more vulnerabilities but may increase false positives. See [threat-models.md](../references/threat-models.md) for details on each model.
+Threat models control which input sources CodeQL treats as tainted. See [threat-models.md](../references/threat-models.md).
 
 Use `AskUserQuestion`:
 
 ```
 header: "Threat Models"
 question: "Which input sources should CodeQL treat as tainted?"
-multiSelect: false
 options:
   - label: "Remote only (Recommended)"
-    description: "Default — HTTP requests, network input. Best for web services and APIs."
+    description: "Default — HTTP requests, network input"
   - label: "Remote + Local"
-    description: "Add CLI args, local files. Use for CLI tools or desktop apps."
+    description: "Add CLI args, local files"
   - label: "All sources"
-    description: "Remote, local, environment, database, file. Maximum coverage, more noise."
+    description: "Remote, local, environment, database, file"
   - label: "Custom"
     description: "Select specific threat models individually"
 ```
 
-**If "Custom":** Follow up with `multiSelect: true`:
-
-```
-header: "Threat Models"
-question: "Select threat models to enable:"
-multiSelect: true
-options:
-  - label: "remote"
-    description: "HTTP requests, network input (always included)"
-  - label: "local"
-    description: "CLI args, local files — for CLI tools, batch processors"
-  - label: "environment"
-    description: "Environment variables — for 12-factor/container apps"
-  - label: "database"
-    description: "Database results — for second-order injection audits"
-```
-
-**Build the threat model flag:**
-
-```bash
-# Only add --threat-models when non-default models are selected
-# Default (remote only) needs no flag
-THREAT_MODEL_FLAG=""  # or "--threat-models=remote,local" etc.
-```
+Build the flag: `THREAT_MODEL_FLAG=""` (remote only needs no flag), `--threat-model local`, etc.
 
 ---
 
 ### Step 4: Execute Analysis
 
-Run analysis with **only** the packs selected by user in Step 3.
+**Entry:** Step 3 complete (all flags and pack selections finalized)
+**Exit:** `$RAW_DIR/results.sarif` exists and contains valid SARIF output
+
+#### Log selected query packs
+
+Write the selected query packs, model packs, and threat models to `$OUTPUT_DIR/rulesets.txt`:
 
 ```bash
-# Results directory matches database name
-RESULTS_DIR="${DB_NAME%.db}-results"
-mkdir -p "$RESULTS_DIR"
+cat > "$OUTPUT_DIR/rulesets.txt" << RULESETS
+# CodeQL Analysis — Selected Query Packs
+# Generated: $(date -Iseconds)
+# Scan mode: <run-all|important-only>
+# Database: $DB_NAME
+# Language: $CODEQL_LANG
 
-# Build pack list from user selections in Step 3a
-PACKS="<USER_SELECTED_QUERY_PACKS>"
+## Query packs:
+<one pack per line>
 
-# Build model pack flags from user selections in Step 3b
-# --model-packs for installed model packs
-# --additional-packs for in-repo model packs and data extensions
-MODEL_PACK_FLAGS=""
-ADDITIONAL_PACK_FLAGS=""
+## Model packs:
+<one pack per line, or "None">
 
-# Threat model flag from Step 3c (empty string if default/remote-only)
-# THREAT_MODEL_FLAG=""
+## Threat models:
+<threat model selection, or "default (remote)">
+RULESETS
+```
 
+#### Generate custom suite
+
+**Important-only mode:** Generate the custom `.qls` suite using the template and script in [important-only-suite.md](../references/important-only-suite.md).
+
+**Run-all mode:** Generate the custom `.qls` suite using the template in [run-all-suite.md](../references/run-all-suite.md).
+
+```bash
+RAW_DIR="$OUTPUT_DIR/raw"
+RESULTS_DIR="$OUTPUT_DIR/results"
+mkdir -p "$RAW_DIR" "$RESULTS_DIR"
+SUITE_FILE="$RAW_DIR/<mode>.qls"
+
+# Verify suite resolves correctly before running
+codeql resolve queries "$SUITE_FILE" | wc -l
+```
+
+#### Run analysis
+
+Output goes to `$RAW_DIR/results.sarif` (unfiltered). The final results are produced in Step 5.
+
+```bash
 codeql database analyze $DB_NAME \
   --format=sarif-latest \
-  --output="$RESULTS_DIR/results.sarif" \
+  --output="$RAW_DIR/results.sarif" \
   --threads=0 \
   $THREAT_MODEL_FLAG \
   $MODEL_PACK_FLAGS \
   $ADDITIONAL_PACK_FLAGS \
-  -- $PACKS
+  -- "$SUITE_FILE"
 ```
 
 **Flag reference for model packs:**
@@ -347,68 +246,30 @@ codeql database analyze $DB_NAME \
 | Source | Flag | Example |
 |--------|------|---------|
 | Installed model packs | `--model-packs` | `--model-packs=myorg/java-models` |
-| In-repo model packs (with `qlpack.yml`) | `--additional-packs` | `--additional-packs=./lib/codeql-models` |
-| In-repo standalone extensions (`.yml`) | `--additional-packs` | `--additional-packs=.` |
+| In-repo model packs | `--additional-packs` | `--additional-packs=./lib/codeql-models` |
+| In-repo standalone extensions | `--additional-packs` | `--additional-packs=.` |
 
-**Example (C++ with query packs and model packs):**
+### Performance
 
-```bash
-codeql database analyze codeql_1.db \
-  --format=sarif-latest \
-  --output=codeql_1-results/results.sarif \
-  --threads=0 \
-  --additional-packs=./codeql-models \
-  -- codeql/cpp-queries:codeql-suites/cpp-security-extended.qls \
-     trailofbits/cpp-queries \
-     GitHubSecurityLab/CodeQL-Community-Packs-CPP
-```
+If codebase is large, read [performance-tuning.md](../references/performance-tuning.md) and apply relevant optimizations.
 
-**Example (Python with installed model pack):**
-
-```bash
-codeql database analyze codeql_1.db \
-  --format=sarif-latest \
-  --output=codeql_1-results/results.sarif \
-  --threads=0 \
-  --model-packs=myorg/python-models \
-  -- codeql/python-queries:codeql-suites/python-security-extended.qls
-```
-
-### Performance Flags
-
-If codebase is large then read [../references/performance-tuning.md](../references/performance-tuning.md) and apply relevant optimizations.
+---
 
 ### Step 5: Process and Report Results
 
-**Count findings:**
+**Entry:** Step 4 complete (`$RAW_DIR/results.sarif` exists)
+**Exit:** `$RESULTS_DIR/results.sarif` contains final results; findings summarized by severity, rule, and location; zero-finding results investigated; final report presented to user
 
-```bash
-jq '.runs[].results | length' "$RESULTS_DIR/results.sarif"
-```
+#### Produce final results
 
-**Summary by SARIF level:**
+- **Run-all mode:** Copy unfiltered results to the final location:
+  ```bash
+  cp "$RAW_DIR/results.sarif" "$RESULTS_DIR/results.sarif"
+  ```
 
-```bash
-jq -r '.runs[].results[] | .level' "$RESULTS_DIR/results.sarif" \
-  | sort | uniq -c | sort -rn
-```
+- **Important-only mode:** Apply the post-analysis filter from [sarif-processing.md](../references/sarif-processing.md#important-only-post-filter) to remove medium-precision results with `security-severity` < 6.0. The filter reads from `$RAW_DIR/results.sarif` and writes to `$RESULTS_DIR/results.sarif`, preserving the unfiltered original.
 
-**Summary by security severity** (more useful for triage):
-
-```bash
-jq -r '
-  .runs[].results[] |
-  (.properties["security-severity"] // "none") + " " +
-  (.message.text // "no message" | .[0:80])
-' "$RESULTS_DIR/results.sarif" | sort -rn | head -20
-```
-
-**Summary by rule:**
-
-```bash
-jq -r '.runs[].results[] | .ruleId' "$RESULTS_DIR/results.sarif" \
-  | sort | uniq -c | sort -rn
-```
+Process the final SARIF output (`$RESULTS_DIR/results.sarif`) using the jq commands in [sarif-processing.md](../references/sarif-processing.md): count findings, summarize by level, summarize by security severity, summarize by rule.
 
 ---
 
@@ -419,8 +280,10 @@ Report to user:
 ```
 ## CodeQL Analysis Complete
 
+**Output directory:** $OUTPUT_DIR
 **Database:** $DB_NAME
 **Language:** <LANG>
+**Scan mode:** Run all | Important only
 **Query packs:** <list of query packs used>
 **Model packs:** <list of model packs used, or "None">
 **Threat models:** <list of threat models, or "default (remote)">
@@ -432,5 +295,7 @@ Report to user:
 - Note: <N>
 
 ### Output Files:
-- SARIF: $RESULTS_DIR/results.sarif
+- SARIF (final): $OUTPUT_DIR/results/results.sarif
+- SARIF (unfiltered): $OUTPUT_DIR/raw/results.sarif
+- Rulesets: $OUTPUT_DIR/rulesets.txt
 ```

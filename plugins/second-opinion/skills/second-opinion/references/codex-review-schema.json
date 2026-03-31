@@ -15,7 +15,7 @@
             "minLength": 1
           },
           "confidence_score": {
-            "type": "number",
+            "type": ["number", "null"],
             "minimum": 0,
             "maximum": 1
           },
@@ -25,30 +25,44 @@
             "maximum": 3
           },
           "code_location": {
-            "type": "object",
-            "properties": {
-              "file_path": {
-                "type": "string"
-              },
-              "line_range": {
+            "anyOf": [
+              {
                 "type": "object",
                 "properties": {
-                  "start": {
-                    "type": "integer"
+                  "file_path": {
+                    "type": "string"
                   },
-                  "end": {
-                    "type": "integer"
+                  "line_range": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "start": {
+                            "type": "integer"
+                          },
+                          "end": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": ["start", "end"],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
-                "required": ["start", "end"],
+                "required": ["file_path", "line_range"],
                 "additionalProperties": false
+              },
+              {
+                "type": "null"
               }
-            },
-            "required": ["file_path"],
-            "additionalProperties": false
+            ]
           }
         },
-        "required": ["title", "body", "priority"],
+        "required": ["title", "body", "confidence_score", "priority", "code_location"],
         "additionalProperties": false
       }
     },
@@ -56,7 +70,7 @@
       "type": "string"
     },
     "overall_explanation": {
-      "type": "string"
+      "type": ["string", "null"]
     },
     "overall_confidence_score": {
       "type": "number",
@@ -64,6 +78,6 @@
       "maximum": 1
     }
   },
-  "required": ["findings", "overall_correctness", "overall_confidence_score"],
+  "required": ["findings", "overall_correctness", "overall_explanation", "overall_confidence_score"],
   "additionalProperties": false
 }

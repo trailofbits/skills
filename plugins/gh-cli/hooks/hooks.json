@@ -1,5 +1,5 @@
 {
-  "description": "Intercept GitHub URL fetches and curl/wget commands, suggest gh CLI instead. Clean up cloned repos on session end.",
+  "description": "Intercept GitHub URL fetches and curl/wget commands, suggest gh CLI instead. PATH shim blocks gh anti-patterns. Clean up cloned repos on session end.",
   "hooks": {
     "SessionStart": [
       {
@@ -8,6 +8,15 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/persist-session-id.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/setup-shims.sh\""
           }
         ]
       }

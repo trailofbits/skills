@@ -50,10 +50,9 @@ Shells out to `codex review` and/or `gemini` CLI with high-capability model conf
 
 ## Codex MCP Tools
 
-This plugin bundles a [codex-mcp-server](https://github.com/trailofbits/codex-mcp) that auto-starts when the plugin is installed, providing three MCP tools:
+This plugin bundles Codex CLI's built-in MCP server (`codex mcp-server`), which auto-starts when the plugin is installed and provides two MCP tools:
 
-- **codex_ask** — ask Codex a question inline, swapping in an OpenAI model mid-session
-- **codex_exec** — send a raw prompt to Codex with full control over the input
-- **codex_review** — review a git diff for bugs, security issues, and correctness
+- **codex** — start a new Codex session with a prompt, model, sandbox, and approval policy settings
+- **codex-reply** — continue an existing session by thread ID for multi-turn conversations
 
 These tools work independently of the `/second-opinion` slash command. Use them when you want direct, programmatic access to Codex without the interactive prompt workflow.

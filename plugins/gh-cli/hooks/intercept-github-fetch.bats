@@ -187,3 +187,36 @@ load test_helper
   assert_deny
   assert_suggestion_contains "private repos"
 }
+
+# =============================================================================
+# Anti-pattern warning: gh api .../contents/ fallback
+# =============================================================================
+
+@test "fetch: blob URL denial warns against gh api contents fallback" {
+  run_fetch_hook "https://github.com/owner/repo/blob/main/src/index.js"
+  assert_deny
+  assert_suggestion_contains "Do NOT use"
+  assert_suggestion_contains "base64-decode file contents"
+}
+
+@test "fetch: tree URL denial warns against gh api contents fallback" {
+  run_fetch_hook "https://github.com/owner/repo/tree/main/src/lib"
+  assert_deny
+  assert_suggestion_contains "Do NOT use"
+  assert_suggestion_contains "base64-decode file contents"
+}
+
+@test "fetch: api.github.com/repos/.../contents/ warns against gh api contents" {
+  run_fetch_hook "https://api.github.com/repos/owner/repo/contents/README.md"
+  assert_deny
+  assert_suggestion_contains "gh repo clone"
+  assert_suggestion_contains "Do NOT use"
+  assert_suggestion_contains "base64-decode file contents"
+}
+
+@test "fetch: raw.githubusercontent.com denial warns against gh api contents fallback" {
+  run_fetch_hook "https://raw.githubusercontent.com/owner/repo/main/README.md"
+  assert_deny
+  assert_suggestion_contains "Do NOT use"
+  assert_suggestion_contains "base64-decode file contents"
+}
