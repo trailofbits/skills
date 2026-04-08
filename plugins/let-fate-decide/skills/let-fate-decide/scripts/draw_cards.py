@@ -10,6 +10,7 @@ Each card has an independent 50/50 chance of being reversed.
 # ///
 
 import json
+import os
 import secrets
 import sys
 
