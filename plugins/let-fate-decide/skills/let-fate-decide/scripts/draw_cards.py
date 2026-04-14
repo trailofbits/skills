@@ -106,8 +106,8 @@ def draw(n=4, include_content=False):
             try:
                 with open(path) as f:
                     card["content"] = f.read()
-            except FileNotFoundError:
-                card["content"] = f"(card file not found: {path})"
+            except OSError as e:
+                card["content"] = f"(error reading card file {path}: {e})"
         hand.append(card)
     return hand
 
