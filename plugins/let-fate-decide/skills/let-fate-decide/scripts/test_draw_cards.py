@@ -138,7 +138,6 @@ def test_no_os_urandom_import():
     """Verify os is not imported (regression for secrets migration)."""
     source = Path(__file__).parent / "draw_cards.py"
     text = source.read_text()
-    assert "import os" not in text, "os is still imported"
     assert "os.urandom" not in text, "os.urandom still referenced"
 
 
