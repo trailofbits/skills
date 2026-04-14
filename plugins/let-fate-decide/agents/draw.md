@@ -16,7 +16,7 @@ of options for fate to choose between).
 **Step 1:** Draw cards with content in ONE Bash call.
 
 ```bash
-uv run "${CLAUDE_PLUGIN_ROOT}/skills/let-fate-decide/scripts/draw_cards.py" --content
+uv run --no-project "${CLAUDE_PLUGIN_ROOT}/skills/let-fate-decide/scripts/draw_cards.py" --content
 ```
 
 The `--content` flag includes card file text in the
