@@ -52,6 +52,16 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: "3.13"
+      - name: Install toolchain dependencies
+        # constant-time-analysis tests cross-compile C to aarch64 via clang.
+        # The aarch64 cross gcc pulls in libc6-dev-arm64-cross so clang finds
+        # <bits/libc-header-start.h> when targeting aarch64-unknown-linux-gnu.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang \
+            gcc-aarch64-linux-gnu \
+            libc6-dev-arm64-cross
       - name: Discover and run plugin Python tests
         shell: bash
         run: |
