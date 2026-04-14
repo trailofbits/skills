@@ -16,7 +16,7 @@ When the path forward is unclear, let the cards speak.
 
 1. Run the drawing script:
    ```bash
-   uv run {baseDir}/scripts/draw_cards.py
+   uv run --no-project {baseDir}/scripts/draw_cards.py
    ```
 
 2. The script outputs JSON with 4 drawn cards, each with a `file` path relative to `{baseDir}/`
