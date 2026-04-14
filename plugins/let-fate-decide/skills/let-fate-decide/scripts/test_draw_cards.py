@@ -199,6 +199,25 @@ def test_cli_out_of_range():
     assert result.returncode == 1
 
 
+def test_cli_content_flag():
+    """Regression for missing `import os`: --content exercises os.path calls
+    in draw() that NameError'd between PR #125 and PR #144."""
+    result = subprocess.run(
+        [sys.executable, str(Path(__file__).parent / "draw_cards.py"), "--content", "2"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, f"CLI failed: {result.stderr}"
+    cards = json.loads(result.stdout)
+    assert len(cards) == 2
+    for card in cards:
+        assert "content" in card, "--content did not attach card content"
+        assert card["content"], "card content is empty"
+        assert "(card file not found" not in card["content"], (
+            f"card file not found: {card['file']}"
+        )
+
+
 def test_no_secure_randbelow_function():
     """Regression: the custom secure_randbelow must be removed."""
     source = Path(__file__).parent / "draw_cards.py"
