@@ -124,7 +124,7 @@ Every workflow skill needs this skeleton, regardless of pattern:
 ---
 name: kebab-case-name
 description: "Third-person description with trigger keywords — this is how Claude decides to activate the skill"
-allowed-tools: [minimum tools needed, space-delimited]
+allowed-tools: Tool1 Tool2 Tool3  # space-delimited list of tool names
 # Optional fields — see tool-assignment-guide.md for full reference:
 # disable-model-invocation: true    # Only user can invoke (not Claude)
 # user-invocable: false             # Only Claude can invoke (hidden from / menu)
