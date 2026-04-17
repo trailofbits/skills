@@ -79,6 +79,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 
 | Plugin | Description |
 |--------|-------------|
+| [adversarial-verification](plugins/adversarial-verification/) | Stress-test claims, designs, and bug findings with isolated advocate/skeptic sub-agents |
 | [constant-time-analysis](plugins/constant-time-analysis/) | Detect compiler-induced timing side-channels in cryptographic code |
 | [mutation-testing](plugins/mutation-testing/) | Configure mewt/muton mutation testing campaigns — scope targets, tune timeouts, optimize long runs |
 | [property-based-testing](plugins/property-based-testing/) | Property-based testing guidance for multiple languages and smart contracts |

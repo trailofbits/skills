@@ -2,6 +2,7 @@
 * @dguido
 
 # Plugin-specific owners (alphabetical)
+/plugins/adversarial-verification/ @wizardengineer @dguido
 /plugins/agentic-actions-auditor/ @BuffaloWill @elopez @dguido
 /plugins/ask-questions-if-underspecified/ @kevin-valerio @dguido
 /plugins/audit-context-building/ @omarinuwa @dguido
