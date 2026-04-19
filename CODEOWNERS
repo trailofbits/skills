@@ -22,6 +22,7 @@
 /plugins/git-cleanup/ @hbrodin @dguido
 /plugins/insecure-defaults/ @dariushoule @dguido
 /plugins/let-fate-decide/ @tob-scott-a @dguido
+/plugins/modern-cpp/ @wizardengineer @dguido
 /plugins/modern-python/ @Ninja3047 @dguido
 /plugins/mutation-testing/ @bohendo @dguido
 /plugins/property-based-testing/ @hbrodin @dguido

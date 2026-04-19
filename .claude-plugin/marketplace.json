@@ -383,6 +383,17 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/dimensional-analysis"
+    },
+    {
+      "name": "modern-cpp",
+      "version": "1.0.0",
+      "description": "Modern C++ best practices (C++20/23/26). Use when writing C++ code, creating new C++ projects, or modernizing legacy C++ patterns.",
+      "author": {
+        "name": "Julius Alexandre",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/modern-cpp"
     }
   ]
 }
