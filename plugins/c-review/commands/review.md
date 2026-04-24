@@ -2,48 +2,50 @@
 name: c-review
 description: Run comprehensive C/C++ security review with automatic prompt selection
 allowed-tools:
-  - Task
+  - Skill
   - AskUserQuestion
 ---
 
 # C/C++ Security Review
 
-Thin entry point - gathers user options and invokes the skill.
+Thin entry point — gathers user options and invokes the `c-review` skill **in the main conversation**.
 
-**Tool inheritance:** This command only needs `Task` and `AskUserQuestion`. The spawned `general-purpose` task has access to all tools required by the skill (Read, Grep, Glob, LSP, Bash, TaskCreate, TaskUpdate, TaskList, TaskGet).
+**Why `Skill`, not `Agent(subagent_type="general-purpose", ...)`:** the skill's orchestration uses `TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet` for the shared worker queue. Those are deferred tools in a `general-purpose` subagent. Keeping orchestration in the main conversation (via `Skill`) means the orchestrator gets them via its skill `allowed-tools`; workers and judges run as **named plugin subagents** (`c-review:c-review-worker`, etc.) whose tool sets are declared eagerly in `plugins/c-review/agents/*.md`, so no bootstrap ceremony is needed at any level.
 
-## Step 1: Select Options
+## Step 1: Collect options
 
-AskUserQuestion (both questions in one call):
+Call `AskUserQuestion` once with all three questions:
 
-**Question 1:** "What is the threat model?"
-- Remote - Network attacker only
-- Local Unprivileged - Shell access as unprivileged user
+**Question 1 — Threat model:**
+- Remote — Network attacker only
+- Local Unprivileged — Shell access as unprivileged user
 - Both (Recommended)
 
-**Question 2:** "Which model should workers use?"
-- Haiku - Fast, cost-effective (Recommended)
-- Sonnet - Deeper reasoning
-- Opus - Maximum capability
+**Question 2 — Worker model:**
+- Haiku — Fast, cost-effective (Recommended)
+- Sonnet — Deeper reasoning
+- Opus — Maximum capability
 
-## Step 2: Execute Review
+**Question 3 — Severity filter:**
+- All — Report every finding
+- Medium and above (Recommended) — Drop Low-severity findings
+- High and above — Critical/High only
+
+Parse any arguments the user passed on the slash-command line (e.g. `only medium,high,and critical issues` → `severity_filter=medium`) and use them to pre-fill answers.
+
+## Step 2: Invoke the skill in the main conversation
+
+Call the `Skill` tool:
 
 ```
-Task(
-  subagent_type="general-purpose",
-  prompt="""
-Read ${CLAUDE_PLUGIN_ROOT}/skills/SKILL.md for the complete workflow.
-
-## Parameters
-
-threat_model: [REMOTE|LOCAL_UNPRIVILEGED|BOTH]
-worker_model: [haiku|sonnet|opus]
-
-Execute the full C/C++ security review. Return findings report.
-"""
+Skill(
+  skill="c-review:c-review",
+  args="threat_model=<REMOTE|LOCAL_UNPRIVILEGED|BOTH> worker_model=<haiku|sonnet|opus> severity_filter=<all|medium|high>"
 )
 ```
 
-## Step 3: Present Results
+The skill's `SKILL.md` is loaded into the main conversation and drives the full orchestration: output-directory setup, task queue, parallel worker spawn, judge pipeline. Do **not** wrap the call in `Agent(subagent_type="general-purpose", ...)` — that makes the orchestrator's own `Task*` tools deferred and requires a bootstrap step it's not set up to do.
 
-Present findings by severity (Critical → Low). Offer SARIF export if requested.
+## Step 3: Present results
+
+The skill writes the final report to `${output_dir}/REPORT.md` and returns its contents. Present the report to the user grouped by severity (Critical → High → Medium → Low, filtered per `severity_filter`) and point at `${output_dir}/` for the raw artifacts (individual finding files, FP/dedup summaries). Offer SARIF export if requested.
