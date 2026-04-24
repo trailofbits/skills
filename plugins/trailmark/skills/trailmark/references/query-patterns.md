@@ -9,7 +9,7 @@ Find all entrypoints and trace what they can reach:
 ```python
 from trailmark.query.api import QueryEngine
 
-engine = QueryEngine.from_directory("{targetDir}")
+engine = QueryEngine.from_directory("{targetDir}", language="auto")
 
 # All entrypoints
 for ep in engine.attack_surface():
@@ -56,8 +56,7 @@ for caller in callers:
 Check if a function is reachable from any entrypoint:
 
 ```python
-surface = engine.attack_surface()
-paths = engine.paths_between("main", "sensitive_function_id")
+paths = engine.entrypoint_paths_to("sensitive_function_id")
 if paths:
     print(f"Reachable via {len(paths)} path(s)")
 else:
@@ -74,33 +73,40 @@ import json
 json_str = engine.to_json()
 with open("graph.json", "w") as f:
     f.write(json_str)
+
+# Current export includes: summary, nodes, edges, subgraphs.
+# Query attack_surface() and annotations_of() directly for entrypoint
+# metadata and per-node annotations.
 ```
 
 ## 7. Multi-Language Analysis
 
-Analyze non-Python projects by specifying the language:
+Ask Trailmark which languages it supports, detect what exists under the
+target tree, then choose `auto` or an explicit list:
 
 ```python
+from trailmark.parse import detect_languages, supported_languages
 from trailmark.query.api import QueryEngine
 
-engine = QueryEngine.from_directory("{targetDir}", language="rust")
-engine = QueryEngine.from_directory("{targetDir}", language="go")
-engine = QueryEngine.from_directory("{targetDir}", language="typescript")
-```
+print(supported_languages())
+print(detect_languages("{targetDir}"))
 
-Supported `--language` values: `python`, `javascript`, `typescript`, `php`,
-`ruby`, `c`, `cpp`, `c_sharp`, `java`, `go`, `rust`, `solidity`, `cairo`,
-`haskell`, `circom`, `erlang`.
+engine = QueryEngine.from_directory("{targetDir}", language="auto")
+engine = QueryEngine.from_directory("{targetDir}", language="python,rust")
+```
 
 ## 8. CLI Patterns
 
 ```bash
-# Quick summary (Python, default)
-uv run trailmark analyze --summary {targetDir}
+# Quick summary with auto-detection
+uv run trailmark analyze --language auto --summary {targetDir}
 
-# Analyze other languages
+# Analyze explicit languages
 uv run trailmark analyze --language rust --summary {targetDir}
-uv run trailmark analyze --language go --complexity 8 {targetDir}
+uv run trailmark analyze --language python,rust --complexity 8 {targetDir}
+
+# Entrypoint inventory
+uv run trailmark entrypoints --language auto {targetDir}
 
 # Full JSON output for piping to other tools
 uv run trailmark analyze {targetDir} | jq '.nodes | to_entries[] | select(.value.cyclomatic_complexity > 10)'

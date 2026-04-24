@@ -84,7 +84,7 @@ programmatically. If installation fails, report the error.
 │  └─ Read: references/report-format.md
 │
 ├─ Already have two graph JSON exports?
-│  └─ Jump to Phase 3 (run graph_diff.py directly)
+│  └─ Jump to Phase 3 (run native diff + graph_diff.py)
 │
 └─ Starting from two git refs?
    └─ Start at Phase 1
@@ -128,10 +128,9 @@ Pre-analysis computes blast radius, taint propagation, privilege
 boundaries, and entrypoint enumeration.
 
 ```python
-import json
 from trailmark.query.api import QueryEngine
 
-def build_and_export(target_dir, language, output_path):
+def build_and_export(target_dir, output_path, language="auto"):
     """Build graph, run pre-analysis, export JSON."""
     engine = QueryEngine.from_directory(target_dir, language=language)
     engine.preanalysis()
@@ -146,43 +145,57 @@ before_json = os.path.join(work_dir, "before_graph.json")
 after_json = os.path.join(work_dir, "after_graph.json")
 
 before_summary = build_and_export(
-    "{before_dir}", "{lang}", before_json
+    "{before_dir}", before_json
 )
 after_summary = build_and_export(
-    "{after_dir}", "{lang}", after_json
+    "{after_dir}", after_json
 )
 ```
 
 Verify both graphs built successfully by checking the summary output.
-If either fails, check that the language parameter matches the codebase
-and that trailmark supports all file types present.
+If either fails, rerun with an explicit language or comma-separated list
+instead of `auto`.
 
 ### Phase 3: Compute Structural Diff
 
-Run the diff script on the two exported JSON files (using the same
-`work_dir` from Phase 2):
+Run **both**:
+
+1. Trailmark's native structural diff for nodes, edges, and entrypoints
+2. The plugin's `graph_diff.py` helper for subgraph membership changes
+
+Using the same `work_dir` from Phase 2:
 
 ```bash
+trailmark diff --json "{before_dir}" "{after_dir}" > "{work_dir}/trailmark_diff.json" 2>/dev/null || \
+  uv run trailmark diff --json "{before_dir}" "{after_dir}" > "{work_dir}/trailmark_diff.json"
+
 uv run {baseDir}/scripts/graph_diff.py \
     --before "{before_json}" \
-    --after "{after_json}" > "{work_dir}/evolution_diff.json"
+    --after "{after_json}" > "{work_dir}/subgraph_diff.json"
 ```
 
-The output JSON contains:
+The native Trailmark diff contains:
 
 | Key | Contents |
 |-----|----------|
 | `summary_delta` | Changes in node/edge/entrypoint counts |
 | `nodes.added` | New functions, classes, methods |
 | `nodes.removed` | Deleted functions, classes, methods |
-| `nodes.modified` | Functions with changed CC, params, return type, span |
+| `nodes.modified` | Functions with changed CC, params, line span |
 | `edges.added` | New call/inheritance/import relationships |
 | `edges.removed` | Deleted relationships |
+| `entrypoints` | Added, removed, and modified entrypoints |
+
+The subgraph diff contains:
+
+| Key | Contents |
+|-----|----------|
 | `subgraphs` | Per-subgraph membership changes (tainted, high_blast_radius, etc.) |
 
 ### Phase 4: Interpret Diff and Generate Report
 
-Read the diff JSON and generate a security-focused markdown report.
+Read **both** diff JSON files and generate a security-focused markdown
+report.
 See [references/report-format.md](references/report-format.md) for
 the full template.
 
@@ -192,8 +205,9 @@ the full template.
    especially if they also appear in added edges targeting sensitive
    functions
 2. **Privilege boundary changes** — new or removed trust transitions
+   from the native entrypoint/edge diff plus the subgraph diff
 3. **Attack surface growth** — new entrypoints, especially
-   `untrusted_external`
+   `untrusted_external`, from `trailmark_diff.json`
 4. **Blast radius increases** — nodes entering `high_blast_radius`
 5. **Complexity spikes** — CC increases > 3 on tainted or
    entrypoint-reachable nodes
@@ -228,11 +242,21 @@ git worktree remove "{after_dir}"
 
 ---
 
-## Diff Script Reference
+## Diff Reference
 
 ```
+trailmark diff --json BEFORE AFTER
 uv run {baseDir}/scripts/graph_diff.py [OPTIONS]
 ```
+
+Use `trailmark diff` for:
+- Node/edge changes
+- Added/removed/modified entrypoints
+- Human-readable structural diff reports
+
+Use `graph_diff.py` for:
+- Subgraph membership changes derived from `engine.preanalysis()`
+- `tainted`, `high_blast_radius`, `privilege_boundary`, and related sets
 
 | Argument | Default | Description |
 |----------|---------|-------------|
@@ -240,8 +264,8 @@ uv run {baseDir}/scripts/graph_diff.py [OPTIONS]
 | `--after` | required | Path to the "after" graph JSON |
 | `--indent` | `2` | JSON output indentation |
 
-Input format: Trailmark JSON exports from `engine.to_json()`.
-Output: JSON structural diff to stdout.
+`graph_diff.py` input format: Trailmark JSON exports from `engine.to_json()`.
+`graph_diff.py` output: JSON structural diff for nodes, edges, and subgraphs.
 
 ---
 
@@ -251,7 +275,8 @@ Before delivering the report:
 
 - [ ] Both graphs built successfully (check summaries)
 - [ ] Pre-analysis ran on both snapshots
-- [ ] Structural diff computed (non-empty diff JSON)
+- [ ] Native Trailmark diff computed (`trailmark_diff.json`)
+- [ ] Subgraph diff computed (`subgraph_diff.json`)
 - [ ] All subgraph changes interpreted (tainted, blast radius, etc.)
 - [ ] Critical findings include evidence (node IDs, edge diffs)
 - [ ] Severity levels assigned to all findings
