@@ -138,6 +138,8 @@ engine.clear_annotations("handle_request")
 
 **Annotation kinds:** `ASSUMPTION`, `PRECONDITION`, `POSTCONDITION`, `INVARIANT`.
 Pre-analysis adds: `BLAST_RADIUS`, `PRIVILEGE_BOUNDARY`, `TAINT_PROPAGATION`.
+Audit augmentation adds: `FINDING`, `AUDIT_NOTE` (set by `augment_sarif()` /
+`augment_weaudit()`).
 
 **Source convention:** Use `"llm"` for LLM-inferred annotations, `"docstring"`
 for annotations extracted from source, `"manual"` for human-added annotations.

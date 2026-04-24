@@ -166,13 +166,16 @@ Run **both**:
 Using the same `work_dir` from Phase 2:
 
 ```bash
-trailmark diff --json "{before_dir}" "{after_dir}" > "{work_dir}/trailmark_diff.json" 2>/dev/null || \
+trailmark diff --json "{before_dir}" "{after_dir}" > "{work_dir}/trailmark_diff.json" || \
   uv run trailmark diff --json "{before_dir}" "{after_dir}" > "{work_dir}/trailmark_diff.json"
 
 uv run {baseDir}/scripts/graph_diff.py \
     --before "{before_json}" \
     --after "{after_json}" > "{work_dir}/subgraph_diff.json"
 ```
+
+If either diff command fails or writes an empty JSON file, stop and report the
+error instead of continuing to Phase 4.
 
 The native Trailmark diff contains:
 
@@ -275,8 +278,8 @@ Before delivering the report:
 
 - [ ] Both graphs built successfully (check summaries)
 - [ ] Pre-analysis ran on both snapshots
-- [ ] Native Trailmark diff computed (`trailmark_diff.json`)
-- [ ] Subgraph diff computed (`subgraph_diff.json`)
+- [ ] Native Trailmark diff computed and non-empty (`trailmark_diff.json`)
+- [ ] Subgraph diff computed and non-empty (`subgraph_diff.json`)
 - [ ] All subgraph changes interpreted (tainted, blast radius, etc.)
 - [ ] Critical findings include evidence (node IDs, edge diffs)
 - [ ] Severity levels assigned to all findings

@@ -54,10 +54,17 @@ trailmark themselves.
 **Step 2: Detect languages with Trailmark's parse API.**
 
 ```bash
-python3 -c 'from trailmark.parse import detect_languages; import json; print(json.dumps(detect_languages(r"{args}")))' 2>/dev/null
+python3 - "{args}" <<'PY'
+import json
+import sys
+
+from trailmark.parse import detect_languages
+
+print(json.dumps(detect_languages(sys.argv[1])))
+PY
 ```
 
-If the import fails, rerun the same command under `uv run python -c ...`.
+If the import fails, rerun the same snippet with `uv run python - "{args}"`.
 If the result is `[]`, report "Trailmark found no supported languages under
 target" and return.
 

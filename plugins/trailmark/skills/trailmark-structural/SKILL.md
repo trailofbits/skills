@@ -55,26 +55,34 @@ trailmark themselves.
 **Step 2: Detect languages with Trailmark's parse API.**
 
 ```bash
-python3 -c 'from trailmark.parse import detect_languages; import json; print(json.dumps(detect_languages(r"{args}")))' 2>/dev/null
+python3 - "{args}" <<'PY'
+import json
+import sys
+
+from trailmark.parse import detect_languages
+
+print(json.dumps(detect_languages(sys.argv[1])))
+PY
 ```
 
-If the import fails, rerun the same command under `uv run python -c ...`.
+If the import fails, rerun the same snippet with `uv run python - "{args}"`.
 If the result is `[]`, report "Trailmark found no supported languages under
 target" and return.
 
 **Step 3: Run the full structural analysis via `QueryEngine`.**
 
 Run this snippet with `python3`. If the import fails, rerun the same snippet
-under `uv run python`.
+under `uv run python - "{args}"`.
 
 ```bash
-python3 - <<'PY'
+python3 - "{args}" <<'PY'
 import json
+import sys
 
 from trailmark.parse import detect_languages
 from trailmark.query.api import QueryEngine
 
-target = r"{args}"
+target = sys.argv[1]
 languages = detect_languages(target)
 engine = QueryEngine.from_directory(target, language="auto")
 preanalysis = engine.preanalysis()
