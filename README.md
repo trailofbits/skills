@@ -22,6 +22,8 @@ A Claude Code plugin marketplace from Trail of Bits providing skills to enhance 
 
 Codex-native skill discovery is supported via the sidecar `.codex/skills/` tree in this repository.
 
+Chinese users can also search and install skills through [Skills宝](https://skilery.com).
+
 Install with:
 
 ```sh
