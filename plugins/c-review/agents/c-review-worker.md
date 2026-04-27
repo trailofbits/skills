@@ -47,7 +47,7 @@ Your very first tool call must be `TaskList` with no arguments. This verifies yo
 ```
 ctx = TaskGet(context_task_id)
 # ctx.metadata: threat_model, severity_filter, output_dir, codebase_summary_path,
-#               is_cpp, is_posix, is_windows
+#               is_cpp, is_posix, is_windows, cluster_manifest_path
 Read: {output_dir}/context.md     # full codebase context summary
 ```
 
@@ -106,12 +106,12 @@ A cluster prompt has YAML frontmatter with a `consolidated` flag:
 
 - **`consolidated: true`** (e.g. `buffer-write-sinks.md`) — the cluster file contains all bug patterns inline plus a shared-inventory phase. Read it once and follow its phases in order. Do NOT Read any per-class sub-prompts — the cluster file is self-sufficient.
 
-- **`consolidated: false`** — the cluster file gives a shared-context preamble plus an ordered Pass list (Pass 1, Pass 2, …). Detailed bug patterns for each pass live in separate per-class prompt files, whose absolute paths the orchestrator pre-resolved into `task.metadata.sub_prompt_paths` (a list aligned 1:1 with the Pass order in the cluster file). For each pass:
+- **`consolidated: false`** — the cluster file gives a shared-context preamble plus an ordered Pass list (Pass 1, Pass 2, …). Detailed bug patterns for each pass live in separate per-class prompt files, whose absolute paths the orchestrator pre-resolved into `task.metadata.sub_prompt_paths` from `prompts/clusters/manifest.json`. `task.metadata.pass_bug_classes` and `task.metadata.pass_prefixes` are aligned 1:1 with `sub_prompt_paths`. For each pass:
   1. Read `task.metadata.sub_prompt_paths[i]` for the pass-specific bug patterns and FP guidance.
   2. Apply them against the shared Phase-A context you already built — do not re-derive it.
   3. File findings with that pass's ID prefix.
 
-  Respect `task.metadata.skip_subclasses` (a list of bug-class names): if Pass i's class is in it, skip that pass entirely.
+  Respect `task.metadata.skip_subclasses` (a list of bug-class names): if `task.metadata.pass_bug_classes[i]` is in it, skip that pass entirely.
 
 Either way:
 

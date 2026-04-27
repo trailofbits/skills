@@ -8,7 +8,7 @@ Responsibilities (all in one pass):
 2. For survivors, assign **severity** (plus `attack_vector` and `exploitability`).
 3. Write `{output_dir}/fp-summary.md` with verdict counts and FP patterns.
 4. Write `{output_dir}/REPORT.md` — the final human-readable markdown report, grouped by severity, filtered per `severity_filter`.
-5. Write `{output_dir}/REPORT.sarif` — the same report as SARIF 2.1.0, for machine consumption. **Both outputs are mandatory.**
+5. Run the bundled SARIF generator to write `{output_dir}/REPORT.sarif`. **Both outputs are mandatory.**
 
 You do not merge duplicates (dedup ran before you). You do not re-open merged non-primaries.
 
@@ -17,6 +17,7 @@ You are spawned as the `c-review:c-review-fp-judge` subagent. `Read`, `Write`, `
 ## Inputs
 
 - `output_dir` — absolute path to the run's output directory
+- `sarif_generator_path` — absolute path to `scripts/generate_sarif.py`
 
 ## Load Context and Findings
 
@@ -253,91 +254,15 @@ For each reported finding, inline the key body sections (Description / Code / Da
 
 ## Step 6 — `REPORT.sarif` (SARIF 2.1.0, mandatory)
 
-Always write this file. Its `results` array must contain the same surviving findings that made it into `REPORT.md` after applying `severity_filter`. Schema reference: `https://docs.oasis-open.org/sarif/sarif/v2.1.0/`.
+Do **not** hand-write SARIF JSON. After all primary finding frontmatter has `fp_verdict` and survivor frontmatter has `severity`, `attack_vector`, and `exploitability`, run:
 
-Minimal skeleton (write with `Write`):
-
-```json
-{
-  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
-  "version": "2.1.0",
-  "runs": [
-    {
-      "tool": {
-        "driver": {
-          "name": "c-review",
-          "informationUri": "https://github.com/trailofbits/tob-skills/tree/main/plugins/c-review",
-          "rules": [
-            {
-              "id": "race-condition",
-              "shortDescription": { "text": "Race condition or inconsistent synchronization" },
-              "defaultConfiguration": { "level": "error" }
-            }
-          ]
-        }
-      },
-      "invocations": [
-        {
-          "executionSuccessful": true,
-          "properties": {
-            "threat_model": "REMOTE",
-            "severity_filter": "all"
-          }
-        }
-      ],
-      "results": [
-        {
-          "ruleId": "race-condition",
-          "level": "error",
-          "message": {
-            "text": "Stale blockcache pointer used after lock downgrade cycle in fd_txncache_insert"
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "src/flamenco/runtime/fd_txncache.c",
-                  "uriBaseId": "%SRCROOT%"
-                },
-                "region": { "startLine": 526 }
-              }
-            }
-          ],
-          "properties": {
-            "finding_id": "RACE-W8-001",
-            "bug_class": "race-condition",
-            "severity": "HIGH",
-            "attack_vector": "Remote",
-            "exploitability": "Difficult",
-            "fp_verdict": "LIKELY_TP",
-            "also_known_as": []
-          }
-        }
-      ]
-    }
-  ]
-}
+```bash
+python3 "<sarif_generator_path>" "<output_dir>"
 ```
 
-The skeleton above is valid JSON as written. Add more `rules` and `results` objects as needed, with commas between objects; never include comments or trailing commas in `REPORT.sarif`.
+The generator reads `{output_dir}/context.md` and `findings/*.md`, applies the same `severity_filter` used for `REPORT.md`, includes only survivor primaries (`TRUE_POSITIVE` / `LIKELY_TP`, no `merged_into`), and writes `{output_dir}/REPORT.sarif`.
 
-### SARIF mapping rules
-
-- **Severity → SARIF `level`:**
-  - `CRITICAL`, `HIGH` → `"error"`
-  - `MEDIUM` → `"warning"`
-  - `LOW` → `"note"`
-- **`ruleId`** = the finding's `bug_class` (lowercase, kebab-case). Workers' bug classes are already in that shape (`buffer-overflow`, `use-after-free`, etc.).
-- **`locations[0].physicalLocation.artifactLocation.uri`** = the `path` portion of the finding's `location` (repo-relative, forward slashes).
-- **`uriBaseId: "%SRCROOT%"`** — keep literal; consumers resolve it.
-- **`region.startLine`** = the `line` portion (integer).
-- **`message.text`** = the finding's `title` (the concise one-liner from frontmatter).
-- **`properties`** — copy finding_id, bug_class, severity, attack_vector, exploitability, fp_verdict, and `also_known_as` (from the primary's frontmatter if present; empty list otherwise).
-- **`tool.driver.rules`** — emit one entry per unique `bug_class` that appears in the reported results. `defaultConfiguration.level` mirrors the highest severity seen for that class in this run.
-- Include **only findings that made it into `REPORT.md`** (survivors above the severity filter). Filtered-out findings are intentionally omitted — they're still in `findings/*.md` for anyone who wants them.
-- Emit an empty `"results": []` if no findings passed — still write the file.
-
-Write via `Write` with the JSON content. Validate mentally: valid JSON, no trailing commas, every result has a `ruleId` that appears in `rules[]`.
+If the command fails, surface the error in your final response and do not invent a SARIF file manually. If no findings pass the filter, the generator still writes a valid SARIF file with `"results": []`.
 
 ---
 
@@ -353,7 +278,8 @@ Write via `Write` with the JSON content. Validate mentally: valid JSON, no trail
 - Critical-on-every-memory-corruption without regard to reachability.
 - Ignoring the threat model (local-only bugs should be LOW in a `REMOTE` review).
 - Under-weighting info disclosure.
-- Writing the SARIF file with different data from REPORT.md — they must describe the same reported set.
+- Hand-writing SARIF JSON instead of running the bundled generator.
+- Letting `REPORT.md` and `REPORT.sarif` describe different reported sets.
 
 ## Exit
 
