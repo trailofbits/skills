@@ -108,12 +108,14 @@
                 {
                     "bug_class": "oob-comparison",
                     "prefix": "OOBCMP",
-                    "prompt": "prompts/linux-userspace/oob-comparison-finder.md"
+                    "prompt": "prompts/linux-userspace/oob-comparison-finder.md",
+                    "requires": ["is_posix"]
                 },
                 {
                     "bug_class": "null-zero",
                     "prefix": "NULLZERO",
-                    "prompt": "prompts/linux-userspace/null-zero-finder.md"
+                    "prompt": "prompts/linux-userspace/null-zero-finder.md",
+                    "requires": ["is_posix"]
                 },
                 {
                     "bug_class": "type-confusion",
@@ -146,32 +148,38 @@
                 {
                     "bug_class": "negative-retval",
                     "prefix": "NEGRET",
-                    "prompt": "prompts/linux-userspace/negative-retval-finder.md"
+                    "prompt": "prompts/linux-userspace/negative-retval-finder.md",
+                    "requires": ["is_posix"]
                 },
                 {
                     "bug_class": "errno-handling",
                     "prefix": "ERRNO",
-                    "prompt": "prompts/linux-userspace/errno-handling-finder.md"
+                    "prompt": "prompts/linux-userspace/errno-handling-finder.md",
+                    "requires": ["is_posix"]
                 },
                 {
                     "bug_class": "eintr-handling",
                     "prefix": "EINTR",
-                    "prompt": "prompts/linux-userspace/eintr-handling-finder.md"
+                    "prompt": "prompts/linux-userspace/eintr-handling-finder.md",
+                    "requires": ["is_posix"]
                 },
                 {
                     "bug_class": "open-issues",
                     "prefix": "FILEOP",
-                    "prompt": "prompts/linux-userspace/open-issues-finder.md"
+                    "prompt": "prompts/linux-userspace/open-issues-finder.md",
+                    "requires": ["is_posix"]
                 },
                 {
                     "bug_class": "socket-disconnect",
                     "prefix": "SOCKDISCON",
-                    "prompt": "prompts/linux-userspace/socket-disconnect-finder.md"
+                    "prompt": "prompts/linux-userspace/socket-disconnect-finder.md",
+                    "requires": ["is_posix"]
                 },
                 {
                     "bug_class": "half-closed-socket",
                     "prefix": "HALFCLOSE",
-                    "prompt": "prompts/linux-userspace/half-closed-socket-finder.md"
+                    "prompt": "prompts/linux-userspace/half-closed-socket-finder.md",
+                    "requires": ["is_posix"]
                 }
             ]
         },
@@ -184,12 +192,14 @@
                 {
                     "bug_class": "spinlock-init",
                     "prefix": "SPINLOCK",
-                    "prompt": "prompts/linux-userspace/spinlock-init-finder.md"
+                    "prompt": "prompts/linux-userspace/spinlock-init-finder.md",
+                    "requires": ["is_posix"]
                 },
                 {
                     "bug_class": "thread-safety",
                     "prefix": "THREAD",
-                    "prompt": "prompts/linux-userspace/thread-safety-finder.md"
+                    "prompt": "prompts/linux-userspace/thread-safety-finder.md",
+                    "requires": ["is_posix"]
                 },
                 {
                     "bug_class": "race-condition",
@@ -199,7 +209,8 @@
                 {
                     "bug_class": "signal-handler",
                     "prefix": "SIGNAL",
-                    "prompt": "prompts/linux-userspace/signal-handler-finder.md"
+                    "prompt": "prompts/linux-userspace/signal-handler-finder.md",
+                    "requires": ["is_posix"]
                 }
             ]
         },
@@ -223,6 +234,7 @@
                     "bug_class": "privilege-drop",
                     "prefix": "PRIVDROP",
                     "prompt": "prompts/linux-userspace/privilege-drop-finder.md",
+                    "requires": ["is_posix"],
                     "skip_threat_models": [
                         "REMOTE"
                     ]
@@ -231,6 +243,7 @@
                     "bug_class": "envvar",
                     "prefix": "ENVVAR",
                     "prompt": "prompts/linux-userspace/envvar-finder.md",
+                    "requires": ["is_posix"],
                     "skip_threat_models": [
                         "REMOTE"
                     ]
@@ -261,12 +274,14 @@
                 {
                     "bug_class": "printf-attr",
                     "prefix": "PRINTFATTR",
-                    "prompt": "prompts/linux-userspace/printf-attr-finder.md"
+                    "prompt": "prompts/linux-userspace/printf-attr-finder.md",
+                    "requires": ["is_posix"]
                 },
                 {
                     "bug_class": "va-start-end",
                     "prefix": "VAARG",
-                    "prompt": "prompts/linux-userspace/va-start-end-finder.md"
+                    "prompt": "prompts/linux-userspace/va-start-end-finder.md",
+                    "requires": ["is_posix"]
                 },
                 {
                     "bug_class": "regex-issues",
@@ -276,12 +291,14 @@
                 {
                     "bug_class": "inet-aton",
                     "prefix": "INETATON",
-                    "prompt": "prompts/linux-userspace/inet-aton-finder.md"
+                    "prompt": "prompts/linux-userspace/inet-aton-finder.md",
+                    "requires": ["is_posix"]
                 },
                 {
                     "bug_class": "qsort",
                     "prefix": "QSORT",
-                    "prompt": "prompts/linux-userspace/qsort-finder.md"
+                    "prompt": "prompts/linux-userspace/qsort-finder.md",
+                    "requires": ["is_posix"]
                 }
             ]
         },

@@ -158,7 +158,7 @@ related_groups: 1
 ## Tier 1 — exact-location merges (deterministic)
 | Primary | Merged IDs | Location |
 |---------|------------|----------|
-| BOF-W3-003 | BOF-W4-001, BOF-W5-001 | src/…/fd_gossip_message.c:166 |
+| BOF-003 | BOF-004, BOF-005 | src/net/parse_message.c:166 |
 | …
 
 ## Tier 2 — same construct in same function (snippet-confirmed)
@@ -169,7 +169,7 @@ related_groups: 1
 ## Related (NOT merged — cross-reference only)
 | Pattern | Finding IDs | Shared fix location |
 |---------|-------------|---------------------|
-| Unbounded `*_len` in deser_* (same family) | BOF-W3-001, BOF-W3-002, … | src/…/fd_gossip_message.c |
+| Unbounded `*_len` in deser_* (same family) | BOF-001, BOF-002, … | src/net/parse_message.c |
 
 ## Bug-class counts (primaries only, after dedup)
 | Bug class | Count |

@@ -225,9 +225,14 @@ Selection rules:
 - Include clusters with `"gate": "always"`.
 - Include `"gate": "is_cpp"` only when `is_cpp == true`.
 - Include `"gate": "is_windows"` only when `is_windows == true`.
-- For each selected cluster, set `skip_subclasses` to every pass whose `skip_threat_models` contains the active `threat_model` (for example, `privilege-drop` and `envvar` under `REMOTE`).
+- For each selected cluster, build the active pass list by **dropping** every pass for which:
+  - `requires` is present and any flag in `requires` (e.g. `is_posix`) is `false` in the codebase context, **or**
+  - `skip_threat_models` is present and contains the active `threat_model` (e.g. `privilege-drop`/`envvar` under `REMOTE`).
+- After filtering, if a non-consolidated cluster has zero remaining passes, drop the cluster entirely (don't spawn a worker for an empty cluster).
 
-Result is `selected_clusters[]` in manifest order — 7 always-on clusters plus optional C++ and Windows clusters. Typical counts: 7 (pure C POSIX), 8 (C++ POSIX), 10 (C POSIX + Windows), 11 (C++ POSIX + Windows).
+The orchestrator hard-skips dropped passes — they never appear in the cluster task's `sub_prompt_paths`. This is authoritative: the worker does not re-derive applicability from `is_posix`/`is_windows` for these passes.
+
+Result is `selected_clusters[]` in manifest order — 7 always-on clusters (some passes may be filtered) plus optional C++ and Windows clusters. Typical counts: 7 (pure C POSIX), 8 (C++ POSIX), 10 (C POSIX + Windows), 11 (C++ POSIX + Windows). On a Windows-only codebase (`is_posix=false`), the always-on `concurrency`, `syscall-retval`, and `static-hygiene` clusters keep only their portable passes.
 
 ### Phase 5: Create Context Task and Cluster Tasks
 
@@ -242,7 +247,6 @@ context_task_id = TaskCreate(
     "scope_subpath": "<repo-relative dir or '.'>",
     "output_dir": "<absolute path>",
     "codebase_summary_path": "<output_dir>/context.md",
-    "cluster_manifest_path": "<absolute path to prompts/clusters/manifest.json>",
     "is_cpp": <bool>,
     "is_posix": <bool>,
     "is_windows": <bool>
@@ -295,33 +299,37 @@ For each worker `N ∈ [1..M]`:
 | `description` | `C review worker N` |
 | `prompt` | see template below |
 
-Worker prompt template (keep stable across workers — only `worker-N` varies — so the shared system prompt caches efficiently):
+Worker prompt template — **the user prompt is structured as a long stable prefix shared by every worker, followed by a short variable suffix**, so prompt caching covers both the system prompt AND most of the user prompt:
+
 ```
-worker-N
+You are a c-review worker on a parallel C/C++ security review.
+Follow the protocol in your system prompt verbatim. Your first tool call must be TaskList.
 
 Context task id: <context_task_id>
-Assigned cluster task id: <cluster_task_ids[N-1]>
 Output directory: <absolute output_dir>
 Scope root: <scope_subpath or "."> — all Grep/Glob queries MUST be rooted here; findings outside this subtree are out-of-scope.
 
-(Follow your system-prompt protocol. Your first tool call must be TaskList.)
+— assignment —
+Worker id: worker-N
+Assigned cluster task id: <cluster_task_ids[N-1]>
 ```
 
-That's it. The worker's full protocol and finding-file schema live in its system prompt (`plugins/c-review/agents/c-review-worker.md`), which is ~5–6K tokens of stable content that the API caches across all M parallel spawns — workers 2..M read that cache at ~10% of its base cost. Keep the spawn-time user prompt short to preserve that prefix.
+The first block (greeting + context_task_id + output_dir + scope_root) is **byte-identical across all M workers** in the same run, so the API caches it and workers 2..M read that cache at a fraction of base cost. Only the trailing two lines after `— assignment —` vary per worker. The worker's full protocol and finding-file schema live in its system prompt (`plugins/c-review/agents/c-review-worker.md`), which is ~5–6K tokens of stable content that the API also caches across all M parallel spawns. Keep the variable suffix short to preserve the cacheable prefix.
 
 **Do not pass raw `${CLAUDE_PLUGIN_ROOT}` into the subagent prompt** — the worker doesn't need it; the assigned cluster prompt path is in the task metadata and the worker reads it via `TaskGet` + `Read`.
 
 ### Phase 7: Wait for Workers
 
-Poll with `TaskList` until every cluster task is `completed`. If a task is `in_progress` but its owner has returned without completing, reset it to `pending` via `TaskUpdate` and spawn a replacement worker with that same `assigned_cluster_task_id`.
+The Phase-6 `Agent` invocations block until each worker returns, so by the time control returns to the coordinator every spawned worker has already exited. Once they have all returned, call `TaskList` **once** and verify each cluster task is `completed`. If any cluster task is still `in_progress` (worker exited without `TaskUpdate(status=completed)`), the worker died mid-run — reset the task to `pending` via `TaskUpdate` and spawn a single replacement worker bound to the same `assigned_cluster_task_id`. The replacement may overwrite finding files the dead worker partially wrote; that is acceptable because IDs are deterministic per cluster prefix and writes are idempotent in content.
 
-**Write a deterministic manifest** of finding files before spawning judges. This gives judges a `Glob`-independent fallback path (the dedup-judge has only `Read/Write/Edit/Glob` — no `Bash` or `ls`):
+**Write a deterministic manifest** of finding files before spawning judges. This gives judges a `Glob`-independent fallback path (the dedup-judge has only `Read/Write/Edit/Glob` — no `Bash`):
 
 ```bash
-ls -1 "${output_dir}/findings/"*.md 2>/dev/null | sort > "${output_dir}/findings-index.txt"
+find "${output_dir}/findings" -maxdepth 1 -type f -name '*.md' 2>/dev/null \
+  | sort > "${output_dir}/findings-index.txt"
 ```
 
-The file is one repo-relative-or-absolute path per line, sorted lexicographically for reproducibility. An empty file is fine and signals "zero findings" unambiguously.
+`find` returns an empty stream (not an error) when the directory has no matches, so the resulting file is empty — which is the unambiguous "zero findings" signal. One absolute path per line, sorted lexicographically for reproducibility.
 
 **Even if zero findings**, still run Phase 8 — the fp-judge protocol writes empty-results `REPORT.md` and `REPORT.sarif` so callers always get the same artifact set. Skipping Phase 8 here would silently break SARIF-consuming CI. The only adjustment for zero findings: dedup-judge can be skipped when `findings-index.txt` is empty; fp-judge tolerates a missing `dedup-summary.md` only for an empty finding set.
 
@@ -381,6 +389,17 @@ Return a one-line completion summary.
 )
 ```
 
+### Phase 8b: SARIF safety net
+
+After the fp-judge agent returns, verify `${output_dir}/REPORT.sarif` exists. If it is missing — because the fp-judge errored before invoking the generator — run it from the orchestrator yourself so CI consumers always get the file:
+
+```bash
+test -f "${output_dir}/REPORT.sarif" || \
+  python3 "<absolute path to scripts/generate_sarif.py>" "${output_dir}"
+```
+
+The generator is idempotent and reads only finding frontmatter + `context.md`; it produces `results: []` for zero-survivor runs.
+
 ### Phase 9: Return Report
 
 ```
@@ -425,12 +444,20 @@ worker: worker-3
 - **Sink:** <where the vulnerability manifests>
 - **Validation:** <what checks exist / are missing>
 
+## Reachability trace
+<short call chain from entry point to sink>
+
 ## Impact
 <what an attacker could achieve>
+
+## Mitigations checked
+<canary / ASLR / FORTIFY_SOURCE / sanitizer / type bound — present/absent, bypassable?>
 
 ## Recommendation
 <how to fix>
 ```
+
+The worker's system prompt is authoritative for the body schema (`plugins/c-review/agents/c-review-worker.md` — "Body structure"); keep this template in sync with it.
 
 **Fields added by judges** (via `Edit` on frontmatter). Pipeline order: dedup → fp+severity.
 - Dedup-judge (on duplicates): `merged_into: <primary-id>`; (on primaries with merges): `also_known_as: [<id1>, <id2>]`, `locations: [<path:line>, …]`

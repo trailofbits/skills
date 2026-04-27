@@ -1,10 +1,9 @@
 {
   "name": "c-review",
-  "version": "1.5.0",
-  "description": "Comprehensive C/C++ security code review with task-based orchestration and automatic prompt selection",
+  "version": "1.1.0",
+  "description": "Comprehensive C/C++ security code review with specialized bug-finding agents covering memory safety, type safety, concurrency, and Linux/Windows userspace-specific issues",
   "author": {
-    "name": "Trail of Bits",
-    "url": "https://www.trailofbits.com"
+    "name": "Paweł Płatek"
   },
   "keywords": ["c", "cpp", "security", "code-review", "static-analysis", "vulnerabilities", "linux", "macos", "posix", "windows"]
 }

@@ -47,7 +47,7 @@ Your very first tool call must be `TaskList` with no arguments. This verifies yo
 ```
 ctx = TaskGet(context_task_id)
 # ctx.metadata: threat_model, severity_filter, output_dir, codebase_summary_path,
-#               is_cpp, is_posix, is_windows, cluster_manifest_path
+#               is_cpp, is_posix, is_windows
 Read: {output_dir}/context.md     # full codebase context summary
 ```
 
@@ -115,7 +115,7 @@ A cluster prompt has YAML frontmatter with a `consolidated` flag:
 
 Either way:
 
-1. Honor the codebase context (`is_cpp`, `is_posix`, `is_windows`). Skip sub-prompts/passes that don't apply. For example, don't chase Win32 APIs in a POSIX-only codebase.
+1. The orchestrator already filtered out non-applicable passes per the manifest's `requires` field, so every pass in `sub_prompt_paths` is in scope for this codebase. Still, honor the codebase context (`is_cpp`, `is_posix`, `is_windows`) when interpreting individual patterns within a pass — e.g. don't chase Win32 APIs in a POSIX-only codebase even if a generic prompt mentions both.
 2. Respect the threat model. Don't file findings that are obviously out-of-scope (e.g., local-only bug in a `REMOTE` review). Borderline cases stay — the FP-judge decides.
 3. Use `Grep` to locate candidate sites. Use `Read` + `LSP` (if `clangd` is available) to verify each candidate: trace data flow from an attacker-controlled source to the vulnerable sink; check mitigations; confirm reachability.
 4. Apply `severity_filter` conservatively: clearly-below-threshold findings get dropped. If unsure, keep it — the fp+severity judge decides later.
@@ -233,7 +233,7 @@ Wrong: `function: parse_header, parse_body, parse_footer` — if the bug spans m
 
 ### Body structure (required unless noted)
 
-Six markdown sections in this order:
+Seven markdown sections in this order:
 
 1. `## Description` — why it's a vulnerability
 2. `## Code` — real snippet from source (enough context to make the bug obvious)

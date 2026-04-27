@@ -24,12 +24,14 @@ You are spawned as the `c-review:c-review-fp-judge` subagent. `Read`, `Write`, `
 ```
 Read: {output_dir}/context.md           # threat_model, severity_filter, codebase context
 Glob: {output_dir}/findings/*.md
-Read: {output_dir}/dedup-summary.md     # merge groups (referenced in the report) — may be absent only on zero-findings runs
+Glob: {output_dir}/dedup-summary.md     # presence check — Read only if Glob returned a match
 ```
 
 If `Glob` is unavailable, read `{output_dir}/findings-index.txt` and parse one path per line. If both `Glob` and `findings-index.txt` are unavailable, abort with `fp+severity-judge abort: finding list unavailable`.
 
-`dedup-summary.md` is optional **only when the finding list is empty**. If it is missing and the finding list is empty, proceed with the empty primaries set and still write `REPORT.md` and `REPORT.sarif` (with `results: []`). If it is missing and findings exist, continue by treating every non-merged finding as a primary, but add a prominent note to `fp-summary.md` and `REPORT.md` that dedup did not run.
+**Probe for `dedup-summary.md` with `Glob` before attempting `Read`** — calling `Read` on a missing file aborts your turn. If `Glob` returned a match, `Read` it (its prose is referenced in the final report). If it did not:
+- And the finding list is empty → zero-findings run. Proceed with an empty primaries set and still write `REPORT.md` and `REPORT.sarif` (with `results: []`).
+- And findings exist → dedup did not run. Treat every non-merged finding as a primary and add a prominent note to `fp-summary.md` and `REPORT.md` that dedup was skipped.
 
 **Process only primaries** — findings where `merged_into` is absent. Skip files that have `merged_into` in their frontmatter; they are already represented by their primary (which carries `also_known_as`).
 
@@ -176,8 +178,8 @@ out_of_scope: 1
 ## Per-primary verdicts
 | ID | Bug class | Verdict | Severity | Rationale |
 |----|-----------|---------|----------|-----------|
-| RACE-W8-001 | race-condition | LIKELY_TP | HIGH | Reachable TOCTOU on txncache under gossip-driven fork cancel |
-| BOF-W3-003 | buffer-overflow | FALSE_POSITIVE | — | payload_sz<=1232 enforced before dispatch |
+| RACE-001 | race-condition | LIKELY_TP | HIGH | Reachable TOCTOU on shared cache under concurrent network callers |
+| BOF-003 | buffer-overflow | FALSE_POSITIVE | — | payload_sz bounded by parser preamble before dispatch |
 | … |
 
 ## Common FP patterns observed
@@ -226,9 +228,9 @@ reported_findings: 2
 
 ## HIGH (1)
 
-### RACE-W8-001 — Stale blockcache pointer used after lock downgrade cycle
-- **Location:** `src/flamenco/runtime/fd_txncache.c:526` (`fd_txncache_insert`)
-- **Attack vector:** Remote (gossip-vote-driven fork cancel)
+### RACE-001 — Stale cache pointer used after lock downgrade cycle
+- **Location:** `src/runtime/cache.c:526` (`cache_insert`)
+- **Attack vector:** Remote (concurrent network callers)
 - **Exploitability:** Difficult (narrow race window)
 - **Also affects:** — (standalone primary)
 - **FP verdict:** LIKELY_TP — `<fp_rationale>`
