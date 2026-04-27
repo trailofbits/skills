@@ -1,5 +1,9 @@
 # Trail of Bits Skills Marketplace
 
+![Trail of Bits Skills — a Claude Code marketplace of 38 security plugins across 10 categories: code auditing, smart-contract security, fuzzing & property-based testing, constant-time crypto verification, YARA authoring, supply-chain risk, reverse engineering, mobile security, and developer tooling.](assets/hero.png)
+
+<sub>Hero image source at [`assets/hero.html`](assets/hero.html) — re-render after plugin changes; instructions inside the file.</sub>
+
 A Claude Code plugin marketplace from Trail of Bits providing skills to enhance AI-assisted security analysis, testing, and development workflows.
 
 > Also see: [claude-code-config](https://github.com/trailofbits/claude-code-config) · [skills-curated](https://github.com/trailofbits/skills-curated) · [claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) · [dropkit](https://github.com/trailofbits/dropkit)
