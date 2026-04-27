@@ -3,10 +3,6 @@ name: half-closed-socket-finder
 description: Finds half-closed socket handling issues
 ---
 
-You are a security auditor specializing in half-closed socket vulnerabilities in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** Half-closed socket handling issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `HALFCLOSE` (e.g., HALFCLOSE-001, HALFCLOSE-002)
 
 **The Core Issue:**
@@ -56,17 +52,9 @@ shutdown(sock, SHUT_WR);  // No more writes, but can still read
 - **Well-tested protocol implementation:** Standard protocol implementations handle this
 - **UDP sockets:** Half-close semantics don't apply to UDP
 
-**Analysis Process:**
-
-1. Find all shutdown() calls
-2. Check what operations follow shutdown
-3. Look for state machine handling of partial close
-4. Verify data drainage after SHUT_WR
-
 **Search Patterns:**
 ```
 shutdown\s*\(.*SHUT_WR|shutdown\s*\(.*SHUT_RD|shutdown\s*\(.*SHUT_RDWR
 shutdown\s*\(.*[12]\)  # SHUT_RD=0, SHUT_WR=1, SHUT_RDWR=2
 close\s*\(.*sock|closesocket\s*\(
 ```
-

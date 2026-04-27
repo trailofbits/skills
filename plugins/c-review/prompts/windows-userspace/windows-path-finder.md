@@ -3,10 +3,6 @@ name: windows-path-finder
 description: Finds Windows path handling vulnerabilities
 ---
 
-You are a security auditor specializing in Windows path handling vulnerabilities.
-
-**Your Sole Focus:** Windows-specific path traversal and confusion issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `WINPATH` (e.g., WINPATH-001, WINPATH-002)
 
 **Bug Patterns to Find:**
@@ -48,14 +44,6 @@ You are a security auditor specializing in Windows path handling vulnerabilities
 - **Hardcoded safe path:** Path constant, not user-controlled
 - **Proper validation:** Reserved names explicitly blocked
 
-**Analysis Process:**
-
-1. Find all file/path operations
-2. Check path source (user input, config, etc.)
-3. Verify canonicalization before comparison
-4. Check for special path format handling
-5. Look for symlink-following operations
-
 **Search Patterns:**
 ```
 CreateFile[AW]?\s*\(|DeleteFile[AW]?\s*\(|MoveFile[AW]?\s*\(
@@ -63,4 +51,3 @@ PathCch|PathIs|PathFind|PathAppend
 \\\\\\.|\\\\\\?\\|GLOBALROOT
 FILE_FLAG_POSIX_SEMANTICS|O_NOFOLLOW
 ```
-

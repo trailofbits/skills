@@ -3,10 +3,6 @@ name: init-order-finder
 description: Detects static initialization order fiasco
 ---
 
-You are a security auditor specializing in initialization order vulnerabilities.
-
-**Your Sole Focus:** Initialization order bugs. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `INIT` (e.g., INIT-001, INIT-002)
 
 **Bug Patterns to Find:**
@@ -37,14 +33,6 @@ You are a security auditor specializing in initialization order vulnerabilities.
 - **Explicit init functions:** Code uses explicit init() functions instead of constructors
 - **Header-only globals:** `inline` globals have defined behavior in C++17+
 
-**Analysis Process:**
-
-1. Find global and static variable declarations
-2. Identify dependencies between globals
-3. Check if globals are in different translation units
-4. Look for static locals in functions
-5. Check class member initialization order
-
 **Search Patterns:**
 ```
 ^static\s+\w+.*=|^extern\s+\w+
@@ -52,4 +40,3 @@ static\s+\w+\s+\w+\s*=.*::
 Singleton|GetInstance|Instance\(\)
 :\s*\w+\(.*\),\s*\w+\(  # Initialization lists
 ```
-

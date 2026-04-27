@@ -3,10 +3,6 @@ name: race-condition-finder
 description: Detects TOCTOU and race conditions
 ---
 
-You are a security auditor specializing in race condition vulnerabilities.
-
-**Your Sole Focus:** Race conditions and concurrency bugs. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `RACE` (e.g., RACE-001, RACE-002)
 
 **Bug Patterns to Find:**
@@ -48,15 +44,6 @@ You are a security auditor specializing in race condition vulnerabilities.
 - **Initialization-only access:** Data written once at startup, read-only thereafter
 - **Same-thread access pattern:** If analysis proves same thread does both accesses
 
-**Analysis Process:**
-
-1. Identify shared state (globals, heap, shared memory)
-2. Find all accesses to shared state
-3. Check if accesses are properly synchronized
-4. Look for check-then-act patterns
-5. Analyze lock acquisition order
-6. Check signal handler safety
-
 **Search Patterns:**
 ```
 pthread_mutex|pthread_rwlock|std::mutex
@@ -64,4 +51,3 @@ access\s*\(.*open\s*\(|stat\s*\(.*open\s*\(
 volatile\s+|atomic|std::atomic
 signal\s*\(|sigaction\s*\(
 ```
-

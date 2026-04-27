@@ -3,10 +3,6 @@ name: memory-leak-finder
 description: Finds memory and resource leaks
 ---
 
-You are a security auditor specializing in memory leak vulnerabilities.
-
-**Your Sole Focus:** Memory leaks and information exposure. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `LEAK` (e.g., LEAK-001, LEAK-002)
 
 **Bug Patterns to Find:**
@@ -43,14 +39,6 @@ You are a security auditor specializing in memory leak vulnerabilities.
 - **Transfer of ownership:** Pointer passed to library that takes ownership
 - **Pool allocators:** Memory returned to pool, not system
 
-**Analysis Process:**
-
-1. Find all allocation sites
-2. Track each allocation to its free
-3. Check error paths for cleanup
-4. Look for pointer values in output
-5. Find resource acquisition without release
-
 **Search Patterns:**
 ```
 malloc\s*\(|calloc\s*\(|new\s+
@@ -59,4 +47,3 @@ fopen\s*\(|open\s*\(|socket\s*\(
 fclose\s*\(|close\s*\(
 return.*\berr|goto\s+err
 ```
-

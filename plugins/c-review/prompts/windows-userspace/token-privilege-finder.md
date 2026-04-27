@@ -3,10 +3,6 @@ name: token-privilege-finder
 description: Detects privilege token vulnerabilities
 ---
 
-You are a security auditor specializing in Windows token and privilege vulnerabilities.
-
-**Your Sole Focus:** Token privilege issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `TOKPRIV` (e.g., TOKPRIV-001, TOKPRIV-002)
 
 **Bug Patterns to Find:**
@@ -44,14 +40,6 @@ You are a security auditor specializing in Windows token and privilege vulnerabi
 - **Security software:** Debugger/AV legitimately needs SeDebugPrivilege
 - **Properly scoped:** Privilege enabled only for specific operation
 
-**Analysis Process:**
-
-1. Find AdjustTokenPrivileges calls
-2. Identify which privileges are enabled
-3. Check if privileges are disabled after use
-4. Find impersonation functions
-5. Verify RevertToSelf is called
-
 **Search Patterns:**
 ```
 AdjustTokenPrivileges\s*\(|LookupPrivilegeValue\s*\(
@@ -60,4 +48,3 @@ SeAssignPrimaryTokenPrivilege|SeRestorePrivilege
 ImpersonateLoggedOnUser|SetThreadToken|RevertToSelf
 OpenProcessToken|OpenThreadToken|DuplicateToken
 ```
-

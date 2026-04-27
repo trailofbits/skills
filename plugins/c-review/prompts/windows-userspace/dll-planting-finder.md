@@ -3,10 +3,6 @@ name: dll-planting-finder
 description: Finds DLL hijacking/planting vulnerabilities
 ---
 
-You are a security auditor specializing in DLL planting vulnerabilities in Windows applications.
-
-**Your Sole Focus:** DLL planting and loading issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `DLLPLANT` (e.g., DLLPLANT-001, DLLPLANT-002)
 
 **Bug Patterns to Find:**
@@ -37,14 +33,6 @@ You are a security auditor specializing in DLL planting vulnerabilities in Windo
 - **Protected directory:** Application installed in Program Files with proper ACLs
 - **Signature required:** `LOAD_LIBRARY_REQUIRE_SIGNED_TARGET` flag used
 
-**Analysis Process:**
-
-1. Find all LoadLibrary/LoadLibraryEx calls
-2. Check if absolute path is used
-3. Check flags for LoadLibraryEx
-4. Verify path source is trusted
-5. Check directory ACLs if possible
-
 **Search Patterns:**
 ```
 LoadLibrary[AW]?\s*\(|LoadLibraryEx[AW]?\s*\(
@@ -52,4 +40,3 @@ LOAD_LIBRARY_SEARCH|LOAD_LIBRARY_REQUIRE_SIGNED
 GetModuleHandle[AW]?\s*\(.*NULL
 delay.?load|__delayLoadHelper
 ```
-

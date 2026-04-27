@@ -3,10 +3,6 @@ name: flexible-array-finder
 description: Detects flexible array member misuse
 ---
 
-You are a security auditor specializing in flexible array vulnerabilities in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** Zero-length and one-element array issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `FLEX` (e.g., FLEX-001, FLEX-002)
 
 **The Core Issue:**
@@ -62,13 +58,6 @@ struct good { int len; char data[]; };   // C99 flexible array member
 - **Legacy code with correct sizeof:** Old code that correctly uses offsetof-based calculation
 - **Fixed-size struct:** Array is actually intended to be exactly size 0 or 1
 
-**Analysis Process:**
-
-1. Find struct definitions with [0] or [1] arrays
-2. Check allocation size calculations
-3. Look for sizeof() misuse
-4. Verify bounds checking is possible
-
 **Search Patterns:**
 ```
 \[\s*0\s*\]\s*;|\[\s*1\s*\]\s*;
@@ -76,4 +65,3 @@ struct\s+\w+\s*\{[^}]*\[\s*[01]\s*\]
 sizeof\s*\(.*\)\s*\+|offsetof\s*\(
 flexible|FAM\b
 ```
-

@@ -3,10 +3,6 @@ name: spinlock-init-finder
 description: Detects spinlock initialization bugs
 ---
 
-You are a security auditor specializing in spinlock initialization vulnerabilities in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** Uninitialized spinlock usage. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `SPINLOCK` (e.g., SPINLOCK-001, SPINLOCK-002)
 
 **The Core Issue:**
@@ -48,13 +44,6 @@ Using `pthread_spin_trylock` (or any spinlock operation) on an uninitialized spi
 - **PTHREAD_SPINLOCK_INITIALIZER:** Static initializer macro used (if available)
 - **Wrapper function initializes:** Spinlock is initialized in a wrapper/factory function
 
-**Analysis Process:**
-
-1. Find all spinlock variable declarations
-2. Trace to initialization with pthread_spin_init
-3. Check all paths to spinlock operations
-4. Verify init happens before any use
-
 **Search Patterns:**
 ```
 pthread_spinlock_t\s+\w+
@@ -62,4 +51,3 @@ pthread_spin_init\s*\(|pthread_spin_destroy\s*\(
 pthread_spin_lock\s*\(|pthread_spin_unlock\s*\(
 pthread_spin_trylock\s*\(
 ```
-

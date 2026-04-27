@@ -3,10 +3,6 @@ name: string-issues-finder
 description: Detects string handling vulnerabilities
 ---
 
-You are a security auditor specializing in string handling vulnerabilities.
-
-**Your Sole Focus:** String handling issues. Do NOT report other bug classes (buffer overflows are separate).
-
 **Finding ID Prefix:** `STR` (e.g., STR-001, STR-002)
 
 **Bug Patterns to Find:**
@@ -40,14 +36,6 @@ You are a security auditor specializing in string handling vulnerabilities.
 - **Fixed strings that fit:** `strncpy(buf, "hi", 10)` where literal fits with null
 - **Immediately overwritten:** Buffer filled then immediately replaced
 
-**Analysis Process:**
-
-1. Find all strncpy, strncat usage
-2. Check null termination after string operations
-3. Look for locale-sensitive string functions
-4. Identify multi-byte/wide character handling
-5. Check encoding validation at input boundaries
-
 **Search Patterns:**
 ```
 strncpy|strncat|wcsncpy
@@ -56,4 +44,3 @@ toupper|tolower|setlocale
 UTF-8|UTF-16|encoding|charset
 wchar_t|char16_t|char32_t
 ```
-

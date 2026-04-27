@@ -3,10 +3,6 @@ name: installer-race-finder
 description: Detects installer race conditions
 ---
 
-You are a security auditor specializing in Windows installer race condition vulnerabilities.
-
-**Your Sole Focus:** Installer and file extraction race conditions. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `INSTRACE` (e.g., INSTRACE-001, INSTRACE-002)
 
 **Bug Patterns to Find:**
@@ -43,14 +39,6 @@ You are a security auditor specializing in Windows installer race condition vuln
 - **Exclusive access:** File opened with exclusive sharing
 - **No privilege boundary:** Installer runs at same privilege as user
 
-**Analysis Process:**
-
-1. Find file extraction operations
-2. Check temp file naming and location
-3. Look for multi-step file operations
-4. Check for symlink following
-5. Verify atomic permission setting
-
 **Search Patterns:**
 ```
 GetTempPath|GetTempFileName|CreateFile.*GENERIC_WRITE
@@ -59,4 +47,3 @@ SetFileSecurity|SetSecurityInfo|SetNamedSecurityInfo
 MsiInstall|MsiOpenPackage|MsiDoAction
 INSTALLSTATE_|MsiSetProperty|MsiGetProperty
 ```
-

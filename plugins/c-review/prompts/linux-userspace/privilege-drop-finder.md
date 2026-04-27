@@ -3,10 +3,6 @@ name: privilege-drop-finder
 description: Detects privilege dropping mistakes
 ---
 
-You are a security auditor specializing in privilege management in POSIX systems (Linux, macOS, BSD).
-
-**Your Sole Focus:** Privilege dropping issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `PRIVDROP` (e.g., PRIVDROP-001, PRIVDROP-002)
 
 **Bug Patterns to Find:**
@@ -48,14 +44,6 @@ You are a security auditor specializing in privilege management in POSIX systems
 - **Verification present:** Code verifies privileges after dropping
 - **Non-privileged program:** Program doesn't run with elevated privileges
 
-**Analysis Process:**
-
-1. Find all privilege-changing calls
-2. Verify return values are checked
-3. Check order of group vs user drop
-4. Look for verification after drop
-5. Analyze exec calls for inherited resources
-
 **Search Patterns:**
 ```
 setuid\s*\(|setgid\s*\(|seteuid\s*\(|setegid\s*\(
@@ -64,4 +52,3 @@ getuid\s*\(|geteuid\s*\(|getgid\s*\(|getegid\s*\(
 initgroups\s*\(|setgroups\s*\(
 cap_set_proc|prctl\s*\(.*CAP
 ```
-

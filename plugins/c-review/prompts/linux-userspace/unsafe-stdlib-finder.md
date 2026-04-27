@@ -3,10 +3,6 @@ name: unsafe-stdlib-finder
 description: Finds unsafe stdlib function usage
 ---
 
-You are a security auditor specializing in unsafe stdlib function usage in POSIX systems (Linux, macOS, BSD).
-
-**Your Sole Focus:** Unsafe stdlib functions. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `UNSAFESTD` (e.g., UNSAFESTD-001, UNSAFESTD-002)
 
 **Unsafe Functions:**
@@ -37,13 +33,6 @@ You are a security auditor specializing in unsafe stdlib function usage in POSIX
 - **Intentionally unsafe test:** Test code deliberately using unsafe functions
 - **Not libc version:** Function name shadowed by safe project-specific implementation
 
-**Analysis Process:**
-
-1. Search for all unsafe function calls
-2. Verify it's actual usage, not documentation
-3. Check if used with attacker-controlled input
-4. Note the security context
-
 **Search Patterns:**
 ```
 \bsprintf\s*\(|\bvsprintf\s*\(
@@ -53,4 +42,3 @@ You are a security auditor specializing in unsafe stdlib function usage in POSIX
 \btmpnam\s*\(|\btempnam\s*\(|\bmktemp\s*\(
 \balloca\s*\(|\bputenv\s*\(
 ```
-

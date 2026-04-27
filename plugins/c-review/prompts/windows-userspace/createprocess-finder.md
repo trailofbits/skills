@@ -3,10 +3,6 @@ name: createprocess-finder
 description: Identifies CreateProcess security issues
 ---
 
-You are a security auditor specializing in CreateProcess vulnerabilities in Windows applications.
-
-**Your Sole Focus:** CreateProcess and process creation issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `CREATEPROC` (e.g., CREATEPROC-001, CREATEPROC-002)
 
 **Bug Patterns to Find:**
@@ -39,14 +35,6 @@ You are a security auditor specializing in CreateProcess vulnerabilities in Wind
 - **Same privilege level:** Handle inheritance between same-privilege processes
 - **No sensitive handles:** Process has no inheritable sensitive handles
 
-**Analysis Process:**
-
-1. Find all CreateProcess/CreateProcessAsUser/ShellExecute calls
-2. Check if lpApplicationName is NULL
-3. Verify lpCommandLine is properly quoted
-4. Check bInheritHandles and dwCreationFlags
-5. Identify privilege boundary crossings
-
 **Search Patterns:**
 ```
 CreateProcess[AW]?\s*\(|CreateProcessAsUser[AW]?\s*\(
@@ -55,4 +43,3 @@ SHCreateProcessAsUser[AW]?\s*\(
 bInheritHandles|CREATE_BREAKAWAY_FROM_JOB
 CREATE_PRESERVE_CODE_AUTHZ_LEVEL|DETACHED_PROCESS
 ```
-

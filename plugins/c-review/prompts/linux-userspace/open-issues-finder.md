@@ -3,10 +3,6 @@ name: open-issues-finder
 description: Identifies file open vulnerabilities
 ---
 
-You are a security auditor specializing in file operation security in POSIX systems (Linux, macOS, BSD).
-
-**Your Sole Focus:** File operation security issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `FILEOP` (e.g., FILEOP-001, FILEOP-002)
 
 **Bug Patterns to Find:**
@@ -43,14 +39,6 @@ You are a security auditor specializing in file operation security in POSIX syst
 - **Single-user context:** No privilege difference, attacker gains nothing
 - **O_CLOEXEC set elsewhere:** fcntl() called to set FD_CLOEXEC immediately after open
 
-**Analysis Process:**
-
-1. Find all file open/access operations
-2. Look for check-then-open patterns
-3. Verify `O_CLOEXEC` usage
-4. Check symlink handling with `O_NOFOLLOW`
-5. Analyze rename operations for races
-
 **Search Patterns:**
 ```
 access\s*\(|faccessat\s*\(
@@ -59,4 +47,3 @@ rename\s*\(|renameat\s*\(
 O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY
 realpath\s*\(|readlink\s*\(
 ```
-

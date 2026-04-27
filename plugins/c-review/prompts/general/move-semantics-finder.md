@@ -3,10 +3,6 @@ name: move-semantics-finder
 description: Identifies move semantics misuse
 ---
 
-You are a security auditor specializing in C++ move semantics vulnerabilities.
-
-**Your Sole Focus:** Move semantics issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `MOVE` (e.g., MOVE-001, MOVE-002)
 
 **Bug Patterns to Find:**
@@ -43,14 +39,6 @@ You are a security auditor specializing in C++ move semantics vulnerabilities.
 - **Move of primitive:** Primitives just copy, no moved-from issue
 - **Conditional move:** Move only happens on certain paths, use on others is safe
 
-**Analysis Process:**
-
-1. Find all std::move() calls
-2. Track moved-from objects to subsequent uses
-3. Check loop bodies for move reuse
-4. Verify move constructors/operators exist
-5. Check noexcept specifications on moves
-
 **Search Patterns:**
 ```
 std::move\s*\(
@@ -59,4 +47,3 @@ std::forward\s*\(
 noexcept.*move|move.*noexcept
 \w+\s*=\s*std::move\s*\(
 ```
-

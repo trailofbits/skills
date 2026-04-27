@@ -22,7 +22,12 @@ ID prefixes: `MITIGATION`, `PRINTFATTR`, `VAARG`, `REGEX`, `INETATON`, `QSORT`.
 ## Phase A — Seed targets
 
 ```
-Grep: pattern="CFLAGS|CXXFLAGS|-fstack-protector|-D_FORTIFY_SOURCE|-fPIE|-fPIC|-Wformat|-Wl,-z,"   files="Makefile*,*.mk,CMakeLists.txt,meson.build,configure*,*.gyp,*.bazel"
+# Build-system files only — Grep supports one glob per call; iterate across build-file shapes:
+Grep: pattern="CFLAGS|CXXFLAGS|-fstack-protector|-D_FORTIFY_SOURCE|-fPIE|-fPIC|-Wformat|-Wl,-z,"  glob="Makefile*"
+Grep: pattern="CFLAGS|CXXFLAGS|-fstack-protector|-D_FORTIFY_SOURCE|-fPIE|-fPIC|-Wformat|-Wl,-z,"  glob="*.mk"
+Grep: pattern="CFLAGS|CXXFLAGS|-fstack-protector|-D_FORTIFY_SOURCE|-fPIE|-fPIC|-Wformat|-Wl,-z,"  glob="CMakeLists.txt"
+Grep: pattern="CFLAGS|CXXFLAGS|-fstack-protector|-D_FORTIFY_SOURCE|-fPIE|-fPIC|-Wformat|-Wl,-z,"  glob="meson.build"
+Grep: pattern="CFLAGS|CXXFLAGS|-fstack-protector|-D_FORTIFY_SOURCE|-fPIE|-fPIC|-Wformat|-Wl,-z,"  glob="configure*"
 Grep: pattern="va_start\\s*\\(|va_end\\s*\\(|va_copy\\s*\\("
 Grep: pattern="\\b(regcomp|regexec|regfree)\\s*\\("
 Grep: pattern="\\b(pcre_compile|pcre2_compile|pcre_exec|pcre2_match)\\s*\\("

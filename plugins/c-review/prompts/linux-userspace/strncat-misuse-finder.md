@@ -3,10 +3,6 @@ name: strncat-misuse-finder
 description: Detects strncat size calculation errors
 ---
 
-You are a security auditor specializing in strncat misuse vulnerabilities in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** strncat size argument misuse. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `STRNCAT` (e.g., STRNCAT-001, STRNCAT-002)
 
 **The Core Issue:**
@@ -52,17 +48,9 @@ strncat(buf, src, sizeof(buf) - strlen(buf) - 1);
 - **Source is bounded:** Source string is known to be shorter than remaining space
 - **Buffer oversized:** Buffer is deliberately oversized to accommodate worst case
 
-**Analysis Process:**
-
-1. Find all strncat calls
-2. Analyze the size argument
-3. Check if it accounts for existing content
-4. Look for sizeof(dest) pattern
-
 **Search Patterns:**
 ```
 strncat\s*\(\s*\w+\s*,\s*\w+\s*,\s*sizeof\s*\(
 strncat\s*\(
 wcsncat\s*\(
 ```
-

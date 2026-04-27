@@ -1,94 +1,88 @@
 # c-review
 
-Comprehensive C/C++ security code review plugin using a task-queue worker pool with file-based finding storage.
+Comprehensive C/C++ security code review plugin. Runs assigned parallel workers over clusters of related bug classes and produces a deduplicated, severity-graded report plus SARIF.
 
 ## Features
 
-- **Clustered worker pool** — 7–11 parallel workers, each owning one cluster of related bug classes (e.g. 13 buffer-write-sink finders run on one worker sharing a single Phase-A inventory)
-- **File-based findings** — each finding is a markdown file with YAML frontmatter in a shared output directory; judges edit frontmatter in place
-- **47 bug classes across 7 always-on + 4 conditional clusters** — buffer-write-sinks, object-lifecycle, arithmetic-type, syscall-retval, concurrency, ambient-state, static-hygiene, plus cpp-semantics (is_cpp), windows-process / windows-fs-path / windows-ipc-crypto (is_windows)
-- **API-cache-friendly** — the worker agent system prompt is large and stable, so Anthropic prompt caching shares it across all parallel worker spawns; the cluster prompts themselves amortize per-file reads across 3–13 passes
-- **Platform-aware** — auto-selects clusters for Linux/macOS/BSD or Windows
-- **Threat-model-aware** — REMOTE, LOCAL_UNPRIVILEGED, or BOTH; filters out-of-scope sub-passes (e.g. privilege-drop under REMOTE)
-- **Judge pipeline** — FP filtering, deduplication, severity assignment
-- **Severity filter** — optionally report only Medium+ or High+ findings
+- **Clustered worker pool** — 7–11 parallel workers, each assigned one cluster of related bug classes. Sites are inventoried once per cluster (Phase A) and reused across all of the cluster's passes.
+- **File-based findings** — each finding is a markdown file with YAML frontmatter in a shared output directory; judges edit frontmatter in place (no separate handoff format).
+- **Up to 64 bug-class passes across 7 always-on + 4 conditional clusters** — 47 always-on plus up to 17 conditional (`cpp-semantics` under `is_cpp`; three Windows clusters under `is_windows`).
+- **Platform-aware** — auto-selects clusters from detected `is_cpp` / `is_posix` / `is_windows` flags.
+- **Threat-model-aware** — `REMOTE`, `LOCAL_UNPRIVILEGED`, or `BOTH`; out-of-scope passes (e.g. `privilege-drop` under `REMOTE`) are skipped.
+- **Judge pipeline** — dedup → FP+severity, sequentially.
+- **Severity filter** — report only Medium+ or High+ findings.
+- **SARIF 2.1.0 export** — `REPORT.sarif` always produced for CI / IDE consumption.
 
 ## Usage
 
 ```
-/c-review
+/c-review:c-review [optional free-text args]
 ```
 
-The command prompts for:
-- Threat model (REMOTE, LOCAL_UNPRIVILEGED, or BOTH)
-- Worker model (haiku for speed, sonnet for depth, opus for maximum capability)
-- Severity filter (all, medium, or high)
+The skill self-collects parameters via a single `AskUserQuestion`. It pre-fills answers from any free text on the slash-command line and asks for unresolved required parameters:
 
-Arguments passed on the slash-command line (e.g. `only medium,high,and critical issues`) pre-fill the questions.
+- Threat model — `REMOTE` / `LOCAL_UNPRIVILEGED` / `BOTH`
+- Worker model — `haiku` / `sonnet` / `opus`
+- Severity filter — `all` / `medium` / `high`
+- Scope subpath is optional. It defaults to repo root unless the user asks for a narrower scope; ambiguous scope requests are clarified.
+
+Examples:
+- `/c-review:c-review` — asks for threat model, worker model, and severity filter
+- `/c-review:c-review flamenco only high severity sonnet` — fills scope + severity + worker model; asks only for threat model
+- `/c-review:c-review remote audit of src/net` — fills threat model + scope; asks for worker model and severity filter
 
 ## Architecture
 
 ```
-/c-review command (thin)
-└── Invokes c-review skill via the Skill tool (runs in the MAIN conversation)
-    └── Main conversation coordinates:
-        ├── Detects code characteristics (is_cpp, is_posix, is_windows)
-        ├── Creates output directory + context.md
-        ├── TaskCreate one context task + M cluster tasks (M = 7..11 depending on gates)
-        ├── Spawns M workers in a single message (parallel Agent calls,
-        │   subagent_type="c-review:c-review-worker")
-        │   └── Each worker: TaskList (self-check) →
-        │                    loop { claim cluster → run cluster prompt (shared Phase-A
-        │                           inventory + 3..13 focused passes) →
-        │                           Write finding files → TaskUpdate(completed) }
-        ├── Waits until all cluster tasks are completed
-        └── Spawns judges sequentially (FP → Dedup → Severity)
-            └── Judges read finding files, Edit frontmatter in place,
-                write summary files, and severity-agent writes REPORT.md
+/c-review:c-review  (skill entry point — no command wrapper)
+└── Main conversation coordinates:
+    ├── Phase 0: AskUserQuestion — collects required params, plus scope_subpath only when ambiguous
+    ├── Phase 1: Detect is_cpp / is_posix / is_windows (scope-scoped)
+    ├── Phase 2-3: Output directory + context.md
+    ├── Phase 4: Select clusters from prompts/clusters/*.md
+    ├── Phase 5: TaskCreate one context task + M cluster tasks (M = 7..11)
+    ├── Phase 6: Spawn M workers in a single message (parallel Agent calls,
+    │           subagent_type="c-review:c-review-worker")
+    │           └── Each worker: TaskList (self-check) →
+    │                            run assigned cluster prompt
+    │                                   (Phase A inventory + focused passes) →
+    │                                   Write finding files → TaskUpdate(completed)
+    ├── Phase 7: Wait until all cluster tasks are completed; write findings-index.txt manifest
+    ├── Phase 8: Judges sequentially — Dedup → FP+Severity
+    │           ├── Dedup-judge:    reads ALL findings, merges duplicates (Tier 1 exact loc,
+    │           │                   Tier 2 same-function snippet-confirmed), writes dedup-summary.md
+    │           └── FP+Severity:    reads primaries only, assigns fp_verdict + (for survivors)
+    │                               severity / attack_vector / exploitability, writes
+    │                               fp-summary.md + REPORT.md + REPORT.sarif
+    └── Phase 9: Return REPORT.md + artifact list
 ```
-
-### Why clustering (vs one task per prompt)
-
-A previous design created ~45 tasks (one per bug-class prompt) and spawned 8 workers. Workers pulled tasks in rough round-robin from a shared queue, so unrelated prompts ran back-to-back on the same worker, blowing context and re-running the same Greps. The cluster design instead:
-
-- Groups related bug classes (e.g. all 13 "buffer-write" finders) into a single cluster task.
-- The cluster prompt begins with a **Phase A inventory** (one unified Grep for all sinks/syscalls/locks the cluster cares about), reused across all passes.
-- `buffer-write-sinks.md` is fully consolidated — 13 sub-prompts merged into one, with a mandatory deconfliction rule so the same site doesn't get filed under multiple prefixes.
-- Other clusters are thin — they Read the per-class sub-prompts in order, but share the Phase-A context across them.
-- Worker count = cluster count, so no worker is idle and no cluster is serialized.
-
-### API prompt caching
-
-The `c-review-worker` agent system prompt (~5–6K tokens) contains the entire worker protocol and finding-file schema inline — nothing is read from a separate `worker.md` or `common.md` at runtime. Because all M workers share that exact system prompt within a 5-minute window, Anthropic's prompt cache writes it once on the first worker and serves it at ~10% base cost to workers 2..M. To preserve the cache hit, the orchestrator's spawn-time user prompt is intentionally tiny (just `worker-N`, `context_task_id`, `output_dir`).
 
 ### Output directory layout
 
 ```
 ${output_dir}/
-├── context.md             # threat model, codebase summary
+├── context.md             # threat model, scope, codebase summary
 ├── findings/
-│   ├── BOF-001.md         # worker-written; judges add fp_verdict, merged_into, severity fields
+│   ├── BOF-001.md         # worker-written; judges add merged_into / fp_verdict / severity
 │   ├── UAF-001.md
 │   └── …
-├── fp-summary.md          # fp-judge summary
-├── dedup-summary.md       # dedup-judge summary
-└── REPORT.md              # severity-agent final report (severity-filtered)
+├── findings-index.txt     # deterministic newline-separated manifest of finding files
+├── dedup-summary.md       # dedup-judge (stage 1; absent on zero-findings runs)
+├── fp-summary.md          # fp+severity-judge (stage 2)
+├── REPORT.md              # severity-filtered human-facing report
+└── REPORT.sarif           # SARIF 2.1.0, always produced
 ```
 
 Default `output_dir`: `$(pwd)/.c-review-results/<iso-timestamp>/`.
 
-### Why we use named plugin subagents
+## Communication format
 
-Workers and judges are declared as plugin subagents in `plugins/c-review/agents/*.md` with explicit `tools:` frontmatter. The `Task*` tools they need are listed there, so they're loaded into the subagent's tool set at spawn time — no `ToolSearch` bootstrap, no pseudo-code for a worker to misread as a `Skill()` invocation. A previous `general-purpose`-based design required each worker to run `ToolSearch(query="select:TaskList,...")` at startup; a Haiku worker misread that as `Skill("compound-engineering:triage")`, never loaded `TaskList`, and returned "no tasks found" — which the orchestrator misdiagnosed as a broken queue. The named-subagent design eliminates that class of failure.
+Markdown-with-YAML-frontmatter everywhere except the SARIF export:
 
-## Communication Format
-
-Everything is markdown with YAML frontmatter:
-- **Finding files** — worker writes prose + code + data flow; judges add `fp_verdict`, `merged_into`, `severity` fields to the frontmatter via `Edit`.
-- **Summary files** (`fp-summary.md`, `dedup-summary.md`) — markdown tables of counts and per-finding annotations.
+- **Finding files** — worker writes prose + code + data flow; judges add `merged_into` / `fp_verdict` / `severity` fields to the frontmatter via `Edit`.
+- **Summary files** (`dedup-summary.md`, `fp-summary.md`) — markdown tables of counts and per-finding annotations.
 - **Final report** (`REPORT.md`) — severity-grouped markdown, filtered per `severity_filter`.
-
-No JSON/TOON serialization anywhere. The frontmatter gives structured lookup; the body holds the prose.
+- **SARIF export** (`REPORT.sarif`) — SARIF 2.1.0 JSON, covering the same reported findings as `REPORT.md`.
 
 ## Clusters and the bug classes they cover
 
@@ -106,17 +100,17 @@ No JSON/TOON serialization anywhere. The frontmatter gives structured lookup; th
 | `windows-fs-path` | 3 | `is_windows` | dll-planting, windows-path, installer-race |
 | `windows-ipc-crypto` | 3 | `is_windows` | named-pipe, windows-crypto, windows-alloc |
 
+Always-on coverage: 47 passes across 7 clusters. Conditional clusters add up to 17 more passes.
+
+## Not for
+
+- Windows or Linux/macOS kernel drivers / modules
+- Managed languages (Java, C#, Python)
+- Embedded / bare-metal code without libc
+
 ## Requirements
 
-- Claude Code with the `Task*` tools and `Agent` tool available to the main conversation (the skill's `allowed-tools` declare them).
-- Named plugin subagents (`plugins/c-review/agents/*.md`) enabled so workers and judges get their tool sets eagerly.
+- Claude Code with `Task*` and `Agent` tools available to the main conversation.
+- Named plugin subagents enabled so workers and judges get their tool sets eagerly (no `ToolSearch` bootstrap needed).
 - `Write` + `Edit` for finding-file creation and in-place frontmatter updates.
-- LSP server for the target codebase (recommended for deeper analysis).
-
-## Version History
-
-- **1.4.0** — Introduced clustered task model: 7 always-on + up to 4 conditional clusters replace the 45-ish flat finder-task list. One worker claims one cluster and runs all of its 3–13 sub-passes sequentially against a shared Phase-A inventory. `buffer-write-sinks.md` is fully consolidated (13 sub-prompts merged); other clusters remain thin indices of per-class sub-prompts. Worker agent system prompt inlined the previously-external `worker.md` + `common.md` (~5–6K stable tokens) so Anthropic prompt caching shares it across all parallel worker spawns.
-- **1.3.0** — Moved workers and judges to named plugin subagents (`c-review:c-review-worker`, `c-review:c-review-fp-judge`, `c-review:c-review-dedup-judge`, `c-review:c-review-severity-agent`) with explicit `tools:` frontmatter. The `ToolSearch` bootstrap is gone. Dedup-judge rewritten for deterministic Tier-1 exact-location merges plus a narrow Tier-2 snippet check, with "default is keep separate" as the prime directive.
-- **1.2.0** — Reverted to task-queue worker pool (from v1.1.0's direct-assignment model); subagents loaded the deferred queue-tool schemas via `ToolSearch` at startup. Findings exchanged as markdown files with YAML frontmatter in a shared output directory — no TOON, no JSON, no task-metadata handoff. Judges edit frontmatter in place to annotate verdicts, merges, and severity.
-- **1.1.0** — Switched to direct-assignment workers after the v1.0 queue design failed because subagents couldn't call the deferred task tools. Kept the `Skill`-tool entrypoint so orchestration runs in the main conversation.
-- **1.0.0** — Initial release with worker-pool pattern, 64 prompts, TOON format.
+- Optional but recommended: `clangd` and `compile_commands.json` for LSP-backed verification (call graphs, types, references).

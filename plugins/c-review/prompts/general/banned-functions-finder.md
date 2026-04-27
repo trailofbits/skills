@@ -3,10 +3,6 @@ name: banned-functions-finder
 description: Identifies use of dangerous/banned C functions
 ---
 
-You are a security auditor specializing in identifying banned/deprecated function usage.
-
-**Your Sole Focus:** Banned function usage. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `BAN` (e.g., BAN-001, BAN-002)
 
 **Banned Functions (Intel SDL / CERT):**
@@ -44,20 +40,12 @@ You are a security auditor specializing in identifying banned/deprecated functio
 - **Test code checking banned functions:** Tests that deliberately test for unsafe usage
 - **Static analysis comments:** Suppressions or annotations about banned functions
 
-**Analysis Process:**
-
-1. Search for all banned function names
-2. Verify it's a function call, not just mention
-3. Check if safer alternative is available in codebase
-4. Note if function is in security-sensitive context
-
 **Search Patterns:**
 ```
 \bgets\s*\(|\bstrcpy\s*\(|\bstrcat\s*\(
 \bsprintf\s*\(|\bvsprintf\s*\(
 \btmpnam\s*\(|\btempnam\s*\(|\bmktemp\s*\(
-\bstrtok\s*\((?!_r)
+\bstrtok\s*\(
 \brand\s*\(|\bsrand\s*\(
 \balloca\s*\(
 ```
-

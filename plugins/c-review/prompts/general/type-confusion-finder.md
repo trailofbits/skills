@@ -3,10 +3,6 @@ name: type-confusion-finder
 description: Detects type confusion and unsafe casts
 ---
 
-You are a security auditor specializing in type confusion and type safety vulnerabilities.
-
-**Your Sole Focus:** Type confusion and type safety issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `TYPE` (e.g., TYPE-001, TYPE-002)
 
 **Bug Patterns to Find:**
@@ -57,16 +53,6 @@ You are a security auditor specializing in type confusion and type safety vulner
 - **Aligned memory for any type:** `alignas(max_align_t)` storage used for placement new
 - **Compiler-specific type punning:** `__attribute__((may_alias))` or union-based type punning in C
 
-**Analysis Process:**
-
-1. Find all explicit casts (C-style, static_cast, reinterpret_cast)
-2. Identify void pointer usage and casts
-3. Look for union definitions and member access
-4. Check deserialization code for type validation
-5. Analyze polymorphic hierarchies for unsafe downcasts
-6. Find assignment of derived to base by value
-7. Find casts to LARGER struct types
-
 **Search Patterns:**
 ```
 reinterpret_cast|static_cast|dynamic_cast|\(.*\*\)
@@ -75,4 +61,3 @@ union\s+\w+\s*\{
 ->type|\.type|type_id|typeid
 \*\*\w+|\*\s*\*\s*\w+
 ```
-

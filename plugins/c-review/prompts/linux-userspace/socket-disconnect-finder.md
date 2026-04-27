@@ -3,10 +3,6 @@ name: socket-disconnect-finder
 description: Identifies socket disconnect handling issues
 ---
 
-You are a security auditor specializing in socket disconnect vulnerabilities in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** connect(AF_UNSPEC) socket disconnect issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `SOCKDISCON` (e.g., SOCKDISCON-001, SOCKDISCON-002)
 
 **The Core Issue:**
@@ -50,13 +46,6 @@ This has been used for nsjail escapes and other sandbox bypasses.
 - **Socket not reused:** Socket is closed and recreated rather than reconnected
 - **Intentional disconnect:** Code deliberately uses AF_UNSPEC to reset socket state
 
-**Analysis Process:**
-
-1. Find all connect() calls
-2. Check if address family is attacker-controlled
-3. Look for socket reuse patterns
-4. Check if address validation exists
-
 **Search Patterns:**
 ```
 connect\s*\(
@@ -64,4 +53,3 @@ AF_UNSPEC
 sockaddr.*sa_family
 bind\s*\(|listen\s*\(|accept\s*\(
 ```
-

@@ -3,10 +3,6 @@ name: dos-finder
 description: Detects denial of service vulnerabilities
 ---
 
-You are a security auditor specializing in denial of service vulnerabilities.
-
-**Your Sole Focus:** Denial of service vectors. Do NOT report other bug classes (crashes are separate unless intentional DoS).
-
 **Finding ID Prefix:** `DOS` (e.g., DOS-001, DOS-002)
 
 **Bug Patterns to Find:**
@@ -43,14 +39,6 @@ You are a security auditor specializing in denial of service vulnerabilities.
 - **Rate limiting present:** External rate limiting may prevent exploitation
 - **Streaming processing:** Code that processes data in fixed-size chunks
 
-**Analysis Process:**
-
-1. Find allocation sites with size from user input
-2. Check for bounds on user-controlled loops
-3. Look for large objects passed by value
-4. Identify resource acquisition without limits
-5. Check algorithm complexity on untrusted input
-
 **Search Patterns:**
 ```
 malloc\s*\(.*user|malloc\s*\(.*input|malloc\s*\(.*size
@@ -58,4 +46,3 @@ while\s*\(1\)|for\s*\(;;\)|for\s*\(.*<.*input
 vector<.*>\s+\w+\s*=|string\s+\w+\s*=.*\+
 std::move\s*\(
 ```
-

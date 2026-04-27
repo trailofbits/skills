@@ -3,10 +3,6 @@ name: null-zero-finder
 description: Finds NULL vs zero confusion
 ---
 
-You are a security auditor specializing in NULL vs 0 usage vulnerabilities in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** Zero used where NULL should be. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `NULLZERO` (e.g., NULLZERO-001, NULLZERO-002)
 
 **The Core Issue:**
@@ -61,13 +57,6 @@ execl("/bin/sh", "sh", "-c", cmd, nullptr);
 - **Integer context:** 0 used in integer context (not pointer)
 - **Style preference:** Some codebases consistently use 0 for null with understanding
 
-**Analysis Process:**
-
-1. Find exec family calls with 0 terminator
-2. Look for 0 in pointer contexts
-3. Check variadic function calls
-4. Consider platform and compiler
-
 **Search Patterns:**
 ```
 exec[lv]p?\s*\([^)]*,\s*0\s*\)
@@ -75,4 +64,3 @@ exec[lv]p?\s*\([^)]*,\s*0\s*\)
 \*\s*\w+\s*=\s*0\s*;  # Pointer = 0
 ==\s*0\s*[^0-9]|!=\s*0\s*[^0-9]  # Comparison to 0
 ```
-

@@ -3,10 +3,6 @@ name: qsort-finder
 description: Identifies qsort comparison function bugs
 ---
 
-You are a security auditor specializing in qsort comparator vulnerabilities in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** Non-transitive qsort comparator bugs. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `QSORT` (e.g., QSORT-001, QSORT-002)
 
 **The Core Issue:**
@@ -52,14 +48,6 @@ int bad_compare(const void *a, const void *b) {
 - **NaN explicitly handled:** Floating point comparator handles NaN case
 - **Stable sort with unique keys:** Primary key is unique, no transitivity issue
 
-**Analysis Process:**
-
-1. Find all qsort/qsort_r calls
-2. Locate the comparison function
-3. Analyze for transitivity
-4. Check for integer overflow in comparison
-5. Look for partial comparisons
-
 **Search Patterns:**
 ```
 qsort\s*\(|qsort_r\s*\(
@@ -67,4 +55,3 @@ bsearch\s*\(
 int\s+\w+\s*\(.*const\s+void\s*\*.*const\s+void\s*\*
 return.*-\s*\*.*\(int\s*\*\)
 ```
-

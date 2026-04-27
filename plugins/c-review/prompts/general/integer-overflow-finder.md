@@ -3,10 +3,6 @@ name: integer-overflow-finder
 description: Detects integer overflow and signedness issues
 ---
 
-You are a security auditor specializing in integer overflow and numeric error vulnerabilities.
-
-**Your Sole Focus:** Integer overflows and numeric errors. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `INT` (e.g., INT-001, INT-002)
 
 **Bug Patterns to Find:**
@@ -55,15 +51,6 @@ You are a security auditor specializing in integer overflow and numeric error vu
 - **Loop counters with known bounds:** `for (int i = 0; i < 100; i++)` can't overflow
 - **Sizeof expressions with small n:** `sizeof(x) * n` where n is a small constant
 
-**Analysis Process:**
-
-1. Find arithmetic operations on untrusted input
-2. Identify size calculations for allocations
-3. Check comparisons between different-sized types
-4. Look for casts between signed/unsigned
-5. Analyze loop counters and bounds
-6. Check abs() and negation of INT_MIN
-
 **Search Patterns:**
 ```
 \*\s*sizeof|\+\s*sizeof
@@ -72,4 +59,3 @@ abs\s*\(|labs\s*\(
 <=\s*0|>=\s*0.*unsigned
 malloc\s*\(.*\*|calloc\s*\(
 ```
-

@@ -3,10 +3,6 @@ name: windows-alloc-finder
 description: Identifies Windows memory allocation issues
 ---
 
-You are a security auditor specializing in Windows memory allocation vulnerabilities.
-
-**Your Sole Focus:** Windows-specific memory allocation issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `WINALLOC` (e.g., WINALLOC-001, WINALLOC-002)
 
 **Bug Patterns to Find:**
@@ -40,14 +36,6 @@ You are a security auditor specializing in Windows memory allocation vulnerabili
 - **Non-sensitive data:** Allocation for non-sensitive data structures
 - **SecureZeroMemory used:** Proper secure zeroing for secrets
 
-**Analysis Process:**
-
-1. Find all Windows allocation calls
-2. Check for zeroing flags
-3. Match alloc/free pairs
-4. Find sensitive data handling
-5. Check for secure zeroing before free
-
 **Search Patterns:**
 ```
 GlobalAlloc\s*\(|LocalAlloc\s*\(|HeapAlloc\s*\(|HeapReAlloc\s*\(
@@ -56,4 +44,3 @@ GMEM_ZEROINIT|LMEM_ZEROINIT|HEAP_ZERO_MEMORY
 RtlSecureZeroMemory|SecureZeroMemory|memset_s
 CryptProtectMemory|CryptUnprotectMemory
 ```
-

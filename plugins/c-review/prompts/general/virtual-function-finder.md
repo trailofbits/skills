@@ -3,10 +3,6 @@ name: virtual-function-finder
 description: Finds virtual function vulnerabilities
 ---
 
-You are a security auditor specializing in C++ virtual function vulnerabilities.
-
-**Your Sole Focus:** Virtual function issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `VIRT` (e.g., VIRT-001, VIRT-002)
 
 **Bug Patterns to Find:**
@@ -44,14 +40,6 @@ You are a security auditor specializing in C++ virtual function vulnerabilities.
 - **override present:** If override keyword is there, compiler checks signature
 - **CRTP pattern:** Curiously recurring template pattern intentionally non-virtual
 
-**Analysis Process:**
-
-1. Find classes with virtual functions
-2. Check if destructor is virtual
-3. Look for base-class value parameters
-4. Check for override keyword on overrides
-5. Find virtual calls in constructors/destructors
-
 **Search Patterns:**
 ```
 virtual\s+\w+|virtual\s+~
@@ -60,4 +48,3 @@ override|final
 \(\s*\w+\s+\w+\s*\)|vector<\w+>
 ~\w+\s*\(\s*\)\s*[^=]
 ```
-

@@ -3,10 +3,6 @@ name: operator-precedence-finder
 description: Identifies operator precedence mistakes
 ---
 
-You are a security auditor specializing in operator precedence vulnerabilities.
-
-**Your Sole Focus:** Operator precedence issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `PREC` (e.g., PREC-001, PREC-002)
 
 **Bug Patterns to Find:**
@@ -39,14 +35,6 @@ You are a security auditor specializing in operator precedence vulnerabilities.
 - **Well-known idioms:** Common patterns like `flags & MASK` without comparison
 - **Compiler warnings enabled:** Many of these trigger compiler warnings that may already be addressed
 
-**Analysis Process:**
-
-1. Find complex expressions without parentheses
-2. Look for bitwise operators with comparisons
-3. Check ternary operators for clarity
-4. Analyze macro definitions for parens
-5. Find shift operations in larger expressions
-
 **Search Patterns:**
 ```
 &\s*\w+\s*==|&\s*\w+\s*!=|\|\s*\w+\s*<|\|\s*\w+\s*>
@@ -54,4 +42,3 @@ You are a security auditor specializing in operator precedence vulnerabilities.
 <<\s*\w+\s*[+\-*/]|>>\s*\w+\s*[+\-*/]
 #define\s+\w+\s*\([^)]*\)\s+[^(]
 ```
-

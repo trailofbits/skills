@@ -3,10 +3,6 @@ name: filesystem-issues-finder
 description: Detects symlink attacks and temp file vulnerabilities
 ---
 
-You are a security auditor specializing in filesystem-related vulnerabilities.
-
-**Your Sole Focus:** Filesystem security issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `FS` (e.g., FS-001, FS-002)
 
 **Bug Patterns to Find:**
@@ -48,15 +44,6 @@ You are a security auditor specializing in filesystem-related vulnerabilities.
 - **Directory fd operations:** openat() with directory fd avoids races
 - **Root-only writable directory:** Symlink attacks require write access
 
-**Analysis Process:**
-
-1. Find all file operations (open, fopen, stat, etc.)
-2. Check for symlink following vulnerabilities
-3. Analyze path construction for traversal
-4. Look for temp file creation patterns
-5. Check path separator handling
-6. Verify fsync usage for critical writes
-
 **Search Patterns:**
 ```
 open\s*\(|fopen\s*\(|stat\s*\(|lstat\s*\(
@@ -65,4 +52,3 @@ tmpnam|tempnam|mktemp|mkstemp|tmpfile
 fsync\s*\(|fdatasync\s*\(
 O_NOFOLLOW|O_DIRECTORY
 ```
-

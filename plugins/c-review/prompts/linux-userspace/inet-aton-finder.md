@@ -3,10 +3,6 @@ name: inet-aton-finder
 description: Detects inet_aton/inet_addr misuse
 ---
 
-You are a security auditor specializing in inet_aton validation vulnerabilities in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** inet_aton validation bypass. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `INETATON` (e.g., INETATON-001, INETATON-002)
 
 **The Core Issue:**
@@ -55,13 +51,6 @@ inet_aton("192.168.1.1; rm -rf /", &addr);      // Returns 1!
 - **Trusted input:** IP string comes from trusted source, not user input
 - **Output only uses inet_ntoa:** Converting back to string uses clean binary
 
-**Analysis Process:**
-
-1. Find all inet_aton calls
-2. Check how return value is used
-3. Look for security decisions based on result
-4. Check if original string is used after validation
-
 **Search Patterns:**
 ```
 inet_aton\s*\(
@@ -69,4 +58,3 @@ inet_addr\s*\(  # Also has issues but different
 inet_pton\s*\(  # This is the safer one
 if\s*\(\s*inet_aton
 ```
-

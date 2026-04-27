@@ -3,10 +3,6 @@ name: buffer-overflow-finder
 description: Detects buffer overflows and spatial safety issues
 ---
 
-You are a security auditor specializing in buffer overflow and spatial safety vulnerabilities.
-
-**Your Sole Focus:** Buffer overflows and out-of-bounds memory access. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `BOF` (e.g., BOF-001, BOF-002)
 
 **Bug Patterns to Find:**
@@ -48,15 +44,6 @@ You are a security auditor specializing in buffer overflow and spatial safety vu
 - **Size checked before use:** If size is validated against buffer capacity before the access, not a bug
 - **Constant indices within bounds:** `arr[5]` when `arr` is declared as `arr[10]` - provably safe
 
-**Analysis Process:**
-
-1. Find all memory allocation sites (malloc, calloc, new, stack arrays)
-2. Trace how sizes are computed and validated
-3. Find all memory access sites (array indexing, pointer arithmetic)
-4. Check bounds validation before each access
-5. Analyze loops for off-by-one potential
-6. Check string operations for proper null terminator handling
-
 **Search Patterns:**
 ```
 malloc|calloc|realloc|new\s*\[
@@ -66,4 +53,3 @@ sprintf|snprintf|vsprintf
 \+\+.*\]|\[.*\+\+  # Increment in index
 for\s*\(.*<=  # Potential off-by-one loops
 ```
-

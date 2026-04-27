@@ -3,10 +3,6 @@ name: strncpy-termination-finder
 description: Identifies strncpy null termination issues
 ---
 
-You are a security auditor specializing in strncpy null termination vulnerabilities in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** strncpy null termination issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `STRNCPY` (e.g., STRNCPY-001, STRNCPY-002)
 
 **The Core Issue:**
@@ -55,17 +51,9 @@ buf[sizeof(buf) - 1] = '\0';
 - **Destination pre-zeroed:** Buffer is memset to 0 before strncpy
 - **Fixed-width field:** Buffer used for fixed-width records, not as C string
 
-**Analysis Process:**
-
-1. Find all strncpy calls
-2. Check for manual null termination after
-3. Verify termination covers all cases
-4. Look for string use after strncpy
-
 **Search Patterns:**
 ```
 strncpy\s*\(
 wcsncpy\s*\(
 \[\s*sizeof.*-\s*1\s*\]\s*=\s*['"\\]0|=\s*'\0'
 ```
-

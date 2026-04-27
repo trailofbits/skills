@@ -3,10 +3,6 @@ name: strlen-strcpy-finder
 description: Finds strlen/strcpy interaction bugs
 ---
 
-You are a security auditor specializing in strlen/strcpy combination bugs in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** strlen/strcpy null byte miscounting. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `STRLENCPY` (e.g., STRLENCPY-001, STRLENCPY-002)
 
 **The Core Issue:**
@@ -49,13 +45,6 @@ You are a security auditor specializing in strlen/strcpy combination bugs in POS
 - **Fixed buffer with bounds check:** Buffer is larger than max possible string
 - **Binary data, not string:** memcpy without +1 is correct for non-string data
 
-**Analysis Process:**
-
-1. Find all strlen() calls
-2. Trace how the length is used
-3. Check if +1 is added for allocation
-4. Verify null terminator is copied or added
-
 **Search Patterns:**
 ```
 malloc\s*\(\s*strlen\s*\(
@@ -63,4 +52,3 @@ strlen\s*\([^)]+\)\s*[^+]  # strlen not followed by +
 memcpy.*strlen|memmove.*strlen
 char\s+\w+\s*\[\s*strlen
 ```
-

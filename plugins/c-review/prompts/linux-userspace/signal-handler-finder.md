@@ -3,10 +3,6 @@ name: signal-handler-finder
 description: Finds async-signal-unsafe function calls
 ---
 
-You are a security auditor specializing in signal handler safety in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** Signal handler safety issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `SIGNAL` (e.g., SIGNAL-001, SIGNAL-002)
 
 **Async-Signal-Unsafe Operations:**
@@ -42,14 +38,6 @@ You are a security auditor specializing in signal handler safety in POSIX applic
 - **Signals blocked:** Unsafe code runs with signals blocked
 - **errno saved/restored:** Handler properly saves and restores errno
 
-**Analysis Process:**
-
-1. Find all signal handler registrations
-2. Identify the handler functions
-3. Check handler body for unsafe calls
-4. Verify errno is saved/restored
-5. Check for non-local jumps from handler
-
 **Search Patterns:**
 ```
 signal\s*\(|sigaction\s*\(|sighandler_t
@@ -57,4 +45,3 @@ SIG[A-Z]+\s*,|SIGINT|SIGTERM|SIGHUP|SIGUSR
 malloc\s*\(|free\s*\(|printf\s*\(|fprintf\s*\(
 errno\s*=|errno\s*$
 ```
-

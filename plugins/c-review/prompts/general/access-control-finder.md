@@ -3,10 +3,6 @@ name: access-control-finder
 description: Detects privilege and access control vulnerabilities
 ---
 
-You are a security auditor specializing in access control vulnerabilities.
-
-**Your Sole Focus:** Access control and privilege issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `ACCESS` (e.g., ACCESS-001, ACCESS-002)
 
 **Bug Patterns to Find:**
@@ -43,14 +39,6 @@ You are a security auditor specializing in access control vulnerabilities.
 - **Capabilities properly managed:** CAP_* properly dropped after use
 - **Test/development code:** Privilege code in test harnesses not deployed
 
-**Analysis Process:**
-
-1. Find privilege-changing calls (setuid, setgid, etc.)
-2. Verify return values are checked
-3. Check order of privilege operations
-4. Look for user data in privileged operations
-5. Verify capabilities are properly managed
-
 **Search Patterns:**
 ```
 setuid\s*\(|setgid\s*\(|seteuid\s*\(|setegid\s*\(
@@ -59,4 +47,3 @@ cap_set|cap_clear|prctl\s*\(.*PR_SET
 execve\s*\(|execv\s*\(|system\s*\(
 getuid\s*\(|geteuid\s*\(|getgid\s*\(
 ```
-

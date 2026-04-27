@@ -3,10 +3,6 @@ name: exception-safety-finder
 description: Analyzes exception safety guarantees
 ---
 
-You are a security auditor specializing in C++ exception safety vulnerabilities.
-
-**Your Sole Focus:** Exception safety issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `EXCEPT` (e.g., EXCEPT-001, EXCEPT-002)
 
 **Bug Patterns to Find:**
@@ -45,21 +41,11 @@ You are a security auditor specializing in C++ exception safety vulnerabilities.
 - **Catch and handle:** Exception caught and resources cleaned up in handler
 - **Finally-equivalent:** Scope guard or similar ensures cleanup
 
-**Analysis Process:**
-
-1. Find raw new/delete and resource acquisition
-2. Check if RAII wrappers are used
-3. Identify functions that can throw
-4. Trace exception paths for resource leaks
-5. Check destructors for throws
-6. Verify noexcept specifications
-
 **Search Patterns:**
 ```
-\bnew\s+\w+(?!\s*\[)|delete\s+\w+
+\bnew\s+\w+|\bdelete\s+\w+
 ~\w+\s*\(.*\)\s*\{.*throw
 noexcept\s*\(|noexcept\s*\{
 catch\s*\(|try\s*\{
 fopen\s*\(.*\{|open\s*\(.*\{
 ```
-

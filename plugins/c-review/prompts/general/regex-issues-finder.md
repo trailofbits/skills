@@ -3,10 +3,6 @@ name: regex-issues-finder
 description: Finds ReDoS and regex bypass vulnerabilities
 ---
 
-You are a security auditor specializing in regular expression vulnerabilities.
-
-**Your Sole Focus:** Regex issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `REGEX` (e.g., REGEX-001, REGEX-002)
 
 **Bug Patterns to Find:**
@@ -42,14 +38,6 @@ You are a security auditor specializing in regular expression vulnerabilities.
 - **Timeout protection:** Regex execution has timeout/limit protection
 - **Pre-validated input:** Input is sanitized before regex matching
 
-**Analysis Process:**
-
-1. Find all regex compilation (regcomp, std::regex)
-2. Analyze patterns for ReDoS vulnerability
-3. Check for user input in patterns
-4. Verify proper anchoring
-5. Look for newline handling issues
-
 **Search Patterns:**
 ```
 regcomp\s*\(|regexec\s*\(|regex_search|regex_match
@@ -57,4 +45,3 @@ std::regex|boost::regex|pcre_
 REG_EXTENDED|REG_NEWLINE|REG_ICASE
 \(\[.*\]\+\)\+|\(\.\*\)\+  # ReDoS patterns
 ```
-

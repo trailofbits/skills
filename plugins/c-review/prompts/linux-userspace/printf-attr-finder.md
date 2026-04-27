@@ -3,10 +3,6 @@ name: printf-attr-finder
 description: Finds missing printf format attributes
 ---
 
-You are a security auditor specializing in printf format attribute vulnerabilities in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** Missing format attribute on printf-like functions. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `PRINTFATTR` (e.g., PRINTFATTR-001, PRINTFATTR-002)
 
 **The Core Issue:**
@@ -61,13 +57,6 @@ log_error("%s %d", ptr);  // Compiler warning!
 - **Fixed format:** Function takes fixed format, not user-supplied
 - **Type-safe wrapper:** C++ variadic template that's type-safe
 
-**Analysis Process:**
-
-1. Find variadic functions with format string parameter
-2. Check if they forward to printf family
-3. Verify __attribute__((format)) is present
-4. Note the correct argument positions
-
 **Search Patterns:**
 ```
 \.\.\.\s*\)|va_list|va_start|va_end
@@ -75,4 +64,3 @@ vprintf|vfprintf|vsprintf|vsnprintf|vsyslog
 __attribute__.*format.*printf
 void\s+\w+\s*\([^)]*const\s+char\s*\*[^)]*\.\.\.\s*\)
 ```
-

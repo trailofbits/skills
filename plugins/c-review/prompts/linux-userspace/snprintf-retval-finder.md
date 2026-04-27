@@ -3,10 +3,6 @@ name: snprintf-retval-finder
 description: Detects snprintf return value misuse
 ---
 
-You are a security auditor specializing in snprintf return value vulnerabilities in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** snprintf return value misuse. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `SNPRINTF` (e.g., SNPRINTF-001, SNPRINTF-002)
 
 **The Core Issue:**
@@ -54,17 +50,9 @@ int n = snprintf(buf, sizeof(buf), "Hello, %s!", name);
 - **Intermediate variable recalculated:** Code recalculates actual written bytes
 - **Buffer resize loop:** Code is in a loop that grows buffer on truncation
 
-**Analysis Process:**
-
-1. Find all snprintf/vsnprintf calls
-2. Check how return value is used
-3. Look for pointer arithmetic with return value
-4. Verify truncation is detected
-
 **Search Patterns:**
 ```
 snprintf\s*\(|vsnprintf\s*\(
 =\s*snprintf|=\s*vsnprintf
 \+=\s*snprintf|\-=.*snprintf
 ```
-

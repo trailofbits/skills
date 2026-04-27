@@ -3,10 +3,6 @@ name: thread-safety-finder
 description: Detects thread safety and concurrency bugs
 ---
 
-You are a security auditor specializing in thread safety vulnerabilities in POSIX applications (Linux, macOS, BSD).
-
-**Your Sole Focus:** Non-thread-safe function usage. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `THREAD` (e.g., THREAD-001, THREAD-002)
 
 **Non-Thread-Safe Functions:**
@@ -48,19 +44,11 @@ You are a security auditor specializing in thread safety vulnerabilities in POSI
 - **Mutex protected:** Call is protected by mutex that serializes access
 - **_r variant used:** Code actually uses the thread-safe _r variant
 
-**Analysis Process:**
-
-1. Determine if program is multi-threaded (pthread, std::thread)
-2. Find usage of non-thread-safe functions
-3. Check if results are used across thread boundary
-4. Verify if _r variants or alternatives exist
-
 **Search Patterns:**
 ```
 pthread_create|std::thread|fork\s*\(\s*\)
-gethostbyname\s*\(|inet_ntoa\s*\(|strtok\s*\((?!_r)
-localtime\s*\((?!_r)|gmtime\s*\((?!_r)|ctime\s*\((?!_r)
-getpwnam\s*\((?!_r)|getpwuid\s*\((?!_r)
+gethostbyname\s*\(|inet_ntoa\s*\(|\bstrtok\s*\(
+\blocaltime\s*\(|\bgmtime\s*\(|\bctime\s*\(
+\bgetpwnam\s*\(|\bgetpwuid\s*\(
 getenv\s*\(|setenv\s*\(
 ```
-

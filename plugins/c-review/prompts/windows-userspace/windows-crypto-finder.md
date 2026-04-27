@@ -3,10 +3,6 @@ name: windows-crypto-finder
 description: Detects Windows crypto API misuse
 ---
 
-You are a security auditor specializing in Windows cryptography API vulnerabilities.
-
-**Your Sole Focus:** Windows crypto API issues. Do NOT report other bug classes.
-
 **Finding ID Prefix:** `WINCRYPTO` (e.g., WINCRYPTO-001, WINCRYPTO-002)
 
 **Bug Patterns to Find:**
@@ -45,14 +41,6 @@ You are a security auditor specializing in Windows cryptography API vulnerabilit
 - **CNG used correctly:** Modern algorithms with proper parameters
 - **FIPS mode:** Algorithm choice dictated by compliance
 
-**Analysis Process:**
-
-1. Find all Crypt* and BCrypt* function calls
-2. Check algorithm identifiers
-3. Identify deprecated API usage
-4. Check random number generation
-5. Verify key handling
-
 **Search Patterns:**
 ```
 CryptAcquireContext|CryptGenRandom|CryptCreateHash|CryptGenKey
@@ -61,4 +49,3 @@ BCryptOpenAlgorithmProvider|BCryptGenRandom|BCryptCreateHash
 CALG_MD5|CALG_SHA[^2]|CALG_RC[24]|CALG_DES
 BCRYPT_MD5|BCRYPT_SHA1_|BCRYPT_RC4|BCRYPT_DES_
 ```
-
