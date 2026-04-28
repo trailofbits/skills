@@ -1,8 +1,8 @@
 ---
 name: c-review
 description: >
-  Performs comprehensive C/C++ security review using assigned parallel workers to scan for
-  memory corruption, integer overflows, race conditions, and platform-specific vulnerabilities.
+  Performs comprehensive C/C++ security review for memory corruption, integer overflows,
+  race conditions, and platform-specific vulnerabilities.
   Use when asked to "audit C code", "C security audit", "find buffer overflows",
   "review C++ for security", "check for use-after-free", "C++ vulnerability scan",
   "audit Windows service", "review Linux daemon", "check signal handlers",
@@ -15,19 +15,16 @@ allowed-tools:
   - TaskUpdate
   - TaskList
   - TaskGet
-  - ToolSearch
   - Grep
   - Glob
   - Read
   - Write
-  - Edit
-  - LSP
   - Bash
 ---
 
 # C/C++ Security Review
 
-Comprehensive security review of C/C++ codebases. **This skill runs in the main conversation** (invoke via `/c-review:c-review` — no command wrapper, the skill self-collects parameters). It uses `TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet` as a shared task ledger, then assigns exactly one cluster task to each worker. Workers and judges are spawned as **named plugin subagents** (`c-review:c-review-worker`, `c-review:c-review-dedup-judge`, `c-review:c-review-fp-judge`) whose tool sets are declared in `plugins/c-review/agents/*.md`; findings are exchanged via **markdown files with YAML frontmatter** in a shared output directory.
+Comprehensive security review of C/C++ codebases. **This skill runs in the main conversation** (invoke via `/c-review:c-review` — no command wrapper, the skill self-collects parameters). The orchestrator uses `TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet` as **its own** bookkeeping ledger to track which clusters need retry; workers do **not** read or write the ledger and have no Task tools in their tool set. Each worker receives a fully self-contained spawn prompt. Workers and judges are spawned as **named plugin subagents** (`c-review:c-review-worker`, `c-review:c-review-dedup-judge`, `c-review:c-review-fp-judge`) whose tool sets are declared in `plugins/c-review/agents/*.md`; findings are exchanged via **markdown files with YAML frontmatter** in a shared output directory.
 
 ## When to Use
 
@@ -46,25 +43,13 @@ Comprehensive security review of C/C++ codebases. **This skill runs in the main 
 - Managed languages (Java, C#, Python)
 - Embedded/bare-metal code without libc
 
-## Parameters
-
-| Parameter | Values | Required |
-|-----------|--------|----------|
-| `threat_model` | `REMOTE` / `LOCAL_UNPRIVILEGED` / `BOTH` | yes — never silently default |
-| `worker_model` | `haiku` / `sonnet` / `opus` | yes — never silently default |
-| `severity_filter` | `all` / `medium` (≥ Medium) / `high` (≥ High) | yes — never silently default |
-| `scope_subpath` | repo-relative directory (optional) | no — defaults to repo root |
-| `output_dir` | absolute path | no — defaults to `${CWD}/.c-review-results/<iso-timestamp>/` |
-
----
-
 ## Subagents
 
 Workers and judges run as **named plugin subagents** declared in `plugins/c-review/agents/*.md`:
 
 | Subagent type | Purpose | Tool set |
 |---|---|---|
-| `c-review:c-review-worker` | Run assigned cluster task, write findings | Read, Write, Edit, Grep, Glob, Bash, LSP, TaskList, TaskGet, TaskUpdate |
+| `c-review:c-review-worker` | Run assigned cluster task, write findings | Read, Write, Edit, Grep, Glob, Bash |
 | `c-review:c-review-dedup-judge` | Merge duplicates (runs **first**) | Read, Write, Edit, Glob |
 | `c-review:c-review-fp-judge` | FP + severity + final reports (runs **second**) | Read, Write, Edit, Grep, Glob, Bash, LSP |
 
@@ -72,32 +57,42 @@ Tools are loaded into the subagent's tool set at spawn time from each agent's fr
 
 ---
 
+## Layout Deviation
+
+This skill intentionally does not use the conventional `references/` and `workflows/` subdirectories. Detailed protocols live where the harness already loads them:
+
+- **Subagent system prompts** (`agents/*.md`) are authoritative for the full worker, dedup-judge, and fp-judge protocols (including finding-file schema, FP taxonomy, severity rules, and report templates). They are loaded by the harness when each subagent spawns. The orchestrator's spawn prompt passes only per-run variables, never the protocol body.
+- **Cluster prompts** (`prompts/clusters/*.md`, `prompts/{general,linux-userspace,windows-userspace}/*.md`) are read by workers via paths the orchestrator pre-resolves into task metadata. They are not read by the orchestrator.
+
+None of these files chain further references — every link is one hop from its consumer.
+
+---
+
 ## Architecture: Assigned Workers + File-Based Handoff
 
 ```
 Main conversation (coordinator)
-├── Creates output directory and writes context.md
-├── Creates TaskCreate entries:
-│   ├── 1 context task  (metadata: threat_model, severity_filter, output_dir, codebase_summary)
-│   └── N cluster tasks (metadata.kind="cluster", prompt_path/pass order from prompts/clusters/manifest.json)
-├── Spawns M workers in ONE message (parallel Agent calls, subagent_type=c-review:c-review-worker)
-│   ├── M = number of cluster tasks (typically 7 for POSIX-only, +1 for C++, +3 for Windows)
-│   └── Each worker: TaskList (self-check) → run assigned cluster prompt (multiple passes) → write findings → TaskUpdate(completed)
-├── Waits until all cluster tasks are completed (poll TaskList)
+├── Writes context.md
+├── Runs scripts/build_run_plan.py → emits plan.json + worker-prompts/worker-N.txt
+├── Creates one bookkeeping task per worker (orchestrator-internal, for retry tracking)
+├── Spawns M workers in ONE message (parallel Agent, subagent_type=c-review:c-review-worker)
+│   └── Each worker is given the verbatim contents of worker-prompts/worker-N.txt
+│   └── Worker: read context.md → run assigned cluster prompt (multi-pass) → write findings → return one-line summary
+├── Classifies each worker reply (Phase 7); retries retryable failures up to 2 attempts; writes findings-index.txt
 ├── Spawns judges sequentially:
-│   ├── Dedup-judge   → reads findings/*.md (ALL of them), edits frontmatter with merged_into /
-│   │                   also_known_as / locations, writes dedup-summary.md
-│   └── FP+Severity-judge → reads primaries only (merged_into absent), assigns fp_verdict AND
-│                         severity/attack_vector/exploitability, writes fp-summary.md + REPORT.md + REPORT.sarif
-└── Reads REPORT.md and returns it to the caller (REPORT.sarif is also always produced)
+│   ├── Dedup-judge → edits finding frontmatter (merged_into / also_known_as) + dedup-summary.md
+│   └── FP+Severity-judge → adds fp_verdict + severity to primaries; writes fp-summary.md, REPORT.md, REPORT.sarif
+└── Returns REPORT.md to caller (REPORT.sarif always produced)
 ```
-
-**Cluster model:** each cluster groups related bug classes so one worker shares a Phase-A inventory (sink/syscall/lock greps) across multiple passes. Worker count = cluster count, and the coordinator passes a distinct `assigned_cluster_task_id` to each worker to avoid concurrent queue-claim races. The worker agent's system prompt is kept stable across spawns so the API caches it.
 
 **Output directory layout:**
 ```
 ${output_dir}/
 ├── context.md             # coordinator writes (threat model, codebase summary)
+├── plan.json              # build_run_plan.py writes (Phase 4) — selected clusters, paths
+├── worker-prompts/        # build_run_plan.py writes (Phase 4) — one .txt per worker
+│   ├── worker-1.txt
+│   └── …
 ├── findings/              # workers write one markdown file per finding
 │   ├── BOF-001.md
 │   ├── UAF-001.md
@@ -109,11 +104,7 @@ ${output_dir}/
 └── REPORT.sarif           # generated by scripts/generate_sarif.py (SARIF 2.1.0, always produced)
 ```
 
-**Path convention:** file paths below use `${CLAUDE_PLUGIN_ROOT}` for skill-internal files. Verify it's resolvable at the start of Phase 0:
-```
-Glob: ${CLAUDE_PLUGIN_ROOT}/prompts/clusters/buffer-write-sinks.md
-```
-If empty, fall back to `Glob: **/plugins/c-review/prompts/clusters/*.md` and use the discovered plugin root as `${C_REVIEW_PLUGIN_ROOT}`. Otherwise set `${C_REVIEW_PLUGIN_ROOT}=${CLAUDE_PLUGIN_ROOT}`.
+**Path convention:** skill-internal paths use `${CLAUDE_PLUGIN_ROOT}` (resolved by the harness at spawn time, so the conventional `{baseDir}` placeholder doesn't apply here). At the start of Phase 0, verify it's resolvable via `Glob: ${CLAUDE_PLUGIN_ROOT}/prompts/clusters/buffer-write-sinks.md`. If empty, fall back to `Glob: **/plugins/c-review/prompts/clusters/*.md` and use the discovered plugin root as `${C_REVIEW_PLUGIN_ROOT}`; otherwise set `${C_REVIEW_PLUGIN_ROOT}=${CLAUDE_PLUGIN_ROOT}`.
 
 ---
 
@@ -122,6 +113,8 @@ If empty, fall back to `Glob: **/plugins/c-review/prompts/clusters/*.md` and use
 Run these phases **in the main conversation**.
 
 ### Phase 0: Parameter Collection
+
+**Entry:** skill invoked. **Exit:** `threat_model`, `worker_model`, `severity_filter` resolved; `scope_subpath` resolved or set to `"."`.
 
 The skill is invoked directly (no command wrapper). Parse any free-text arguments the user passed on the `/c-review:c-review` line (e.g. `flamenco only`, `high severity only`, `use haiku`) and pre-fill the answers they imply — then ask for any missing required parameters with **one** `AskUserQuestion` call. Never silently default the required parameters.
 
@@ -137,6 +130,8 @@ Required parameters:
 Call `AskUserQuestion` exactly once with only unresolved required parameters (`threat_model`, `worker_model`, `severity_filter`) plus `scope_subpath` only when the user explicitly requested a narrowed scope but it is ambiguous. If the required parameters were all pre-filled and scope is absent or resolved, skip the question.
 
 ### Phase 1: Prerequisites
+
+**Entry:** Phase 0 complete. **Exit:** `is_cpp`, `is_posix`, `is_windows` flags determined.
 
 ```bash
 command -v clangd
@@ -166,6 +161,8 @@ Grep: pattern="#include\\s*<(windows|winbase|winnt|winuser|winsock|ntdef|ntstatu
 
 ### Phase 2: Output Directory
 
+**Entry:** Phase 1 flags set. **Exit:** absolute `output_dir` resolved; `${output_dir}/findings/` exists.
+
 Resolve an absolute path for `output_dir` (default: `$(pwd)/.c-review-results/$(date -u +%Y%m%dT%H%M%SZ)/`):
 
 ```bash
@@ -174,11 +171,17 @@ mkdir -p "${output_dir}/findings"
 
 ### Phase 3: Codebase Context
 
-Gather a short summary:
-```bash
-head -50 README.md 2>/dev/null || head -50 README.rst 2>/dev/null
-ls -la Makefile CMakeLists.txt meson.build configure.ac 2>/dev/null | head -5
+**Entry:** `${output_dir}` exists. **Exit:** `${output_dir}/context.md` written with frontmatter parameters and codebase summary.
+
+Gather a short summary using dedicated tools (do not shell out for file inspection):
+
 ```
+Glob: pattern="README.{md,rst,txt}"
+Read: <first match, limit=50>     # skip Read entirely if Glob returned no matches
+Glob: pattern="{Makefile,CMakeLists.txt,meson.build,configure.ac}"
+```
+
+`Read` on a missing file aborts the turn — always preflight with `Glob`. The presence of a build file is informational only — it tells you what the build system is, not whether to continue.
 
 Write `${output_dir}/context.md` with this structure:
 
@@ -211,118 +214,130 @@ output_dir: /absolute/path/to/output
 - <fuzzing corpora, sanitizers, privilege separation, etc.>
 ```
 
-### Phase 4: Select Clusters
+### Phase 4: Build Run Plan (deterministic)
 
-Instead of 45+ individual finder prompts, the coordinator creates **one task per cluster**. The authoritative cluster/pass ordering lives in:
+**Entry:** language flags + `threat_model` known; `${output_dir}/findings/` exists. **Exit:** `${output_dir}/plan.json` and `${output_dir}/worker-prompts/worker-N.txt` files written; `M = worker_count` known.
 
-```
-Read: ${C_REVIEW_PLUGIN_ROOT}/prompts/clusters/manifest.json
-```
+Cluster selection, pass filtering, prompt-path resolution, and spawn-prompt rendering are **delegated to a script** rather than reconstructed by the orchestrator. This is the change that prevents the "orchestrator paraphrases the spawn template and drops fields" failure mode.
 
-Use the manifest for cluster order, prompt paths, gate conditions, pass ordering, per-class prompt paths, prefixes, and `skip_threat_models`. Do not hand-maintain a separate pass-order table in the skill.
-
-Selection rules:
-- Include clusters with `"gate": "always"`.
-- Include `"gate": "is_cpp"` only when `is_cpp == true`.
-- Include `"gate": "is_windows"` only when `is_windows == true`.
-- For each selected cluster, build the active pass list by **dropping** every pass for which:
-  - `requires` is present and any flag in `requires` (e.g. `is_posix`) is `false` in the codebase context, **or**
-  - `skip_threat_models` is present and contains the active `threat_model` (e.g. `privilege-drop`/`envvar` under `REMOTE`).
-- After filtering, if a non-consolidated cluster has zero remaining passes, drop the cluster entirely (don't spawn a worker for an empty cluster).
-
-The orchestrator hard-skips dropped passes — they never appear in the cluster task's `sub_prompt_paths`. This is authoritative: the worker does not re-derive applicability from `is_posix`/`is_windows` for these passes.
-
-Result is `selected_clusters[]` in manifest order — 7 always-on clusters (some passes may be filtered) plus optional C++ and Windows clusters. Typical counts: 7 (pure C POSIX), 8 (C++ POSIX), 10 (C POSIX + Windows), 11 (C++ POSIX + Windows). On a Windows-only codebase (`is_posix=false`), the always-on `concurrency`, `syscall-retval`, and `static-hygiene` clusters keep only their portable passes.
-
-### Phase 5: Create Context Task and Cluster Tasks
-
-```
-context_task_id = TaskCreate(
-  subject="Review Context",
-  description="Shared parameters for all bug finders",
-  activeForm="Storing review context",
-  metadata={
-    "threat_model": "<REMOTE|LOCAL_UNPRIVILEGED|BOTH>",
-    "severity_filter": "<all|medium|high>",
-    "scope_subpath": "<repo-relative dir or '.'>",
-    "output_dir": "<absolute path>",
-    "codebase_summary_path": "<output_dir>/context.md",
-    "is_cpp": <bool>,
-    "is_posix": <bool>,
-    "is_windows": <bool>
-  }
-)
+```bash
+python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/build_run_plan.py" \
+  --plugin-root "${C_REVIEW_PLUGIN_ROOT}" \
+  --output-dir  "${output_dir}" \
+  --threat-model "${threat_model}" \
+  --severity-filter "${severity_filter}" \
+  --scope-subpath "${scope_subpath:-.}" \
+  --is-cpp "${is_cpp}" --is-posix "${is_posix}" --is-windows "${is_windows}"
 ```
 
-For each `cluster` in `selected_clusters[]`:
+The script:
+- reads `prompts/clusters/manifest.json` and applies the selection rules (gate `always`/`is_cpp`/`is_windows`; per-pass `requires`; per-pass `skip_threat_models`),
+- resolves every cluster prompt and per-pass prompt to an absolute path and verifies it exists (exits non-zero if any are missing — surface the message and stop the review),
+- writes `${output_dir}/plan.json` (machine-readable selection),
+- writes `${output_dir}/worker-prompts/worker-1.txt` … `worker-M.txt` (ready-to-paste spawn prompts),
+- prints a JSON summary (`worker_count`, `cluster_ids`, `plan_path`, `worker_prompts_dir`) on stdout.
+
+Selection rules (applied by the script — listed here only so reviewers can audit the script's behavior, not for the orchestrator to re-implement):
+
+- Cluster `gate`: `always` always selected; `is_cpp` selected iff `is_cpp == true`; `is_windows` selected iff `is_windows == true`.
+- Per-pass: hard-drop if any flag in `requires` is `false`, or if active `threat_model` is in `skip_threat_models`.
+- If a non-consolidated cluster has zero remaining passes after filtering, drop the cluster entirely.
+- If zero clusters remain after filtering, the script exits non-zero — refusing to start an empty review.
+
+Typical counts: 7 (pure C POSIX), 8 (C++ POSIX), 10 (C POSIX + Windows), 11 (C++ POSIX + Windows).
+
+After the script returns, `Read: ${output_dir}/plan.json` to access the structured selection. The orchestrator should never re-implement filtering or path resolution — `plan.json` and the per-worker prompt files are the single source of truth for the rest of the run.
+
+### Phase 5: Create Bookkeeping Tasks (orchestrator-internal)
+
+**Entry:** `${output_dir}/plan.json` exists; `M = plan.workers.length`. **Exit:** `cluster_task_ids[]` created (1:1 with `plan.workers`), all `pending`.
+
+The task ledger is **orchestrator bookkeeping only** — workers never read or write it. Its sole purposes are TUI visibility and Phase-7 retry tracking. One task per worker:
+
 ```
 TaskCreate(
-  subject="cluster-<cluster.cluster_id>",
-  description="<cluster_id>: run all passes (<N> bug classes)",
+  subject="cluster-<plan.workers[i].cluster_id>",
+  description="<cluster_id>: <len(pass_bug_classes)> bug classes",
   activeForm="Running cluster <cluster_id>",
   metadata={
     "kind": "cluster",
-    "cluster_id": "<cluster_id>",
-    "prompt_path": "<absolute path resolved from manifest cluster.prompt>",
-    "sub_prompt_paths": [
-      # Pre-resolved absolute paths, aligned 1:1 with the Pass order in the
-      # manifest. Empty list for consolidated clusters
-      # (buffer-write-sinks — the cluster file is self-sufficient).
-      "<abs path from passes[0].prompt>",
-      "<abs path from passes[1].prompt>",
-      ...
-    ],
-    "pass_bug_classes": ["<passes[0].bug_class>", "<passes[1].bug_class>", ...],
-    "pass_prefixes": ["<passes[0].prefix>", "<passes[1].prefix>", ...],
-    "context_task_id": "<id>",
-    "skip_subclasses": []      # derived from pass.skip_threat_models for the active threat_model
+    "worker_n": <plan.workers[i].worker_n>,
+    "cluster_id": "<plan.workers[i].cluster_id>",
+    "spawn_prompt_path": "<plan.workers[i].spawn_prompt_path>",
+    "pass_prefixes": <plan.workers[i].pass_prefixes>,
+    "attempt": 1
   }
 )
 ```
 
-Track `cluster_task_ids[]` in the same order as `selected_clusters[]`. Tasks start as `pending`.
-
-Before creating tasks, verify every manifest-referenced `cluster.prompt` and non-consolidated pass `prompt` exists. If any path is missing, stop and surface the missing path instead of starting a partial review.
+Read all values from `plan.json` — do not paraphrase or recompute them. Track `cluster_task_ids[]` in `plan.workers` order.
 
 ### Phase 6: Spawn M Workers in ONE Message
 
-**CRITICAL:** emit a single assistant message containing M `Agent` tool invocations (where M = `len(selected_clusters)`) so they run in parallel. Sequential spawning serializes the review.
+**Entry:** `cluster_task_ids[]` populated; per-worker spawn prompt files exist at `${output_dir}/worker-prompts/worker-N.txt`. **Exit:** all M `Agent` calls have returned (the parallel spawn block completed).
 
-Worker count must equal cluster count: each worker receives one `assigned_cluster_task_id` and runs that cluster end-to-end. Do not make workers compete for the first pending task; simultaneous queue claims can race.
+**CRITICAL:** emit a single assistant message containing M `Agent` tool invocations so they run in parallel. Sequential spawning serializes the review.
 
 For each worker `N ∈ [1..M]`:
+
+1. `Read: ${output_dir}/worker-prompts/worker-N.txt`
+2. Pass the file contents **verbatim** as the `Agent` tool's `prompt` argument:
 
 | Parameter | Value |
 |-----------|-------|
 | `subagent_type` | `c-review:c-review-worker` |
 | `model` | `${worker_model}` (haiku / sonnet / opus) |
 | `description` | `C review worker N` |
-| `prompt` | see template below |
+| `prompt` | the full text of `worker-N.txt` (no edits) |
 
-Worker prompt template — **the user prompt is structured as a long stable prefix shared by every worker, followed by a short variable suffix**, so prompt caching covers both the system prompt AND most of the user prompt:
+The spawn prompt was rendered by `build_run_plan.py` in Phase 4 — it is the single authority. Do not paraphrase it, do not "simplify" it, do not insert additional instructions, do not strip "redundant"-looking fields. Every field is required by the worker's self-check; any deviation triggers `worker-N abort: spawn prompt malformed`.
 
+**Anti-patterns to reject** (these are the failures the script-driven design exists to prevent):
+
+- ❌ Hand-typing the spawn prompt instead of reading `worker-N.txt`. The orchestrator has drifted toward a TaskList-driven shape before; the file is the antidote.
+- ❌ Inserting "Your first tool call must be TaskList" or "Assigned cluster task id: <N>". Workers have no Task tools.
+- ❌ Editing the rendered prompt before passing it to `Agent` (e.g. trimming the codebase line, collapsing pass lists). Pass it verbatim.
+
+The block before `— assignment —` is byte-identical across all M workers — the API caches it, so workers 2..M pay a fraction of the base cost. The worker's full protocol and finding-file schema live in its system prompt (`plugins/c-review/agents/c-review-worker.md`), which is also cached across spawns.
+
+### Phase 7: Wait for Workers and Classify Outcomes
+
+**Entry:** all M Phase-6 `Agent` calls have returned. **Exit:** every cluster has either succeeded or been retried up to the cap; `${output_dir}/findings-index.txt` written.
+
+The Phase-6 `Agent` invocations block until each worker returns. Inspect each worker's return text and apply this classifier in order — first match wins:
+
+| # | Match (in return text) | Outcome | Action |
+|---|---|---|---|
+| 1 | contains `worker-N complete:` | **success** | `TaskUpdate` cluster task to `completed`. |
+| 2 | contains `abort: spawn prompt malformed` | **non-retryable orchestrator bug** | Stop the run, surface the abort text, do **not** retry. The script-rendered prompt is malformed or the orchestrator paraphrased it — re-running with the same prompt repeats the failure. |
+| 3 | contains `abort: TaskList unavailable` (legacy) | **non-retryable orchestrator bug** | Same as #2. This means the orchestrator regressed to a pre-script spawn shape; fix the orchestrator, not the worker. |
+| 4 | contains `worker-N abort:` (any other reason) | **retryable failure** | Mark task `pending`, set `metadata.abort_reason`, `metadata.needs_respawn=true`, increment `metadata.attempt`. |
+| 5 | the `Agent` call errored, or no `complete:` / `abort:` token present | **retryable failure** | Same as #4 (treat as a transient worker crash). |
+
+After classifying all M outcomes:
+
+- If any task is in **non-retryable** state (#2 or #3), stop the review and surface the abort text plus the spawn prompt path (`${output_dir}/worker-prompts/worker-N.txt`) so the user can inspect what the script produced. Do not run Phase 8.
+- Otherwise, for each `pending` (retryable) task with `attempt < 2`, spawn a replacement in **one parallel `Agent` block** (same Phase-6 mechanic: `Read worker-N.txt`, pass verbatim). Cap retries at **2 attempts per cluster** — after the second failure, leave the task `pending` and continue. Replacement workers may overwrite finding files the failed worker partially wrote; that's acceptable because IDs are deterministic per cluster prefix and writes are idempotent in content.
+
+#### Sanity-check finding output before judges
+
+For every cluster that returned `complete:`, confirm the on-disk output is consistent with the return text using the cluster's `pass_prefixes` (from `plan.json`):
+
+```bash
+for prefix in "${pass_prefixes[@]}"; do
+  ls "${output_dir}/findings/${prefix}"-*.md 2>/dev/null
+done
 ```
-You are a c-review worker on a parallel C/C++ security review.
-Follow the protocol in your system prompt verbatim. Your first tool call must be TaskList.
 
-Context task id: <context_task_id>
-Output directory: <absolute output_dir>
-Scope root: <scope_subpath or "."> — all Grep/Glob queries MUST be rooted here; findings outside this subtree are out-of-scope.
+- "complete: wrote 0 finding files" + zero matching files → **fine** (a clean zero-finding cluster).
+- "complete: wrote N finding files" with N>0 + zero matching files → **suspicious**: the worker invented a return string. Treat as a retryable failure (classifier row #4).
+- Any orphan files matching a cluster's prefix when the cluster aborted → leave them in place; the dedup/fp judges still process whatever exists.
 
-— assignment —
-Worker id: worker-N
-Assigned cluster task id: <cluster_task_ids[N-1]>
-```
+This check is a defense-in-depth signal, not authoritative — but the inconsistency was missed in past runs and warrants surfacing.
 
-The first block (greeting + context_task_id + output_dir + scope_root) is **byte-identical across all M workers** in the same run, so the API caches it and workers 2..M read that cache at a fraction of base cost. Only the trailing two lines after `— assignment —` vary per worker. The worker's full protocol and finding-file schema live in its system prompt (`plugins/c-review/agents/c-review-worker.md`), which is ~5–6K tokens of stable content that the API also caches across all M parallel spawns. Keep the variable suffix short to preserve the cacheable prefix.
+#### Write the findings index
 
-**Do not pass raw `${CLAUDE_PLUGIN_ROOT}` into the subagent prompt** — the worker doesn't need it; the assigned cluster prompt path is in the task metadata and the worker reads it via `TaskGet` + `Read`.
-
-### Phase 7: Wait for Workers
-
-The Phase-6 `Agent` invocations block until each worker returns, so by the time control returns to the coordinator every spawned worker has already exited. Once they have all returned, call `TaskList` **once** and verify each cluster task is `completed`. If any cluster task is still `in_progress` (worker exited without `TaskUpdate(status=completed)`), the worker died mid-run — reset the task to `pending` via `TaskUpdate` and spawn a single replacement worker bound to the same `assigned_cluster_task_id`. The replacement may overwrite finding files the dead worker partially wrote; that is acceptable because IDs are deterministic per cluster prefix and writes are idempotent in content.
-
-**Write a deterministic manifest** of finding files before spawning judges. This gives judges a `Glob`-independent fallback path (the dedup-judge has only `Read/Write/Edit/Glob` — no `Bash`):
+Always write a deterministic manifest of finding files before spawning judges. This gives judges a `Glob`-independent fallback path (the dedup-judge has only `Read/Write/Edit/Glob` — no `Bash`):
 
 ```bash
 find "${output_dir}/findings" -maxdepth 1 -type f -name '*.md' 2>/dev/null \
@@ -335,7 +350,9 @@ find "${output_dir}/findings" -maxdepth 1 -type f -name '*.md' 2>/dev/null \
 
 ### Phase 8: Judge Pipeline (sequential, dedup → fp+severity)
 
-Each judge runs as a named plugin subagent with its tool set declared in the agent frontmatter. **Always pass absolute paths to judge protocol files and `scripts/generate_sarif.py`** — resolve them from `${C_REVIEW_PLUGIN_ROOT}` before spawning. Judges open protocol files with `Read`; they do not invoke `Skill(...)`.
+**Entry:** `findings-index.txt` exists. **Exit:** dedup-judge has returned (skipped only when `findings-index.txt` is empty) and fp-judge has returned; `dedup-summary.md` (when applicable), `fp-summary.md`, `REPORT.md`, and ideally `REPORT.sarif` are written.
+
+Each judge's full protocol is its system prompt (`agents/c-review-{dedup,fp}-judge.md`) — loaded by the harness at spawn. Your spawn prompt passes only per-run variables; do not paste the protocol or restate it.
 
 Dedup runs first on the raw worker output so the FP judge only ever sees merged primaries — one analysis per underlying bug.
 
@@ -344,18 +361,7 @@ Dedup runs first on the raw worker output so the FP judge only ever sees merged 
 Agent(
   subagent_type="c-review:c-review-dedup-judge",
   description="Dedup judge",
-  prompt=f"""
-Read the protocol at:
-  <absolute path to prompts/internal/judges/dedup-judge.md>
-and follow it exactly. Open it with the `Read` tool. Do NOT invoke `Skill(...)`.
-
-Output directory: {output_dir}
-
-Process ALL findings (no fp_verdict filter — fp_verdict doesn't exist yet).
-Merge duplicates per the protocol: Tier 1 exact-location (deterministic), Tier 2 same-function snippet-confirmed.
-Write {output_dir}/dedup-summary.md with merge rationale.
-Return a one-line completion summary.
-"""
+  prompt=f"output_dir: {output_dir}"
 )
 ```
 
@@ -364,43 +370,31 @@ Return a one-line completion summary.
 Agent(
   subagent_type="c-review:c-review-fp-judge",
   description="FP + severity judge",
-  prompt=f"""
-Read the protocol at:
-  <absolute path to prompts/internal/judges/fp-judge.md>
-and follow it exactly. Open it with the `Read` tool. Do NOT invoke `Skill(...)`.
-
-Context task id: {context_task_id}
-Output directory: {output_dir}
-SARIF generator path: <absolute path to scripts/generate_sarif.py>
-
-Read {output_dir}/context.md for threat model and severity_filter.
-If {output_dir}/dedup-summary.md does not exist, check {output_dir}/findings-index.txt.
-If the manifest is empty, this is a zero-findings run: produce empty REPORT.md / REPORT.sarif.
-If the manifest is non-empty, continue by treating every non-merged finding as a primary and add a prominent note to fp-summary.md and REPORT.md that dedup did not run.
-Process only PRIMARIES — findings whose frontmatter has no 'merged_into' field.
-For each primary: add fp_verdict + fp_rationale. For survivors (TRUE_POSITIVE / LIKELY_TP) also add
-  severity, attack_vector, exploitability, severity_rationale.
-Write {output_dir}/fp-summary.md with verdict counts.
-Write {output_dir}/REPORT.md — severity-filtered markdown report.
-Run python3 <absolute path to scripts/generate_sarif.py> {output_dir} after REPORT.md is written.
-This writes {output_dir}/REPORT.sarif from finding frontmatter; do not hand-write SARIF JSON.
-Return a one-line completion summary.
-"""
+  prompt=f"""output_dir: {output_dir}
+sarif_generator_path: {sarif_generator_path}"""
 )
 ```
 
+Resolve `sarif_generator_path` to an absolute path under `${C_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py` before spawning.
+
 ### Phase 8b: SARIF safety net
 
-After the fp-judge agent returns, verify `${output_dir}/REPORT.sarif` exists. If it is missing — because the fp-judge errored before invoking the generator — run it from the orchestrator yourself so CI consumers always get the file:
+**Entry:** fp-judge returned, OR the run gave up early (e.g., a cluster exhausted its retry cap and fp-judge was skipped). **Exit:** `${output_dir}/REPORT.sarif` exists.
+
+Verify `${output_dir}/REPORT.sarif` exists. If it is missing — because the fp-judge errored, was skipped, or the run aborted before Phase 8 — run the generator yourself so CI consumers always get the file:
 
 ```bash
 test -f "${output_dir}/REPORT.sarif" || \
   python3 "<absolute path to scripts/generate_sarif.py>" "${output_dir}"
 ```
 
-The generator is idempotent and reads only finding frontmatter + `context.md`; it produces `results: []` for zero-survivor runs.
+The generator is idempotent and reads only finding frontmatter + `context.md`; it produces `results: []` for zero-survivor runs and gracefully handles the partial-run case (some findings have `fp_verdict`, others don't — those without verdicts are emitted as `LIKELY_TP` so they don't silently disappear).
+
+**Run Phase 8b unconditionally — even on partial / aborted runs.** A partial run with 6 findings on disk should still produce a SARIF over those 6, not nothing. The only exception is if `${output_dir}/findings/` itself doesn't exist (Phase 2 failed).
 
 ### Phase 9: Return Report
+
+**Entry:** `REPORT.md` and `REPORT.sarif` exist. **Exit:** `REPORT.md` content + Artifacts list returned to the caller.
 
 ```
 Read ${output_dir}/REPORT.md → return to caller.
@@ -417,52 +411,13 @@ Include an "Artifacts" section in your reply:
 
 ## Finding File Format
 
-Every file in `${output_dir}/findings/` is a markdown file with YAML frontmatter. Workers write the initial file; judges add fields to the frontmatter. File name is `<id>.md` (e.g. `BOF-001.md`).
+Each finding is a markdown file with YAML frontmatter at `${output_dir}/findings/<id>.md` (e.g. `BOF-001.md`). **The authoritative schema lives in the worker agent's system prompt at `plugins/c-review/agents/c-review-worker.md` ("Finding File Format" / "Body structure"); do not duplicate it here.**
 
-**Minimum schema written by worker:**
-```markdown
----
-id: BOF-001
-bug_class: buffer-overflow
-title: Missing bounds check in parse_header
-location: src/net/parse.c:142
-function: parse_header
-confidence: High
-worker: worker-3
----
+Frontmatter is written in three stages:
 
-## Description
-<prose — why this is a vulnerability>
-
-## Code
-```c
-<actual vulnerable snippet>
-```
-
-## Data flow
-- **Source:** <where attacker-controlled data enters>
-- **Sink:** <where the vulnerability manifests>
-- **Validation:** <what checks exist / are missing>
-
-## Reachability trace
-<short call chain from entry point to sink>
-
-## Impact
-<what an attacker could achieve>
-
-## Mitigations checked
-<canary / ASLR / FORTIFY_SOURCE / sanitizer / type bound — present/absent, bypassable?>
-
-## Recommendation
-<how to fix>
-```
-
-The worker's system prompt is authoritative for the body schema (`plugins/c-review/agents/c-review-worker.md` — "Body structure"); keep this template in sync with it.
-
-**Fields added by judges** (via `Edit` on frontmatter). Pipeline order: dedup → fp+severity.
-- Dedup-judge (on duplicates): `merged_into: <primary-id>`; (on primaries with merges): `also_known_as: [<id1>, <id2>]`, `locations: [<path:line>, …]`
-- FP+Severity judge (on every primary): `fp_verdict: TRUE_POSITIVE | LIKELY_TP | LIKELY_FP | FALSE_POSITIVE | OUT_OF_SCOPE`, `fp_rationale: <one-line>`
-- FP+Severity judge (on survivors — TRUE_POSITIVE / LIKELY_TP only): `severity: CRITICAL | HIGH | MEDIUM | LOW`, `attack_vector: Remote | Local | Both`, `exploitability: Reliable | Difficult | Theoretical`, `severity_rationale: <one-line>`
+1. **Worker** writes the initial file with: `id`, `bug_class`, `title`, `location`, `function`, `confidence`, `worker`, plus the seven body sections (Description, Code, Data flow, Reachability trace, Impact, Mitigations checked, Recommendation).
+2. **Dedup-judge** edits frontmatter only — adds `merged_into: <primary-id>` on duplicates, or `also_known_as: [...]` + `locations: [...]` on primaries that absorbed duplicates.
+3. **FP+Severity judge** edits frontmatter only — adds `fp_verdict` + `fp_rationale` on every primary; for survivors (`TRUE_POSITIVE` / `LIKELY_TP`) also adds `severity`, `attack_vector`, `exploitability`, `severity_rationale`.
 
 ---
 
@@ -482,3 +437,35 @@ The authoritative list of clusters, gates, pass order, bug classes, prefixes, an
 - "Signal handler is simple enough" → Even simple handlers can call non-async-signal-safe functions
 - "Only called from one thread" → Thread usage patterns change
 - "Environment is trusted" → Environment variables are attacker-controlled
+
+---
+
+## Reference Index
+
+| File | Purpose |
+|------|---------|
+| `agents/c-review-worker.md` | Worker subagent — authoritative finding-file schema and per-cluster protocol |
+| `agents/c-review-dedup-judge.md` | Dedup-judge subagent — full Tier-1/Tier-2 dedup protocol |
+| `agents/c-review-fp-judge.md` | FP+severity-judge subagent — full FP taxonomy, severity rules, REPORT.md/REPORT.sarif templates |
+| `prompts/clusters/manifest.json` | Authoritative cluster gates, pass ordering, prefixes, per-class prompt paths |
+| `prompts/clusters/*.md` | Per-cluster shared-context preambles (one per worker) |
+| `prompts/{general,linux-userspace,windows-userspace}/*.md` | Per-bug-class finder prompts (read by workers per pass) |
+| `scripts/build_run_plan.py` | Reads manifest + run flags → emits plan.json and worker-prompts/worker-N.txt (Phase 4) |
+| `scripts/generate_sarif.py` | SARIF 2.1.0 generator from finding frontmatter |
+
+---
+
+## Success Criteria
+
+A run is complete and correct when all of the following hold:
+
+- [ ] `${output_dir}/context.md` exists with frontmatter parameters and codebase summary
+- [ ] `${output_dir}/plan.json` exists with `version: 1` and `len(workers) >= 1`
+- [ ] Every cluster task created in Phase 5 has `status="completed"` (verify via `TaskList`)
+- [ ] `${output_dir}/findings-index.txt` exists (an empty file is the unambiguous "zero findings" signal, not an error)
+- [ ] `${output_dir}/dedup-summary.md` exists when `findings-index.txt` is non-empty
+- [ ] `${output_dir}/fp-summary.md` exists with verdict counts
+- [ ] Every primary finding (no `merged_into` in frontmatter) has `fp_verdict` and `fp_rationale`
+- [ ] Every survivor (`fp_verdict ∈ {TRUE_POSITIVE, LIKELY_TP}`) has `severity`, `attack_vector`, `exploitability`, `severity_rationale`
+- [ ] `${output_dir}/REPORT.md` exists, severity-filtered per `severity_filter`
+- [ ] `${output_dir}/REPORT.sarif` exists (Phase 8b safety net guarantees this even if the fp-judge errored)

@@ -23,6 +23,11 @@ SEVERITY_LEVEL = {
 }
 FILTER_MIN = {"all": 1, "medium": 2, "high": 3}
 SURVIVOR_VERDICTS = {"TRUE_POSITIVE", "LIKELY_TP"}
+# Findings with no fp_verdict (e.g. fp-judge was skipped on a partial run)
+# are emitted with this synthetic verdict so the SARIF safety net still
+# surfaces them. See SKILL.md Phase 8b.
+UNJUDGED_FALLBACK_VERDICT = "LIKELY_TP"
+CONFIDENCE_TO_SEVERITY = {"HIGH": "MEDIUM", "MEDIUM": "MEDIUM", "LOW": "LOW"}
 
 RULE_DESCRIPTIONS = {
     "access-control": "Missing or incorrect authorization check",
@@ -205,13 +210,25 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
     context = parse_context(output_dir)
     severity_filter = str(context.get("severity_filter", "all")).lower()
     threat_model = str(context.get("threat_model", "UNKNOWN"))
-    findings = [
-        finding
-        for finding in iter_findings(output_dir)
-        if "merged_into" not in finding
-        and str(finding.get("fp_verdict", "")).upper() in SURVIVOR_VERDICTS
-        and severity_allowed(str(finding.get("severity", "")).upper(), severity_filter)
-    ]
+    findings = []
+    for finding in iter_findings(output_dir):
+        if "merged_into" in finding:
+            continue
+        verdict = str(finding.get("fp_verdict", "")).upper()
+        if not verdict:
+            # Unjudged finding — fp-judge was skipped (partial run). Treat as
+            # LIKELY_TP and infer severity from worker-assigned confidence.
+            finding["fp_verdict"] = UNJUDGED_FALLBACK_VERDICT
+            finding.setdefault(
+                "severity",
+                CONFIDENCE_TO_SEVERITY.get(str(finding.get("confidence", "")).upper(), "MEDIUM"),
+            )
+            finding["unjudged"] = True
+        elif verdict not in SURVIVOR_VERDICTS:
+            continue
+        if not severity_allowed(str(finding.get("severity", "")).upper(), severity_filter):
+            continue
+        findings.append(finding)
 
     rules = []
     for bug_class in sorted({str(finding.get("bug_class", "unknown")) for finding in findings}):
@@ -257,6 +274,7 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
                     "attack_vector": str(finding.get("attack_vector", "")),
                     "exploitability": str(finding.get("exploitability", "")),
                     "fp_verdict": str(finding.get("fp_verdict", "")),
+                    "unjudged": bool(finding.get("unjudged", False)),
                     "also_known_as": also_known_as,
                 },
             }
