@@ -6,20 +6,7 @@ description: >-
   codeql database", or "find vulnerabilities with codeql". Supports "run all" (security-and-quality
   + security-experimental suites) and "important only" (high-precision security findings) scan
   modes. Also handles creating data extension models and processing CodeQL SARIF output.
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
-  - AskUserQuestion
-  - TaskCreate
-  - TaskList
-  - TaskUpdate
-  - TaskGet
-  - TodoRead
-  - TodoWrite
+allowed-tools: Bash Read Write Edit Glob Grep AskUserQuestion TaskCreate TaskList TaskUpdate TaskGet TodoRead TodoWrite
 ---
 
 # CodeQL Analysis

@@ -2,12 +2,7 @@
 name: trailofbits:diff-review
 description: Performs security-focused differential review of code changes
 argument-hint: "<pr-url|commit-sha|diff-path> [--baseline <ref>]"
-allowed-tools:
-  - Read
-  - Write
-  - Grep
-  - Glob
-  - Bash
+allowed-tools: Read Write Grep Glob Bash
 ---
 
 # Differential Security Review

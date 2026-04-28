@@ -2,16 +2,7 @@
 name: 1-mcp-resolver
 description: "Resolves symbol definitions, types, and cross-file references using Serena MCP for zeroize-audit. Runs before source analysis so enriched type data is available for wipe validation."
 model: inherit
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Write
-  - Bash
-  - mcp__serena__activate_project
-  - mcp__serena__find_symbol
-  - mcp__serena__find_referencing_symbols
-  - mcp__serena__get_symbols_overview
+tools: Read, Grep, Glob, Write, Bash, mcp__serena__activate_project, mcp__serena__find_symbol, mcp__serena__find_referencing_symbols, mcp__serena__get_symbols_overview
 ---
 
 # 1-mcp-resolver

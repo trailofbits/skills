@@ -5,12 +5,7 @@ description: >
   Adapts analysis depth to codebase size, uses git history for context, calculates
   blast radius, checks test coverage, and generates comprehensive markdown reports.
   Automatically detects and prevents security regressions.
-allowed-tools:
-  - Read
-  - Write
-  - Grep
-  - Glob
-  - Bash
+allowed-tools: Read Write Grep Glob Bash
 ---
 
 # Differential Security Review
