@@ -8,7 +8,7 @@ Two modes control analysis scope. Both use all installed packs — the differenc
 
 | Mode | Description | Suite Reference |
 |------|-------------|-----------------|
-| **Run all** | All queries from all installed packs via `security-and-quality` suite | [run-all-suite.md](../references/run-all-suite.md) |
+| **Run all** | All queries from all installed packs via `security-and-quality` + `security-experimental` suites | [run-all-suite.md](../references/run-all-suite.md) |
 | **Important only** | Security queries filtered by precision and security-severity threshold | [important-only-suite.md](../references/important-only-suite.md) |
 
 > **WARNING:** Do NOT pass pack names directly to `codeql database analyze` (e.g., `-- codeql/cpp-queries`). Each pack's `defaultSuiteFile` silently applies strict filters and can produce zero results. Always use an explicit suite reference.
@@ -31,10 +31,11 @@ TaskCreate: "Process and report results" (Step 5) - blockedBy: Step 4
 
 | Task | Gate Type | Cannot Proceed Until |
 |------|-----------|---------------------|
-| Step 2 | **SOFT GATE** | User selects mode; confirms installed/ignored for each missing pack |
-| Step 3 | **SOFT GATE** | User approves query packs, model packs, and threat model selection |
+| Step 2a | **SOFT GATE** | User selects scan mode. Skip only if user said "run all" or "important only" verbatim. |
+| Step 3a | **HARD GATE** | User confirms query pack selection. Always ask — no auto-skip. |
+| Step 3c | **HARD GATE** | User selects threat model. Always ask — no auto-skip. |
 
-**Auto-skip rule:** If the user already specified a choice in the invocation, skip the corresponding `AskUserQuestion` and use the provided value directly.
+**Auto-skip rules are per-gate.** Each gate documents its own skip condition. Choosing "full scan" or "run all" satisfies the scan mode gate (2a) but does not satisfy pack confirmation (3a) or threat model selection (3c).
 
 ---
 
@@ -94,7 +95,7 @@ If multi-language database, ask which language to analyze.
 
 #### 2a: Select Scan Mode
 
-**Skip if user already specified.** Otherwise use `AskUserQuestion`:
+**Skip only if user said "run all" or "important only" in their prompt.** "Full scan", "scan", or "analyze" do NOT count — ask.
 
 ```
 header: "Scan Mode"
@@ -139,13 +140,13 @@ Record all detected packs for Step 3.
 **Exit:** User confirmed query packs, model packs, and threat model selection; all flags built (`THREAT_MODEL_FLAG`, `MODEL_PACK_FLAGS`, `ADDITIONAL_PACK_FLAGS`)
 
 > **CHECKPOINT** — Present available packs to user for confirmation.
-> **Skip if user already specified pack preferences.**
+> **Always ask. Do not auto-skip.**
 
 #### 3a: Confirm Query Packs
 
 **Important-only mode:** Inform user all installed packs included with filtering. Proceed to 3b.
 
-**Run-all mode:** Use `AskUserQuestion` to confirm "Use all" or "Select individually".
+**Run-all mode:** Use `AskUserQuestion` to confirm "Use all" or "Select individually". Always ask — the user needs to see which packs will run.
 
 #### 3b: Select Model Packs (if any detected)
 
@@ -162,7 +163,7 @@ Use `AskUserQuestion`: "Use all (Recommended)" / "Select individually" / "Skip".
 
 Threat models control which input sources CodeQL treats as tainted. See [threat-models.md](../references/threat-models.md).
 
-Use `AskUserQuestion`:
+**Always ask.** Do not default to "remote only" without user confirmation. Use `AskUserQuestion`:
 
 ```
 header: "Threat Models"

@@ -1,6 +1,6 @@
 ---
 name: let-fate-decide
-description: "Draws 4 Tarot cards using os.urandom() to inject entropy into planning when prompts are vague or underspecified. Interprets the spread to guide next steps. Use when the user is nonchalant, feeling lucky, says 'let fate decide', makes Yu-Gi-Oh references ('heart of the cards'), demonstrates indifference about approach, or says 'try again' on a system with no changes. Also triggers on sufficiently ambiguous prompts where multiple approaches are equally valid."
+description: "Draws 4 Tarot cards to inject entropy into planning when prompts are vague, ambiguous, or casually delegated. Interprets the spread to guide next steps. Use when the user says 'let fate decide', 'YOLO', 'whatever', 'idk', or other nonchalant phrases, makes Yu-Gi-Oh references, or when you are about to arbitrarily pick between multiple reasonable approaches. Prefer over ask-questions-if-underspecified when the user's tone is casual or playful rather than precision-seeking."
 allowed-tools:
   - Bash
   - Read
@@ -16,7 +16,7 @@ When the path forward is unclear, let the cards speak.
 
 1. Run the drawing script:
    ```bash
-   uv run {baseDir}/scripts/draw_cards.py
+   uv run --no-config {baseDir}/scripts/draw_cards.py
    ```
 
 2. The script outputs JSON with 4 drawn cards, each with a `file` path relative to `{baseDir}/`
@@ -29,12 +29,13 @@ When the path forward is unclear, let the cards speak.
 
 ## When to Use
 
-- **Vague prompts**: The user's request is ambiguous and multiple valid approaches exist
-- **Explicit invocations**: "I'm feeling lucky", "let fate decide", "dealer's choice", "surprise me", "whatever you think"
+- **Vague prompts**: The user's request is ambiguous and multiple reasonable approaches exist
+- **Explicit invocations**: "I'm feeling lucky", "let fate decide", "dealer's choice", "surprise me", "whatever you think", "YOLO"
+- **Casual delegation**: "whatever", "up to you", "your call", "idk", "just do something", "wing it", "I trust you", "doesn't matter", "do what you want", "I don't care", "any approach works", "you pick"
 - **Yu-Gi-Oh energy**: "Heart of the cards", "I believe in the heart of the cards", "you've activated my trap card", "it's time to duel"
-- **Nonchalant delegation**: The user expresses indifference about the approach
+- **Shrug-like brevity**: Very short prompts that fully delegate the decision without expressing a preference
 - **Redraw requests**: "Try again" or "draw again" when no actual system changes occurred (this means draw new cards, not re-run the same approach)
-- **Tie-breaking**: When you genuinely cannot decide between equally valid approaches
+- **Tie-breaking**: When you are about to arbitrarily pick between 2+ valid approaches, draw cards instead of silently choosing one
 
 ## When NOT to Use
 
@@ -42,16 +43,16 @@ When the path forward is unclear, let the cards speak.
 - The task has a single obvious correct approach
 - Safety-critical decisions (security, data integrity, production deployments)
 - The user explicitly asks you NOT to use Tarot
-- A more specific skill (like `ask-questions-if-underspecified`) would better serve the user by gathering actual requirements
+- The user's tone is precision-seeking rather than casual -- use `ask-questions-if-underspecified` instead to gather actual requirements
 
 ## How It Works
 
 ### The Draw
 
-The script uses `os.urandom()` for cryptographic randomness:
+The script uses `secrets` for cryptographic randomness:
 
 1. Builds a standard 78-card Tarot deck (22 Major Arcana + 56 Minor Arcana)
-2. Performs a Fisher-Yates shuffle using rejection sampling (no modulo bias)
+2. Performs a Fisher-Yates shuffle via `secrets.randbelow()` (no modulo bias)
 3. Draws 4 cards from the top
 4. Each card independently has a 50% chance of being reversed
 
@@ -85,6 +86,10 @@ Key rules:
 - Major Arcana cards carry more weight than Minor Arcana
 - The spread tells a story across all 4 positions; don't interpret cards in isolation
 - Map abstract meanings to concrete technical decisions
+- **Never output interpretation as a text-only turn.** Include the
+  interpretation alongside your next tool call (the action that
+  implements the chosen option). Read all 4 cards in parallel if
+  possible.
 
 ## Example Session
 
