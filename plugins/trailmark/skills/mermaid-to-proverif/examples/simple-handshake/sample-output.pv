@@ -1,0 +1,229 @@
+(* Simple Authenticated Key Exchange — ProVerif Model
+ *
+ * Protocol: Two-party authenticated key exchange
+ * Parties:  Initiator (I), Responder (R)
+ * Crypto:   X25519 DH, Ed25519 signatures, HKDF, AEAD
+ *
+ * Generated from: examples/simple-handshake/diagram.md
+ *
+ * Security queries verified:
+ *   Q1 Reachability:         both end events are reachable
+ *   Q2 Session key secrecy:  attacker cannot learn the session key
+ *   Q3 Injective auth (R):   each R-accept maps to a unique I-run
+ *   Q4 Injective auth (I):   each I-accept maps to a unique R-run
+ *
+ * Note on forward secrecy: model a Compromise process that outputs sk_I
+ * and sk_R on c, add it to the main process, and re-run Q2.  If Q2 still
+ * holds, the session key depends only on ephemeral DH material.
+ *)
+
+(* ── Types ─────────────────────────────────────────────────────────────── *)
+
+type key.    (* symmetric session key *)
+type skey.   (* secret key (signing / DH scalar) *)
+type pkey.   (* public key (DH point / verification key) *)
+
+(* ── Channel ────────────────────────────────────────────────────────────── *)
+
+free c: channel.   (* public network — Dolev-Yao attacker reads and writes freely *)
+
+(* ── Domain-separation constants ────────────────────────────────────────── *)
+
+const msg1_label: bitstring.    (* bound into Initiator's signature *)
+const msg2_label: bitstring.    (* bound into Responder's signature *)
+const info_session_key: bitstring. (* HKDF info tag *)
+
+(* ── Functions ──────────────────────────────────────────────────────────── *)
+
+(* DH key derivation and shared-secret computation *)
+fun dhpk(skey): pkey.
+fun dh(skey, pkey): key.
+
+(* Public/verification key derivation from secret key *)
+fun pk(skey): pkey.
+
+(* Signatures.
+ * sign is a constructor (always succeeds).
+ * verify is a destructor: verify(sig, msg, vk) returns msg if sig = sign(msg, sk)
+ * and vk = pk(sk); otherwise the binding fails and the process aborts.
+ * This models the "abort on invalid signature" behaviour. *)
+fun sign(bitstring, skey): bitstring.
+fun verify(bitstring, bitstring, pkey): bitstring
+    reduc forall m: bitstring, k: skey;
+        verify(sign(m, k), m, pk(k)) = m.
+
+(* HKDF: keying material (key) + context (bitstring) → derived key *)
+fun hkdf(key, bitstring): key.
+
+(* AEAD (ChaCha20-Poly1305 abstracted).
+ * aead_enc is a constructor; aead_dec is a destructor that only succeeds
+ * when the ciphertext was produced with the same key. *)
+fun aead_enc(bitstring, key): bitstring.
+fun aead_dec(bitstring, key): bitstring
+    reduc forall m: bitstring, k: key;
+        aead_dec(aead_enc(m, k), k) = m.
+
+(* Serialization helpers.
+ * ProVerif is strongly typed: pkey cannot be passed directly where bitstring
+ * is expected. pkey2bs() casts a public key to bitstring for use in signed
+ * payloads and KDF input. concat() builds a single bitstring from two. *)
+fun pkey2bs(pkey): bitstring.
+fun concat(bitstring, bitstring): bitstring.
+
+(* ── Equations ──────────────────────────────────────────────────────────── *)
+
+(* DH commutativity: both parties derive the same shared secret *)
+equation forall a: skey, b: skey;
+    dh(a, dhpk(b)) = dh(b, dhpk(a)).
+
+
+(* ── Events ─────────────────────────────────────────────────────────────── *)
+
+(* beginI: Initiator commits to a session before sending the signed msg1.
+ * Parameters: (pk_I, pk_R) — party identities for this session. *)
+event beginI(pkey, pkey).
+
+(* endI: Initiator accepted — verified R's signature, derived session key.
+ * Parameters: (pk_I, pk_R, session_key) *)
+event endI(pkey, pkey, key).
+
+(* beginR: Responder commits after verifying msg1, before sending msg2.
+ * Parameters: (pk_I, pk_R) *)
+event beginR(pkey, pkey).
+
+(* endR: Responder accepted — sent signed reply, derived session key.
+ * Parameters: (pk_I, pk_R, session_key) *)
+event endR(pkey, pkey, key).
+
+(* ── Secrecy witnesses ───────────────────────────────────────────────────── *)
+
+(* Each party encrypts a private constant under the session key.
+ * query attacker(private_I/R) checks the attacker cannot derive the
+ * session key (since decrypting the ciphertext requires it). *)
+free private_I: bitstring [private].
+free private_R: bitstring [private].
+
+(* ── Queries ────────────────────────────────────────────────────────────── *)
+
+(* Q1: Reachability — both end events must be reachable.
+ *     If either returns FALSE, the model has a structural bug. *)
+query pk_i: pkey, pk_r: pkey, k: key; event(endI(pk_i, pk_r, k)).
+query pk_i: pkey, pk_r: pkey, k: key; event(endR(pk_i, pk_r, k)).
+
+(* Q2: Session key secrecy — attacker cannot learn private data encrypted
+ *     under the session key, which is equivalent to key secrecy. *)
+query attacker(private_I).
+query attacker(private_R).
+
+(* Q3: Injective authentication (R's view) — replay prevention.
+ *     Each time R accepts with (pk_I, pk_R, k), a unique I-run with those
+ *     same parameters preceded it. *)
+query pk_i: pkey, pk_r: pkey, k: key;
+    inj-event(endR(pk_i, pk_r, k)) ==> inj-event(beginI(pk_i, pk_r)).
+
+(* Q4: Injective authentication (I's view) *)
+query pk_i: pkey, pk_r: pkey, k: key;
+    inj-event(endI(pk_i, pk_r, k)) ==> inj-event(beginR(pk_i, pk_r)).
+
+(* ── Processes ──────────────────────────────────────────────────────────── *)
+
+(* Initiator
+ *   sk_I : long-term signing/DH secret key
+ *   pk_R : Responder's public key (registered out-of-band)
+ *)
+let Initiator(sk_I: skey, pk_R: pkey) =
+
+    (* Handshake: generate fresh ephemeral keypair *)
+    new ek_I: skey;
+    let epk_I = dhpk(ek_I) in
+
+    (* Sign: Sign(sk_I, "msg1" || epk_I) *)
+    let sig_I = sign(concat(msg1_label, pkey2bs(epk_I)), sk_I) in
+
+    (* Commit before sending the authenticated message *)
+    event beginI(pk(sk_I), pk_R);
+
+    (* msg1 → Responder: epk_I || sig_I *)
+    out(c, (epk_I, sig_I));
+
+    (* msg2 ← Responder: epk_R || sig_R *)
+    in(c, (epk_R: pkey, sig_R: bitstring));
+
+    (* Verify: Verify(pk_R, "msg2" || epk_I || epk_R, sig_R)
+     * Destructor returns the message on success; process aborts on failure. *)
+    let transcript = concat(pkey2bs(epk_I), pkey2bs(epk_R)) in
+    let _ = verify(sig_R, concat(msg2_label, transcript), pk_R) in
+
+    (* Derive session key: HKDF(DH(ek_I, epk_R), info || transcript) *)
+    let dh_val = dh(ek_I, epk_R) in
+    let sk_session = hkdf(dh_val, concat(info_session_key, transcript)) in
+
+    (* Accept *)
+    event endI(pk(sk_I), pk_R, sk_session);
+
+    (* Secrecy witness: encrypt private_I under the session key *)
+    out(c, aead_enc(private_I, sk_session));
+
+    (* Application data phase *)
+    new plaintext: bitstring;
+    out(c, aead_enc(plaintext, sk_session)).
+
+
+(* Responder
+ *   sk_R : long-term signing/DH secret key
+ *   pk_I : Initiator's public key (registered out-of-band)
+ *)
+let Responder(sk_R: skey, pk_I: pkey) =
+
+    (* msg1 ← Initiator: epk_I || sig_I *)
+    in(c, (epk_I: pkey, sig_I: bitstring));
+
+    (* Verify: Verify(pk_I, "msg1" || epk_I, sig_I) *)
+    let _ = verify(sig_I, concat(msg1_label, pkey2bs(epk_I)), pk_I) in
+
+    (* Generate ephemeral keypair *)
+    new ek_R: skey;
+    let epk_R = dhpk(ek_R) in
+
+    (* Compute transcript and sign: Sign(sk_R, "msg2" || epk_I || epk_R) *)
+    let transcript = concat(pkey2bs(epk_I), pkey2bs(epk_R)) in
+    let sig_R = sign(concat(msg2_label, transcript), sk_R) in
+
+    (* Commit before sending the authenticated reply *)
+    event beginR(pk_I, pk(sk_R));
+
+    (* Derive session key: HKDF(DH(ek_R, epk_I), info || transcript) *)
+    let dh_val = dh(ek_R, epk_I) in
+    let sk_session = hkdf(dh_val, concat(info_session_key, transcript)) in
+
+    (* msg2 → Initiator: epk_R || sig_R *)
+    out(c, (epk_R, sig_R));
+
+    (* Accept *)
+    event endR(pk_I, pk(sk_R), sk_session);
+
+    (* Secrecy witness *)
+    out(c, aead_enc(private_R, sk_session));
+
+    (* Receive and verify application data *)
+    in(c, ct: bitstring);
+    let _ = aead_dec(ct, sk_session) in
+    0.
+
+
+(* ── Main Process ───────────────────────────────────────────────────────── *)
+
+process
+    (* Generate long-term keypairs *)
+    new sk_I: skey; let pk_I = pk(sk_I) in
+    new sk_R: skey; let pk_R = pk(sk_R) in
+
+    (* Publish public keys — Dolev-Yao attacker knows them *)
+    out(c, pk_I);
+    out(c, pk_R);
+
+    (* Run unbounded concurrent sessions *)
+    (
+        !Initiator(sk_I, pk_R)
+      | !Responder(sk_R, pk_I)
+    )

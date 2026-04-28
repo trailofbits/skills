@@ -31,10 +31,10 @@
     },
     {
       "name": "building-secure-contracts",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Comprehensive smart contract security toolkit based on Trail of Bits' Building Secure Contracts framework. Includes vulnerability scanners for 6 blockchains and 5 development guideline assistants.",
       "author": {
-        "name": "Omar Inuwa"
+        "name": "Omar Inuwa && Paweł Płatek"
       },
       "source": "./plugins/building-secure-contracts"
     },
@@ -146,6 +146,17 @@
       "source": "./plugins/entry-point-analyzer"
     },
     {
+      "name": "mutation-testing",
+      "version": "1.0.0",
+      "description": "Configures mewt or muton mutation testing campaigns — scopes targets, tunes timeouts, and optimizes long-running runs. Use when the user mentions mewt, muton, mutation testing, or wants to configure or optimize a mutation testing campaign.",
+      "author": {
+        "name": "Trail of Bits",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/mutation-testing"
+    },
+    {
       "name": "property-based-testing",
       "description": "Property-based testing guidance for multiple languages and smart contracts",
       "version": "1.1.0",
@@ -187,7 +198,7 @@
     },
     {
       "name": "static-analysis",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
       "author": {
         "name": "Axel Mierczuk & Paweł Płatek"
@@ -211,6 +222,16 @@
         "name": "Paweł Płatek"
       },
       "source": "./plugins/testing-handbook-skills"
+    },
+    {
+      "name": "trailmark",
+      "version": "0.8.0",
+      "description": "Builds multi-language source code graphs for security analysis: call graphs, attack surface mapping, blast radius, taint propagation, complexity hotspots, and entry point enumeration. Generates Mermaid diagrams (call graphs, class hierarchies, dependency maps, heatmaps). Compares code graph snapshots for structural diff and evolution analysis. Runs graph-informed mutation testing triage (genotoxic). Generates mutation-driven test vectors (vector-forge). Extracts crypto protocol message flows and converts Mermaid diagrams to ProVerif models. Projects SARIF and weAudit findings onto code graphs. Use when analyzing call paths, mapping attack surface, visualizing code architecture, triaging survived mutants, generating cryptographic test vectors, diagramming crypto protocols, formally verifying protocols, or augmenting audits with static analysis findings.",
+      "author": {
+        "name": "Scott Arciszewski",
+        "url": "https://github.com/tob-scott-a"
+      },
+      "source": "./plugins/trailmark"
     },
     {
       "name": "variant-analysis",
@@ -316,7 +337,7 @@
     },
     {
       "name": "let-fate-decide",
-      "version": "1.0.0",
+      "version": "1.1.1",
       "description": "Draws Tarot cards using cryptographic randomness to add entropy to vague or underspecified planning. Interprets the spread to guide next steps. Use when feeling lucky, invoking heart-of-the-cards energy, or when prompts are ambiguous.",
       "author": {
         "name": "Scott Arciszewski",
