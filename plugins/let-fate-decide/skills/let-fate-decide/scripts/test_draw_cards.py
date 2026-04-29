@@ -135,10 +135,9 @@ def test_reversal_produces_both_values():
 
 
 def test_no_os_urandom_import():
-    """Verify os is not imported (regression for secrets migration)."""
+    """Verify os.urandom is not used; os may be imported for path operations."""
     source = Path(__file__).parent / "draw_cards.py"
     text = source.read_text()
-    assert "import os" not in text, "os is still imported"
     assert "os.urandom" not in text, "os.urandom still referenced"
 
 
