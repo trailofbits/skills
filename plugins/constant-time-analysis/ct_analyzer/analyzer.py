@@ -641,7 +641,27 @@ class GoCompiler(Compiler):
 
 
 class RustCompiler(Compiler):
-    """Rust compiler interface."""
+    """Rust compiler interface.
+
+    Compiles single .rs files as `--crate-type=rlib` (library) instead of
+    a binary. This is critical for correctness: when a `.rs` file is built
+    as a binary (`--crate-type=bin`), only `main` is a kept symbol. The
+    optimizer aggressively dead-code-eliminates non-main functions, and
+    when `main` calls them with compile-time-constant arguments, every
+    operation gets constant-folded away. The result is that obviously
+    vulnerable code (e.g. `r / two_gamma2` from KyberSlash patterns)
+    leaves zero IDIV instructions in the asm and the analyzer reports
+    PASSED on truly broken crypto -- a critical false negative.
+
+    Compiling as `rlib` keeps every `pub fn` (and any `fn` reachable from
+    a public item) as a real exported symbol that the optimizer cannot
+    remove or fully constant-fold across.
+
+    For Cargo projects (Cargo.toml adjacent to the source file), the
+    compiler shells out to `cargo rustc --release -- --emit=asm` so that
+    workspace dependencies are resolved and only the target crate's
+    assembly is emitted.
+    """
 
     ARCH_TARGETS = {
         "x86_64": "x86_64-unknown-linux-gnu",
@@ -655,6 +675,25 @@ class RustCompiler(Compiler):
 
     def __init__(self, path: str | None = None):
         super().__init__("rustc", path or "rustc")
+
+    @staticmethod
+    def _find_cargo_root(source_file: str) -> str | None:
+        """Walk up from source_file to find a Cargo.toml. None if standalone."""
+        path = Path(source_file).resolve()
+        for parent in [path.parent, *path.parents]:
+            if (parent / "Cargo.toml").is_file():
+                return str(parent)
+        return None
+
+    @staticmethod
+    def crate_name_for(source_file: str) -> str:
+        """Compute the rustc crate name for a standalone .rs file.
+
+        rustc replaces hyphens with underscores in default crate names,
+        so we normalize for stable symbol filtering.
+        """
+        stem = Path(source_file).stem
+        return re.sub(r"[^A-Za-z0-9_]", "_", stem)
 
     def compile_to_assembly(
         self,
@@ -676,11 +715,67 @@ class RustCompiler(Compiler):
             "Oz": "z",
         }.get(optimization, "2")
 
+        cargo_root = self._find_cargo_root(source_file)
+        if cargo_root is not None:
+            return self._compile_via_cargo(
+                cargo_root, source_file, output_file, arch, target, opt_level, extra_flags
+            )
+        return self._compile_standalone(
+            source_file, output_file, arch, target, opt_level, extra_flags
+        )
+
+    def _compile_standalone(
+        self,
+        source_file: str,
+        output_file: str,
+        arch: str,
+        target: str | None,
+        opt_level: str,
+        extra_flags: list[str] | None,
+    ) -> tuple[bool, str]:
+        crate_name = self.crate_name_for(source_file)
+
+        # The flag soup below is critical for correctness; see notes:
+        #
+        #  * `--crate-type=rlib`: don't build a binary. A binary
+        #    aggressively DCEs everything except `main`, so any `pub fn`
+        #    called only from `main` with constant arguments gets folded
+        #    away and the analyzer reports PASSED on actually-broken
+        #    crypto. With rlib, every function is a candidate for export.
+        #
+        #  * `-C link-dead-code=on`: rlib alone is NOT enough at
+        #    `opt-level >= 1`. LLVM marks unused `pub fn` as
+        #    `available_externally` linkage, which means "another CU
+        #    will provide this body, don't emit it here." For our
+        #    purposes that's a false negative: the user's source clearly
+        #    contains the function and we need to see its asm. This
+        #    flag forces every function to be emitted.
+        #
+        #  * `-C codegen-units=1`: ensures we get all functions in one
+        #    asm file, not split across CUs we'd then have to stitch.
+        #
+        #  * `-C panic=abort`: removes unwinding metadata noise; the
+        #    panic landing pads otherwise add ~30% noise to the asm.
+        #
+        #  * `-C debuginfo=1`: emit `.file` / `.loc` directives so the
+        #    parser can resolve violations to source `file:line`.
         cmd = [
             self.path,
             "--emit=asm",
+            "--crate-type=rlib",
+            "--crate-name",
+            crate_name,
             "-C",
             f"opt-level={opt_level}",
+            "-C",
+            "codegen-units=1",
+            "-C",
+            "panic=abort",
+            "-C",
+            "debuginfo=1",
+            "-C",
+            "link-dead-code=on",
+            "--edition=2021",
             *(["--target", target] if target else []),
             *(extra_flags or []),
             source_file,
@@ -695,6 +790,152 @@ class RustCompiler(Compiler):
             return True, ""
         except FileNotFoundError:
             return False, f"Rustc not found: {self.path}"
+
+    def _compile_via_cargo(
+        self,
+        cargo_root: str,
+        source_file: str,
+        output_file: str,
+        arch: str,
+        target: str | None,
+        opt_level: str,
+        extra_flags: list[str] | None,
+    ) -> tuple[bool, str]:
+        cargo = "cargo"
+        env = os.environ.copy()
+        # Force codegen-units=1 and panic=abort via RUSTFLAGS for clean asm.
+        rustflags = env.get("RUSTFLAGS", "").split()
+        # See `_compile_standalone` for why each flag is needed.
+        # `link-dead-code=on` is the critical one for `pub fn` retention
+        # at any opt-level >= 1.
+        rustflags += [
+            "--emit=asm",
+            "-C",
+            "codegen-units=1",
+            "-C",
+            "debuginfo=1",
+            "-C",
+            "link-dead-code=on",
+        ]
+        env["RUSTFLAGS"] = " ".join(rustflags)
+
+        # Resolve the authoritative `target_directory` via `cargo metadata`
+        # rather than guessing `<cargo_root>/target`. Workspaces put their
+        # build output at the workspace root, not under the member crate
+        # that owns the source file -- so a naive `cargo_root/target` path
+        # misses the asm we just emitted.
+        target_directory = self._cargo_target_directory(cargo_root, env)
+        if target_directory is None:
+            target_directory = Path(cargo_root) / "target"
+
+        # Determine which member crate owns the source file so we can run
+        # `cargo rustc -p <member>` and get a focused build.
+        package_name = self._package_for_source(cargo_root, source_file, env)
+
+        profile = "release" if opt_level in ("2", "3", "s", "z") else "dev"
+        cmd = [cargo, "rustc"]
+        if profile == "release":
+            cmd.append("--release")
+        if package_name:
+            cmd.extend(["-p", package_name])
+        if target:
+            cmd.extend(["--target", target])
+        cmd.extend(["--", "-C", f"opt-level={opt_level}", *(extra_flags or [])])
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=cargo_root, env=env)
+            if result.returncode != 0:
+                return False, result.stderr
+        except FileNotFoundError:
+            return False, "cargo not found in PATH (required for Cargo projects)"
+
+        # Locate the emitted .s files and concatenate into output_file.
+        deps_dir = target_directory
+        if target:
+            deps_dir = deps_dir / target
+        deps_dir = deps_dir / ("release" if profile == "release" else "debug") / "deps"
+
+        if not deps_dir.is_dir():
+            return False, f"cargo rustc did not produce expected output dir: {deps_dir}"
+
+        # Filter to asm files belonging to the package we built (when
+        # known). Without this filter a workspace build with many members
+        # can dump megabytes of unrelated asm.
+        glob = "*.s"
+        asm_files = sorted(deps_dir.glob(glob))
+        if package_name:
+            normalized = package_name.replace("-", "_")
+            focused = [
+                a for a in asm_files if a.name.startswith(f"{normalized}-")
+            ]
+            if focused:
+                asm_files = focused
+
+        if not asm_files:
+            return False, f"no .s files emitted in {deps_dir}"
+
+        with open(output_file, "w") as out:
+            for asm in asm_files:
+                out.write(f"# === {asm.name} ===\n")
+                out.write(asm.read_text())
+                out.write("\n")
+        return True, ""
+
+    @staticmethod
+    def _cargo_target_directory(cargo_root: str, env: dict) -> Path | None:
+        """Return the authoritative target_directory from `cargo metadata`.
+
+        Workspaces put output at the workspace root, not under the member
+        crate that the source belongs to.
+        """
+        try:
+            result = subprocess.run(
+                ["cargo", "metadata", "--format-version=1", "--no-deps"],
+                capture_output=True,
+                text=True,
+                cwd=cargo_root,
+                env=env,
+            )
+            if result.returncode != 0:
+                return None
+            meta = json.loads(result.stdout)
+            target = meta.get("target_directory")
+            return Path(target) if target else None
+        except (FileNotFoundError, json.JSONDecodeError):
+            return None
+
+    @staticmethod
+    def _package_for_source(
+        cargo_root: str, source_file: str, env: dict
+    ) -> str | None:
+        """Find the cargo package whose `src/` contains the source file."""
+        try:
+            result = subprocess.run(
+                ["cargo", "metadata", "--format-version=1", "--no-deps"],
+                capture_output=True,
+                text=True,
+                cwd=cargo_root,
+                env=env,
+            )
+            if result.returncode != 0:
+                return None
+            meta = json.loads(result.stdout)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return None
+
+        src = Path(source_file).resolve()
+        best_match: tuple[int, str] | None = None
+        for pkg in meta.get("packages", []):
+            manifest = Path(pkg["manifest_path"]).resolve().parent
+            try:
+                rel = src.relative_to(manifest)
+            except ValueError:
+                continue
+            depth = len(manifest.parts)
+            name = pkg["name"]
+            if best_match is None or depth > best_match[0]:
+                best_match = (depth, name)
+        return best_match[1] if best_match else None
 
 
 class SwiftCompiler(Compiler):
@@ -780,12 +1021,162 @@ def get_compiler(name: str, language: str) -> Compiler:
         return ClangCompiler()
 
 
+# Rust legacy mangling escape sequences. The new `v0` mangling (`_R...`) is
+# also handled below where we strip its `::h<hex>` hash suffix.
+_RUST_LEGACY_ESCAPES = {
+    "$SP$": "@",
+    "$BP$": "*",
+    "$RF$": "&",
+    "$LT$": "<",
+    "$GT$": ">",
+    "$LP$": "(",
+    "$RP$": ")",
+    "$C$": ",",
+    "$u20$": " ",
+    "$u22$": '"',
+    "$u23$": "#",
+    "$u27$": "'",
+    "$u2b$": "+",
+    "$u3b$": ";",
+    "$u5b$": "[",
+    "$u5d$": "]",
+    "$u7b$": "{",
+    "$u7d$": "}",
+    "$u7e$": "~",
+    ".": "-",
+    "..": "::",
+}
+
+
+def demangle_rust(symbol: str) -> str | None:
+    """Demangle a Rust mangled symbol (legacy `_ZN...E` form).
+
+    Returns the demangled `crate::module::function` form, or None if the
+    symbol is not a Rust mangled name. The trailing `17h<hash>E`
+    disambiguator is stripped.
+
+    The newer v0 format (`_R...`) is partially handled by stripping the
+    common hash suffix; full v0 demangling requires the rustc-demangle
+    crate. For our purposes the asm symbols are still recognizable.
+    """
+    if not symbol:
+        return None
+
+    # v0: just strip the leading _R and any trailing hash; we don't fully
+    # decode, but the symbol is still usable for filtering.
+    if symbol.startswith("_R"):
+        return symbol  # caller filters using the raw form
+
+    if not symbol.startswith("_ZN") or not symbol.endswith("E"):
+        return None
+
+    body = symbol[3:-1]
+    components: list[str] = []
+    i = 0
+    while i < len(body):
+        j = i
+        while j < len(body) and body[j].isdigit():
+            j += 1
+        if j == i:
+            return None  # malformed
+        try:
+            length = int(body[i:j])
+        except ValueError:
+            return None
+        end = j + length
+        if end > len(body):
+            return None
+        component = body[j:end]
+        # Apply Rust legacy escape sequences (longest match first).
+        for esc, repl in sorted(
+            _RUST_LEGACY_ESCAPES.items(), key=lambda kv: -len(kv[0])
+        ):
+            component = component.replace(esc, repl)
+        components.append(component)
+        i = end
+
+    # Strip the disambiguator `h<16-hex>` if present.
+    if components and re.match(r"^h[0-9a-f]{16}$", components[-1]):
+        components = components[:-1]
+
+    if not components:
+        return None
+    return "::".join(components)
+
+
+def rust_crate_of(symbol_or_demangled: str) -> str | None:
+    """Return the crate name (first path component) of a demangled Rust path.
+
+    For a raw mangled symbol, demangles first. Returns None if unknown.
+
+    Handles `<impl Trait for Type>::method` style names, which legacy
+    mangling produces as `_<crate::...>::method` after applying the `$LT$`
+    / `$GT$` escapes. The crate name is the first identifier inside the
+    leading angle bracket, not the literal `_<crate` prefix.
+    """
+    s = symbol_or_demangled
+    if s.startswith("_ZN") or s.startswith("_R"):
+        d = demangle_rust(s)
+        if d is None:
+            return None
+        s = d
+
+    # Strip leading `_<` / `<` from impl-block demangling: the crate is the
+    # first path component inside the angle brackets.
+    while s.startswith(("_<", "<")):
+        s = s[2:] if s.startswith("_<") else s[1:]
+
+    if not s:
+        return None
+
+    # Take chars up to the first `::` or non-identifier char.
+    head = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)", s)
+    return head.group(1) if head else None
+
+
+# Standard-library / language-runtime crates whose monomorphizations are
+# pulled into user crates by inlining. We never report violations in these
+# unless the user passes --include-stdlib (e.g. for forensic review).
+RUST_STDLIB_CRATES = frozenset(
+    {
+        "core",
+        "alloc",
+        "std",
+        "panic_abort",
+        "panic_unwind",
+        "compiler_builtins",
+        "rustc_std_workspace_core",
+        "rustc_std_workspace_alloc",
+        "rustc_std_workspace_std",
+        "proc_macro",
+        "test",
+        "unwind",
+        "backtrace",
+        "addr2line",
+        "object",
+        "miniz_oxide",
+        "adler",
+        "hashbrown",
+        "rustc_demangle",
+        "gimli",
+    }
+)
+
+
 class AssemblyParser:
     """Parser for assembly output from various compilers."""
 
-    def __init__(self, arch: str, compiler: str):
+    def __init__(
+        self,
+        arch: str,
+        compiler: str,
+        rust_user_crate: str | None = None,
+        include_stdlib: bool = False,
+    ):
         self.arch = normalize_arch(arch)
         self.compiler = compiler
+        self.rust_user_crate = rust_user_crate
+        self.include_stdlib = include_stdlib
 
         # Get dangerous instructions for this architecture
         if self.arch not in DANGEROUS_INSTRUCTIONS:
@@ -802,6 +1193,31 @@ class AssemblyParser:
             self.errors = arch_instructions.get("errors", {})
             self.warnings = arch_instructions.get("warnings", {})
 
+    def _should_skip_function(self, raw_symbol: str | None) -> bool:
+        """Decide whether to ignore violations in this function.
+
+        For Rust, monomorphized stdlib code (`core::*`, `alloc::*`,
+        `std::*`, plus a few support crates) gets pulled into the user
+        crate's asm by inlining. Reporting `DIVQ` or `DIVSD` in
+        `core::fmt::Formatter::pad` is just noise -- the user can't fix
+        it. We drop those by default; `--include-stdlib` brings them
+        back for forensic review.
+
+        We also filter to the user's crate when known, so any non-stdlib
+        third-party crate that gets monomorphized is reported only when
+        explicitly opted into.
+        """
+        if self.include_stdlib or self.compiler != "rustc" or not raw_symbol:
+            return False
+        crate = rust_crate_of(raw_symbol)
+        if crate is None:
+            return False
+        if crate in RUST_STDLIB_CRATES:
+            return True
+        if self.rust_user_crate and crate != self.rust_user_crate:
+            return True
+        return False
+
     def parse(
         self, assembly_text: str, include_warnings: bool = False
     ) -> tuple[list[dict], list[Violation]]:
@@ -812,10 +1228,14 @@ class AssemblyParser:
         functions = []
         violations = []
 
-        current_function = None
+        current_function = None  # display name (demangled for Rust)
+        current_raw_symbol = None  # mangled symbol (for crate filtering)
         current_file = None
         current_line = None
         instruction_count = 0
+
+        # `.file <id> "path"` mapping for resolving `.loc <id>` directives.
+        file_table: dict[int, str] = {}
 
         for line in assembly_text.split("\n"):
             line = line.strip()
@@ -829,16 +1249,37 @@ class AssemblyParser:
                     current_line = int(file_match.group(2))
                 continue
 
-            # Detect function start (various formats)
+            # `.file 1 "/abs/path/source.rs"` -- registers a debug file.
+            file_dir = re.match(r'^\.file\s+(\d+)\s+(?:"([^"]+)"\s+)?"([^"]+)"', line)
+            if file_dir:
+                fid = int(file_dir.group(1))
+                # Form 1: .file <id> "path" -> group(2)=None, group(3)=path
+                # Form 2: .file <id> "dir" "name" -> group(2)=dir, group(3)=name
+                if file_dir.group(2):
+                    file_table[fid] = file_dir.group(2).rstrip("/") + "/" + file_dir.group(3)
+                else:
+                    file_table[fid] = file_dir.group(3)
+                continue
+
+            # `.loc <file_id> <line> <column>` -- rustc/clang debug info.
+            loc_dir = re.match(r"^\.loc\s+(\d+)\s+(\d+)", line)
+            if loc_dir:
+                fid = int(loc_dir.group(1))
+                current_file = file_table.get(fid, current_file)
+                current_line = int(loc_dir.group(2))
+                continue
+
+            # Detect function start (various formats).
             func_match = (
-                # GCC/Clang: function_name:
-                re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*):$", line)
+                # GCC/Clang/rustc: optionally-mangled `symbol:`
+                # Mangled Rust names contain `$`, `.`, `:` -- broaden the charset.
+                re.match(r"^([A-Za-z_][\w$.:]*):$", line)
                 or
                 # Go objdump: TEXT symbol_name(SB) file
                 re.match(r"^TEXT\s+([^\s(]+)\(SB\)", line)
                 or
-                # With .type directive
-                re.match(r"\.type\s+([a-zA-Z_][a-zA-Z0-9_]*),\s*@function", line)
+                # With .type directive (mangled symbols allowed)
+                re.match(r"\.type\s+([A-Za-z_][\w$.:]*),\s*[@%]function", line)
             )
 
             if func_match:
@@ -849,7 +1290,14 @@ class AssemblyParser:
                             "instructions": instruction_count,
                         }
                     )
-                current_function = func_match.group(1)
+                raw = func_match.group(1)
+                current_raw_symbol = raw
+                # Demangle Rust symbols for human-readable display.
+                if self.compiler == "rustc":
+                    demangled = demangle_rust(raw)
+                    current_function = demangled or raw
+                else:
+                    current_function = raw
                 instruction_count = 0
                 continue
 
@@ -888,6 +1336,11 @@ class AssemblyParser:
                 continue
 
             instruction_count += 1
+
+            # Filter out monomorphized stdlib code (Rust) so the user
+            # sees vulnerabilities in their own crate, not in `core::fmt`.
+            if self._should_skip_function(current_raw_symbol):
+                continue
 
             # Check for violations
             if mnemonic in self.errors:
@@ -937,6 +1390,8 @@ def analyze_source(
     include_warnings: bool = False,
     function_filter: str = None,
     extra_flags: list[str] = None,
+    include_stdlib: bool = False,
+    rust_user_crate: str | None = None,
 ) -> AnalysisReport:
     """
     Analyze a source file for constant-time violations.
@@ -949,6 +1404,12 @@ def analyze_source(
         include_warnings: Include warning-level violations
         function_filter: Regex pattern to filter functions
         extra_flags: Extra flags to pass to the compiler (ignored for scripting languages)
+        include_stdlib: For Rust, do not skip violations in stdlib
+            monomorphizations (`core::*`, `alloc::*`, ...). Off by default
+            because stdlib timing leaks are usually not the user's bug.
+        rust_user_crate: Override the user crate name for Rust filtering.
+            By default we infer it from the source file stem for standalone
+            files, or accept any non-stdlib crate for Cargo projects.
 
     Returns:
         AnalysisReport with results
@@ -1018,8 +1479,25 @@ def analyze_source(
         with open(asm_path) as f:
             assembly_text = f.read()
 
+        # For Rust, infer the user's crate name from the source file when
+        # not given explicitly so the parser can filter out monomorphized
+        # stdlib code.
+        user_crate = rust_user_crate
+        if language == "rust" and user_crate is None:
+            cargo_root = RustCompiler._find_cargo_root(str(source_path.absolute()))
+            if cargo_root is None:
+                # Standalone file: rustc derives crate name from file stem.
+                user_crate = RustCompiler.crate_name_for(str(source_path.absolute()))
+            # For Cargo projects we leave user_crate=None so any non-stdlib
+            # crate is reported (workspace builds may emit several crates).
+
         # Parse and analyze
-        parser = AssemblyParser(arch, compiler_obj.name)
+        parser = AssemblyParser(
+            arch,
+            compiler_obj.name,
+            rust_user_crate=user_crate,
+            include_stdlib=include_stdlib,
+        )
         functions, violations = parser.parse(assembly_text, include_warnings)
 
         # Filter functions if requested
@@ -1227,6 +1705,18 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
         default=[],
         help="Extra flags to pass to the compiler",
     )
+    parser.add_argument(
+        "--include-stdlib",
+        action="store_true",
+        help="(Rust) include violations in stdlib monomorphizations "
+        "(core::*, alloc::*, std::*). Off by default to keep reports "
+        "actionable for crypto authors.",
+    )
+    parser.add_argument(
+        "--rust-crate",
+        help="(Rust) override the user-crate name for symbol filtering. "
+        "Default: source file stem with `-` -> `_`.",
+    )
 
     args = parser.parse_args()
 
@@ -1267,6 +1757,8 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
                 include_warnings=args.warnings,
                 function_filter=args.func,
                 extra_flags=args.extra_flags,
+                include_stdlib=args.include_stdlib,
+                rust_user_crate=args.rust_crate,
             )
 
         print(format_report(report, output_format))

@@ -1393,5 +1393,243 @@ console.log(vulnerableRandom());
                 raise
 
 
+class TestRustDemangling(unittest.TestCase):
+    """Demangling Rust legacy symbols."""
+
+    def test_demangle_simple(self):
+        from analyzer import demangle_rust
+
+        sym = "_ZN10kyberslash21compress_d_vulnerable17h6f761845851181e5E"
+        self.assertEqual(demangle_rust(sym), "kyberslash::compress_d_vulnerable")
+
+    def test_demangle_with_escape(self):
+        from analyzer import demangle_rust
+
+        # `<impl Display for i32>` style nested path
+        sym = "_ZN4core3fmt3num3imp52_$LT$impl$u20$core..fmt..Display$u20$for$u20$i32$GT$3fmt17habcdef0123456789E"
+        out = demangle_rust(sym)
+        self.assertIsNotNone(out)
+        self.assertIn("core", out)
+        self.assertIn("Display", out)
+
+    def test_demangle_non_rust_returns_none(self):
+        from analyzer import demangle_rust
+
+        self.assertIsNone(demangle_rust("memcpy"))
+        self.assertIsNone(demangle_rust(""))
+        self.assertIsNone(demangle_rust("not_a_real_symbol"))
+
+    def test_crate_extraction(self):
+        from analyzer import rust_crate_of
+
+        sym = "_ZN10kyberslash21compress_d_vulnerable17h6f761845851181e5E"
+        self.assertEqual(rust_crate_of(sym), "kyberslash")
+        self.assertEqual(rust_crate_of("kyberslash::foo::bar"), "kyberslash")
+
+    def test_v0_passthrough(self):
+        # v0 mangling -- we don't fully decode but caller can still filter.
+        from analyzer import demangle_rust
+
+        out = demangle_rust("_RNvCs1234abcd_8mycrate3foo")
+        self.assertIsNotNone(out)
+        self.assertTrue(out.startswith("_R"))
+
+
+class TestRustStdlibFiltering(unittest.TestCase):
+    """Stdlib monomorphizations should be skipped by default."""
+
+    def test_skip_default(self):
+        from analyzer import AssemblyParser
+
+        parser = AssemblyParser("x86_64", "rustc", rust_user_crate="myapp")
+        # `core::fmt::write` style symbol -- valid legacy mangling.
+        self.assertTrue(
+            parser._should_skip_function(
+                "_ZN4core3fmt5write17h0123456789abcdefE"
+            )
+        )
+        # `alloc::vec::Vec::new`
+        self.assertTrue(
+            parser._should_skip_function(
+                "_ZN5alloc3vec3Vec3new17h0123456789abcdefE"
+            )
+        )
+        # User crate should not be skipped.
+        self.assertFalse(
+            parser._should_skip_function(
+                "_ZN5myapp3foo17h0123456789abcdefE"
+            )
+        )
+
+    def test_include_stdlib_disables_skip(self):
+        from analyzer import AssemblyParser
+
+        parser = AssemblyParser(
+            "x86_64", "rustc", rust_user_crate="myapp", include_stdlib=True
+        )
+        self.assertFalse(
+            parser._should_skip_function(
+                "_ZN4core3fmt5write17h0123456789abcdefE"
+            )
+        )
+
+
+class TestRustCompilation(unittest.TestCase):
+    """Integration tests that actually compile Rust source.
+
+    These tests require `rustc` on PATH. They cover the three
+    correctness-critical behaviors that distinguish this analyzer from
+    a naive `rustc --emit=asm` invocation:
+
+      1. `pub fn` items survive at `opt-level=2` (link-dead-code=on)
+      2. Constant-folding-via-main does NOT silently DCE secret ops
+         (--crate-type=rlib instead of bin)
+      3. The CVE benchmark corpus validates detection rates
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.has_rustc = TestIntegration._check_compiler("rustc")
+        cls.bench_dir = (
+            Path(__file__).parent / "test_samples" / "rust_bench"
+        )
+
+    def setUp(self):
+        if not self.has_rustc:
+            self.skipTest("rustc not available")
+
+    def test_rust_idiv_detected_at_O2(self):
+        """At opt-level=2, IDIV in pub fn must still be visible.
+
+        This is the regression test for the available_externally bug:
+        without `-C link-dead-code=on`, rustc strips pub fn bodies from
+        the asm output at any opt level >= 1, hiding real bugs.
+        """
+        src = self.bench_dir / "vulnerable" / "kyberslash.rs"
+        if not src.exists():
+            self.skipTest("benchmark missing")
+
+        report = analyze_source(str(src), optimization="O2")
+        idiv = [
+            v
+            for v in report.violations
+            if v.severity == Severity.ERROR and "IDIV" in v.mnemonic
+        ]
+        self.assertGreater(
+            len(idiv),
+            0,
+            "regression: opt-level=2 dropped pub fn bodies again -- "
+            "verify -C link-dead-code=on is still in the rustc invocation",
+        )
+
+    def test_rust_safe_kyberslash_passes(self):
+        """Constant-time KyberSlash fix must produce zero ERRORs."""
+        src = self.bench_dir / "safe" / "kyberslash.rs"
+        if not src.exists():
+            self.skipTest("benchmark missing")
+
+        report = analyze_source(str(src), optimization="O2")
+        self.assertEqual(
+            report.error_count,
+            0,
+            f"false positive on safe code: {[v.function for v in report.violations]}",
+        )
+
+    def test_rust_minerva_modinv_detected(self):
+        """Minerva's modular inverse uses % on a u64 secret."""
+        src = self.bench_dir / "vulnerable" / "minerva.rs"
+        if not src.exists():
+            self.skipTest("benchmark missing")
+
+        report = analyze_source(str(src), optimization="O2")
+        self.assertFalse(report.passed)
+        funcs = {v.function for v in report.violations}
+        self.assertTrue(
+            any("modinv" in f or "reduce_mod" in f for f in funcs),
+            f"expected violation in modinv or reduce_mod_q; got {funcs}",
+        )
+
+    def test_rust_lucky13_warnings(self):
+        """Branch-based oracles only show with --warnings."""
+        src = self.bench_dir / "vulnerable" / "lucky13.rs"
+        if not src.exists():
+            self.skipTest("benchmark missing")
+
+        # No warnings: should pass (errors == 0).
+        report = analyze_source(str(src), optimization="O2", include_warnings=False)
+        self.assertEqual(report.error_count, 0)
+
+        # With warnings: should detect at least 4 conditional branches.
+        report_w = analyze_source(str(src), optimization="O2", include_warnings=True)
+        self.assertGreaterEqual(
+            report_w.warning_count,
+            4,
+            "expected several JE/JNE warnings on the early-exit memcmp",
+        )
+
+    def test_rust_demangled_function_names_in_violations(self):
+        """Violations must show readable `crate::function`, not _ZN…E."""
+        src = self.bench_dir / "vulnerable" / "kyberslash.rs"
+        if not src.exists():
+            self.skipTest("benchmark missing")
+
+        report = analyze_source(str(src), optimization="O2")
+        self.assertGreater(len(report.violations), 0)
+        for v in report.violations:
+            self.assertFalse(
+                v.function.startswith("_ZN"),
+                f"function name was not demangled: {v.function}",
+            )
+            self.assertIn(
+                "::", v.function,
+                f"function name lacks crate path: {v.function}",
+            )
+
+    def test_rust_stdlib_filtered_by_default(self):
+        """`core::*` violations should be filtered unless --include-stdlib."""
+        src = self.bench_dir / "vulnerable" / "kyberslash.rs"
+        if not src.exists():
+            self.skipTest("benchmark missing")
+
+        report = analyze_source(str(src), optimization="O2")
+        for v in report.violations:
+            crate = v.function.split("::", 1)[0] if "::" in v.function else v.function
+            self.assertNotIn(
+                crate,
+                ("core", "alloc", "std", "compiler_builtins"),
+                f"stdlib crate leaked into report: {v.function}",
+            )
+
+
+class TestRustBenchmarkRunner(unittest.TestCase):
+    """The CVE benchmark must pass end-to-end."""
+
+    def setUp(self):
+        if not TestIntegration._check_compiler("rustc"):
+            self.skipTest("rustc not available")
+
+    def test_full_benchmark_passes(self):
+        bench_script = (
+            Path(__file__).parent
+            / "test_samples"
+            / "rust_bench"
+            / "run_bench.py"
+        )
+        if not bench_script.exists():
+            self.skipTest("bench script missing")
+
+        proc = subprocess.run(
+            ["uv", "run", str(bench_script)],
+            capture_output=True,
+            text=True,
+            cwd=str(bench_script.parents[3]),
+        )
+        self.assertEqual(
+            proc.returncode,
+            0,
+            f"benchmark failed:\nstdout={proc.stdout}\nstderr={proc.stderr}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

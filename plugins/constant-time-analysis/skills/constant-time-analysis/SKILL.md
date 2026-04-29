@@ -50,7 +50,7 @@ Based on the file extension or language context, refer to the appropriate guide:
 | ---------- | --------------------------------- | -------------------------------------------------------- |
 | C, C++     | `.c`, `.h`, `.cpp`, `.cc`, `.hpp` | [references/compiled.md](references/compiled.md)         |
 | Go         | `.go`                             | [references/compiled.md](references/compiled.md)         |
-| Rust       | `.rs`                             | [references/compiled.md](references/compiled.md)         |
+| Rust       | `.rs`                             | [references/rust.md](references/rust.md)                 |
 | Swift      | `.swift`                          | [references/swift.md](references/swift.md)               |
 | Java       | `.java`                           | [references/vm-compiled.md](references/vm-compiled.md)   |
 | Kotlin     | `.kt`, `.kts`                     | [references/kotlin.md](references/kotlin.md)             |

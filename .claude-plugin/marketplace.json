@@ -58,8 +58,8 @@
     },
     {
       "name": "constant-time-analysis",
-      "version": "0.1.0",
-      "description": "Detect compiler-induced timing side-channels in cryptographic code",
+      "version": "0.2.0",
+      "description": "Detect compiler-induced timing side-channels in cryptographic code, with first-class Rust support and a CVE-derived benchmark.",
       "author": {
         "name": "Scott Arciszewski",
         "email": "opensource@trailofbits.com"
