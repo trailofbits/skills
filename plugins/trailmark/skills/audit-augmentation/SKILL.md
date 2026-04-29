@@ -73,7 +73,7 @@ uv run trailmark augment {targetDir} \
 ```python
 from trailmark.query.api import QueryEngine
 
-engine = QueryEngine.from_directory("{targetDir}", language="python")
+engine = QueryEngine.from_directory("{targetDir}", language="auto")
 
 # Run pre-analysis first for cross-referencing
 engine.preanalysis()
@@ -93,6 +93,9 @@ engine.subgraph("sarif:semgrep")                        # By tool name
 engine.annotations_of("function_name")                  # Per-node lookup
 ```
 
+If auto-detection is wrong for the target, rerun with an explicit language or
+comma-separated list such as `python,rust`.
+
 ## Workflow
 
 ```
@@ -108,9 +111,12 @@ Augmentation Progress:
 context:
 
 ```python
-engine = QueryEngine.from_directory("{targetDir}", language="{lang}")
+engine = QueryEngine.from_directory("{targetDir}", language="auto")
 engine.preanalysis()
 ```
+
+If auto-detection is wrong for the target, rerun with an explicit language or
+comma-separated list such as `python,rust`.
 
 **Step 2:** Locate input files:
 - **SARIF**: Usually output by tools like `semgrep --sarif -o results.sarif`

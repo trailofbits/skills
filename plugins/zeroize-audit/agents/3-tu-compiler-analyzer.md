@@ -2,12 +2,7 @@
 name: 3-tu-compiler-analyzer
 description: "Performs per-TU compiler-level analysis (IR diff, assembly, semantic IR, CFG) for zeroize-audit. One instance runs per translation unit, enabling parallel execution across TUs."
 model: inherit
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Write
-  - Bash
+tools: Read, Grep, Glob, Write, Bash
 ---
 
 # 3-tu-compiler-analyzer

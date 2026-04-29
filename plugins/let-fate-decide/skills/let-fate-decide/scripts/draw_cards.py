@@ -10,6 +10,7 @@ Each card has an independent 50/50 chance of being reversed.
 # ///
 
 import json
+import os
 import secrets
 import sys
 
@@ -105,8 +106,8 @@ def draw(n=4, include_content=False):
             try:
                 with open(path) as f:
                     card["content"] = f.read()
-            except FileNotFoundError:
-                card["content"] = f"(card file not found: {path})"
+            except OSError as e:
+                card["content"] = f"(error reading card file {path}: {e})"
         hand.append(card)
     return hand
 

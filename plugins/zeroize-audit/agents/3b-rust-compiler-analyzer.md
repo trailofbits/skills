@@ -2,12 +2,7 @@
 name: 3b-rust-compiler-analyzer
 description: "Performs crate-level MIR and LLVM IR analysis for Rust in zeroize-audit. A single instance runs per crate (unlike 3-tu-compiler-analyzer which runs one per C/C++ TU). Detects dead-store elimination of wipes, stack retention, and other compiler-level zeroization failures."
 model: inherit
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Write
-  - Bash
+tools: Read, Grep, Glob, Write, Bash
 ---
 
 # 3b-rust-compiler-analyzer

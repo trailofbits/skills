@@ -2,12 +2,7 @@
 name: trailofbits:audit-context
 description: Builds deep architectural context before vulnerability hunting
 argument-hint: "<codebase-path> [--focus <module>]"
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
-  - Task
+allowed-tools: Read Grep Glob Bash Task
 ---
 
 # Build Audit Context

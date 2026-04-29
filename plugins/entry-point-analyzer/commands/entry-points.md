@@ -2,11 +2,7 @@
 name: trailofbits:entry-points
 description: Identifies state-changing entry points in smart contracts
 argument-hint: "[directory-path]"
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
+allowed-tools: Read Grep Glob Bash
 ---
 
 # Analyze Smart Contract Entry Points

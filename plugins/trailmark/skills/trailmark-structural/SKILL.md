@@ -1,16 +1,13 @@
 ---
 name: trailmark-structural
-description: "Runs full trailmark structural analysis with all pre-analysis passes (blast radius, taint propagation, privilege boundaries, complexity hotspots). Use when vivisect needs detailed structural data for a target. Triggers: structural analysis, blast radius, taint analysis, complexity hotspots."
-allowed-tools:
-  - Bash
-  - Read
-  - Grep
-  - Glob
+description: "Runs full Trailmark structural analysis on Trailmark 0.2.x by building a graph, running `preanalysis()`, and reporting hotspots, taint, blast radius, privilege boundaries, and attack surface. Use when vivisect needs detailed structural data for a target. Triggers: structural analysis, blast radius, taint analysis, complexity hotspots."
+allowed-tools: Bash Read Grep Glob
 ---
 
 # Trailmark Structural Analysis
 
-Runs `trailmark analyze` with all four pre-analysis passes.
+Builds a Trailmark graph and runs `engine.preanalysis()` to compute all
+four pre-analysis passes.
 
 ## When to Use
 
@@ -51,57 +48,72 @@ and return. Do NOT run `pip install`, `uv pip install`,
 `git clone`, or any install command. The user must install
 trailmark themselves.
 
-**Step 2: Detect the primary language.**
+**Step 2: Detect languages with Trailmark's parse API.**
 
 ```bash
-find {args} -type f \( -name '*.rs' -o -name '*.py' \
-  -o -name '*.go' -o -name '*.js' -o -name '*.jsx' \
-  -o -name '*.ts' -o -name '*.tsx' -o -name '*.sol' \
-  -o -name '*.c' -o -name '*.h' -o -name '*.cpp' \
-  -o -name '*.hpp' -o -name '*.hh' -o -name '*.cc' \
-  -o -name '*.cxx' -o -name '*.hxx' \
-  -o -name '*.rb' -o -name '*.php' -o -name '*.cs' \
-  -o -name '*.java' -o -name '*.hs' -o -name '*.erl' \
-  -o -name '*.cairo' -o -name '*.circom' \) 2>/dev/null | \
-  sed 's/.*\.//' | sort | uniq -c | sort -rn | head -5
+python3 - "{args}" <<'PY'
+import json
+import sys
+
+from trailmark.parse import detect_languages
+
+print(json.dumps(detect_languages(sys.argv[1])))
+PY
 ```
 
-Map the most common extension to a language flag:
-- `.rs` -> `--language rust`
-- `.py` -> (no flag, Python is default)
-- `.go` -> `--language go`
-- `.js`/`.jsx` -> `--language javascript`
-- `.ts`/`.tsx` -> `--language typescript`
-- `.sol` -> `--language solidity`
-- `.c`/`.h` -> `--language c`
-- `.cpp`/`.hpp`/`.hh`/`.cc`/`.cxx`/`.hxx` -> `--language cpp`
-- `.rb` -> `--language ruby`
-- `.php` -> `--language php`
-- `.cs` -> `--language c_sharp`
-- `.java` -> `--language java`
-- `.hs` -> `--language haskell`
-- `.erl` -> `--language erlang`
-- `.cairo` -> `--language cairo`
-- `.circom` -> `--language circom`
+If the import fails, rerun the same snippet with `uv run python - "{args}"`.
+If the result is `[]`, report "Trailmark found no supported languages under
+target" and return.
 
-**Step 3: Run the full structural analysis.**
+**Step 3: Run the full structural analysis via `QueryEngine`.**
+
+Run this snippet with `python3`. If the import fails, rerun the same snippet
+under `uv run python - "{args}"`.
 
 ```bash
-trailmark analyze \
-  --passes blast_radius,taint,privilege_boundary,complexity \
-  {language_flag} {args} 2>&1 || \
-uv run trailmark analyze \
-  --passes blast_radius,taint,privilege_boundary,complexity \
-  {language_flag} {args} 2>&1
+python3 - "{args}" <<'PY'
+import json
+import sys
+
+from trailmark.parse import detect_languages
+from trailmark.query.api import QueryEngine
+
+target = sys.argv[1]
+languages = detect_languages(target)
+engine = QueryEngine.from_directory(target, language="auto")
+preanalysis = engine.preanalysis()
+
+def summarize_subgraph(name: str, limit: int = 25) -> dict[str, object]:
+    nodes = engine.subgraph(name)
+    return {
+        "count": len(nodes),
+        "sample_ids": [node["id"] for node in nodes[:limit]],
+    }
+
+payload = {
+    "languages": languages,
+    "summary": engine.summary(),
+    "preanalysis": preanalysis,
+    "attack_surface": engine.attack_surface()[:25],
+    "hotspots": engine.complexity_hotspots(10)[:25],
+    "subgraphs": {
+        name: summarize_subgraph(name)
+        for name in engine.subgraph_names()
+    },
+}
+
+print(json.dumps(payload, indent=2))
+PY
 ```
 
 **Step 4: Verify the output.**
 
 The output should include:
-- Hotspot scores (complexity data)
-- Tainted node list (taint propagation data)
-- Blast radius data
-- Privilege boundary information
+- `languages`
+- `summary`
+- `preanalysis`
+- `hotspots` (possibly empty)
+- `subgraphs` with counts and sample IDs
 
-Some passes may produce no data for some codebases (this is
-normal). Return the full output regardless.
+Some subgraphs may have zero nodes for some codebases (this is
+normal). Return the full JSON payload regardless.
