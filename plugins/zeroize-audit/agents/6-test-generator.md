@@ -2,12 +2,7 @@
 name: 6-test-generator
 description: "Generates runtime validation test harnesses (C tests, MSAN, Valgrind targets) for confirmed zeroize-audit findings. Produces a Makefile for automated test execution."
 model: inherit
-allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Grep
-  - Glob
+tools: Read, Write, Bash, Grep, Glob
 ---
 
 # 6-test-generator
