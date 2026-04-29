@@ -1,8 +1,7 @@
 # {{PROJECT_NAME}} Devcontainer
 # Based on Microsoft devcontainer image for better devcontainer integration
-ARG UV_VERSION=0.10.0
-FROM ghcr.io/astral-sh/uv:${UV_VERSION}@sha256:78a7ff97cd27b7124a5f3c2aefe146170793c56a1e03321dd31a289f6d82a04f AS uv
-FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04@sha256:d94c97dd9cacf183d0a6fd12a8e87b526e9e928307674ae9c94139139c0c6eae
+FROM ghcr.io/astral-sh/uv:0.10@sha256:10902f58a1606787602f303954cea099626a4adb02acbac4c69920fe9d278f82 AS uv
+FROM mcr.microsoft.com/devcontainers/base:ubuntu24.04@sha256:4bcb1b466771b1ba1ea110e2a27daea2f6093f9527fb75ee59703ec89b5561cb
 
 ARG TZ
 ENV TZ="$TZ"
@@ -44,7 +43,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
 COPY --from=uv /uv /usr/local/bin/uv
 
 # Install fzf from GitHub releases (newer than apt, includes built-in shell integration)
-ARG FZF_VERSION=0.67.0
+ARG FZF_VERSION=0.70.0
 RUN ARCH=$(dpkg --print-architecture) && \
   case "${ARCH}" in \
     amd64) FZF_ARCH="linux_amd64" ;; \
@@ -76,7 +75,8 @@ ENV PATH="/home/vscode/.local/bin:$PATH"
 # Install Claude Code natively with marketplace plugins
 RUN curl -fsSL https://claude.ai/install.sh | bash && \
   claude plugin marketplace add anthropics/skills && \
-  claude plugin marketplace add trailofbits/skills
+  claude plugin marketplace add trailofbits/skills && \
+  claude plugin marketplace add trailofbits/skills-curated
 
 # Install Python 3.13 via uv (fast binary download, not source compilation)
 RUN uv python install 3.13 --default

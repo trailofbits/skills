@@ -12,6 +12,10 @@ url=$(jq -r '.tool_input.url // empty' 2>/dev/null) || exit 0
 stripped="${url#http://}"
 stripped="${stripped#https://}"
 
+# Strip query string and fragment before parsing
+stripped="${stripped%%\?*}"
+stripped="${stripped%%#*}"
+
 # Extract hostname and path
 host="${stripped%%/*}"
 path="${stripped#*/}"
@@ -36,6 +40,8 @@ case "$host" in
       suggestion="Use \`gh pr list --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` or \`gh pr view\` instead"
     elif [[ $path =~ ^repos/([^/]+)/([^/]+)/issues ]]; then
       suggestion="Use \`gh issue list --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` or \`gh issue view\` instead"
+    elif [[ $path =~ ^repos/([^/]+)/([^/]+)/contents ]]; then
+      suggestion="Use \`gh repo clone ${BASH_REMATCH[1]}/${BASH_REMATCH[2]} \"\${TMPDIR:-/tmp}/gh-clones-\${CLAUDE_SESSION_ID}/${BASH_REMATCH[2]}\" -- --depth 1\`, then use the Explore agent on the clone. Do NOT use \`gh api\` to fetch and base64-decode file contents — clone the repo instead"
     elif [[ $path =~ ^repos/([^/]+)/([^/]+)/releases ]]; then
       suggestion="Use \`gh release list --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` or \`gh api ${path}\` instead"
     elif [[ $path =~ ^repos/([^/]+)/([^/]+)/actions ]]; then
@@ -47,9 +53,9 @@ case "$host" in
   raw.githubusercontent.com)
     # raw.githubusercontent.com/{owner}/{repo}/{ref}/{path}
     if [[ $path =~ ^([^/]+)/([^/]+)/[^/]+/(.+) ]]; then
-      suggestion="Use \`gh api repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/contents/${BASH_REMATCH[3]}\` instead"
+      suggestion="Use \`gh repo clone ${BASH_REMATCH[1]}/${BASH_REMATCH[2]} \"\${TMPDIR:-/tmp}/gh-clones-\${CLAUDE_SESSION_ID}/${BASH_REMATCH[2]}\" -- --depth 1\`, then use the Explore agent on the clone. Do NOT use \`gh api\` to fetch and base64-decode file contents — clone the repo instead"
     else
-      suggestion="Use \`gh api\` to fetch raw file contents instead"
+      suggestion="Use \`gh repo clone\` to a temp directory, then use the Explore agent on the clone. Do NOT use \`gh api\` to fetch and base64-decode file contents — clone the repo instead"
     fi
     ;;
   gist.github.com)
@@ -69,9 +75,9 @@ case "$host" in
     elif [[ $path =~ ^([^/]+)/([^/]+)/releases/download/ ]]; then
       suggestion="Use \`gh release download --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
     elif [[ $path =~ ^([^/]+)/([^/]+)/blob/ ]]; then
-      suggestion="Use \`gh api repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/contents/...\` or clone and use Read tool instead"
-    elif [[ $path =~ ^([^/]+)/([^/]+)/tree/([^/]+)/(.*) ]]; then
-      suggestion="Use \`gh api repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/contents/${BASH_REMATCH[4]}?ref=${BASH_REMATCH[3]}\` instead"
+      suggestion="Use \`gh repo clone ${BASH_REMATCH[1]}/${BASH_REMATCH[2]} \"\${TMPDIR:-/tmp}/gh-clones-\${CLAUDE_SESSION_ID}/${BASH_REMATCH[2]}\" -- --depth 1\`, then use the Explore agent on the clone. Do NOT use \`gh api\` to fetch and base64-decode file contents — clone the repo instead"
+    elif [[ $path =~ ^([^/]+)/([^/]+)/tree/ ]]; then
+      suggestion="Use \`gh repo clone ${BASH_REMATCH[1]}/${BASH_REMATCH[2]} \"\${TMPDIR:-/tmp}/gh-clones-\${CLAUDE_SESSION_ID}/${BASH_REMATCH[2]}\" -- --depth 1\`, then use the Explore agent on the clone. Do NOT use \`gh api\` to fetch and base64-decode file contents — clone the repo instead"
     elif [[ $path =~ ^([^/]+)/([^/]+) ]]; then
       suggestion="Use \`gh repo view ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
     else

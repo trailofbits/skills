@@ -47,6 +47,13 @@ Use this plugin when you need to:
 - Aggregate and deduplicate results from multiple files
 - CI/CD integration patterns
 
+## Agents Included
+
+| Agent              | Tools                  | Purpose                                                        |
+|--------------------|------------------------|----------------------------------------------------------------|
+| `semgrep-scanner`  | Bash                   | Executes parallel semgrep scans for a language category        |
+| `semgrep-triager`  | Read, Grep, Glob, Write | Classifies findings as true/false positives by reading source |
+
 ## Installation
 
 ```

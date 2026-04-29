@@ -1,6 +1,6 @@
 # Diagnostic Query Templates
 
-Language-specific QL queries for enumerating sources and sinks recognized by CodeQL. Used by the [create-data-extensions workflow](../workflows/create-data-extensions.md).
+Language-specific QL queries for enumerating sources and sinks recognized by CodeQL. Used during the data extensions creation process.
 
 ## Source Enumeration Query
 

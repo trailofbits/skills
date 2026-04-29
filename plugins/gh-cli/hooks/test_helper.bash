@@ -22,14 +22,31 @@ run_curl_hook() {
 }
 
 # Run hook without gh available (for testing early exit)
+# Create a minimal PATH containing jq but not gh.
+# On Ubuntu CI runners, both live in /usr/bin, so we can't just restrict PATH.
+# Instead, create a temp dir with only a jq symlink.
+_make_path_without_gh() {
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  ln -s "$(command -v jq)" "${tmpdir}/jq"
+  ln -s "$(command -v bash)" "${tmpdir}/bash"
+  echo "$tmpdir"
+}
+
 run_fetch_hook_no_gh() {
   local url="$1"
-  run env PATH=/usr/bin:/bin bash -c 'jq -n --arg url "$1" '"'"'{"tool_input":{"url":$url,"prompt":"test"}}'"'"' 2>/dev/null | "$2"' _ "$url" "$FETCH_HOOK"
+  local safe_path
+  safe_path="$(_make_path_without_gh)"
+  run env PATH="$safe_path" bash -c 'jq -n --arg url "$1" '"'"'{"tool_input":{"url":$url,"prompt":"test"}}'"'"' 2>/dev/null | "$2"' _ "$url" "$FETCH_HOOK"
+  rm -rf "$safe_path"
 }
 
 run_curl_hook_no_gh() {
   local cmd="$1"
-  run env PATH=/usr/bin:/bin bash -c 'jq -n --arg cmd "$1" '"'"'{"tool_input":{"command":$cmd}}'"'"' 2>/dev/null | "$2"' _ "$cmd" "$CURL_HOOK"
+  local safe_path
+  safe_path="$(_make_path_without_gh)"
+  run env PATH="$safe_path" bash -c 'jq -n --arg cmd "$1" '"'"'{"tool_input":{"command":$cmd}}'"'"' 2>/dev/null | "$2"' _ "$cmd" "$CURL_HOOK"
+  rm -rf "$safe_path"
 }
 
 # Assert the hook allowed the action (exit 0, no output)

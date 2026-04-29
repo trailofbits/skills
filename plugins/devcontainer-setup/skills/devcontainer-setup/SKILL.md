@@ -89,11 +89,14 @@ Then apply language-specific modifications below.
 
 The base template includes:
 
-- **Claude Code** with marketplace plugins (anthropics/skills, trailofbits/skills)
+- **Claude Code** with marketplace plugins (anthropics/skills, trailofbits/skills, trailofbits/skills-curated)
+- **Sandboxing** via bubblewrap and socat
 - **Python 3.13** via uv (fast binary download)
 - **Node 22** via fnm (Fast Node Manager)
 - **ast-grep** for AST-based code search
 - **Network isolation tools** (iptables, ipset) with NET_ADMIN capability
+- **Security mounts**: `.devcontainer/` mounted read-only to prevent container escape
+- **Token forwarding**: `CLAUDE_CODE_OAUTH_TOKEN` and `ANTHROPIC_API_KEY` via `remoteEnv`
 - **Modern CLI tools**: ripgrep, fd, fzf, tmux, git-delta
 
 ---

@@ -14,31 +14,38 @@ Control which source categories are active during CodeQL analysis. By default, o
 
 ## Default Behavior
 
-With no `--threat-models` flag, CodeQL uses `remote` only. This is correct for most web applications and APIs. Expanding beyond `remote` is useful when the application's trust boundary extends to local inputs.
+With no `--threat-model` flag, CodeQL uses `remote` only (the `default` group). This is correct for most web applications and APIs. Expanding beyond `remote` is useful when the application's trust boundary extends to local inputs.
 
 ## Usage
 
-Enable additional threat models with the `--threat-models` flag:
+Enable additional threat models with the `--threat-model` flag (singular, NOT `--threat-models`):
 
 ```bash
-# Web service (default — remote only)
+# Web service (default — remote only, no flag needed)
 codeql database analyze codeql.db \
-  -- codeql/python-queries
+  -- results/suite.qls
 
 # CLI tool — local users can provide malicious input
 codeql database analyze codeql.db \
-  --threat-models=remote,local \
-  -- codeql/python-queries
+  --threat-model local \
+  -- results/suite.qls
 
 # Container app reading env vars from untrusted orchestrator
 codeql database analyze codeql.db \
-  --threat-models=remote,environment \
-  -- codeql/python-queries
+  --threat-model local --threat-model environment \
+  -- results/suite.qls
 
 # Full coverage — audit mode for all input vectors
 codeql database analyze codeql.db \
-  --threat-models=remote,local,environment,database,file \
-  -- codeql/python-queries
+  --threat-model all \
+  -- results/suite.qls
+
+# Enable all except database (to reduce noise)
+codeql database analyze codeql.db \
+  --threat-model all --threat-model '!database' \
+  -- results/suite.qls
 ```
+
+The `--threat-model` flag can be repeated. Each invocation adds (or removes with `!` prefix) a threat model group. The `remote` group is always enabled by default — use `--threat-model '!default'` to disable it (rare). The `all` group enables everything, and `!<name>` disables a specific model.
 
 Multiple models can be combined. Each additional model expands the set of sources CodeQL considers tainted, increasing coverage but potentially increasing false positives. Start with the narrowest set that matches the application's actual threat model, then expand if needed.

@@ -8,18 +8,9 @@ command -v gh &>/dev/null || exit 0
 cmd=$(jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
 [[ -z "$cmd" ]] && exit 0
 
-# Skip if already using gh CLI
-if [[ $cmd =~ (^|[[:space:];|&])gh[[:space:]] ]]; then
-  exit 0
-fi
-
-# Skip git commands (git clone, git remote, etc. legitimately use github URLs)
-if [[ $cmd =~ (^|[[:space:];|&])git[[:space:]] ]]; then
-  exit 0
-fi
-
 # Only intercept commands that use curl or wget
 if ! [[ $cmd =~ (^|[[:space:];|&])(curl|wget)[[:space:]] ]]; then
+  # No curl/wget — skip gh and git commands without further checks
   exit 0
 fi
 
@@ -40,6 +31,8 @@ elif [[ $cmd =~ api\.github\.com/repos/([^/]+)/([^/]+)/issues ]]; then
   suggestion="Use \`gh issue list --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
 elif [[ $cmd =~ api\.github\.com/repos/([^/]+)/([^/]+)/actions ]]; then
   suggestion="Use \`gh run list --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
+elif [[ $cmd =~ api\.github\.com/repos/([^/]+)/([^/]+)/contents ]]; then
+  suggestion="Use \`gh repo clone ${BASH_REMATCH[1]}/${BASH_REMATCH[2]} \"\${TMPDIR:-/tmp}/gh-clones-\${CLAUDE_SESSION_ID}/${BASH_REMATCH[2]}\" -- --depth 1\`, then use the Explore agent on the clone. Do NOT use \`gh api\` to fetch and base64-decode file contents — clone the repo instead"
 elif [[ $cmd =~ api\.github\.com/([^[:space:]\"\']+) ]]; then
   suggestion="Use \`gh api ${BASH_REMATCH[1]}\` instead"
 elif [[ $cmd =~ github\.com/([^/]+)/([^/]+)/releases/download/ ]]; then
@@ -47,7 +40,7 @@ elif [[ $cmd =~ github\.com/([^/]+)/([^/]+)/releases/download/ ]]; then
 elif [[ $cmd =~ github\.com/([^/]+)/([^/]+)/archive/ ]]; then
   suggestion="Use \`gh release download --repo ${BASH_REMATCH[1]}/${BASH_REMATCH[2]}\` instead"
 elif [[ $cmd =~ raw\.githubusercontent\.com/([^/]+)/([^/]+)/[^/]+/([^[:space:]\"\']+) ]]; then
-  suggestion="Use \`gh api repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/contents/${BASH_REMATCH[3]}\` instead"
+  suggestion="Use \`gh repo clone ${BASH_REMATCH[1]}/${BASH_REMATCH[2]} \"\${TMPDIR:-/tmp}/gh-clones-\${CLAUDE_SESSION_ID}/${BASH_REMATCH[2]}\" -- --depth 1\`, then use the Explore agent on the clone. Do NOT use \`gh api\` to fetch and base64-decode file contents — clone the repo instead"
 elif [[ $cmd =~ gist\.github\.com/ ]]; then
   suggestion="Use \`gh gist view\` instead"
 fi

@@ -1,11 +1,11 @@
 ---
 name: sarif-parsing
-description: Parse, analyze, and process SARIF (Static Analysis Results Interchange Format) files. Use when reading security scan results, aggregating findings from multiple tools, deduplicating alerts, extracting specific vulnerabilities, or integrating SARIF data into CI/CD pipelines.
-allowed-tools:
-  - Bash
-  - Read
-  - Glob
-  - Grep
+description: >-
+  Parses and processes SARIF files from static analysis tools like CodeQL, Semgrep, or other
+  scanners. Triggers on "parse sarif", "read scan results", "aggregate findings", "deduplicate
+  alerts", or "process sarif output". Handles filtering, deduplication, format conversion, and
+  CI/CD integration of SARIF data. Does NOT run scans — use the Semgrep or CodeQL skills for that.
+allowed-tools: Bash Read Glob Grep
 ---
 
 # SARIF Parsing Best Practices

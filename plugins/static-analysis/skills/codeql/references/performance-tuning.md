@@ -106,6 +106,6 @@ codeql database cleanup codeql_1.db
 | OOM during analysis | Not enough RAM | Increase `CODEQL_RAM` |
 | Slow database creation | Complex build | Use `--threads`, simplify build |
 | Slow query execution | Large codebase | Reduce query scope, add RAM |
-| Database too large | Too many files | Use exclusion config (see [build-database workflow](../workflows/build-database.md#1b-create-exclusion-config-interpreted-languages-only)) |
+| Database too large | Too many files | Use exclusion config (`codeql-config.yml` with `paths-ignore`) |
 | Single query hangs | Runaway evaluation | Use `--timeout` and check `--evaluator-log` |
 | Repeated runs still slow | Cache not used | Check you're using same database path |

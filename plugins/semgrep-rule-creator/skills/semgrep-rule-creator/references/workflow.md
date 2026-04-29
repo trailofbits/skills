@@ -55,7 +55,7 @@ You must include test cases for:
 **Why analyze AST?** Semgrep matches against the AST, not raw text. Code that looks similar may parse differently (e.g., `foo.bar()` vs `foo().bar`). The AST dump shows exactly what Semgrep sees, preventing patterns that fail due to unexpected tree structure. Understanding how exactly Semgrep parses code is crucial for writing precise patterns.
 
 ```bash
-semgrep --dump-ast -l <language> <rule-id>.<ext>
+semgrep --dump-ast --lang <language> <rule-id>.<ext>
 ```
 
 Example output helps understand:
@@ -103,7 +103,7 @@ If tests fail, check:
 #### Debug Taint Mode Rules
 
 ```bash
-semgrep --dataflow-traces -f <rule-id>.yaml <rule-id>.<ext>
+semgrep --dataflow-traces --config <rule-id>.yaml <rule-id>.<ext>
 ```
 
 Shows:
@@ -123,7 +123,7 @@ semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
 
 For debugging taint mode rules:
 ```bash
-semgrep --dataflow-traces -f <rule-id>.yaml <rule-id>.<ext>
+semgrep --dataflow-traces --config <rule-id>.yaml <rule-id>.<ext>
 ```
 
 **Verification checkpoint**: Output MUST show "All tests passed". **Only proceed when validation passes**.
@@ -235,6 +235,6 @@ Run the Semgrep rule you created using: `semgrep --config <rule-id>.yaml <rule-i
 
 Ensure that message:
  1. Contains a short and concise explanation of the matched pattern
- 2. Has no uninterpolated metavariables (e.g., $OP, $VAR). All metavariables referenced in the message must be captured by the pattern so they interpolate to actual code. 
+ 2. Has no uninterpolated metavariables (e.g., $OP, $VAR). All metavariables referenced in the message must be captured by the pattern so they interpolate to actual code.
 
 Fix any message issues and re-run that Semgrep rule after each fix.

@@ -14,43 +14,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ruff:
-    name: Python (ruff)
+  pre-commit:
+    name: Pre-commit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false
-      - uses: astral-sh/ruff-action@4919ec5cf1f49eff0871dbcea0da843445b837e6  # v3.6.1
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
-          args: check --output-format=github
-      - uses: astral-sh/ruff-action@4919ec5cf1f49eff0871dbcea0da843445b837e6  # v3.6.1
-        with:
-          args: format --check
-
-  shellcheck:
-    name: Shell (shellcheck)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-        with:
-          persist-credentials: false
-      - name: Run shellcheck
-        run: find plugins -name "*.sh" -type f -exec shellcheck -x {} +
-
-  shfmt:
-    name: Shell (shfmt)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-        with:
-          persist-credentials: false
-      - name: Install shfmt
-        run: |
-          curl -sS https://webinstall.dev/shfmt | bash
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Run shfmt
-        run: find plugins -name "*.sh" -type f -exec shfmt -i 2 -ci -d {} +
+          python-version: "3.13"
+      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd  # v3.0.1
 
   bats:
     name: Shell (bats)
@@ -65,5 +39,51 @@ jobs:
           sudo apt-get install -y bats
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Run hook tests
-        run: bats plugins/modern-python/hooks/*.bats
+      - name: Run bats tests
+        run: find plugins -name "*.bats" -type f -print0 | xargs -0 --no-run-if-empty bats
+
+  python-tests:
+    name: Python tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Install toolchain dependencies
+        # constant-time-analysis tests cross-compile C to aarch64 via
+        # `clang --target=aarch64-unknown-linux-gnu`. Without the cross
+        # sysroot, clang fails with:
+        #   fatal error: 'bits/libc-header-start.h' file not found
+        # libc6-dev-arm64-cross supplies the aarch64 headers and crt files;
+        # gcc-aarch64-linux-gnu pulls in binutils-aarch64-linux-gnu (the
+        # cross linker clang invokes). --no-install-recommends suppresses
+        # Recommends, so each package must be listed explicitly.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang \
+            gcc-aarch64-linux-gnu \
+            libc6-dev-arm64-cross
+      - name: Discover and run plugin Python tests
+        shell: bash
+        run: |
+          # Intentionally omit -e: we want every test file to run even if
+          # one fails, then exit with a combined failure code via `failed`.
+          set -uo pipefail
+          mapfile -d '' files < <(find plugins -type f \( -name 'test_*.py' -o -name '*_test.py' \) -print0)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No Python test files found under plugins/."
+            exit 0
+          fi
+          failed=0
+          for f in "${files[@]}"; do
+            echo "::group::$f"
+            if ! python3 "$f"; then
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$failed"

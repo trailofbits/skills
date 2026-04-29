@@ -47,3 +47,12 @@ Inline arguments pre-fill the scope and focus, skipping redundant questions.
 ## How It Works
 
 Shells out to `codex review` and/or `gemini` CLI with high-capability model configurations. When both tools are selected (the default), runs Codex first then Gemini, presenting results side by side for comparison.
+
+## Codex MCP Tools
+
+This plugin bundles Codex CLI's built-in MCP server (`codex mcp-server`), which auto-starts when the plugin is installed and provides two MCP tools:
+
+- **codex** — start a new Codex session with a prompt, model, sandbox, and approval policy settings
+- **codex-reply** — continue an existing session by thread ID for multi-turn conversations
+
+These tools work independently of the `/second-opinion` slash command. Use them when you want direct, programmatic access to Codex without the interactive prompt workflow.
