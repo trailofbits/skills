@@ -60,11 +60,15 @@ full set of reachable nodes from any entrypoint.
 | `entrypoints:trusted_internal` | Entrypoints at trusted level |
 
 ```python
+import json
+
 engine.preanalysis()
 
 # Nodes NOT reachable from any entrypoint (potential dead code)
-all_ids = {n["id"] for n in engine.subgraph("entrypoint_reachable")}
-# Compare with full node set from engine.summary()
+reachable_ids = {n["id"] for n in engine.subgraph("entrypoint_reachable")}
+graph = json.loads(engine.to_json())
+all_ids = set(graph["nodes"])
+dead_ids = sorted(all_ids - reachable_ids)
 ```
 
 ---

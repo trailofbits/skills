@@ -2,6 +2,10 @@
 
 **Source code graph analysis for security auditing.** Parses code into queryable graphs of functions, classes, and calls, then uses that structure for diagram generation, mutation testing triage, protocol verification, and differential review.
 
+These skills target Trailmark 0.2.x. Prefer `--language auto`,
+`trailmark.parse.detect_languages()`, and `QueryEngine.preanalysis()`
+instead of older 0.1.x-era manual language detection workflows.
+
 ## Prerequisites
 
 [Trailmark](https://pypi.org/project/trailmark/) ([source](https://github.com/trailofbits/trailmark)) must be installed:
@@ -22,7 +26,7 @@ uv pip install trailmark
 | `graph-evolution` | Compare code graphs at two snapshots to surface security-relevant structural changes text diffs miss |
 | `mermaid-to-proverif` | Convert Mermaid sequence diagrams into ProVerif formal verification models |
 | `audit-augmentation` | Project SARIF and weAudit findings onto code graphs as annotations and subgraphs |
-| `trailmark-summary` | Quick structural overview (language detection, entry points, dependencies) for vivisect/galvanize |
+| `trailmark-summary` | Quick structural overview (auto-detected languages, entry points, dependencies) for vivisect/galvanize |
 | `trailmark-structural` | Full structural analysis with all pre-analysis passes (blast radius, taint, privilege boundaries, complexity) |
 
 ## Directory Structure

@@ -1,12 +1,12 @@
 ---
 name: trailmark
-description: "Builds and queries multi-language source code graphs for security analysis. Includes pre-analysis passes for blast radius, taint propagation, privilege boundaries, and entry point enumeration. Use when analyzing call paths, mapping attack surface, finding complexity hotspots, enumerating entry points, tracing taint propagation, measuring blast radius, or building a code graph for audit prioritization. Supports 16 languages including Solidity, Cairo, Circom, Rust, Go, Python, C/C++, TypeScript."
+description: "Builds and queries multi-language source code graphs for security analysis. Includes pre-analysis passes for blast radius, taint propagation, privilege boundaries, and entry point enumeration. Use when analyzing call paths, mapping attack surface, finding complexity hotspots, enumerating entry points, tracing taint propagation, measuring blast radius, or building a code graph for audit prioritization. Prefer `trailmark.parse.detect_languages()` or `--language auto` when the target language is unknown or polyglot."
 ---
 
 # Trailmark
 
 Parses source code into a directed graph of functions, classes, calls, and
-semantic metadata for security analysis. Supports 16 languages.
+semantic metadata for security analysis.
 
 ## When to Use
 
@@ -55,25 +55,30 @@ to the user instead of silently switching to manual code reading.
 ## Quick Start
 
 ```bash
-# Python (default)
-uv run trailmark analyze --summary {targetDir}
+# Auto-detect and merge every supported language under the tree
+uv run trailmark analyze --language auto --summary {targetDir}
 
-# Other languages
+# Explicit languages (single language or comma-separated list)
 uv run trailmark analyze --language rust {targetDir}
-uv run trailmark analyze --language javascript {targetDir}
-uv run trailmark analyze --language go --summary {targetDir}
+uv run trailmark analyze --language python,rust {targetDir}
 
 # Complexity hotspots
-uv run trailmark analyze --complexity 10 {targetDir}
+uv run trailmark analyze --language auto --complexity 10 {targetDir}
 ```
 
 ### Programmatic API
 
 ```python
+from trailmark.parse import detect_languages, supported_languages
 from trailmark.query.api import QueryEngine
 
-# Specify language (defaults to "python")
-engine = QueryEngine.from_directory("{targetDir}", language="rust")
+# Ask the installed Trailmark build what it supports
+supported_languages()
+detect_languages("{targetDir}")
+
+# Prefer auto for unknown or polyglot trees; use explicit lists when needed
+engine = QueryEngine.from_directory("{targetDir}", language="auto")
+engine = QueryEngine.from_directory("{targetDir}", language="python,rust")
 
 engine.callers_of("function_name")
 engine.callees_of("function_name")
@@ -127,31 +132,33 @@ Results are stored as annotations and named subgraphs on the graph.
 For detailed documentation, see
 [references/preanalysis-passes.md](references/preanalysis-passes.md).
 
-## Supported Languages
+## Language Selection
 
-| Language | `--language` value | Extensions |
-| --- | --- | --- |
-| Python | `python` | `.py` |
-| JavaScript | `javascript` | `.js`, `.jsx` |
-| TypeScript | `typescript` | `.ts`, `.tsx` |
-| PHP | `php` | `.php` |
-| Ruby | `ruby` | `.rb` |
-| C | `c` | `.c`, `.h` |
-| C++ | `cpp` | `.cpp`, `.hpp`, `.cc`, `.hh`, `.cxx`, `.hxx` |
-| C# | `c_sharp` | `.cs` |
-| Java | `java` | `.java` |
-| Go | `go` | `.go` |
-| Rust | `rust` | `.rs` |
-| Solidity | `solidity` | `.sol` |
-| Cairo | `cairo` | `.cairo` |
-| Haskell | `haskell` | `.hs` |
-| Circom | `circom` | `.circom` |
-| Erlang | `erlang` | `.erl` |
+Do not hardcode a stale language table in downstream workflows. Ask the
+installed Trailmark build what it supports:
+
+```python
+from trailmark.parse import detect_languages, supported_languages
+
+supported_languages()
+detect_languages("{targetDir}")
+```
+
+CLI patterns:
+
+```bash
+# Auto-detect and merge
+uv run trailmark analyze --language auto {targetDir}
+
+# Explicit list for a known polyglot target
+uv run trailmark analyze --language python,rust {targetDir}
+```
 
 ## Graph Model
 
 **Node kinds:** `function`, `method`, `class`, `module`, `struct`,
-`interface`, `trait`, `enum`, `namespace`, `contract`, `library`
+`interface`, `trait`, `enum`, `namespace`, `contract`, `library`,
+`template`
 
 **Edge kinds:** `calls`, `inherits`, `implements`, `contains`, `imports`
 
@@ -163,7 +170,8 @@ For detailed documentation, see
 - Cyclomatic complexity and branch metadata
 - Docstrings
 - Annotations: `assumption`, `precondition`, `postcondition`, `invariant`,
-  `blast_radius`, `privilege_boundary`, `taint_propagation`
+  `blast_radius`, `privilege_boundary`, `taint_propagation`, `finding`,
+  `audit_note` (last two set by `augment_sarif` / `augment_weaudit`)
 
 ### Per Edge
 - Source/target node IDs, edge kind, confidence level
