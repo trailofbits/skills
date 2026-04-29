@@ -258,8 +258,7 @@ Use distinctive keywords per workflow. If two workflows genuinely overlap, add a
 
 **Before:**
 ```markdown
-allowed-tools:
-  - Bash
+allowed-tools: Bash
 ```
 ```markdown
 Find all Python files:
@@ -270,10 +269,7 @@ find . -name "*.py" -type f
 
 **After:**
 ```markdown
-allowed-tools:
-  - Glob
-  - Grep
-  - Read
+allowed-tools: Glob Grep Read
 ```
 ```markdown
 Find all Python files using Glob with pattern `**/*.py`.
@@ -289,22 +285,12 @@ Find all Python files using Glob with pattern `**/*.py`.
 
 **Before:**
 ```yaml
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Glob
-  - Grep
-  - Task
-  - AskUserQuestion
+allowed-tools: Bash Read Write Glob Grep Task AskUserQuestion
 ```
 
 **After (for a read-only analysis skill):**
 ```yaml
-allowed-tools:
-  - Read
-  - Glob
-  - Grep
+allowed-tools: Read Glob Grep
 ```
 
 Only list tools the skill actually needs. Audit by checking which tools appear in instructions.

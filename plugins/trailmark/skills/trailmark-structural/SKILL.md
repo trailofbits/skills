@@ -1,11 +1,7 @@
 ---
 name: trailmark-structural
 description: "Runs full trailmark structural analysis with all pre-analysis passes (blast radius, taint propagation, privilege boundaries, complexity hotspots). Use when vivisect needs detailed structural data for a target. Triggers: structural analysis, blast radius, taint analysis, complexity hotspots."
-allowed-tools:
-  - Bash
-  - Read
-  - Grep
-  - Glob
+allowed-tools: Bash Read Grep Glob
 ---
 
 # Trailmark Structural Analysis

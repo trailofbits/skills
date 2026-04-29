@@ -75,9 +75,7 @@ plugins/
 ---
 name: skill-name              # kebab-case, max 64 chars
 description: "Third-person description of what it does and when to use it"
-allowed-tools:                # Optional: restrict to needed tools only
-  - Read
-  - Grep
+allowed-tools: Read Grep      # Optional: restrict to needed tools only
 ---
 ```
 

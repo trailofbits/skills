@@ -2,11 +2,7 @@
 name: 5b-poc-validator
 description: "Compiles and runs all PoCs for zeroize-audit findings. Produces poc_validation_results.json consumed by the verification agent and the orchestrator."
 model: inherit
-allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Grep
+tools: Read, Write, Bash, Grep
 ---
 
 # 5b-poc-validator
