@@ -346,14 +346,14 @@ cmd_sync() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-    --trusted)
-      trusted=true
-      shift
-      ;;
-    *)
-      filter="$1"
-      shift
-      ;;
+      --trusted)
+        trusted=true
+        shift
+        ;;
+      *)
+        filter="$1"
+        shift
+        ;;
     esac
   done
 
@@ -399,7 +399,7 @@ cmd_sync() {
 
     matched_any=true
     echo "  - ${name} (${status}) ${folder}"
-  done <<< "$container_ids"
+  done <<<"$container_ids"
 
   if [[ "$matched_any" == false ]]; then
     log_error "No devcontainers matching '${filter}'."
@@ -410,7 +410,7 @@ cmd_sync() {
       name=$(sync_get_project_name "$cid")
       status=$(docker inspect --format '{{.State.Status}}' "$cid")
       echo "  - ${name} (${status})"
-    done <<< "$container_ids"
+    done <<<"$container_ids"
     exit 1
   fi
 
@@ -429,7 +429,7 @@ cmd_sync() {
 
     sync_one_container "$cid" "$host_projects"
     echo ""
-  done <<< "$container_ids"
+  done <<<"$container_ids"
 
   log_success "Run '/insights' in Claude Code to include these sessions."
 }
@@ -450,10 +450,10 @@ sync_get_claude_projects_dir() {
   local cid="$1"
   local claude_dir
 
-  claude_dir=$(docker inspect --format '{{json .Config.Env}}' "$cid" \
-    | tr ',' '\n' | tr -d '[]"' \
-    | grep '^CLAUDE_CONFIG_DIR=' \
-    | cut -d= -f2- || true)
+  claude_dir=$(docker inspect --format '{{json .Config.Env}}' "$cid" |
+    tr ',' '\n' | tr -d '[]"' |
+    grep '^CLAUDE_CONFIG_DIR=' |
+    cut -d= -f2- || true)
 
   if [[ -n "$claude_dir" ]]; then
     echo "${claude_dir}/projects"
@@ -528,8 +528,8 @@ sync_one_container() {
       local dest_file="${dest_dir}/${rel}"
       mkdir -p "$(dirname "$dest_file")"
 
-      if [[ ! -e "$dest_file" ]] \
-          || [[ "$file" -nt "$dest_file" ]]; then
+      if [[ ! -e "$dest_file" ]] ||
+        [[ "$file" -nt "$dest_file" ]]; then
         cp -p "$file" "$dest_file"
         copied=$((copied + 1))
       fi
@@ -551,8 +551,8 @@ sync_one_container() {
     name=$(basename "$file")
     local dest_file="${dest_dir}/${name}"
 
-    if [[ ! -e "$dest_file" ]] \
-        || [[ "$file" -nt "$dest_file" ]]; then
+    if [[ ! -e "$dest_file" ]] ||
+      [[ "$file" -nt "$dest_file" ]]; then
       cp -p "$file" "$dest_file"
       orphan_copied=$((orphan_copied + 1))
     fi
@@ -620,8 +620,8 @@ discover_resources() {
   # Get volumes (docker volumes only, not bind mounts)
   while IFS= read -r vol; do
     [[ -n "$vol" ]] && VOLUMES+=("$vol")
-  done < <(docker inspect "$CONTAINER_ID" --format '{{json .Mounts}}' 2>/dev/null \
-    | jq -r '.[] | select(.Type == "volume") | .Name' 2>/dev/null)
+  done < <(docker inspect "$CONTAINER_ID" --format '{{json .Mounts}}' 2>/dev/null |
+    jq -r '.[] | select(.Type == "volume") | .Name' 2>/dev/null)
 
   # Get image and its -uid variant
   IMAGE=$(docker inspect "$CONTAINER_ID" --format '{{.Config.Image}}' 2>/dev/null || true)
@@ -672,7 +672,7 @@ cmd_destroy() {
   # Parse flags
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -f|--force)
+      -f | --force)
         force=true
         shift
         ;;
@@ -806,57 +806,57 @@ main() {
   shift
 
   case "$command" in
-  .)
-    cmd_dot
-    ;;
-  up)
-    cmd_up "$@"
-    ;;
-  rebuild)
-    cmd_rebuild "$@"
-    ;;
-  down)
-    cmd_down "$@"
-    ;;
-  destroy)
-    cmd_destroy "$@"
-    ;;
-  shell)
-    cmd_shell
-    ;;
-  exec)
-    [[ "${1:-}" == "--" ]] && shift
-    cmd_exec "$@"
-    ;;
-  upgrade)
-    cmd_upgrade
-    ;;
-  mount)
-    cmd_mount "$@"
-    ;;
-  sync)
-    cmd_sync "$@"
-    ;;
-  cp)
-    cmd_cp "$@"
-    ;;
-  self-install)
-    cmd_self_install
-    ;;
-  update)
-    cmd_update
-    ;;
-  template)
-    cmd_template "$@"
-    ;;
-  help | --help | -h)
-    print_usage
-    ;;
-  *)
-    log_error "Unknown command: $command"
-    print_usage
-    exit 1
-    ;;
+    .)
+      cmd_dot
+      ;;
+    up)
+      cmd_up "$@"
+      ;;
+    rebuild)
+      cmd_rebuild "$@"
+      ;;
+    down)
+      cmd_down "$@"
+      ;;
+    destroy)
+      cmd_destroy "$@"
+      ;;
+    shell)
+      cmd_shell
+      ;;
+    exec)
+      [[ "${1:-}" == "--" ]] && shift
+      cmd_exec "$@"
+      ;;
+    upgrade)
+      cmd_upgrade
+      ;;
+    mount)
+      cmd_mount "$@"
+      ;;
+    sync)
+      cmd_sync "$@"
+      ;;
+    cp)
+      cmd_cp "$@"
+      ;;
+    self-install)
+      cmd_self_install
+      ;;
+    update)
+      cmd_update
+      ;;
+    template)
+      cmd_template "$@"
+      ;;
+    help | --help | -h)
+      print_usage
+      ;;
+    *)
+      log_error "Unknown command: $command"
+      print_usage
+      exit 1
+      ;;
   esac
 }
 
