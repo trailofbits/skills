@@ -41,14 +41,18 @@ Examples:
     ├── Phase 1: Detect is_cpp / is_posix / is_windows (scope-scoped)
     ├── Phase 2-3: Output directory + context.md
     ├── Phase 4: Select clusters from prompts/clusters/manifest.json
-    ├── Phase 5: TaskCreate one context task + M cluster tasks (M = 7..11)
-    ├── Phase 6: Spawn M workers in a single message (parallel Agent calls,
-    │           subagent_type="c-review:c-review-worker")
-    │           └── Each worker: TaskList (self-check) →
+    ├── Phase 5: TaskCreate M cluster tasks (orchestrator-internal bookkeeping; workers
+    │           have no Task tools and never read or write the ledger)
+    ├── Phase 6: (optional) Phase 6a cache primer + Phase 6b stagger when
+    │           plan.run.cache_primer=true; Phase 6c spawns M workers in a single
+    │           message (parallel Agent calls, subagent_type="c-review:c-review-worker")
+    │           └── Each worker: validate spawn prompt (self-check) →
     │                            run assigned cluster prompt
     │                                   (Phase A inventory + focused passes) →
-    │                                   Write finding files → TaskUpdate(completed)
-    ├── Phase 7: Wait until all cluster tasks are completed; write findings-index.txt manifest
+    │                                   write finding files + per-worker shard
+    │                                   under findings-index.d/ → exit
+    ├── Phase 7: Wait until all workers complete; concatenate findings-index.d/ shards
+    │           into findings-index.txt
     ├── Phase 8: Judges sequentially — Dedup → FP+Severity
     │           ├── Dedup-judge:    reads ALL findings, merges duplicates (Tier 1 exact loc,
     │           │                   Tier 2 same-function snippet-confirmed), writes dedup-summary.md
@@ -63,11 +67,19 @@ Examples:
 ```
 ${output_dir}/
 ├── context.md             # threat model, scope, codebase summary
+├── plan.json              # build_run_plan.py output: cluster selection, worker assignments
+├── worker-prompts/        # build_run_plan.py output: one .txt per worker plus optional cache-primer.txt
+│   ├── worker-1.txt
+│   ├── worker-2.txt
+│   └── cache-primer.txt   # only when plan.run.cache_primer=true
 ├── findings/
 │   ├── BOF-001.md         # worker-written; judges add merged_into / fp_verdict / severity
 │   ├── UAF-001.md
 │   └── …
-├── findings-index.txt     # deterministic newline-separated manifest of finding files
+├── findings-index.d/      # per-worker shards (each worker writes its own paths here)
+│   ├── worker-1.txt
+│   └── …
+├── findings-index.txt     # deterministic newline-separated manifest (concat of shards)
 ├── dedup-summary.md       # dedup-judge (stage 1; absent on zero-findings runs)
 ├── fp-summary.md          # fp+severity-judge (stage 2)
 ├── REPORT.md              # severity-filtered human-facing report
@@ -100,4 +112,4 @@ The authoritative list of clusters, pass ordering, gates, prefixes, and per-clas
 - Claude Code with `Task*` and `Agent` tools available to the main conversation.
 - Named plugin subagents enabled so workers and judges get their tool sets eagerly (no `ToolSearch` bootstrap needed).
 - `Write` + `Edit` for finding-file creation and in-place frontmatter updates.
-- Optional but recommended: `clangd` and `compile_commands.json` for LSP-backed verification (call graphs, types, references).
+- `python3` available on `PATH` for `scripts/build_run_plan.py` and `scripts/generate_sarif.py`.

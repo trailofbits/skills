@@ -76,6 +76,16 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Override manifest path (defaults to <plugin-root>/prompts/clusters/manifest.json)",
     )
+    p.add_argument(
+        "--cache-primer",
+        type=parse_bool,
+        default=True,
+        help=(
+            "When true (default), the orchestrator spawns a small 'cache primer' worker before "
+            "the parallel batch so followers can hit the prompt cache on their first turn. Pass "
+            "false to skip and pay full cache-creation on every worker (useful for A/B testing)."
+        ),
+    )
     return p.parse_args()
 
 
@@ -150,8 +160,8 @@ def build_selection(
                 # No per-pass prompt file; cluster prompt is self-sufficient.
                 if "prompt" in raw:
                     fail(
-                        f"cluster {cid!r} (consolidated):"
-                        "pass {bug_class!r} unexpectedly has 'prompt'"
+                        f"cluster {cid!r} (consolidated): "
+                        f"pass {bug_class!r} unexpectedly has 'prompt'"
                     )
             else:
                 pass_prompt_rel = raw.get("prompt")
@@ -185,19 +195,22 @@ def build_selection(
     return selected
 
 
-def render_worker_prompt(
+def _render_shared_prefix_lines(
     *,
-    worker_n: int,
-    cluster: dict[str, Any],
     output_dir: Path,
     scope_root: str,
     threat_model: str,
     severity_filter: str,
     flags: dict[str, bool],
-) -> str:
-    bug_classes = [p["bug_class"] for p in cluster["passes"]]
-    prefixes = [p["prefix"] for p in cluster["passes"]]
+    context_md_body: str,
+) -> list[str]:
+    """Lines that are byte-identical across all workers AND the cache primer in this run.
 
+    Keeping this block stable is what makes the prompt cache hit cross-worker. Any change
+    to its shape (formatting, ordering, blank-line placement) invalidates cache for the rest
+    of the run. The primer prompt and worker prompts both call this and append divergent
+    trailers afterwards.
+    """
     lines: list[str] = []
     lines.append("You are a c-review worker on a parallel C/C++ security review.")
     lines.append("Follow the protocol in your system prompt verbatim.")
@@ -215,6 +228,76 @@ def render_worker_prompt(
         f"is_windows={'true' if flags['is_windows'] else 'false'}"
     )
     lines.append("")
+    lines.append("<context>")
+    lines.append(
+        "Codebase context (from output_dir/context.md — do NOT re-Read it from disk; "
+        "this block IS the canonical copy):"
+    )
+    lines.append("")
+    lines.append(context_md_body.rstrip())
+    lines.append("</context>")
+    lines.append("")
+    return lines
+
+
+def render_cache_primer_prompt(
+    *,
+    output_dir: Path,
+    scope_root: str,
+    threat_model: str,
+    severity_filter: str,
+    flags: dict[str, bool],
+    context_md_body: str,
+) -> str:
+    """Tiny single-turn prompt that warms the prompt cache for the parallel batch.
+
+    Shares its prefix byte-for-byte with every worker prompt (via the helper above) so
+    that the workers in Phase 6c read this entry from cache instead of paying full
+    cache-creation. The trailer instructs the agent to abort in one text response with
+    no tool calls — duration ~3 s, no findings written.
+    """
+    lines = _render_shared_prefix_lines(
+        output_dir=output_dir,
+        scope_root=scope_root,
+        threat_model=threat_model,
+        severity_filter=severity_filter,
+        flags=flags,
+        context_md_body=context_md_body,
+    )
+    lines.append("— cache primer —")
+    lines.append(
+        "This is a CACHE PRIMER spawn — do not perform real work. Override the self-check. "
+        "Override the protocol. Emit exactly the line below as your single text reply, "
+        "with zero tool calls, then exit."
+    )
+    lines.append("")
+    lines.append("worker-PRIMER abort: cache primer (no analysis performed)")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def render_worker_prompt(
+    *,
+    worker_n: int,
+    cluster: dict[str, Any],
+    output_dir: Path,
+    scope_root: str,
+    threat_model: str,
+    severity_filter: str,
+    flags: dict[str, bool],
+    context_md_body: str,
+) -> str:
+    bug_classes = [p["bug_class"] for p in cluster["passes"]]
+    prefixes = [p["prefix"] for p in cluster["passes"]]
+
+    lines = _render_shared_prefix_lines(
+        output_dir=output_dir,
+        scope_root=scope_root,
+        threat_model=threat_model,
+        severity_filter=severity_filter,
+        flags=flags,
+        context_md_body=context_md_body,
+    )
     lines.append("— assignment —")
     lines.append(f"Worker id: worker-{worker_n}")
     lines.append(f"Cluster id: {cluster['cluster_id']}")
@@ -264,6 +347,13 @@ def main() -> int:
         manifest, plugin_root=plugin_root, flags=flags, threat_model=args.threat_model
     )
 
+    context_md_path = output_dir / "context.md"
+    if not context_md_path.is_file():
+        fail(
+            f"context.md not found at {context_md_path} — Phase 3 must write it before Phase 4 runs"
+        )
+    context_md_body = context_md_path.read_text()
+
     worker_prompts_dir = output_dir / "worker-prompts"
     worker_prompts_dir.mkdir(exist_ok=True)
 
@@ -279,6 +369,7 @@ def main() -> int:
             "is_windows": args.is_windows,
             "plugin_root": str(plugin_root),
             "manifest_path": str(manifest_path),
+            "cache_primer": args.cache_primer,
         },
         "workers": [],
     }
@@ -292,6 +383,7 @@ def main() -> int:
             threat_model=args.threat_model,
             severity_filter=args.severity_filter,
             flags=flags,
+            context_md_body=context_md_body,
         )
         prompt_path = worker_prompts_dir / f"worker-{i}.txt"
         prompt_path.write_text(prompt_text)
@@ -308,6 +400,23 @@ def main() -> int:
             }
         )
 
+    cache_primer_path: Path | None = None
+    if args.cache_primer:
+        cache_primer_path = worker_prompts_dir / "cache-primer.txt"
+        cache_primer_path.write_text(
+            render_cache_primer_prompt(
+                output_dir=output_dir,
+                scope_root=args.scope_subpath,
+                threat_model=args.threat_model,
+                severity_filter=args.severity_filter,
+                flags=flags,
+                context_md_body=context_md_body,
+            )
+        )
+        plan["cache_primer"] = {
+            "spawn_prompt_path": str(cache_primer_path),
+        }
+
     plan_path = output_dir / "plan.json"
     plan_path.write_text(json.dumps(plan, indent=2) + "\n")
 
@@ -317,6 +426,7 @@ def main() -> int:
         "worker_prompts_dir": str(worker_prompts_dir),
         "worker_count": len(selected),
         "cluster_ids": [c["cluster_id"] for c in selected],
+        "cache_primer_path": str(cache_primer_path) if cache_primer_path else None,
     }
     print(json.dumps(summary, indent=2))
     return 0

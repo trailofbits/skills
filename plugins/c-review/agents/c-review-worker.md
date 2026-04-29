@@ -37,13 +37,28 @@ Do NOT substitute a `Skill` call, do NOT search for cluster prompts in the repo,
 
 ### Pre-work turn budget
 
-The self-check above (validate spawn prompt fields → verify path existence → optionally read `context.md`) must complete in **at most 3 tool calls** before either reading the cluster prompt or returning an abort. If you find yourself on a 4th tool call without having issued either `Read: cluster_prompt` or returned an abort line, stop and emit:
+The self-check above (validate spawn prompt fields → verify path existence) must complete in **at most 2 tool calls** before either reading the cluster prompt or returning an abort. The codebase summary is already inlined in the spawn prompt's `<context>` block, so no `context.md` Read is needed. If you find yourself on a 4th tool call without having issued either `Read: cluster_prompt` or returned an abort line, stop and emit:
 
 ```
 worker-<N> abort: pre-work budget exceeded (no progress after 3 tool calls; spawn prompt likely malformed)
 ```
 
 This protects the orchestrator from a worker that loops on repair attempts (e.g., searching for missing files, reading prior runs, re-checking environment). One real run had workers burn 20+ turns this way before aborting; the abort should arrive on turn 1–2, not turn 24.
+
+### Steady-state turn budget
+
+Once you've passed the pre-work self-check and started real cluster work, keep an internal tool-call counter and respect these soft/hard caps:
+
+- **Soft cap (200 calls)** — when your tool-call counter hits 200 and you have not yet started writing finding files, pause and decide: are you converging or expanding scope? If you're still enumerating candidate sites, stop enumerating; pick the strongest candidates you've already seen and start writing findings. If you're verifying a single candidate that has spawned a deep call-graph dive, accept the current evidence and file the finding — perfect reachability traces are not required.
+- **Hard cap (400 calls)** — at 400 calls, finalize: write finding files for every confirmed bug you've already analyzed, skip remaining passes if any, and emit the canonical complete line. Append `(soft-truncated at hard cap)` to the summary so the orchestrator can see the cluster was cut short, e.g.:
+
+  ```
+  worker-3 complete: cluster arithmetic-type, wrote 4 finding files (soft-truncated at hard cap) to /abs/path/findings/
+  ```
+
+  This still parses as a `complete:` reply — the orchestrator will not retry. The truncation note is for the human reader of the run summary.
+
+The caps are deliberately wide. A typical clean run is 50–150 tool calls; one historical run had a worker burn 392 calls on a single cluster, which is the failure mode this cap exists to bound. Do **not** engineer your work to fit the hard cap — most clusters should finish well below the soft cap.
 
 ---
 
@@ -67,7 +82,7 @@ Per-worker assignment:
 - `pass_prefixes` — finding-id prefixes aligned 1:1 with `sub_prompt_paths`
 - `skip_subclasses` — bug classes to skip (may be empty); compare against `pass_bug_classes`
 
-Read `{output_dir}/context.md` once at the start for the codebase summary; do not re-read it.
+The codebase summary (purpose, scope, entry points, trust boundaries, existing hardening) is already inlined in your spawn prompt inside the `<context>…</context>` block. Do **not** `Read: {output_dir}/context.md` from disk — the inlined block is the canonical copy and the on-disk file exists only for the judges and the human reading the run.
 
 ---
 
@@ -82,7 +97,24 @@ Read `{output_dir}/context.md` once at the start for the codebase summary; do no
 
 3. **Write finding files** into `{output_dir}/findings/` (see "Finding File Format").
 
-4. Return a one-line summary as your final reply, e.g.:
+4. **Update the findings index shard.** After all your finding files are written and before your final reply, append your worker's contribution to a per-worker shard so the index survives an orchestrator crash before Phase 7. Use **one** Bash call (atomic append, no concurrent-write hazard since each worker owns its own shard file):
+
+   ```bash
+   shard="{output_dir}/findings-index.d/worker-{N}.txt"
+   mkdir -p "$(dirname "$shard")"
+   # List every finding file you wrote — one absolute path per line, sorted.
+   ls -1 "{output_dir}/findings/"{PREFIX1,PREFIX2,...}-*.md 2>/dev/null | sort > "$shard"
+   ```
+
+   Replace `{N}` with your worker number and `{PREFIX1,PREFIX2,...}` with the literal `pass_prefixes` brace expansion from your spawn prompt. If you wrote zero findings, still create an **empty** shard file — its presence is the "I ran, found nothing" signal:
+
+   ```bash
+   shard="{output_dir}/findings-index.d/worker-{N}.txt"
+   mkdir -p "$(dirname "$shard")"
+   : > "$shard"
+   ```
+
+5. Return a one-line summary as your final reply, e.g.:
 
    ```
    worker-3 complete: cluster buffer-write-sinks, wrote 7 finding files to /abs/path/findings/
@@ -265,7 +297,7 @@ severity_rationale: <one-line>
 
 ## Threat model
 
-Read `{output_dir}/context.md` for the active threat model. Never lower severity or drop findings based on your own judgment of "too unlikely" — that's what the fp+severity judge is for. Your job is to find and document verifiable bugs.
+The active threat model is on the `Threat model:` line of your spawn prompt and any nuance lives inside the spawn prompt's `<context>` block. Never lower severity or drop findings based on your own judgment of "too unlikely" — that's what the fp+severity judge is for. Your job is to find and document verifiable bugs.
 
 ## Rationalizations to reject
 
