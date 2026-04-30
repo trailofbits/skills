@@ -64,6 +64,13 @@ class Violation:
     mnemonic: str
     reason: str
     severity: Severity
+    # Pre-applied triage classification (see classify_violation()). Lets a
+    # downstream agent process violations mechanically without re-reading
+    # the source file and asm. None when not yet classified.
+    triage_hint: str | None = None
+    # Three-line source snippet centered on `line`. Populated only when
+    # the file is readable and `--explain`/JSON output requests it.
+    source_snippet: list[str] | None = None
 
 
 @dataclass
@@ -1163,6 +1170,140 @@ RUST_STDLIB_CRATES = frozenset(
 )
 
 
+# Triage hint values. The convention: a `*_likely_fp` hint says a
+# downstream agent can confidently file as a false positive; a
+# `*_review` hint demands per-line review. The full taxonomy is
+# documented in references/rust.md.
+TRIAGE_STDLIB_ITER_END = "stdlib_iter_end_likely_fp"
+TRIAGE_STDLIB_BOUNDS = "stdlib_bounds_check_likely_fp"
+TRIAGE_STDLIB_OTHER = "stdlib_other_likely_fp"
+TRIAGE_DEPENDENCY = "dependency_source_review"
+TRIAGE_FN_DECL = "fn_declaration_dispatch_likely_fp"
+TRIAGE_LOOP_BOUND = "user_loop_bound_likely_fp"
+TRIAGE_REJECTION_LOOP = "rejection_sample_loop_likely_fp"
+TRIAGE_RODATA_COMPARE = "compare_to_constant_likely_fp"
+TRIAGE_EARLY_RETURN_CMP = "early_return_compare_review"
+TRIAGE_USER_REVIEW = "user_code_review"
+TRIAGE_NEEDS_REVIEW = "needs_review"
+
+
+def _read_source_snippet(file_path: str, line: int, ctx: int = 2) -> list[str] | None:
+    """Read a (2*ctx+1)-line window of `file_path` centered on `line`.
+
+    Returns None if the file is unreadable (e.g. /rustc/<commit>/...
+    paths from rustc's debug info, which are virtual unless rust-src
+    is installed). Lines are returned without trailing newlines.
+    """
+    if not file_path or not line or line < 1:
+        return None
+    try:
+        with open(file_path, encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    except (OSError, UnicodeDecodeError):
+        return None
+    start = max(0, line - 1 - ctx)
+    end = min(len(lines), line + ctx)
+    return [lines[i].rstrip("\n") for i in range(start, end)]
+
+
+# Stdlib path markers. Order matters: most specific first; the bare
+# `/rustc/` fallback is the last resort.
+_STDLIB_PATH_MARKERS = (
+    ("/library/core/src/iter/",                TRIAGE_STDLIB_ITER_END),
+    ("/library/core/src/slice/iter/",          TRIAGE_STDLIB_ITER_END),
+    ("/library/core/src/ops/index_range",      TRIAGE_STDLIB_ITER_END),
+    ("/library/core/src/slice/",               TRIAGE_STDLIB_BOUNDS),
+    ("/rustc/",                                TRIAGE_STDLIB_OTHER),
+)
+_DEPENDENCY_MARKERS = (
+    "/.cargo/registry/",
+    "/.cargo/git/",
+    "\\.cargo\\registry\\",
+    "/cargo/registry/",
+)
+_FN_DECL_RE = re.compile(
+    r"^\s*(?:#\[[^\]]+\]\s*)*"             # optional attributes
+    r"(?:pub(?:\s*\(\s*[\w:]+\s*\))?\s+)?"  # pub / pub(crate)
+    r"(?:async\s+)?(?:unsafe\s+)?"
+    r"(?:const\s+)?fn\s+\w"
+)
+_FOR_RANGE_LITERAL_RE = re.compile(r"^\s*for\s+\w+\s+in\s+0\.\.\s*[A-Z_][A-Z0-9_]*")
+_FOR_RANGE_NUMBER_RE = re.compile(r"^\s*for\s+\w+\s+in\s+0\.\.\s*[0-9]")
+_REJECTION_LOOP_RE = re.compile(r"^\s*while\s+!?\s*done\b|^\s*while\s+\w+\s*<\s*[A-Z_][A-Z0-9_]*\b")
+_CMP_TO_UPPER_CONST_RE = re.compile(r"<\s*[A-Z_][A-Z0-9_]+\b|>\s*[A-Z_][A-Z0-9_]+\b|==\s*[A-Z_][A-Z0-9_]+\b")
+_EARLY_RETURN_RE = re.compile(
+    r"^\s*if\s+.+\s*(?:!=|==)\s*\w+(?:\[.+\])?\s*\{\s*$|"  # if a != b {
+    r"return\s+\w+\s*[!=]=\s*"                              # return a == b ...
+)
+
+
+def classify_violation(
+    violation: "Violation", source_snippet: list[str] | None = None
+) -> str:
+    """Apply rules A-F to assign a triage hint.
+
+    The classifier is intentionally simple and conservative: when a rule
+    doesn't fire cleanly, we return TRIAGE_NEEDS_REVIEW so the case
+    surfaces to the reviewer. False positives in the classifier (saying
+    "FP" when it's actually a TP) are far worse than false negatives
+    (saying "review" when it's actually FP), so all `*_likely_fp` rules
+    require a positive match against a path or pattern, never a
+    negative one.
+    """
+    file_path = violation.file or ""
+    line = violation.line
+
+    # Rules A & B: stdlib path, most specific marker wins.
+    for marker, hint in _STDLIB_PATH_MARKERS:
+        if marker in file_path:
+            return hint
+
+    # Rule C: cargo dependency.
+    if any(m in file_path for m in _DEPENDENCY_MARKERS):
+        return TRIAGE_DEPENDENCY
+
+    # Source-snippet-driven rules require the file to be readable.
+    if not source_snippet:
+        return TRIAGE_NEEDS_REVIEW
+
+    # The middle line of the snippet is the cited source line.
+    mid = len(source_snippet) // 2
+    cited = source_snippet[mid] if 0 <= mid < len(source_snippet) else ""
+
+    # Rule D: warning attributed to a `fn ... <...>` declaration line.
+    # rustc points the .loc directive at the function header for
+    # const-generic instantiation dispatch code that has no real source
+    # location of its own.
+    if _FN_DECL_RE.match(cited):
+        return TRIAGE_FN_DECL
+
+    # Rule E: rejection-sampling-style loop (while !done, while x < N).
+    # Kyber/Dilithium use these and the loop bound depends on a hash of
+    # PUBLIC randomness (the seed sent in the public ciphertext).
+    if _REJECTION_LOOP_RE.match(cited):
+        return TRIAGE_REJECTION_LOOP
+
+    # Rule F1: `for i in 0..PUBLIC_CONST` loop -- iteration count is a
+    # compile-time constant or an UPPER_SNAKE_CASE module constant.
+    if _FOR_RANGE_LITERAL_RE.match(cited) or _FOR_RANGE_NUMBER_RE.match(cited):
+        return TRIAGE_LOOP_BOUND
+
+    # Rule F2: comparison against an UPPER_SNAKE_CASE constant. Captures
+    # the libcrux `if sampled_coefficients[i] < COEFFICIENTS_IN_RING_ELEMENT`
+    # pattern that the asm-level cmp-imm filter misses because the
+    # constant is loaded into a register before the cmp.
+    if _CMP_TO_UPPER_CONST_RE.search(cited):
+        return TRIAGE_RODATA_COMPARE
+
+    # Rule G: textbook early-exit-compare pattern. This is the textbook
+    # MAC-tag-mismatch / padding-oracle bug. We mark for review, NOT as
+    # FP, because this is the most likely place for a real finding.
+    if _EARLY_RETURN_RE.search(cited):
+        return TRIAGE_EARLY_RETURN_CMP
+
+    return TRIAGE_USER_REVIEW
+
+
 class AssemblyParser:
     """Parser for assembly output from various compilers."""
 
@@ -1565,7 +1706,32 @@ class AssemblyParser:
         if self.precise_warnings and include_warnings:
             violations = self._aggregate_warnings(violations)
 
+        # Attach source snippet + triage hint to every violation. This
+        # is the data a downstream agent needs to mechanically classify
+        # findings without re-reading the source. We do it as a single
+        # post-pass so we read each source file at most once.
+        self._attach_triage_metadata(violations)
+
         return functions, violations
+
+    @staticmethod
+    def _attach_triage_metadata(violations: list[Violation]) -> None:
+        """Populate `source_snippet` + `triage_hint` on each violation.
+
+        Files are cached by path so each source file is read at most
+        once even if it has dozens of violations.
+        """
+        cache: dict[str, list[str] | None] = {}
+        for v in violations:
+            if not v.file or not v.line:
+                v.triage_hint = classify_violation(v, None)
+                continue
+            full = cache.get(v.file)
+            if v.file not in cache:
+                full = _read_source_snippet(v.file, v.line, ctx=2)
+                cache[v.file] = full
+            v.source_snippet = full
+            v.triage_hint = classify_violation(v, full)
 
     @staticmethod
     def _aggregate_warnings(violations: list[Violation]) -> list[Violation]:
@@ -1819,8 +1985,17 @@ def analyze_assembly(
     )
 
 
-def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
-    """Format an analysis report for output."""
+def format_report(
+    report: AnalysisReport,
+    format_type: OutputFormat,
+    explain: bool = False,
+) -> str:
+    """Format an analysis report for output.
+
+    `explain=True` adds a `triage_hint` and a 5-line source snippet to
+    every violation in TEXT mode (it's always included in JSON mode for
+    machine consumption).
+    """
 
     if format_type == OutputFormat.JSON:
         return json.dumps(
@@ -1844,6 +2019,8 @@ def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
                         "mnemonic": v.mnemonic,
                         "reason": v.reason,
                         "severity": v.severity.value,
+                        "triage_hint": v.triage_hint,
+                        "source_snippet": v.source_snippet,
                     }
                     for v in report.violations
                 ],
@@ -1857,8 +2034,9 @@ def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
             level = "error" if v.severity == Severity.ERROR else "warning"
             file_ref = f"file={v.file}" if v.file else ""
             line_ref = f",line={v.line}" if v.line else ""
+            hint = f" [{v.triage_hint}]" if v.triage_hint else ""
             lines.append(
-                f"::{level} {file_ref}{line_ref}::{v.mnemonic} in {v.function}: {v.reason}"
+                f"::{level} {file_ref}{line_ref}::{v.mnemonic} in {v.function}: {v.reason}{hint}"
             )
         return "\n".join(lines)
 
@@ -1890,6 +2068,16 @@ def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
                 if v.address:
                     lines.append(f"  Address: {v.address}")
                 lines.append(f"  Reason: {v.reason}")
+                if explain and v.triage_hint:
+                    lines.append(f"  Triage: {v.triage_hint}")
+                if explain and v.source_snippet and v.line:
+                    ctx = len(v.source_snippet) // 2
+                    start_line = max(1, v.line - ctx)
+                    lines.append("  Source:")
+                    for i, src in enumerate(v.source_snippet):
+                        ln = start_line + i
+                        marker = ">" if ln == v.line else " "
+                        lines.append(f"    {marker} {ln:>5}: {src}")
                 lines.append("")
         else:
             lines.append("No violations found.")
@@ -1990,6 +2178,13 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
         "(verify*, ct_*, constant_time_*, compare*, equals*). A branch "
         "in `verify_tag` is a regression on its stated contract.",
     )
+    parser.add_argument(
+        "--explain",
+        action="store_true",
+        help="With each violation, emit a triage hint and a 5-line "
+        "source snippet centered on the cited line. Lets a downstream "
+        "agent (or human) classify findings without re-reading the file.",
+    )
 
     args = parser.parse_args()
 
@@ -2038,7 +2233,7 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
                 precise_warnings=args.precise_warnings,
             )
 
-        print(format_report(report, output_format))
+        print(format_report(report, output_format, explain=args.explain))
         return 0 if report.passed else 1
 
     except (FileNotFoundError, RuntimeError, subprocess.CalledProcessError) as e:

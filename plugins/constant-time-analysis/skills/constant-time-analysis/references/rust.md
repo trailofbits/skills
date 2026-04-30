@@ -188,6 +188,35 @@ uv run {baseDir}/ct_analyzer/tests/test_samples/rust_bench/run_bench.py
 
 A non-zero exit means at least one expectation failed — treat it as a regression.
 
+## `--explain` mode and `triage_hint`
+
+When `ERROR == 0`, every WARN is the entire signal — and a reviewer (human or AI) has to reason about each one. To make that reasoning mechanical rather than guesswork, the analyzer attaches two pieces of metadata to each violation:
+
+1. **`source_snippet`** — five lines of source centered on the cited line, so the reviewer can classify the finding without re-reading the file.
+2. **`triage_hint`** — a pre-applied classification using rules A–F documented below. Hints ending in `_likely_fp` can be filed mechanically; hints ending in `_review` need per-line judgment.
+
+CLI: pass `--explain` to surface both in TEXT mode. JSON output always includes them.
+
+```bash
+uv run analyzer.py --warnings --explain --json crypto.rs
+```
+
+### Triage rules
+
+| Hint                              | Rule                                                       | Verdict |
+|-----------------------------------|------------------------------------------------------------|---------|
+| `stdlib_iter_end_likely_fp`       | source path matches `core::iter::*`, `core::slice::iter::*`, `core::ops::index_range` | FP — loop iteration on public count |
+| `stdlib_bounds_check_likely_fp`   | source path matches `core::slice::mod.rs`                  | FP — bounds check on public length |
+| `stdlib_other_likely_fp`          | source path matches `/rustc/.../library/`                  | FP — stdlib internal |
+| `dependency_source_review`        | source path matches `~/.cargo/registry/...`                | needs review |
+| `fn_declaration_dispatch_likely_fp` | snippet shows a `fn ... <` declaration                   | FP — const-generic dispatch, not real code |
+| `user_loop_bound_likely_fp`       | snippet shows `for _ in 0..PUBLIC_CONST`                   | FP — public iteration count |
+| `rejection_sample_loop_likely_fp` | snippet shows `while !done` or `while x < UPPER_CONST`     | FP — bound from hash of public seed |
+| `compare_to_constant_likely_fp`   | snippet shows comparison against `UPPER_SNAKE_CASE` constant | FP — register-loaded constant |
+| `early_return_compare_review`     | snippet shows `if a != b { return ... }` or `return a == b` | needs review — textbook MAC-compare bug |
+| `user_code_review`                | snippet readable but no rule fired                         | needs review |
+| `needs_review`                    | snippet not readable                                       | needs review |
+
 ## Real-world validation
 
 The analyzer has been validated against [Cryspen libcrux](https://github.com/cryspen/libcrux), a formally verified post-quantum crypto library:
@@ -202,3 +231,26 @@ git clone --depth 1 https://github.com/cryspen/libcrux.git /tmp/libcrux
 uv run {baseDir}/ct_analyzer/analyzer.py /tmp/libcrux/libcrux-ml-kem/src/ind_cca.rs
 uv run {baseDir}/ct_analyzer/analyzer.py /tmp/libcrux/libcrux-ml-dsa/src/sample.rs
 ```
+
+### Production crate validation
+
+Run against a Cargo project pulling in the most-used Rust crypto crates (`subtle`, `curve25519-dalek`, `ed25519-dalek`, `x25519-dalek`, `aes`, `chacha20poly1305`, `hmac`, `sha2`, `sha3`, `poly1305`):
+
+| Stage                       | Count | Reduction |
+|-----------------------------|------:|----------:|
+| Raw branches                | 11725+ |     —    |
+| After precision filters     |    74 | 99.4% off raw |
+| Auto-classified as FP       |    47 |  63% of remaining |
+| Need actual review          |    27 | down to 13 unique events after dedup |
+| ERRORs                      |     2 | one real finding |
+
+The single non-trivial finding is in the `cipher` crate (used by `aes`, `chacha20poly1305`, etc.):
+
+```text
+cipher-0.4.4/src/stream.rs:218
+        let bs = bs as Self;
+        let byte = self % bs;
+>       let block = T::try_from(self/bs).map_err(|_| OverflowError)?;
+```
+
+`SeekNum::into_block_byte` does hardware DIV/MOD on the stream-cipher seek position. The seek position is caller-supplied; in typical AEAD use it is public, but in any caller that derives the seek value from a secret (e.g. seek-by-secret-offset), this leaks. A latent issue exposed only by certain use patterns — and exactly the kind of finding that an instruction-level analyzer surfaces while leaving security verdict to the reviewer.

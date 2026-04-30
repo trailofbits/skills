@@ -9,6 +9,7 @@ vulnerabilities in compiled cryptographic code.
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -1606,6 +1607,172 @@ class TestStrictMode(unittest.TestCase):
         errs = [v for v in violations if v.severity == Severity.ERROR]
         self.assertEqual(len(errs), 0, "third-party source must not be promoted")
         self.assertEqual(len(warns), 1)
+
+
+class TestTriageClassifier(unittest.TestCase):
+    """The classifier tags violations so an agent can mechanically reason
+    about them without re-reading source. Validated end-to-end against
+    libcrux ML-KEM (297 raw warnings -> 277 auto-classified FP, 20 user
+    review) and the production-crypto run on subtle / dalek / sha2 /
+    aes / chacha20poly1305 (74 raw -> 47 auto-classified FP, 27 dep
+    review of which 12 unique events are FP and 1 is a real DIV).
+    """
+
+    def _classify(self, file_path, line, snippet):
+        from analyzer import Severity, Violation, classify_violation
+
+        v = Violation(
+            function="f",
+            file=file_path,
+            line=line,
+            address="",
+            instruction="",
+            mnemonic="JNE",
+            reason="r",
+            severity=Severity.WARNING,
+        )
+        return classify_violation(v, snippet)
+
+    def test_stdlib_iter_end(self):
+        from analyzer import TRIAGE_STDLIB_ITER_END
+
+        self.assertEqual(
+            self._classify(
+                "/rustc/abc/library/core/src/iter/range.rs", 772, None
+            ),
+            TRIAGE_STDLIB_ITER_END,
+        )
+
+    def test_stdlib_bounds(self):
+        from analyzer import TRIAGE_STDLIB_BOUNDS
+
+        self.assertEqual(
+            self._classify(
+                "/rustc/abc/library/core/src/slice/mod.rs", 2154, None
+            ),
+            TRIAGE_STDLIB_BOUNDS,
+        )
+
+    def test_stdlib_other_fallback(self):
+        from analyzer import TRIAGE_STDLIB_OTHER
+
+        self.assertEqual(
+            self._classify("/rustc/abc/library/std/src/sys/something.rs", 10, None),
+            TRIAGE_STDLIB_OTHER,
+        )
+
+    def test_dependency_source(self):
+        from analyzer import TRIAGE_DEPENDENCY
+
+        self.assertEqual(
+            self._classify(
+                "/home/u/.cargo/registry/src/idx/subtle-2.6/src/lib.rs", 318, None
+            ),
+            TRIAGE_DEPENDENCY,
+        )
+
+    def test_fn_declaration_dispatch(self):
+        from analyzer import TRIAGE_FN_DECL
+
+        snippet = [
+            "// docs",
+            "#[inline(always)]",
+            "pub(crate) fn decapsulate<",
+            "    const K: usize,",
+            "    const N: usize,",
+        ]
+        self.assertEqual(
+            self._classify("/u/myapp/src/lib.rs", 100, snippet),
+            TRIAGE_FN_DECL,
+        )
+
+    def test_loop_bound_constant(self):
+        from analyzer import TRIAGE_LOOP_BOUND
+
+        snippet = [
+            "    let mut acc = 0u8;",
+            "",
+            "    for i in 0..N {",
+            "        acc |= a[i] ^ b[i];",
+            "    }",
+        ]
+        self.assertEqual(
+            self._classify("/u/myapp/src/lib.rs", 50, snippet),
+            TRIAGE_LOOP_BOUND,
+        )
+
+    def test_rejection_sample_loop(self):
+        from analyzer import TRIAGE_REJECTION_LOOP
+
+        snippet = [
+            "    let mut done = false;",
+            "    let mut sampled = 0;",
+            "    while !done {",
+            "        let r = xof.squeeze();",
+            "        done = sample_step(&r, &mut sampled);",
+        ]
+        self.assertEqual(
+            self._classify("/u/kyber/src/sampling.rs", 95, snippet),
+            TRIAGE_REJECTION_LOOP,
+        )
+
+    def test_compare_to_upper_const(self):
+        from analyzer import TRIAGE_RODATA_COMPARE
+
+        snippet = [
+            "    for r in 0..N {",
+            "        let i = sampled_coeffs[r];",
+            "        if i < COEFFICIENTS_IN_RING_ELEMENT {",
+            "            // process",
+            "        }",
+        ]
+        self.assertEqual(
+            self._classify("/u/kyber/src/sampling.rs", 53, snippet),
+            TRIAGE_RODATA_COMPARE,
+        )
+
+    def test_unknown_user_code_falls_through(self):
+        from analyzer import TRIAGE_USER_REVIEW
+
+        snippet = [
+            "    let r = some_op(a, b);",
+            "    let s = r.process();",
+            "    s.finalize()",
+            "",
+            "}",
+        ]
+        self.assertEqual(
+            self._classify("/u/myapp/src/lib.rs", 200, snippet),
+            TRIAGE_USER_REVIEW,
+        )
+
+
+class TestSourceSnippet(unittest.TestCase):
+    """`_read_source_snippet` reads a window of a real file."""
+
+    def test_reads_centered_window(self):
+        from analyzer import _read_source_snippet
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".rs", delete=False
+        ) as f:
+            for i in range(1, 11):
+                f.write(f"line {i}\n")
+            path = f.name
+        try:
+            snip = _read_source_snippet(path, 5, ctx=2)
+            self.assertEqual(snip, ["line 3", "line 4", "line 5", "line 6", "line 7"])
+        finally:
+            os.unlink(path)
+
+    def test_handles_unreadable_path(self):
+        from analyzer import _read_source_snippet
+
+        # /rustc/<commit>/... paths exist in debug info but are typically
+        # not on disk unless the user installed rust-src.
+        self.assertIsNone(
+            _read_source_snippet("/rustc/abc123/library/core/src/iter/range.rs", 772, 2)
+        )
 
 
 class TestRustDemangling(unittest.TestCase):
