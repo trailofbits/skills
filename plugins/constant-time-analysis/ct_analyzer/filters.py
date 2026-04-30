@@ -1238,6 +1238,154 @@ def filter_rust_aggregate_warnings(violations: list[Violation]) -> tuple[list[Vi
     return kept, suppressed
 
 
+# ---------------------------------------------------------------------------
+# Filter 12 (Rust): Stdlib monomorphization skip
+# ---------------------------------------------------------------------------
+# Stdlib / language-runtime crates whose monomorphizations are pulled into
+# user crates by inlining.  AssemblyParser already drops these mid-parse
+# (`_should_skip_function`) when `--include-stdlib` is off, so this post-
+# filter is normally a no-op on Rust violations produced by `analyze_source`.
+# It is useful when feeding the analyzer pre-built assembly (the parser
+# can't tell whether the user wanted stdlib included) or composing filter
+# pipelines that re-inject violations from other sources.
+
+RUST_STDLIB_CRATES = frozenset(
+    {
+        "core",
+        "alloc",
+        "std",
+        "panic_abort",
+        "panic_unwind",
+        "compiler_builtins",
+        "rustc_std_workspace_core",
+        "rustc_std_workspace_alloc",
+        "rustc_std_workspace_std",
+        "proc_macro",
+        "test",
+        "unwind",
+        "backtrace",
+        "addr2line",
+        "object",
+        "miniz_oxide",
+        "adler",
+        "hashbrown",
+        "rustc_demangle",
+        "gimli",
+    }
+)
+
+
+def _rust_crate_segment(function_name: str) -> str | None:
+    """Return the first ``::``-separated path segment of a Rust function name.
+
+    Demangled Rust symbols use ``crate::module::function`` form; impl
+    blocks may be wrapped in ``<...>``.  We strip wrapping brackets and
+    return the leading identifier.  Returns None for non-Rust names
+    (no ``::`` separator).
+    """
+    if not function_name or "::" not in function_name:
+        return None
+    s = function_name
+    while s.startswith(("_<", "<")):
+        s = s[2:] if s.startswith("_<") else s[1:]
+    if not s:
+        return None
+    # Scan for any stdlib crate token (handles `<i64 as core::ops::Div>::div`).
+    for tok in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", s):
+        if tok in RUST_STDLIB_CRATES:
+            return tok
+    head = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)", s)
+    return head.group(1) if head else None
+
+
+def filter_rust_stdlib_skip(violations: list[Violation]) -> tuple[list[Violation], list[tuple[Violation, str]]]:
+    """Drop violations whose function lives in a Rust stdlib crate.
+
+    Conservative: requires a ``::`` separator before scanning for a
+    crate token, so non-Rust function names (C symbols, unknown formats)
+    pass through unchanged.  Composes safely with the parser's existing
+    mid-parse skip -- on a Rust report from `analyze_source` this filter
+    is a no-op because stdlib violations were already dropped upstream.
+    """
+    kept, suppressed = [], []
+    for v in violations:
+        crate = _rust_crate_segment(v.function)
+        if crate and crate in RUST_STDLIB_CRATES:
+            suppressed.append((v, f"function {v.function!r} is in Rust stdlib crate {crate!r}"))
+        else:
+            kept.append(v)
+    return kept, suppressed
+
+
+# ---------------------------------------------------------------------------
+# Filter 13 (Rust): Vartime-named function suppression
+# ---------------------------------------------------------------------------
+# Distinct from the TRIAGE_VARTIME *hint* (which only annotates).  This
+# filter actively suppresses warnings inside `vartime_*` / `*_vartime`
+# functions because audited Rust crypto crates use that naming convention
+# to mark code paths that are variable-time on PUBLIC operands by design
+# (signature verification, public-key-only operations, batch verification).
+# Errors stay visible -- a DIV inside a `vartime_*` is still worth a look.
+
+_VARTIME_FN_RE = re.compile(
+    r"(?:^|::|<|\b)vartime_|"      # `vartime_foo` (prefix)
+    r"_vartime(?:$|::|>|\b)",       # `foo_vartime` (suffix)
+)
+
+
+def filter_rust_vartime_suffix(violations: list[Violation]) -> tuple[list[Violation], list[tuple[Violation, str]]]:
+    """Suppress WARNINGS in `vartime_*` / `*_vartime` functions."""
+    kept, suppressed = [], []
+    for v in violations:
+        if v.severity != Severity.WARNING:
+            kept.append(v)
+            continue
+        if _VARTIME_FN_RE.search(v.function or ""):
+            suppressed.append((v, f"warning in vartime-named function {v.function!r} (intentional)"))
+        else:
+            kept.append(v)
+    return kept, suppressed
+
+
+# Cargo / stdlib path markers used by the third-party-source filter.  Kept
+# here (not re-using analyzer's `_DEPENDENCY_MARKERS`) so filters.py has
+# no import-time coupling to analyzer-internal symbols.
+_THIRD_PARTY_SOURCE_MARKERS = (
+    "/rustc/",                 # std/core/alloc
+    "/.cargo/registry/",       # cargo deps (linux/mac home)
+    "\\.cargo\\registry\\",    # cargo deps (windows)
+    "/.cargo/git/",            # cargo git deps
+    "/cargo/registry/",        # CI without leading dot
+)
+
+
+def is_rust_third_party_source(file_path: str) -> bool:
+    """True if the source path lives in stdlib or a cargo dependency.
+
+    Used by `analyzer.AssemblyParser` to gate `--strict` promotion and
+    available here for filter pipelines that need the same predicate.
+    """
+    if not file_path:
+        return False
+    return any(marker in file_path for marker in _THIRD_PARTY_SOURCE_MARKERS)
+
+
+def filter_rust_third_party_source(violations: list[Violation]) -> tuple[list[Violation], list[tuple[Violation, str]]]:
+    """Drop violations whose source lives in stdlib or a cargo dependency.
+
+    Useful as a coarser-grained alternative to `rust-stdlib-skip` for
+    pipelines that want to focus exclusively on user code regardless of
+    crate naming.
+    """
+    kept, suppressed = [], []
+    for v in violations:
+        if is_rust_third_party_source(v.file or ""):
+            suppressed.append((v, f"source path {v.file!r} is third-party (stdlib or cargo dep)"))
+        else:
+            kept.append(v)
+    return kept, suppressed
+
+
 FILTER_REGISTRY: dict[str, Callable[[list[Violation]], tuple[list[Violation], list[tuple[Violation, str]]]]] = {
     "ct-funcs": filter_known_ct_functions,
     "aggregate": aggregate_branches_per_function,
@@ -1249,6 +1397,9 @@ FILTER_REGISTRY: dict[str, Callable[[list[Violation]], tuple[list[Violation], li
     "go-public-line": filter_go_public_lines,
     "rust-aggregate-warnings": filter_rust_aggregate_warnings,
     "rust-triage-classify": filter_rust_triage_classify,
+    "rust-stdlib-skip": filter_rust_stdlib_skip,
+    "rust-vartime-suffix": filter_rust_vartime_suffix,
+    "rust-third-party-source": filter_rust_third_party_source,
 }
 
 

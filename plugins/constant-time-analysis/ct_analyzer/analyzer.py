@@ -1498,7 +1498,42 @@ def attach_triage_metadata(violations: list["Violation"]) -> None:
 
 
 class AssemblyParser:
-    """Parser for assembly output from various compilers."""
+    """Parser for assembly output from various compilers.
+
+    Some Rust-specific logic intentionally stays inside the parser rather
+    than moving to `filters.py`:
+
+    * `_is_cmp_to_literal` (precise-warnings: cmp-imm suppression) reads
+      the previous instruction line in the same function -- a window the
+      parser already maintains.  Re-implementing this as a post-filter
+      would mean re-sliding the window (and re-tokenising mnemonics)
+      over the asm a second time, doubling parse cost for no behavioural
+      gain.
+
+    * `_branches_to_panic` + `_scan_panic_labels` (precise-warnings:
+      panic-target suppression) require a one-pass pre-scan of the asm
+      to collect labels whose body calls a stdlib panic function.  That
+      pre-scan is fundamentally a parser concern; exposing the panic-
+      label set on the report just to feed it back to a filter would
+      add a public field to `AnalysisReport` for an internal datum.
+
+    * `_is_strict_promote_function` + `--strict` severity promotion is
+      not suppression -- it changes a violation's severity.  The filter
+      contract is `(kept, suppressed)` which has no shape for promotion.
+      A separate hook would clutter filters.py for one mid-parse use.
+
+    * `_should_skip_function` (Rust stdlib monomorph skip) is also
+      exposed as the post-filter `rust-stdlib-skip`.  We keep the mid-
+      parse skip because it short-circuits violation construction (saves
+      Violation allocations on every stdlib instruction) and survives
+      `--include-stdlib` semantics without spreading the flag across
+      filter wiring.
+
+    The post-parse, list-shaped operations have all moved out:
+    `_aggregate_warnings` -> `filters.aggregate_warnings_per_source_line`,
+    `_attach_triage_metadata` -> `filters.attach_triage_metadata` (called
+    via the kept-here lazy alias `attach_triage_metadata`).
+    """
 
     # Functions whose name implies the developer claimed constant-time
     # behavior. In `strict` mode, any conditional-branch warning inside
@@ -1657,17 +1692,14 @@ class AssemblyParser:
         Used to gate `--strict` promotion: a JNE at
         `~/.cargo/registry/.../subtle/src/lib.rs:318` is a contract
         of the upstream crate, not a regression of the user's code.
+        Also exposed as `filters.is_rust_third_party_source` and the
+        `rust-third-party-source` named filter.
         """
-        if not file_path:
-            return False
-        third_party_markers = (
-            "/rustc/",                 # std/core/alloc
-            "/.cargo/registry/",       # cargo deps (linux/mac home)
-            "\\.cargo\\registry\\",    # cargo deps (windows)
-            "/.cargo/git/",            # cargo git deps
-            "/cargo/registry/",        # CI without leading dot
-        )
-        return any(marker in file_path for marker in third_party_markers)
+        try:
+            from .filters import is_rust_third_party_source
+        except ImportError:
+            from filters import is_rust_third_party_source
+        return is_rust_third_party_source(file_path)
 
     @classmethod
     def _scan_panic_labels(cls, assembly_text: str) -> set[str]:
@@ -2508,8 +2540,13 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
         default=[],
         help=(
             "Comma-separated post-analysis filters that prune false positives. "
-            "Available: ct-funcs, aggregate, compiler-helpers, non-secret, memcmp-source. "
-            "Use 'all' for the recommended default set."
+            "Available: ct-funcs, aggregate, compiler-helpers, non-secret, "
+            "memcmp-source, div-public, loop-backedge, "
+            "go-bounds-check, go-stack-grow, go-public-line, "
+            "rust-aggregate-warnings, rust-triage-classify, rust-stdlib-skip, "
+            "rust-vartime-suffix, rust-third-party-source. "
+            "Use 'all' for the recommended default set (Rust-aware: appends "
+            "rust-* filters when the input is Rust)."
         ),
     )
     parser.add_argument(
@@ -2598,7 +2635,13 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
                 precise_warnings=args.precise_warnings,
             )
 
-        # Apply post-analysis filters
+        # Apply post-analysis filters.  `--filter all` expands to a
+        # language-aware default set: the C/Go portion is always
+        # included, and Rust-specific filters are appended when the
+        # parsed compiler is rustc.  Filter names not in
+        # `filters.FILTER_REGISTRY` are silently ignored by
+        # `apply_filters`, so passing rust-* names to a C report is
+        # safe but redundant.
         filter_list: list[str] = []
         for f in args.filter:
             filter_list.extend(s.strip() for s in f.split(",") if s.strip())
@@ -2606,6 +2649,18 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
             filter_list = ["compiler-helpers", "memcmp-source", "ct-funcs",
                            "non-secret", "div-public", "loop-backedge",
                            "aggregate"]
+            if report.compiler == "rustc":
+                # `rust-triage-classify` runs unconditionally inside the
+                # parser already, so re-applying it here is a no-op-ish
+                # annotation refresh; we include it for symmetry with the
+                # other rust-* filters and to stamp triage hints onto any
+                # findings injected by `memcmp-source`.
+                filter_list.extend([
+                    "rust-stdlib-skip",
+                    "rust-aggregate-warnings",
+                    "rust-triage-classify",
+                    "rust-vartime-suffix",
+                ])
         if filter_list:
             try:
                 from .filters import apply_filters

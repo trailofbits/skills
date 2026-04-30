@@ -2039,5 +2039,72 @@ class TestRustBenchmarkRunner(unittest.TestCase):
         )
 
 
+class TestRustNamedFilters(unittest.TestCase):
+    """Smoke tests for the rust-* named filters in `filters.FILTER_REGISTRY`."""
+
+    def _build(self, function: str, file: str = "/tmp/x.rs", severity=None):
+        from analyzer import Severity, Violation
+        sev = severity or Severity.WARNING
+        return Violation(
+            function=function, file=file, line=10, address="", instruction="",
+            mnemonic="JE", reason="r", severity=sev,
+        )
+
+    def test_rust_vartime_suffix_suppresses_warnings(self):
+        from filters import FILTER_REGISTRY
+        v_user = self._build("mycrate::secret_op")
+        v_vt_pre = self._build("dalek::vartime_double_base_mul")
+        v_vt_suf = self._build("k256::pow_vartime")
+        kept, sup = FILTER_REGISTRY["rust-vartime-suffix"]([v_user, v_vt_pre, v_vt_suf])
+        self.assertEqual([v.function for v in kept], ["mycrate::secret_op"])
+        self.assertEqual(len(sup), 2)
+
+    def test_rust_vartime_suffix_keeps_errors(self):
+        from analyzer import Severity
+        from filters import FILTER_REGISTRY
+        # An ERROR (e.g. DIV) inside a vartime function still warrants review.
+        v = self._build("dalek::vartime_div", severity=Severity.ERROR)
+        kept, sup = FILTER_REGISTRY["rust-vartime-suffix"]([v])
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(len(sup), 0)
+
+    def test_rust_stdlib_skip_drops_core_alloc_std(self):
+        from filters import FILTER_REGISTRY
+        v_user = self._build("mycrate::foo")
+        v_core = self._build("core::iter::next")
+        v_alloc = self._build("alloc::vec::Vec::new")
+        kept, sup = FILTER_REGISTRY["rust-stdlib-skip"]([v_user, v_core, v_alloc])
+        self.assertEqual([v.function for v in kept], ["mycrate::foo"])
+        self.assertEqual(len(sup), 2)
+
+    def test_rust_third_party_source_drops_cargo_paths(self):
+        from filters import FILTER_REGISTRY
+        v_user = self._build("foo::bar", file="/home/u/myapp/src/lib.rs")
+        v_dep = self._build("foo::bar", file="/home/u/.cargo/registry/src/idx/subtle-2.6.1/src/lib.rs")
+        v_std = self._build("foo::bar", file="/rustc/abc/library/core/src/x.rs")
+        kept, sup = FILTER_REGISTRY["rust-third-party-source"]([v_user, v_dep, v_std])
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(len(sup), 2)
+
+    def test_rust_aggregate_warnings_collapses_via_filter(self):
+        from filters import FILTER_REGISTRY
+        v1 = self._build("foo::a", file="x.rs")
+        v2 = self._build("foo::a", file="x.rs")
+        v3 = self._build("foo::a", file="x.rs")
+        kept, sup = FILTER_REGISTRY["rust-aggregate-warnings"]([v1, v2, v3])
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(len(sup), 2)
+        self.assertIn("3 conditional branches", kept[0].reason)
+
+    def test_rust_triage_classify_stamps_hint(self):
+        from analyzer import TRIAGE_VARTIME
+        from filters import FILTER_REGISTRY
+        v = self._build("dalek::vartime_double_base_mul")
+        kept, sup = FILTER_REGISTRY["rust-triage-classify"]([v])
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(len(sup), 0)
+        self.assertEqual(kept[0].triage_hint, TRIAGE_VARTIME)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
