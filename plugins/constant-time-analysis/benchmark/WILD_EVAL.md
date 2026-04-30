@@ -11,9 +11,11 @@ libraries and triage what comes out.
 |------------|-----------------------|---------|---------------------------------|
 | libsodium  | `jedisct1/libsodium`  | HEAD    | `./configure && make` at `-O2 -g` |
 | BoringSSL  | `google/boringssl`    | HEAD    | CMake `crypto` target at `-O2 -g` |
-| mbedTLS    | `Mbed-TLS/mbedtls`    | HEAD    | (build needs git submodules; deferred) |
+| mbedTLS    | `Mbed-TLS/mbedtls`    | HEAD    | `git submodule update --init --recursive --depth=1`, then CMake at `-O2 -g` |
 
-Both `git clone --depth=1`. Total source: ~700K LOC of C / C++.
+All `git clone --depth=1`.  mbedTLS first attempt failed silently because
+the build needs two submodules (`framework`, `tf-psa-crypto`); after
+initializing them the build produces 73 `.o` files.
 
 ## How the analyzer was driven
 
@@ -34,9 +36,15 @@ what the tool achieves at scale today.
 |------------|---------:|----------:|-------------:|-------:|---------:|------:|------------:|
 | libsodium  |      141 |     1,057 |       77,572 |     12 |      405 |   417 |        5.38 |
 | BoringSSL  |      367 |     4,696 |      371,454 |     14 |    2,904 | 2,918 |        7.86 |
-| **Total**  |      508 |     5,753 |      449,026 |     26 |    3,309 | 3,335 |        7.43 |
+| mbedTLS    |       73 |       779 |       64,085 |      8 |      619 |   627 |        9.78 |
+| **Total**  |      581 |     6,532 |      513,111 |     34 |    3,928 | 3,962 |        7.72 |
 
-## Mechanical triage of all 26 errors
+mbedTLS has the **highest finding density of the three** at 9.78 per 1k
+instructions. The "0 findings" reading on the first run was a build
+artifact (silent submodule failure) - a useful reminder that
+`grep -c "Error" build.log` is not a substitute for `ls *.o | wc -l`.
+
+## Mechanical triage of all 34 errors
 
 For the error (DIV / IDIV) class I walked every finding by reading the source.
 Spreadsheet-style triage:
@@ -74,18 +82,35 @@ Spreadsheet-style triage:
 | `BN_div.part.0`                              | (same file)                                           | FP-doc    | same |
 | `HKDF_expand`                                | `crypto/fipsmodule/hkdf/hkdf.cc.inc`                  | FP-public | output length / blocks-needed is public |
 
+### mbedTLS (8 errors)
+
+| Function                              | Source location                                    | Verdict | Why |
+|---------------------------------------|----------------------------------------------------|---------|-----|
+| `mbedtls_mpi_mod_int`                 | `bignum.c:1593` (`y / b` and `z * b - y`)         | **TP**  | Variable-time DIV inside the function body.  Documented variable-time, but **callers in `bignum.c:2109` and `:2324` invoke it during prime-generation sieving** where the dividend `A` is a secret prime candidate.  Reachable timing leak in keygen. |
+| `mbedtls_cipher_update`               | `cipher.c:483` (`ilen % block_size`)              | FP-public | both operands public |
+| `mbedtls_cipher_cmac_update`          | `cmac.c:227` (`(ilen + block_size - 1) / block_size`) | FP-public | same |
+| `ecp_mul_restartable_internal.isra.0` | `ecp.c:1815` (`j / d`) and `:2205` (`(grp->nbits + w-1) / w`) | FP-public | window size and curve bit-length are public |
+| `mbedtls_psa_cipher_update`           | wrapper around `cipher_update`                     | FP-public | same |
+| `mbedtls_sha3_update`                 | `sha3.c:359` (`(idx+1) % max_block_size`)         | FP-public | block size public, idx tracks public byte position |
+| `mbedtls_sha3_finish`                 | `sha3.c` (similar pattern)                         | FP-public | same |
+| `mbedtls_pkcs5_pbes2_ext`             | `pkcs5.c` (PBKDF2 iteration / key-length math)    | FP-public | iter count, key length public |
+
 ### Error tally
 
 | Verdict   | Count | Notes |
 |-----------|------:|-------|
-| TP        |     0 | |
-| FP-public |    23 | Divisor traces back to a public sizing parameter |
+| **TP**    | **1** | mbedtls_mpi_mod_int reachable from RSA prime-gen sieve |
+| FP-public |    30 | Divisor traces back to a public sizing parameter |
 | FP-doc    |     3 | Function is documented as variable-time on purpose |
-| **Total** | **26** | **Precision_errors = 0/26 = 0.000** |
+| **Total** | **34** | **Precision_errors = 1/34 = 0.029** |
 
-This is the alarm-fatigue problem at production scale, made visible. Every
-single ERROR finding the asm-only filter set produces on these vetted
-libraries is a false positive.
+The single TP is informative: it took adding mbedTLS - which we initially
+miscounted as zero - to find any signal at all. The libsodium and BoringSSL
+DIV class is genuinely public-only; mbedTLS exposes a documented variable-
+time helper that is wired into a secret-handling path. Whether this is a
+practically exploitable leak (RSA keygen happens once per identity, network
+timing is harder) is a separate question; as a static-analysis flag, it is
+correct.
 
 ## Stratified sample of warnings (n=30)
 
@@ -133,21 +158,36 @@ I drew a random sample of 30 warnings (seeded for reproducibility) from the
 
 **Precision_warnings (sample) = 0/30 = 0.000 (95% CI ~ [0, 0.116])**
 
-Extrapolating: of the 3,309 warnings, expected TP count is somewhere in
-[0, ~380] - i.e. effectively zero in vetted production code, possibly a
-handful at the upper bound of the confidence interval.
+A separate sample of 20 mbedTLS warnings (seed=42) was triaged:
+
+| Verdict      | Count |
+|--------------|------:|
+| FP-public    |    13 |
+| FP-loop      |     7 |
+| **TP**       |   **0** |
+
+Notable: two of the sampled functions are explicitly named for CT
+intent - `mbedtls_mpi_safe_cond_assign` and `mbedtls_mpi_lt_mpi_ct` -
+and would be silenced by extending the `ct-funcs` allowlist with
+patterns like `^mbedtls_mpi_.*_ct$` and `^mbedtls_mpi_safe_.*$`.
+
+Extrapolating from 50 sampled warnings (out of 3,928): expected TP count
+is somewhere in [0, ~470] under a 95% binomial CI; concretely, the next
+3,878 unexamined warnings would need a TP rate of ~12% before changing
+the headline. We saw 0 in 50 - the rate is almost certainly very low.
 
 ## Headline numbers (wild)
 
 | Quantity                | Value |
 |-------------------------|------:|
-| Total findings          | 3,335 |
-| TPs (mechanical)        |     0 |
-| FPs (mechanical)        |    56 (all 26 errors + 30 warning sample) |
-| **Precision (sample)**  | **0.000** |
-| Recall                  | undefined (denominator unknown - no documented timing CVE in either lib at HEAD) |
-| Triage time (full)      | 26 errors x ~3 min + 3,309 warnings x ~2 min = **~120 hours** of expert effort |
-| Triage time (this eval) | 26 errors + 30 sampled warnings ~= 3 hours |
+| Total findings          | 3,962 |
+| Findings triaged        |    84 (all 34 errors + 50 sampled warnings) |
+| TPs (mechanical)        |     1 (mbedtls_mpi_mod_int) |
+| FPs (mechanical)        |    83 |
+| **Precision (full sample)** | **1/84 = 0.012** |
+| Recall                  | undefined as a ratio (no documented timing CVE at HEAD); the one TP we found was not in any pre-known list, so the tool is *adding* signal here |
+| Triage time (full corpus) | 34 errors x ~3 min + 3,928 warnings x ~2 min = **~133 hours** of expert effort |
+| Triage time (this eval) | 34 errors + 50 sampled warnings ~= **3 hours** of expert effort |
 
 ## Why the wild precision collapses (and how to fix it)
 
