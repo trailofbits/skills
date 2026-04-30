@@ -830,9 +830,23 @@ class AssemblyParser:
         for line in all_lines:
             line = line.strip()
 
+            # objdump -l emits source attributions as bare lines:
+            #   /abs/path/to/file.c:1593 (discriminator 1)
+            # before the next instruction.  Pick those up *before* the
+            # empty/comment skip, so the parser tracks current_file/line
+            # for every following instruction in the function body.
+            objdump_src = re.match(
+                r"^(/[^:]+\.(c|cc|cpp|cxx|h|hpp|S|s)):(\d+)(?:\s*\(.*\))?$",
+                line,
+            )
+            if objdump_src:
+                current_file = objdump_src.group(1)
+                current_line = int(objdump_src.group(3))
+                continue
+
             # Skip empty lines and comments
             if not line or line.startswith("#") or line.startswith("//") or line.startswith(";"):
-                # Check for file/line info in comments
+                # Check for file/line info in inline comments (gcc/clang -S style)
                 file_match = re.search(r"#\s*([^:]+):(\d+)", line)
                 if file_match:
                     current_file = file_match.group(1)

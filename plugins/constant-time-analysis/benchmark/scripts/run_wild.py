@@ -44,10 +44,13 @@ def find_object_files(root: Path) -> list[Path]:
 
 
 def disassemble(obj: Path) -> str:
-    """Run objdump -d on the .o, return assembly text."""
+    """Run objdump -d -l on the .o, return assembly text.
+    The -l flag emits DWARF-derived `/path/to/file.c:NN` line markers
+    before each instruction group, which the analyzer parser uses to
+    attribute each finding back to a source file."""
     try:
         return subprocess.check_output(
-            ["objdump", "-d", "--no-show-raw-insn", str(obj)],
+            ["objdump", "-d", "-l", "--no-show-raw-insn", str(obj)],
             text=True, errors="replace", timeout=30,
         )
     except subprocess.TimeoutExpired:
@@ -71,17 +74,19 @@ def analyze_object(obj: Path, filters: list[str]) -> tuple[list[dict], int, int]
     finally:
         Path(asm_path).unlink(missing_ok=True)
 
-    # Apply filters that don't need source paths.  Drop only the two
-    # source-level filters; the rest (including the new asm-only ones:
-    # div-public, loop-backedge) all run.
-    asm_only_filters = [f for f in filters if f not in ("memcmp-source", "non-secret")]
-    kept, _ = apply_filters(report.violations, asm_only_filters)
+    # Source-level filters (memcmp-source, non-secret) work too, because
+    # the analyzer now consumes objdump -l line markers and stamps each
+    # violation with v.file.  apply_filters falls back to v.file when
+    # source_path is None.
+    kept, _ = apply_filters(report.violations, filters)
 
     findings = []
     for v in kept:
         findings.append({
             "object": str(obj),
             "function": v.function,
+            "file": v.file,
+            "line": v.line,
             "mnemonic": v.mnemonic,
             "severity": v.severity.value,
             "reason": v.reason,
@@ -94,10 +99,11 @@ def main() -> None:
     ap.add_argument("--root", required=True, help="Library root directory (built)")
     ap.add_argument("--label", required=True, help="Library label for output")
     ap.add_argument("--filter",
-                    default="ct-funcs,compiler-helpers,div-public,loop-backedge,aggregate",
-                    help="Filters to apply (asm-only).  Source-level filters "
-                         "memcmp-source/non-secret are silently dropped if "
-                         "given because we have no .c paths in wild mode.")
+                    default="ct-funcs,compiler-helpers,div-public,loop-backedge,memcmp-source,non-secret,aggregate",
+                    help="Filters to apply.  When the .o files were built "
+                         "with -g, DWARF line markers from `objdump -l` give "
+                         "every violation a .file attribute, so the source-"
+                         "level filters memcmp-source / non-secret can run.")
     ap.add_argument("--out", default=None, help="Write findings JSON to this path")
     ap.add_argument("--limit", type=int, default=0,
                     help="If >0, only analyze the first N .o files (smoke test)")

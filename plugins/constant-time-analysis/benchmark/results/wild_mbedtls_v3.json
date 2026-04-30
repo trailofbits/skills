@@ -1,0 +1,513 @@
+{
+  "label": "mbedtls_v3",
+  "n_objects": 73,
+  "n_functions": 779,
+  "n_instructions": 70295,
+  "n_findings": 108,
+  "by_severity": {
+    "warning": 106,
+    "error": 2
+  },
+  "by_mnemonic": {
+    "JE": 65,
+    "JNE": 30,
+    "JB": 7,
+    "DIV": 2,
+    "JA": 2,
+    "JLE": 2
+  },
+  "by_object": {
+    "pk.c.o": 13,
+    "psa_crypto_rsa.c.o": 8,
+    "psa_crypto_ecp.c.o": 7,
+    "pk_wrap.c.o": 7,
+    "ccm.c.o": 5,
+    "cipher.c.o": 5,
+    "pkwrite.c.o": 5,
+    "ecp.c.o": 4,
+    "hmac_drbg.c.o": 4,
+    "rsa.c.o": 4,
+    "gcm.c.o": 3,
+    "psa_crypto_cipher.c.o": 3,
+    "psa_crypto_ffdh.c.o": 3,
+    "psa_crypto_mac.c.o": 3,
+    "pkparse.c.o": 3,
+    "asn1write.c.o": 3,
+    "aes.c.o": 2,
+    "aria.c.o": 2,
+    "camellia.c.o": 2,
+    "chachapoly.c.o": 2
+  },
+  "all_errors": [
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/bignum.c.o",
+      "function": "mbedtls_mpi_mod_int",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/bignum.c",
+      "line": 1601,
+      "mnemonic": "DIV",
+      "severity": "error",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values (+1 more DIV findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/ecp.c.o",
+      "function": "ecp_mul_restartable_internal.isra.0",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/ecp.c",
+      "line": 2205,
+      "mnemonic": "DIV",
+      "severity": "error",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values (+1 more DIV findings in this function)"
+    }
+  ],
+  "warning_sample_n50_seed44": [
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/cipher.c.o",
+      "function": "mbedtls_cipher_write_tag",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/cipher.c",
+      "line": 826,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+6 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/hmac_drbg.c.o",
+      "function": "hmac_drbg_reseed_core",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/hmac_drbg.c",
+      "line": 148,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+9 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pkparse.c.o",
+      "function": "mbedtls_pk_parse_key_pkcs8_encrypted_der",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pkparse.c",
+      "line": 863,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+9 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/gcm.c.o",
+      "function": "mbedtls_gcm_crypt_and_tag",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/gcm.c",
+      "line": 716,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pkwrite.c.o",
+      "function": "mbedtls_pk_write_pubkey_pem",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pkwrite.c",
+      "line": 502,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/camellia.c.o",
+      "function": "mbedtls_camellia_setkey_dec",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/camellia.c",
+      "line": 414,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/camellia.c.o",
+      "function": "mbedtls_camellia_setkey_enc",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/camellia.c",
+      "line": 306,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+33 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pk_wrap.c.o",
+      "function": "rsa_opaque_sign_wrap",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pk_wrap.c",
+      "line": 617,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pk_wrap.c.o",
+      "function": "ecdsa_opaque_sign_wrap",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pk_wrap.c",
+      "line": 275,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+4 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/psa_crypto_mac.c.o",
+      "function": "mbedtls_psa_mac_compute",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/psa_crypto_mac.c",
+      "line": 201,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+6 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pk_wrap.c.o",
+      "function": "rsa_verify_wrap",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pk_wrap.c",
+      "line": 55,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+7 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/aria.c.o",
+      "function": "mbedtls_aria_setkey_dec",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/aria.c",
+      "line": 413,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+5 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pk_wrap.c.o",
+      "function": "rsa_sign_wrap",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pk_wrap.c",
+      "line": 101,
+      "mnemonic": "JB",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pk_wrap.c.o",
+      "function": "ecdsa_verify_psa",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pk_wrap.c",
+      "line": 167,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+8 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pk.c.o",
+      "function": "mbedtls_pk_sign_restartable",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pk.c",
+      "line": 1298,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+7 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/psa_crypto_cipher.c.o",
+      "function": "mbedtls_psa_cipher_decrypt",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/psa_crypto_cipher.c",
+      "line": 704,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+5 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/psa_crypto_ecp.c.o",
+      "function": "mbedtls_psa_ecdsa_sign_hash",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/psa_crypto_ecp.c",
+      "line": 382,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+11 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/psa_crypto_rsa.c.o",
+      "function": "mbedtls_psa_rsa_sign_hash",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/psa_crypto_rsa.c",
+      "line": 324,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+8 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pk.c.o",
+      "function": "mbedtls_pk_verify_restartable",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pk.c",
+      "line": 1152,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+7 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/psa_crypto_rsa.c.o",
+      "function": "mbedtls_psa_rsa_import_key",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/psa_crypto_rsa.c",
+      "line": 117,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pk.c.o",
+      "function": "copy_from_psa",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pk.c",
+      "line": 977,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+25 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/lms.c.o",
+      "function": "mbedtls_lms_verify",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/lms.c",
+      "line": 319,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+28 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/cipher.c.o",
+      "function": "mbedtls_cipher_auth_decrypt_ext",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/cipher.c",
+      "line": 1116,
+      "mnemonic": "JB",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+6 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/ecp.c.o",
+      "function": "mbedtls_ecp_export",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/ecp.c",
+      "line": 3230,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+6 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/psa_crypto_rsa.c.o",
+      "function": "mbedtls_psa_rsa_verify_hash",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/psa_crypto_rsa.c",
+      "line": 424,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+9 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pkwrite.c.o",
+      "function": "mbedtls_pk_write_key_der",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pkwrite.c",
+      "line": 441,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+28 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/psa_crypto_ecp.c.o",
+      "function": "mbedtls_psa_ecp_export_key",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/psa_crypto_ecp.c",
+      "line": 261,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pk.c.o",
+      "function": "mbedtls_pk_can_do_psa",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pk.c",
+      "line": 457,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+27 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/utilities/CMakeFiles/utilities.dir/asn1write.c.o",
+      "function": "asn1_write_tagged_int",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/utilities/asn1write.c",
+      "line": 172,
+      "mnemonic": "JLE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+5 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/hmac_drbg.c.o",
+      "function": "mbedtls_hmac_drbg_write_seed_file",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/hmac_drbg.c",
+      "line": 438,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/cipher_wrap.c.o",
+      "function": "chachapoly_setkey_wrap",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/cipher_wrap.c",
+      "line": 1679,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/aes.c.o",
+      "function": "mbedtls_aes_setkey_dec",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/aes.c",
+      "line": 693,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+5 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/ecp.c.o",
+      "function": "mbedtls_ecp_write_key_ext",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/ecp.c",
+      "line": 3125,
+      "mnemonic": "JB",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pk.c.o",
+      "function": "is_psa_key_compatible_with_alg_usage",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pk.c",
+      "line": 420,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+5 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/nist_kw.c.o",
+      "function": "mbedtls_nist_kw_wrap",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/nist_kw.c",
+      "line": 61,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+19 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/pk.c.o",
+      "function": "mbedtls_pk_sign",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/pk.c",
+      "line": 1298,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+7 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/hmac_drbg.c.o",
+      "function": "mbedtls_hmac_drbg_update_seed_file",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/hmac_drbg.c",
+      "line": 471,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+5 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/psa_crypto_ecp.c.o",
+      "function": "mbedtls_psa_ecp_import_key",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/psa_crypto_ecp.c",
+      "line": 226,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/ecdsa.c.o",
+      "function": "mbedtls_ecdsa_read_signature_restartable",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/ecdsa.c",
+      "line": 696,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+5 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/psa_crypto_ffdh.c.o",
+      "function": "mbedtls_psa_ffdh_import_key",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/psa_crypto_ffdh.c",
+      "line": 669,
+      "mnemonic": "JB",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/chachapoly.c.o",
+      "function": "mbedtls_chachapoly_auth_decrypt",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/chachapoly.c",
+      "line": 255,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+6 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/psa_crypto_ecp.c.o",
+      "function": "mbedtls_psa_ecp_generate_key",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/psa_crypto_ecp.c",
+      "line": 326,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+5 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/psa_crypto_ecp.c.o",
+      "function": "mbedtls_psa_ecp_load_representation",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/psa_crypto_ecp.c",
+      "line": 103,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+33 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/ccm.c.o",
+      "function": "mbedtls_ccm_setkey",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/ccm.c",
+      "line": 71,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/psa_crypto_mac.c.o",
+      "function": "psa_mac_finish_internal",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/psa_crypto_mac.c",
+      "line": 367,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+9 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/rsa.c.o",
+      "function": "mbedtls_rsa_rsassa_pss_verify_ext",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/rsa.c",
+      "line": 2226,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+20 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/psa_crypto_aead.c.o",
+      "function": "mbedtls_psa_aead_encrypt",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/psa_crypto_aead.c",
+      "line": 133,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+11 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/extras/CMakeFiles/extras.dir/lmots.c.o",
+      "function": "mbedtls_lmots_verify",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/extras/lmots.c",
+      "line": 500,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+9 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/aria.c.o",
+      "function": "mbedtls_aria_setkey_enc",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/aria.c",
+      "line": 359,
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+6 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/build/tf-psa-crypto/drivers/builtin/CMakeFiles/builtin.dir/src/ecp.c.o",
+      "function": "mbedtls_ecp_read_key",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/mbedtls/tf-psa-crypto/drivers/builtin/src/ecp.c",
+      "line": 3049,
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+20 more BRANCH findings in this function)"
+    }
+  ]
+}

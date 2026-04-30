@@ -304,10 +304,19 @@ SECRET_NAME = re.compile(
     re.IGNORECASE,
 )
 
-# C function-definition pattern (very loose; good enough for the corpus)
+# C function-definition pattern (very loose; good enough for the corpus).
+# Allows ONE-LINE-ONLY signatures - multi-line ones are handled by
+# _build_function_ranges via _C_FUNC_HEADER which is opening-only.
 C_FUNC_RE = re.compile(
     r"^[a-zA-Z_][\w\s\*]*\s+([a-zA-Z_]\w*)\s*\(([^;{)]*)\)\s*\{",
     re.MULTILINE,
+)
+# Pattern for the *start* of a function header (multi-line signatures
+# common in mbedTLS / BoringSSL); we then scan forward for the {
+_C_FUNC_HEADER = re.compile(
+    r"^(?:static\s+|extern\s+|inline\s+|__attribute__\([^)]*\)\s+|"
+    r"const\s+|signed\s+|unsigned\s+|volatile\s+)*"
+    r"[a-zA-Z_][\w\s\*]*\s+([a-zA-Z_]\w*)\s*\("
 )
 
 
@@ -364,11 +373,83 @@ MEMCMP_CALL_RE = re.compile(
 )
 
 
+# Names indicating self-test / unit-test scaffolding within production .c
+# files (mbedTLS, BoringSSL, libsodium all bundle these gated by macros).
+# memcmp() inside them compares against test vectors, not exploitable
+# secrets, so suppress.
+_TEST_FUNC_RE = re.compile(
+    r"^(test_|.*_test$|.*_self_test$|.*_test_[a-z_]+|"
+    r".*_test_helper$|.*_unit_test|.*_test_internal|"
+    r".*_known_answer|.*_kat|.*_check_test|"
+    r"check_.*_test$|run_test.*|.*_self_check$)",
+    re.IGNORECASE,
+)
+
+
+def _build_function_ranges(text: str) -> list[tuple[int, int, str]]:
+    """Return [(start_line, end_line, func_name), ...] by tracking braces.
+    Handles multi-line function signatures (signature open paren on one line,
+    matching brace several lines later)."""
+    ranges: list[tuple[int, int, str]] = []
+    lines = text.splitlines()
+    i = 0
+    n = len(lines)
+    while i < n:
+        m = _C_FUNC_HEADER.match(lines[i])
+        if not m:
+            i += 1
+            continue
+        # Scan for opening '{'; bail if we hit a ';' first (it's a prototype)
+        name = m.group(1)
+        start = i + 1
+        j = i
+        found_open = False
+        while j < n and j < i + 30:           # cap multi-line search
+            if ";" in lines[j] and "{" not in lines[j]:
+                break                          # prototype, not definition
+            if "{" in lines[j]:
+                found_open = True
+                break
+            j += 1
+        if not found_open:
+            i += 1
+            continue
+        # Now track brace depth from j onwards until depth returns to 0
+        # after at least one `{` has been seen.
+        depth = 0
+        end = j + 1
+        seen_open = False
+        while j < n:
+            opens = lines[j].count("{")
+            closes = lines[j].count("}")
+            depth += opens - closes
+            if opens > 0:
+                seen_open = True
+            if seen_open and depth <= 0:
+                end = j + 1
+                break
+            j += 1
+        else:
+            end = n  # ran off end of file without closing - record what we have
+        ranges.append((start, end, name))
+        i = max(end, i + 1)            # never go backwards
+    return ranges
+
+
+def _enclosing_function(ranges: list[tuple[int, int, str]], lineno: int) -> str | None:
+    for start, end, name in ranges:
+        if start <= lineno <= end:
+            return name
+    return None
+
+
 def detect_unsafe_memcmp_in_source(source_path: str, secret_funcs: set[str]) -> list[Violation]:
     """Add explicit findings for libc memcmp/strcmp calls on secret-named
     arguments.  Skips comments (// ..., /* ... */, * ...) so example calls in
-    docstrings don't false-fire."""
+    docstrings don't false-fire.  Skips calls whose enclosing function looks
+    like a self-test / known-answer-test scaffold."""
     text = Path(source_path).read_text()
+    func_ranges = _build_function_ranges(text)
     findings: list[Violation] = []
     in_block_comment = False
     for lineno, line in enumerate(text.splitlines(), start=1):
@@ -395,18 +476,22 @@ def detect_unsafe_memcmp_in_source(source_path: str, secret_funcs: set[str]) -> 
                 code = code[:i] + code[j+2:]
         for m in MEMCMP_CALL_RE.finditer(code):
             args = m.group(2)
-            if SECRET_NAME.search(args):
-                findings.append(Violation(
-                    function="<source-call>",
-                    file=str(source_path),
-                    line=lineno,
-                    address="",
-                    instruction=line.strip(),
-                    mnemonic="MEMCMP",
-                    reason=f"libc {m.group(1)} called on a secret-named argument; "
-                           f"this is variable-time and leaks the position of the first mismatch",
-                    severity=Severity.ERROR,
-                ))
+            if not SECRET_NAME.search(args):
+                continue
+            enclosing = _enclosing_function(func_ranges, lineno)
+            if enclosing and _TEST_FUNC_RE.match(enclosing):
+                continue            # self-test / KAT scaffold, not production
+            findings.append(Violation(
+                function=enclosing or "<source-call>",
+                file=str(source_path),
+                line=lineno,
+                address="",
+                instruction=line.strip(),
+                mnemonic="MEMCMP",
+                reason=f"libc {m.group(1)} called on a secret-named argument; "
+                       f"this is variable-time and leaks the position of the first mismatch",
+                severity=Severity.ERROR,
+            ))
     return findings
 
 
@@ -549,21 +634,66 @@ FILTER_REGISTRY: dict[str, Callable[[list[Violation]], tuple[list[Violation], li
 
 def apply_filters(violations: list[Violation], filter_names: Iterable[str],
                   source_path: str | None = None) -> tuple[list[Violation], list[tuple[Violation, str]]]:
-    """Apply filters in order. Returns (kept, suppressed_with_reason)."""
+    """Apply filters in order. Returns (kept, suppressed_with_reason).
+
+    Per-finding source attribution: if source_path is None but individual
+    Violation objects carry a .file attribute (populated by the parser
+    from `objdump -l` line markers), the source-level filters use the
+    finding's own .file.  This lets the wild-mode runner exploit DWARF
+    debug info from -g builds without forcing every finding through the
+    same source path.
+    """
     kept = list(violations)
     suppressed_all: list[tuple[Violation, str]] = []
-    secret_funcs: set[str] | None = None
+    secret_funcs_by_file: dict[str, set[str]] = {}
+    if source_path:
+        secret_funcs_by_file[source_path] = parse_secret_handling_functions(source_path)
+
+    def _secret_funcs_for(v: Violation) -> set[str] | None:
+        path = source_path or v.file
+        if not path or not Path(path).exists():
+            return None
+        if path not in secret_funcs_by_file:
+            secret_funcs_by_file[path] = parse_secret_handling_functions(path)
+        return secret_funcs_by_file[path]
+
     for name in filter_names:
         if name == "non-secret":
-            if source_path is None:
-                continue
-            if secret_funcs is None:
-                secret_funcs = parse_secret_handling_functions(source_path)
-            kept, sup = filter_non_secret_functions(kept, secret_funcs)
-        elif name == "memcmp-source" and source_path is not None:
-            if secret_funcs is None:
-                secret_funcs = parse_secret_handling_functions(source_path)
-            kept = kept + detect_unsafe_memcmp_in_source(source_path, secret_funcs)
+            # Only suppress WARNINGS in non-secret-named functions.  Errors
+            # (DIV/IDIV/SQRT) stay because they may be reachable from a
+            # secret-handling caller even when the immediate function has
+            # only public-looking params - mbedtls_mpi_mod_int(r, A, b) is
+            # the canonical case: documented variable-time helper, called
+            # during RSA prime-gen sieving where A is the secret candidate.
+            new_kept, sup = [], []
+            for v in kept:
+                if v.severity != Severity.WARNING:
+                    new_kept.append(v)
+                    continue
+                sf = _secret_funcs_for(v)
+                if sf is None:
+                    new_kept.append(v)        # unknown source = keep
+                    continue
+                if v.function in sf or v.function == "<source-call>":
+                    new_kept.append(v)
+                else:
+                    sup.append((v, f"warning in {v.function!r} has no secret-named parameter (source: {v.file})"))
+            kept = new_kept
+        elif name == "memcmp-source":
+            # Scan each unique source file referenced by findings (or the
+            # one global source_path).
+            sources_to_scan: set[str] = set()
+            if source_path:
+                sources_to_scan.add(source_path)
+            for v in kept:
+                if v.file and Path(v.file).exists():
+                    sources_to_scan.add(v.file)
+            extra: list[Violation] = []
+            for sp in sources_to_scan:
+                sf = secret_funcs_by_file.setdefault(
+                    sp, parse_secret_handling_functions(sp))
+                extra.extend(detect_unsafe_memcmp_in_source(sp, sf))
+            kept = kept + extra
             sup = []
         elif name in FILTER_REGISTRY:
             kept, sup = FILTER_REGISTRY[name](kept)
