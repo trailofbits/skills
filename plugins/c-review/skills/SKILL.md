@@ -168,7 +168,16 @@ Foreground spawn already serializes — no `sleep` needed before Phase 6c. Skip 
 
 #### Phase 6c: Spawn M real workers in ONE message
 
-**CRITICAL:** emit a single assistant message containing M `Agent` tool invocations so they run in parallel. Sequential spawning serializes the review.
+> **🚨 STOP — read this before composing the spawn message.**
+>
+> Workers MUST be spawned **foreground** (no `run_in_background` field, or `run_in_background=false`).
+> "Parallel" here means *one assistant message containing M `Agent` calls* — that already runs them concurrently. **Background spawns are NOT how you parallelize this skill.**
+>
+> Background spawns defeat Phase 6a's primer cache: every worker pays full cache-creation on its first turn (`cache_read_input_tokens=0`), and the primer's ~15 K tokens are wasted M times over. Two real runs (audit logs available) had exactly this symptom — every worker started with `first_cr=0`.
+>
+> Before sending the spawn message, audit your draft: every `Agent` call must have **no** `run_in_background` key. If you wrote `run_in_background=true`, delete it.
+
+**Required spawn shape:** emit a single assistant message containing M `Agent` tool invocations. Sequential spawning serializes the review and is also wrong, but that failure is loud (timing); the background-spawn failure is silent (cost).
 
 For each worker `N ∈ [1..M]`:
 
@@ -181,16 +190,16 @@ For each worker `N ∈ [1..M]`:
 | `model` | `${worker_model}` (haiku / sonnet / opus) |
 | `description` | `C review worker N` |
 | `prompt` | the full text of `worker-N.txt` (no edits) |
-| `run_in_background` | **must be unset / false** — see anti-pattern below |
+| `run_in_background` | **field MUST be omitted, OR set to `false`.** Never `true`. See the foreground-spawn warning above. |
 
 The spawn prompt is the single authority. Pass it verbatim — every field is required by the worker's self-check; any deviation triggers `worker-N abort: spawn prompt malformed`.
 
 **Anti-patterns to reject:**
 
+- ❌ **Passing `run_in_background=true`** (the dominant historical defect — see warning above).
 - ❌ Hand-typing the spawn prompt instead of reading `worker-N.txt`.
 - ❌ Inserting Task-related instructions ("first call TaskList", "Assigned task id: <N>"). Workers have no Task tools.
 - ❌ Editing the rendered prompt before passing it (trimming "redundant" fields, collapsing pass lists).
-- ❌ Passing `run_in_background=true`. Background spawns don't share Phase 6a's primer cache — every worker would pay full cache-creation, primer cost wasted. Observed: an entire 7-worker run had `first_cr=0` for exactly this reason.
 
 ### Phase 7: Wait for Workers and Classify Outcomes
 

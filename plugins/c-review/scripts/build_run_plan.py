@@ -440,6 +440,18 @@ def main() -> int:
     plan_path = output_dir / "plan.json"
     plan_path.write_text(json.dumps(plan, indent=2) + "\n")
 
+    spawn_warning = (
+        "Spawn workers FOREGROUND only. Each Agent call MUST have no "
+        "run_in_background field (or run_in_background=false). Setting it to "
+        "true defeats the Phase-6a primer cache and burns ~15K cache-creation "
+        "tokens per worker. 'Parallel' = one assistant message with M Agent "
+        "calls; that is already concurrent — do not add run_in_background=true."
+    )
+
+    # Stderr banner so the warning shows up in the Bash tool result the
+    # orchestrator reads, not just inside the JSON summary.
+    print(f"WARNING: {spawn_warning}", file=sys.stderr)
+
     # Print a compact summary for the orchestrator to parse via Read.
     summary = {
         "plan_path": str(plan_path),
@@ -447,6 +459,7 @@ def main() -> int:
         "worker_count": len(selected),
         "cluster_ids": [c["cluster_id"] for c in selected],
         "cache_primer_path": str(cache_primer_path) if cache_primer_path else None,
+        "spawn_instructions": spawn_warning,
     }
     print(json.dumps(summary, indent=2))
     return 0

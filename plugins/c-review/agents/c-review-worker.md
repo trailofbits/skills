@@ -138,7 +138,23 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
    : > "$shard"
    ```
 
-5. Return a one-line summary as your final reply, e.g.:
+5. **Emit a coverage-gate table** (mandatory, immediately above your one-line summary). One row per entry in `pass_bug_classes`. Outcome is one of:
+   - `filed: <id>[, <id>...]` — list every finding ID you wrote under this prefix
+   - `cleared` — the pass's required searchers ran and produced no exploitable candidate (state the seed in one phrase, e.g. *"no `regcomp`/`pcre*` calls"*)
+   - `skipped: <reason>` — only valid when `pass_bug_classes[i]` is in `skip_subclasses`, or when `requires`/threat-model would have hard-dropped this pass; spell out which
+
+   The table is your audit trail that every assigned pass actually ran. **"No obvious bugs" is not a valid outcome.** A pass that never appeared in your transcript is a coverage failure, not a clean run. Use this exact format:
+
+   ```
+   ## Coverage gate
+   | Pass prefix | Bug class            | Outcome                                      |
+   |-------------|----------------------|----------------------------------------------|
+   | BAN         | banned-functions     | filed: BAN-001                               |
+   | UNSAFESTD   | unsafe-stdlib        | cleared (no strtok/mktemp/putenv calls)      |
+   | SNPRINTF    | snprintf-retval      | filed: SNPRINTF-001                          |
+   ```
+
+6. Return a one-line summary as your final reply, e.g.:
 
    ```
    worker-3 complete: cluster buffer-write-sinks, wrote 7 finding files to /abs/path/findings/
@@ -173,7 +189,7 @@ Either way:
 
 When a cluster prompt asks for an inventory, build a real inventory before pass-specific analysis. Do not use `head`, `tail`, or other output caps as a substitute for coverage. If output is too large, first get a count, split by subdirectory or callee, and record that the inventory was partitioned. A capped search is acceptable only when you explicitly note it as a sample and follow with partitioned searches or a reason the omitted matches are out of scope.
 
-Before emitting `worker-N complete:`, verify that every `pass_bug_classes` entry either produced a finding or has an explicit cleared/skipped outcome in your working notes. "No obvious bugs" is not an outcome unless you ran the pass's required seeds/searchers and inspected representative candidates or confirmed the seed returned empty.
+Before emitting `worker-N complete:`, you MUST emit the coverage-gate table defined in step 5 of the assigned-task protocol. Every `pass_bug_classes` entry needs a row; every row's outcome is `filed: …` / `cleared (<one-phrase seed>)` / `skipped: <reason>`. Workers that omit the table are treated as malformed completions during review of the run summary. "No obvious bugs" is not a valid outcome unless you ran the pass's required seeds/searchers and inspected representative candidates or confirmed the seed returned empty.
 
 ---
 
@@ -345,10 +361,17 @@ The active threat model is on the `Threat model:` line of your spawn prompt and 
 
 ## Exit
 
-After completing your assigned cluster task, return a one-line summary as your final message:
+After completing your assigned cluster task, your final message must contain the coverage-gate table (one row per `pass_bug_classes` entry) followed by the one-line summary:
 
 ```
+## Coverage gate
+| Pass prefix | Bug class            | Outcome                                      |
+|-------------|----------------------|----------------------------------------------|
+| BAN         | banned-functions     | filed: BAN-001                               |
+| UNSAFESTD   | unsafe-stdlib        | cleared (no strtok/mktemp/putenv calls)      |
+| SNPRINTF    | snprintf-retval      | filed: SNPRINTF-001                          |
+
 worker-3 complete: cluster buffer-write-sinks, wrote 7 finding files to /abs/path/findings/
 ```
 
-Don't wait for other workers. Don't poll. Just exit.
+The table is mandatory — see the assigned-task protocol step 5. Don't wait for other workers. Don't poll. Just exit.
