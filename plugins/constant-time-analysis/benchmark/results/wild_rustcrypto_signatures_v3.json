@@ -1,0 +1,4813 @@
+{
+  "label": "rustcrypto_signatures_v3",
+  "timestamp": 1777534905.4035218,
+  "root": "benchmark/wild_rust/signatures/target/extracted_o",
+  "n_objects": 41,
+  "n_instructions": 62439,
+  "error_count": 18,
+  "warning_count": 260,
+  "error_count_user": 0,
+  "warning_count_user": 1,
+  "triage_breakdown": {
+    "dependency_source_review": 193,
+    "stdlib_other_likely_fp": 48,
+    "stdlib_iter_end_likely_fp": 18,
+    "stdlib_bounds_check_likely_fp": 18,
+    "user_code_review": 1
+  },
+  "errors": [
+    {
+      "function": "crypto_bigint::uint::sqrt::_<impl crypto_bigint::non_zero::NonZero<crypto_bigint::uint::Uint<_>>>::floor_sqrt_vartime",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/int_sqrt.rs",
+      "line": 190,
+      "address": "",
+      "instruction": "div    %r8w",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "crypto_bigint-14ba76463af2a135.crypto_bigint.bd75799d9a6c9f7a-cgu.4.rcgu.o"
+    },
+    {
+      "function": "crypto_bigint::uint::sqrt::_<impl crypto_bigint::non_zero::NonZero<crypto_bigint::uint::Uint<_>>>::floor_sqrt_vartime",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/int_sqrt.rs",
+      "line": 190,
+      "address": "",
+      "instruction": "div    %r8d",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "crypto_bigint-14ba76463af2a135.crypto_bigint.bd75799d9a6c9f7a-cgu.4.rcgu.o"
+    },
+    {
+      "function": "crypto_bigint::uint::sqrt::_<impl crypto_bigint::non_zero::NonZero<crypto_bigint::uint::Uint<_>>>::floor_sqrt_vartime",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/int_sqrt.rs",
+      "line": 241,
+      "address": "",
+      "instruction": "div    %rcx",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "crypto_bigint-14ba76463af2a135.crypto_bigint.bd75799d9a6c9f7a-cgu.4.rcgu.o"
+    },
+    {
+      "function": "crypto_bigint::uint::sqrt::_<impl crypto_bigint::non_zero::NonZero<crypto_bigint::uint::Uint<_>>>::floor_sqrt_vartime",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/int_sqrt.rs",
+      "line": 190,
+      "address": "",
+      "instruction": "div    %di",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "crypto_bigint-14ba76463af2a135.crypto_bigint.bd75799d9a6c9f7a-cgu.4.rcgu.o"
+    },
+    {
+      "function": "crypto_bigint::uint::sqrt::_<impl crypto_bigint::non_zero::NonZero<crypto_bigint::uint::Uint<_>>>::floor_sqrt_vartime",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/int_sqrt.rs",
+      "line": 241,
+      "address": "",
+      "instruction": "div    %edi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "crypto_bigint-14ba76463af2a135.crypto_bigint.bd75799d9a6c9f7a-cgu.4.rcgu.o"
+    },
+    {
+      "function": "crypto_bigint::uint::sqrt::_<impl crypto_bigint::non_zero::NonZero<crypto_bigint::uint::Uint<_>>>::floor_sqrt_vartime",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/int_sqrt.rs",
+      "line": 241,
+      "address": "",
+      "instruction": "div    %ecx",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "crypto_bigint-14ba76463af2a135.crypto_bigint.bd75799d9a6c9f7a-cgu.4.rcgu.o"
+    },
+    {
+      "function": "crypto_bigint::uint::sqrt::_<impl crypto_bigint::non_zero::NonZero<crypto_bigint::uint::Uint<_>>>::floor_sqrt_vartime",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/int_sqrt.rs",
+      "line": 241,
+      "address": "",
+      "instruction": "div    %r8w",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "crypto_bigint-14ba76463af2a135.crypto_bigint.bd75799d9a6c9f7a-cgu.4.rcgu.o"
+    },
+    {
+      "function": "crypto_bigint::primitives::u32_rem",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/primitives.rs",
+      "line": 97,
+      "address": "",
+      "instruction": "div    %rcx",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "pub(crate) const fn u32_rem(n: u32, d: u32) -> u32 {",
+        "    assert!(d > 0, \"divisor must be nonzero\");",
+        "    let c = u64::MAX / (d as u64) + 1;",
+        "    (((c.wrapping_mul(n as u64) as u128) * d as u128) >> 64) as u32",
+        "}"
+      ],
+      "object": "crypto_bigint-14ba76463af2a135.crypto_bigint.bd75799d9a6c9f7a-cgu.5.rcgu.o"
+    },
+    {
+      "function": "_<f32 as num_traits::Num>::from_str_radix",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+      "line": 299,
+      "address": "",
+      "instruction": "divss  %xmm1,%xmm3",
+      "mnemonic": "DIVSS",
+      "reason": "DIVSS (scalar single FP division) has variable latency",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                let (is_positive, src) =  match slice_shift_char(src) {",
+        "                    None             => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', \"\"))  => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', src)) => (false, src),",
+        "                    Some((_, _))     => (true,  src),"
+      ],
+      "object": "num_traits-9c89399ec812d8a4.num_traits.2b5b8e42813b9f47-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<f32 as num_traits::Num>::from_str_radix",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+      "line": 297,
+      "address": "",
+      "instruction": "divss  %xmm1,%xmm4",
+      "mnemonic": "DIVSS",
+      "reason": "DIVSS (scalar single FP division) has variable latency",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                let (is_positive, src) =  match slice_shift_char(src) {",
+        "                    None             => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', \"\"))  => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', src)) => (false, src),",
+        "                    Some((_, _))     => (true,  src),"
+      ],
+      "object": "num_traits-9c89399ec812d8a4.num_traits.2b5b8e42813b9f47-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<f32 as num_traits::Num>::from_str_radix",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+      "line": 327,
+      "address": "",
+      "instruction": "divss  %xmm1,%xmm2",
+      "mnemonic": "DIVSS",
+      "reason": "DIVSS (scalar single FP division) has variable latency",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                let (is_positive, src) =  match slice_shift_char(src) {",
+        "                    None             => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', \"\"))  => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', src)) => (false, src),",
+        "                    Some((_, _))     => (true,  src),"
+      ],
+      "object": "num_traits-9c89399ec812d8a4.num_traits.2b5b8e42813b9f47-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<f32 as num_traits::Num>::from_str_radix",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+      "line": 327,
+      "address": "",
+      "instruction": "divss  %xmm1,%xmm2",
+      "mnemonic": "DIVSS",
+      "reason": "DIVSS (scalar single FP division) has variable latency",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                let (is_positive, src) =  match slice_shift_char(src) {",
+        "                    None             => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', \"\"))  => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', src)) => (false, src),",
+        "                    Some((_, _))     => (true,  src),"
+      ],
+      "object": "num_traits-9c89399ec812d8a4.num_traits.2b5b8e42813b9f47-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<f32 as num_traits::Num>::from_str_radix",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+      "line": 380,
+      "address": "",
+      "instruction": "divss  %xmm1,%xmm0",
+      "mnemonic": "DIVSS",
+      "reason": "DIVSS (scalar single FP division) has variable latency",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                let (is_positive, src) =  match slice_shift_char(src) {",
+        "                    None             => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', \"\"))  => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', src)) => (false, src),",
+        "                    Some((_, _))     => (true,  src),"
+      ],
+      "object": "num_traits-9c89399ec812d8a4.num_traits.2b5b8e42813b9f47-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<f64 as num_traits::Num>::from_str_radix",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+      "line": 299,
+      "address": "",
+      "instruction": "divsd  %xmm1,%xmm3",
+      "mnemonic": "DIVSD",
+      "reason": "DIVSD (scalar double FP division) has variable latency",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                let (is_positive, src) =  match slice_shift_char(src) {",
+        "                    None             => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', \"\"))  => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', src)) => (false, src),",
+        "                    Some((_, _))     => (true,  src),"
+      ],
+      "object": "num_traits-9c89399ec812d8a4.num_traits.2b5b8e42813b9f47-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<f64 as num_traits::Num>::from_str_radix",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+      "line": 297,
+      "address": "",
+      "instruction": "divsd  %xmm1,%xmm4",
+      "mnemonic": "DIVSD",
+      "reason": "DIVSD (scalar double FP division) has variable latency",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                let (is_positive, src) =  match slice_shift_char(src) {",
+        "                    None             => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', \"\"))  => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', src)) => (false, src),",
+        "                    Some((_, _))     => (true,  src),"
+      ],
+      "object": "num_traits-9c89399ec812d8a4.num_traits.2b5b8e42813b9f47-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<f64 as num_traits::Num>::from_str_radix",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+      "line": 327,
+      "address": "",
+      "instruction": "divsd  %xmm1,%xmm2",
+      "mnemonic": "DIVSD",
+      "reason": "DIVSD (scalar double FP division) has variable latency",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                let (is_positive, src) =  match slice_shift_char(src) {",
+        "                    None             => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', \"\"))  => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', src)) => (false, src),",
+        "                    Some((_, _))     => (true,  src),"
+      ],
+      "object": "num_traits-9c89399ec812d8a4.num_traits.2b5b8e42813b9f47-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<f64 as num_traits::Num>::from_str_radix",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+      "line": 327,
+      "address": "",
+      "instruction": "divsd  %xmm1,%xmm2",
+      "mnemonic": "DIVSD",
+      "reason": "DIVSD (scalar double FP division) has variable latency",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                let (is_positive, src) =  match slice_shift_char(src) {",
+        "                    None             => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', \"\"))  => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', src)) => (false, src),",
+        "                    Some((_, _))     => (true,  src),"
+      ],
+      "object": "num_traits-9c89399ec812d8a4.num_traits.2b5b8e42813b9f47-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<f64 as num_traits::Num>::from_str_radix",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+      "line": 380,
+      "address": "",
+      "instruction": "divsd  %xmm1,%xmm0",
+      "mnemonic": "DIVSD",
+      "reason": "DIVSD (scalar double FP division) has variable latency",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                let (is_positive, src) =  match slice_shift_char(src) {",
+        "                    None             => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', \"\"))  => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', src)) => (false, src),",
+        "                    Some((_, _))     => (true,  src),"
+      ],
+      "object": "num_traits-9c89399ec812d8a4.num_traits.2b5b8e42813b9f47-cgu.0.rcgu.o"
+    }
+  ],
+  "warnings_sampled": [
+    {
+      "function": "ecdsa::ecdsa_oid_for_digest",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/signatures/ecdsa/src/lib.rs",
+      "line": 765,
+      "address": "0x389",
+      "instruction": "jne    389 <_ZN5ecdsa20ecdsa_oid_for_digest17hd751df396cd9dbe9E+0x389>",
+      "mnemonic": "JE/JNE",
+      "reason": "61 conditional branches at this source line (JE, JNE); inspect the if/for/match and confirm its condition does not depend on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "#[cfg(feature = \"digest\")]",
+        "const fn ecdsa_oid_for_digest(digest_oid: ObjectIdentifier) -> Option<ObjectIdentifier> {",
+        "    match digest_oid {",
+        "        SHA224_OID => Some(ECDSA_SHA224_OID),",
+        "        SHA256_OID => Some(ECDSA_SHA256_OID),"
+      ],
+      "object": "ecdsa-4f7a00dfa2a8ca82.ecdsa.4abd23021f910164-cgu.0.rcgu.o"
+    }
+  ],
+  "warning_clusters": [
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/signatures/ecdsa/src/lib.rs",
+          "function": "ecdsa::ecdsa_oid_for_digest",
+          "line": 765
+        }
+      ],
+      "representative_snippet": [
+        "#[cfg(feature = \"digest\")]",
+        "const fn ecdsa_oid_for_digest(digest_oid: ObjectIdentifier) -> Option<ObjectIdentifier> {",
+        "    match digest_oid {",
+        "        SHA224_OID => Some(ECDSA_SHA224_OID),",
+        "        SHA256_OID => Some(ECDSA_SHA256_OID),"
+      ],
+      "representative_line": 765,
+      "representative_function": "ecdsa::ecdsa_oid_for_digest",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/signatures/ecdsa/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    }
+  ],
+  "cluster_count": 1,
+  "build_valid": true,
+  "clusters_user_function": [
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/signatures/ecdsa/src/lib.rs",
+          "function": "ecdsa::ecdsa_oid_for_digest",
+          "line": 765
+        }
+      ],
+      "representative_snippet": [
+        "#[cfg(feature = \"digest\")]",
+        "const fn ecdsa_oid_for_digest(digest_oid: ObjectIdentifier) -> Option<ObjectIdentifier> {",
+        "    match digest_oid {",
+        "        SHA224_OID => Some(ECDSA_SHA224_OID),",
+        "        SHA256_OID => Some(ECDSA_SHA256_OID),"
+      ],
+      "representative_line": 765,
+      "representative_function": "ecdsa::ecdsa_oid_for_digest",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/signatures/ecdsa/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    }
+  ],
+  "clusters_user_file": [
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "file",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/signatures/ecdsa/src/lib.rs",
+          "function": "ecdsa::ecdsa_oid_for_digest",
+          "line": 765
+        }
+      ],
+      "representative_snippet": [
+        "#[cfg(feature = \"digest\")]",
+        "const fn ecdsa_oid_for_digest(digest_oid: ObjectIdentifier) -> Option<ObjectIdentifier> {",
+        "    match digest_oid {",
+        "        SHA224_OID => Some(ECDSA_SHA224_OID),",
+        "        SHA256_OID => Some(ECDSA_SHA256_OID),"
+      ],
+      "representative_line": 765,
+      "representative_function": "ecdsa::ecdsa_oid_for_digest",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/signatures/ecdsa/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    }
+  ],
+  "clusters_user_pattern": [
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "pattern",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/signatures/ecdsa/src/lib.rs",
+          "function": "ecdsa::ecdsa_oid_for_digest",
+          "line": 765
+        }
+      ],
+      "representative_snippet": [
+        "#[cfg(feature = \"digest\")]",
+        "const fn ecdsa_oid_for_digest(digest_oid: ObjectIdentifier) -> Option<ObjectIdentifier> {",
+        "    match digest_oid {",
+        "        SHA224_OID => Some(ECDSA_SHA224_OID),",
+        "        SHA256_OID => Some(ECDSA_SHA256_OID),"
+      ],
+      "representative_line": 765,
+      "representative_function": "ecdsa::ecdsa_oid_for_digest",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/signatures/ecdsa/src/lib.rs",
+      "representative_pattern": "match NAME {",
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    }
+  ],
+  "clusters_all_function": [
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 13,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+          "function": "_<f32 as num_traits::Num>::from_str_radix",
+          "line": 261
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+          "function": "_<f32 as num_traits::Num>::from_str_radix",
+          "line": 276
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+          "function": "_<f32 as num_traits::Num>::from_str_radix",
+          "line": 290
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+          "function": "_<f32 as num_traits::Num>::from_str_radix",
+          "line": 293
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+          "function": "_<f32 as num_traits::Num>::from_str_radix",
+          "line": 299
+        }
+      ],
+      "representative_snippet": [
+        "                let (is_positive, src) =  match slice_shift_char(src) {",
+        "                    None             => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', \"\"))  => return Err(PFE { kind: Empty }),",
+        "                    Some(('-', src)) => (false, src),",
+        "                    Some((_, _))     => (true,  src),"
+      ],
+      "representative_line": 261,
+      "representative_function": "_<f32 as num_traits::Num>::from_str_radix",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JB",
+        "JBE",
+        "JE",
+        "JNE",
+        "JNP"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 7,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::probe_fmt",
+          "line": 56
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::probe_fmt",
+          "line": 317
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::probe_fmt",
+          "line": 321
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::probe_fmt",
+          "line": 348
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::probe_fmt",
+          "line": 334
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 56,
+      "representative_function": "autocfg::AutoCfg::probe_fmt",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 7,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::rustflags",
+          "line": 585
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::rustflags",
+          "line": 591
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::rustflags",
+          "line": 586
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::rustflags",
+          "line": 602
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::rustflags",
+          "line": 603
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 585,
+      "representative_function": "autocfg::rustflags",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 7,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/div.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 77
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/div.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 296
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/div.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 308
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/div.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 319
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/div.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 321
+        }
+      ],
+      "representative_snippet": [
+        "                return;",
+        "            }",
+        "            _ if ywords > xsize => {",
+        "                // Divisor is greater than dividend. Return zero and the dividend as the",
+        "                // quotient and remainder"
+      ],
+      "representative_line": 77,
+      "representative_function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/div.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA",
+        "JAE",
+        "JE",
+        "JNE",
+        "JS"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 7,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shr.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 295
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shr.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 305
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shr.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 303
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shr.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 127
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shr.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 129
+        }
+      ],
+      "representative_snippet": [
+        "        assert!(shift < Limb::BITS);",
+        "",
+        "        if shift == 0 {",
+        "            return Limb::ZERO;",
+        "        }"
+      ],
+      "representative_line": 295,
+      "representative_function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shr.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JB",
+        "JBE",
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 5,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+          "function": "autocfg::rustc::get_rustc_wrapper",
+          "line": 71
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+          "function": "autocfg::rustc::get_rustc_wrapper",
+          "line": 75
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+          "function": "autocfg::rustc::get_rustc_wrapper",
+          "line": 81
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+          "function": "autocfg::rustc::get_rustc_wrapper",
+          "line": 86
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+          "function": "autocfg::rustc::get_rustc_wrapper",
+          "line": 83
+        }
+      ],
+      "representative_snippet": [
+        "    // deliberately setting or unsetting it in rust-lang/cargo#9601. We'll use the encoded",
+        "    // rustflags as a proxy for that change for now, but we could instead check version 1.55.",
+        "    if workspace && env::var_os(\"CARGO_ENCODED_RUSTFLAGS\").is_none() {",
+        "        return None;",
+        "    }"
+      ],
+      "representative_line": 71,
+      "representative_function": "autocfg::rustc::get_rustc_wrapper",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 5,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+          "function": "autocfg::rustc::Rustc::version",
+          "line": 54
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+          "function": "autocfg::rustc::Rustc::version",
+          "line": 55
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+          "function": "autocfg::rustc::Rustc::version",
+          "line": 60
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+          "function": "autocfg::rustc::Rustc::version",
+          "line": 47
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+          "function": "autocfg::rustc::Rustc::version",
+          "line": 49
+        }
+      ],
+      "representative_snippet": [
+        "    // deliberately setting or unsetting it in rust-lang/cargo#9601. We'll use the encoded",
+        "    // rustflags as a proxy for that change for now, but we could instead check version 1.55.",
+        "    if workspace && env::var_os(\"CARGO_ENCODED_RUSTFLAGS\").is_none() {",
+        "        return None;",
+        "    }"
+      ],
+      "representative_line": 54,
+      "representative_function": "autocfg::rustc::Rustc::version",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 5,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shl.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 281
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shl.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 223
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shl.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 214
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shl.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 294
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shl.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 289
+        }
+      ],
+      "representative_snippet": [
+        "        assert!(shift < Limb::BITS);",
+        "",
+        "        if shift == 0 {",
+        "            return Limb::ZERO;",
+        "        }"
+      ],
+      "representative_line": 281,
+      "representative_function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shl.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 5,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+          "function": "der::asn1::integer::uint::_<impl der::decode::DecodeValue for u128>::decode_value",
+          "line": 27
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+          "function": "der::asn1::integer::uint::_<impl der::decode::DecodeValue for u128>::decode_value",
+          "line": 343
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+          "function": "der::asn1::integer::uint::_<impl der::decode::DecodeValue for u128>::decode_value",
+          "line": 348
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+          "function": "der::asn1::integer::uint::_<impl der::decode::DecodeValue for u128>::decode_value",
+          "line": 346
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+          "function": "der::asn1::integer::uint::_<impl der::decode::DecodeValue for u128>::decode_value",
+          "line": 41
+        }
+      ],
+      "representative_snippet": [
+        "pub(crate) fn strip_leading_zeroes(mut bytes: &[u8]) -> &[u8] {",
+        "    while let Some((byte, rest)) = bytes.split_first() {",
+        "        if *byte == 0 && !rest.is_empty() {",
+        "            bytes = rest;",
+        "        } else {"
+      ],
+      "representative_line": 27,
+      "representative_function": "der::asn1::integer::uint::_<impl der::decode::DecodeValue for u128>::decode_value",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE",
+        "JS"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 4,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::with_dir",
+          "line": 222
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::with_dir",
+          "line": 196
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::with_dir",
+          "line": 212
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::with_dir",
+          "line": 213
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 222,
+      "representative_function": "autocfg::AutoCfg::with_dir",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 4,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/datetime.rs",
+          "function": "der::datetime::DateTime::from_ymd_hms",
+          "line": 104
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/datetime.rs",
+          "function": "der::datetime::DateTime::from_ymd_hms",
+          "line": 479
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/datetime.rs",
+          "function": "der::datetime::DateTime::from_ymd_hms",
+          "line": 117
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/datetime.rs",
+          "function": "der::datetime::DateTime::from_ymd_hms",
+          "line": 136
+        }
+      ],
+      "representative_snippet": [
+        "    ) -> Option<Self> {",
+        "        // Basic validation of the components.",
+        "        if year < MIN_YEAR",
+        "            || !const_contains_u8(1..=12, month)",
+        "            || !const_contains_u8(1..=31, day)"
+      ],
+      "representative_line": 104,
+      "representative_function": "der::datetime::DateTime::from_ymd_hms",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/datetime.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA",
+        "JBE",
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/version.rs",
+          "function": "autocfg::version::Version::from_command",
+          "line": 30
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/version.rs",
+          "function": "autocfg::version::Version::from_command",
+          "line": 36
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/version.rs",
+          "function": "autocfg::version::Version::from_command",
+          "line": 42
+        }
+      ],
+      "representative_snippet": [
+        "            .output()",
+        "            .map_err(error::from_io));",
+        "        if !output.status.success() {",
+        "            return Err(error::from_str(\"could not execute rustc\"));",
+        "        }"
+      ],
+      "representative_line": 30,
+      "representative_function": "autocfg::version::Version::from_command",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/version.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/cmp.rs",
+          "function": "crypto_bigint::modular::mul::almost_montgomery_reduce",
+          "line": 133
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/cmp.rs",
+          "function": "crypto_bigint::modular::mul::almost_montgomery_reduce",
+          "line": 25
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/cmp.rs",
+          "function": "crypto_bigint::modular::mul::almost_montgomery_reduce",
+          "line": 27
+        }
+      ],
+      "representative_snippet": [
+        "        let mut borrow = Limb::ZERO;",
+        "",
+        "        while i < overlap {",
+        "            borrow = lhs.limbs[i].borrowing_sub(rhs.limbs[i], borrow).1;",
+        "            i += 1;"
+      ],
+      "representative_line": 133,
+      "representative_function": "crypto_bigint::modular::mul::almost_montgomery_reduce",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/cmp.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA",
+        "JBE",
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+          "function": "der::asn1::integer::int::_<impl der::decode::DecodeValue for i128>::decode_value",
+          "line": 23
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+          "function": "der::asn1::integer::int::_<impl der::decode::DecodeValue for i128>::decode_value",
+          "line": 35
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+          "function": "der::asn1::integer::int::_<impl der::decode::DecodeValue for i128>::decode_value",
+          "line": 42
+        }
+      ],
+      "representative_snippet": [
+        "                    let max_length = u32::from(header.length()) as usize;",
+        "",
+        "                    if max_length == 0 {",
+        "                        return Err(reader.error(Tag::Integer.length_error()));",
+        "                    }"
+      ],
+      "representative_line": 23,
+      "representative_function": "der::asn1::integer::int::_<impl der::decode::DecodeValue for i128>::decode_value",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE",
+        "JS"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+          "function": "_<der::header::Header as der::decode::Decode>::decode",
+          "line": 292
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+          "function": "_<der::header::Header as der::decode::Decode>::decode",
+          "line": 169
+        }
+      ],
+      "representative_snippet": [
+        "    #[allow(clippy::cast_possible_truncation)]",
+        "    pub(crate) const fn new_usize(len: usize) -> Result<Self> {",
+        "        if len > (u32::MAX as usize) {",
+        "            Err(Error::from_kind(ErrorKind::Overflow))",
+        "        } else {"
+      ],
+      "representative_line": 292,
+      "representative_function": "_<der::header::Header as der::decode::Decode>::decode",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNO"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/pow.rs",
+          "function": "num_traits::pow::pow",
+          "line": 184
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/pow.rs",
+          "function": "num_traits::pow::pow",
+          "line": 193
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/pow.rs",
+          "function": "num_traits::pow::pow",
+          "line": 196
+        }
+      ],
+      "representative_snippet": [
+        "    }",
+        "",
+        "    while exp & 1 == 0 {",
+        "        base = base.clone() * base;",
+        "        exp >>= 1;"
+      ],
+      "representative_line": 184,
+      "representative_function": "num_traits::pow::pow",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/src/pow.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JBE",
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/adapters/zip.rs",
+          "function": "base16ct::lower::encode",
+          "line": 306
+        },
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/adapters/zip.rs",
+          "function": "base16ct::lower::encode",
+          "line": 310
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 306,
+      "representative_function": "base16ct::lower::encode",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/adapters/zip.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/traits/iterator.rs",
+          "function": "const_oid::ObjectIdentifierRef::arc",
+          "line": 2433
+        },
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/traits/iterator.rs",
+          "function": "const_oid::ObjectIdentifierRef::arc",
+          "line": 2434
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2433,
+      "representative_function": "const_oid::ObjectIdentifierRef::arc",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/traits/iterator.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/const-oid-0.10.2/src/parser.rs",
+          "function": "const_oid::parser::Parser::parse_bytes",
+          "line": 45
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/const-oid-0.10.2/src/parser.rs",
+          "function": "const_oid::parser::Parser::parse_bytes",
+          "line": 73
+        }
+      ],
+      "representative_snippet": [
+        "        match bytes {",
+        "            // TODO(tarcieri): use `?` when stable in `const fn`",
+        "            [] => match self.current_arc {",
+        "                Some(arc) => match self.encoder.arc(arc) {",
+        "                    Ok(encoder) => {"
+      ],
+      "representative_line": 45,
+      "representative_function": "const_oid::parser::Parser::parse_bytes",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/const-oid-0.10.2/src/parser.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::bits_vartime",
+          "line": 68
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::bits_vartime",
+          "line": 72
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn bits_vartime(&self) -> u32 {",
+        "        let mut i = self.limbs.len() - 1;",
+        "        while i > 0 && self.limbs[i].0 == 0 {",
+        "            i -= 1;",
+        "        }"
+      ],
+      "representative_line": 68,
+      "representative_function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::bits_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 2193
+        },
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 2154
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2193,
+      "representative_function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA",
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/slice.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 60
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/slice.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 35
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn fill(&mut self, limb: Limb) {",
+        "        let mut i = 0;",
+        "        while i < self.limbs.len() {",
+        "            self.limbs[i] = limb;",
+        "            i += 1;"
+      ],
+      "representative_line": 60,
+      "representative_function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/slice.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/div.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::rem_limb_with_reciprocal",
+          "line": 593
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/div.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::rem_limb_with_reciprocal",
+          "line": 595
+        }
+      ],
+      "representative_snippet": [
+        "                return;",
+        "            }",
+        "            _ if ywords > xsize => {",
+        "                // Divisor is greater than dividend. Return zero and the dividend as the",
+        "                // quotient and remainder"
+      ],
+      "representative_line": 593,
+      "representative_function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::rem_limb_with_reciprocal",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/div.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA",
+        "JAE",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::set_bit_vartime",
+          "line": 103
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::set_bit_vartime",
+          "line": 105
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn bits_vartime(&self) -> u32 {",
+        "        let mut i = self.limbs.len() - 1;",
+        "        while i > 0 && self.limbs[i].0 == 0 {",
+        "            i -= 1;",
+        "        }"
+      ],
+      "representative_line": 103,
+      "representative_function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::set_bit_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JBE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::bit",
+          "line": 27
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::bit",
+          "line": 24
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn bits_vartime(&self) -> u32 {",
+        "        let mut i = self.limbs.len() - 1;",
+        "        while i > 0 && self.limbs[i].0 == 0 {",
+        "            i -= 1;",
+        "        }"
+      ],
+      "representative_line": 27,
+      "representative_function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::bit",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::set_bit",
+          "line": 90
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::set_bit",
+          "line": 85
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn bits_vartime(&self) -> u32 {",
+        "        let mut i = self.limbs.len() - 1;",
+        "        while i > 0 && self.limbs[i].0 == 0 {",
+        "            i -= 1;",
+        "        }"
+      ],
+      "representative_line": 90,
+      "representative_function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::set_bit",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/reader/slice.rs",
+          "function": "der::asn1::any::AnyRef::decode_as_encoding",
+          "line": 150
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/reader/slice.rs",
+          "function": "der::asn1::any::AnyRef::decode_as_encoding",
+          "line": 152
+        }
+      ],
+      "representative_snippet": [
+        "",
+        "    fn finish(self) -> Result<(), Error> {",
+        "        if self.is_failed() {",
+        "            Err(ErrorKind::Failed.at(self.position))",
+        "        } else if !self.is_finished() {"
+      ],
+      "representative_line": 150,
+      "representative_function": "der::asn1::any::AnyRef::decode_as_encoding",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/reader/slice.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JBE",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+          "function": "der::asn1::any::AnyRef::decode_as_encoding",
+          "line": 441
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+          "function": "der::asn1::any::AnyRef::decode_as_encoding",
+          "line": 152
+        }
+      ],
+      "representative_snippet": [
+        "pub(crate) fn strip_leading_ones(mut bytes: &[u8]) -> &[u8] {",
+        "    while let Some((byte, rest)) = bytes.split_first() {",
+        "        if *byte == 0xFF && is_highest_bit_set(rest) {",
+        "            bytes = rest;",
+        "            continue;"
+      ],
+      "representative_line": 441,
+      "representative_function": "der::asn1::any::AnyRef::decode_as_encoding",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JS"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "der::asn1::any::AnyRef::decode_as_encoding",
+          "line": 180
+        },
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "der::asn1::any::AnyRef::decode_as_encoding",
+          "line": 332
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 180,
+      "representative_function": "der::asn1::any::AnyRef::decode_as_encoding",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNS"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "der::asn1::ia5_string::__impl_string::_<impl der::decode::DecodeValue for der::asn1::ia5_string::Ia5StringRef>::decode_value",
+          "line": 180
+        },
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "der::asn1::ia5_string::__impl_string::_<impl der::decode::DecodeValue for der::asn1::ia5_string::Ia5StringRef>::decode_value",
+          "line": 332
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 180,
+      "representative_function": "der::asn1::ia5_string::__impl_string::_<impl der::decode::DecodeValue for der::asn1::ia5_string::Ia5StringRef>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNS"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+          "function": "_<der::asn1::integer::int::IntRef as der::decode::DecodeValue>::decode_value",
+          "line": 441
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+          "function": "_<der::asn1::integer::int::IntRef as der::decode::DecodeValue>::decode_value",
+          "line": 152
+        }
+      ],
+      "representative_snippet": [
+        "                    let max_length = u32::from(header.length()) as usize;",
+        "",
+        "                    if max_length == 0 {",
+        "                        return Err(reader.error(Tag::Integer.length_error()));",
+        "                    }"
+      ],
+      "representative_line": 441,
+      "representative_function": "_<der::asn1::integer::int::IntRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE",
+        "JNS",
+        "JS"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+          "function": "der::asn1::integer::value_cmp",
+          "line": 393
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+          "function": "der::asn1::integer::value_cmp",
+          "line": 405
+        }
+      ],
+      "representative_snippet": [
+        "pub(crate) fn strip_leading_zeroes(mut bytes: &[u8]) -> &[u8] {",
+        "    while let Some((byte, rest)) = bytes.split_first() {",
+        "        if *byte == 0 && !rest.is_empty() {",
+        "            bytes = rest;",
+        "        } else {"
+      ],
+      "representative_line": 393,
+      "representative_function": "der::asn1::integer::value_cmp",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JS"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/header.rs",
+          "function": "_<der::header::Header as der::decode::Decode>::decode",
+          "line": 104
+        }
+      ],
+      "representative_snippet": [
+        "",
+        "        let length = Length::decode(reader).map_err(|e| {",
+        "            if e.kind() == ErrorKind::Overlength {",
+        "                reader.error(tag.length_error())",
+        "            } else {"
+      ],
+      "representative_line": 104,
+      "representative_function": "_<der::header::Header as der::decode::Decode>::decode",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/header.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "function": "_<der::header::Header as der::decode::Decode>::decode",
+          "line": 772
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 772,
+      "representative_function": "_<der::header::Header as der::decode::Decode>::decode",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/option.rs",
+          "function": "_<der::header::Header as der::decode::Decode>::decode",
+          "line": 2389
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2389,
+      "representative_function": "_<der::header::Header as der::decode::Decode>::decode",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/option.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+          "function": "_<der::asn1::integer::uint::UintRef as der::decode::DecodeValue>::decode_value",
+          "line": 393
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+          "function": "_<der::asn1::integer::uint::UintRef as der::decode::DecodeValue>::decode_value",
+          "line": 137
+        }
+      ],
+      "representative_snippet": [
+        "pub(crate) fn strip_leading_zeroes(mut bytes: &[u8]) -> &[u8] {",
+        "    while let Some((byte, rest)) = bytes.split_first() {",
+        "        if *byte == 0 && !rest.is_empty() {",
+        "            bytes = rest;",
+        "        } else {"
+      ],
+      "representative_line": 393,
+      "representative_function": "_<der::asn1::integer::uint::UintRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/tag.rs",
+          "function": "der::tag::Tag::decode_with_constructed_bit",
+          "line": 317
+        }
+      ],
+      "representative_snippet": [
+        "                }",
+        "            }",
+        "            0xC0..=0xFF => {",
+        "                let (constructed, number) = parse_parts(first_byte, reader)?;",
+        ""
+      ],
+      "representative_line": 317,
+      "representative_function": "der::tag::Tag::decode_with_constructed_bit",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/tag.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/str/mod.rs",
+          "function": "_<f32 as num_traits::Num>::from_str_radix",
+          "line": 366
+        },
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/str/mod.rs",
+          "function": "_<f32 as num_traits::Num>::from_str_radix",
+          "line": 370
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 366,
+      "representative_function": "_<f32 as num_traits::Num>::from_str_radix",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/str/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JBE",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+          "function": "_<der::reader::slice::SliceReader as der::reader::Reader>::read_nested",
+          "line": 27
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+          "function": "_<der::reader::slice::SliceReader as der::reader::Reader>::read_nested",
+          "line": 41
+        }
+      ],
+      "representative_snippet": [
+        "                    let max_length = u32::from(header.length()) as usize;",
+        "",
+        "                    if max_length == 0 {",
+        "                        return Err(reader.error(Tag::Integer.length_error()));",
+        "                    }"
+      ],
+      "representative_line": 27,
+      "representative_function": "_<der::reader::slice::SliceReader as der::reader::Reader>::read_nested",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/tag.rs",
+          "function": "der::tag::Tag::peek_matches",
+          "line": 349
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/tag.rs",
+          "function": "der::tag::Tag::peek_matches",
+          "line": 354
+        }
+      ],
+      "representative_snippet": [
+        "        expected_tag_number: TagNumber,",
+        "    ) -> Result<bool> {",
+        "        if reader.is_finished() {",
+        "            return Ok(false);",
+        "        }"
+      ],
+      "representative_line": 349,
+      "representative_function": "der::tag::Tag::peek_matches",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/tag.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/internal_macros.rs",
+          "function": "der::asn1::context_specific::ContextSpecific<T>::decode_explicit",
+          "line": 121
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/internal_macros.rs",
+          "function": "der::asn1::context_specific::ContextSpecific<T>::decode_explicit",
+          "line": 192
+        }
+      ],
+      "representative_snippet": [
+        "                T: Decode<'a>,",
+        "            {",
+        "                if !Tag::peek_matches(reader, Class::$class_enum_name, tag_number)? {",
+        "                    return Ok(None);",
+        "                }"
+      ],
+      "representative_line": 121,
+      "representative_function": "der::asn1::context_specific::ContextSpecific<T>::decode_explicit",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/internal_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/internal_macros.rs",
+          "function": "der::asn1::context_specific::ContextSpecific<T>::decode_implicit",
+          "line": 148
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/internal_macros.rs",
+          "function": "der::asn1::context_specific::ContextSpecific<T>::decode_implicit",
+          "line": 156
+        }
+      ],
+      "representative_snippet": [
+        "                T: Decode<'a>,",
+        "            {",
+        "                if !Tag::peek_matches(reader, Class::$class_enum_name, tag_number)? {",
+        "                    return Ok(None);",
+        "                }"
+      ],
+      "representative_line": 148,
+      "representative_function": "der::asn1::context_specific::ContextSpecific<T>::decode_implicit",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/internal_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::version::Version::from_command",
+          "line": 56
+        }
+      ],
+      "representative_snippet": [
+        "macro_rules! try {",
+        "    ($result:expr) => {",
+        "        match $result {",
+        "            Ok(value) => value,",
+        "            Err(error) => return Err(error),"
+      ],
+      "representative_line": 56,
+      "representative_function": "autocfg::version::Version::from_command",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/option.rs",
+          "function": "autocfg::rustc::Rustc::command",
+          "line": 1014
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1014,
+      "representative_function": "autocfg::rustc::Rustc::command",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/option.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+          "function": "autocfg::rustc::Rustc::command",
+          "line": 35
+        }
+      ],
+      "representative_snippet": [
+        "    // deliberately setting or unsetting it in rust-lang/cargo#9601. We'll use the encoded",
+        "    // rustflags as a proxy for that change for now, but we could instead check version 1.55.",
+        "    if workspace && env::var_os(\"CARGO_ENCODED_RUSTFLAGS\").is_none() {",
+        "        return None;",
+        "    }"
+      ],
+      "representative_line": 35,
+      "representative_function": "autocfg::rustc::Rustc::command",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/rustc.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::dir_contains_target",
+          "line": 577
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 577,
+      "representative_function": "autocfg::dir_contains_target",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::dir_contains_target::_{{closure}}",
+          "line": 575
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 575,
+      "representative_function": "autocfg::dir_contains_target::_{{closure}}",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+          "function": "autocfg::new",
+          "line": 1231
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1231,
+      "representative_function": "autocfg::new",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::mangle::_{{closure}}",
+          "line": 551
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 551,
+      "representative_function": "autocfg::mangle::_{{closure}}",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JBE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::emit_path_cfg",
+          "line": 450
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 450,
+      "representative_function": "autocfg::AutoCfg::emit_path_cfg",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::emit_type_cfg",
+          "line": 504
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 504,
+      "representative_function": "autocfg::AutoCfg::emit_type_cfg",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::emit_trait_cfg",
+          "line": 477
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 477,
+      "representative_function": "autocfg::AutoCfg::emit_trait_cfg",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::emit_constant_cfg",
+          "line": 542
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 542,
+      "representative_function": "autocfg::AutoCfg::emit_constant_cfg",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::emit_rustc_version",
+          "line": 292
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 292,
+      "representative_function": "autocfg::AutoCfg::emit_rustc_version",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::emit_sysroot_crate",
+          "line": 423
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 423,
+      "representative_function": "autocfg::AutoCfg::emit_sysroot_crate",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::emit_expression_cfg",
+          "line": 523
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 523,
+      "representative_function": "autocfg::AutoCfg::emit_expression_cfg",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::new",
+          "line": 173
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 173,
+      "representative_function": "autocfg::AutoCfg::new",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::probe",
+          "line": 351
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 351,
+      "representative_function": "autocfg::AutoCfg::probe",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::AutoCfg::edition",
+          "line": 254
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 254,
+      "representative_function": "autocfg::AutoCfg::edition",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+          "function": "autocfg::new_uuid",
+          "line": 632
+        }
+      ],
+      "representative_snippet": [
+        "        })",
+        "        .unwrap_or(false)",
+        "}",
+        "",
+        "fn rustflags(target: &Option<OsString>, dir: &Path) -> Vec<String> {"
+      ],
+      "representative_line": 632,
+      "representative_function": "autocfg::new_uuid",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "function": "base16ct::lower::encode",
+          "line": 842
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 842,
+      "representative_function": "base16ct::lower::encode",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JBE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+          "function": "const_oid::ObjectIdentifierRef::from_bytes",
+          "line": 2173
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2173,
+      "representative_function": "const_oid::ObjectIdentifierRef::from_bytes",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA",
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/index.rs",
+          "function": "const_oid::ObjectIdentifierRef::from_bytes",
+          "line": 219
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 219,
+      "representative_function": "const_oid::ObjectIdentifierRef::from_bytes",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/index.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/const-oid-0.10.2/src/arcs.rs",
+          "function": "const_oid::ObjectIdentifierRef::from_bytes",
+          "line": 89
+        }
+      ],
+      "representative_snippet": [
+        "                            arc_bytes = checked_add!(arc_bytes, 1);",
+        "",
+        "                            if (arc_bytes > ARC_MAX_BYTES) && (byte & ARC_MAX_LAST_OCTET != 0) {",
+        "                                return Err(Error::ArcTooBig);",
+        "                            }"
+      ],
+      "representative_line": 89,
+      "representative_function": "const_oid::ObjectIdentifierRef::from_bytes",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/const-oid-0.10.2/src/arcs.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/traits/iterator.rs",
+          "function": "const_oid::ObjectIdentifierRef::len",
+          "line": 2609
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2609,
+      "representative_function": "const_oid::ObjectIdentifierRef::len",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/traits/iterator.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+          "function": "const_oid::encoder::Encoder<_>::arc",
+          "line": 458
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 458,
+      "representative_function": "const_oid::encoder::Encoder<_>::arc",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JO"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ctutils-0.4.2/src/ct_option.rs",
+          "function": "crypto_bigint::uint::div::_<impl crypto_bigint::uint::Uint<_>>::div_rem",
+          "line": 162
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn expect_ref(&self, msg: &str) -> &T {",
+        "        // TODO(tarcieri): use `self.is_some().to_bool()` when MSRV is 1.86",
+        "        assert!(self.is_some.to_bool_vartime(), \"{}\", msg);",
+        "        self.as_inner_unchecked()",
+        "    }"
+      ],
+      "representative_line": 162,
+      "representative_function": "crypto_bigint::uint::div::_<impl crypto_bigint::uint::Uint<_>>::div_rem",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ctutils-0.4.2/src/ct_option.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/sqrt.rs",
+          "function": "crypto_bigint::uint::sqrt::_<impl crypto_bigint::uint::Uint<_>>::checked_sqrt_vartime",
+          "line": 182
+        }
+      ],
+      "representative_snippet": [
+        "        let r = self.floor_sqrt_vartime();",
+        "        let s = r.wrapping_square();",
+        "        if self.0.cmp_vartime(&s).is_eq() {",
+        "            Some(r)",
+        "        } else {"
+      ],
+      "representative_line": 182,
+      "representative_function": "crypto_bigint::uint::sqrt::_<impl crypto_bigint::uint::Uint<_>>::checked_sqrt_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/sqrt.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ctutils-0.4.2/src/ct_option.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 162
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn expect_ref(&self, msg: &str) -> &T {",
+        "        // TODO(tarcieri): use `self.is_some().to_bool()` when MSRV is 1.86",
+        "        assert!(self.is_some.to_bool_vartime(), \"{}\", msg);",
+        "        self.as_inner_unchecked()",
+        "    }"
+      ],
+      "representative_line": 162,
+      "representative_function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ctutils-0.4.2/src/ct_option.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ctutils-0.4.2/src/choice.rs",
+          "function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+          "line": 81
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn not(self) -> Choice {",
+        "        // NOTE: assumes self.0 is `0` or `1` as checked in constructor",
+        "        Self(self.0 ^ 1)",
+        "    }",
+        ""
+      ],
+      "representative_line": 81,
+      "representative_function": "crypto_bigint::uint::ref_type::div::_<impl crypto_bigint::uint::ref_type::UintRef>::div_rem_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ctutils-0.4.2/src/choice.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::leading_zeros",
+          "line": 115
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn bits_vartime(&self) -> u32 {",
+        "        let mut i = self.limbs.len() - 1;",
+        "        while i > 0 && self.limbs[i].0 == 0 {",
+        "            i -= 1;",
+        "        }"
+      ],
+      "representative_line": 115,
+      "representative_function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::leading_zeros",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::trailing_ones",
+          "line": 173
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn bits_vartime(&self) -> u32 {",
+        "        let mut i = self.limbs.len() - 1;",
+        "        while i > 0 && self.limbs[i].0 == 0 {",
+        "            i -= 1;",
+        "        }"
+      ],
+      "representative_line": 173,
+      "representative_function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::trailing_ones",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::trailing_zeros",
+          "line": 134
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn bits_vartime(&self) -> u32 {",
+        "        let mut i = self.limbs.len() - 1;",
+        "        while i > 0 && self.limbs[i].0 == 0 {",
+        "            i -= 1;",
+        "        }"
+      ],
+      "representative_line": 134,
+      "representative_function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::trailing_zeros",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::trailing_ones_vartime",
+          "line": 196
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn bits_vartime(&self) -> u32 {",
+        "        let mut i = self.limbs.len() - 1;",
+        "        while i > 0 && self.limbs[i].0 == 0 {",
+        "            i -= 1;",
+        "        }"
+      ],
+      "representative_line": 196,
+      "representative_function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::trailing_ones_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::trailing_zeros_vartime",
+          "line": 157
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn bits_vartime(&self) -> u32 {",
+        "        let mut i = self.limbs.len() - 1;",
+        "        while i > 0 && self.limbs[i].0 == 0 {",
+        "            i -= 1;",
+        "        }"
+      ],
+      "representative_line": 157,
+      "representative_function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::trailing_zeros_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/bits.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/word.rs",
+          "function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::bit",
+          "line": 100
+        }
+      ],
+      "representative_snippet": [
+        "#[inline]",
+        "pub(crate) const fn select(a: Word, b: Word, choice: Choice) -> Word {",
+        "    a ^ (choice_to_mask(choice) & (a ^ b))",
+        "}",
+        ""
+      ],
+      "representative_line": 100,
+      "representative_function": "crypto_bigint::uint::ref_type::bits::_<impl crypto_bigint::traits::BitOps for crypto_bigint::uint::ref_type::UintRef>::bit",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/word.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JS"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "function": "crypto_bigint::modular::mul::almost_montgomery_reduce",
+          "line": 772
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 772,
+      "representative_function": "crypto_bigint::modular::mul::almost_montgomery_reduce",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/limb/bit_and.rs",
+          "function": "crypto_bigint::modular::mul::almost_montgomery_reduce",
+          "line": 11
+        }
+      ],
+      "representative_snippet": [
+        "    #[must_use]",
+        "    pub const fn bitand(self, rhs: Self) -> Self {",
+        "        Limb(self.0 & rhs.0)",
+        "    }",
+        "}"
+      ],
+      "representative_line": 11,
+      "representative_function": "crypto_bigint::modular::mul::almost_montgomery_reduce",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/limb/bit_and.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ctutils-0.4.2/src/ct_option.rs",
+          "function": "crypto_bigint::limb::gcd::_<impl crypto_bigint::traits::Gcd<crypto_bigint::limb::Limb> for crypto_bigint::non_zero::NonZero<crypto_bigint::limb::Limb>>::gcd",
+          "line": 162
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn expect_ref(&self, msg: &str) -> &T {",
+        "        // TODO(tarcieri): use `self.is_some().to_bool()` when MSRV is 1.86",
+        "        assert!(self.is_some.to_bool_vartime(), \"{}\", msg);",
+        "        self.as_inner_unchecked()",
+        "    }"
+      ],
+      "representative_line": 162,
+      "representative_function": "crypto_bigint::limb::gcd::_<impl crypto_bigint::traits::Gcd<crypto_bigint::limb::Limb> for crypto_bigint::non_zero::NonZero<crypto_bigint::limb::Limb>>::gcd",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ctutils-0.4.2/src/ct_option.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/int_sqrt.rs",
+          "function": "crypto_bigint::uint::sqrt::_<impl crypto_bigint::non_zero::NonZero<crypto_bigint::uint::Uint<_>>>::floor_sqrt_vartime",
+          "line": 87
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 87,
+      "representative_function": "crypto_bigint::uint::sqrt::_<impl crypto_bigint::non_zero::NonZero<crypto_bigint::uint::Uint<_>>>::floor_sqrt_vartime",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/int_sqrt.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/sqrt.rs",
+          "function": "crypto_bigint::uint::sqrt::_<impl crypto_bigint::non_zero::NonZero<crypto_bigint::uint::Uint<_>>>::checked_sqrt_vartime",
+          "line": 182
+        }
+      ],
+      "representative_snippet": [
+        "        let r = self.floor_sqrt_vartime();",
+        "        let s = r.wrapping_square();",
+        "        if self.0.cmp_vartime(&s).is_eq() {",
+        "            Some(r)",
+        "        } else {"
+      ],
+      "representative_line": 182,
+      "representative_function": "crypto_bigint::uint::sqrt::_<impl crypto_bigint::non_zero::NonZero<crypto_bigint::uint::Uint<_>>>::checked_sqrt_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/sqrt.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cmov-0.5.3/src/slice.rs",
+          "function": "crypto_bigint::limb::ct::_<impl ctutils::traits::ct_eq::CtEqSlice for crypto_bigint::limb::Limb>::ct_eq_slice",
+          "line": 240
+        }
+      ],
+      "representative_snippet": [
+        "                    // Short-circuit the comparison if the slices are of different lengths, and set the output",
+        "                    // condition to the input condition.",
+        "                    if self.len() != rhs.len() {",
+        "                        *output = input;",
+        "                        return;"
+      ],
+      "representative_line": 240,
+      "representative_function": "crypto_bigint::limb::ct::_<impl ctutils::traits::ct_eq::CtEqSlice for crypto_bigint::limb::Limb>::ct_eq_slice",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cmov-0.5.3/src/slice.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/adapters/zip.rs",
+          "function": "crypto_bigint::limb::ct::_<impl ctutils::traits::ct_assign::CtAssignSlice for crypto_bigint::limb::Limb>::ct_assign_slice",
+          "line": 306
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 306,
+      "representative_function": "crypto_bigint::limb::ct::_<impl ctutils::traits::ct_assign::CtAssignSlice for crypto_bigint::limb::Limb>::ct_assign_slice",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/adapters/zip.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cmov-0.5.3/src/slice.rs",
+          "function": "crypto_bigint::limb::ct::_<impl ctutils::traits::ct_assign::CtAssignSlice for crypto_bigint::limb::Limb>::ct_assign_slice",
+          "line": 24
+        }
+      ],
+      "representative_snippet": [
+        "                    // Short-circuit the comparison if the slices are of different lengths, and set the output",
+        "                    // condition to the input condition.",
+        "                    if self.len() != rhs.len() {",
+        "                        *output = input;",
+        "                        return;"
+      ],
+      "representative_line": 24,
+      "representative_function": "crypto_bigint::limb::ct::_<impl ctutils::traits::ct_assign::CtAssignSlice for crypto_bigint::limb::Limb>::ct_assign_slice",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cmov-0.5.3/src/slice.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shl.rs",
+          "function": "crypto_bigint::limb::div::_<impl crypto_bigint::traits::RemLimb for crypto_bigint::limb::Limb>::rem_limb_with_reciprocal",
+          "line": 208
+        }
+      ],
+      "representative_snippet": [
+        "        choice: Choice,",
+        "    ) -> Limb {",
+        "        assert!(shift.get() < Limb::BITS);",
+        "",
+        "        let lshift = shift.get();"
+      ],
+      "representative_line": 208,
+      "representative_function": "crypto_bigint::limb::div::_<impl crypto_bigint::traits::RemLimb for crypto_bigint::limb::Limb>::rem_limb_with_reciprocal",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/ref_type/shl.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ctutils-0.4.2/src/ct_option.rs",
+          "function": "crypto_bigint::limb::gcd::_<impl crypto_bigint::traits::Gcd<crypto_bigint::limb::Limb> for crypto_bigint::odd::Odd<crypto_bigint::limb::Limb>>::gcd",
+          "line": 162
+        }
+      ],
+      "representative_snippet": [
+        "    pub const fn expect_ref(&self, msg: &str) -> &T {",
+        "        // TODO(tarcieri): use `self.is_some().to_bool()` when MSRV is 1.86",
+        "        assert!(self.is_some.to_bool_vartime(), \"{}\", msg);",
+        "        self.as_inner_unchecked()",
+        "    }"
+      ],
+      "representative_line": 162,
+      "representative_function": "crypto_bigint::limb::gcd::_<impl crypto_bigint::traits::Gcd<crypto_bigint::limb::Limb> for crypto_bigint::odd::Odd<crypto_bigint::limb::Limb>>::gcd",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ctutils-0.4.2/src/ct_option.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/gcd.rs",
+          "function": "crypto_bigint::limb::gcd::_<impl crypto_bigint::traits::Gcd for crypto_bigint::limb::Limb>::gcd_vartime",
+          "line": 24
+        }
+      ],
+      "representative_snippet": [
+        "    #[must_use]",
+        "    pub const fn gcd_vartime(&self, rhs: &Self) -> Self {",
+        "        if self.is_zero_vartime() {",
+        "            return *rhs;",
+        "        }"
+      ],
+      "representative_line": 24,
+      "representative_function": "crypto_bigint::limb::gcd::_<impl crypto_bigint::traits::Gcd for crypto_bigint::limb::Limb>::gcd_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/gcd.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/sqrt.rs",
+          "function": "crypto_bigint::limb::sqrt::_<impl crypto_bigint::traits::CheckedSquareRoot for crypto_bigint::limb::Limb>::checked_sqrt_vartime",
+          "line": 85
+        }
+      ],
+      "representative_snippet": [
+        "    /// Variable time with respect to `self`.",
+        "    pub fn checked_sqrt_vartime(&self) -> Option<Self> {",
+        "        if self.is_zero_vartime() {",
+        "            Some(Self::ZERO)",
+        "        } else {"
+      ],
+      "representative_line": 85,
+      "representative_function": "crypto_bigint::limb::sqrt::_<impl crypto_bigint::traits::CheckedSquareRoot for crypto_bigint::limb::Limb>::checked_sqrt_vartime",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crypto-bigint-0.7.3/src/uint/sqrt.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/any.rs",
+          "function": "der::asn1::any::AnyRef::decode_as_encoding",
+          "line": 89
+        }
+      ],
+      "representative_snippet": [
+        "        T: Choice<'a> + DecodeValue<'a>,",
+        "    {",
+        "        if !T::can_decode(self.tag) {",
+        "            return Err(self.tag.unexpected_error(None).to_error().into());",
+        "        }"
+      ],
+      "representative_line": 89,
+      "representative_function": "der::asn1::any::AnyRef::decode_as_encoding",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/any.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+          "function": "der::asn1::any::AnyRef::decode_as_encoding",
+          "line": 93
+        }
+      ],
+      "representative_snippet": [
+        "    #[allow(clippy::cast_possible_truncation)]",
+        "    pub(crate) const fn new_usize(len: usize) -> Result<Self> {",
+        "        if len > (u32::MAX as usize) {",
+        "            Err(Error::from_kind(ErrorKind::Overflow))",
+        "        } else {"
+      ],
+      "representative_line": 93,
+      "representative_function": "der::asn1::any::AnyRef::decode_as_encoding",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "function": "der::asn1::any::AnyRef::decode_as_encoding",
+          "line": 842
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 842,
+      "representative_function": "der::asn1::any::AnyRef::decode_as_encoding",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/bit_string.rs",
+          "function": "der::asn1::any::AnyRef::decode_as_encoding",
+          "line": 270
+        }
+      ],
+      "representative_snippet": [
+        "        /// from the final octet. This number is 0 if the value is octet-aligned.",
+        "        pub fn new(unused_bits: u8, bytes: &[u8]) -> Result<Self> {",
+        "            if (unused_bits > Self::MAX_UNUSED_BITS) || (unused_bits != 0 && bytes.is_empty()) {",
+        "                Err(Tag::BitString.value_error().into())",
+        "            } else {"
+      ],
+      "representative_line": 270,
+      "representative_function": "der::asn1::any::AnyRef::decode_as_encoding",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/bit_string.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/option.rs",
+          "function": "der::asn1::any::AnyRef::decode_as_encoding",
+          "line": 1367
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1367,
+      "representative_function": "der::asn1::any::AnyRef::decode_as_encoding",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/option.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/printable_string.rs",
+          "function": "der::asn1::any::AnyRef::decode_as_encoding",
+          "line": 73
+        }
+      ],
+      "representative_snippet": [
+        "        // Validate all characters are within PrintableString's allowed set",
+        "        for &c in input.iter() {",
+        "            match c {",
+        "                b'A'..=b'Z'",
+        "                | b'a'..=b'z'"
+      ],
+      "representative_line": 73,
+      "representative_function": "der::asn1::any::AnyRef::decode_as_encoding",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/printable_string.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+          "function": "der::asn1::any::AnyRef::decode_as_encoding",
+          "line": 2173
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2173,
+      "representative_function": "der::asn1::any::AnyRef::decode_as_encoding",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/bit_string.rs",
+          "function": "der::asn1::bit_string::BitStringRef::get",
+          "line": 151
+        }
+      ],
+      "representative_snippet": [
+        "    #[must_use]",
+        "    pub fn get(&self, position: usize) -> Option<bool> {",
+        "        if position >= self.bit_len() {",
+        "            return None;",
+        "        }"
+      ],
+      "representative_line": 151,
+      "representative_function": "der::asn1::bit_string::BitStringRef::get",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/bit_string.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/index.rs",
+          "function": "der::asn1::bit_string::BitStringRef::get",
+          "line": 219
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 219,
+      "representative_function": "der::asn1::bit_string::BitStringRef::get",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/index.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/bit_string.rs",
+          "function": "der::asn1::bit_string::BitStringRef::new",
+          "line": 270
+        }
+      ],
+      "representative_snippet": [
+        "    #[must_use]",
+        "    pub fn get(&self, position: usize) -> Option<bool> {",
+        "        if position >= self.bit_len() {",
+        "            return None;",
+        "        }"
+      ],
+      "representative_line": 270,
+      "representative_function": "der::asn1::bit_string::BitStringRef::new",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/bit_string.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+          "function": "_<der::writer::slice::SliceWriter as der::writer::Writer>::write",
+          "line": 93
+        }
+      ],
+      "representative_snippet": [
+        "    #[allow(clippy::cast_possible_truncation)]",
+        "    pub(crate) const fn new_usize(len: usize) -> Result<Self> {",
+        "        if len > (u32::MAX as usize) {",
+        "            Err(Error::from_kind(ErrorKind::Overflow))",
+        "        } else {"
+      ],
+      "representative_line": 93,
+      "representative_function": "_<der::writer::slice::SliceWriter as der::writer::Writer>::write",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/option.rs",
+          "function": "_<der::asn1::bit_string::BitStringRef as der::decode::DecodeValue>::decode_value",
+          "line": 1367
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1367,
+      "representative_function": "_<der::asn1::bit_string::BitStringRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/option.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "function": "_<&der::bytes::BytesRef as der::decode::DecodeValue>::decode_value",
+          "line": 842
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 842,
+      "representative_function": "_<&der::bytes::BytesRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JB",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+          "function": "_<&der::bytes::BytesRef as der::decode::DecodeValue>::decode_value",
+          "line": 458
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 458,
+      "representative_function": "_<&der::bytes::BytesRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA",
+        "JB",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+          "function": "der::asn1::ia5_string::__impl_string::_<impl der::decode::DecodeValue for der::asn1::ia5_string::Ia5StringRef>::decode_value",
+          "line": 2173
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2173,
+      "representative_function": "der::asn1::ia5_string::__impl_string::_<impl der::decode::DecodeValue for der::asn1::ia5_string::Ia5StringRef>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/index.rs",
+          "function": "_<der::writer::slice::SliceWriter as der::writer::Writer>::write",
+          "line": 381
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 381,
+      "representative_function": "_<der::writer::slice::SliceWriter as der::writer::Writer>::write",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/index.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+          "function": "der::encode::encode_value_to_slice",
+          "line": 393
+        }
+      ],
+      "representative_snippet": [
+        "pub(crate) fn strip_leading_zeroes(mut bytes: &[u8]) -> &[u8] {",
+        "    while let Some((byte, rest)) = bytes.split_first() {",
+        "        if *byte == 0 && !rest.is_empty() {",
+        "            bytes = rest;",
+        "        } else {"
+      ],
+      "representative_line": 393,
+      "representative_function": "der::encode::encode_value_to_slice",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "_<der::writer::slice::SliceWriter as der::writer::Writer>::write",
+          "line": 5360
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 5360,
+      "representative_function": "_<der::writer::slice::SliceWriter as der::writer::Writer>::write",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/writer/slice.rs",
+          "function": "der::encode::encode_value_to_slice",
+          "line": 70
+        }
+      ],
+      "representative_snippet": [
+        "        let position = self.position;",
+        "",
+        "        if self.is_failed() {",
+        "            return Err(ErrorKind::Failed.at(position));",
+        "        }"
+      ],
+      "representative_line": 70,
+      "representative_function": "der::encode::encode_value_to_slice",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/writer/slice.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/mod.rs",
+          "function": "_<der::asn1::utc_time::UtcTime as der::decode::DecodeValue>::decode_value",
+          "line": 819
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 819,
+      "representative_function": "_<der::asn1::utc_time::UtcTime as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "function": "_<der::reader::slice::SliceReader as der::reader::Reader>::read_slice",
+          "line": 842
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 842,
+      "representative_function": "_<der::reader::slice::SliceReader as der::reader::Reader>::read_slice",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+          "function": "_<der::reader::slice::SliceReader as der::reader::Reader>::read_slice",
+          "line": 458
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 458,
+      "representative_function": "_<der::reader::slice::SliceReader as der::reader::Reader>::read_slice",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "der::asn1::printable_string::__impl_string::_<impl der::decode::DecodeValue for der::asn1::printable_string::PrintableStringRef>::decode_value",
+          "line": 180
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 180,
+      "representative_function": "der::asn1::printable_string::__impl_string::_<impl der::decode::DecodeValue for der::asn1::printable_string::PrintableStringRef>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "der::asn1::teletex_string::__impl_string::_<impl der::decode::DecodeValue for der::asn1::teletex_string::TeletexStringRef>::decode_value",
+          "line": 332
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 332,
+      "representative_function": "der::asn1::teletex_string::__impl_string::_<impl der::decode::DecodeValue for der::asn1::teletex_string::TeletexStringRef>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNS"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+          "function": "der::asn1::printable_string::__impl_string::_<impl der::decode::DecodeValue for der::asn1::printable_string::PrintableStringRef>::decode_value",
+          "line": 2173
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2173,
+      "representative_function": "der::asn1::printable_string::__impl_string::_<impl der::decode::DecodeValue for der::asn1::printable_string::PrintableStringRef>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/printable_string.rs",
+          "function": "der::asn1::printable_string::__impl_string::_<impl der::decode::DecodeValue for der::asn1::printable_string::PrintableStringRef>::decode_value",
+          "line": 73
+        }
+      ],
+      "representative_snippet": [
+        "        // Validate all characters are within PrintableString's allowed set",
+        "        for &c in input.iter() {",
+        "            match c {",
+        "                b'A'..=b'Z'",
+        "                | b'a'..=b'z'"
+      ],
+      "representative_line": 73,
+      "representative_function": "der::asn1::printable_string::__impl_string::_<impl der::decode::DecodeValue for der::asn1::printable_string::PrintableStringRef>::decode_value",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/printable_string.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+          "function": "der::reader::Reader::read_into",
+          "line": 93
+        }
+      ],
+      "representative_snippet": [
+        "    #[allow(clippy::cast_possible_truncation)]",
+        "    pub(crate) const fn new_usize(len: usize) -> Result<Self> {",
+        "        if len > (u32::MAX as usize) {",
+        "            Err(Error::from_kind(ErrorKind::Overflow))",
+        "        } else {"
+      ],
+      "representative_line": 93,
+      "representative_function": "der::reader::Reader::read_into",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/convert/num.rs",
+          "function": "der::datetime::DateTime::from_unix_duration",
+          "line": 331
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 331,
+      "representative_function": "der::datetime::DateTime::from_unix_duration",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/convert/num.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "function": "_<der::asn1::integer::int::IntRef as der::decode::DecodeValue>::decode_value",
+          "line": 842
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 842,
+      "representative_function": "_<der::asn1::integer::int::IntRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+          "function": "_<der::asn1::integer::int::IntRef as der::decode::DecodeValue>::decode_value",
+          "line": 458
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 458,
+      "representative_function": "_<der::asn1::integer::int::IntRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/index.rs",
+          "function": "der::asn1::integer::int::_<impl der::encode::EncodeValue for i128>::encode_value",
+          "line": 381
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 381,
+      "representative_function": "der::asn1::integer::int::_<impl der::encode::EncodeValue for i128>::encode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/index.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+          "function": "der::asn1::integer::int::_<impl der::decode::DecodeValue for i32>::decode_value",
+          "line": 52
+        }
+      ],
+      "representative_snippet": [
+        "                    let max_length = u32::from(header.length()) as usize;",
+        "",
+        "                    if max_length == 0 {",
+        "                        return Err(reader.error(Tag::Integer.length_error()));",
+        "                    }"
+      ],
+      "representative_line": 52,
+      "representative_function": "der::asn1::integer::int::_<impl der::decode::DecodeValue for i32>::decode_value",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JS"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+          "function": "der::asn1::integer::int::_<impl der::decode::DecodeValue for i128>::decode_value",
+          "line": 393
+        }
+      ],
+      "representative_snippet": [
+        "pub(crate) fn strip_leading_zeroes(mut bytes: &[u8]) -> &[u8] {",
+        "    while let Some((byte, rest)) = bytes.split_first() {",
+        "        if *byte == 0 && !rest.is_empty() {",
+        "            bytes = rest;",
+        "        } else {"
+      ],
+      "representative_line": 393,
+      "representative_function": "der::asn1::integer::int::_<impl der::decode::DecodeValue for i128>::decode_value",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/uint.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "der::asn1::integer::int::_<impl der::encode::EncodeValue for i128>::encode_value",
+          "line": 5360
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 5360,
+      "representative_function": "der::asn1::integer::int::_<impl der::encode::EncodeValue for i128>::encode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+          "function": "der::asn1::integer::int::_<impl der::encode::EncodeValue for i128>::encode_value",
+          "line": 62
+        }
+      ],
+      "representative_snippet": [
+        "                    let max_length = u32::from(header.length()) as usize;",
+        "",
+        "                    if max_length == 0 {",
+        "                        return Err(reader.error(Tag::Integer.length_error()));",
+        "                    }"
+      ],
+      "representative_line": 62,
+      "representative_function": "der::asn1::integer::int::_<impl der::encode::EncodeValue for i128>::encode_value",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/asn1/integer/int.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JS"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+          "function": "_<der::asn1::integer::int::IntRef as der::decode::DecodeValue>::decode_value",
+          "line": 93
+        }
+      ],
+      "representative_snippet": [
+        "    #[allow(clippy::cast_possible_truncation)]",
+        "    pub(crate) const fn new_usize(len: usize) -> Result<Self> {",
+        "        if len > (u32::MAX as usize) {",
+        "            Err(Error::from_kind(ErrorKind::Overflow))",
+        "        } else {"
+      ],
+      "representative_line": 93,
+      "representative_function": "_<der::asn1::integer::int::IntRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "der::asn1::integer::int::IntRef::new",
+          "line": 199
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 199,
+      "representative_function": "der::asn1::integer::int::IntRef::new",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "function": "_<&der::asn1::octet_string::OctetStringRef as der::decode::DecodeValue>::decode_value",
+          "line": 842
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 842,
+      "representative_function": "_<&der::asn1::octet_string::OctetStringRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JB",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+          "function": "_<&der::asn1::octet_string::OctetStringRef as der::decode::DecodeValue>::decode_value",
+          "line": 458
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 458,
+      "representative_function": "_<&der::asn1::octet_string::OctetStringRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+          "function": "der::asn1::integer::value_cmp",
+          "line": 93
+        }
+      ],
+      "representative_snippet": [
+        "    #[allow(clippy::cast_possible_truncation)]",
+        "    pub(crate) const fn new_usize(len: usize) -> Result<Self> {",
+        "        if len > (u32::MAX as usize) {",
+        "            Err(Error::from_kind(ErrorKind::Overflow))",
+        "        } else {"
+      ],
+      "representative_line": 93,
+      "representative_function": "der::asn1::integer::value_cmp",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "der::asn1::integer::value_cmp",
+          "line": 5360
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 5360,
+      "representative_function": "der::asn1::integer::value_cmp",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/writer/slice.rs",
+          "function": "der::asn1::integer::value_cmp",
+          "line": 70
+        }
+      ],
+      "representative_snippet": [
+        "        let position = self.position;",
+        "",
+        "        if self.is_failed() {",
+        "            return Err(ErrorKind::Failed.at(position));",
+        "        }"
+      ],
+      "representative_line": 70,
+      "representative_function": "der::asn1::integer::value_cmp",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/writer/slice.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/tag.rs",
+          "function": "_<der::header::Header as der::encode::Encode>::encoded_len",
+          "line": 383
+        }
+      ],
+      "representative_snippet": [
+        "    #[must_use]",
+        "    pub const fn number(self) -> TagNumber {",
+        "        match self {",
+        "            Tag::Boolean => TagNumber(1),",
+        "            Tag::Integer => TagNumber(2),"
+      ],
+      "representative_line": 383,
+      "representative_function": "_<der::header::Header as der::encode::Encode>::encoded_len",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/tag.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+          "function": "_<der::asn1::integer::uint::UintRef as der::decode::DecodeValue>::decode_value",
+          "line": 458
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 458,
+      "representative_function": "_<der::asn1::integer::uint::UintRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/index.rs",
+          "function": "der::asn1::integer::uint::_<impl der::encode::EncodeValue for u128>::encode_value",
+          "line": 381
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 381,
+      "representative_function": "der::asn1::integer::uint::_<impl der::encode::EncodeValue for u128>::encode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/index.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "der::asn1::integer::uint::_<impl der::encode::EncodeValue for u128>::encode_value",
+          "line": 5360
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 5360,
+      "representative_function": "der::asn1::integer::uint::_<impl der::encode::EncodeValue for u128>::encode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "function": "_<der::asn1::integer::uint::UintRef as der::decode::DecodeValue>::decode_value",
+          "line": 842
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 842,
+      "representative_function": "_<der::asn1::integer::uint::UintRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+          "function": "_<der::asn1::integer::uint::UintRef as der::decode::DecodeValue>::decode_value",
+          "line": 93
+        }
+      ],
+      "representative_snippet": [
+        "    #[allow(clippy::cast_possible_truncation)]",
+        "    pub(crate) const fn new_usize(len: usize) -> Result<Self> {",
+        "        if len > (u32::MAX as usize) {",
+        "            Err(Error::from_kind(ErrorKind::Overflow))",
+        "        } else {"
+      ],
+      "representative_line": 93,
+      "representative_function": "_<der::asn1::integer::uint::UintRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "_<der::asn1::integer::uint::UintRef as der::decode::DecodeValue>::decode_value",
+          "line": 199
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 199,
+      "representative_function": "_<der::asn1::integer::uint::UintRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "function": "_<der::asn1::generalized_time::GeneralizedTime as der::decode::DecodeValue>::decode_value",
+          "line": 842
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 842,
+      "representative_function": "_<der::asn1::generalized_time::GeneralizedTime as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JB",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+          "function": "_<der::asn1::generalized_time::GeneralizedTime as der::decode::DecodeValue>::decode_value",
+          "line": 458
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 458,
+      "representative_function": "_<der::asn1::generalized_time::GeneralizedTime as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/tag.rs",
+          "function": "der::tag::Tag::assert_eq",
+          "line": 167
+        }
+      ],
+      "representative_snippet": [
+        "                }",
+        "            }",
+        "            0xC0..=0xFF => {",
+        "                let (constructed, number) = parse_parts(first_byte, reader)?;",
+        ""
+      ],
+      "representative_line": 167,
+      "representative_function": "der::tag::Tag::assert_eq",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/tag.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/cmp.rs",
+          "function": "der::tag::Tag::assert_eq",
+          "line": 1870
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1870,
+      "representative_function": "der::tag::Tag::assert_eq",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/cmp.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/mod.rs",
+          "function": "der::asn1::generalized_time::decode_from_values",
+          "line": 819
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 819,
+      "representative_function": "der::asn1::generalized_time::decode_from_values",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/cmp.rs",
+          "function": "_<der::tag::Tag as der::ord::DerOrd>::der_cmp",
+          "line": 648
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 648,
+      "representative_function": "_<der::tag::Tag as der::ord::DerOrd>::der_cmp",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/cmp.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/tag.rs",
+          "function": "_<der::tag::Tag as der::encode::Encode>::encoded_len",
+          "line": 383
+        }
+      ],
+      "representative_snippet": [
+        "                }",
+        "            }",
+        "            0xC0..=0xFF => {",
+        "                let (constructed, number) = parse_parts(first_byte, reader)?;",
+        ""
+      ],
+      "representative_line": 383,
+      "representative_function": "_<der::tag::Tag as der::encode::Encode>::encoded_len",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/tag.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/signatures/ecdsa/src/lib.rs",
+          "function": "ecdsa::ecdsa_oid_for_digest",
+          "line": 765
+        }
+      ],
+      "representative_snippet": [
+        "#[cfg(feature = \"digest\")]",
+        "const fn ecdsa_oid_for_digest(digest_oid: ObjectIdentifier) -> Option<ObjectIdentifier> {",
+        "    match digest_oid {",
+        "        SHA224_OID => Some(ECDSA_SHA224_OID),",
+        "        SHA256_OID => Some(ECDSA_SHA256_OID),"
+      ],
+      "representative_line": 765,
+      "representative_function": "ecdsa::ecdsa_oid_for_digest",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/signatures/ecdsa/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/alloc/src/raw_vec/mod.rs",
+          "function": "ed25519::Signature::to_vec",
+          "line": 418
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 418,
+      "representative_function": "ed25519::Signature::to_vec",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/alloc/src/raw_vec/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "_<f32 as num_traits::Num>::from_str_radix",
+          "line": 180
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 180,
+      "representative_function": "_<f32 as num_traits::Num>::from_str_radix",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+          "function": "_<f32 as num_traits::Num>::from_str_radix",
+          "line": 966
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 966,
+      "representative_function": "_<f32 as num_traits::Num>::from_str_radix",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/traits/iterator.rs",
+          "function": "_<f32 as num_traits::Num>::from_str_radix",
+          "line": 2434
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2434,
+      "representative_function": "_<f32 as num_traits::Num>::from_str_radix",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/traits/iterator.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/str/traits.rs",
+          "function": "_<f32 as num_traits::Num>::from_str_radix",
+          "line": 515
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 515,
+      "representative_function": "_<f32 as num_traits::Num>::from_str_radix",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/str/traits.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JGE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/ptr/non_null.rs",
+          "function": "_<f64 as num_traits::Num>::from_str_radix",
+          "line": 1692
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1692,
+      "representative_function": "_<f64 as num_traits::Num>::from_str_radix",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/ptr/non_null.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+          "function": "_<&der::bytes::BytesRef as der::decode::DecodeValue>::decode_value",
+          "line": 93
+        }
+      ],
+      "representative_snippet": [
+        "    #[allow(clippy::cast_possible_truncation)]",
+        "    pub(crate) const fn new_usize(len: usize) -> Result<Self> {",
+        "        if len > (u32::MAX as usize) {",
+        "            Err(Error::from_kind(ErrorKind::Overflow))",
+        "        } else {"
+      ],
+      "representative_line": 93,
+      "representative_function": "_<&der::bytes::BytesRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "_<der::reader::slice::SliceReader as der::reader::Reader>::read_nested",
+          "line": 5360
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 5360,
+      "representative_function": "_<der::reader::slice::SliceReader as der::reader::Reader>::read_nested",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "_<T as der::encode::Encode>::encoded_len",
+          "line": 2154
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2154,
+      "representative_function": "_<T as der::encode::Encode>::encoded_len",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/reader/slice.rs",
+          "function": "_<der::reader::slice::SliceReader as der::reader::Reader>::read_nested",
+          "line": 152
+        }
+      ],
+      "representative_snippet": [
+        "        if self.is_failed() {",
+        "            Err(ErrorKind::Failed.at(self.position))",
+        "        } else if !self.is_finished() {",
+        "            Err(ErrorKind::TrailingData {",
+        "                decoded: self.position,"
+      ],
+      "representative_line": 152,
+      "representative_function": "_<der::reader::slice::SliceReader as der::reader::Reader>::read_nested",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/reader/slice.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JBE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/reader/slice.rs",
+          "function": "_<T as der::decode::Decode>::decode",
+          "line": 152
+        }
+      ],
+      "representative_snippet": [
+        "        if self.is_failed() {",
+        "            Err(ErrorKind::Failed.at(self.position))",
+        "        } else if !self.is_finished() {",
+        "            Err(ErrorKind::TrailingData {",
+        "                decoded: self.position,"
+      ],
+      "representative_line": 152,
+      "representative_function": "_<T as der::decode::Decode>::decode",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/reader/slice.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JBE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+          "function": "_<T as der::encode::Encode>::encoded_len",
+          "line": 458
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 458,
+      "representative_function": "_<T as der::encode::Encode>::encoded_len",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "function": "_<sec1::parameters::EcParameters as der::decode::DecodeValue>::decode_value",
+          "line": 842
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 842,
+      "representative_function": "_<sec1::parameters::EcParameters as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "_<sec1::parameters::EcParameters as der::decode::DecodeValue>::decode_value",
+          "line": 5360
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 5360,
+      "representative_function": "_<sec1::parameters::EcParameters as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "_<sec1::parameters::EcParameters as der::encode::EncodeValue>::value_len",
+          "line": 2154
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2154,
+      "representative_function": "_<sec1::parameters::EcParameters as der::encode::EncodeValue>::value_len",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+          "function": "_<der::asn1::bit_string::BitStringRef as der::decode::DecodeValue>::decode_value",
+          "line": 93
+        }
+      ],
+      "representative_snippet": [
+        "    #[allow(clippy::cast_possible_truncation)]",
+        "    pub(crate) const fn new_usize(len: usize) -> Result<Self> {",
+        "        if len > (u32::MAX as usize) {",
+        "            Err(Error::from_kind(ErrorKind::Overflow))",
+        "        } else {"
+      ],
+      "representative_line": 93,
+      "representative_function": "_<der::asn1::bit_string::BitStringRef as der::decode::DecodeValue>::decode_value",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+          "function": "_<sec1::private_key::EcPrivateKey as der::encode::EncodeValue>::value_len",
+          "line": 93
+        }
+      ],
+      "representative_snippet": [
+        "    #[allow(clippy::cast_possible_truncation)]",
+        "    pub(crate) const fn new_usize(len: usize) -> Result<Self> {",
+        "        if len > (u32::MAX as usize) {",
+        "            Err(Error::from_kind(ErrorKind::Overflow))",
+        "        } else {"
+      ],
+      "representative_line": 93,
+      "representative_function": "_<sec1::private_key::EcPrivateKey as der::encode::EncodeValue>::value_len",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/der-0.8.0/src/length.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+          "function": "_<sec1::private_key::EcPrivateKey as der::encode::EncodeValue>::value_len",
+          "line": 458
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 458,
+      "representative_function": "_<sec1::private_key::EcPrivateKey as der::encode::EncodeValue>::value_len",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "_<sec1::private_key::EcPrivateKey as der::encode::EncodeValue>::value_len",
+          "line": 2154
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2154,
+      "representative_function": "_<sec1::private_key::EcPrivateKey as der::encode::EncodeValue>::value_len",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+          "function": "_<sec1::private_key::EcPrivateKey as der::encode::EncodeValue>::value_len",
+          "line": 2173
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2173,
+      "representative_function": "_<sec1::private_key::EcPrivateKey as der::encode::EncodeValue>::value_len",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "function": "_<str as zeroize::Zeroize>::zeroize",
+          "line": 772
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 772,
+      "representative_function": "_<str as zeroize::Zeroize>::zeroize",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    }
+  ]
+}

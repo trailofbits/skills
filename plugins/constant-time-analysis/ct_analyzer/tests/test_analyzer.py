@@ -9,6 +9,7 @@ vulnerabilities in compiled cryptographic code.
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -180,14 +181,19 @@ class TestAssemblyParser(unittest.TestCase):
         self.assertEqual(error_violations[0].mnemonic, "SDIV")
 
     def test_parse_conditional_branches_as_warnings(self):
-        """Parser should detect conditional branches as warnings."""
+        """Parser should detect conditional branches as warnings.
+
+        Uses a register-vs-register compare so the result is not
+        suppressed by the cmp-to-literal filter. The textbook
+        early-exit-memcmp pattern is exactly `cmp r, mem; jne fail`.
+        """
         assembly = """
         check_value:
-            cmpq    $0, %rdi
-            je      .Lzero
+            cmpq    %rsi, %rdi
+            jne     .Lmismatch
             movq    $1, %rax
             ret
-        .Lzero:
+        .Lmismatch:
             xorq    %rax, %rax
             ret
         """
@@ -196,7 +202,7 @@ class TestAssemblyParser(unittest.TestCase):
         functions, violations = parser.parse(assembly, include_warnings=True)
 
         warning_violations = [v for v in violations if v.severity == Severity.WARNING]
-        self.assertGreater(len(warning_violations), 0, "Should detect JE as warning")
+        self.assertGreater(len(warning_violations), 0, "Should detect JNE as warning")
 
     def test_parse_no_false_positives_on_clean_code(self):
         """Parser should not flag clean constant-time code."""
@@ -1391,6 +1397,646 @@ console.log(vulnerableRandom());
                 pass
             else:
                 raise
+
+
+class TestWarningPrecisionFilters(unittest.TestCase):
+    """Heuristic filters that drop low-signal warnings.
+
+    The premise: when ERROR-count is zero, the entire signal is in
+    WARNs. Hundreds of unactionable warnings drown the few real ones.
+    These filters were tuned against libcrux ML-KEM (97% reduction:
+    11725 -> 297) without suppressing any of the four CVE-derived
+    vulnerable patterns in the benchmark corpus.
+    """
+
+    def test_filter_cmp_imm_suppresses_loop_counter_branch(self):
+        """`cmp $0, %r; je ...` is loop control on a literal."""
+        from analyzer import AssemblyParser
+
+        asm = """
+        my_func:
+            cmpq    $0, %rcx
+            je      .Lend
+            addq    $1, %rax
+            ret
+        .Lend:
+            ret
+        """
+        parser = AssemblyParser("x86_64", "clang")
+        _, violations = parser.parse(asm, include_warnings=True)
+        self.assertEqual(
+            [v for v in violations if v.severity == Severity.WARNING],
+            [],
+            "JE following cmp-to-literal should be filtered",
+        )
+
+    def test_filter_test_self_suppresses_zero_check(self):
+        """`test %r, %r; jz ...` is the is-zero idiom."""
+        from analyzer import AssemblyParser
+
+        asm = """
+        my_func:
+            testq   %rax, %rax
+            jz      .Lzero
+            ret
+        .Lzero:
+            ret
+        """
+        parser = AssemblyParser("x86_64", "clang")
+        _, violations = parser.parse(asm, include_warnings=True)
+        self.assertEqual(
+            [v for v in violations if v.severity == Severity.WARNING], []
+        )
+
+    def test_filter_keeps_branch_after_register_compare(self):
+        """`cmp %rsi, %rdi; jne` IS the early-exit-memcmp pattern."""
+        from analyzer import AssemblyParser
+
+        asm = """
+        my_func:
+            cmpq    %rsi, %rdi
+            jne     .Lmismatch
+            movq    $1, %rax
+            ret
+        .Lmismatch:
+            xorq    %rax, %rax
+            ret
+        """
+        parser = AssemblyParser("x86_64", "clang")
+        _, violations = parser.parse(asm, include_warnings=True)
+        warns = [v for v in violations if v.severity == Severity.WARNING]
+        self.assertEqual(len(warns), 1)
+        self.assertEqual(warns[0].mnemonic, "JNE")
+
+    def test_filter_panic_target_suppresses_bounds_check(self):
+        """Branches into a panic landing pad are not timing oracles."""
+        from analyzer import AssemblyParser
+
+        asm = """
+        my_func:
+            cmpq    %rsi, %rdi
+            jae     .Lpanic
+            movq    %rax, (%rcx)
+            ret
+        .Lpanic:
+            callq   _ZN4core9panicking11panic_const23panic_const_div_by_zero17h0123456789abcdefE@PLT
+        """
+        parser = AssemblyParser("x86_64", "clang")
+        _, violations = parser.parse(asm, include_warnings=True)
+        self.assertEqual(
+            [v for v in violations if v.severity == Severity.WARNING],
+            [],
+            "JAE to a panic block should be filtered",
+        )
+
+    def test_aggregate_warnings_collapses_same_source_line(self):
+        """Multiple branches at the same file:line collapse to one."""
+        from analyzer import AssemblyParser, Severity, Violation
+
+        v1 = Violation(
+            function="f", file="x.rs", line=10, address="", instruction="",
+            mnemonic="JE", reason="r", severity=Severity.WARNING,
+        )
+        v2 = Violation(
+            function="f", file="x.rs", line=10, address="", instruction="",
+            mnemonic="JNE", reason="r", severity=Severity.WARNING,
+        )
+        v3 = Violation(
+            function="f", file="x.rs", line=20, address="", instruction="",
+            mnemonic="JE", reason="r", severity=Severity.WARNING,
+        )
+        out = AssemblyParser._aggregate_warnings([v1, v2, v3])
+        self.assertEqual(len(out), 2)
+        # First merged entry: line 10, both mnemonics in slash-form.
+        self.assertEqual(out[0].line, 10)
+        self.assertIn("JE", out[0].mnemonic)
+        self.assertIn("JNE", out[0].mnemonic)
+        self.assertEqual(out[1].line, 20)
+
+    def test_aggregate_does_not_collapse_errors(self):
+        """ERRORs are always reported individually."""
+        from analyzer import AssemblyParser, Severity, Violation
+
+        v1 = Violation(
+            function="f", file="x.rs", line=10, address="", instruction="",
+            mnemonic="DIVQ", reason="r", severity=Severity.ERROR,
+        )
+        v2 = Violation(
+            function="f", file="x.rs", line=10, address="", instruction="",
+            mnemonic="DIVL", reason="r", severity=Severity.ERROR,
+        )
+        out = AssemblyParser._aggregate_warnings([v1, v2])
+        self.assertEqual(len(out), 2)
+
+    def test_aggregate_collapses_monomorphization_siblings(self):
+        """Same source line in two different functions (e.g. free fn vs
+        trait-impl method) is the same source-level event and must
+        collapse into one warning. Without this, libcrux SHA3's
+        `store_block` shows up twice (once as the free fn, once as the
+        Squeeze4 trait-impl), padding the review queue with duplicates.
+        """
+        from analyzer import AssemblyParser, Severity, Violation
+
+        v1 = Violation(
+            function="my_crate::store_block", file="x.rs", line=174,
+            address="", instruction="", mnemonic="JE", reason="r",
+            severity=Severity.WARNING,
+        )
+        v2 = Violation(
+            function="my_crate::_<impl Squeeze4 for ...>::store_block",
+            file="x.rs", line=174, address="", instruction="",
+            mnemonic="JE", reason="r", severity=Severity.WARNING,
+        )
+        out = AssemblyParser._aggregate_warnings([v1, v2])
+        self.assertEqual(len(out), 1, "monomorphization siblings should collapse")
+        # The merged report should mention both call paths so the
+        # reviewer doesn't lose context.
+        self.assertIn("reached from", out[0].reason)
+        self.assertIn("store_block", out[0].reason)
+
+
+class TestStrictMode(unittest.TestCase):
+    """`--strict`: warnings inside CT-named functions become ERRORs."""
+
+    def test_promotes_in_ct_eq(self):
+        from analyzer import AssemblyParser
+
+        # JNE on a register-vs-register compare survives the cmp-imm filter.
+        asm = """
+        _ZN5myapp10ct_eq_byte17h0123456789abcdefE:
+            cmpq    %rsi, %rdi
+            jne     .Lfail
+            movq    $1, %rax
+            ret
+        .Lfail:
+            xorq    %rax, %rax
+            ret
+        """
+        # Add a `.loc` so the warning passes the user-source check.
+        asm_with_loc = (
+            '\t.file 1 "/home/u/myapp/src/lib.rs"\n'
+            "_ZN5myapp10ct_eq_byte17h0123456789abcdefE:\n"
+            "\t.loc 1 5 0\n"
+            "\tcmpq %rsi, %rdi\n"
+            "\t.loc 1 5 0\n"
+            "\tjne .Lfail\n"
+            "\tmovq $1, %rax\n"
+            "\tret\n"
+            ".Lfail:\n"
+            "\txorq %rax, %rax\n"
+            "\tret\n"
+        )
+        parser = AssemblyParser("x86_64", "rustc", strict=True)
+        _, violations = parser.parse(asm_with_loc, include_warnings=True)
+        errs = [v for v in violations if v.severity == Severity.ERROR]
+        self.assertEqual(len(errs), 1, f"expected 1 ERROR, got {violations}")
+        self.assertEqual(errs[0].mnemonic, "JNE")
+
+    def test_does_not_promote_outside_ct_named_function(self):
+        from analyzer import AssemblyParser
+
+        asm = (
+            '\t.file 1 "/home/u/myapp/src/lib.rs"\n'
+            "_ZN5myapp7add_one17h0123456789abcdefE:\n"
+            "\t.loc 1 5 0\n"
+            "\tcmpq %rsi, %rdi\n"
+            "\tjne .Lfail\n"
+            "\tret\n"
+            ".Lfail:\n"
+            "\tret\n"
+        )
+        parser = AssemblyParser("x86_64", "rustc", strict=True)
+        _, violations = parser.parse(asm, include_warnings=True)
+        self.assertEqual(
+            [v for v in violations if v.severity == Severity.ERROR],
+            [],
+            "non-CT function names should not be promoted",
+        )
+
+    def test_does_not_promote_in_third_party_source(self):
+        from analyzer import AssemblyParser
+
+        # Same CT-named function, but the .loc points into ~/.cargo/registry.
+        asm = (
+            '\t.file 1 "/home/u/.cargo/registry/src/idx/subtle-2.6.1/src/lib.rs"\n'
+            "_ZN6subtle3foo7verify_17h0123456789abcdefE:\n"
+            "\t.loc 1 318 0\n"
+            "\tcmpq %rsi, %rdi\n"
+            "\tjne .Lfail\n"
+            "\tret\n"
+            ".Lfail:\n"
+            "\tret\n"
+        )
+        parser = AssemblyParser("x86_64", "rustc", strict=True)
+        _, violations = parser.parse(asm, include_warnings=True)
+        warns = [v for v in violations if v.severity == Severity.WARNING]
+        errs = [v for v in violations if v.severity == Severity.ERROR]
+        self.assertEqual(len(errs), 0, "third-party source must not be promoted")
+        self.assertEqual(len(warns), 1)
+
+
+class TestTriageClassifier(unittest.TestCase):
+    """The classifier tags violations so an agent can mechanically reason
+    about them without re-reading source. Validated end-to-end against
+    libcrux ML-KEM (297 raw warnings -> 277 auto-classified FP, 20 user
+    review) and the production-crypto run on subtle / dalek / sha2 /
+    aes / chacha20poly1305 (74 raw -> 47 auto-classified FP, 27 dep
+    review of which 12 unique events are FP and 1 is a real DIV).
+    """
+
+    def _classify(self, file_path, line, snippet):
+        from analyzer import Severity, Violation, classify_violation
+
+        v = Violation(
+            function="f",
+            file=file_path,
+            line=line,
+            address="",
+            instruction="",
+            mnemonic="JNE",
+            reason="r",
+            severity=Severity.WARNING,
+        )
+        return classify_violation(v, snippet)
+
+    def test_stdlib_iter_end(self):
+        from analyzer import TRIAGE_STDLIB_ITER_END
+
+        self.assertEqual(
+            self._classify(
+                "/rustc/abc/library/core/src/iter/range.rs", 772, None
+            ),
+            TRIAGE_STDLIB_ITER_END,
+        )
+
+    def test_stdlib_bounds(self):
+        from analyzer import TRIAGE_STDLIB_BOUNDS
+
+        self.assertEqual(
+            self._classify(
+                "/rustc/abc/library/core/src/slice/mod.rs", 2154, None
+            ),
+            TRIAGE_STDLIB_BOUNDS,
+        )
+
+    def test_stdlib_other_fallback(self):
+        from analyzer import TRIAGE_STDLIB_OTHER
+
+        self.assertEqual(
+            self._classify("/rustc/abc/library/std/src/sys/something.rs", 10, None),
+            TRIAGE_STDLIB_OTHER,
+        )
+
+    def test_dependency_source(self):
+        from analyzer import TRIAGE_DEPENDENCY
+
+        self.assertEqual(
+            self._classify(
+                "/home/u/.cargo/registry/src/idx/subtle-2.6/src/lib.rs", 318, None
+            ),
+            TRIAGE_DEPENDENCY,
+        )
+
+    def test_fn_declaration_dispatch(self):
+        from analyzer import TRIAGE_FN_DECL
+
+        snippet = [
+            "// docs",
+            "#[inline(always)]",
+            "pub(crate) fn decapsulate<",
+            "    const K: usize,",
+            "    const N: usize,",
+        ]
+        self.assertEqual(
+            self._classify("/u/myapp/src/lib.rs", 100, snippet),
+            TRIAGE_FN_DECL,
+        )
+
+    def test_loop_bound_constant(self):
+        from analyzer import TRIAGE_LOOP_BOUND
+
+        snippet = [
+            "    let mut acc = 0u8;",
+            "",
+            "    for i in 0..N {",
+            "        acc |= a[i] ^ b[i];",
+            "    }",
+        ]
+        self.assertEqual(
+            self._classify("/u/myapp/src/lib.rs", 50, snippet),
+            TRIAGE_LOOP_BOUND,
+        )
+
+    def test_rejection_sample_loop(self):
+        from analyzer import TRIAGE_REJECTION_LOOP
+
+        snippet = [
+            "    let mut done = false;",
+            "    let mut sampled = 0;",
+            "    while !done {",
+            "        let r = xof.squeeze();",
+            "        done = sample_step(&r, &mut sampled);",
+        ]
+        self.assertEqual(
+            self._classify("/u/kyber/src/sampling.rs", 95, snippet),
+            TRIAGE_REJECTION_LOOP,
+        )
+
+    def test_compare_to_upper_const(self):
+        from analyzer import TRIAGE_RODATA_COMPARE
+
+        snippet = [
+            "    for r in 0..N {",
+            "        let i = sampled_coeffs[r];",
+            "        if i < COEFFICIENTS_IN_RING_ELEMENT {",
+            "            // process",
+            "        }",
+        ]
+        self.assertEqual(
+            self._classify("/u/kyber/src/sampling.rs", 53, snippet),
+            TRIAGE_RODATA_COMPARE,
+        )
+
+    def test_unknown_user_code_falls_through(self):
+        from analyzer import TRIAGE_USER_REVIEW
+
+        snippet = [
+            "    let r = some_op(a, b);",
+            "    let s = r.process();",
+            "    s.finalize()",
+            "",
+            "}",
+        ]
+        self.assertEqual(
+            self._classify("/u/myapp/src/lib.rs", 200, snippet),
+            TRIAGE_USER_REVIEW,
+        )
+
+
+class TestSourceSnippet(unittest.TestCase):
+    """`_read_source_snippet` reads a window of a real file."""
+
+    def test_reads_centered_window(self):
+        from analyzer import _read_source_snippet
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".rs", delete=False
+        ) as f:
+            for i in range(1, 11):
+                f.write(f"line {i}\n")
+            path = f.name
+        try:
+            snip = _read_source_snippet(path, 5, ctx=2)
+            self.assertEqual(snip, ["line 3", "line 4", "line 5", "line 6", "line 7"])
+        finally:
+            os.unlink(path)
+
+    def test_handles_unreadable_path(self):
+        from analyzer import _read_source_snippet
+
+        # /rustc/<commit>/... paths exist in debug info but are typically
+        # not on disk unless the user installed rust-src.
+        self.assertIsNone(
+            _read_source_snippet("/rustc/abc123/library/core/src/iter/range.rs", 772, 2)
+        )
+
+
+class TestRustDemangling(unittest.TestCase):
+    """Demangling Rust legacy symbols."""
+
+    def test_demangle_simple(self):
+        from analyzer import demangle_rust
+
+        sym = "_ZN10kyberslash21compress_d_vulnerable17h6f761845851181e5E"
+        self.assertEqual(demangle_rust(sym), "kyberslash::compress_d_vulnerable")
+
+    def test_demangle_with_escape(self):
+        from analyzer import demangle_rust
+
+        # `<impl Display for i32>` style nested path
+        sym = "_ZN4core3fmt3num3imp52_$LT$impl$u20$core..fmt..Display$u20$for$u20$i32$GT$3fmt17habcdef0123456789E"
+        out = demangle_rust(sym)
+        self.assertIsNotNone(out)
+        self.assertIn("core", out)
+        self.assertIn("Display", out)
+
+    def test_demangle_non_rust_returns_none(self):
+        from analyzer import demangle_rust
+
+        self.assertIsNone(demangle_rust("memcpy"))
+        self.assertIsNone(demangle_rust(""))
+        self.assertIsNone(demangle_rust("not_a_real_symbol"))
+
+    def test_crate_extraction(self):
+        from analyzer import rust_crate_of
+
+        sym = "_ZN10kyberslash21compress_d_vulnerable17h6f761845851181e5E"
+        self.assertEqual(rust_crate_of(sym), "kyberslash")
+        self.assertEqual(rust_crate_of("kyberslash::foo::bar"), "kyberslash")
+
+    def test_v0_passthrough(self):
+        # v0 mangling -- we don't fully decode but caller can still filter.
+        from analyzer import demangle_rust
+
+        out = demangle_rust("_RNvCs1234abcd_8mycrate3foo")
+        self.assertIsNotNone(out)
+        self.assertTrue(out.startswith("_R"))
+
+
+class TestRustStdlibFiltering(unittest.TestCase):
+    """Stdlib monomorphizations should be skipped by default."""
+
+    def test_skip_default(self):
+        from analyzer import AssemblyParser
+
+        parser = AssemblyParser("x86_64", "rustc", rust_user_crate="myapp")
+        # `core::fmt::write` style symbol -- valid legacy mangling.
+        self.assertTrue(
+            parser._should_skip_function(
+                "_ZN4core3fmt5write17h0123456789abcdefE"
+            )
+        )
+        # `alloc::vec::Vec::new`
+        self.assertTrue(
+            parser._should_skip_function(
+                "_ZN5alloc3vec3Vec3new17h0123456789abcdefE"
+            )
+        )
+        # User crate should not be skipped.
+        self.assertFalse(
+            parser._should_skip_function(
+                "_ZN5myapp3foo17h0123456789abcdefE"
+            )
+        )
+
+    def test_include_stdlib_disables_skip(self):
+        from analyzer import AssemblyParser
+
+        parser = AssemblyParser(
+            "x86_64", "rustc", rust_user_crate="myapp", include_stdlib=True
+        )
+        self.assertFalse(
+            parser._should_skip_function(
+                "_ZN4core3fmt5write17h0123456789abcdefE"
+            )
+        )
+
+
+class TestRustCompilation(unittest.TestCase):
+    """Integration tests that actually compile Rust source.
+
+    These tests require `rustc` on PATH. They cover the three
+    correctness-critical behaviors that distinguish this analyzer from
+    a naive `rustc --emit=asm` invocation:
+
+      1. `pub fn` items survive at `opt-level=2` (link-dead-code=on)
+      2. Constant-folding-via-main does NOT silently DCE secret ops
+         (--crate-type=rlib instead of bin)
+      3. The CVE benchmark corpus validates detection rates
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.has_rustc = TestIntegration._check_compiler("rustc")
+        cls.bench_dir = (
+            Path(__file__).parent / "test_samples" / "rust_bench"
+        )
+
+    def setUp(self):
+        if not self.has_rustc:
+            self.skipTest("rustc not available")
+
+    def test_rust_idiv_detected_at_O2(self):
+        """At opt-level=2, IDIV in pub fn must still be visible.
+
+        This is the regression test for the available_externally bug:
+        without `-C link-dead-code=on`, rustc strips pub fn bodies from
+        the asm output at any opt level >= 1, hiding real bugs.
+        """
+        src = self.bench_dir / "vulnerable" / "kyberslash.rs"
+        if not src.exists():
+            self.skipTest("benchmark missing")
+
+        report = analyze_source(str(src), optimization="O2")
+        idiv = [
+            v
+            for v in report.violations
+            if v.severity == Severity.ERROR and "IDIV" in v.mnemonic
+        ]
+        self.assertGreater(
+            len(idiv),
+            0,
+            "regression: opt-level=2 dropped pub fn bodies again -- "
+            "verify -C link-dead-code=on is still in the rustc invocation",
+        )
+
+    def test_rust_safe_kyberslash_passes(self):
+        """Constant-time KyberSlash fix must produce zero ERRORs."""
+        src = self.bench_dir / "safe" / "kyberslash.rs"
+        if not src.exists():
+            self.skipTest("benchmark missing")
+
+        report = analyze_source(str(src), optimization="O2")
+        self.assertEqual(
+            report.error_count,
+            0,
+            f"false positive on safe code: {[v.function for v in report.violations]}",
+        )
+
+    def test_rust_minerva_modinv_detected(self):
+        """Minerva's modular inverse uses % on a u64 secret."""
+        src = self.bench_dir / "vulnerable" / "minerva.rs"
+        if not src.exists():
+            self.skipTest("benchmark missing")
+
+        report = analyze_source(str(src), optimization="O2")
+        self.assertFalse(report.passed)
+        funcs = {v.function for v in report.violations}
+        self.assertTrue(
+            any("modinv" in f or "reduce_mod" in f for f in funcs),
+            f"expected violation in modinv or reduce_mod_q; got {funcs}",
+        )
+
+    def test_rust_lucky13_warnings(self):
+        """Branch-based oracles only show with --warnings."""
+        src = self.bench_dir / "vulnerable" / "lucky13.rs"
+        if not src.exists():
+            self.skipTest("benchmark missing")
+
+        # No warnings: should pass (errors == 0).
+        report = analyze_source(str(src), optimization="O2", include_warnings=False)
+        self.assertEqual(report.error_count, 0)
+
+        # With warnings: should detect at least 4 conditional branches.
+        report_w = analyze_source(str(src), optimization="O2", include_warnings=True)
+        self.assertGreaterEqual(
+            report_w.warning_count,
+            4,
+            "expected several JE/JNE warnings on the early-exit memcmp",
+        )
+
+    def test_rust_demangled_function_names_in_violations(self):
+        """Violations must show readable `crate::function`, not _ZN…E."""
+        src = self.bench_dir / "vulnerable" / "kyberslash.rs"
+        if not src.exists():
+            self.skipTest("benchmark missing")
+
+        report = analyze_source(str(src), optimization="O2")
+        self.assertGreater(len(report.violations), 0)
+        for v in report.violations:
+            self.assertFalse(
+                v.function.startswith("_ZN"),
+                f"function name was not demangled: {v.function}",
+            )
+            self.assertIn(
+                "::", v.function,
+                f"function name lacks crate path: {v.function}",
+            )
+
+    def test_rust_stdlib_filtered_by_default(self):
+        """`core::*` violations should be filtered unless --include-stdlib."""
+        src = self.bench_dir / "vulnerable" / "kyberslash.rs"
+        if not src.exists():
+            self.skipTest("benchmark missing")
+
+        report = analyze_source(str(src), optimization="O2")
+        for v in report.violations:
+            crate = v.function.split("::", 1)[0] if "::" in v.function else v.function
+            self.assertNotIn(
+                crate,
+                ("core", "alloc", "std", "compiler_builtins"),
+                f"stdlib crate leaked into report: {v.function}",
+            )
+
+
+class TestRustBenchmarkRunner(unittest.TestCase):
+    """The CVE benchmark must pass end-to-end."""
+
+    def setUp(self):
+        if not TestIntegration._check_compiler("rustc"):
+            self.skipTest("rustc not available")
+
+    def test_full_benchmark_passes(self):
+        bench_script = (
+            Path(__file__).parent
+            / "test_samples"
+            / "rust_bench"
+            / "run_bench.py"
+        )
+        if not bench_script.exists():
+            self.skipTest("bench script missing")
+
+        proc = subprocess.run(
+            ["uv", "run", str(bench_script)],
+            capture_output=True,
+            text=True,
+            cwd=str(bench_script.parents[3]),
+        )
+        self.assertEqual(
+            proc.returncode,
+            0,
+            f"benchmark failed:\nstdout={proc.stdout}\nstderr={proc.stderr}",
+        )
 
 
 if __name__ == "__main__":

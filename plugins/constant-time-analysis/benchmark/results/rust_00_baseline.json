@@ -1,0 +1,2624 @@
+{
+  "label": "rust_00_baseline_unfiltered",
+  "timestamp": 1777532944.8378596,
+  "config": {
+    "opts": [
+      "O0",
+      "O2",
+      "O3"
+    ],
+    "filter": "none",
+    "warnings": true,
+    "strict": false
+  },
+  "files": [
+    {
+      "path": "clean/ct_eq_bytes.rs",
+      "label": "clean",
+      "ground_truth": [],
+      "reported": [
+        {
+          "function": "ct_eq_bytes::ct_eq_bytes",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/ct_eq_bytes.rs",
+          "line": 13,
+          "address": "",
+          "instruction": "jne\t.LBB0_2",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "public_length_compare_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn ct_eq_bytes(a: &[u8], b: &[u8]) -> u8 {",
+            "    if a.len() != b.len() {",
+            "        return 0;",
+            "    }"
+          ]
+        },
+        {
+          "function": "ct_eq_bytes::ct_eq_bytes",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/ct_eq_bytes.rs",
+          "line": 17,
+          "address": "",
+          "instruction": "je\t.LBB0_5",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "public_length_compare_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn ct_eq_bytes(a: &[u8], b: &[u8]) -> u8 {",
+            "    if a.len() != b.len() {",
+            "        return 0;",
+            "    }"
+          ]
+        },
+        {
+          "function": "ct_eq_bytes::ct_eq_bytes",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/ct_eq_bytes.rs",
+          "line": 18,
+          "address": "",
+          "instruction": "jb\t.LBB0_7",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "public_length_compare_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn ct_eq_bytes(a: &[u8], b: &[u8]) -> u8 {",
+            "    if a.len() != b.len() {",
+            "        return 0;",
+            "    }"
+          ]
+        },
+        {
+          "function": "ct_eq_bytes::ct_eq_bytes",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/ct_eq_bytes.rs",
+          "line": 19,
+          "address": "",
+          "instruction": "jb\t.LBB0_9",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "public_length_compare_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn ct_eq_bytes(a: &[u8], b: &[u8]) -> u8 {",
+            "    if a.len() != b.len() {",
+            "        return 0;",
+            "    }"
+          ]
+        },
+        {
+          "function": "ct_eq_bytes::ct_eq_bytes",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "line": 772,
+          "address": "",
+          "instruction": "je\t.LBB0_3",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "ct_eq_bytes::ct_eq_bytes",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "line": 772,
+          "address": "",
+          "instruction": "jae\t.LBB0_11",
+          "mnemonic": "JAE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "ct_eq_bytes::ct_eq_bytes",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "line": 772,
+          "address": "",
+          "instruction": "jne\t.LBB0_12",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        }
+      ],
+      "tp": 0,
+      "fp": 4,
+      "fp_actionable": 0,
+      "fn": 0,
+      "error_count": 0,
+      "warning_count": 6,
+      "reachable": true
+    },
+    {
+      "path": "clean/ct_select.rs",
+      "label": "clean",
+      "ground_truth": [],
+      "reported": [],
+      "tp": 0,
+      "fp": 0,
+      "fp_actionable": 0,
+      "fn": 0,
+      "error_count": 0,
+      "warning_count": 0,
+      "reachable": true
+    },
+    {
+      "path": "clean/zeroize_volatile.rs",
+      "label": "clean",
+      "ground_truth": [],
+      "reported": [
+        {
+          "function": "zeroize_volatile::zeroize_bytes",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/zeroize_volatile.rs",
+          "line": 9,
+          "address": "",
+          "instruction": "je\t.LBB0_3",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "iterator_loop_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn zeroize_bytes(buf: &mut [u8]) {",
+            "    for b in buf.iter_mut() {",
+            "        unsafe { core::ptr::write_volatile(b as *mut u8, 0) };",
+            "    }"
+          ]
+        },
+        {
+          "function": "zeroize_volatile::zeroize_u64_array",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/zeroize_volatile.rs",
+          "line": 18,
+          "address": "",
+          "instruction": "je\t.LBB1_3",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "iterator_loop_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn zeroize_bytes(buf: &mut [u8]) {",
+            "    for b in buf.iter_mut() {",
+            "        unsafe { core::ptr::write_volatile(b as *mut u8, 0) };",
+            "    }"
+          ]
+        },
+        {
+          "function": "zeroize_volatile::zeroize_u64_array",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/zeroize_volatile.rs",
+          "line": 19,
+          "address": "",
+          "instruction": "jb\t.LBB1_4",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "iterator_loop_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn zeroize_bytes(buf: &mut [u8]) {",
+            "    for b in buf.iter_mut() {",
+            "        unsafe { core::ptr::write_volatile(b as *mut u8, 0) };",
+            "    }"
+          ]
+        },
+        {
+          "function": "zeroize_volatile::zeroize_bytes",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "line": 180,
+          "address": "",
+          "instruction": "je\t.LBB0_7",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "zeroize_volatile::zeroize_bytes",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "line": 180,
+          "address": "",
+          "instruction": "jne\t.LBB0_3",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "zeroize_volatile::zeroize_bytes",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "line": 180,
+          "address": "",
+          "instruction": "jb\t.LBB0_7",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        }
+      ],
+      "tp": 0,
+      "fp": 5,
+      "fp_actionable": 0,
+      "fn": 0,
+      "error_count": 0,
+      "warning_count": 5,
+      "reachable": true
+    },
+    {
+      "path": "clean/chacha20_quarter_round.rs",
+      "label": "clean",
+      "ground_truth": [],
+      "reported": [
+        {
+          "function": "chacha20_quarter_round::chacha20_block",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 26,
+          "address": "",
+          "instruction": "je\t.LBB0_3",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::chacha20_block",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 38,
+          "address": "",
+          "instruction": "je\t.LBB0_6",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::chacha20_block",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 39,
+          "address": "",
+          "instruction": "jb\t.LBB0_7",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 9,
+          "address": "",
+          "instruction": "jae\t.LBB1_2",
+          "mnemonic": "JAE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 9,
+          "address": "",
+          "instruction": "jb\t.LBB1_3",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 10,
+          "address": "",
+          "instruction": "jb\t.LBB1_7",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 11,
+          "address": "",
+          "instruction": "jb\t.LBB1_11",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 12,
+          "address": "",
+          "instruction": "jb\t.LBB1_15",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 13,
+          "address": "",
+          "instruction": "jb\t.LBB1_21",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 14,
+          "address": "",
+          "instruction": "jb\t.LBB1_25",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 15,
+          "address": "",
+          "instruction": "jb\t.LBB1_29",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 16,
+          "address": "",
+          "instruction": "jb\t.LBB1_35",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 17,
+          "address": "",
+          "instruction": "jb\t.LBB1_39",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 18,
+          "address": "",
+          "instruction": "jb\t.LBB1_43",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 19,
+          "address": "",
+          "instruction": "jb\t.LBB1_49",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 20,
+          "address": "",
+          "instruction": "jb\t.LBB1_53",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "pub fn chacha20_block(state: &mut [u32; 16]) {",
+            "    let mut work = *state;",
+            "    for _ in 0..10 {",
+            "        // Column rounds",
+            "        qr(&mut work, 0, 4, 8, 12);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::chacha20_block",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "line": 772,
+          "address": "",
+          "instruction": "jne\t.LBB0_1",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 9,
+          "address": "",
+          "instruction": "ja\t.LBB1_5",
+          "mnemonic": "JA",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(always)]",
+            "fn qr(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize) {",
+            "    state[a] = state[a].wrapping_add(state[b]);",
+            "    state[d] ^= state[a];",
+            "    state[d] = state[d].rotate_left(16);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 10,
+          "address": "",
+          "instruction": "jae\t.LBB1_7",
+          "mnemonic": "JAE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(always)]",
+            "fn qr(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize) {",
+            "    state[a] = state[a].wrapping_add(state[b]);",
+            "    state[d] ^= state[a];",
+            "    state[d] = state[d].rotate_left(16);"
+          ]
+        },
+        {
+          "function": "chacha20_quarter_round::qr",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/chacha20_quarter_round.rs",
+          "line": 12,
+          "address": "",
+          "instruction": "jae\t.LBB1_4",
+          "mnemonic": "JAE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(always)]",
+            "fn qr(state: &mut [u32; 16], a: usize, b: usize, c: usize, d: usize) {",
+            "    state[a] = state[a].wrapping_add(state[b]);",
+            "    state[d] ^= state[a];",
+            "    state[d] = state[d].rotate_left(16);"
+          ]
+        }
+      ],
+      "tp": 0,
+      "fp": 6,
+      "fp_actionable": 3,
+      "fn": 0,
+      "error_count": 0,
+      "warning_count": 33,
+      "reachable": true
+    },
+    {
+      "path": "clean/curve25519_field_mul.rs",
+      "label": "clean",
+      "ground_truth": [],
+      "reported": [
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 20,
+          "address": "",
+          "instruction": "jne\t.LBB0_2",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 21,
+          "address": "",
+          "instruction": "jne\t.LBB0_4",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 22,
+          "address": "",
+          "instruction": "jne\t.LBB0_6",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 23,
+          "address": "",
+          "instruction": "jne\t.LBB0_8",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 25,
+          "address": "",
+          "instruction": "jne\t.LBB0_10",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 25,
+          "address": "",
+          "instruction": "jb\t.LBB0_14",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 26,
+          "address": "",
+          "instruction": "jne\t.LBB0_28",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 26,
+          "address": "",
+          "instruction": "jb\t.LBB0_32",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 27,
+          "address": "",
+          "instruction": "jne\t.LBB0_46",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 27,
+          "address": "",
+          "instruction": "jb\t.LBB0_50",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 28,
+          "address": "",
+          "instruction": "jne\t.LBB0_64",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 28,
+          "address": "",
+          "instruction": "jb\t.LBB0_68",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 29,
+          "address": "",
+          "instruction": "jne\t.LBB0_82",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 29,
+          "address": "",
+          "instruction": "jb\t.LBB0_86",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 35,
+          "address": "",
+          "instruction": "jb\t.LBB0_100",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 38,
+          "address": "",
+          "instruction": "jb\t.LBB0_102",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 41,
+          "address": "",
+          "instruction": "jb\t.LBB0_104",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 44,
+          "address": "",
+          "instruction": "jb\t.LBB0_106",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 47,
+          "address": "",
+          "instruction": "jne\t.LBB0_108",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        },
+        {
+          "function": "curve25519_field_mul::fe_mul",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/curve25519_field_mul.rs",
+          "line": 47,
+          "address": "",
+          "instruction": "jb\t.LBB0_110",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let b3 = b[3] as u128;",
+            "    let b4 = b[4] as u128;",
+            "    let b1_19 = b1 * 19;",
+            "    let b2_19 = b2 * 19;",
+            "    let b3_19 = b3 * 19;"
+          ]
+        }
+      ],
+      "tp": 0,
+      "fp": 2,
+      "fp_actionable": 20,
+      "fn": 0,
+      "error_count": 0,
+      "warning_count": 55,
+      "reachable": true
+    },
+    {
+      "path": "clean/hkdf_expand.rs",
+      "label": "clean",
+      "ground_truth": [],
+      "reported": [
+        {
+          "function": "hkdf_expand::hmac_sha256_stub",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/hkdf_expand.rs",
+          "line": 13,
+          "address": "",
+          "instruction": "je\t.LBB3_3",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "iterator_loop_likely_fp",
+          "source_snippet": [
+            "    // the analyzer doesn't see into it; the loop control around it",
+            "    // is what we want to evaluate.",
+            "    for b in out.iter_mut() {",
+            "        unsafe { core::ptr::write_volatile(b as *mut u8, 0xAA) };",
+            "    }"
+          ]
+        },
+        {
+          "function": "hkdf_expand::hkdf_expand_sha256",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/hkdf_expand.rs",
+          "line": 20,
+          "address": "",
+          "instruction": "jb\t.LBB4_2",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "iterator_loop_likely_fp",
+          "source_snippet": [
+            "    // the analyzer doesn't see into it; the loop control around it",
+            "    // is what we want to evaluate.",
+            "    for b in out.iter_mut() {",
+            "        unsafe { core::ptr::write_volatile(b as *mut u8, 0xAA) };",
+            "    }"
+          ]
+        },
+        {
+          "function": "hkdf_expand::hkdf_expand_sha256",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/hkdf_expand.rs",
+          "line": 25,
+          "address": "",
+          "instruction": "je\t.LBB4_8",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "iterator_loop_likely_fp",
+          "source_snippet": [
+            "    // the analyzer doesn't see into it; the loop control around it",
+            "    // is what we want to evaluate.",
+            "    for b in out.iter_mut() {",
+            "        unsafe { core::ptr::write_volatile(b as *mut u8, 0xAA) };",
+            "    }"
+          ]
+        },
+        {
+          "function": "hkdf_expand::hkdf_expand_sha256",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/hkdf_expand.rs",
+          "line": 29,
+          "address": "",
+          "instruction": "jb\t.LBB4_10",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "iterator_loop_likely_fp",
+          "source_snippet": [
+            "    // the analyzer doesn't see into it; the loop control around it",
+            "    // is what we want to evaluate.",
+            "    for b in out.iter_mut() {",
+            "        unsafe { core::ptr::write_volatile(b as *mut u8, 0xAA) };",
+            "    }"
+          ]
+        },
+        {
+          "function": "hkdf_expand::hkdf_expand_sha256",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/hkdf_expand.rs",
+          "line": 30,
+          "address": "",
+          "instruction": "jb\t.LBB4_12",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "iterator_loop_likely_fp",
+          "source_snippet": [
+            "    // the analyzer doesn't see into it; the loop control around it",
+            "    // is what we want to evaluate.",
+            "    for b in out.iter_mut() {",
+            "        unsafe { core::ptr::write_volatile(b as *mut u8, 0xAA) };",
+            "    }"
+          ]
+        },
+        {
+          "function": "hkdf_expand::hkdf_expand_sha256",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/clean/hkdf_expand.rs",
+          "line": 31,
+          "address": "",
+          "instruction": "jb\t.LBB4_14",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "iterator_loop_likely_fp",
+          "source_snippet": [
+            "    // the analyzer doesn't see into it; the loop control around it",
+            "    // is what we want to evaluate.",
+            "    for b in out.iter_mut() {",
+            "        unsafe { core::ptr::write_volatile(b as *mut u8, 0xAA) };",
+            "    }"
+          ]
+        },
+        {
+          "function": "hkdf_expand::hkdf_expand_sha256",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "line": 772,
+          "address": "",
+          "instruction": "je\t.LBB1_5",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "hkdf_expand::hkdf_expand_sha256",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "line": 842,
+          "address": "",
+          "instruction": "jb\t.LBB1_6",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_other_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "hkdf_expand::hkdf_expand_sha256",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "line": 842,
+          "address": "",
+          "instruction": "ja\t.LBB1_6",
+          "mnemonic": "JA",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_other_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "hkdf_expand::hkdf_expand_sha256",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "line": 772,
+          "address": "",
+          "instruction": "jne\t.LBB1_2",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        }
+      ],
+      "tp": 0,
+      "fp": 5,
+      "fp_actionable": 0,
+      "fn": 0,
+      "error_count": 0,
+      "warning_count": 7,
+      "reachable": true
+    },
+    {
+      "path": "vulnerable/kyberslash.rs",
+      "label": "vulnerable",
+      "ground_truth": [
+        {
+          "function": "compress_paramq_vulnerable",
+          "line": 11,
+          "kind": "div_on_secret"
+        },
+        {
+          "function": "decompress_paramq_vulnerable",
+          "line": 19,
+          "kind": "div_on_secret"
+        }
+      ],
+      "reported": [
+        {
+          "function": "kyberslash::compress_paramq_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/kyberslash.rs",
+          "line": 9,
+          "address": "",
+          "instruction": "jae\t.LBB0_2",
+          "mnemonic": "JAE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn compress_paramq_vulnerable(secret_coef: i32, q: i32, d: u32) -> i32 {",
+            "    let scaled = secret_coef << d;",
+            "    // GROUND TRUTH: line 11, kind=div_on_secret",
+            "    let quotient = (scaled + (q / 2)) / q;"
+          ]
+        },
+        {
+          "function": "kyberslash::compress_paramq_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/kyberslash.rs",
+          "line": 11,
+          "address": "",
+          "instruction": "jne\t.LBB0_4",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn compress_paramq_vulnerable(secret_coef: i32, q: i32, d: u32) -> i32 {",
+            "    let scaled = secret_coef << d;",
+            "    // GROUND TRUTH: line 11, kind=div_on_secret",
+            "    let quotient = (scaled + (q / 2)) / q;"
+          ]
+        },
+        {
+          "function": "kyberslash::compress_paramq_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/kyberslash.rs",
+          "line": 11,
+          "address": "",
+          "instruction": "idivl\t%ecx",
+          "mnemonic": "IDIVL",
+          "reason": "IDIVL has data-dependent timing; execution time varies based on operand values",
+          "severity": "error",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn compress_paramq_vulnerable(secret_coef: i32, q: i32, d: u32) -> i32 {",
+            "    let scaled = secret_coef << d;",
+            "    // GROUND TRUTH: line 11, kind=div_on_secret",
+            "    let quotient = (scaled + (q / 2)) / q;"
+          ]
+        },
+        {
+          "function": "kyberslash::compress_paramq_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/kyberslash.rs",
+          "line": 11,
+          "address": "",
+          "instruction": "jo\t.LBB0_6",
+          "mnemonic": "JO",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn compress_paramq_vulnerable(secret_coef: i32, q: i32, d: u32) -> i32 {",
+            "    let scaled = secret_coef << d;",
+            "    // GROUND TRUTH: line 11, kind=div_on_secret",
+            "    let quotient = (scaled + (q / 2)) / q;"
+          ]
+        },
+        {
+          "function": "kyberslash::compress_paramq_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/kyberslash.rs",
+          "line": 11,
+          "address": "",
+          "instruction": "je\t.LBB0_8",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn compress_paramq_vulnerable(secret_coef: i32, q: i32, d: u32) -> i32 {",
+            "    let scaled = secret_coef << d;",
+            "    // GROUND TRUTH: line 11, kind=div_on_secret",
+            "    let quotient = (scaled + (q / 2)) / q;"
+          ]
+        },
+        {
+          "function": "kyberslash::compress_paramq_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/kyberslash.rs",
+          "line": 12,
+          "address": "",
+          "instruction": "jb\t.LBB0_11",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn compress_paramq_vulnerable(secret_coef: i32, q: i32, d: u32) -> i32 {",
+            "    let scaled = secret_coef << d;",
+            "    // GROUND TRUTH: line 11, kind=div_on_secret",
+            "    let quotient = (scaled + (q / 2)) / q;"
+          ]
+        },
+        {
+          "function": "kyberslash::compress_paramq_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/kyberslash.rs",
+          "line": 12,
+          "address": "",
+          "instruction": "jo\t.LBB0_14",
+          "mnemonic": "JO",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn compress_paramq_vulnerable(secret_coef: i32, q: i32, d: u32) -> i32 {",
+            "    let scaled = secret_coef << d;",
+            "    // GROUND TRUTH: line 11, kind=div_on_secret",
+            "    let quotient = (scaled + (q / 2)) / q;"
+          ]
+        },
+        {
+          "function": "kyberslash::decompress_paramq_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/kyberslash.rs",
+          "line": 17,
+          "address": "",
+          "instruction": "je\t.LBB1_3",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn compress_paramq_vulnerable(secret_coef: i32, q: i32, d: u32) -> i32 {",
+            "    let scaled = secret_coef << d;",
+            "    // GROUND TRUTH: line 11, kind=div_on_secret",
+            "    let quotient = (scaled + (q / 2)) / q;"
+          ]
+        },
+        {
+          "function": "kyberslash::decompress_paramq_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/kyberslash.rs",
+          "line": 19,
+          "address": "",
+          "instruction": "je\t.LBB1_5",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn compress_paramq_vulnerable(secret_coef: i32, q: i32, d: u32) -> i32 {",
+            "    let scaled = secret_coef << d;",
+            "    // GROUND TRUTH: line 11, kind=div_on_secret",
+            "    let quotient = (scaled + (q / 2)) / q;"
+          ]
+        },
+        {
+          "function": "kyberslash::decompress_paramq_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/kyberslash.rs",
+          "line": 19,
+          "address": "",
+          "instruction": "jne\t.LBB1_7",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn compress_paramq_vulnerable(secret_coef: i32, q: i32, d: u32) -> i32 {",
+            "    let scaled = secret_coef << d;",
+            "    // GROUND TRUTH: line 11, kind=div_on_secret",
+            "    let quotient = (scaled + (q / 2)) / q;"
+          ]
+        },
+        {
+          "function": "kyberslash::decompress_paramq_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/kyberslash.rs",
+          "line": 19,
+          "address": "",
+          "instruction": "idivl\t%ecx",
+          "mnemonic": "IDIVL",
+          "reason": "IDIVL has data-dependent timing; execution time varies based on operand values",
+          "severity": "error",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn compress_paramq_vulnerable(secret_coef: i32, q: i32, d: u32) -> i32 {",
+            "    let scaled = secret_coef << d;",
+            "    // GROUND TRUTH: line 11, kind=div_on_secret",
+            "    let quotient = (scaled + (q / 2)) / q;"
+          ]
+        },
+        {
+          "function": "kyberslash::decompress_paramq_vulnerable",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "line": 180,
+          "address": "",
+          "instruction": "je\t.LBB1_6",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "kyberslash::decompress_paramq_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/kyberslash.rs",
+          "line": 19,
+          "address": "",
+          "instruction": "jno\t.LBB1_5",
+          "mnemonic": "JNO",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let scaled = secret_coef << d;",
+            "    // GROUND TRUTH: line 11, kind=div_on_secret",
+            "    let quotient = (scaled + (q / 2)) / q;",
+            "    quotient & ((1 << d) - 1)",
+            "}"
+          ]
+        },
+        {
+          "function": "kyberslash::decompress_paramq_vulnerable",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "line": 180,
+          "address": "",
+          "instruction": "jne\t.LBB1_3",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "kyberslash::decompress_paramq_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/kyberslash.rs",
+          "line": 19,
+          "address": "",
+          "instruction": "jo\t.LBB1_11",
+          "mnemonic": "JO",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let scaled = secret_coef << d;",
+            "    // GROUND TRUTH: line 11, kind=div_on_secret",
+            "    let quotient = (scaled + (q / 2)) / q;",
+            "    quotient & ((1 << d) - 1)",
+            "}"
+          ]
+        }
+      ],
+      "tp": 2,
+      "fp": 9,
+      "fp_actionable": 0,
+      "fn": 0,
+      "error_count": 3,
+      "warning_count": 10,
+      "reachable": true
+    },
+    {
+      "path": "vulnerable/lucky13.rs",
+      "label": "vulnerable",
+      "ground_truth": [
+        {
+          "function": "lucky13_mac_check",
+          "line": 25,
+          "kind": "secret_loop_bound"
+        },
+        {
+          "function": "lucky13_mac_check",
+          "line": 31,
+          "kind": "memcmp_on_secret"
+        }
+      ],
+      "reported": [
+        {
+          "function": "_<[A] as core::slice::cmp::SlicePartialEq<B>>::equal",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/cmp.rs",
+          "line": 152,
+          "address": "",
+          "instruction": "jne\t.LBB9_2",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_bounds_check_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/lucky13.rs",
+          "line": 12,
+          "address": "",
+          "instruction": "jb\t.LBB10_2",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn lucky13_mac_check(decrypted: &[u8], expected_mac: &[u8]) -> bool {",
+            "    let n = decrypted.len();",
+            "    if n < 16 {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/lucky13.rs",
+          "line": 16,
+          "address": "",
+          "instruction": "jb\t.LBB10_4",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn lucky13_mac_check(decrypted: &[u8], expected_mac: &[u8]) -> bool {",
+            "    let n = decrypted.len();",
+            "    if n < 16 {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/lucky13.rs",
+          "line": 17,
+          "address": "",
+          "instruction": "jae\t.LBB10_8",
+          "mnemonic": "JAE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn lucky13_mac_check(decrypted: &[u8], expected_mac: &[u8]) -> bool {",
+            "    let n = decrypted.len();",
+            "    if n < 16 {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/lucky13.rs",
+          "line": 20,
+          "address": "",
+          "instruction": "jb\t.LBB10_10",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn lucky13_mac_check(decrypted: &[u8], expected_mac: &[u8]) -> bool {",
+            "    let n = decrypted.len();",
+            "    if n < 16 {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/lucky13.rs",
+          "line": 25,
+          "address": "",
+          "instruction": "je\t.LBB10_15",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn lucky13_mac_check(decrypted: &[u8], expected_mac: &[u8]) -> bool {",
+            "    let n = decrypted.len();",
+            "    if n < 16 {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/lucky13.rs",
+          "line": 26,
+          "address": "",
+          "instruction": "jb\t.LBB10_26",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn lucky13_mac_check(decrypted: &[u8], expected_mac: &[u8]) -> bool {",
+            "    let n = decrypted.len();",
+            "    if n < 16 {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/lucky13.rs",
+          "line": 31,
+          "address": "",
+          "instruction": "jb\t.LBB10_22",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn lucky13_mac_check(decrypted: &[u8], expected_mac: &[u8]) -> bool {",
+            "    let n = decrypted.len();",
+            "    if n < 16 {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "line": 842,
+          "address": "",
+          "instruction": "jb\t.LBB10_18",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_other_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/index.rs",
+          "line": 438,
+          "address": "",
+          "instruction": "jbe\t.LBB10_21",
+          "mnemonic": "JBE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_bounds_check_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/lucky13.rs",
+          "line": 31,
+          "address": "",
+          "instruction": "jne\t.LBB10_24",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn lucky13_mac_check(decrypted: &[u8], expected_mac: &[u8]) -> bool {",
+            "    let n = decrypted.len();",
+            "    if n < 16 {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/lucky13.rs",
+          "line": 17,
+          "address": "",
+          "instruction": "jbe\t.LBB1_1",
+          "mnemonic": "JBE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn lucky13_mac_check(decrypted: &[u8], expected_mac: &[u8]) -> bool {",
+            "    let n = decrypted.len();",
+            "    if n < 16 {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "line": 772,
+          "address": "",
+          "instruction": "je\t.LBB1_8",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/lucky13.rs",
+          "line": 26,
+          "address": "",
+          "instruction": "jae\t.LBB1_9",
+          "mnemonic": "JAE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn lucky13_mac_check(decrypted: &[u8], expected_mac: &[u8]) -> bool {",
+            "    let n = decrypted.len();",
+            "    if n < 16 {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "line": 763,
+          "address": "",
+          "instruction": "jne\t.LBB1_10",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_other_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/lucky13.rs",
+          "line": 26,
+          "address": "",
+          "instruction": "je\t.LBB1_19",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn lucky13_mac_check(decrypted: &[u8], expected_mac: &[u8]) -> bool {",
+            "    let n = decrypted.len();",
+            "    if n < 16 {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "line": 772,
+          "address": "",
+          "instruction": "jne\t.LBB1_12",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "lucky13::lucky13_mac_check",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "line": 842,
+          "address": "",
+          "instruction": "ja\t.LBB1_18",
+          "mnemonic": "JA",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_other_likely_fp",
+          "source_snippet": null
+        }
+      ],
+      "tp": 2,
+      "fp": 1,
+      "fp_actionable": 0,
+      "fn": 0,
+      "error_count": 0,
+      "warning_count": 13,
+      "reachable": true
+    },
+    {
+      "path": "vulnerable/rsa_modexp_naive.rs",
+      "label": "vulnerable",
+      "ground_truth": [
+        {
+          "function": "rsa_modexp_naive",
+          "line": 16,
+          "kind": "branch_on_secret"
+        },
+        {
+          "function": "rsa_modexp_naive",
+          "line": 18,
+          "kind": "div_on_secret"
+        },
+        {
+          "function": "rsa_modinv_euclid_vulnerable",
+          "line": 32,
+          "kind": "div_on_secret"
+        }
+      ],
+      "reported": [
+        {
+          "function": "rsa_modexp_naive::rsa_modexp_naive",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 13,
+          "address": "",
+          "instruction": "je\t.LBB0_3",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modexp_naive",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 14,
+          "address": "",
+          "instruction": "jne\t.LBB0_5",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modexp_naive",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 14,
+          "address": "",
+          "instruction": "je\t.LBB0_7",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modexp_naive",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 16,
+          "address": "",
+          "instruction": "jo\t.LBB0_9",
+          "mnemonic": "JO",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modexp_naive",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 16,
+          "address": "",
+          "instruction": "jb\t.LBB0_10",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modexp_naive",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 16,
+          "address": "",
+          "instruction": "je\t.LBB0_12",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modexp_naive",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 19,
+          "address": "",
+          "instruction": "jne\t.LBB0_14",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modexp_naive",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 19,
+          "address": "",
+          "instruction": "je\t.LBB0_16",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modinv_euclid_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 31,
+          "address": "",
+          "instruction": "ja\t.LBB1_3",
+          "mnemonic": "JA",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modinv_euclid_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 41,
+          "address": "",
+          "instruction": "jl\t.LBB1_5",
+          "mnemonic": "JL",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modinv_euclid_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 33,
+          "address": "",
+          "instruction": "je\t.LBB1_9",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modinv_euclid_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 42,
+          "address": "",
+          "instruction": "jo\t.LBB1_7",
+          "mnemonic": "JO",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modinv_euclid_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 33,
+          "address": "",
+          "instruction": "divq\t%rcx",
+          "mnemonic": "DIVQ",
+          "reason": "DIVQ has data-dependent timing; execution time varies based on operand values",
+          "severity": "error",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modinv_euclid_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 35,
+          "address": "",
+          "instruction": "je\t.LBB1_11",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modinv_euclid_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 35,
+          "address": "",
+          "instruction": "divq\t%rsi",
+          "mnemonic": "DIVQ",
+          "reason": "DIVQ has data-dependent timing; execution time varies based on operand values",
+          "severity": "error",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modinv_euclid_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 38,
+          "address": "",
+          "instruction": "jo\t.LBB1_13",
+          "mnemonic": "JO",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "    let b = base as u128;",
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modexp_naive",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "line": 772,
+          "address": "",
+          "instruction": "je\t.LBB0_5",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modexp_naive",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 16,
+          "address": "",
+          "instruction": "jae\t.LBB0_4",
+          "mnemonic": "JAE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret",
+            "        if (exp >> (63 - i)) & 1 == 1 {"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modinv_euclid_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 31,
+          "address": "",
+          "instruction": "jbe\t.LBB1_5",
+          "mnemonic": "JBE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret",
+            "        if (exp >> (63 - i)) & 1 == 1 {"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modinv_euclid_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 31,
+          "address": "",
+          "instruction": "je\t.LBB1_4",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret",
+            "        if (exp >> (63 - i)) & 1 == 1 {"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modinv_euclid_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 33,
+          "address": "",
+          "instruction": "jne\t.LBB1_8",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret",
+            "        if (exp >> (63 - i)) & 1 == 1 {"
+          ]
+        },
+        {
+          "function": "rsa_modexp_naive::rsa_modinv_euclid_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/rsa_modexp_naive.rs",
+          "line": 33,
+          "address": "",
+          "instruction": "divl\t%r8d",
+          "mnemonic": "DIVL",
+          "reason": "DIVL has data-dependent timing; execution time varies based on operand values",
+          "severity": "error",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let m = modulus as u128;",
+            "    for i in 0..64 {",
+            "        result = (result * result) % m;",
+            "        // GROUND TRUTH: line 16, kind=branch_on_secret",
+            "        if (exp >> (63 - i)) & 1 == 1 {"
+          ]
+        }
+      ],
+      "tp": 3,
+      "fp": 0,
+      "fp_actionable": 0,
+      "fn": 0,
+      "error_count": 2,
+      "warning_count": 15,
+      "reachable": true
+    },
+    {
+      "path": "vulnerable/naive_mac_compare.rs",
+      "label": "vulnerable",
+      "ground_truth": [
+        {
+          "function": "verify_signature_early_exit",
+          "line": 49,
+          "kind": "memcmp_on_secret"
+        }
+      ],
+      "reported": [
+        {
+          "function": "naive_mac_compare::verify_signature_early_exit",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/naive_mac_compare.rs",
+          "line": 40,
+          "address": "",
+          "instruction": "jne\t.LBB1_2",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "public_length_compare_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn verify_signature_early_exit(sig_a: &[u8], sig_b: &[u8]) -> bool {",
+            "    if sig_a.len() != sig_b.len() {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "naive_mac_compare::verify_signature_early_exit",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/naive_mac_compare.rs",
+          "line": 44,
+          "address": "",
+          "instruction": "je\t.LBB1_5",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "public_length_compare_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn verify_signature_early_exit(sig_a: &[u8], sig_b: &[u8]) -> bool {",
+            "    if sig_a.len() != sig_b.len() {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "naive_mac_compare::verify_signature_early_exit",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/naive_mac_compare.rs",
+          "line": 45,
+          "address": "",
+          "instruction": "jb\t.LBB1_7",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "public_length_compare_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn verify_signature_early_exit(sig_a: &[u8], sig_b: &[u8]) -> bool {",
+            "    if sig_a.len() != sig_b.len() {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "naive_mac_compare::verify_signature_early_exit",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/naive_mac_compare.rs",
+          "line": 45,
+          "address": "",
+          "instruction": "jne\t.LBB1_11",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "public_length_compare_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn verify_signature_early_exit(sig_a: &[u8], sig_b: &[u8]) -> bool {",
+            "    if sig_a.len() != sig_b.len() {",
+            "        return false;",
+            "    }"
+          ]
+        },
+        {
+          "function": "_<[A] as core::slice::cmp::SlicePartialEq<B>>::equal",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/cmp.rs",
+          "line": 152,
+          "address": "",
+          "instruction": "jne\t.LBB13_2",
+          "mnemonic": "JNE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_bounds_check_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "naive_mac_compare::verify_signature_early_exit",
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "line": 772,
+          "address": "",
+          "instruction": "je\t.LBB1_5",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "stdlib_iter_end_likely_fp",
+          "source_snippet": null
+        },
+        {
+          "function": "naive_mac_compare::verify_signature_early_exit",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/naive_mac_compare.rs",
+          "line": 45,
+          "address": "",
+          "instruction": "je\t.LBB1_3",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "public_length_compare_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn verify_signature_early_exit(sig_a: &[u8], sig_b: &[u8]) -> bool {",
+            "    if sig_a.len() != sig_b.len() {",
+            "        return false;",
+            "    }"
+          ]
+        }
+      ],
+      "tp": 1,
+      "fp": 2,
+      "fp_actionable": 0,
+      "fn": 0,
+      "error_count": 0,
+      "warning_count": 6,
+      "reachable": true
+    },
+    {
+      "path": "vulnerable/branch_lt_secret.rs",
+      "label": "vulnerable",
+      "ground_truth": [
+        {
+          "function": "ct_lt_naive",
+          "line": 10,
+          "kind": "branch_on_secret"
+        },
+        {
+          "function": "modular_reduce_naive",
+          "line": 18,
+          "kind": "branch_on_secret"
+        }
+      ],
+      "reported": [
+        {
+          "function": "branch_lt_secret::ct_lt_naive",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/branch_lt_secret.rs",
+          "line": 10,
+          "address": "",
+          "instruction": "jb\t.LBB0_2",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn ct_lt_naive(a: u64, b: u64) -> u8 {",
+            "    // GROUND TRUTH: line 10, kind=branch_on_secret",
+            "    if a < b { 1 } else { 0 }",
+            "}",
+            ""
+          ]
+        },
+        {
+          "function": "branch_lt_secret::modular_reduce_naive",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/branch_lt_secret.rs",
+          "line": 18,
+          "address": "",
+          "instruction": "jae\t.LBB1_3",
+          "mnemonic": "JAE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn ct_lt_naive(a: u64, b: u64) -> u8 {",
+            "    // GROUND TRUTH: line 10, kind=branch_on_secret",
+            "    if a < b { 1 } else { 0 }",
+            "}",
+            ""
+          ]
+        },
+        {
+          "function": "branch_lt_secret::modular_reduce_naive",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/branch_lt_secret.rs",
+          "line": 19,
+          "address": "",
+          "instruction": "jb\t.LBB1_5",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "pub fn ct_lt_naive(a: u64, b: u64) -> u8 {",
+            "    // GROUND TRUTH: line 10, kind=branch_on_secret",
+            "    if a < b { 1 } else { 0 }",
+            "}",
+            ""
+          ]
+        }
+      ],
+      "tp": 2,
+      "fp": 0,
+      "fp_actionable": 0,
+      "fn": 0,
+      "error_count": 0,
+      "warning_count": 3,
+      "reachable": true
+    },
+    {
+      "path": "vulnerable/dsa_nonce_reduce.rs",
+      "label": "vulnerable",
+      "ground_truth": [
+        {
+          "function": "nonce_reduce_minerva_vulnerable",
+          "line": 13,
+          "kind": "branch_on_secret"
+        },
+        {
+          "function": "dsa_compute_s_vulnerable",
+          "line": 26,
+          "kind": "div_on_secret"
+        }
+      ],
+      "reported": [
+        {
+          "function": "dsa_nonce_reduce::dsa_compute_s_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/dsa_nonce_reduce.rs",
+          "line": 26,
+          "address": "",
+          "instruction": "je\t.LBB0_2",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let sum = xr.wrapping_add(h);",
+            "    // GROUND TRUTH: line 24, kind=div_on_secret",
+            "    let reduced = sum % q;",
+            "    k_inv.wrapping_mul(reduced) % q",
+            "}"
+          ]
+        },
+        {
+          "function": "dsa_nonce_reduce::dsa_compute_s_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/dsa_nonce_reduce.rs",
+          "line": 26,
+          "address": "",
+          "instruction": "divq\t%rsi",
+          "mnemonic": "DIVQ",
+          "reason": "DIVQ has data-dependent timing; execution time varies based on operand values",
+          "severity": "error",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let sum = xr.wrapping_add(h);",
+            "    // GROUND TRUTH: line 24, kind=div_on_secret",
+            "    let reduced = sum % q;",
+            "    k_inv.wrapping_mul(reduced) % q",
+            "}"
+          ]
+        },
+        {
+          "function": "dsa_nonce_reduce::dsa_compute_s_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/dsa_nonce_reduce.rs",
+          "line": 27,
+          "address": "",
+          "instruction": "je\t.LBB0_4",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let sum = xr.wrapping_add(h);",
+            "    // GROUND TRUTH: line 24, kind=div_on_secret",
+            "    let reduced = sum % q;",
+            "    k_inv.wrapping_mul(reduced) % q",
+            "}"
+          ]
+        },
+        {
+          "function": "dsa_nonce_reduce::dsa_compute_s_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/dsa_nonce_reduce.rs",
+          "line": 27,
+          "address": "",
+          "instruction": "divq\t%rcx",
+          "mnemonic": "DIVQ",
+          "reason": "DIVQ has data-dependent timing; execution time varies based on operand values",
+          "severity": "error",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let sum = xr.wrapping_add(h);",
+            "    // GROUND TRUTH: line 24, kind=div_on_secret",
+            "    let reduced = sum % q;",
+            "    k_inv.wrapping_mul(reduced) % q",
+            "}"
+          ]
+        },
+        {
+          "function": "dsa_nonce_reduce::nonce_reduce_minerva_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/dsa_nonce_reduce.rs",
+          "line": 13,
+          "address": "",
+          "instruction": "jae\t.LBB1_2",
+          "mnemonic": "JAE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let sum = xr.wrapping_add(h);",
+            "    // GROUND TRUTH: line 24, kind=div_on_secret",
+            "    let reduced = sum % q;",
+            "    k_inv.wrapping_mul(reduced) % q",
+            "}"
+          ]
+        },
+        {
+          "function": "dsa_nonce_reduce::nonce_reduce_minerva_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/dsa_nonce_reduce.rs",
+          "line": 14,
+          "address": "",
+          "instruction": "jb\t.LBB1_5",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let sum = xr.wrapping_add(h);",
+            "    // GROUND TRUTH: line 24, kind=div_on_secret",
+            "    let reduced = sum % q;",
+            "    k_inv.wrapping_mul(reduced) % q",
+            "}"
+          ]
+        },
+        {
+          "function": "dsa_nonce_reduce::dsa_compute_s_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/dsa_nonce_reduce.rs",
+          "line": 26,
+          "address": "",
+          "instruction": "divl\t%r8d",
+          "mnemonic": "DIVL",
+          "reason": "DIVL has data-dependent timing; execution time varies based on operand values",
+          "severity": "error",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let sum = xr.wrapping_add(h);",
+            "    // GROUND TRUTH: line 24, kind=div_on_secret",
+            "    let reduced = sum % q;",
+            "    k_inv.wrapping_mul(reduced) % q",
+            "}"
+          ]
+        },
+        {
+          "function": "dsa_nonce_reduce::dsa_compute_s_vulnerable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/vulnerable/dsa_nonce_reduce.rs",
+          "line": 27,
+          "address": "",
+          "instruction": "divl\t%r8d",
+          "mnemonic": "DIVL",
+          "reason": "DIVL has data-dependent timing; execution time varies based on operand values",
+          "severity": "error",
+          "triage_hint": "user_code_review",
+          "source_snippet": [
+            "    let sum = xr.wrapping_add(h);",
+            "    // GROUND TRUTH: line 24, kind=div_on_secret",
+            "    let reduced = sum % q;",
+            "    k_inv.wrapping_mul(reduced) % q",
+            "}"
+          ]
+        }
+      ],
+      "tp": 2,
+      "fp": 1,
+      "fp_actionable": 0,
+      "fn": 0,
+      "error_count": 4,
+      "warning_count": 4,
+      "reachable": true
+    },
+    {
+      "path": "limitation_no_signal/aes_ttable.rs",
+      "label": "limitation_no_signal",
+      "ground_truth": [],
+      "reported": [
+        {
+          "function": "aes_ttable::aes_subbytes_ttable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/limitation_no_signal/aes_ttable.rs",
+          "line": 17,
+          "address": "",
+          "instruction": "je\t.LBB0_3",
+          "mnemonic": "JE",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn aes_subbytes_ttable(state: &mut [u8; 16]) {",
+            "    for i in 0..16 {",
+            "        // Memory load at a secret-derived index. Instruction-level",
+            "        // analysis sees a normal MOV; cache timing leaks the index."
+          ]
+        },
+        {
+          "function": "aes_ttable::aes_subbytes_ttable",
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/corpus_rust/limitation_no_signal/aes_ttable.rs",
+          "line": 20,
+          "address": "",
+          "instruction": "jb\t.LBB0_4",
+          "mnemonic": "JB",
+          "reason": "conditional branch may leak timing information if condition depends on secret data",
+          "severity": "warning",
+          "triage_hint": "user_loop_bound_likely_fp",
+          "source_snippet": [
+            "#[inline(never)]",
+            "pub fn aes_subbytes_ttable(state: &mut [u8; 16]) {",
+            "    for i in 0..16 {",
+            "        // Memory load at a secret-derived index. Instruction-level",
+            "        // analysis sees a normal MOV; cache timing leaks the index."
+          ]
+        }
+      ],
+      "tp": 0,
+      "fp": 2,
+      "fp_actionable": 0,
+      "fn": 0,
+      "error_count": 0,
+      "warning_count": 4,
+      "reachable": true
+    }
+  ],
+  "totals": {
+    "tp": 12,
+    "fp": 37,
+    "fp_actionable": 23,
+    "fn": 0,
+    "error_count_total": 9,
+    "warning_count_total": 161,
+    "precision": 0.2449,
+    "precision_actionable": 0.3429,
+    "recall": 1.0,
+    "f1": 0.3934,
+    "f1_actionable": 0.5106,
+    "ct_afi": 0.2449,
+    "ct_afi_actionable": 0.3429
+  }
+}

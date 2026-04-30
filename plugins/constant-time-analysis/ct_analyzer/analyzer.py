@@ -71,6 +71,13 @@ class Violation:
     # The 4 instructions after, plus the current one's full text. Used for
     # branch-target / loop-backedge analysis.
     context_after: list[str] = field(default_factory=list)
+    # Pre-applied triage classification (see classify_violation()). Lets a
+    # downstream agent process violations mechanically without re-reading
+    # the source file and asm. None when not yet classified.
+    triage_hint: str | None = None
+    # Three-line source snippet centered on `line`. Populated only when
+    # the file is readable and `--explain`/JSON output requests it.
+    source_snippet: list[str] | None = None
 
 
 @dataclass
@@ -729,7 +736,27 @@ class GoCompiler(Compiler):
 
 
 class RustCompiler(Compiler):
-    """Rust compiler interface."""
+    """Rust compiler interface.
+
+    Compiles single .rs files as `--crate-type=rlib` (library) instead of
+    a binary. This is critical for correctness: when a `.rs` file is built
+    as a binary (`--crate-type=bin`), only `main` is a kept symbol. The
+    optimizer aggressively dead-code-eliminates non-main functions, and
+    when `main` calls them with compile-time-constant arguments, every
+    operation gets constant-folded away. The result is that obviously
+    vulnerable code (e.g. `r / two_gamma2` from KyberSlash patterns)
+    leaves zero IDIV instructions in the asm and the analyzer reports
+    PASSED on truly broken crypto -- a critical false negative.
+
+    Compiling as `rlib` keeps every `pub fn` (and any `fn` reachable from
+    a public item) as a real exported symbol that the optimizer cannot
+    remove or fully constant-fold across.
+
+    For Cargo projects (Cargo.toml adjacent to the source file), the
+    compiler shells out to `cargo rustc --release -- --emit=asm` so that
+    workspace dependencies are resolved and only the target crate's
+    assembly is emitted.
+    """
 
     ARCH_TARGETS = {
         "x86_64": "x86_64-unknown-linux-gnu",
@@ -743,6 +770,25 @@ class RustCompiler(Compiler):
 
     def __init__(self, path: str | None = None):
         super().__init__("rustc", path or "rustc")
+
+    @staticmethod
+    def _find_cargo_root(source_file: str) -> str | None:
+        """Walk up from source_file to find a Cargo.toml. None if standalone."""
+        path = Path(source_file).resolve()
+        for parent in [path.parent, *path.parents]:
+            if (parent / "Cargo.toml").is_file():
+                return str(parent)
+        return None
+
+    @staticmethod
+    def crate_name_for(source_file: str) -> str:
+        """Compute the rustc crate name for a standalone .rs file.
+
+        rustc replaces hyphens with underscores in default crate names,
+        so we normalize for stable symbol filtering.
+        """
+        stem = Path(source_file).stem
+        return re.sub(r"[^A-Za-z0-9_]", "_", stem)
 
     def compile_to_assembly(
         self,
@@ -764,11 +810,67 @@ class RustCompiler(Compiler):
             "Oz": "z",
         }.get(optimization, "2")
 
+        cargo_root = self._find_cargo_root(source_file)
+        if cargo_root is not None:
+            return self._compile_via_cargo(
+                cargo_root, source_file, output_file, arch, target, opt_level, extra_flags
+            )
+        return self._compile_standalone(
+            source_file, output_file, arch, target, opt_level, extra_flags
+        )
+
+    def _compile_standalone(
+        self,
+        source_file: str,
+        output_file: str,
+        arch: str,
+        target: str | None,
+        opt_level: str,
+        extra_flags: list[str] | None,
+    ) -> tuple[bool, str]:
+        crate_name = self.crate_name_for(source_file)
+
+        # The flag soup below is critical for correctness; see notes:
+        #
+        #  * `--crate-type=rlib`: don't build a binary. A binary
+        #    aggressively DCEs everything except `main`, so any `pub fn`
+        #    called only from `main` with constant arguments gets folded
+        #    away and the analyzer reports PASSED on actually-broken
+        #    crypto. With rlib, every function is a candidate for export.
+        #
+        #  * `-C link-dead-code=on`: rlib alone is NOT enough at
+        #    `opt-level >= 1`. LLVM marks unused `pub fn` as
+        #    `available_externally` linkage, which means "another CU
+        #    will provide this body, don't emit it here." For our
+        #    purposes that's a false negative: the user's source clearly
+        #    contains the function and we need to see its asm. This
+        #    flag forces every function to be emitted.
+        #
+        #  * `-C codegen-units=1`: ensures we get all functions in one
+        #    asm file, not split across CUs we'd then have to stitch.
+        #
+        #  * `-C panic=abort`: removes unwinding metadata noise; the
+        #    panic landing pads otherwise add ~30% noise to the asm.
+        #
+        #  * `-C debuginfo=1`: emit `.file` / `.loc` directives so the
+        #    parser can resolve violations to source `file:line`.
         cmd = [
             self.path,
             "--emit=asm",
+            "--crate-type=rlib",
+            "--crate-name",
+            crate_name,
             "-C",
             f"opt-level={opt_level}",
+            "-C",
+            "codegen-units=1",
+            "-C",
+            "panic=abort",
+            "-C",
+            "debuginfo=1",
+            "-C",
+            "link-dead-code=on",
+            "--edition=2021",
             *(["--target", target] if target else []),
             *(extra_flags or []),
             source_file,
@@ -783,6 +885,152 @@ class RustCompiler(Compiler):
             return True, ""
         except FileNotFoundError:
             return False, f"Rustc not found: {self.path}"
+
+    def _compile_via_cargo(
+        self,
+        cargo_root: str,
+        source_file: str,
+        output_file: str,
+        arch: str,
+        target: str | None,
+        opt_level: str,
+        extra_flags: list[str] | None,
+    ) -> tuple[bool, str]:
+        cargo = "cargo"
+        env = os.environ.copy()
+        # Force codegen-units=1 and panic=abort via RUSTFLAGS for clean asm.
+        rustflags = env.get("RUSTFLAGS", "").split()
+        # See `_compile_standalone` for why each flag is needed.
+        # `link-dead-code=on` is the critical one for `pub fn` retention
+        # at any opt-level >= 1.
+        rustflags += [
+            "--emit=asm",
+            "-C",
+            "codegen-units=1",
+            "-C",
+            "debuginfo=1",
+            "-C",
+            "link-dead-code=on",
+        ]
+        env["RUSTFLAGS"] = " ".join(rustflags)
+
+        # Resolve the authoritative `target_directory` via `cargo metadata`
+        # rather than guessing `<cargo_root>/target`. Workspaces put their
+        # build output at the workspace root, not under the member crate
+        # that owns the source file -- so a naive `cargo_root/target` path
+        # misses the asm we just emitted.
+        target_directory = self._cargo_target_directory(cargo_root, env)
+        if target_directory is None:
+            target_directory = Path(cargo_root) / "target"
+
+        # Determine which member crate owns the source file so we can run
+        # `cargo rustc -p <member>` and get a focused build.
+        package_name = self._package_for_source(cargo_root, source_file, env)
+
+        profile = "release" if opt_level in ("2", "3", "s", "z") else "dev"
+        cmd = [cargo, "rustc"]
+        if profile == "release":
+            cmd.append("--release")
+        if package_name:
+            cmd.extend(["-p", package_name])
+        if target:
+            cmd.extend(["--target", target])
+        cmd.extend(["--", "-C", f"opt-level={opt_level}", *(extra_flags or [])])
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=cargo_root, env=env)
+            if result.returncode != 0:
+                return False, result.stderr
+        except FileNotFoundError:
+            return False, "cargo not found in PATH (required for Cargo projects)"
+
+        # Locate the emitted .s files and concatenate into output_file.
+        deps_dir = target_directory
+        if target:
+            deps_dir = deps_dir / target
+        deps_dir = deps_dir / ("release" if profile == "release" else "debug") / "deps"
+
+        if not deps_dir.is_dir():
+            return False, f"cargo rustc did not produce expected output dir: {deps_dir}"
+
+        # Filter to asm files belonging to the package we built (when
+        # known). Without this filter a workspace build with many members
+        # can dump megabytes of unrelated asm.
+        glob = "*.s"
+        asm_files = sorted(deps_dir.glob(glob))
+        if package_name:
+            normalized = package_name.replace("-", "_")
+            focused = [
+                a for a in asm_files if a.name.startswith(f"{normalized}-")
+            ]
+            if focused:
+                asm_files = focused
+
+        if not asm_files:
+            return False, f"no .s files emitted in {deps_dir}"
+
+        with open(output_file, "w") as out:
+            for asm in asm_files:
+                out.write(f"# === {asm.name} ===\n")
+                out.write(asm.read_text())
+                out.write("\n")
+        return True, ""
+
+    @staticmethod
+    def _cargo_target_directory(cargo_root: str, env: dict) -> Path | None:
+        """Return the authoritative target_directory from `cargo metadata`.
+
+        Workspaces put output at the workspace root, not under the member
+        crate that the source belongs to.
+        """
+        try:
+            result = subprocess.run(
+                ["cargo", "metadata", "--format-version=1", "--no-deps"],
+                capture_output=True,
+                text=True,
+                cwd=cargo_root,
+                env=env,
+            )
+            if result.returncode != 0:
+                return None
+            meta = json.loads(result.stdout)
+            target = meta.get("target_directory")
+            return Path(target) if target else None
+        except (FileNotFoundError, json.JSONDecodeError):
+            return None
+
+    @staticmethod
+    def _package_for_source(
+        cargo_root: str, source_file: str, env: dict
+    ) -> str | None:
+        """Find the cargo package whose `src/` contains the source file."""
+        try:
+            result = subprocess.run(
+                ["cargo", "metadata", "--format-version=1", "--no-deps"],
+                capture_output=True,
+                text=True,
+                cwd=cargo_root,
+                env=env,
+            )
+            if result.returncode != 0:
+                return None
+            meta = json.loads(result.stdout)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return None
+
+        src = Path(source_file).resolve()
+        best_match: tuple[int, str] | None = None
+        for pkg in meta.get("packages", []):
+            manifest = Path(pkg["manifest_path"]).resolve().parent
+            try:
+                rel = src.relative_to(manifest)
+            except ValueError:
+                continue
+            depth = len(manifest.parts)
+            name = pkg["name"]
+            if best_match is None or depth > best_match[0]:
+                best_match = (depth, name)
+        return best_match[1] if best_match else None
 
 
 class SwiftCompiler(Compiler):
@@ -881,12 +1129,408 @@ def _decimal_pc_to_addr(instrs: list[dict], pc: int) -> int:
     return -1
 
 
+# Rust legacy mangling escape sequences. The new `v0` mangling (`_R...`) is
+# also handled below where we strip its `::h<hex>` hash suffix.
+_RUST_LEGACY_ESCAPES = {
+    "$SP$": "@",
+    "$BP$": "*",
+    "$RF$": "&",
+    "$LT$": "<",
+    "$GT$": ">",
+    "$LP$": "(",
+    "$RP$": ")",
+    "$C$": ",",
+    "$u20$": " ",
+    "$u22$": '"',
+    "$u23$": "#",
+    "$u27$": "'",
+    "$u2b$": "+",
+    "$u3b$": ";",
+    "$u5b$": "[",
+    "$u5d$": "]",
+    "$u7b$": "{",
+    "$u7d$": "}",
+    "$u7e$": "~",
+    ".": "-",
+    "..": "::",
+}
+
+
+def demangle_rust(symbol: str) -> str | None:
+    """Demangle a Rust mangled symbol (legacy `_ZN...E` form).
+
+    Returns the demangled `crate::module::function` form, or None if the
+    symbol is not a Rust mangled name. The trailing `17h<hash>E`
+    disambiguator is stripped.
+
+    The newer v0 format (`_R...`) is partially handled by stripping the
+    common hash suffix; full v0 demangling requires the rustc-demangle
+    crate. For our purposes the asm symbols are still recognizable.
+    """
+    if not symbol:
+        return None
+
+    # v0: just strip the leading _R and any trailing hash; we don't fully
+    # decode, but the symbol is still usable for filtering.
+    if symbol.startswith("_R"):
+        return symbol  # caller filters using the raw form
+
+    if not symbol.startswith("_ZN") or not symbol.endswith("E"):
+        return None
+
+    body = symbol[3:-1]
+    components: list[str] = []
+    i = 0
+    while i < len(body):
+        j = i
+        while j < len(body) and body[j].isdigit():
+            j += 1
+        if j == i:
+            return None  # malformed
+        try:
+            length = int(body[i:j])
+        except ValueError:
+            return None
+        end = j + length
+        if end > len(body):
+            return None
+        component = body[j:end]
+        # Apply Rust legacy escape sequences (longest match first).
+        for esc, repl in sorted(
+            _RUST_LEGACY_ESCAPES.items(), key=lambda kv: -len(kv[0])
+        ):
+            component = component.replace(esc, repl)
+        components.append(component)
+        i = end
+
+    # Strip the disambiguator `h<16-hex>` if present.
+    if components and re.match(r"^h[0-9a-f]{16}$", components[-1]):
+        components = components[:-1]
+
+    if not components:
+        return None
+    return "::".join(components)
+
+
+def rust_crate_of(symbol_or_demangled: str) -> str | None:
+    """Return the crate name (first path component) of a demangled Rust path.
+
+    For a raw mangled symbol, demangles first. Returns None if unknown.
+
+    Handles `<impl Trait for Type>::method` style names, which legacy
+    mangling produces as `_<crate::...>::method` after applying the `$LT$`
+    / `$GT$` escapes.
+
+    For `<Type as TraitPath>::method` form (e.g. `<i64 as core::ops::Div>::div`),
+    the leading "crate" is actually a type name (`i64`, `usize`, `bool`).
+    The actual implementation crate is the trait's defining crate, which
+    appears as a path component later. We scan all path components and
+    prefer a match against `RUST_STDLIB_CRATES` so that stdlib trait
+    impls monomorphized into the user's binary are correctly classified.
+    """
+    s = symbol_or_demangled
+    if s.startswith("_ZN") or s.startswith("_R"):
+        d = demangle_rust(s)
+        if d is None:
+            return None
+        s = d
+
+    # Strip leading `_<` / `<` from impl-block demangling: the crate is the
+    # first path component inside the angle brackets.
+    while s.startswith(("_<", "<")):
+        s = s[2:] if s.startswith("_<") else s[1:]
+
+    if not s:
+        return None
+
+    # Scan all path-component tokens. If any is a known stdlib crate,
+    # prefer that. Required for `<i64 as core::ops::Div>::div`-style
+    # symbols where the leading `i64` is a primitive type, not a crate.
+    tokens = re.findall(r"[A-Za-z_][A-Za-z0-9_]*", s)
+    for t in tokens:
+        if t in RUST_STDLIB_CRATES:
+            return t
+
+    # Otherwise, the first identifier is the crate name.
+    head = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)", s)
+    return head.group(1) if head else None
+
+
+# Standard-library / language-runtime crates whose monomorphizations are
+# pulled into user crates by inlining. We never report violations in these
+# unless the user passes --include-stdlib (e.g. for forensic review).
+RUST_STDLIB_CRATES = frozenset(
+    {
+        "core",
+        "alloc",
+        "std",
+        "panic_abort",
+        "panic_unwind",
+        "compiler_builtins",
+        "rustc_std_workspace_core",
+        "rustc_std_workspace_alloc",
+        "rustc_std_workspace_std",
+        "proc_macro",
+        "test",
+        "unwind",
+        "backtrace",
+        "addr2line",
+        "object",
+        "miniz_oxide",
+        "adler",
+        "hashbrown",
+        "rustc_demangle",
+        "gimli",
+    }
+)
+
+
+# Triage hint values. The convention: a `*_likely_fp` hint says a
+# downstream agent can confidently file as a false positive; a
+# `*_review` hint demands per-line review. The full taxonomy is
+# documented in references/rust.md.
+TRIAGE_STDLIB_ITER_END = "stdlib_iter_end_likely_fp"
+TRIAGE_STDLIB_BOUNDS = "stdlib_bounds_check_likely_fp"
+TRIAGE_STDLIB_OTHER = "stdlib_other_likely_fp"
+TRIAGE_DEPENDENCY = "dependency_source_review"
+TRIAGE_FN_DECL = "fn_declaration_dispatch_likely_fp"
+TRIAGE_LOOP_BOUND = "user_loop_bound_likely_fp"
+TRIAGE_REJECTION_LOOP = "rejection_sample_loop_likely_fp"
+TRIAGE_ITER_LOOP = "iterator_loop_likely_fp"
+TRIAGE_LEN_COMPARE = "public_length_compare_likely_fp"
+# `vartime_*` is a Rust crypto convention for explicitly-variable-time
+# code paths whose operands are public (signature verification,
+# public-key-only operations, batch verification). The convention is
+# enforced in audited crypto crates: curve25519-dalek, ed25519-dalek,
+# k256/p256/p384, rsa, ring. A branch in a `vartime_*` function is
+# almost always a false positive at the crypto level.
+TRIAGE_VARTIME = "vartime_function_likely_fp"
+TRIAGE_RODATA_COMPARE = "compare_to_constant_likely_fp"
+TRIAGE_EARLY_RETURN_CMP = "early_return_compare_review"
+TRIAGE_USER_REVIEW = "user_code_review"
+TRIAGE_NEEDS_REVIEW = "needs_review"
+
+
+def _read_source_snippet(file_path: str, line: int, ctx: int = 2) -> list[str] | None:
+    """Read a (2*ctx+1)-line window of `file_path` centered on `line`.
+
+    Returns None if the file is unreadable (e.g. /rustc/<commit>/...
+    paths from rustc's debug info, which are virtual unless rust-src
+    is installed). Lines are returned without trailing newlines.
+    """
+    if not file_path or not line or line < 1:
+        return None
+    try:
+        with open(file_path, encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    except (OSError, UnicodeDecodeError):
+        return None
+    start = max(0, line - 1 - ctx)
+    end = min(len(lines), line + ctx)
+    return [lines[i].rstrip("\n") for i in range(start, end)]
+
+
+# Stdlib path markers. Order matters: most specific first; the bare
+# `/rustc/` fallback is the last resort.
+_STDLIB_PATH_MARKERS = (
+    ("/library/core/src/iter/",                TRIAGE_STDLIB_ITER_END),
+    ("/library/core/src/slice/iter/",          TRIAGE_STDLIB_ITER_END),
+    ("/library/core/src/ops/index_range",      TRIAGE_STDLIB_ITER_END),
+    ("/library/core/src/slice/",               TRIAGE_STDLIB_BOUNDS),
+    ("/rustc/",                                TRIAGE_STDLIB_OTHER),
+)
+_DEPENDENCY_MARKERS = (
+    "/.cargo/registry/",
+    "/.cargo/git/",
+    "\\.cargo\\registry\\",
+    "/cargo/registry/",
+)
+_FN_DECL_RE = re.compile(
+    r"^\s*(?:#\[[^\]]+\]\s*)*"             # optional attributes
+    r"(?:pub(?:\s*\(\s*[\w:]+\s*\))?\s+)?"  # pub / pub(crate)
+    r"(?:async\s+)?(?:unsafe\s+)?"
+    r"(?:const\s+)?fn\s+\w"
+)
+_FOR_RANGE_LITERAL_RE = re.compile(r"^\s*for\s+\w+\s+in\s+0\.\.\s*[A-Z_][A-Z0-9_]*")
+_FOR_RANGE_NUMBER_RE = re.compile(r"^\s*for\s+\w+\s+in\s+0\.\.\s*[0-9]")
+# `for x in buf.iter()`, `for x in buf.iter_mut()`, `for x in buf.into_iter()`,
+# `for x in &buf`, etc. The loop bound is the container's length, which is
+# typically public (slice length, fixed-size array, message length).
+_FOR_ITER_RE = re.compile(
+    r"^\s*for\s+\w+\s+in\s+(?:&\s*)?\w+"
+    r"(?:\s*\.\s*(?:iter|iter_mut|into_iter|chunks|chunks_mut|chunks_exact|"
+    r"chunks_exact_mut|windows|enumerate|zip)\([^)]*\))?\s*\{?"
+)
+_REJECTION_LOOP_RE = re.compile(r"^\s*while\s+!?\s*done\b|^\s*while\s+\w+\s*<\s*[A-Z_][A-Z0-9_]*\b")
+_CMP_TO_UPPER_CONST_RE = re.compile(r"<\s*[A-Z_][A-Z0-9_]+\b|>\s*[A-Z_][A-Z0-9_]+\b|==\s*[A-Z_][A-Z0-9_]+\b")
+# `if a.len() != b.len()`, `if x.is_empty()`, `if buf.len() < 16`, etc.
+# Length / emptiness checks are on metadata that is virtually always
+# public (slice length is structural, not content-derived).
+_LEN_COMPARE_RE = re.compile(
+    r"^\s*if\s+"
+    r"(?:[\w.]+\.\s*(?:len|is_empty|is_zero)\s*\(\s*\)|[\w.]+\.\s*len\s*\(\s*\))"
+    r"\s*(?:[!<>=]+|&&|\|\|)"
+)
+_EARLY_RETURN_RE = re.compile(
+    r"^\s*if\s+.+\s*(?:!=|==)\s*\w+(?:\[.+\])?\s*\{\s*$|"  # if a != b {
+    r"return\s+\w+\s*[!=]=\s*"                              # return a == b ...
+)
+
+
+def classify_violation(
+    violation: "Violation", source_snippet: list[str] | None = None
+) -> str:
+    """Apply rules A-F to assign a triage hint.
+
+    The classifier is intentionally simple and conservative: when a rule
+    doesn't fire cleanly, we return TRIAGE_NEEDS_REVIEW so the case
+    surfaces to the reviewer. False positives in the classifier (saying
+    "FP" when it's actually a TP) are far worse than false negatives
+    (saying "review" when it's actually FP), so all `*_likely_fp` rules
+    require a positive match against a path or pattern, never a
+    negative one.
+    """
+    file_path = violation.file or ""
+    line = violation.line
+    function = (violation.function or "")
+
+    # Rule V (function naming): the Rust crypto convention for
+    # variable-time code paths uses `vartime` as part of the function
+    # name. Two common forms in audited crates:
+    #   - prefix:  `vartime_double_base_mul` (dalek)
+    #   - suffix:  `pow_vartime`, `sqn_vartime` (k256/p256, bls12_381)
+    # Both forms denote "this function is variable-time on PUBLIC
+    # operands by design" -- callers pass signatures, public keys,
+    # public scalars, public exponents. High-confidence FP.
+    import re as _re
+    if _re.search(
+        r"(?:^|::|<|\b)vartime_|"      # `vartime_foo` (prefix)
+        r"_vartime(?:$|::|>|\b)",       # `foo_vartime` (suffix)
+        function,
+    ):
+        return TRIAGE_VARTIME
+
+    # Rules A & B: stdlib path, most specific marker wins.
+    for marker, hint in _STDLIB_PATH_MARKERS:
+        if marker in file_path:
+            return hint
+
+    # Rule C: cargo dependency.
+    if any(m in file_path for m in _DEPENDENCY_MARKERS):
+        return TRIAGE_DEPENDENCY
+
+    # Source-snippet-driven rules require the file to be readable.
+    if not source_snippet:
+        return TRIAGE_NEEDS_REVIEW
+
+    # The middle line of the snippet is the cited source line.
+    mid = len(source_snippet) // 2
+    cited = source_snippet[mid] if 0 <= mid < len(source_snippet) else ""
+
+    # Rule D: warning attributed to a `fn ... <...>` declaration line.
+    # rustc points the .loc directive at the function header for
+    # const-generic instantiation dispatch code that has no real source
+    # location of its own.
+    if _FN_DECL_RE.match(cited):
+        return TRIAGE_FN_DECL
+
+    # Rule E: rejection-sampling-style loop (while !done, while x < N).
+    # Kyber/Dilithium use these and the loop bound depends on a hash of
+    # PUBLIC randomness (the seed sent in the public ciphertext).
+    if _REJECTION_LOOP_RE.match(cited):
+        return TRIAGE_REJECTION_LOOP
+
+    # Rule F1: `for i in 0..PUBLIC_CONST` loop -- iteration count is a
+    # compile-time constant or an UPPER_SNAKE_CASE module constant.
+    if _FOR_RANGE_LITERAL_RE.match(cited) or _FOR_RANGE_NUMBER_RE.match(cited):
+        return TRIAGE_LOOP_BOUND
+
+    # Rule F1b: `for x in container.iter()` / `for x in &container` --
+    # iteration count is the container length, which is metadata, not
+    # contents. The textbook example: `for b in buf.iter_mut() { b ^= 0; }`
+    # is constant-time despite emitting a JE/JNE for the iterator end.
+    if _FOR_ITER_RE.match(cited):
+        return TRIAGE_ITER_LOOP
+
+    # Rule F2: comparison against an UPPER_SNAKE_CASE constant. Captures
+    # the libcrux `if sampled_coefficients[i] < COEFFICIENTS_IN_RING_ELEMENT`
+    # pattern that the asm-level cmp-imm filter misses because the
+    # constant is loaded into a register before the cmp.
+    if _CMP_TO_UPPER_CONST_RE.search(cited):
+        return TRIAGE_RODATA_COMPARE
+
+    # Rule F3: length / emptiness check at the head of a function.
+    # `if a.len() != b.len() { return ... }` is the canonical Rust idiom
+    # for length-mismatch handling; `len()` is metadata, not content.
+    if _LEN_COMPARE_RE.match(cited):
+        return TRIAGE_LEN_COMPARE
+
+    # Rule G: textbook early-exit-compare pattern. This is the textbook
+    # MAC-tag-mismatch / padding-oracle bug. We mark for review, NOT as
+    # FP, because this is the most likely place for a real finding.
+    if _EARLY_RETURN_RE.search(cited):
+        return TRIAGE_EARLY_RETURN_CMP
+
+    return TRIAGE_USER_REVIEW
+
+
 class AssemblyParser:
     """Parser for assembly output from various compilers."""
 
-    def __init__(self, arch: str, compiler: str):
+    # Functions whose name implies the developer claimed constant-time
+    # behavior. In `strict` mode, any conditional-branch warning inside
+    # one of these is promoted to ERROR -- a branch in a function named
+    # `verify_tag` or `ct_eq` is a regression on its stated contract.
+    _STRICT_PROMOTE_FUNC_RE = re.compile(
+        r"(?:^|::)(?:"
+        r"verify\w*|"
+        r"compare\w*|"
+        r"equals?\w*|"
+        r"ct_\w+|"
+        r"constant_time_\w*|"
+        r"in_constant_time|"
+        r"select_\w*_in_constant_time"
+        r")(?:::|$)"
+    )
+
+    # Heuristic: if a branch follows `cmp <reg>, $<imm>` (AT&T) or
+    # `cmp <reg>, #<imm>` (ARM) or `test <reg>, <reg>` (zero-test idiom),
+    # the test is on a literal -- secrets are rarely compared to small
+    # constants. Almost all `for i in 0..len` loop-control warnings
+    # collapse via this rule.
+    _CMP_IMM_RE = re.compile(
+        r"^(?:cmp[bwlq]?\s+\$-?[0-9]|"  # AT&T x86: cmp $0, %r
+        r"cmp\s+\w+,\s*#-?[0-9]|"        # ARM: cmp r, #imm
+        r"cmp[bwlq]?\s+\$-?[0-9]+,)"     # AT&T x86 with explicit second op
+    )
+    _TEST_SELF_RE = re.compile(r"^test[bwlq]?\s+(%\w+),\s*\1\s*$")
+
+    # Stdlib panic functions: a `call` to any of these from a branch
+    # target marks that label as a panic block.
+    _PANIC_CALL_RE = re.compile(
+        r"_ZN(?:[0-9]+core[0-9]+panicking|"
+        r"[0-9]+std[0-9]+panicking|"
+        r"[0-9]+core5slice[0-9]+index)|"
+        r"__rust_panic|"
+        r"panic_bounds_check|"
+        r"_ZN4core5slice5index"
+    )
+
+    def __init__(
+        self,
+        arch: str,
+        compiler: str,
+        rust_user_crate: str | None = None,
+        include_stdlib: bool = False,
+        strict: bool = False,
+        precise_warnings: bool = True,
+    ):
         self.arch = normalize_arch(arch)
         self.compiler = compiler
+        self.rust_user_crate = rust_user_crate
+        self.include_stdlib = include_stdlib
+        self.strict = strict
+        self.precise_warnings = precise_warnings
 
         # Get dangerous instructions for this architecture
         if self.arch not in DANGEROUS_INSTRUCTIONS:
@@ -914,6 +1558,131 @@ class AssemblyParser:
         r"^([\w./<>$\-]*\.[\w<>$]+)\s+S\w*TEXT\w*\b"
     )
 
+    def _should_skip_function(self, raw_symbol: str | None) -> bool:
+        """Decide whether to ignore violations in this function.
+
+        For Rust, monomorphized stdlib code (`core::*`, `alloc::*`,
+        `std::*`, plus a few support crates) gets pulled into the user
+        crate's asm by inlining. Reporting `DIVQ` or `DIVSD` in
+        `core::fmt::Formatter::pad` is just noise -- the user can't fix
+        it. We drop those by default; `--include-stdlib` brings them
+        back for forensic review.
+
+        We also filter to the user's crate when known, so any non-stdlib
+        third-party crate that gets monomorphized is reported only when
+        explicitly opted into.
+        """
+        if self.include_stdlib or self.compiler != "rustc" or not raw_symbol:
+            return False
+        crate = rust_crate_of(raw_symbol)
+        if crate is None:
+            return False
+        if crate in RUST_STDLIB_CRATES:
+            return True
+        if self.rust_user_crate and crate != self.rust_user_crate:
+            return True
+        return False
+
+    @classmethod
+    def _is_cmp_to_literal(cls, prev_line: str) -> bool:
+        """True if the previous asm line is `cmp <reg>, $<imm>` style.
+
+        Branches that follow a compare-to-literal almost always test
+        public iteration state (`for i in 0..len`) or argument
+        validation (`if x.is_empty()`). Secrets are rarely compared
+        against compile-time constants. The libcrux ML-KEM validation
+        showed this filter eliminates ~80% of warning noise without
+        suppressing any of the four CVE-derived vulnerable patterns.
+        """
+        if not prev_line:
+            return False
+        s = prev_line.strip()
+        return bool(cls._CMP_IMM_RE.match(s) or cls._TEST_SELF_RE.match(s))
+
+    @classmethod
+    def _branches_to_panic(cls, instruction: str, panic_labels: set[str]) -> bool:
+        """True if a conditional branch's target label is a panic block.
+
+        Bounds checks, divide-by-zero checks, and unwrap-on-None all
+        compile to `cmp; jcc <panic-label>`. The `<panic-label>` block
+        does nothing but call `core::panicking::*` and abort. Such
+        branches are not exploitable as timing oracles -- the panic
+        path is taken at most once before the program dies.
+        """
+        if not panic_labels:
+            return False
+        # Branch targets are the last whitespace-delimited token, often
+        # `.LBB0_5` or similar. We allow trailing punctuation.
+        parts = instruction.split()
+        if not parts:
+            return False
+        target = parts[-1].rstrip(",;")
+        # Strip any leading `*` (indirect branches don't have a static target).
+        if target.startswith("*"):
+            return False
+        return target in panic_labels
+
+    @classmethod
+    def _is_strict_promote_function(cls, function_name: str) -> bool:
+        """True if the function's demangled name claims constant-time."""
+        return bool(cls._STRICT_PROMOTE_FUNC_RE.search(function_name))
+
+    @staticmethod
+    def _is_third_party_source(file_path: str) -> bool:
+        """True if the source path lives in stdlib or a cargo dependency.
+
+        Used to gate `--strict` promotion: a JNE at
+        `~/.cargo/registry/.../subtle/src/lib.rs:318` is a contract
+        of the upstream crate, not a regression of the user's code.
+        """
+        if not file_path:
+            return False
+        third_party_markers = (
+            "/rustc/",                 # std/core/alloc
+            "/.cargo/registry/",       # cargo deps (linux/mac home)
+            "\\.cargo\\registry\\",    # cargo deps (windows)
+            "/.cargo/git/",            # cargo git deps
+            "/cargo/registry/",        # CI without leading dot
+        )
+        return any(marker in file_path for marker in third_party_markers)
+
+    @classmethod
+    def _scan_panic_labels(cls, assembly_text: str) -> set[str]:
+        """Find labels whose body calls a stdlib panic function.
+
+        The scanner is intentionally simple: it walks the asm tracking
+        the most-recent local label (`.L*:`); whenever it sees a
+        line containing a stdlib-panic call symbol, it marks that
+        label as a panic block. Cross-block flow (a panic block
+        whose first line is `jmp <other_label>` reaching the panic
+        only transitively) is not handled, but in practice rustc emits
+        the panic call inline in the same block as the entry label.
+        """
+        panic = set()
+        current_label: str | None = None
+        for raw in assembly_text.split("\n"):
+            line = raw.strip()
+            if not line:
+                continue
+            # Local label: `.L<...>:`
+            m = re.match(r"^(\.L[\w$.]+):\s*$", line)
+            if m:
+                current_label = m.group(1)
+                continue
+            # New function (top-level mangled symbol followed by `:`):
+            # reset so panic labels from one fn don't bleed to the next.
+            if re.match(r"^[A-Za-z_][\w$.:]*:\s*$", line) and not line.startswith(".L"):
+                current_label = None
+                continue
+            # Skip directives.
+            if line.startswith("."):
+                continue
+            # Detect a call to a stdlib panic function.
+            if current_label and ("call" in line.split()[0] if line.split() else False):
+                if cls._PANIC_CALL_RE.search(line):
+                    panic.add(current_label)
+        return panic
+
     def parse(
         self, assembly_text: str, include_warnings: bool = False
     ) -> tuple[list[dict], list[Violation]]:
@@ -931,12 +1700,25 @@ class AssemblyParser:
         functions = []
         violations = []
 
-        current_function = None
+        # Pre-scan local labels that are panic landing pads. Branches
+        # whose destination lives in one of these blocks are unreachable
+        # on the happy path and not exploitable as a timing oracle, so
+        # we drop their warnings under `precise_warnings`.
+        panic_labels: set[str] = set()
+        if include_warnings and self.precise_warnings:
+            panic_labels = self._scan_panic_labels(assembly_text)
+
+        current_function = None  # display name (demangled for Rust)
+        current_raw_symbol = None  # mangled symbol (for crate filtering)
         current_file = None
+        prev_instruction_line = ""  # for cmp-imm-then-branch filter
         current_line = None
         instruction_count = 0
         recent: list[str] = []          # last N instructions in current function
         pending_after: list[tuple[Violation, int]] = []  # (violation, remaining)
+
+        # `.file <id> "path"` mapping for resolving `.loc <id>` directives.
+        file_table: dict[int, str] = {}
 
         all_lines = assembly_text.split("\n")
         for line in all_lines:
@@ -965,16 +1747,37 @@ class AssemblyParser:
                     current_line = int(file_match.group(2))
                 continue
 
-            # Detect function start (various formats)
+            # `.file 1 "/abs/path/source.rs"` -- registers a debug file.
+            file_dir = re.match(r'^\.file\s+(\d+)\s+(?:"([^"]+)"\s+)?"([^"]+)"', line)
+            if file_dir:
+                fid = int(file_dir.group(1))
+                # Form 1: .file <id> "path" -> group(2)=None, group(3)=path
+                # Form 2: .file <id> "dir" "name" -> group(2)=dir, group(3)=name
+                if file_dir.group(2):
+                    file_table[fid] = file_dir.group(2).rstrip("/") + "/" + file_dir.group(3)
+                else:
+                    file_table[fid] = file_dir.group(3)
+                continue
+
+            # `.loc <file_id> <line> <column>` -- rustc/clang debug info.
+            loc_dir = re.match(r"^\.loc\s+(\d+)\s+(\d+)", line)
+            if loc_dir:
+                fid = int(loc_dir.group(1))
+                current_file = file_table.get(fid, current_file)
+                current_line = int(loc_dir.group(2))
+                continue
+
+            # Detect function start (various formats).
             func_match = (
-                # GCC/Clang: function_name:
-                re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*):$", line)
+                # GCC/Clang/rustc: optionally-mangled `symbol:`
+                # Mangled Rust names contain `$`, `.`, `:` -- broaden the charset.
+                re.match(r"^([A-Za-z_][\w$.:]*):$", line)
                 or
                 # Go objdump: TEXT symbol_name(SB) file
                 re.match(r"^TEXT\s+([^\s(]+)\(SB\)", line)
                 or
-                # With .type directive
-                re.match(r"\.type\s+([a-zA-Z_][a-zA-Z0-9_]*),\s*@function", line)
+                # With .type directive (mangled symbols allowed)
+                re.match(r"\.type\s+([A-Za-z_][\w$.:]*),\s*[@%]function", line)
                 or
                 # objdump -d:  0000000000000000 <function_name>:
                 re.match(r"^[0-9a-fA-F]+\s+<([a-zA-Z_][\w.]*)>:", line)
@@ -988,7 +1791,14 @@ class AssemblyParser:
                             "instructions": instruction_count,
                         }
                     )
-                current_function = func_match.group(1)
+                raw = func_match.group(1)
+                current_raw_symbol = raw
+                # Demangle Rust symbols for human-readable display.
+                if self.compiler == "rustc":
+                    demangled = demangle_rust(raw)
+                    current_function = demangled or raw
+                else:
+                    current_function = raw
                 instruction_count = 0
                 recent = []
                 pending_after = []
@@ -1034,6 +1844,12 @@ class AssemblyParser:
 
             instruction_count += 1
 
+            # Filter out monomorphized stdlib code (Rust) so the user
+            # sees vulnerabilities in their own crate, not in `core::fmt`.
+            if self._should_skip_function(current_raw_symbol):
+                prev_instruction_line = instruction
+                continue
+
             # Feed any open "after" windows
             for v, _ in pending_after:
                 v.context_after.append(instruction)
@@ -1054,6 +1870,34 @@ class AssemblyParser:
                     context_before=list(recent[-6:]),
                 )
             elif include_warnings and mnemonic in self.warnings:
+                # Apply warning-precision filters. These exist because
+                # treating every JE/JNE as suspect drowns the real
+                # signal under loop-control noise. Each filter has been
+                # vetted against the libcrux ML-KEM corpus to ensure it
+                # doesn't suppress real findings.
+                if self.precise_warnings:
+                    if self._is_cmp_to_literal(prev_instruction_line):
+                        prev_instruction_line = instruction
+                        continue
+                    if self._branches_to_panic(instruction, panic_labels):
+                        prev_instruction_line = instruction
+                        continue
+
+                # `--strict`: a branch inside a function whose name
+                # claims constant-time behavior is a contract regression.
+                # We only promote when the source location is in user
+                # code (not stdlib at `/rustc/...` or a cargo dependency
+                # at `~/.cargo/registry/...`), because vetted CT crates
+                # like `subtle` legitimately have JNE on public-length
+                # checks that are part of their public API contract.
+                severity = Severity.WARNING
+                if (
+                    self.strict
+                    and self._is_strict_promote_function(current_function or "")
+                    and not self._is_third_party_source(current_file or "")
+                ):
+                    severity = Severity.ERROR
+
                 new_v = Violation(
                     function=current_function or "<unknown>",
                     file=current_file or "",
@@ -1062,7 +1906,7 @@ class AssemblyParser:
                     instruction=instruction,
                     mnemonic=mnemonic.upper(),
                     reason=self.warnings[mnemonic],
-                    severity=Severity.WARNING,
+                    severity=severity,
                     context_before=list(recent[-6:]),
                 )
             if new_v is not None:
@@ -1073,6 +1917,8 @@ class AssemblyParser:
             if len(recent) > 8:
                 recent.pop(0)
 
+            prev_instruction_line = instruction
+
         # Don't forget the last function
         if current_function:
             functions.append(
@@ -1081,6 +1927,15 @@ class AssemblyParser:
                     "instructions": instruction_count,
                 }
             )
+
+        if self.precise_warnings and include_warnings:
+            violations = self._aggregate_warnings(violations)
+
+        # Attach source snippet + triage hint to every violation. This
+        # is the data a downstream agent needs to mechanically classify
+        # findings without re-reading the source. We do it as a single
+        # post-pass so we read each source file at most once.
+        self._attach_triage_metadata(violations)
 
         return functions, violations
 
@@ -1228,6 +2083,102 @@ class AssemblyParser:
                     return True
         return False
 
+    @staticmethod
+    def _attach_triage_metadata(violations: list[Violation]) -> None:
+        """Populate `source_snippet` + `triage_hint` on each violation.
+
+        Files are cached by path so each source file is read at most
+        once even if it has dozens of violations.
+        """
+        cache: dict[str, list[str] | None] = {}
+        for v in violations:
+            if not v.file or not v.line:
+                v.triage_hint = classify_violation(v, None)
+                continue
+            full = cache.get(v.file)
+            if v.file not in cache:
+                full = _read_source_snippet(v.file, v.line, ctx=2)
+                cache[v.file] = full
+            v.source_snippet = full
+            v.triage_hint = classify_violation(v, full)
+
+    @staticmethod
+    def _aggregate_warnings(violations: list[Violation]) -> list[Violation]:
+        """Collapse warnings sharing `(file, line)` into one entry.
+
+        A single Rust source-level branch (`if`, `for`, `match`) often
+        expands to a dozen asm-level conditional jumps: loop preamble,
+        loop body, post-increment edge, post-loop fall-through. It also
+        gets emitted into MULTIPLE function bodies when the source code
+        is reachable through several monomorphizations of generics, and
+        through both a free function and its trait-impl method (the
+        compiler keeps both because `-C link-dead-code=on`). Aggregating
+        by `(file, line, function)` left those siblings unmerged. We
+        now key on `(file, line)` only and surface the function-set as
+        metadata in the reason.
+
+        Errors are never aggregated -- each one is meant to be triaged
+        on its own and they are rare enough to not need bundling.
+        """
+        # Pre-pass: group warnings by (file, line).
+        groups: dict[tuple, list[Violation]] = {}
+        for v in violations:
+            if v.severity == Severity.ERROR or not v.file or not v.line:
+                continue
+            key = (v.file, v.line)
+            groups.setdefault(key, []).append(v)
+
+        # Walk the original list, emitting each group's representative
+        # exactly once (at first occurrence) so output order is stable
+        # and matches the original violation stream.
+        emitted: set[tuple] = set()
+        out: list[Violation] = []
+        for v in violations:
+            if v.severity == Severity.ERROR or not v.file or not v.line:
+                out.append(v)
+                continue
+            key = (v.file, v.line)
+            if key in emitted:
+                continue
+            emitted.add(key)
+            vs = groups[key]
+            if len(vs) == 1:
+                out.append(vs[0])
+                continue
+            mnemonics = sorted({x.mnemonic for x in vs})
+            functions = sorted({x.function for x in vs})
+            v0 = vs[0]
+            # Single-function representative gets a short reason; multi-
+            # function aggregation appends the function-set so the
+            # reviewer sees all the call paths reaching this source line.
+            if len(functions) == 1:
+                fn_note = ""
+            elif len(functions) <= 3:
+                fn_note = f"; reached from: {', '.join(functions)}"
+            else:
+                fn_note = (
+                    f"; reached from {len(functions)} functions including "
+                    f"{', '.join(functions[:2])}"
+                )
+            out.append(
+                Violation(
+                    function=functions[0],
+                    file=v0.file,
+                    line=v0.line,
+                    address=v0.address,
+                    instruction=v0.instruction,
+                    mnemonic="/".join(mnemonics),
+                    reason=(
+                        f"{len(vs)} conditional branches at this source line "
+                        f"({', '.join(mnemonics)}); inspect the if/for/match "
+                        f"and confirm its condition does not depend on secret data"
+                        f"{fn_note}"
+                    ),
+                    severity=Severity.WARNING,
+                )
+            )
+        return out
+
 
 def analyze_source(
     source_file: str,
@@ -1238,6 +2189,10 @@ def analyze_source(
     function_filter: str = None,
     extra_flags: list[str] = None,
     post_filters: list[str] | None = None,
+    include_stdlib: bool = False,
+    rust_user_crate: str | None = None,
+    strict: bool = False,
+    precise_warnings: bool = True,
 ) -> AnalysisReport:
     """
     Analyze a source file for constant-time violations.
@@ -1250,6 +2205,12 @@ def analyze_source(
         include_warnings: Include warning-level violations
         function_filter: Regex pattern to filter functions
         extra_flags: Extra flags to pass to the compiler (ignored for scripting languages)
+        include_stdlib: For Rust, do not skip violations in stdlib
+            monomorphizations (`core::*`, `alloc::*`, ...). Off by default
+            because stdlib timing leaks are usually not the user's bug.
+        rust_user_crate: Override the user crate name for Rust filtering.
+            By default we infer it from the source file stem for standalone
+            files, or accept any non-stdlib crate for Cargo projects.
 
     Returns:
         AnalysisReport with results
@@ -1319,8 +2280,27 @@ def analyze_source(
         with open(asm_path) as f:
             assembly_text = f.read()
 
+        # For Rust, infer the user's crate name from the source file when
+        # not given explicitly so the parser can filter out monomorphized
+        # stdlib code.
+        user_crate = rust_user_crate
+        if language == "rust" and user_crate is None:
+            cargo_root = RustCompiler._find_cargo_root(str(source_path.absolute()))
+            if cargo_root is None:
+                # Standalone file: rustc derives crate name from file stem.
+                user_crate = RustCompiler.crate_name_for(str(source_path.absolute()))
+            # For Cargo projects we leave user_crate=None so any non-stdlib
+            # crate is reported (workspace builds may emit several crates).
+
         # Parse and analyze
-        parser = AssemblyParser(arch, compiler_obj.name)
+        parser = AssemblyParser(
+            arch,
+            compiler_obj.name,
+            rust_user_crate=user_crate,
+            include_stdlib=include_stdlib,
+            strict=strict,
+            precise_warnings=precise_warnings,
+        )
         functions, violations = parser.parse(assembly_text, include_warnings)
 
         # Filter functions if requested
@@ -1357,6 +2337,8 @@ def analyze_assembly(
     arch: str,
     include_warnings: bool = False,
     function_filter: str = None,
+    strict: bool = False,
+    precise_warnings: bool = True,
 ) -> AnalysisReport:
     """
     Analyze pre-compiled assembly for constant-time violations.
@@ -1366,6 +2348,9 @@ def analyze_assembly(
         arch: Target architecture
         include_warnings: Include warning-level violations
         function_filter: Regex pattern to filter functions
+        strict: Promote warnings in CT-named functions to ERRORs
+        precise_warnings: Apply heuristic filters that drop loop-control
+            and panic-target branches (default True)
 
     Returns:
         AnalysisReport with results
@@ -1375,7 +2360,9 @@ def analyze_assembly(
     with open(assembly_file) as f:
         assembly_text = f.read()
 
-    parser = AssemblyParser(arch, "unknown")
+    parser = AssemblyParser(
+        arch, "unknown", strict=strict, precise_warnings=precise_warnings
+    )
     functions, violations = parser.parse(assembly_text, include_warnings)
 
     if function_filter:
@@ -1394,8 +2381,17 @@ def analyze_assembly(
     )
 
 
-def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
-    """Format an analysis report for output."""
+def format_report(
+    report: AnalysisReport,
+    format_type: OutputFormat,
+    explain: bool = False,
+) -> str:
+    """Format an analysis report for output.
+
+    `explain=True` adds a `triage_hint` and a 5-line source snippet to
+    every violation in TEXT mode (it's always included in JSON mode for
+    machine consumption).
+    """
 
     if format_type == OutputFormat.JSON:
         return json.dumps(
@@ -1419,6 +2415,8 @@ def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
                         "mnemonic": v.mnemonic,
                         "reason": v.reason,
                         "severity": v.severity.value,
+                        "triage_hint": v.triage_hint,
+                        "source_snippet": v.source_snippet,
                     }
                     for v in report.violations
                 ],
@@ -1432,8 +2430,9 @@ def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
             level = "error" if v.severity == Severity.ERROR else "warning"
             file_ref = f"file={v.file}" if v.file else ""
             line_ref = f",line={v.line}" if v.line else ""
+            hint = f" [{v.triage_hint}]" if v.triage_hint else ""
             lines.append(
-                f"::{level} {file_ref}{line_ref}::{v.mnemonic} in {v.function}: {v.reason}"
+                f"::{level} {file_ref}{line_ref}::{v.mnemonic} in {v.function}: {v.reason}{hint}"
             )
         return "\n".join(lines)
 
@@ -1465,6 +2464,16 @@ def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
                 if v.address:
                     lines.append(f"  Address: {v.address}")
                 lines.append(f"  Reason: {v.reason}")
+                if explain and v.triage_hint:
+                    lines.append(f"  Triage: {v.triage_hint}")
+                if explain and v.source_snippet and v.line:
+                    ctx = len(v.source_snippet) // 2
+                    start_line = max(1, v.line - ctx)
+                    lines.append("  Source:")
+                    for i, src in enumerate(v.source_snippet):
+                        ln = start_line + i
+                        marker = ">" if ln == v.line else " "
+                        lines.append(f"    {marker} {ln:>5}: {src}")
                 lines.append("")
         else:
             lines.append("No violations found.")
@@ -1547,9 +2556,42 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
         ),
     )
     parser.add_argument(
+        "--include-stdlib",
+        action="store_true",
+        help="(Rust) include violations in stdlib monomorphizations "
+        "(core::*, alloc::*, std::*). Off by default to keep reports "
+        "actionable for crypto authors.",
+    )
+    parser.add_argument(
+        "--rust-crate",
+        help="(Rust) override the user-crate name for symbol filtering. "
+        "Default: source file stem with `-` -> `_`.",
+    )
+    parser.add_argument(
+        "--no-precise-warnings",
+        dest="precise_warnings",
+        action="store_false",
+        default=True,
+        help="Disable warning-precision filters: report every conditional "
+        "branch, including loop-control and panic-target branches. "
+        "Useful only for forensic review of the raw asm.",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Promote conditional-branch warnings to ERRORs when found "
+        "in functions whose name implies constant-time behavior "
+        "(verify*, ct_*, constant_time_*, compare*, equals*). A branch "
+        "in `verify_tag` is a regression on its stated contract.",
+    )
+    parser.add_argument(
         "--explain",
         action="store_true",
-        help="When filters drop a finding, print the reason to stderr",
+        help="With each violation, emit a triage hint and a 5-line "
+        "source snippet centered on the cited line, and when "
+        "post-analysis filters drop a finding, print the suppression "
+        "reason to stderr. Lets a downstream agent (or human) classify "
+        "findings without re-reading the file.",
     )
 
     args = parser.parse_args()
@@ -1581,6 +2623,8 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
                 args.arch,
                 include_warnings=args.warnings,
                 function_filter=args.func,
+                strict=args.strict,
+                precise_warnings=args.precise_warnings,
             )
         else:
             report = analyze_source(
@@ -1591,6 +2635,10 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
                 include_warnings=args.warnings,
                 function_filter=args.func,
                 extra_flags=args.extra_flags,
+                include_stdlib=args.include_stdlib,
+                rust_user_crate=args.rust_crate,
+                strict=args.strict,
+                precise_warnings=args.precise_warnings,
             )
 
         # Apply post-analysis filters
@@ -1613,7 +2661,7 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
                 for v, why in suppressed:
                     print(f"  [suppressed] {v.mnemonic} in {v.function}: {why}", file=sys.stderr)
 
-        print(format_report(report, output_format))
+        print(format_report(report, output_format, explain=args.explain))
         return 0 if report.passed else 1
 
     except (FileNotFoundError, RuntimeError, subprocess.CalledProcessError) as e:

@@ -1,0 +1,986 @@
+{
+  "label": "rustcrypto_hashes_v3",
+  "timestamp": 1777534899.3048213,
+  "root": "benchmark/wild_rust/hashes/target/extracted_o",
+  "n_objects": 19,
+  "n_instructions": 21635,
+  "error_count": 0,
+  "warning_count": 23,
+  "error_count_user": 0,
+  "warning_count_user": 4,
+  "triage_breakdown": {
+    "stdlib_iter_end_likely_fp": 11,
+    "stdlib_other_likely_fp": 3,
+    "stdlib_bounds_check_likely_fp": 1,
+    "dependency_source_review": 4,
+    "early_return_compare_review": 1,
+    "user_code_review": 3
+  },
+  "errors": [],
+  "warnings_sampled": [
+    {
+      "function": "sha3::block_api::xor_block",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha3/src/block_api.rs",
+      "line": 301,
+      "address": "0x80",
+      "instruction": "jne    80 <_ZN4sha39block_api9xor_block17hd1c7503369255a4dE+0x80>",
+      "mnemonic": "JNE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "    let mut chunks = block.chunks_exact(8);",
+        "    for (s, chunk) in state.iter_mut().zip(&mut chunks) {",
+        "        *s ^= u64::from_le_bytes(chunk.try_into().unwrap());",
+        "    }",
+        ""
+      ],
+      "object": "sha3-53277ffc79fe35ae.sha3.5fe076510e9e885f-cgu.0.rcgu.o"
+    },
+    {
+      "function": "sha2::sha512::compress512",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512.rs",
+      "line": 60,
+      "address": "0x46",
+      "instruction": "jne    46 <_ZN4sha26sha51211compress51217h90132c5108cbcc4eE+0x46>",
+      "mnemonic": "JNE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "            cfg_if::cfg_if! {",
+        "                if #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))] {",
+        "                    if avx2_cpuid::get() {",
+        "                        // SAFETY: we checked that required target features are available",
+        "                        return unsafe { x86_avx2::compress(state, blocks) };"
+      ],
+      "object": "sha2-659f229db52df378.sha2.b97c986c5cd94df6-cgu.3.rcgu.o"
+    },
+    {
+      "function": "sha2::sha512::x86_avx2::compress",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512/x86_avx2.rs",
+      "line": 21,
+      "address": "0x439",
+      "instruction": "je     439 <_ZN4sha26sha5128x86_avx28compress17hd4ad9035dad57888E+0x439>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "early_return_compare_review",
+      "source_snippet": [
+        "    let mut start_block = 0;",
+        "",
+        "    if blocks.len() & 0b1 != 0 {",
+        "        sha512_compress_x86_64_avx(state, &blocks[0]);",
+        "        start_block += 1;"
+      ],
+      "object": "sha2-659f229db52df378.sha2.b97c986c5cd94df6-cgu.2.rcgu.o"
+    },
+    {
+      "function": "sha2::sha256::compress256",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha256.rs",
+      "line": 65,
+      "address": "0x46",
+      "instruction": "jne    46 <_ZN4sha26sha25611compress25617h4fa879f84fb401fbE+0x46>",
+      "mnemonic": "JNE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "            cfg_if::cfg_if! {",
+        "                if #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))] {",
+        "                    if shani_cpuid::get() {",
+        "                        // SAFETY: we checked that required target features are available",
+        "                        return unsafe { x86_sha::compress(state, blocks) };"
+      ],
+      "object": "sha2-659f229db52df378.sha2.b97c986c5cd94df6-cgu.3.rcgu.o"
+    }
+  ],
+  "warning_clusters": [
+    {
+      "triage_hint": "early_return_compare_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512/x86_avx2.rs",
+          "function": "sha2::sha512::x86_avx2::compress",
+          "line": 21
+        }
+      ],
+      "representative_snippet": [
+        "    let mut start_block = 0;",
+        "",
+        "    if blocks.len() & 0b1 != 0 {",
+        "        sha512_compress_x86_64_avx(state, &blocks[0]);",
+        "        start_block += 1;"
+      ],
+      "representative_line": 21,
+      "representative_function": "sha2::sha512::x86_avx2::compress",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512/x86_avx2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha256.rs",
+          "function": "sha2::sha256::compress256",
+          "line": 65
+        }
+      ],
+      "representative_snippet": [
+        "            cfg_if::cfg_if! {",
+        "                if #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))] {",
+        "                    if shani_cpuid::get() {",
+        "                        // SAFETY: we checked that required target features are available",
+        "                        return unsafe { x86_sha::compress(state, blocks) };"
+      ],
+      "representative_line": 65,
+      "representative_function": "sha2::sha256::compress256",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha256.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512.rs",
+          "function": "sha2::sha512::compress512",
+          "line": 60
+        }
+      ],
+      "representative_snippet": [
+        "            cfg_if::cfg_if! {",
+        "                if #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))] {",
+        "                    if avx2_cpuid::get() {",
+        "                        // SAFETY: we checked that required target features are available",
+        "                        return unsafe { x86_avx2::compress(state, blocks) };"
+      ],
+      "representative_line": 60,
+      "representative_function": "sha2::sha512::compress512",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha3/src/block_api.rs",
+          "function": "sha3::block_api::xor_block",
+          "line": 301
+        }
+      ],
+      "representative_snippet": [
+        "    let mut chunks = block.chunks_exact(8);",
+        "    for (s, chunk) in state.iter_mut().zip(&mut chunks) {",
+        "        *s ^= u64::from_le_bytes(chunk.try_into().unwrap());",
+        "    }",
+        ""
+      ],
+      "representative_line": 301,
+      "representative_function": "sha3::block_api::xor_block",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha3/src/block_api.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    }
+  ],
+  "cluster_count": 4,
+  "build_valid": true,
+  "clusters_user_function": [
+    {
+      "triage_hint": "early_return_compare_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512/x86_avx2.rs",
+          "function": "sha2::sha512::x86_avx2::compress",
+          "line": 21
+        }
+      ],
+      "representative_snippet": [
+        "    let mut start_block = 0;",
+        "",
+        "    if blocks.len() & 0b1 != 0 {",
+        "        sha512_compress_x86_64_avx(state, &blocks[0]);",
+        "        start_block += 1;"
+      ],
+      "representative_line": 21,
+      "representative_function": "sha2::sha512::x86_avx2::compress",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512/x86_avx2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha256.rs",
+          "function": "sha2::sha256::compress256",
+          "line": 65
+        }
+      ],
+      "representative_snippet": [
+        "            cfg_if::cfg_if! {",
+        "                if #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))] {",
+        "                    if shani_cpuid::get() {",
+        "                        // SAFETY: we checked that required target features are available",
+        "                        return unsafe { x86_sha::compress(state, blocks) };"
+      ],
+      "representative_line": 65,
+      "representative_function": "sha2::sha256::compress256",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha256.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512.rs",
+          "function": "sha2::sha512::compress512",
+          "line": 60
+        }
+      ],
+      "representative_snippet": [
+        "            cfg_if::cfg_if! {",
+        "                if #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))] {",
+        "                    if avx2_cpuid::get() {",
+        "                        // SAFETY: we checked that required target features are available",
+        "                        return unsafe { x86_avx2::compress(state, blocks) };"
+      ],
+      "representative_line": 60,
+      "representative_function": "sha2::sha512::compress512",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha3/src/block_api.rs",
+          "function": "sha3::block_api::xor_block",
+          "line": 301
+        }
+      ],
+      "representative_snippet": [
+        "    let mut chunks = block.chunks_exact(8);",
+        "    for (s, chunk) in state.iter_mut().zip(&mut chunks) {",
+        "        *s ^= u64::from_le_bytes(chunk.try_into().unwrap());",
+        "    }",
+        ""
+      ],
+      "representative_line": 301,
+      "representative_function": "sha3::block_api::xor_block",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha3/src/block_api.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    }
+  ],
+  "clusters_user_file": [
+    {
+      "triage_hint": "early_return_compare_review",
+      "key_kind": "file",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512/x86_avx2.rs",
+          "function": "sha2::sha512::x86_avx2::compress",
+          "line": 21
+        }
+      ],
+      "representative_snippet": [
+        "    let mut start_block = 0;",
+        "",
+        "    if blocks.len() & 0b1 != 0 {",
+        "        sha512_compress_x86_64_avx(state, &blocks[0]);",
+        "        start_block += 1;"
+      ],
+      "representative_line": 21,
+      "representative_function": "sha2::sha512::x86_avx2::compress",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512/x86_avx2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "file",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha256.rs",
+          "function": "sha2::sha256::compress256",
+          "line": 65
+        }
+      ],
+      "representative_snippet": [
+        "            cfg_if::cfg_if! {",
+        "                if #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))] {",
+        "                    if shani_cpuid::get() {",
+        "                        // SAFETY: we checked that required target features are available",
+        "                        return unsafe { x86_sha::compress(state, blocks) };"
+      ],
+      "representative_line": 65,
+      "representative_function": "sha2::sha256::compress256",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha256.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "file",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512.rs",
+          "function": "sha2::sha512::compress512",
+          "line": 60
+        }
+      ],
+      "representative_snippet": [
+        "            cfg_if::cfg_if! {",
+        "                if #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))] {",
+        "                    if avx2_cpuid::get() {",
+        "                        // SAFETY: we checked that required target features are available",
+        "                        return unsafe { x86_avx2::compress(state, blocks) };"
+      ],
+      "representative_line": 60,
+      "representative_function": "sha2::sha512::compress512",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "file",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha3/src/block_api.rs",
+          "function": "sha3::block_api::xor_block",
+          "line": 301
+        }
+      ],
+      "representative_snippet": [
+        "    let mut chunks = block.chunks_exact(8);",
+        "    for (s, chunk) in state.iter_mut().zip(&mut chunks) {",
+        "        *s ^= u64::from_le_bytes(chunk.try_into().unwrap());",
+        "    }",
+        ""
+      ],
+      "representative_line": 301,
+      "representative_function": "sha3::block_api::xor_block",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha3/src/block_api.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    }
+  ],
+  "clusters_user_pattern": [
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "pattern",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha256.rs",
+          "function": "sha2::sha256::compress256",
+          "line": 65
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512.rs",
+          "function": "sha2::sha512::compress512",
+          "line": 60
+        }
+      ],
+      "representative_snippet": [
+        "            cfg_if::cfg_if! {",
+        "                if #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))] {",
+        "                    if shani_cpuid::get() {",
+        "                        // SAFETY: we checked that required target features are available",
+        "                        return unsafe { x86_sha::compress(state, blocks) };"
+      ],
+      "representative_line": 65,
+      "representative_function": "sha2::sha256::compress256",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha256.rs",
+      "representative_pattern": "if NAME::NAME() {",
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "early_return_compare_review",
+      "key_kind": "pattern",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512/x86_avx2.rs",
+          "function": "sha2::sha512::x86_avx2::compress",
+          "line": 21
+        }
+      ],
+      "representative_snippet": [
+        "    let mut start_block = 0;",
+        "",
+        "    if blocks.len() & 0b1 != 0 {",
+        "        sha512_compress_x86_64_avx(state, &blocks[0]);",
+        "        start_block += 1;"
+      ],
+      "representative_line": 21,
+      "representative_function": "sha2::sha512::x86_avx2::compress",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512/x86_avx2.rs",
+      "representative_pattern": "if NAME.len() & 0b1 != NUM {",
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "pattern",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha3/src/block_api.rs",
+          "function": "sha3::block_api::xor_block",
+          "line": 301
+        }
+      ],
+      "representative_snippet": [
+        "    let mut chunks = block.chunks_exact(8);",
+        "    for (s, chunk) in state.iter_mut().zip(&mut chunks) {",
+        "        *s ^= u64::from_le_bytes(chunk.try_into().unwrap());",
+        "    }",
+        ""
+      ],
+      "representative_line": 301,
+      "representative_function": "sha3::block_api::xor_block",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha3/src/block_api.rs",
+      "representative_pattern": "*NAME ^= NAME::NAME(NAME.NAME().unwrap());",
+      "mnemonics": [
+        "JNE"
+      ]
+    }
+  ],
+  "clusters_all_function": [
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/traits/iterator.rs",
+          "function": "const_oid::ObjectIdentifierRef::arc",
+          "line": 2433
+        },
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/traits/iterator.rs",
+          "function": "const_oid::ObjectIdentifierRef::arc",
+          "line": 2434
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2433,
+      "representative_function": "const_oid::ObjectIdentifierRef::arc",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/traits/iterator.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/const-oid-0.10.2/src/parser.rs",
+          "function": "const_oid::parser::Parser::parse_bytes",
+          "line": 45
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/const-oid-0.10.2/src/parser.rs",
+          "function": "const_oid::parser::Parser::parse_bytes",
+          "line": 73
+        }
+      ],
+      "representative_snippet": [
+        "        match bytes {",
+        "            // TODO(tarcieri): use `?` when stable in `const fn`",
+        "            [] => match self.current_arc {",
+        "                Some(arc) => match self.encoder.arc(arc) {",
+        "                    Ok(encoder) => {"
+      ],
+      "representative_line": 45,
+      "representative_function": "const_oid::parser::Parser::parse_bytes",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/const-oid-0.10.2/src/parser.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "function": "blake2::Blake2bVarCore::new_with_params",
+          "line": 772
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 772,
+      "representative_function": "blake2::Blake2bVarCore::new_with_params",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+          "function": "const_oid::ObjectIdentifierRef::from_bytes",
+          "line": 2173
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2173,
+      "representative_function": "const_oid::ObjectIdentifierRef::from_bytes",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA",
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/index.rs",
+          "function": "const_oid::ObjectIdentifierRef::from_bytes",
+          "line": 219
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 219,
+      "representative_function": "const_oid::ObjectIdentifierRef::from_bytes",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/index.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/const-oid-0.10.2/src/arcs.rs",
+          "function": "const_oid::ObjectIdentifierRef::from_bytes",
+          "line": 89
+        }
+      ],
+      "representative_snippet": [
+        "                            arc_bytes = checked_add!(arc_bytes, 1);",
+        "",
+        "                            if (arc_bytes > ARC_MAX_BYTES) && (byte & ARC_MAX_LAST_OCTET != 0) {",
+        "                                return Err(Error::ArcTooBig);",
+        "                            }"
+      ],
+      "representative_line": 89,
+      "representative_function": "const_oid::ObjectIdentifierRef::from_bytes",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/const-oid-0.10.2/src/arcs.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/traits/iterator.rs",
+          "function": "const_oid::ObjectIdentifierRef::len",
+          "line": 2609
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2609,
+      "representative_function": "const_oid::ObjectIdentifierRef::len",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/traits/iterator.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+          "function": "const_oid::encoder::Encoder<_>::arc",
+          "line": 458
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 458,
+      "representative_function": "const_oid::encoder::Encoder<_>::arc",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/intrinsics/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JO"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "sha2::sha512::soft::unroll::compress",
+          "line": 180
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 180,
+      "representative_function": "sha2::sha512::soft::unroll::compress",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "sha2::sha256::soft::unroll::compress",
+          "line": 180
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 180,
+      "representative_function": "sha2::sha256::soft::unroll::compress",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "early_return_compare_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512/x86_avx2.rs",
+          "function": "sha2::sha512::x86_avx2::compress",
+          "line": 21
+        }
+      ],
+      "representative_snippet": [
+        "    let mut start_block = 0;",
+        "",
+        "    if blocks.len() & 0b1 != 0 {",
+        "        sha512_compress_x86_64_avx(state, &blocks[0]);",
+        "        start_block += 1;"
+      ],
+      "representative_line": 21,
+      "representative_function": "sha2::sha512::x86_avx2::compress",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512/x86_avx2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "function": "sha2::sha512::x86_avx2::compress",
+          "line": 772
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 772,
+      "representative_function": "sha2::sha512::x86_avx2::compress",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/adapters/step_by.rs",
+          "function": "sha2::sha512::x86_avx2::compress",
+          "line": 446
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 446,
+      "representative_function": "sha2::sha512::x86_avx2::compress",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/adapters/step_by.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "sha2::sha512::x86_avx2::compress",
+          "line": 180
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 180,
+      "representative_function": "sha2::sha512::x86_avx2::compress",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha256.rs",
+          "function": "sha2::sha256::compress256",
+          "line": 65
+        }
+      ],
+      "representative_snippet": [
+        "            cfg_if::cfg_if! {",
+        "                if #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))] {",
+        "                    if shani_cpuid::get() {",
+        "                        // SAFETY: we checked that required target features are available",
+        "                        return unsafe { x86_sha::compress(state, blocks) };"
+      ],
+      "representative_line": 65,
+      "representative_function": "sha2::sha256::compress256",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha256.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+          "function": "sha2::sha512::avx2_cpuid::init_get::init_inner",
+          "line": 77
+        }
+      ],
+      "representative_snippet": [
+        "                        #[cold]",
+        "                        fn init_inner() -> bool {",
+        "                            let res = $crate::__detect_target_features!($($tf),+);",
+        "                            STORAGE.store(res as u8, Relaxed);",
+        "                            res"
+      ],
+      "representative_line": 77,
+      "representative_function": "sha2::sha512::avx2_cpuid::init_get::init_inner",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512.rs",
+          "function": "sha2::sha512::compress512",
+          "line": 60
+        }
+      ],
+      "representative_snippet": [
+        "            cfg_if::cfg_if! {",
+        "                if #[cfg(any(target_arch = \"x86\", target_arch = \"x86_64\"))] {",
+        "                    if avx2_cpuid::get() {",
+        "                        // SAFETY: we checked that required target features are available",
+        "                        return unsafe { x86_avx2::compress(state, blocks) };"
+      ],
+      "representative_line": 60,
+      "representative_function": "sha2::sha512::compress512",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha2/src/sha512.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "sha2::sha256::x86_sha::compress",
+          "line": 180
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 180,
+      "representative_function": "sha2::sha256::x86_sha::compress",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "sha3::block_api::xor_block",
+          "line": 180
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 180,
+      "representative_function": "sha3::block_api::xor_block",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha3/src/block_api.rs",
+          "function": "sha3::block_api::xor_block",
+          "line": 301
+        }
+      ],
+      "representative_snippet": [
+        "    let mut chunks = block.chunks_exact(8);",
+        "    for (s, chunk) in state.iter_mut().zip(&mut chunks) {",
+        "        *s ^= u64::from_le_bytes(chunk.try_into().unwrap());",
+        "    }",
+        ""
+      ],
+      "representative_line": 301,
+      "representative_function": "sha3::block_api::xor_block",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/hashes/sha3/src/block_api.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/ptr/non_null.rs",
+          "function": "sha3::block_api::xor_block",
+          "line": 1692
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1692,
+      "representative_function": "sha3::block_api::xor_block",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/ptr/non_null.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    }
+  ]
+}

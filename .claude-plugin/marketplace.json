@@ -58,8 +58,8 @@
     },
     {
       "name": "constant-time-analysis",
-      "version": "0.2.0",
-      "description": "Detect compiler-induced timing side-channels in cryptographic code",
+      "version": "0.5.0",
+      "description": "Detect compiler-induced timing side-channels in cryptographic code (C/C++, Go, Rust) with curated CVE-derived benchmarks and alarm-fatigue filters.",
       "author": {
         "name": "Scott Arciszewski",
         "email": "opensource@trailofbits.com"

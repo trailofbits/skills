@@ -50,7 +50,7 @@ Based on the file extension or language context, refer to the appropriate guide:
 | ---------- | --------------------------------- | -------------------------------------------------------- |
 | C, C++     | `.c`, `.h`, `.cpp`, `.cc`, `.hpp` | [references/compiled.md](references/compiled.md)         |
 | Go         | `.go`                             | [references/compiled.md](references/compiled.md)         |
-| Rust       | `.rs`                             | [references/compiled.md](references/compiled.md)         |
+| Rust       | `.rs`                             | [references/rust.md](references/rust.md)                 |
 | Swift      | `.swift`                          | [references/swift.md](references/swift.md)               |
 | Java       | `.java`                           | [references/vm-compiled.md](references/vm-compiled.md)   |
 | Kotlin     | `.kt`, `.kts`                     | [references/kotlin.md](references/kotlin.md)             |
@@ -67,17 +67,23 @@ Based on the file extension or language context, refer to the appropriate guide:
 # Analyze any supported file type
 uv run {baseDir}/ct_analyzer/analyzer.py <source_file>
 
-# Include conditional branch warnings
+# Include conditional branch warnings (loop-control noise auto-filtered)
 uv run {baseDir}/ct_analyzer/analyzer.py --warnings <source_file>
 
-# Recommended: apply alarm-fatigue filters (precision boost ~5x)
+# Recommended: apply alarm-fatigue filters (C/Go; precision boost ~5x)
 uv run {baseDir}/ct_analyzer/analyzer.py --warnings --filter all <source_file>
+
+# Strict CT-contract enforcement (Rust): branches in `verify_*`/`ct_*`/etc. become ERRORs
+uv run {baseDir}/ct_analyzer/analyzer.py --warnings --strict <source_file>
 
 # Filter to specific functions
 uv run {baseDir}/ct_analyzer/analyzer.py --func 'sign|verify' <source_file>
 
 # JSON output for CI
 uv run {baseDir}/ct_analyzer/analyzer.py --json <source_file>
+
+# Forensic mode: disable warning-precision filters (Rust only)
+uv run {baseDir}/ct_analyzer/analyzer.py --warnings --no-precise-warnings <source_file>
 ```
 
 ### Alarm-fatigue filters (`--filter`)

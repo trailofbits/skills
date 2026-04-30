@@ -114,10 +114,15 @@ Go compiles to native code, so the analyzer builds a binary and disassembles it 
 
 ## Rust-Specific Notes
 
-Rust uses `rustc --emit=asm` for assembly generation. The analyzer:
-- Maps optimization levels to rustc's `-C opt-level` flag
-- Supports cross-compilation via `--target` flag
-- Analyzes the emitted assembly for timing-unsafe instructions
+Rust has its own dedicated guide: [rust.md](rust.md). The short version:
+- The analyzer compiles Rust source as `--crate-type=rlib -C link-dead-code=on`
+  (not `bin`!) to defeat constant-folding-via-`main` false negatives
+- It auto-detects Cargo projects (adjacent `Cargo.toml`) and uses `cargo rustc`
+- It demangles legacy `_ZN…E` symbols and filters out monomorphized stdlib
+  code (`core::*`, `alloc::*`, `std::*`) by default
+- Adopt the `subtle` crate for constant-time selection / equality testing
+- A CVE-derived benchmark validates detection on KyberSlash, Lucky Thirteen,
+  Minerva, and RSA timing patterns
 
 ## CI Integration
 

@@ -1,0 +1,1008 @@
+{
+  "label": "rustcrypto_aeads_v3",
+  "timestamp": 1777534868.272733,
+  "root": "benchmark/wild_rust/AEADs/target/extracted_o",
+  "n_objects": 29,
+  "n_instructions": 19272,
+  "error_count": 0,
+  "warning_count": 17,
+  "error_count_user": 0,
+  "warning_count_user": 0,
+  "triage_breakdown": {
+    "dependency_source_review": 11,
+    "stdlib_other_likely_fp": 3,
+    "stdlib_iter_end_likely_fp": 2,
+    "stdlib_bounds_check_likely_fp": 1
+  },
+  "errors": [],
+  "warnings_sampled": [
+    {
+      "function": "poly1305::backend::avx2::State::finalize",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/poly1305-0.9.0-rc.6/src/backend/avx2.rs",
+      "line": 147,
+      "address": "0x621",
+      "instruction": "je     621 <_ZN8poly13057backend4avx25State8finalize17hb122baf21997cba2E+0x621>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "            // Compute 16 byte block (remaining data < 32 bytes)",
+        "            let mut c = Aligned130::from_block(&data[0]);",
+        "            if let Some(p) = p {",
+        "                c = c + p;",
+        "            }"
+      ],
+      "object": "poly1305-86719daf9953a885.poly1305.418af8b9eb72a26b-cgu.2.rcgu.o"
+    },
+    {
+      "function": "aes::soft::fixslice::aes128_key_schedule",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+      "line": 772,
+      "address": "0xfc",
+      "instruction": "je     fc <_ZN3aes4soft8fixslice19aes128_key_schedule17h3897307b408d2c30E+0xfc>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "source_snippet": null,
+      "object": "aes-aea7f32181e6f410.aes.254af53fc00e65cc-cgu.0.rcgu.o"
+    },
+    {
+      "function": "aes::soft::fixslice::aes128_decrypt",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "line": 842,
+      "address": "0x495",
+      "instruction": "jb     495 <_ZN3aes4soft8fixslice14aes128_decrypt17h90f3000909c47a98E+0x495>",
+      "mnemonic": "JB",
+      "reason": "2 conditional branches at this source line (JB); inspect the if/for/match and confirm its condition does not depend on secret data; reached from: aes::soft::fixslice::aes128_decrypt, aes::soft::fixslice::aes256_decrypt",
+      "severity": "warning",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "aes-aea7f32181e6f410.aes.254af53fc00e65cc-cgu.0.rcgu.o"
+    },
+    {
+      "function": "getrandom::backends::linux_android_with_fallback::use_file_fallback",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+      "line": 2173,
+      "address": "0x1e",
+      "instruction": "je     1e <_ZN9getrandom8backends27linux_android_with_fallback17use_file_fallback17he914a917dd0090eaE+0x1e>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "getrandom-c04a575f16abc587.getrandom.65b12ee550a2d5a6-cgu.0.rcgu.o"
+    },
+    {
+      "function": "poly1305::backend::avx2::State::finalize",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/poly1305-0.9.0-rc.6/src/backend/avx2.rs",
+      "line": 165,
+      "address": "0x932",
+      "instruction": "jne    932 <_ZN8poly13057backend4avx25State8finalize17hb122baf21997cba2E+0x932>",
+      "mnemonic": "JNE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "            // Compute 16 byte block (remaining data < 32 bytes)",
+        "            let mut c = Aligned130::from_block(&data[0]);",
+        "            if let Some(p) = p {",
+        "                c = c + p;",
+        "            }"
+      ],
+      "object": "poly1305-86719daf9953a885.poly1305.418af8b9eb72a26b-cgu.2.rcgu.o"
+    },
+    {
+      "function": "chacha20::avx2_cpuid::init_get::init_inner",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+      "line": 77,
+      "address": "0x4f",
+      "instruction": "jne    4f <_ZN8chacha2010avx2_cpuid8init_get10init_inner17hbe5ae2de90244561E+0x4f>",
+      "mnemonic": "JNE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                        #[cold]",
+        "                        fn init_inner() -> bool {",
+        "                            let res = $crate::__detect_target_features!($($tf),+);",
+        "                            STORAGE.store(res as u8, Relaxed);",
+        "                            res"
+      ],
+      "object": "chacha20-3f740601f5ac30cf.chacha20.fff8a4433e3cd070-cgu.0.rcgu.o"
+    },
+    {
+      "function": "aes::soft::fixslice::memshift32",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aes-0.9.0/src/soft/fixslice64.rs",
+      "line": 1355,
+      "address": "0xcb",
+      "instruction": "jae    cb <_ZN3aes4soft8fixslice10memshift3217habe81f43bc8c20f7E+0xcb>",
+      "mnemonic": "JAE",
+      "reason": "10 conditional branches at this source line (JAE); inspect the if/for/match and confirm its condition does not depend on secret data",
+      "severity": "warning",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "",
+        "    for i in (0..8).rev() {",
+        "        buffer[dst_offset + i] = buffer[src_offset + i];",
+        "    }",
+        "}"
+      ],
+      "object": "aes-aea7f32181e6f410.aes.254af53fc00e65cc-cgu.0.rcgu.o"
+    },
+    {
+      "function": "poly1305::backend::avx2::State::finalize",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/option.rs",
+      "line": 1164,
+      "address": "0x2f5",
+      "instruction": "je     2f5 <_ZN8poly13057backend4avx25State8finalize17hb122baf21997cba2E+0x2f5>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "poly1305-86719daf9953a885.poly1305.418af8b9eb72a26b-cgu.2.rcgu.o"
+    },
+    {
+      "function": "aes::soft::fixslice::xor_columns",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aes-0.9.0/src/soft/fixslice64.rs",
+      "line": 1184,
+      "address": "0x2cb",
+      "instruction": "jae    2cb <_ZN3aes4soft8fixslice11xor_columns17h072a7f551cdc53bcE+0x2cb>",
+      "mnemonic": "JAE",
+      "reason": "16 conditional branches at this source line (JAE); inspect the if/for/match and confirm its condition does not depend on secret data",
+      "severity": "warning",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "",
+        "    for i in (0..8).rev() {",
+        "        buffer[dst_offset + i] = buffer[src_offset + i];",
+        "    }",
+        "}"
+      ],
+      "object": "aes-aea7f32181e6f410.aes.254af53fc00e65cc-cgu.0.rcgu.o"
+    },
+    {
+      "function": "poly1305::backend::autodetect::avx2_cpuid::init_get::init_inner",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+      "line": 77,
+      "address": "0x4f",
+      "instruction": "jne    4f <_ZN8poly13057backend10autodetect10avx2_cpuid8init_get10init_inner17h612a38d5adaf041fE+0x4f>",
+      "mnemonic": "JNE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                        #[cold]",
+        "                        fn init_inner() -> bool {",
+        "                            let res = $crate::__detect_target_features!($($tf),+);",
+        "                            STORAGE.store(res as u8, Relaxed);",
+        "                            res"
+      ],
+      "object": "poly1305-86719daf9953a885.poly1305.418af8b9eb72a26b-cgu.1.rcgu.o"
+    },
+    {
+      "function": "getrandom::backends::linux_android_with_fallback::init",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.2/src/backends/linux_android_with_fallback.rs",
+      "line": 38,
+      "address": "0x2d",
+      "instruction": "js     2d <_ZN9getrandom8backends27linux_android_with_fallback4init17h09e16f28389bacd4E+0x2d>",
+      "mnemonic": "JS",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "            if cfg!(getrandom_test_linux_fallback) {",
+        "                NOT_AVAILABLE",
+        "            } else if res.is_negative() {",
+        "                match utils::get_errno() {",
+        "                    libc::ENOSYS => NOT_AVAILABLE, // No kernel support"
+      ],
+      "object": "getrandom-c04a575f16abc587.getrandom.65b12ee550a2d5a6-cgu.0.rcgu.o"
+    },
+    {
+      "function": "getrandom::backends::use_file::open_or_wait",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.2/src/backends/use_file.rs",
+      "line": 81,
+      "address": "0x4a",
+      "instruction": "jne    4a <_ZN9getrandom8backends8use_file12open_or_wait17hcb562f07cdaf39feE+0x4a>",
+      "mnemonic": "JNE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                    Ordering::Relaxed,",
+        "                );",
+        "                if res.is_ok() {",
+        "                    break;",
+        "                }"
+      ],
+      "object": "getrandom-c04a575f16abc587.getrandom.65b12ee550a2d5a6-cgu.0.rcgu.o"
+    },
+    {
+      "function": "poly1305::Poly1305::compute_unpadded",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+      "line": 180,
+      "address": "0x8f",
+      "instruction": "je     8f <_ZN8poly13058Poly130516compute_unpadded17h646415a37b8e953cE+0x8f>",
+      "mnemonic": "JE/JNE",
+      "reason": "3 conditional branches at this source line (JE, JNE); inspect the if/for/match and confirm its condition does not depend on secret data",
+      "severity": "warning",
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "source_snippet": null,
+      "object": "poly1305-86719daf9953a885.poly1305.418af8b9eb72a26b-cgu.1.rcgu.o"
+    },
+    {
+      "function": "poly1305::backend::avx2::State::finalize",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/poly1305-0.9.0-rc.6/src/backend/avx2.rs",
+      "line": 157,
+      "address": "0x7d4",
+      "instruction": "jne    7d4 <_ZN8poly13057backend4avx25State8finalize17hb122baf21997cba2E+0x7d4>",
+      "mnemonic": "JNE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "            // Compute 16 byte block (remaining data < 32 bytes)",
+        "            let mut c = Aligned130::from_block(&data[0]);",
+        "            if let Some(p) = p {",
+        "                c = c + p;",
+        "            }"
+      ],
+      "object": "poly1305-86719daf9953a885.poly1305.418af8b9eb72a26b-cgu.2.rcgu.o"
+    },
+    {
+      "function": "getrandom::backends::use_file::open_or_wait",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.2/src/backends/use_file.rs",
+      "line": 197,
+      "address": "0x15d",
+      "instruction": "jle    15d <_ZN9getrandom8backends8use_file12open_or_wait17hcb562f07cdaf39feE+0x15d>",
+      "mnemonic": "JLE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                    Ordering::Relaxed,",
+        "                );",
+        "                if res.is_ok() {",
+        "                    break;",
+        "                }"
+      ],
+      "object": "getrandom-c04a575f16abc587.getrandom.65b12ee550a2d5a6-cgu.0.rcgu.o"
+    },
+    {
+      "function": "getrandom::backends::linux_android_with_fallback::use_file_fallback",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "line": 2193,
+      "address": "0x80",
+      "instruction": "jb     80 <_ZN9getrandom8backends27linux_android_with_fallback17use_file_fallback17he914a917dd0090eaE+0x80>",
+      "mnemonic": "JB",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "source_snippet": null,
+      "object": "getrandom-c04a575f16abc587.getrandom.65b12ee550a2d5a6-cgu.0.rcgu.o"
+    },
+    {
+      "function": "polyval::backend::intrinsics::intrinsics_impl::clmul::init_get::init_inner",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+      "line": 77,
+      "address": "0x4e",
+      "instruction": "jne    4e <_ZN7polyval7backend10intrinsics15intrinsics_impl5clmul8init_get10init_inner17hace5b34321c101f9E+0x4e>",
+      "mnemonic": "JNE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "                        #[cold]",
+        "                        fn init_inner() -> bool {",
+        "                            let res = $crate::__detect_target_features!($($tf),+);",
+        "                            STORAGE.store(res as u8, Relaxed);",
+        "                            res"
+      ],
+      "object": "polyval-22e7f305374a17de.polyval.870a51549cf9123b-cgu.0.rcgu.o"
+    }
+  ],
+  "warning_clusters": [
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/poly1305-0.9.0-rc.6/src/backend/avx2.rs",
+          "function": "poly1305::backend::avx2::State::finalize",
+          "line": 147
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/poly1305-0.9.0-rc.6/src/backend/avx2.rs",
+          "function": "poly1305::backend::avx2::State::finalize",
+          "line": 157
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/poly1305-0.9.0-rc.6/src/backend/avx2.rs",
+          "function": "poly1305::backend::avx2::State::finalize",
+          "line": 165
+        }
+      ],
+      "representative_snippet": [
+        "            // Compute 16 byte block (remaining data < 32 bytes)",
+        "            let mut c = Aligned130::from_block(&data[0]);",
+        "            if let Some(p) = p {",
+        "                c = c + p;",
+        "            }"
+      ],
+      "representative_line": 147,
+      "representative_function": "poly1305::backend::avx2::State::finalize",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/poly1305-0.9.0-rc.6/src/backend/avx2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.2/src/backends/use_file.rs",
+          "function": "getrandom::backends::use_file::open_or_wait",
+          "line": 81
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.2/src/backends/use_file.rs",
+          "function": "getrandom::backends::use_file::open_or_wait",
+          "line": 197
+        }
+      ],
+      "representative_snippet": [
+        "                    Ordering::Relaxed,",
+        "                );",
+        "                if res.is_ok() {",
+        "                    break;",
+        "                }"
+      ],
+      "representative_line": 81,
+      "representative_function": "getrandom::backends::use_file::open_or_wait",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.2/src/backends/use_file.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JLE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aes-0.9.0/src/soft/fixslice64.rs",
+          "function": "aes::soft::fixslice::memshift32",
+          "line": 1355
+        }
+      ],
+      "representative_snippet": [
+        "",
+        "    for i in (0..8).rev() {",
+        "        buffer[dst_offset + i] = buffer[src_offset + i];",
+        "    }",
+        "}"
+      ],
+      "representative_line": 1355,
+      "representative_function": "aes::soft::fixslice::memshift32",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aes-0.9.0/src/soft/fixslice64.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aes-0.9.0/src/soft/fixslice64.rs",
+          "function": "aes::soft::fixslice::xor_columns",
+          "line": 1184
+        }
+      ],
+      "representative_snippet": [
+        "",
+        "    for i in (0..8).rev() {",
+        "        buffer[dst_offset + i] = buffer[src_offset + i];",
+        "    }",
+        "}"
+      ],
+      "representative_line": 1184,
+      "representative_function": "aes::soft::fixslice::xor_columns",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aes-0.9.0/src/soft/fixslice64.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "function": "aes::soft::fixslice::aes128_decrypt",
+          "line": 842
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 842,
+      "representative_function": "aes::soft::fixslice::aes128_decrypt",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "function": "aes::soft::fixslice::aes128_key_schedule",
+          "line": 772
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 772,
+      "representative_function": "aes::soft::fixslice::aes128_key_schedule",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+          "function": "chacha20::avx2_cpuid::init_get::init_inner",
+          "line": 77
+        }
+      ],
+      "representative_snippet": [
+        "                        #[cold]",
+        "                        fn init_inner() -> bool {",
+        "                            let res = $crate::__detect_target_features!($($tf),+);",
+        "                            STORAGE.store(res as u8, Relaxed);",
+        "                            res"
+      ],
+      "representative_line": 77,
+      "representative_function": "chacha20::avx2_cpuid::init_get::init_inner",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "getrandom::backends::linux_android_with_fallback::use_file_fallback",
+          "line": 2193
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2193,
+      "representative_function": "getrandom::backends::linux_android_with_fallback::use_file_fallback",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+          "function": "getrandom::backends::linux_android_with_fallback::use_file_fallback",
+          "line": 2173
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2173,
+      "representative_function": "getrandom::backends::linux_android_with_fallback::use_file_fallback",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.2/src/backends/linux_android_with_fallback.rs",
+          "function": "getrandom::backends::linux_android_with_fallback::init",
+          "line": 38
+        }
+      ],
+      "representative_snippet": [
+        "            if cfg!(getrandom_test_linux_fallback) {",
+        "                NOT_AVAILABLE",
+        "            } else if res.is_negative() {",
+        "                match utils::get_errno() {",
+        "                    libc::ENOSYS => NOT_AVAILABLE, // No kernel support"
+      ],
+      "representative_line": 38,
+      "representative_function": "getrandom::backends::linux_android_with_fallback::init",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.2/src/backends/linux_android_with_fallback.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JS"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+          "function": "poly1305::backend::autodetect::avx2_cpuid::init_get::init_inner",
+          "line": 77
+        }
+      ],
+      "representative_snippet": [
+        "                        #[cold]",
+        "                        fn init_inner() -> bool {",
+        "                            let res = $crate::__detect_target_features!($($tf),+);",
+        "                            STORAGE.store(res as u8, Relaxed);",
+        "                            res"
+      ],
+      "representative_line": 77,
+      "representative_function": "poly1305::backend::autodetect::avx2_cpuid::init_get::init_inner",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "poly1305::Poly1305::compute_unpadded",
+          "line": 180
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 180,
+      "representative_function": "poly1305::Poly1305::compute_unpadded",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/option.rs",
+          "function": "poly1305::backend::avx2::State::finalize",
+          "line": 1164
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1164,
+      "representative_function": "poly1305::backend::avx2::State::finalize",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/option.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+          "function": "polyval::backend::intrinsics::intrinsics_impl::clmul::init_get::init_inner",
+          "line": 77
+        }
+      ],
+      "representative_snippet": [
+        "                        #[cold]",
+        "                        fn init_inner() -> bool {",
+        "                            let res = $crate::__detect_target_features!($($tf),+);",
+        "                            STORAGE.store(res as u8, Relaxed);",
+        "                            res"
+      ],
+      "representative_line": 77,
+      "representative_function": "polyval::backend::intrinsics::intrinsics_impl::clmul::init_get::init_inner",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    }
+  ],
+  "cluster_count": 14,
+  "build_valid": true,
+  "clusters_user_function": [],
+  "clusters_user_file": [],
+  "clusters_user_pattern": [],
+  "clusters_all_function": [
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/poly1305-0.9.0-rc.6/src/backend/avx2.rs",
+          "function": "poly1305::backend::avx2::State::finalize",
+          "line": 147
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/poly1305-0.9.0-rc.6/src/backend/avx2.rs",
+          "function": "poly1305::backend::avx2::State::finalize",
+          "line": 157
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/poly1305-0.9.0-rc.6/src/backend/avx2.rs",
+          "function": "poly1305::backend::avx2::State::finalize",
+          "line": 165
+        }
+      ],
+      "representative_snippet": [
+        "            // Compute 16 byte block (remaining data < 32 bytes)",
+        "            let mut c = Aligned130::from_block(&data[0]);",
+        "            if let Some(p) = p {",
+        "                c = c + p;",
+        "            }"
+      ],
+      "representative_line": 147,
+      "representative_function": "poly1305::backend::avx2::State::finalize",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/poly1305-0.9.0-rc.6/src/backend/avx2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.2/src/backends/use_file.rs",
+          "function": "getrandom::backends::use_file::open_or_wait",
+          "line": 81
+        },
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.2/src/backends/use_file.rs",
+          "function": "getrandom::backends::use_file::open_or_wait",
+          "line": 197
+        }
+      ],
+      "representative_snippet": [
+        "                    Ordering::Relaxed,",
+        "                );",
+        "                if res.is_ok() {",
+        "                    break;",
+        "                }"
+      ],
+      "representative_line": 81,
+      "representative_function": "getrandom::backends::use_file::open_or_wait",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.2/src/backends/use_file.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JLE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aes-0.9.0/src/soft/fixslice64.rs",
+          "function": "aes::soft::fixslice::memshift32",
+          "line": 1355
+        }
+      ],
+      "representative_snippet": [
+        "",
+        "    for i in (0..8).rev() {",
+        "        buffer[dst_offset + i] = buffer[src_offset + i];",
+        "    }",
+        "}"
+      ],
+      "representative_line": 1355,
+      "representative_function": "aes::soft::fixslice::memshift32",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aes-0.9.0/src/soft/fixslice64.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aes-0.9.0/src/soft/fixslice64.rs",
+          "function": "aes::soft::fixslice::xor_columns",
+          "line": 1184
+        }
+      ],
+      "representative_snippet": [
+        "",
+        "    for i in (0..8).rev() {",
+        "        buffer[dst_offset + i] = buffer[src_offset + i];",
+        "    }",
+        "}"
+      ],
+      "representative_line": 1184,
+      "representative_function": "aes::soft::fixslice::xor_columns",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aes-0.9.0/src/soft/fixslice64.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+          "function": "aes::soft::fixslice::aes128_decrypt",
+          "line": 842
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 842,
+      "representative_function": "aes::soft::fixslice::aes128_decrypt",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+          "function": "aes::soft::fixslice::aes128_key_schedule",
+          "line": 772
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 772,
+      "representative_function": "aes::soft::fixslice::aes128_key_schedule",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/iter/range.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+          "function": "chacha20::avx2_cpuid::init_get::init_inner",
+          "line": 77
+        }
+      ],
+      "representative_snippet": [
+        "                        #[cold]",
+        "                        fn init_inner() -> bool {",
+        "                            let res = $crate::__detect_target_features!($($tf),+);",
+        "                            STORAGE.store(res as u8, Relaxed);",
+        "                            res"
+      ],
+      "representative_line": 77,
+      "representative_function": "chacha20::avx2_cpuid::init_get::init_inner",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+          "function": "getrandom::backends::linux_android_with_fallback::use_file_fallback",
+          "line": 2193
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2193,
+      "representative_function": "getrandom::backends::linux_android_with_fallback::use_file_fallback",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/mod.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+          "function": "getrandom::backends::linux_android_with_fallback::use_file_fallback",
+          "line": 2173
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2173,
+      "representative_function": "getrandom::backends::linux_android_with_fallback::use_file_fallback",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/result.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.2/src/backends/linux_android_with_fallback.rs",
+          "function": "getrandom::backends::linux_android_with_fallback::init",
+          "line": 38
+        }
+      ],
+      "representative_snippet": [
+        "            if cfg!(getrandom_test_linux_fallback) {",
+        "                NOT_AVAILABLE",
+        "            } else if res.is_negative() {",
+        "                match utils::get_errno() {",
+        "                    libc::ENOSYS => NOT_AVAILABLE, // No kernel support"
+      ],
+      "representative_line": 38,
+      "representative_function": "getrandom::backends::linux_android_with_fallback::init",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/getrandom-0.4.2/src/backends/linux_android_with_fallback.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JS"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+          "function": "poly1305::backend::autodetect::avx2_cpuid::init_get::init_inner",
+          "line": 77
+        }
+      ],
+      "representative_snippet": [
+        "                        #[cold]",
+        "                        fn init_inner() -> bool {",
+        "                            let res = $crate::__detect_target_features!($($tf),+);",
+        "                            STORAGE.store(res as u8, Relaxed);",
+        "                            res"
+      ],
+      "representative_line": 77,
+      "representative_function": "poly1305::backend::autodetect::avx2_cpuid::init_get::init_inner",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+          "function": "poly1305::Poly1305::compute_unpadded",
+          "line": 180
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 180,
+      "representative_function": "poly1305::Poly1305::compute_unpadded",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/option.rs",
+          "function": "poly1305::backend::avx2::State::finalize",
+          "line": 1164
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1164,
+      "representative_function": "poly1305::backend::avx2::State::finalize",
+      "representative_file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/option.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+          "function": "polyval::backend::intrinsics::intrinsics_impl::clmul::init_get::init_inner",
+          "line": 77
+        }
+      ],
+      "representative_snippet": [
+        "                        #[cold]",
+        "                        fn init_inner() -> bool {",
+        "                            let res = $crate::__detect_target_features!($($tf),+);",
+        "                            STORAGE.store(res as u8, Relaxed);",
+        "                            res"
+      ],
+      "representative_line": 77,
+      "representative_function": "polyval::backend::intrinsics::intrinsics_impl::clmul::init_get::init_inner",
+      "representative_file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cpufeatures-0.3.0/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    }
+  ]
+}
