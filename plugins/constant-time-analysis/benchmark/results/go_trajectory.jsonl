@@ -1,0 +1,12 @@
+{"iter": 0, "label": "go_baseline",          "P": 0.058, "R": 1.000, "F1": 0.110, "n_find": 189, "T_min": 324.5, "CT_AFI": 0.0005}
+{"iter": 1, "label": "go_v1_filters",         "P": 0.571, "R": 0.364, "F1": 0.444, "n_find":   7, "T_min":  14.0, "CT_AFI": 0.3520}
+{"iter": 2, "label": "go_v2_camelcase_fix",  "P": 0.588, "R": 0.909, "F1": 0.714, "n_find":  17, "T_min":  32.0, "CT_AFI": 0.4190}
+{"iter": 3, "label": "go_v3_xfam_fold",       "P": 0.615, "R": 0.727, "F1": 0.667, "n_find":  13, "T_min":  27.0, "CT_AFI": 0.4251}
+{"iter": 4, "label": "go_v4_scoped_xfam",    "P": 0.600, "R": 0.818, "F1": 0.692, "n_find":  15, "T_min":  30.0, "CT_AFI": 0.4199}
+{"iter": 5, "label": "go_v5_pubsrcline",     "P": 0.571, "R": 0.727, "F1": 0.640, "n_find":  14, "T_min":  25.5, "CT_AFI": 0.4184}
+{"iter": 6, "label": "go_v6_parser_bcheck",   "P": 0.667, "R": 0.727, "F1": 0.696, "n_find":  12, "T_min":  22.5, "CT_AFI": 0.4781}
+{"iter": 7, "label": "go_v7_cross_dedup",    "P": 0.727, "R": 0.667, "F1": 0.696, "n_find":  11, "T_min":  20.5, "CT_AFI": 0.4943}
+{"iter": 8, "label": "go_v8_postfusion",     "P": 0.778, "R": 0.583, "F1": 0.667, "n_find":   9, "T_min":  16.5, "CT_AFI": 0.5064}
+{"iter": 9, "label": "go_v9_fuzzy_dedup",     "P": 0.778, "R": 0.583, "F1": 0.667, "n_find":   9, "T_min":  16.5, "CT_AFI": 0.5064}
+{"iter":10, "label": "go_v10_dedup_tighten", "P": 0.800, "R": 0.667, "F1": 0.727, "n_find":  10, "T_min":  18.5, "CT_AFI": 0.5343}
+{"iter":11, "label": "go_v11_no_fusion",     "P": 0.769, "R": 0.833, "F1": 0.800, "n_find":  13, "T_min":  25.0, "CT_AFI": 0.5274}

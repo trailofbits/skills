@@ -175,6 +175,98 @@ CT_FUNCTION_PATTERNS = [
     re.compile(r"^_?sodium_argon2_(fill_segment|ctx)(_(ref|sse|ssse3|avx2|avx512f))?$"),
     re.compile(r"^_?sodium_(escrypt_kdf|escrypt_kdf_nosse|escrypt_kdf_sse|pickparams)$"),
     re.compile(r"^pickparams$"),
+
+    # ----------------------------------------------------------------------
+    # Go-language patterns (mirror of the C/C++ block above).
+    #
+    # Go symbols in disassembly use the full package path with slashes,
+    # plus dotted method-receiver syntax: e.g.
+    #     crypto/subtle.ConstantTimeCompare
+    #     crypto/sha256.(*digest).Write
+    #     crypto/internal/fips140/mlkem.fieldReduceOnce
+    # We anchor each regex with the package path so we don't accidentally
+    # match a C symbol of the same shape.
+    # ----------------------------------------------------------------------
+    # crypto/subtle: the universal CT vocabulary in Go. Anything inside
+    # this package is hand-verified constant-time by the stdlib team.
+    re.compile(r"^crypto/subtle\.\w+$"),
+    re.compile(r"^crypto/subtle\.\(\*\w+\)\.\w+$"),
+    # FIPS 140 module: Go 1.24+ ships an isolated, hand-CT'd implementation
+    # of the FIPS algorithms. Symbols all live under crypto/internal/fips140.
+    re.compile(r"^crypto/internal/fips140(/[\w/]+)?\.\w+$"),
+    re.compile(r"^crypto/internal/fips140(/[\w/]+)?\.\(\*\w+\)\.\w+$"),
+    # Curve25519 and edwards25519 internal: by-design CT, used in TLS,
+    # x509 cert validation, and ed25519 signing.
+    re.compile(r"^crypto/internal/edwards25519(/\w+)?\.\w+$"),
+    re.compile(r"^crypto/internal/edwards25519(/\w+)?\.\(\*\w+\)\.\w+$"),
+    re.compile(r"^crypto/ecdh\.\w+$"),
+    re.compile(r"^crypto/ecdh\.\(\*\w+\)\.\w+$"),
+    # NIST curves: CT-coded P-224/256/384/521 implementations.
+    re.compile(r"^crypto/internal/nistec(/[\w/]+)?\.\w+$"),
+    re.compile(r"^crypto/internal/nistec(/[\w/]+)?\.\(\*\w+\)\.\w+$"),
+    # x/crypto curves (older paths still used in production).
+    re.compile(r"^golang\.org/x/crypto/curve25519(/[\w/]+)?\.\w+$"),
+    re.compile(r"^golang\.org/x/crypto/curve25519(/[\w/]+)?\.\(\*\w+\)\.\w+$"),
+    re.compile(r"^golang\.org/x/crypto/internal/poly1305\.\w+$"),
+    re.compile(r"^golang\.org/x/crypto/internal/poly1305\.\(\*\w+\)\.\w+$"),
+    re.compile(r"^golang\.org/x/crypto/chacha20(/\w+)?\.\w+$"),
+    re.compile(r"^golang\.org/x/crypto/chacha20(/\w+)?\.\(\*\w+\)\.\w+$"),
+    re.compile(r"^golang\.org/x/crypto/chacha20poly1305\.\w+$"),
+    re.compile(r"^golang\.org/x/crypto/chacha20poly1305\.\(\*\w+\)\.\w+$"),
+    re.compile(r"^golang\.org/x/crypto/salsa20(/\w+)?\.\w+$"),
+    # crypto/cipher: stream/block-mode wrappers. They iterate over public
+    # block counts and dispatch the underlying cipher; the cipher itself
+    # is its own package. The wrappers are CT.
+    re.compile(r"^crypto/cipher\.\w+$"),
+    re.compile(r"^crypto/cipher\.\(\*\w+\)\.\w+$"),
+    # Hash function packages: SHA-2 family is ARX, no data branches, branch
+    # at block-boundary is a public byte-counter.
+    re.compile(r"^crypto/sha(1|256|512|3)\.\w+$"),
+    re.compile(r"^crypto/sha(1|256|512|3)\.\(\*\w+\)\.\w+$"),
+    re.compile(r"^crypto/hmac\.\w+$"),
+    re.compile(r"^crypto/hmac\.\(\*\w+\)\.\w+$"),
+    re.compile(r"^golang\.org/x/crypto/blake2[bs]\.\w+$"),
+    re.compile(r"^golang\.org/x/crypto/blake2[bs]\.\(\*\w+\)\.\w+$"),
+    # KDF wrappers: HKDF / HMAC iteration count is on a public output length.
+    re.compile(r"^golang\.org/x/crypto/hkdf\.\w+$"),
+    re.compile(r"^golang\.org/x/crypto/pbkdf2\.\w+$"),
+    re.compile(r"^golang\.org/x/crypto/argon2\.\w+$"),
+    re.compile(r"^golang\.org/x/crypto/scrypt\.\w+$"),
+    # Signature schemes (everything past the call into the scalar mul is
+    # in nistec / edwards25519, which we already allow above).
+    re.compile(r"^crypto/ed25519\.\w+$"),
+    re.compile(r"^crypto/ed25519\.\(\*\w+\)\.\w+$"),
+    re.compile(r"^crypto/ecdsa\.\w+$"),
+    re.compile(r"^crypto/ecdsa\.\(\*\w+\)\.\w+$"),
+    re.compile(r"^crypto/mlkem\.\w+$"),
+    re.compile(r"^crypto/mlkem\.\(\*\w+\)\.\w+$"),
+    # CIRCL: Cloudflare's research crypto library. The kem/sign/dh packages
+    # are all CT-vetted; only their internal NTT / poly helpers might fail.
+    re.compile(r"^github\.com/cloudflare/circl/(kem|sign|dh|hpke|oprf|secretsharing)/[\w/]+\.\w+$"),
+    re.compile(r"^github\.com/cloudflare/circl/(kem|sign|dh|hpke|oprf|secretsharing)/[\w/]+\.\(\*\w+\)\.\w+$"),
+    re.compile(r"^github\.com/cloudflare/circl/(internal|math)/[\w/]+\.\w+$"),
+    re.compile(r"^github\.com/cloudflare/circl/(internal|math)/[\w/]+\.\(\*\w+\)\.\w+$"),
+    # Go runtime: the gc / scheduler / memequal / map ops have data-dependent
+    # branches by design but DON'T process user secrets. They show up in
+    # disassembly because every Go program statically links the runtime.
+    re.compile(r"^runtime\.\w+$"),
+    re.compile(r"^runtime/internal/[\w/]+\.\w+$"),
+    re.compile(r"^internal/[\w/]+\.\w+$"),
+    # Generic Go method receivers on common stdlib container types
+    re.compile(r"^(bytes|bufio|fmt|sort|strings|strconv|errors|sync|sync/atomic)\.\w+$"),
+    re.compile(r"^(bytes|bufio|fmt|sort|strings|strconv|errors|sync|sync/atomic)\.\(\*\w+\)\.\w+$"),
+    # Encoding wrappers (DER/PEM/JSON): structurally driven by public format
+    re.compile(r"^encoding/[\w/]+\.\w+$"),
+    re.compile(r"^encoding/[\w/]+\.\(\*\w+\)\.\w+$"),
+    re.compile(r"^crypto/x509(/[\w/]+)?\.\w+$"),
+    re.compile(r"^crypto/x509(/[\w/]+)?\.\(\*\w+\)\.\w+$"),
+    # Random source: rejection sampling on uniform output is FIPS-acceptable.
+    re.compile(r"^crypto/rand\.\w+$"),
+    re.compile(r"^crypto/rand\.\(\*\w+\)\.\w+$"),
+    # Stack-growth helper inside every Go function prologue. The CMPQ/JLS
+    # pair compares SP against runtime metadata - never user data.
+    re.compile(r"^runtime\.morestack(_noctxt)?$"),
+    re.compile(r"^runtime\.deferreturn$"),
 ]
 
 
@@ -217,16 +309,45 @@ def aggregate_branches_per_function(violations: list[Violation]) -> tuple[list[V
     into a single finding with a count.  Applies to both warnings (branches)
     and errors (e.g. multiple DIVs in the same modexp loop).  This shrinks
     the report without losing recall because a reviewer reading the function
-    will see all instances regardless."""
+    will see all instances regardless.
+
+    Cross-family fold: when a function has at least one DIV-class ERROR,
+    we also fold its BRANCH-class warnings into the DIV finding. The Go
+    gc compiler implements signed `/` as `cmp; jne; cdq; idiv` -- the
+    sign-check JNE is a compiler-emitted branch that the same IDIV
+    finding already covers from a reviewer's standpoint."""
     kept: list[Violation] = []
     suppressed: list[tuple[Violation, str]] = []
     first_by_key: dict[tuple[str, str, str], Violation] = {}
     counts: dict[tuple[str, str, str], int] = {}
+
+    # Pass 1: collect (function, line) pairs that have a DIV-class error.
+    # The cross-family fold targets the BRANCH warnings the Go signed-
+    # divide idiom emits IMMEDIATELY around each IDIV (`cmp; jne; cdq;
+    # idiv`) -- those branches share the source line of the divide.
+    # We do NOT fold branches at other lines in the function (e.g.
+    # `if exp_secret & 1` in rsa_squareandmultiply, which is a real
+    # secret-bit branch on a different line from the % m).
+    div_lines_per_func: dict[str, set[int]] = {}
     for v in violations:
-        # Source-level call findings (memcmp/strcmp at source line) must NOT
-        # be aggregated - each call site is an independent vulnerability.
+        if v.severity == Severity.ERROR and _mnemonic_family(v.mnemonic) == "DIV":
+            div_lines_per_func.setdefault(v.function, set()).add(v.line or -1)
+
+    for v in violations:
         if v.function == "<source-call>":
             kept.append(v)
+            continue
+        # Cross-family fold: only when the warning's line matches an
+        # existing DIV finding's line in the same function.
+        div_lines = div_lines_per_func.get(v.function, set())
+        if (v.severity == Severity.WARNING
+                and _mnemonic_family(v.mnemonic) == "BRANCH"
+                and v.line in div_lines):
+            suppressed.append((
+                v,
+                f"folded into same-line DIV finding for {v.function} "
+                f"(signed-divide bookkeeping branch)",
+            ))
             continue
         key = (v.function, v.severity.value, _mnemonic_family(v.mnemonic))
         if key not in first_by_key:
@@ -326,6 +447,8 @@ def parse_secret_handling_functions(source_path: str) -> set[str]:
         text = Path(source_path).read_text()
     except OSError:
         return set()
+    if _looks_like_go(source_path):
+        return _parse_go_secret_funcs(text)
     secret_funcs: set[str] = set()
     for m in C_FUNC_RE.finditer(text):
         name = m.group(1)
@@ -372,6 +495,76 @@ MEMCMP_CALL_RE = re.compile(
     r"\b(memcmp|strcmp|strncmp|bcmp)\s*\(([^)]*)\)",
 )
 
+# ---------------------------------------------------------------------------
+# Go-source helpers
+# ---------------------------------------------------------------------------
+# Go function signatures: `func Name(params)` with optional method receiver
+# `func (r *Type) Name(params)`. Parameter names always precede their type.
+# Multi-line signatures are common in stdlib code.
+_GO_FUNC_HEADER = re.compile(
+    r"^\s*func\s+(?:\(\s*\w+\s+[*\w.]+\s*\)\s+)?(\w+)\s*\("
+)
+# bytes.Equal / bytes.Compare are documented as variable-time (the runtime
+# memequal_varlen helper has an early-exit fast path). They're the Go
+# analog of memcmp/strcmp at the source level.
+GO_MEMCMP_CALL_RE = re.compile(
+    r"\b(bytes\.Equal|bytes\.Compare|"
+    r"runtime\.memequal(?:_varlen)?|"
+    r"subtle\.WithDataIndependentTiming)\s*\(([^)]*)\)"
+)
+
+
+def _looks_like_go(source_path: str) -> bool:
+    return source_path.endswith(".go")
+
+
+def _go_params_have_secret(params: str) -> bool:
+    """Permissive secret-param check for Go: case-insensitive substring on
+    each token. Go params follow camelCase so the C-side word-boundary
+    regex (SECRET_NAME) misses suffixes like `receivedMAC`. We accept a
+    higher false-secret-match rate (more functions kept under non-secret)
+    in exchange for keeping recall on real CT bugs."""
+    p = params.lower()
+    return any(tok in p for tok in _SECRET_TOKENS)
+
+
+def _parse_go_secret_funcs(text: str) -> set[str]:
+    """Return Go function names whose param list contains a secret-named
+    identifier. Stores both the bare name and the canonical Go FQN form
+    (`main.<name>`) so the non-secret filter matches violations whose
+    function field carries the package prefix."""
+    secret_funcs: set[str] = set()
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        m = _GO_FUNC_HEADER.match(line)
+        if not m:
+            continue
+        name = m.group(1)
+        # Capture params spanning to the matching `)` (up to 8 lines)
+        params = ""
+        depth = 0
+        captured = False
+        for j in range(i, min(i + 8, len(lines))):
+            for ch in lines[j]:
+                if ch == "(":
+                    depth += 1
+                    if depth == 1:
+                        continue
+                if ch == ")":
+                    depth -= 1
+                    if depth == 0:
+                        captured = True
+                        break
+                if depth >= 1:
+                    params += ch
+            if captured:
+                break
+        if _go_params_have_secret(params):
+            secret_funcs.add(name)
+            # Add common Go FQN variants the disassembler emits
+            secret_funcs.add(f"main.{name}")
+    return secret_funcs
+
 
 # Names indicating self-test / unit-test scaffolding within production .c
 # files (mbedTLS, BoringSSL, libsodium all bundle these gated by macros).
@@ -384,6 +577,48 @@ _TEST_FUNC_RE = re.compile(
     r"check_.*_test$|run_test.*|.*_self_check$)",
     re.IGNORECASE,
 )
+
+
+def _build_go_function_ranges(text: str) -> list[tuple[int, int, str]]:
+    """Go-aware version of _build_function_ranges.
+    Tracks `func Name(...)` openings and the matching closing brace at
+    column 0 (Go style). Method receivers ``func (r *T) Name(...)`` count
+    too.  Brace tracking handles inline closures defined inside the body."""
+    ranges: list[tuple[int, int, str]] = []
+    lines = text.splitlines()
+    i = 0
+    n = len(lines)
+    while i < n:
+        m = _GO_FUNC_HEADER.match(lines[i])
+        if not m:
+            i += 1
+            continue
+        name = m.group(1)
+        start = i + 1
+        # Walk forward until we find the body's opening `{`. Allow up to
+        # ~10 lines for multi-line signatures.
+        j = i
+        while j < n and j < i + 12 and "{" not in lines[j]:
+            j += 1
+        if j >= n:
+            i += 1
+            continue
+        # Track brace depth from j onward.
+        depth = 0
+        end = j + 1
+        seen_open = False
+        for k in range(j, n):
+            depth += lines[k].count("{") - lines[k].count("}")
+            if not seen_open and "{" in lines[k]:
+                seen_open = True
+            if seen_open and depth <= 0:
+                end = k + 1
+                break
+        else:
+            end = n
+        ranges.append((start, end, name))
+        i = max(end, i + 1)
+    return ranges
 
 
 def _build_function_ranges(text: str) -> list[tuple[int, int, str]]:
@@ -449,7 +684,10 @@ def detect_unsafe_memcmp_in_source(source_path: str, secret_funcs: set[str]) -> 
     docstrings don't false-fire.  Skips calls whose enclosing function looks
     like a self-test / known-answer-test scaffold."""
     text = Path(source_path).read_text()
-    func_ranges = _build_function_ranges(text)
+    if _looks_like_go(str(source_path)):
+        func_ranges = _build_go_function_ranges(text)
+    else:
+        func_ranges = _build_function_ranges(text)
     findings: list[Violation] = []
     in_block_comment = False
     for lineno, line in enumerate(text.splitlines(), start=1):
@@ -474,24 +712,42 @@ def detect_unsafe_memcmp_in_source(source_path: str, secret_funcs: set[str]) -> 
             i, j = code.find("/*"), code.find("*/")
             if 0 <= i < j:
                 code = code[:i] + code[j+2:]
-        for m in MEMCMP_CALL_RE.finditer(code):
-            args = m.group(2)
-            if not SECRET_NAME.search(args):
-                continue
-            enclosing = _enclosing_function(func_ranges, lineno)
-            if enclosing and _TEST_FUNC_RE.match(enclosing):
-                continue            # self-test / KAT scaffold, not production
-            findings.append(Violation(
-                function=enclosing or "<source-call>",
-                file=str(source_path),
-                line=lineno,
-                address="",
-                instruction=line.strip(),
-                mnemonic="MEMCMP",
-                reason=f"libc {m.group(1)} called on a secret-named argument; "
-                       f"this is variable-time and leaks the position of the first mismatch",
-                severity=Severity.ERROR,
-            ))
+        # Pick the call regex appropriate for this language. The Go regex
+        # also catches the C-style memcmp/strcmp because Go's cgo wrappers
+        # often forward the same names. Go uses a permissive substring
+        # check on the args because camelCase parameter names like
+        # `receivedMAC` don't satisfy the C-style word-boundary regex.
+        is_go = _looks_like_go(str(source_path))
+        if is_go:
+            secret_check = _go_params_have_secret
+            call_regexes = (GO_MEMCMP_CALL_RE, MEMCMP_CALL_RE)
+        else:
+            secret_check = lambda s: bool(SECRET_NAME.search(s))
+            call_regexes = (MEMCMP_CALL_RE,)
+        for call_re in call_regexes:
+            for m in call_re.finditer(code):
+                args = m.group(2)
+                if not secret_check(args):
+                    continue
+                enclosing = _enclosing_function(func_ranges, lineno)
+                if enclosing and _TEST_FUNC_RE.match(enclosing):
+                    continue
+                fn_name = m.group(1)
+                kind = (
+                    f"{fn_name} on a secret-named argument; this is variable-"
+                    f"time at the runtime level and leaks the position of "
+                    f"the first mismatch"
+                )
+                findings.append(Violation(
+                    function=enclosing or "<source-call>",
+                    file=str(source_path),
+                    line=lineno,
+                    address="",
+                    instruction=line.strip(),
+                    mnemonic="MEMCMP",
+                    reason=kind,
+                    severity=Severity.ERROR,
+                ))
     return findings
 
 
@@ -597,11 +853,36 @@ def filter_div_with_public_divisor(violations: list[Violation]) -> tuple[list[Vi
 _BR_TARGET = re.compile(r"^\s*[jb][a-z.]*\s+([0-9a-fA-F]+)\s*<")  # `je 1234 <foo+0x10>`
 _INSN_ADDR = re.compile(r"^\s*([0-9a-fA-F]+):")
 
+# Go's gc -S format is different: branch lines look like
+#     0x0024 00036 (file.go:18) JGE 41
+# where 41 is the *decimal* offset within the function, and the
+# instruction's own offset is the second column ("00036"). So a backward
+# branch is one where the target int < the instruction's int offset.
+_GO_BR = re.compile(
+    r"^\s*0x[0-9a-fA-F]+\s+(\d+)\s+\([^)]+\)\s+[JB][A-Z.]+\s+(\d+)\s*$"
+)
+
 
 def filter_loop_backedges(violations: list[Violation]) -> tuple[list[Violation], list[tuple[Violation, str]]]:
     kept, suppressed = [], []
     for v in violations:
         if v.severity != Severity.WARNING:
+            kept.append(v)
+            continue
+        # Try the Go gc-S format first (decimal offsets), then objdump's
+        # hex-with-symbol format.
+        m_go = _GO_BR.match(v.instruction)
+        if m_go:
+            try:
+                cur = int(m_go.group(1))
+                tgt = int(m_go.group(2))
+            except ValueError:
+                kept.append(v)
+                continue
+            if 0 < cur - tgt < 1024:
+                suppressed.append((v, f"backward Go branch -{cur - tgt} (loop back-edge)"))
+                continue
+            # Forward branch in Go format: still keep (could be data branch).
             kept.append(v)
             continue
         m_t = _BR_TARGET.search(v.instruction)
@@ -615,9 +896,182 @@ def filter_loop_backedges(violations: list[Violation]) -> tuple[list[Violation],
         except ValueError:
             kept.append(v)
             continue
-        # Backward branch with small displacement (< 1KB) = loop back-edge
         if 0 < cur - tgt < 1024:
             suppressed.append((v, f"backward branch -{cur - tgt:#x} bytes (loop back-edge)"))
+        else:
+            kept.append(v)
+    return kept, suppressed
+
+
+# ---------------------------------------------------------------------------
+# Filter 8 (Go-only): panic-helper bounds-check pairing
+# ---------------------------------------------------------------------------
+# Go's gc compiler implements `slice[i]` as `cmp; jcc <ok>; <panic>`, where
+# the panic block calls one of `runtime.panicIndex`, `runtime.panicSlice*`,
+# `runtime.panicshift`, etc. The compared values are always public Go
+# runtime metadata (slice length, capacity, shift amount), never secret.
+# When we see a CALL to one of these helpers in the captured context_after
+# of a conditional branch, we suppress the branch.
+
+GO_PANIC_HELPERS = (
+    "runtime.panicIndex", "runtime.panicIndexU",
+    "runtime.panicSlice", "runtime.panicSliceB", "runtime.panicSliceBU",
+    "runtime.panicSliceAlen", "runtime.panicSliceAlenU",
+    "runtime.panicSliceAcap", "runtime.panicSliceAcapU",
+    "runtime.panicSliceConvert",
+    "runtime.panicshift", "runtime.panicdivide",
+    "runtime.goPanicIndex", "runtime.goPanicSlice3Alen",
+    "runtime.goPanicSlice3B",
+)
+_GO_PANIC_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(p) for p in GO_PANIC_HELPERS) + r")\b"
+)
+
+
+def filter_go_bounds_checks(violations: list[Violation]) -> tuple[list[Violation], list[tuple[Violation, str]]]:
+    """Suppress conditional-branch warnings tagged by the Go parser as
+    bounds-check candidates (the parser tags the reason text with the
+    sentinel '[BOUNDS_CHECK]' when either the branch target or its
+    fall-through reaches a panic-block address)."""
+    kept, suppressed = [], []
+    for v in violations:
+        if v.severity != Severity.WARNING:
+            kept.append(v)
+            continue
+        # Inline-detected bounds check via the parser's sentinel
+        if "[BOUNDS_CHECK]" in v.reason:
+            v.reason = v.reason.replace(" [BOUNDS_CHECK]", "")
+            suppressed.append((v, "Go panic-block target (slice/index/shift bounds check)"))
+            continue
+        # Fallback: context_after window contains a panic-helper CALL.
+        target_block = "\n".join(v.context_after) if v.context_after else ""
+        if _GO_PANIC_RE.search(target_block):
+            suppressed.append((v, "branch's fall-through targets a Go panic helper"))
+        else:
+            kept.append(v)
+    return kept, suppressed
+
+
+# ---------------------------------------------------------------------------
+# Filter 9 (Go-only): stack-grow check at function prologue
+# ---------------------------------------------------------------------------
+# Every Go function emits `CMPQ SP, 16(R14); JLS morestack` at offset 0. The
+# JLS warning is on a public runtime invariant (stack overflow). Suppress
+# any warning whose address is 0 (function prologue) and whose source line
+# matches a `func ` declaration.
+
+def filter_go_stack_grow(violations: list[Violation]) -> tuple[list[Violation], list[tuple[Violation, str]]]:
+    """Suppress branches Go emits at every function prologue. The pattern is
+    `CMPQ SP, 16(R14); JLS morestack` for amd64 (and the analogous SUB/CMP
+    sequence on arm64). The .file:.line for these branches points back at
+    the function declaration line. We use that as the suppression signal:
+    any warning whose source line starts with `func ` is a prologue check."""
+    kept, suppressed = [], []
+    for v in violations:
+        if v.severity != Severity.WARNING:
+            kept.append(v)
+            continue
+        if not (v.file and v.line):
+            kept.append(v)
+            continue
+        try:
+            with open(v.file, encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+        except OSError:
+            kept.append(v)
+            continue
+        if not (1 <= v.line <= len(lines)):
+            kept.append(v)
+            continue
+        src_line = lines[v.line - 1].lstrip()
+        if src_line.startswith("func ") or src_line.startswith("func("):
+            suppressed.append((v, "Go function-prologue stack-grow check"))
+        else:
+            kept.append(v)
+    return kept, suppressed
+
+
+# ---------------------------------------------------------------------------
+# Filter 10 (Go-only): source-line classifier
+# ---------------------------------------------------------------------------
+# A conditional branch whose source line is one of Go's well-known
+# public-control-flow patterns -- counted loops, range loops, length/
+# nil/err checks -- is almost certainly not data-dependent on a secret.
+# Compound conditions (`&&` / `||`) are NEVER suppressed because they can
+# mix a public bound with a secret data check (e.g. Bleichenbacher's
+#     for i < len(em) && em[i] != 0x00
+# would be a real CT bug we must keep visible).
+
+_GO_PUBLIC_LINE_PATTERNS = [
+    # for i := 0; i < <int-literal>; i++ / i-- / i += K
+    re.compile(
+        r"^\s*for\s+\w+\s*:?=\s*\d+\s*;\s*\w+\s*[<>]=?\s*"
+        r"(?:\d+|len\([\w.\[\]]+\)|cap\([\w.\[\]]+\))\s*;\s*"
+        r"\w+\s*(?:\+\+|--|[+\-]=\s*\d+)\s*\{?\s*$"
+    ),
+    # for i := 0; i < <ident>; i++  (ident is a package-level constant)
+    re.compile(
+        r"^\s*for\s+\w+\s*:?=\s*\d+\s*;\s*\w+\s*[<>]=?\s*"
+        r"[A-Za-z_][\w.]*\s*;\s*"
+        r"\w+\s*(?:\+\+|--|[+\-]=\s*\d+)\s*\{?\s*$"
+    ),
+    # for i := uint16(0); i < K; i++  (typed initializer)
+    re.compile(
+        r"^\s*for\s+\w+\s*:?=\s*\w+\(\s*\d+\s*\)\s*;\s*\w+\s*[<>]=?\s*"
+        r"\w+\s*;\s*\w+\s*(?:\+\+|--)\s*\{?\s*$"
+    ),
+    # for i := range x
+    re.compile(r"^\s*for\s+[\w,\s_]*:?=\s*range\s+[\w.\[\]]+\s*\{?\s*$"),
+    # if len(x) <op> y
+    re.compile(r"^\s*if\s+len\([\w.\[\]]+\)\s*[!=<>]+\s*[\w.()]+\s*\{?\s*$"),
+    # if init-stmt; len(x)/cap(x) <op> y
+    re.compile(
+        r"^\s*if\s+\w+\s*:?=\s*[\w.()+\-*/\s]+;\s*"
+        r"(?:len|cap)\([\w.\[\]]+\)\s*[!=<>]+\s*[\w.]+\s*\{?\s*$"
+    ),
+    # if cap(x) <op> y
+    re.compile(r"^\s*if\s+cap\([\w.\[\]]+\)\s*[!=<>]+\s*[\w.()]+\s*\{?\s*$"),
+    # if x == nil / if x != nil
+    re.compile(r"^\s*if\s+[\w.\[\]()]+\s*[!=]=\s*nil\s*\{?\s*$"),
+    # if err != nil
+    re.compile(r"^\s*if\s+\w*[Ee]rr\w*\s*!=\s*nil\s*\{?\s*$"),
+    # function declaration line (already covered by go-stack-grow but
+    # included here for defense in depth)
+    re.compile(r"^\s*func\s+\S"),
+]
+
+
+def filter_go_public_lines(violations: list[Violation]) -> tuple[list[Violation], list[tuple[Violation, str]]]:
+    """Suppress branch warnings whose source line matches a syntactically-
+    pure public-control-flow pattern. Compound conditions (`&&`/`||`)
+    NEVER match. The classifier is conservative by design -- a real
+    Bleichenbacher pattern survives because it has `&&` on its loop
+    line."""
+    kept, suppressed = [], []
+    for v in violations:
+        if v.severity != Severity.WARNING:
+            kept.append(v)
+            continue
+        if not (v.file and v.line):
+            kept.append(v)
+            continue
+        try:
+            with open(v.file, encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+        except OSError:
+            kept.append(v)
+            continue
+        if not (1 <= v.line <= len(lines)):
+            kept.append(v)
+            continue
+        src_line = lines[v.line - 1].rstrip()
+        if "&&" in src_line or "||" in src_line:
+            kept.append(v)
+            continue
+        for pat in _GO_PUBLIC_LINE_PATTERNS:
+            if pat.match(src_line):
+                suppressed.append((v, f"Go public-control-flow line: {pat.pattern[:50]}"))
+                break
         else:
             kept.append(v)
     return kept, suppressed
@@ -629,6 +1083,9 @@ FILTER_REGISTRY: dict[str, Callable[[list[Violation]], tuple[list[Violation], li
     "compiler-helpers": filter_compiler_helpers,
     "div-public": filter_div_with_public_divisor,
     "loop-backedge": filter_loop_backedges,
+    "go-bounds-check": filter_go_bounds_checks,
+    "go-stack-grow": filter_go_stack_grow,
+    "go-public-line": filter_go_public_lines,
 }
 
 
@@ -674,7 +1131,15 @@ def apply_filters(violations: list[Violation], filter_names: Iterable[str],
                 if sf is None:
                     new_kept.append(v)        # unknown source = keep
                     continue
-                if v.function in sf or v.function == "<source-call>":
+                # Match either the canonical name (C: `validatePadding`) or
+                # the Go FQN form (`main.validatePadding`,
+                # `crypto/sha256.(*digest).Write`). The Go path adds both
+                # forms to secret_funcs upfront, but for the trailing
+                # `.method` cases we strip the leading package path here.
+                fn = v.function
+                fn_short = fn.rsplit(".", 1)[-1]
+                if (fn in sf or fn_short in sf
+                        or fn == "<source-call>"):
                     new_kept.append(v)
                 else:
                     sup.append((v, f"warning in {v.function!r} has no secret-named parameter (source: {v.file})"))

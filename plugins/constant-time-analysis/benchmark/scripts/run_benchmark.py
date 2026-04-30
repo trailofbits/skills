@@ -81,6 +81,45 @@ def run(corpus_dir: Path, manifest_path: Path, include_warnings: bool,
                 continue
             seen.add(key)
             deduped.append(f)
+        # Cross-function dedup by (file, line, mnemonic): the same source
+        # line generally compiles to the same instruction regardless of
+        # which caller (Go inlines aggressively, so a vulnerable function
+        # called from main() emits the IDIV at the same source line in
+        # both kyberslashReduce and main; counting both as separate
+        # findings double-counts the vulnerability).
+        seen_loc = set()
+        loc_deduped = []
+        for f in deduped:
+            loc_key = (f.get("file") or "", f.get("line") or 0, f["mnemonic"])
+            if loc_key[0] and loc_key in seen_loc:
+                continue
+            seen_loc.add(loc_key)
+            loc_deduped.append(f)
+        deduped = loc_deduped
+
+        # Post-fusion fuzzy dedup: two findings on the same (function,
+        # mnemonic-family) within ~3 source lines are very likely the
+        # same logical violation reported at slightly different lines
+        # across O0 and O2 (Go's gc-S source attribution shifts +/-1
+        # between optimisation passes). Collapse them. Distinct lines
+        # > 3 apart in the same function (e.g. naiveModExp's L17 and
+        # L20 modular reductions) are kept as separate.
+        from ct_analyzer.filters import _mnemonic_family
+        fuzzy_kept = []
+        for f in deduped:
+            fam = _mnemonic_family(f["mnemonic"])
+            collapsed = False
+            for kept_f in fuzzy_kept:
+                if (kept_f["function"] == f["function"]
+                        and _mnemonic_family(kept_f["mnemonic"]) == fam
+                        and kept_f.get("line") is not None
+                        and f.get("line") is not None
+                        and abs(kept_f["line"] - f["line"]) <= 2):
+                    collapsed = True
+                    break
+            if not collapsed:
+                fuzzy_kept.append(f)
+        deduped = fuzzy_kept
 
         scored = score_item(item, deduped, func_sizes)
         per_item_results.append(scored)
@@ -120,6 +159,7 @@ def main():
     if "all" in post_filters:
         post_filters = ["compiler-helpers", "memcmp-source", "ct-funcs",
                         "non-secret", "div-public", "loop-backedge",
+                        "go-bounds-check", "go-stack-grow", "go-public-line",
                         "aggregate"]
 
     t0 = time.time()

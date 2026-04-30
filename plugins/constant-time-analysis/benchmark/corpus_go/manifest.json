@@ -1,0 +1,134 @@
+{
+  "description": "Go constant-time analysis benchmark corpus. Mirror of the C corpus (15 items in benchmark/corpus/). Items labeled clean (designed CT, expect 0 errors after secret-aware filtering), vulnerable (real timing leak, expect detection), or limitation_no_signal (real leak that instruction-level analysis cannot detect). Each item lives in its own directory with a go.mod so it can be built standalone.",
+  "items": [
+    {
+      "file": "clean/subtle_constant_time_compare/main.go",
+      "source": "Go stdlib crypto/subtle.ConstantTimeCompare (verbatim algorithm)",
+      "url": "https://cs.opensource.google/go/go/+/refs/tags/go1.24.7:src/crypto/subtle/constant_time.go",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "ConstantTimeCompare loops len(x) times unconditionally, accumulating XOR via OR. Loop bound is the public LENGTH, not the content. Final fold uses (x-1)>>31 -- bit-twiddling, no branches."
+    },
+    {
+      "file": "clean/subtle_select_and_eq/main.go",
+      "source": "Go stdlib crypto/subtle.ConstantTimeSelect + Eq + LessOrEq",
+      "url": "https://cs.opensource.google/go/go/+/refs/tags/go1.24.7:src/crypto/subtle/constant_time.go",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "Branchless bitmask blending. The (v-1) trick yields all-ones / all-zeros without a conditional move."
+    },
+    {
+      "file": "clean/chacha20_quarterround/main.go",
+      "source": "ChaCha20 quarter-round (DJB reference, mirrored in Go's chacha20)",
+      "url": "https://cs.opensource.google/go/x/crypto/+/master:chacha20/chacha_generic.go",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "ARX-only: add, rotate, XOR. Loop counters are public constants (10 double-rounds, 16 state words)."
+    },
+    {
+      "file": "clean/hkdf_expand/main.go",
+      "source": "HKDF-Expand wrapper around HMAC-SHA256",
+      "url": "https://cs.opensource.google/go/x/crypto/+/master:hkdf/hkdf.go",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "Output-length loop bound is public. HMAC body would be a sub-call below the source-level analyzer's view."
+    },
+    {
+      "file": "clean/curve25519_field_mul/main.go",
+      "source": "Curve25519 5x51 field multiply + cswap (structural)",
+      "url": "https://cs.opensource.google/go/x/crypto/+/master:curve25519/internal/field/fe_generic.go",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "uint64 multiplies + carry chain via shift+mask. cswap uses XOR blending: both halves always execute."
+    },
+    {
+      "file": "clean/cipher_xor_keystream/main.go",
+      "source": "XOR-keystream wrapper (CTR-mode shape)",
+      "url": "https://cs.opensource.google/go/go/+/refs/tags/go1.24.7:src/crypto/cipher/ctr.go",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "The mod-by-blockSize is on a public counter. The block cipher itself is a sub-call below scope."
+    },
+    {
+      "file": "clean/mlkem_barrett_reduce/main.go",
+      "source": "Barrett reduction for ML-KEM (CIRCL pke/kyber/internal/common style)",
+      "url": "https://github.com/cloudflare/circl/blob/main/pke/kyber/internal/common/field.go",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "Replaces `x % Q` with multiply-by-magic; no DIV in the disassembly. Same for Montgomery reduce."
+    },
+    {
+      "file": "clean/sha256_block_update/main.go",
+      "source": "SHA-256 block-update / compression (generic shape)",
+      "url": "https://cs.opensource.google/go/go/+/refs/tags/go1.24.7:src/crypto/sha256/sha256block.go",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "Buffer-cursor branch (idx==64) is on a public counter. Compression ARX has no data-dependent branches."
+    },
+    {
+      "file": "vulnerable/kyberslash/main.go",
+      "source": "KyberSlash (https://kyberslash.cr.yp.to)",
+      "url": "https://kyberslash.cr.yp.to",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"line": 26, "kind": "DIV"},
+        {"line": 28, "kind": "BRANCH"},
+        {"line": 35, "kind": "DIV"}
+      ],
+      "notes": "Integer divide on secret coefficient with a runtime-loaded modulus (compile-time-constant divisors get folded by Go's SSA into multiply-by-magic, accidentally CT-fixing the bug). L26 = compress (q=num/Q; Go fuses the subsequent x%Q into the same IDIV). L28 = branch on secret-derived r. L35 = reduce."
+    },
+    {
+      "file": "vulnerable/lucky13/main.go",
+      "source": "Lucky13 (Bernstein-Lange, NDSS 2013)",
+      "url": "https://www.isg.rhul.ac.uk/tls/Lucky13.html",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"line": 18, "kind": "BRANCH"},
+        {"line": 19, "kind": "BRANCH"},
+        {"line": 32, "kind": "BRANCH"}
+      ],
+      "notes": "L18 = loop bound on secret padLen. L19 = early-exit on padding-byte mismatch. L32 = early-exit byte compare in verifyMAC (variable-time MAC compare)."
+    },
+    {
+      "file": "vulnerable/rsa_squareandmultiply/main.go",
+      "source": "Naive RSA modexp (Kocher 1996 timing attack pattern)",
+      "url": "https://www.paulkocher.com/doc/TimingAttacks.pdf",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"line": 16, "kind": "BRANCH"},
+        {"line": 17, "kind": "DIV"},
+        {"line": 20, "kind": "DIV"}
+      ],
+      "notes": "L16 = secret-bit branch (`exp & 1 == 1`). L17 + L20 = `% m` on secret-derived intermediates."
+    },
+    {
+      "file": "vulnerable/naive_mac_check/main.go",
+      "source": "Naive MAC compare via bytes.Equal + unrolled loop variant",
+      "url": "https://pkg.go.dev/bytes#Equal",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"line": 18, "kind": "MEMCMP"},
+        {"line": 29, "kind": "BRANCH"}
+      ],
+      "notes": "L18 = bytes.Equal on secret-named MAC (variable-time in Go despite popular belief; runtime.memequal_varlen has early exit). L29 = early-exit in unrolled-loop variant. The bytes.Equal case requires the source-level memcmp-source filter to recognize."
+    },
+    {
+      "file": "vulnerable/array_equal_secret/main.go",
+      "source": "[N]byte == [N]byte on secret tags",
+      "url": "https://github.com/golang/go/issues/15054",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"line": 21, "kind": "BRANCH"}
+      ],
+      "notes": "Equality on fixed-size byte arrays. The compiler emits inlined byte compare or runtime.memequal; either way it is a memcmp-on-secret pattern at the source level. The source-level filter recognises it via the secret-named parameter."
+    },
+    {
+      "file": "limitation/aes_ttable_lookup/main.go",
+      "source": "AES T-table cache-timing leak (Bernstein 2005)",
+      "url": "https://cr.yp.to/antiforgery/cachetiming-20050414.pdf",
+      "label": "limitation_no_signal",
+      "ground_truth_violations": [],
+      "notes": "Real cache-timing leak: Te0[secretIdx] reads a different cache line per byte of secret state. Instruction-level analysis cannot see this -- there is no DIV, no branch on a secret bit. Documents the analyzer's blind spot."
+    }
+  ]
+}

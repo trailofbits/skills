@@ -1,0 +1,152 @@
+{
+  "summary": {
+    "tp": 8,
+    "fp": 5,
+    "fn": 3,
+    "n_items": 14,
+    "n_findings": 13,
+    "precision": 0.6154,
+    "recall": 0.7273,
+    "f1": 0.6667,
+    "triage_minutes": 27.0,
+    "ct_afi": 0.4251,
+    "yield_per_min": 0.2963
+  },
+  "per_item": [
+    {
+      "file": "clean/subtle_constant_time_compare/main.go",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "clean/subtle_select_and_eq/main.go",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "clean/chacha20_quarterround/main.go",
+      "label": "clean",
+      "tp": 0,
+      "fp": 1,
+      "fn": 0,
+      "n_findings": 1,
+      "triage_minutes": 2.5
+    },
+    {
+      "file": "clean/hkdf_expand/main.go",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "clean/curve25519_field_mul/main.go",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "clean/cipher_xor_keystream/main.go",
+      "label": "clean",
+      "tp": 0,
+      "fp": 1,
+      "fn": 0,
+      "n_findings": 1,
+      "triage_minutes": 2.0
+    },
+    {
+      "file": "clean/mlkem_barrett_reduce/main.go",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "clean/sha256_block_update/main.go",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "vulnerable/kyberslash/main.go",
+      "label": "vulnerable",
+      "tp": 2,
+      "fp": 2,
+      "fn": 0,
+      "n_findings": 4,
+      "triage_minutes": 8.0
+    },
+    {
+      "file": "vulnerable/lucky13/main.go",
+      "label": "vulnerable",
+      "tp": 2,
+      "fp": 0,
+      "fn": 1,
+      "n_findings": 2,
+      "triage_minutes": 4.0
+    },
+    {
+      "file": "vulnerable/rsa_squareandmultiply/main.go",
+      "label": "vulnerable",
+      "tp": 2,
+      "fp": 0,
+      "fn": 1,
+      "n_findings": 2,
+      "triage_minutes": 4.0
+    },
+    {
+      "file": "vulnerable/naive_mac_check/main.go",
+      "label": "vulnerable",
+      "tp": 1,
+      "fp": 1,
+      "fn": 1,
+      "n_findings": 2,
+      "triage_minutes": 4.0
+    },
+    {
+      "file": "vulnerable/array_equal_secret/main.go",
+      "label": "vulnerable",
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 1,
+      "triage_minutes": 2.5
+    },
+    {
+      "file": "limitation/aes_ttable_lookup/main.go",
+      "label": "limitation_no_signal",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    }
+  ],
+  "config": {
+    "warnings": true,
+    "opt_levels": [
+      "O0",
+      "O2"
+    ]
+  },
+  "wall_seconds": 4.66,
+  "label": "go_v3"
+}

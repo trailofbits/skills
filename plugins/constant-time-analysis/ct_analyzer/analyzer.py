@@ -157,6 +157,22 @@ DANGEROUS_INSTRUCTIONS = {
             "jnp": "conditional branch may leak timing information if condition depends on secret data",
             "jc": "conditional branch may leak timing information if condition depends on secret data",
             "jnc": "conditional branch may leak timing information if condition depends on secret data",
+            # Go's Plan 9 amd64 assembler aliases (different mnemonics for the
+            # same hardware ops). Without these, every conditional branch
+            # emitted by the Go compiler escapes the warning set entirely.
+            "jeq": "conditional branch may leak timing information if condition depends on secret data",
+            "jlt": "conditional branch may leak timing information if condition depends on secret data",
+            "jgt": "conditional branch may leak timing information if condition depends on secret data",
+            "jhi": "conditional branch may leak timing information if condition depends on secret data",
+            "jls": "conditional branch may leak timing information if condition depends on secret data",
+            "jmi": "conditional branch may leak timing information if condition depends on secret data",
+            "jpl": "conditional branch may leak timing information if condition depends on secret data",
+            "jcs": "conditional branch may leak timing information if condition depends on secret data",
+            "jcc": "conditional branch may leak timing information if condition depends on secret data",
+            "jos": "conditional branch may leak timing information if condition depends on secret data",
+            "joc": "conditional branch may leak timing information if condition depends on secret data",
+            "jps": "conditional branch may leak timing information if condition depends on secret data",
+            "jpc": "conditional branch may leak timing information if condition depends on secret data",
         },
     },
     # ARM64 / AArch64
@@ -166,10 +182,22 @@ DANGEROUS_INSTRUCTIONS = {
             # Note: Even with DIT (Data Independent Timing) enabled, division is NOT constant-time
             "udiv": "UDIV has early termination optimization; execution time depends on operand values",
             "sdiv": "SDIV has early termination optimization; execution time depends on operand values",
+            # Go's ARM64 assembler emits the 32-bit-suffixed forms and uses
+            # REM* for modulo. Same hardware ops, same data-dependent timing.
+            "udivw": "UDIV (32-bit) has early termination optimization",
+            "sdivw": "SDIV (32-bit) has early termination optimization",
+            "rem": "REM via SDIV+MSUB; data-dependent timing",
+            "remw": "REM (32-bit) via SDIV+MSUB; data-dependent timing",
+            "urem": "UREM via UDIV+MSUB; data-dependent timing",
+            "uremw": "UREM (32-bit) via UDIV+MSUB; data-dependent timing",
             # Floating-point division
             "fdiv": "FDIV (FP division) has variable latency based on operand values",
+            "fdivd": "FDIV (FP double) has variable latency",
+            "fdivs": "FDIV (FP single) has variable latency",
             # Square root
             "fsqrt": "FSQRT has variable latency based on operand values",
+            "fsqrtd": "FSQRT (double) has variable latency",
+            "fsqrts": "FSQRT (single) has variable latency",
         },
         "warnings": {
             # Conditional branches
@@ -567,7 +595,22 @@ class ClangCompiler(Compiler):
 
 
 class GoCompiler(Compiler):
-    """Go compiler interface."""
+    """Go compiler interface.
+
+    We emit assembly with ``go build -gcflags=-S`` from the source file's
+    package directory, falling back to ``go tool compile -S`` for stand-
+    alone files with no go.mod. Both paths produce ONLY the user package's
+    assembly: no Go runtime, no scheduler, no GC. The previous
+    ``go build`` + ``go tool objdump`` approach pulled in ~1k functions
+    and 100k instructions of runtime code per analysis, drowning the
+    user findings.
+
+    Notes for the C-aligned harness:
+     - The output is in Plan-9 / gc-S format, distinct from objdump's
+       output. ``AssemblyParser.parse`` detects the format on-the-fly.
+     - Source attribution is embedded as ``(/abs/path.go:NN)`` per line,
+       not via ``objdump -l``. The Go branch of the parser handles this.
+    """
 
     ARCH_MAP = {
         "x86_64": "amd64",
@@ -593,6 +636,18 @@ class GoCompiler(Compiler):
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
+    @staticmethod
+    def _find_module_root(start: Path) -> Path | None:
+        cur = start.resolve()
+        if cur.is_file():
+            cur = cur.parent
+        while True:
+            if (cur / "go.mod").exists():
+                return cur
+            if cur.parent == cur:
+                return None
+            cur = cur.parent
+
     def compile_to_assembly(
         self,
         source_file: str,
@@ -604,47 +659,73 @@ class GoCompiler(Compiler):
         arch = normalize_arch(arch)
         goarch = self.ARCH_MAP.get(arch, arch)
 
-        # For Go, we need to build a binary and then disassemble it
-        with tempfile.TemporaryDirectory() as tmpdir:
-            binary_path = os.path.join(tmpdir, "binary")
+        env = os.environ.copy()
+        env["GOOS"] = env.get("GOOS", "linux")
+        env["GOARCH"] = goarch
+        env["CGO_ENABLED"] = "0"
 
-            env = os.environ.copy()
-            env["GOOS"] = "linux"
-            env["GOARCH"] = goarch
-            env["CGO_ENABLED"] = "0"
+        gcflag_parts = ["-S"]
+        if optimization == "O0":
+            gcflag_parts.extend(["-N", "-l"])
+        gcflags = " ".join(gcflag_parts)
 
-            # Build command - use gcflags to control optimization
-            gcflags = ""
-            if optimization == "O0":
-                gcflags = "-N -l"  # Disable optimizations and inlining
+        src_path = Path(source_file).resolve()
+        pkg_dir = src_path.parent
+        module_root = self._find_module_root(src_path)
 
-            cmd = [
-                self.path,
-                "build",
-                "-o",
-                binary_path,
-            ]
-            if gcflags:
-                cmd.extend(["-gcflags", gcflags])
-            cmd.append(source_file)
-
+        if module_root is not None:
             try:
-                result = subprocess.run(cmd, capture_output=True, text=True, env=env)
-                if result.returncode != 0:
-                    return False, result.stderr
-
-                # Now disassemble
-                disasm_cmd = [self.path, "tool", "objdump", binary_path]
-                result = subprocess.run(disasm_cmd, capture_output=True, text=True)
-                if result.returncode != 0:
-                    return False, result.stderr
-
-                with open(output_file, "w") as f:
-                    f.write(result.stdout)
-
-                return True, ""
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    bin_path = os.path.join(tmpdir, "discard")
+                    cmd = [
+                        self.path, "build",
+                        "-o", bin_path,
+                        "-gcflags", gcflags,
+                        *(extra_flags or []),
+                        ".",
+                    ]
+                    result = subprocess.run(
+                        cmd, capture_output=True, text=True,
+                        env=env, cwd=str(pkg_dir),
+                    )
             except FileNotFoundError:
                 return False, f"Go not found: {self.path}"
+            asm_text = result.stderr  # `go build -gcflags=-S` emits to stderr
+            if "TEXT\t" not in asm_text and "STEXT" not in asm_text:
+                if result.returncode != 0:
+                    return False, asm_text or result.stdout
+                return False, "go build produced no assembly (empty package?)"
+        else:
+            cmd = [self.path, "tool", "compile", "-S"]
+            if optimization == "O0":
+                cmd.extend(["-N", "-l"])
+            cmd.extend(extra_flags or [])
+            cmd.append(str(src_path))
+            try:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    result = subprocess.run(
+                        cmd, capture_output=True, text=True,
+                        env=env, cwd=tmpdir,
+                    )
+            except FileNotFoundError:
+                return False, f"Go not found: {self.path}"
+            asm_text = result.stdout  # `go tool compile -S` emits to stdout
+            if "TEXT\t" not in asm_text and "STEXT" not in asm_text:
+                msg = result.stderr or result.stdout
+                if "could not import" in msg or "file not found" in msg:
+                    msg += (
+                        "\n\nHint: this file imports a package but is not part "
+                        "of a Go module. Place it under a directory containing "
+                        "go.mod (run `go mod init <name>`) and re-run."
+                    )
+                return False, msg
+
+        with open(output_file, "w") as f:
+            # Sentinel comment so AssemblyParser routes to the Go branch
+            f.write("# ct_analyzer:format=go-gcflags-S\n")
+            f.write(f"# ct_analyzer:source={src_path}\n")
+            f.write(asm_text)
+        return True, ""
 
 
 class RustCompiler(Compiler):
@@ -787,6 +868,19 @@ def get_compiler(name: str, language: str) -> Compiler:
         return ClangCompiler()
 
 
+def _decimal_pc_to_addr(instrs: list[dict], pc: int) -> int:
+    """Map a Go gc-S decimal pc (the second column, e.g. ``00024``) to the
+    hex byte-offset (``addr_int``) of the matching instruction. Go's
+    branch operands use the decimal pc form; the panic-block address set
+    is built from addr_int. We look up by linear scan -- O(n) but n is
+    typically small per function."""
+    for ins in instrs:
+        # The second column is exactly the decimal int of addr_int
+        if ins["addr_int"] == pc:
+            return ins["addr_int"]
+    return -1
+
+
 class AssemblyParser:
     """Parser for assembly output from various compilers."""
 
@@ -809,6 +903,17 @@ class AssemblyParser:
             self.errors = arch_instructions.get("errors", {})
             self.warnings = arch_instructions.get("warnings", {})
 
+    # Go-specific format detection (the gc compiler's `-S` output is
+    # syntactically different from objdump or gcc/clang -S). The parser
+    # routes to a dedicated branch below when it sees the sentinel comment
+    # we emit in GoCompiler or the characteristic STEXT-family directive.
+    _GO_INSTR_RE = re.compile(
+        r"^\s*0x[0-9a-fA-F]+\s+\d+\s+\(([^)]+):(\d+)\)\s+([A-Za-z][\w.]*)\b(.*)$"
+    )
+    _GO_FUNC_HEADER_RE = re.compile(
+        r"^([\w./<>$\-]*\.[\w<>$]+)\s+S\w*TEXT\w*\b"
+    )
+
     def parse(
         self, assembly_text: str, include_warnings: bool = False
     ) -> tuple[list[dict], list[Violation]]:
@@ -816,6 +921,13 @@ class AssemblyParser:
         Parse assembly text and detect violations.
         Returns (functions, violations).
         """
+        head = assembly_text[:8192]
+        if (
+            "ct_analyzer:format=go-gcflags-S" in head
+            or re.search(r"\bS\w*TEXT\w*\b", head)
+        ):
+            return self._parse_go_format(assembly_text, include_warnings)
+
         functions = []
         violations = []
 
@@ -971,6 +1083,150 @@ class AssemblyParser:
             )
 
         return functions, violations
+
+    def _parse_go_format(
+        self, assembly_text: str, include_warnings: bool
+    ) -> tuple[list[dict], list[Violation]]:
+        """Parse Go's gc-S output. Two-pass: pass 1 collects per-function
+        instruction tuples; pass 2 emits violations with cross-instruction
+        context (most importantly, recognizing branches whose target is a
+        Go panic helper so the bounds-check filter can suppress them)."""
+        per_func: list[tuple[str, list[dict]]] = []
+        cur_fn: str | None = None
+        cur: list[dict] = []
+        for line in assembly_text.split("\n"):
+            header = self._GO_FUNC_HEADER_RE.match(line)
+            if header:
+                if cur_fn is not None:
+                    per_func.append((cur_fn, cur))
+                cur_fn = header.group(1)
+                cur = []
+                continue
+            instr = self._GO_INSTR_RE.match(line)
+            if not instr:
+                continue
+            mnemonic = instr.group(3).lower()
+            if mnemonic in ("text", "funcdata", "pcdata", "rel", "type"):
+                continue
+            addr_match = re.search(r"0x([0-9a-fA-F]+)", line)
+            cur.append({
+                "file": instr.group(1),
+                "line": int(instr.group(2)),
+                "mnemonic": mnemonic,
+                "operands": instr.group(4).strip(),
+                "addr_int": int(addr_match.group(1), 16) if addr_match else -1,
+                "addr_str": f"0x{addr_match.group(1)}" if addr_match else "",
+                "raw": line.strip(),
+            })
+        if cur_fn is not None:
+            per_func.append((cur_fn, cur))
+
+        functions: list[dict] = []
+        violations: list[Violation] = []
+        for fn_name, instrs in per_func:
+            functions.append({"name": fn_name, "instructions": len(instrs)})
+
+            # Build set of "panic block" addresses: the address of each CALL
+            # to a Go panic helper plus the 1-4 setup instructions
+            # immediately before it.
+            panic_addrs: set[int] = set()
+            for i, ins in enumerate(instrs):
+                if ins["mnemonic"] != "call":
+                    continue
+                callee = ins["operands"].split("(", 1)[0].strip()
+                if not callee.startswith("runtime.panic"):
+                    continue
+                panic_addrs.add(ins["addr_int"])
+                for k in range(1, 5):
+                    j = i - k
+                    if j < 0:
+                        break
+                    panic_addrs.add(instrs[j]["addr_int"])
+
+            # Emit violations and tag bounds-check candidates inline.
+            recent: list[str] = []
+            pending_after: list[tuple[Violation, int]] = []
+            for i, ins in enumerate(instrs):
+                # Feed the after-window first
+                for v, _ in pending_after:
+                    v.context_after.append(ins["raw"])
+                pending_after = [(v, n - 1) for v, n in pending_after if n > 1]
+
+                m = ins["mnemonic"]
+                new_v = None
+                if m in self.errors:
+                    new_v = Violation(
+                        function=fn_name, file=ins["file"], line=ins["line"],
+                        address=ins["addr_str"], instruction=ins["raw"],
+                        mnemonic=m.upper(), reason=self.errors[m],
+                        severity=Severity.ERROR,
+                        context_before=list(recent[-6:]),
+                    )
+                elif include_warnings and m in self.warnings:
+                    new_v = Violation(
+                        function=fn_name, file=ins["file"], line=ins["line"],
+                        address=ins["addr_str"], instruction=ins["raw"],
+                        mnemonic=m.upper(), reason=self.warnings[m],
+                        severity=Severity.WARNING,
+                        context_before=list(recent[-6:]),
+                    )
+                if new_v is not None:
+                    # Bounds-check tag: if this branch's explicit target OR
+                    # its fall-through within 2 instructions reaches a panic
+                    # block, mark it. The reason text is appended with a
+                    # sentinel string so filter_go_bounds_checks can detect
+                    # without re-running the cross-instruction logic.
+                    if new_v.severity == Severity.WARNING:
+                        if self._go_branch_is_bounds_check(
+                            i, instrs, panic_addrs, ins["operands"],
+                        ):
+                            new_v.reason = (
+                                new_v.reason + " [BOUNDS_CHECK]"
+                            )
+                    violations.append(new_v)
+                    pending_after.append((new_v, 4))
+
+                recent.append(ins["raw"])
+                if len(recent) > 8:
+                    recent.pop(0)
+        return functions, violations
+
+    @staticmethod
+    def _go_branch_is_bounds_check(
+        idx: int, instrs: list[dict], panic_addrs: set[int], operands: str,
+    ) -> bool:
+        """A Go conditional branch is a bounds check if its taken target OR
+        its fall-through (within ~3 instructions, possibly via one
+        unconditional JMP) reaches a panic-block address."""
+        # Parse explicit target: the last numeric token in operands.
+        op_tail = operands.strip().split(",")[-1].strip().split()[0] if operands.strip() else ""
+        try:
+            tgt: int | None = int(op_tail)
+        except (ValueError, TypeError):
+            tgt = None
+        if tgt is not None:
+            # The Go assembler's branch operand is a *byte offset* (the
+            # second column of each instruction). Find the instruction
+            # whose decimal pc equals tgt.
+            for k in range(idx + 1, len(instrs)):
+                if instrs[k]["addr_int"] in panic_addrs:
+                    if instrs[k]["addr_int"] == _decimal_pc_to_addr(instrs, tgt):
+                        return True
+        # Fall-through window: either a panic-block address directly, or a
+        # JMP to one.
+        for k in range(idx + 1, min(idx + 4, len(instrs))):
+            if instrs[k]["addr_int"] in panic_addrs:
+                return True
+            if instrs[k]["mnemonic"] == "jmp":
+                jt_tail = instrs[k]["operands"].strip().split()[0]
+                try:
+                    jt = int(jt_tail)
+                except ValueError:
+                    continue
+                jt_addr = _decimal_pc_to_addr(instrs, jt)
+                if jt_addr in panic_addrs:
+                    return True
+        return False
 
 
 def analyze_source(
