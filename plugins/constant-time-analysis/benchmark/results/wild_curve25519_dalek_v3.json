@@ -1,0 +1,599 @@
+{
+  "label": "curve25519_dalek_v3",
+  "timestamp": 1777533390.181403,
+  "root": "benchmark/wild_rust/curve25519-dalek/target/extracted_o",
+  "n_objects": 65,
+  "n_instructions": 401720,
+  "error_count": 15,
+  "warning_count": 3231,
+  "error_count_user": 0,
+  "warning_count_user": 18,
+  "triage_breakdown": {
+    "stdlib_iter_end_likely_fp": 33,
+    "fn_declaration_dispatch_likely_fp": 1,
+    "stdlib_other_likely_fp": 74,
+    "early_return_compare_review": 1,
+    "user_code_review": 5,
+    "dependency_source_review": 3113,
+    "vartime_function_likely_fp": 11,
+    "stdlib_bounds_check_likely_fp": 8
+  },
+  "errors": [
+    {
+      "function": "curve25519_dalek::scalar::Scalar::as_radix_2w",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "line": 3576,
+      "address": "",
+      "instruction": "div    %r8d",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.04.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::scalar::Scalar::to_radix_2w_size_hint",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/num/uint_macros.rs",
+      "line": 3577,
+      "address": "",
+      "instruction": "div    %di",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.04.rcgu.o"
+    },
+    {
+      "function": "semver::identifier::bytes_for_varint",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.27/src/identifier.rs",
+      "line": 411,
+      "address": "",
+      "instruction": "div    %rcx",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "impl Clone for Identifier {",
+        "    fn clone(&self) -> Self {",
+        "        if self.is_empty_or_inline() {",
+        "            Identifier {",
+        "                head: self.head,"
+      ],
+      "object": "semver-494ee3ccabe4a21e.semver.f3f366882177dfda-cgu.0.rcgu.o"
+    },
+    {
+      "function": "semver::display::digits",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/semver-1.0.27/src/display.rs",
+      "line": 161,
+      "address": "",
+      "instruction": "div    %rcx",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "    }",
+        "    Ok(())",
+        "}",
+        "",
+        "fn digits(val: u64) -> usize {"
+      ],
+      "object": "semver-494ee3ccabe4a21e.semver.f3f366882177dfda-cgu.1.rcgu.o"
+    },
+    {
+      "function": "_<syn::punctuated::PrivateIter<T,P> as core::iter::traits::exact_size::ExactSizeIterator>::len",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/ptr/const_ptr.rs",
+      "line": 729,
+      "address": "",
+      "instruction": "div    %rcx",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "syn-00d1d49f06aec482.syn.b4abe3c366035721-cgu.05.rcgu.o"
+    },
+    {
+      "function": "_<syn::punctuated::PrivateIter<T,P> as core::iter::traits::exact_size::ExactSizeIterator>::len",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/ptr/const_ptr.rs",
+      "line": 729,
+      "address": "",
+      "instruction": "div    %rcx",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "syn-00d1d49f06aec482.syn.b4abe3c366035721-cgu.05.rcgu.o"
+    },
+    {
+      "function": "_<syn::punctuated::PrivateIter<T,P> as core::iter::traits::exact_size::ExactSizeIterator>::len",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/ptr/const_ptr.rs",
+      "line": 729,
+      "address": "",
+      "instruction": "div    %rcx",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "syn-00d1d49f06aec482.syn.b4abe3c366035721-cgu.05.rcgu.o"
+    },
+    {
+      "function": "_<syn::punctuated::PrivateIter<T,P> as core::iter::traits::exact_size::ExactSizeIterator>::len",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/ptr/const_ptr.rs",
+      "line": 729,
+      "address": "",
+      "instruction": "div    %rcx",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "syn-00d1d49f06aec482.syn.b4abe3c366035721-cgu.05.rcgu.o"
+    },
+    {
+      "function": "_<syn::punctuated::PrivateIterMut<T,P> as core::iter::traits::exact_size::ExactSizeIterator>::len",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/ptr/const_ptr.rs",
+      "line": 729,
+      "address": "",
+      "instruction": "div    %rcx",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "syn-00d1d49f06aec482.syn.b4abe3c366035721-cgu.05.rcgu.o"
+    },
+    {
+      "function": "_<syn::punctuated::PrivateIterMut<T,P> as core::iter::traits::exact_size::ExactSizeIterator>::len",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/ptr/const_ptr.rs",
+      "line": 729,
+      "address": "",
+      "instruction": "div    %rcx",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "syn-00d1d49f06aec482.syn.b4abe3c366035721-cgu.05.rcgu.o"
+    },
+    {
+      "function": "_<syn::punctuated::PrivateIterMut<T,P> as core::iter::traits::exact_size::ExactSizeIterator>::len",
+      "file": "/rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/ptr/const_ptr.rs",
+      "line": 729,
+      "address": "",
+      "instruction": "div    %rcx",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "syn-00d1d49f06aec482.syn.b4abe3c366035721-cgu.05.rcgu.o"
+    },
+    {
+      "function": "_<syn::bigint::BigInt as core::ops::arith::AddAssign<u8>>::add_assign",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/syn-2.0.114/src/bigint.rs",
+      "line": 49,
+      "address": "",
+      "instruction": "div    %dl",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "",
+        "        let mut has_nonzero = false;",
+        "        for digit in self.digits.iter().rev() {",
+        "            has_nonzero |= *digit != 0;",
+        "            if has_nonzero {"
+      ],
+      "object": "syn-00d1d49f06aec482.syn.b4abe3c366035721-cgu.14.rcgu.o"
+    },
+    {
+      "function": "_<syn::bigint::BigInt as core::ops::arith::AddAssign<u8>>::add_assign",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/syn-2.0.114/src/bigint.rs",
+      "line": 50,
+      "address": "",
+      "instruction": "div    %cl",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "",
+        "        let mut has_nonzero = false;",
+        "        for digit in self.digits.iter().rev() {",
+        "            has_nonzero |= *digit != 0;",
+        "            if has_nonzero {"
+      ],
+      "object": "syn-00d1d49f06aec482.syn.b4abe3c366035721-cgu.14.rcgu.o"
+    },
+    {
+      "function": "_<syn::bigint::BigInt as core::ops::arith::MulAssign<u8>>::mul_assign",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/syn-2.0.114/src/bigint.rs",
+      "line": 64,
+      "address": "",
+      "instruction": "div    %dl",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "",
+        "        let mut has_nonzero = false;",
+        "        for digit in self.digits.iter().rev() {",
+        "            has_nonzero |= *digit != 0;",
+        "            if has_nonzero {"
+      ],
+      "object": "syn-00d1d49f06aec482.syn.b4abe3c366035721-cgu.14.rcgu.o"
+    },
+    {
+      "function": "_<syn::bigint::BigInt as core::ops::arith::MulAssign<u8>>::mul_assign",
+      "file": "/root/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/syn-2.0.114/src/bigint.rs",
+      "line": 65,
+      "address": "",
+      "instruction": "div    %cl",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "dependency_source_review",
+      "source_snippet": [
+        "",
+        "        let mut has_nonzero = false;",
+        "        for digit in self.digits.iter().rev() {",
+        "            has_nonzero |= *digit != 0;",
+        "            if has_nonzero {"
+      ],
+      "object": "syn-00d1d49f06aec482.syn.b4abe3c366035721-cgu.14.rcgu.o"
+    }
+  ],
+  "warnings_sampled": [
+    {
+      "function": "curve25519_dalek::backend::vartime_double_base_mul",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/backend/serial/scalar_mul/vartime_double_base.rs",
+      "line": 57,
+      "address": "0x47d",
+      "instruction": "je     47d <_ZN16curve25519_dalek7backend23vartime_double_base_mul17h0386fcb4876a0aaeE+0x47d>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "    for j in (0..256).rev() {",
+        "        i = j;",
+        "        if a_naf[i] != 0 || b_naf[i] != 0 {",
+        "            break;",
+        "        }"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.09.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::backend::vector::scalar_mul::vartime_double_base::spec_avx2::mul::_impl_mul",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/backend/vector/scalar_mul/vartime_double_base.rs",
+      "line": 76,
+      "address": "0x56a",
+      "instruction": "je     56a <_ZN16curve25519_dalek7backend6vector10scalar_mul19vartime_double_base9spec_avx23mul9_impl_mul17h522e8d6f657f4a37E+0x56a>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "        for j in (0..256).rev() {",
+        "            i = j;",
+        "            if a_naf[i] != 0 || b_naf[i] != 0 {",
+        "                break;",
+        "            }"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.09.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::scalar::Scalar::non_adjacent_form",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/scalar.rs",
+      "line": 977,
+      "address": "0xd7",
+      "instruction": "jb     d7 <_ZN16curve25519_dalek6scalar6Scalar17non_adjacent_form17h7845d9e9db1a7436E+0xd7>",
+      "mnemonic": "JB",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "",
+        "            // Read the bits from the scalar",
+        "            let bit_buf: u64 = if bit_idx < 64 - w || u64_idx == 3 {",
+        "                // This window's bits are contained in a single u64,",
+        "                // or it's the last u64 anyway."
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.04.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::scalar::Scalar::as_radix_2w",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/scalar.rs",
+      "line": 1121,
+      "address": "0x280",
+      "instruction": "je     280 <_ZN16curve25519_dalek6scalar6Scalar11as_radix_2w17h9f382c010e4224f6E+0x280>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "",
+        "            // Read the bits from the scalar",
+        "            let bit_buf: u64 = if bit_idx < 64 - w || u64_idx == 3 {",
+        "                // This window's bits are contained in a single u64,",
+        "                // or it's the last u64 anyway."
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.04.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::backend::variable_base_mul",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/backend.rs",
+      "line": 254,
+      "address": "0x55",
+      "instruction": "jne    55 <_ZN16curve25519_dalek7backend17variable_base_mul17h46c30361d7f58e7dE+0x55>",
+      "mnemonic": "JE/JNE",
+      "reason": "2 conditional branches at this source line (JE, JNE); inspect the if/for/match and confirm its condition does not depend on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "/// Perform constant-time, variable-base scalar multiplication.",
+        "pub fn variable_base_mul(point: &EdwardsPoint, scalar: &Scalar) -> EdwardsPoint {",
+        "    match get_selected_backend() {",
+        "        #[cfg(curve25519_dalek_backend = \"simd\")]",
+        "        BackendKind::Avx2 => vector::scalar_mul::variable_base::spec_avx2::mul(point, scalar),"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.09.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::backend::vector::scalar_mul::vartime_double_base::spec_avx2::mul::_impl_mul",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/backend/vector/scalar_mul/vartime_double_base.rs",
+      "line": 96,
+      "address": "0x609",
+      "instruction": "jae    609 <_ZN16curve25519_dalek7backend6vector10scalar_mul19vartime_double_base9spec_avx23mul9_impl_mul17h522e8d6f657f4a37E+0x609>",
+      "mnemonic": "JAE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "        for j in (0..256).rev() {",
+        "            i = j;",
+        "            if a_naf[i] != 0 || b_naf[i] != 0 {",
+        "                break;",
+        "            }"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.09.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::scalar::Scalar::non_adjacent_form",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/scalar.rs",
+      "line": 988,
+      "address": "0x100",
+      "instruction": "jne    100 <_ZN16curve25519_dalek6scalar6Scalar17non_adjacent_form17h7845d9e9db1a7436E+0x100>",
+      "mnemonic": "JNE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "",
+        "            // Read the bits from the scalar",
+        "            let bit_buf: u64 = if bit_idx < 64 - w || u64_idx == 3 {",
+        "                // This window's bits are contained in a single u64,",
+        "                // or it's the last u64 anyway."
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.04.rcgu.o"
+    },
+    {
+      "function": "_<curve25519_dalek::edwards::EdwardsBasepointTableRadix128 as curve25519_dalek::traits::BasepointTable>::create",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/edwards.rs",
+      "line": 1131,
+      "address": "0x14",
+      "instruction": "jne    14 <_ZN116_$LT$curve25519_dalek..edwards..EdwardsBasepointTableRadix32$u20$as$u20$curve25519_dalek..traits..BasepointTable$GT$6create17h90a0a351a6810783E+0x14>",
+      "mnemonic": "JNE",
+      "reason": "4 conditional branches at this source line (JNE); inspect the if/for/match and confirm its condition does not depend on secret data; reached from 4 functions including _<curve25519_dalek::edwards::EdwardsBasepointTableRadix128 as curve25519_dalek::traits::BasepointTable>::create, _<curve25519_dalek::edwards::EdwardsBasepointTableRadix256 as curve25519_dalek::traits::BasepointTable>::create",
+      "severity": "warning",
+      "triage_hint": "fn_declaration_dispatch_likely_fp",
+      "source_snippet": [
+        "",
+        "            /// Create a table of precomputed multiples of `basepoint`.",
+        "            fn create(basepoint: &$point) -> $name {",
+        "                // XXX use init_with",
+        "                let mut table = $name([$table::default(); 32]);"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.00.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::backend::vartime_double_base_mul",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/backend/serial/scalar_mul/vartime_double_base.rs",
+      "line": 51,
+      "address": "0x720",
+      "instruction": "je     720 <_ZN16curve25519_dalek7backend23vartime_double_base_mul17h0386fcb4876a0aaeE+0x720>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "    for j in (0..256).rev() {",
+        "        i = j;",
+        "        if a_naf[i] != 0 || b_naf[i] != 0 {",
+        "            break;",
+        "        }"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.09.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::backend::serial::u64::field::FieldElement51::pow2k",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/backend/serial/u64/field.rs",
+      "line": 553,
+      "address": "0x30",
+      "instruction": "jne    30 <_ZN16curve25519_dalek7backend6serial3u645field14FieldElement515pow2k17hdb68c6c77b1722e8E+0x30>",
+      "mnemonic": "JNE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "early_return_compare_review",
+      "source_snippet": [
+        "",
+        "            k -= 1;",
+        "            if k == 0 {",
+        "                break;",
+        "            }"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.03.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::backend::vartime_double_base_mul",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/backend/serial/scalar_mul/vartime_double_base.rs",
+      "line": 35,
+      "address": "0x2e1",
+      "instruction": "jb     2e1 <_ZN16curve25519_dalek7backend23vartime_double_base_mul17h0386fcb4876a0aaeE+0x2e1>",
+      "mnemonic": "JB",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "    for j in (0..256).rev() {",
+        "        i = j;",
+        "        if a_naf[i] != 0 || b_naf[i] != 0 {",
+        "            break;",
+        "        }"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.09.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::backend::vartime_double_base_mul",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/backend.rs",
+      "line": 268,
+      "address": "0x5b",
+      "instruction": "jne    5b <_ZN16curve25519_dalek7backend23vartime_double_base_mul17h0386fcb4876a0aaeE+0x5b>",
+      "mnemonic": "JE/JNE",
+      "reason": "2 conditional branches at this source line (JE, JNE); inspect the if/for/match and confirm its condition does not depend on secret data",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "/// Perform constant-time, variable-base scalar multiplication.",
+        "pub fn variable_base_mul(point: &EdwardsPoint, scalar: &Scalar) -> EdwardsPoint {",
+        "    match get_selected_backend() {",
+        "        #[cfg(curve25519_dalek_backend = \"simd\")]",
+        "        BackendKind::Avx2 => vector::scalar_mul::variable_base::spec_avx2::mul(point, scalar),"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.09.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::backend::vartime_double_base_mul",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/scalar.rs",
+      "line": 988,
+      "address": "0x160",
+      "instruction": "jne    160 <_ZN16curve25519_dalek7backend23vartime_double_base_mul17h0386fcb4876a0aaeE+0x160>",
+      "mnemonic": "JNE",
+      "reason": "4 conditional branches at this source line (JNE); inspect the if/for/match and confirm its condition does not depend on secret data; reached from: curve25519_dalek::backend::vartime_double_base_mul, curve25519_dalek::backend::vector::scalar_mul::vartime_double_base::spec_avx2::mul::_impl_mul",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "            let window = carry + (bit_buf & window_mask);",
+        "",
+        "            if window & 1 == 0 {",
+        "                // If the window value is even, preserve the carry and continue.",
+        "                // Why is the carry preserved?"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.09.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::backend::vartime_double_base_mul",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/backend/serial/scalar_mul/vartime_double_base.rs",
+      "line": 65,
+      "address": "0x855",
+      "instruction": "jb     855 <_ZN16curve25519_dalek7backend23vartime_double_base_mul17h0386fcb4876a0aaeE+0x855>",
+      "mnemonic": "JB",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "    for j in (0..256).rev() {",
+        "        i = j;",
+        "        if a_naf[i] != 0 || b_naf[i] != 0 {",
+        "            break;",
+        "        }"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.09.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::backend::vector::scalar_mul::vartime_double_base::spec_avx2::mul::_impl_mul",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/backend/vector/scalar_mul/vartime_double_base.rs",
+      "line": 57,
+      "address": "0x221",
+      "instruction": "jb     221 <_ZN16curve25519_dalek7backend6vector10scalar_mul19vartime_double_base9spec_avx23mul9_impl_mul17h522e8d6f657f4a37E+0x221>",
+      "mnemonic": "JB",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "        for j in (0..256).rev() {",
+        "            i = j;",
+        "            if a_naf[i] != 0 || b_naf[i] != 0 {",
+        "                break;",
+        "            }"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.09.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::backend::vartime_double_base_mul",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/scalar.rs",
+      "line": 973,
+      "address": "0x105",
+      "instruction": "jb     105 <_ZN16curve25519_dalek7backend23vartime_double_base_mul17h0386fcb4876a0aaeE+0x105>",
+      "mnemonic": "JB",
+      "reason": "4 conditional branches at this source line (JB); inspect the if/for/match and confirm its condition does not depend on secret data; reached from: curve25519_dalek::backend::vartime_double_base_mul, curve25519_dalek::backend::vector::scalar_mul::vartime_double_base::spec_avx2::mul::_impl_mul",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "            let window = carry + (bit_buf & window_mask);",
+        "",
+        "            if window & 1 == 0 {",
+        "                // If the window value is even, preserve the carry and continue.",
+        "                // Why is the carry preserved?"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.09.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::montgomery::MontgomeryPoint::to_edwards",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/montgomery.rs",
+      "line": 256,
+      "address": "0x95",
+      "instruction": "je     95 <_ZN16curve25519_dalek10montgomery15MontgomeryPoint10to_edwards17h4c42be8ace8c9e4cE+0x95>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "        let u = FieldElement::from_bytes(&self.0);",
+        "",
+        "        if u == FieldElement::MINUS_ONE {",
+        "            return None;",
+        "        }"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.06.rcgu.o"
+    },
+    {
+      "function": "curve25519_dalek::backend::vector::scalar_mul::vartime_double_base::spec_avx2::mul::_impl_mul",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/curve25519-dalek/curve25519-dalek/src/backend/vector/scalar_mul/vartime_double_base.rs",
+      "line": 86,
+      "address": "0x36d",
+      "instruction": "je     36d <_ZN16curve25519_dalek7backend6vector10scalar_mul19vartime_double_base9spec_avx23mul9_impl_mul17h522e8d6f657f4a37E+0x36d>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "        for j in (0..256).rev() {",
+        "            i = j;",
+        "            if a_naf[i] != 0 || b_naf[i] != 0 {",
+        "                break;",
+        "            }"
+      ],
+      "object": "curve25519_dalek-6da6ee20c408d471.curve25519_dalek.b240648ce56c0099-cgu.09.rcgu.o"
+    }
+  ],
+  "build_valid": true
+}

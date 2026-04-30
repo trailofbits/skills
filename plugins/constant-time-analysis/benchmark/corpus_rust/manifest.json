@@ -1,0 +1,92 @@
+{
+  "schema_version": 2,
+  "language": "rust",
+  "description": "Curated Rust constant-time corpus. Each file compiles standalone with `rustc --edition=2021 --crate-type lib`. Ground-truth violations are matched on `(function-name-substring, mnemonic-class)`. Function-based matching is necessary because rustc's debug info often attributes inlined operations to their stdlib source location, not the user's call site -- but the function attribution stays correct.",
+  "files": [
+    {
+      "path": "clean/ct_eq_bytes.rs",
+      "label": "clean",
+      "ground_truth_violations": []
+    },
+    {
+      "path": "clean/ct_select.rs",
+      "label": "clean",
+      "ground_truth_violations": []
+    },
+    {
+      "path": "clean/zeroize_volatile.rs",
+      "label": "clean",
+      "ground_truth_violations": []
+    },
+    {
+      "path": "clean/chacha20_quarter_round.rs",
+      "label": "clean",
+      "ground_truth_violations": []
+    },
+    {
+      "path": "clean/curve25519_field_mul.rs",
+      "label": "clean",
+      "ground_truth_violations": []
+    },
+    {
+      "path": "clean/hkdf_expand.rs",
+      "label": "clean",
+      "ground_truth_violations": []
+    },
+    {
+      "path": "vulnerable/kyberslash.rs",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"function": "compress_paramq_vulnerable", "line": 11, "kind": "div_on_secret"},
+        {"function": "decompress_paramq_vulnerable", "line": 19, "kind": "div_on_secret"}
+      ]
+    },
+    {
+      "path": "vulnerable/lucky13.rs",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"function": "lucky13_mac_check", "line": 25, "kind": "secret_loop_bound"},
+        {"function": "lucky13_mac_check", "line": 31, "kind": "memcmp_on_secret"}
+      ]
+    },
+    {
+      "path": "vulnerable/rsa_modexp_naive.rs",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"function": "rsa_modexp_naive", "line": 16, "kind": "branch_on_secret"},
+        {"function": "rsa_modexp_naive", "line": 18, "kind": "div_on_secret"},
+        {"function": "rsa_modinv_euclid_vulnerable", "line": 32, "kind": "div_on_secret"}
+      ]
+    },
+    {
+      "path": "vulnerable/naive_mac_compare.rs",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"function": "verify_signature_early_exit", "line": 49, "kind": "memcmp_on_secret"}
+      ],
+      "note": "Only the manual early-exit loop is genuinely variable-time at the asm level. `[u8; N] == ` lowers to pcmpeqb (CT SIMD) and `&[u8] == ` branches on length only with the contents-compare in libc bcmp."
+    },
+    {
+      "path": "vulnerable/branch_lt_secret.rs",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"function": "ct_lt_naive", "line": 10, "kind": "branch_on_secret"},
+        {"function": "modular_reduce_naive", "line": 18, "kind": "branch_on_secret"}
+      ]
+    },
+    {
+      "path": "vulnerable/dsa_nonce_reduce.rs",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"function": "nonce_reduce_minerva_vulnerable", "line": 13, "kind": "branch_on_secret"},
+        {"function": "dsa_compute_s_vulnerable", "line": 26, "kind": "div_on_secret"}
+      ]
+    },
+    {
+      "path": "limitation_no_signal/aes_ttable.rs",
+      "label": "limitation_no_signal",
+      "ground_truth_violations": [],
+      "note": "AES T-table is a CACHE-timing leak; instruction-level analysis cannot see it. Counted as 'no expected detection' rather than 'clean'."
+    }
+  ]
+}

@@ -1,1 +1,8 @@
 *.pyc
+__pycache__/
+.venv/
+
+# Wild benchmark clones live under the repo for ergonomics but should
+# never be committed -- each is multiple-megabyte cargo workspace.
+benchmark/wild_rust/*/
+!benchmark/wild_rust/.gitkeep

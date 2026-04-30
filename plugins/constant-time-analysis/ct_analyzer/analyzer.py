@@ -1181,6 +1181,15 @@ TRIAGE_DEPENDENCY = "dependency_source_review"
 TRIAGE_FN_DECL = "fn_declaration_dispatch_likely_fp"
 TRIAGE_LOOP_BOUND = "user_loop_bound_likely_fp"
 TRIAGE_REJECTION_LOOP = "rejection_sample_loop_likely_fp"
+TRIAGE_ITER_LOOP = "iterator_loop_likely_fp"
+TRIAGE_LEN_COMPARE = "public_length_compare_likely_fp"
+# `vartime_*` is a Rust crypto convention for explicitly-variable-time
+# code paths whose operands are public (signature verification,
+# public-key-only operations, batch verification). The convention is
+# enforced in audited crypto crates: curve25519-dalek, ed25519-dalek,
+# k256/p256/p384, rsa, ring. A branch in a `vartime_*` function is
+# almost always a false positive at the crypto level.
+TRIAGE_VARTIME = "vartime_function_likely_fp"
 TRIAGE_RODATA_COMPARE = "compare_to_constant_likely_fp"
 TRIAGE_EARLY_RETURN_CMP = "early_return_compare_review"
 TRIAGE_USER_REVIEW = "user_code_review"
@@ -1229,8 +1238,24 @@ _FN_DECL_RE = re.compile(
 )
 _FOR_RANGE_LITERAL_RE = re.compile(r"^\s*for\s+\w+\s+in\s+0\.\.\s*[A-Z_][A-Z0-9_]*")
 _FOR_RANGE_NUMBER_RE = re.compile(r"^\s*for\s+\w+\s+in\s+0\.\.\s*[0-9]")
+# `for x in buf.iter()`, `for x in buf.iter_mut()`, `for x in buf.into_iter()`,
+# `for x in &buf`, etc. The loop bound is the container's length, which is
+# typically public (slice length, fixed-size array, message length).
+_FOR_ITER_RE = re.compile(
+    r"^\s*for\s+\w+\s+in\s+(?:&\s*)?\w+"
+    r"(?:\s*\.\s*(?:iter|iter_mut|into_iter|chunks|chunks_mut|chunks_exact|"
+    r"chunks_exact_mut|windows|enumerate|zip)\([^)]*\))?\s*\{?"
+)
 _REJECTION_LOOP_RE = re.compile(r"^\s*while\s+!?\s*done\b|^\s*while\s+\w+\s*<\s*[A-Z_][A-Z0-9_]*\b")
 _CMP_TO_UPPER_CONST_RE = re.compile(r"<\s*[A-Z_][A-Z0-9_]+\b|>\s*[A-Z_][A-Z0-9_]+\b|==\s*[A-Z_][A-Z0-9_]+\b")
+# `if a.len() != b.len()`, `if x.is_empty()`, `if buf.len() < 16`, etc.
+# Length / emptiness checks are on metadata that is virtually always
+# public (slice length is structural, not content-derived).
+_LEN_COMPARE_RE = re.compile(
+    r"^\s*if\s+"
+    r"(?:[\w.]+\.\s*(?:len|is_empty|is_zero)\s*\(\s*\)|[\w.]+\.\s*len\s*\(\s*\))"
+    r"\s*(?:[!<>=]+|&&|\|\|)"
+)
 _EARLY_RETURN_RE = re.compile(
     r"^\s*if\s+.+\s*(?:!=|==)\s*\w+(?:\[.+\])?\s*\{\s*$|"  # if a != b {
     r"return\s+\w+\s*[!=]=\s*"                              # return a == b ...
@@ -1252,6 +1277,19 @@ def classify_violation(
     """
     file_path = violation.file or ""
     line = violation.line
+    function = (violation.function or "")
+
+    # Rule V (function naming): `vartime_*` is the Rust crypto crate
+    # convention for explicitly-variable-time code paths. dalek, ring,
+    # k256/p256, rsa all use it. A branch in `Scalar::vartime_double_base_mul`
+    # is by-design variable-time on PUBLIC operands (signatures,
+    # public keys). High-confidence FP.
+    if "vartime" in function.lower():
+        # Skip if `vartime` appears as part of a bigger word, e.g.
+        # `vartimely_unsafe_function` (unlikely, but be precise).
+        import re as _re
+        if _re.search(r"(?:^|::|<|\b)(?:_)?vartime(?:_|::|>|\b)", function):
+            return TRIAGE_VARTIME
 
     # Rules A & B: stdlib path, most specific marker wins.
     for marker, hint in _STDLIB_PATH_MARKERS:
@@ -1288,12 +1326,25 @@ def classify_violation(
     if _FOR_RANGE_LITERAL_RE.match(cited) or _FOR_RANGE_NUMBER_RE.match(cited):
         return TRIAGE_LOOP_BOUND
 
+    # Rule F1b: `for x in container.iter()` / `for x in &container` --
+    # iteration count is the container length, which is metadata, not
+    # contents. The textbook example: `for b in buf.iter_mut() { b ^= 0; }`
+    # is constant-time despite emitting a JE/JNE for the iterator end.
+    if _FOR_ITER_RE.match(cited):
+        return TRIAGE_ITER_LOOP
+
     # Rule F2: comparison against an UPPER_SNAKE_CASE constant. Captures
     # the libcrux `if sampled_coefficients[i] < COEFFICIENTS_IN_RING_ELEMENT`
     # pattern that the asm-level cmp-imm filter misses because the
     # constant is loaded into a register before the cmp.
     if _CMP_TO_UPPER_CONST_RE.search(cited):
         return TRIAGE_RODATA_COMPARE
+
+    # Rule F3: length / emptiness check at the head of a function.
+    # `if a.len() != b.len() { return ... }` is the canonical Rust idiom
+    # for length-mismatch handling; `len()` is metadata, not content.
+    if _LEN_COMPARE_RE.match(cited):
+        return TRIAGE_LEN_COMPARE
 
     # Rule G: textbook early-exit-compare pattern. This is the textbook
     # MAC-tag-mismatch / padding-oracle bug. We mark for review, NOT as
