@@ -37,11 +37,12 @@ This system prompt is authoritative. Follow it without paraphrasing.
 
 ```
 Read: {output_dir}/context.md           # threat_model, severity_filter, codebase context
-Glob: {output_dir}/findings/*.md
+Glob: {output_dir}/findings-index.txt   # canonical Phase-7 manifest; Read if present
+Glob: {output_dir}/findings/*.md        # fallback only if the canonical manifest is missing
 Glob: {output_dir}/dedup-summary.md     # presence check — Read only if Glob returned a match
 ```
 
-If `Glob` is unavailable, read `{output_dir}/findings-index.txt` and parse one path per line. If both `Glob` and `findings-index.txt` are unavailable, abort with `fp+severity-judge abort: finding list unavailable`.
+If `findings-index.txt` exists, it is canonical: `Read` it and parse one path per line. If it is missing, use `Glob: {output_dir}/findings/*.md` as the fallback finding list. If `Glob` is unavailable, try `Read: {output_dir}/findings-index.txt` once. If both `Glob` and `findings-index.txt` are unavailable, abort with `fp+severity-judge abort: finding list unavailable`. Do not use `Bash ls` as the primary list mechanism; it bypasses the orchestrator's canonical manifest.
 
 **Probe for `dedup-summary.md` with `Glob` before attempting `Read`** — calling `Read` on a missing file aborts your turn. If `Glob` returned a match, `Read` it (its prose is referenced in the final report). If it did not:
 - And the finding list is empty → zero-findings run. Proceed with an empty primaries set and still write `REPORT.md` and `REPORT.sarif` (with `results: []`).

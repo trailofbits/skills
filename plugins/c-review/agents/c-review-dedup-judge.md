@@ -32,30 +32,31 @@ Everything else lives in `{output_dir}` itself: `findings/*.md`, `findings-index
 
 ## Self-check — load the finding list
 
-Your **first tool call** must be `Glob` against the findings directory:
+Your **first tool call** must check for the canonical Phase-7 manifest:
 
 ```
-Glob: {output_dir}/findings/*.md
+Glob: {output_dir}/findings-index.txt
 ```
 
-**If `Glob` raises `InputValidationError`, "tool not found", or returns no matches when findings clearly exist, fall back through this chain in order:**
+Load the finding list through this chain in order:
 
-1. `Read: {output_dir}/findings-index.txt` — the canonical, deterministic, sorted manifest the orchestrator writes in Phase 7. Parse one path per line.
-2. If that file is missing (e.g., the orchestrator died before Phase 7), `Glob: {output_dir}/findings-index.d/worker-*.txt` and `Read` each shard. Each shard contains one path per line; concatenate and de-duplicate.
+1. If `findings-index.txt` exists, `Read` it and parse one path per line. This file is canonical: it is deterministic, sorted, and includes the orchestrator's final view of worker output.
+2. If the canonical index is missing (for example, the orchestrator died before Phase 7), `Glob: {output_dir}/findings-index.d/worker-*.txt` and `Read` each shard. Each shard contains one path per line; concatenate and de-duplicate.
+3. If neither the canonical index nor shards exist, `Glob: {output_dir}/findings/*.md` as a last-resort recovery list.
 
-An **empty** `findings-index.txt` (or no shards in step 2) is the unambiguous "zero findings" signal — write a minimal `dedup-summary.md` noting zero findings and exit cleanly.
+An **empty** canonical `findings-index.txt` is the unambiguous "zero findings" signal — write a minimal `dedup-summary.md` noting zero findings and exit cleanly. If the index is missing and shard files exist but concatenate to an empty list, also treat it as zero findings. If no shard files match, continue to the `findings/*.md` fallback.
 
-If **none** of `Glob: findings/*.md`, `findings-index.txt`, or the shard dir resolves, abort with a one-line error:
+If `Glob` itself raises `InputValidationError` or "tool not found", try `Read: {output_dir}/findings-index.txt` once and parse one path per line. If that direct read also fails, abort with a one-line error:
 
 ```
-dedup-judge abort: Glob unavailable and findings-index.txt + shard dir both missing
+dedup-judge abort: finding list unavailable; canonical index missing/unreadable and Glob unavailable
 ```
 
 **Forbidden recovery moves** (every one of these has burned a real run):
 - Do **not** call `Read` on the `findings/` directory itself — `Read` errors without a listing.
 - Do **not** invent filenames like `BOF-001.md`, `finding-001.md`, `01.json`, `findings.json`.
 - Do **not** search for an external "dedup-judge protocol" file. **This system prompt is the protocol.** There is no separate file to load.
-- Do **not** spend turns probing parent directories or alternative paths. If the index isn't there on the first attempt, abort — the orchestrator will surface the wiring problem.
+- Do **not** spend turns probing parent directories or alternative paths. If the canonical index, shards, and findings glob are all unavailable, abort — the orchestrator will surface the wiring problem.
 
 After the finding list is loaded, also `Read: {output_dir}/context.md` once for threat-model context (used in summary labels only).
 

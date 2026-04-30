@@ -17,7 +17,7 @@ Six bug classes that all reason about **attacker influence over the ambient proc
 
 ID prefixes: `ACCESS`, `ENVVAR`, `PRIVDROP`, `FS`, `TIME`, `DOS`.
 
-If the active threat model is `REMOTE`, the orchestrator sets `task.metadata.skip_subclasses = ["privilege-drop", "envvar"]`. Skip those passes but keep the pass indices stable for `sub_prompt_paths` alignment.
+If the active threat model is `REMOTE`, the run-plan builder hard-drops `privilege-drop` and `envvar`; they will not appear in `sub_prompt_paths` or `pass_bug_classes`. If they are absent, do not reconstruct or run those passes.
 
 ---
 

@@ -14,7 +14,7 @@ covers:
 
 # Cluster: Arithmetic & type
 
-Seven bug classes that share a common investigative tool: **LSP `hover` / `goToDefinition` on expressions** to resolve widths, signedness, and type identities. The shared work is the type/width inventory at each expression of interest.
+Seven bug classes that share a common investigative task: resolve widths, signedness, and type identities with `Grep`, `Read`, and nearby typedef/macro/struct definitions. The shared work is the type/width inventory at each expression of interest.
 
 ID prefixes: `INT`, `TYPE`, `PREC`, `OOBCMP`, `NULLZERO`, `UB`, `COMP`.
 
@@ -35,13 +35,13 @@ Grep: pattern="==\\s*NULL|!=\\s*NULL|==\\s*0|!=\\s*0"        # NULL-vs-zero comp
 Grep: pattern="!=\\s*-1|==\\s*-1|<\\s*0"                     # error-return comparisons
 ```
 
-Keep results as `expr_sites`. For each site, note `path:line` and the surrounding expression text — you will `hover` on specific tokens only when a pass demands it.
+Keep results as `expr_sites`. For each site, note `path:line` and the surrounding expression text; resolve type details by reading definitions only when a pass demands them.
 
 ---
 
 ## Phase B — Passes in order (reuse `expr_sites`)
 
-Read and apply each sub-prompt in turn. Use `LSP hover` sparingly and only on expressions already in `expr_sites`.
+Read and apply each sub-prompt in turn. Use focused `Read`/`Grep` follow-ups only on expressions already in `expr_sites`.
 
 1. **`PREC` — Operator precedence**
    Cheap, syntactic; run first to filter "this expression parses as you thought."
@@ -50,7 +50,7 @@ Read and apply each sub-prompt in turn. Use `LSP hover` sparingly and only on ex
    Focus on allocation-size math and loop bounds drawn from `expr_sites`.
 
 3. **`OOBCMP` — Out-of-bounds / signed-vs-unsigned comparisons**
-   `hover` on both sides of comparisons flagged in `expr_sites`.
+   Resolve both sides of comparisons flagged in `expr_sites`.
 
 4. **`NULLZERO` — NULL / zero confusion**
    Use the `==NULL`/`==0` subset of `expr_sites`.
@@ -80,4 +80,22 @@ Priority (higher wins):
 
 ## Token-economy reminder
 
-`hover`/`goToDefinition` results are cached by the LSP server but **not** by the model. Collect each expression's type info in a short working table (`expr → width × signedness`) and reuse across passes instead of re-hovering.
+Collect each expression's type info in a short working table (`expr -> width x signedness`) and reuse it across passes instead of re-reading the same typedefs, macros, and struct definitions.
+
+---
+
+## Coverage gate (mandatory before `worker-N complete:`)
+
+A previous run silently skipped `NULLZERO` and `TYPE` because their Phase-A seed greps either weren't issued or returned hits that were never followed up on. Before emitting the complete line, verify each pass below has a recorded outcome — either at least one finding filed, or one explicit "cleared because <reason grounded in code reads>" line in your run notes. **Saying "no candidates in `expr_sites`" is only a valid clearance if the corresponding Phase-A grep actually ran and returned empty.**
+
+| Pass | Required Phase-A grep | Minimum outcome |
+|---|---|---|
+| `PREC` | multiplication-near-addition | finding OR explicit clear |
+| `INT` | `sizeof(...)*` / `*sizeof` and signed/unsigned arithmetic | finding OR explicit clear |
+| `OOBCMP` | `!=-1` / `==-1` / `<0` | finding OR explicit clear |
+| `NULLZERO` | `==NULL` / `!=NULL` / `==0` / `!=0` — **MUST run** | finding OR explicit clear citing at least 2 inspected sites |
+| `TYPE` | pointer casts AND `\b(union)\b` — **both MUST run** | finding OR explicit clear citing at least 2 inspected sites |
+| `UB` | shift expressions, signed arithmetic | finding OR explicit clear |
+| `COMP` | (no Phase-A seed; runs on prior findings) | finding OR explicit "no UB/INT/TYPE findings to amplify" |
+
+If `NULLZERO` or `TYPE` would otherwise have *zero* recorded activity (no grep, no read, no clearance note), do **not** emit `complete:` — instead run the missing grep, inspect the top hits, and only then close out. The orchestrator counts a zero-finding worker as success only when the cluster was honestly exercised; silent skips of these two sub-prompts have produced false-negative runs in the past.

@@ -43,7 +43,7 @@ Grep: pattern="\\[\\s*0\\s*\\]\\s*;|\\[\\s*1\\s*\\]\\s*;"   # FAM-style struct h
 Grep: pattern="__attribute__\\s*\\(\\s*\\(\\s*format"        # existing printf-attr annotations
 ```
 
-Optional LSP supplement (only if clangd is live): for each unique callee in `sink_sites`, `findReferences` to confirm the grep's call-site count and catch macro-wrapped calls.
+Optional source supplement: for each unique callee in `sink_sites`, run focused callee-name `Grep` searches and read local macro/wrapper definitions to confirm the call-site count and catch macro-wrapped calls.
 
 **Do not file findings during Phase A.** Just build the inventory.
 
@@ -63,7 +63,7 @@ The passes are ordered so earlier passes "consume" the obvious cases, leaving la
 
 **FPs to skip (do not file):**
 - The name appears in a comment, string literal, or test that deliberately exercises unsafe functions.
-- A project-local macro or inline wrapper shadows the libc name with a bounded implementation (verify with `goToDefinition` before skipping).
+- A project-local macro or inline wrapper shadows the libc name with a bounded implementation (verify by reading the macro/wrapper definition before skipping).
 - Code explicitly guarded by `#ifdef` for a platform not being audited.
 
 **Prefix:** `BAN`.
@@ -81,7 +81,7 @@ The passes are ordered so earlier passes "consume" the obvious cases, leaving la
 **Callees:** anything in the `printf` / `syslog` family.
 
 **Bug patterns:**
-- Non-literal format string: `printf(user_input)` instead of `printf("%s", user_input)`. For each site, `hover`/`Read` the first argument — is it a string literal or a variable?
+- Non-literal format string: `printf(user_input)` instead of `printf("%s", user_input)`. For each site, `Read` the first argument's local definition/use — is it a string literal or a variable?
 - `%n` anywhere (write primitive).
 - Type/size mismatches (`%d` on pointer, `%s` on int, `%d` vs `%ld`).
 - Variadic wrapper functions without `__attribute__((format))`.

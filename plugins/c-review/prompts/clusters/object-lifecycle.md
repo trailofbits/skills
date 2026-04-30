@@ -34,7 +34,7 @@ Project-specific allocator wrappers matter at least as much as libc ones. Detect
 Grep: pattern="(?i)^\\s*\\w*(new|alloc|create|init|join|leave|delete|destroy|fini|release)\\b"
 ```
 
-For each project-typed object (`fd_foo_t`, etc.), use `findReferences` on its `_new`/`_delete`/`_join`/`_leave`/`_init`/`_fini` pair to locate every constructor, destructor, and attach/detach call site. Track these as the object's lifecycle boundary — NOT just libc `malloc`/`free`.
+For each project-typed object (`fd_foo_t`, etc.), run focused `Grep` searches for its `_new`/`_delete`/`_join`/`_leave`/`_init`/`_fini` pair to locate every constructor, destructor, and attach/detach call site. Track these as the object's lifecycle boundary — NOT just libc `malloc`/`free`.
 
 Also record (for UNINIT and NULL passes): for every declaration of pointer/struct variables, whether the declaration has an initializer.
 

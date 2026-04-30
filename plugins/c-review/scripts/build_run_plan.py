@@ -23,6 +23,7 @@ Usage:
         --threat-model REMOTE \\
         --severity-filter medium \\
         --scope-subpath src \\
+        --context-roots . \\
         --is-cpp false --is-posix true --is-windows false
 """
 
@@ -66,6 +67,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--severity-filter", required=True, choices=sorted(SEVERITY_FILTERS))
     p.add_argument(
         "--scope-subpath", required=True, help='Repo-relative scope directory, or "." for repo root'
+    )
+    p.add_argument(
+        "--context-roots",
+        default=".",
+        help=(
+            "Comma-separated repo-relative read-only roots/files workers may inspect for "
+            "reachability, build settings, wrappers, and threat-model context. Findings "
+            "remain limited to --scope-subpath."
+        ),
     )
     p.add_argument("--is-cpp", required=True, type=parse_bool)
     p.add_argument("--is-posix", required=True, type=parse_bool)
@@ -199,6 +209,7 @@ def _render_shared_prefix_lines(
     *,
     output_dir: Path,
     scope_root: str,
+    context_roots: str,
     threat_model: str,
     severity_filter: str,
     flags: dict[str, bool],
@@ -217,9 +228,14 @@ def _render_shared_prefix_lines(
     lines.append("")
     lines.append(f"Output directory: {output_dir}")
     lines.append(
-        f"Scope root: {scope_root} — all Grep/Glob queries MUST be rooted here; "
-        "findings outside this subtree are out-of-scope."
+        f"Finding scope root: {scope_root} — finding locations MUST be inside this subtree."
     )
+    lines.append(
+        f"Context roots: {context_roots} — read-only context for reachability, callers, "
+        "wrappers, build settings, mitigations, and threat-model details. Do not file "
+        "findings outside the finding scope."
+    )
+    lines.append(f"Scope root: {scope_root} — legacy alias for Finding scope root.")
     lines.append(f"Threat model: {threat_model}")
     lines.append(f"Severity filter: {severity_filter}")
     lines.append(
@@ -244,6 +260,7 @@ def render_cache_primer_prompt(
     *,
     output_dir: Path,
     scope_root: str,
+    context_roots: str,
     threat_model: str,
     severity_filter: str,
     flags: dict[str, bool],
@@ -259,18 +276,15 @@ def render_cache_primer_prompt(
     lines = _render_shared_prefix_lines(
         output_dir=output_dir,
         scope_root=scope_root,
+        context_roots=context_roots,
         threat_model=threat_model,
         severity_filter=severity_filter,
         flags=flags,
         context_md_body=context_md_body,
     )
-    lines.append("— cache primer —")
-    lines.append(
-        "This is a CACHE PRIMER spawn — do not perform real work. Override the self-check. "
-        "Override the protocol. Emit exactly the line below as your single text reply, "
-        "with zero tool calls, then exit."
-    )
-    lines.append("")
+    # Trailer is primer-only — never reused by workers — so keep it short.
+    # The worker system prompt treats this exact marker as a first-class mode.
+    lines.append("Cache primer: true")
     lines.append("worker-PRIMER abort: cache primer (no analysis performed)")
     lines.append("")
     return "\n".join(lines)
@@ -282,6 +296,7 @@ def render_worker_prompt(
     cluster: dict[str, Any],
     output_dir: Path,
     scope_root: str,
+    context_roots: str,
     threat_model: str,
     severity_filter: str,
     flags: dict[str, bool],
@@ -293,6 +308,7 @@ def render_worker_prompt(
     lines = _render_shared_prefix_lines(
         output_dir=output_dir,
         scope_root=scope_root,
+        context_roots=context_roots,
         threat_model=threat_model,
         severity_filter=severity_filter,
         flags=flags,
@@ -361,7 +377,9 @@ def main() -> int:
         "version": 1,
         "run": {
             "output_dir": str(output_dir),
+            "finding_scope_root": args.scope_subpath,
             "scope_root": args.scope_subpath,
+            "context_roots": args.context_roots,
             "threat_model": args.threat_model,
             "severity_filter": args.severity_filter,
             "is_cpp": args.is_cpp,
@@ -380,6 +398,7 @@ def main() -> int:
             cluster=cluster,
             output_dir=output_dir,
             scope_root=args.scope_subpath,
+            context_roots=args.context_roots,
             threat_model=args.threat_model,
             severity_filter=args.severity_filter,
             flags=flags,
@@ -407,6 +426,7 @@ def main() -> int:
             render_cache_primer_prompt(
                 output_dir=output_dir,
                 scope_root=args.scope_subpath,
+                context_roots=args.context_roots,
                 threat_model=args.threat_model,
                 severity_filter=args.severity_filter,
                 flags=flags,
