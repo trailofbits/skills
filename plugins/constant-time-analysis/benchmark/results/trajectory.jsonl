@@ -1,0 +1,11 @@
+{"tp": 9, "fp": 45, "fn": 1, "n_items": 15, "n_findings": 54, "precision": 0.1667, "recall": 0.9, "f1": 0.2812, "triage_minutes": 239.5, "ct_afi": 0.0052, "yield_per_min": 0.0376, "label": "baseline_fixed"}
+{"tp": 9, "fp": 25, "fn": 1, "n_items": 15, "n_findings": 34, "precision": 0.2647, "recall": 0.9, "f1": 0.4091, "triage_minutes": 149.5, "ct_afi": 0.0339, "yield_per_min": 0.0602, "label": "iter1"}
+{"tp": 8, "fp": 14, "fn": 2, "n_items": 15, "n_findings": 22, "precision": 0.3636, "recall": 0.8, "f1": 0.5, "triage_minutes": 95.5, "ct_afi": 0.1018, "yield_per_min": 0.0838, "label": "iter2"}
+{"tp": 10, "fp": 11, "fn": 0, "n_items": 15, "n_findings": 21, "precision": 0.4762, "recall": 1.0, "f1": 0.6452, "triage_minutes": 79.0, "ct_afi": 0.1729, "yield_per_min": 0.1266, "label": "iter3"}
+{"tp": 10, "fp": 7, "fn": 0, "n_items": 15, "n_findings": 17, "precision": 0.5882, "recall": 1.0, "f1": 0.7407, "triage_minutes": 68.0, "ct_afi": 0.2385, "yield_per_min": 0.1471, "label": "iter4"}
+{"tp": 10, "fp": 6, "fn": 0, "n_items": 15, "n_findings": 16, "precision": 0.625, "recall": 1.0, "f1": 0.7692, "triage_minutes": 64.0, "ct_afi": 0.2647, "yield_per_min": 0.1562, "label": "iter5"}
+{"tp": 10, "fp": 6, "fn": 2, "n_items": 15, "n_findings": 16, "precision": 0.625, "recall": 0.8333, "f1": 0.7143, "triage_minutes": 64.0, "ct_afi": 0.2458, "yield_per_min": 0.1562, "label": "iter6_gt_fix"}
+{"tp": 10, "fp": 4, "fn": 1, "n_items": 15, "n_findings": 14, "precision": 0.7143, "recall": 0.9091, "f1": 0.8, "triage_minutes": 55.0, "ct_afi": 0.3199, "yield_per_min": 0.1818, "label": "iter7_struct"}
+{"tp": 6, "fp": 1, "fn": 5, "n_items": 15, "n_findings": 7, "precision": 0.8571, "recall": 0.5455, "f1": 0.6667, "triage_minutes": 24.5, "ct_afi": 0.4432, "yield_per_min": 0.2449, "label": "iter8_O2O3"}
+{"tp": 8, "fp": 1, "fn": 3, "n_items": 15, "n_findings": 9, "precision": 0.8889, "recall": 0.7273, "f1": 0.8, "triage_minutes": 32.5, "ct_afi": 0.4654, "yield_per_min": 0.2462, "label": "iter9_smart"}
+{"tp": 9, "fp": 1, "fn": 2, "n_items": 15, "n_findings": 10, "precision": 0.9, "recall": 0.8182, "f1": 0.8571, "triage_minutes": 34.0, "ct_afi": 0.4864, "yield_per_min": 0.2647, "label": "iter10_callsites"}

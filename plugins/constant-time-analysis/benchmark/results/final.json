@@ -1,0 +1,162 @@
+{
+  "summary": {
+    "tp": 9,
+    "fp": 1,
+    "fn": 2,
+    "n_items": 15,
+    "n_findings": 10,
+    "precision": 0.9,
+    "recall": 0.8182,
+    "f1": 0.8571,
+    "triage_minutes": 34.0,
+    "ct_afi": 0.4864,
+    "yield_per_min": 0.2647
+  },
+  "per_item": [
+    {
+      "file": "boringssl/constant_time_select.c",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "boringssl/crypto_memcmp.c",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "openssl/crypto_memcmp.c",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "libsodium/sodium_memcmp.c",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "mbedtls/mbedtls_ct_memcmp.c",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "mixed/chacha20_quarterround.c",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "mixed/boringssl_chacha_quarterround.c",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "mixed/libsodium_chacha20_block.c",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "mixed/boringssl_curve25519_cswap.c",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "mixed/x25519_fe_mul.c",
+      "label": "clean",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    },
+    {
+      "file": "vulnerable/kyberslash.c",
+      "label": "vulnerable",
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 2,
+      "triage_minutes": 8.0
+    },
+    {
+      "file": "vulnerable/lucky13.c",
+      "label": "vulnerable",
+      "tp": 2,
+      "fp": 0,
+      "fn": 1,
+      "n_findings": 2,
+      "triage_minutes": 6.0
+    },
+    {
+      "file": "vulnerable/rsa_squareandmultiply.c",
+      "label": "vulnerable",
+      "tp": 3,
+      "fp": 1,
+      "fn": 1,
+      "n_findings": 4,
+      "triage_minutes": 17.0
+    },
+    {
+      "file": "vulnerable/naive_mac_check.c",
+      "label": "vulnerable",
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 2,
+      "triage_minutes": 3.0
+    },
+    {
+      "file": "vulnerable/secret_table_lookup.c",
+      "label": "limitation_no_signal",
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "n_findings": 0,
+      "triage_minutes": 0.0
+    }
+  ],
+  "config": {
+    "warnings": true,
+    "opt_levels": [
+      "O0",
+      "O2",
+      "O3"
+    ]
+  },
+  "wall_seconds": 2.16,
+  "label": "final"
+}

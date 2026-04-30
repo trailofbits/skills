@@ -70,12 +70,37 @@ uv run {baseDir}/ct_analyzer/analyzer.py <source_file>
 # Include conditional branch warnings
 uv run {baseDir}/ct_analyzer/analyzer.py --warnings <source_file>
 
+# Recommended: apply alarm-fatigue filters (precision boost ~5x)
+uv run {baseDir}/ct_analyzer/analyzer.py --warnings --filter all <source_file>
+
 # Filter to specific functions
 uv run {baseDir}/ct_analyzer/analyzer.py --func 'sign|verify' <source_file>
 
 # JSON output for CI
 uv run {baseDir}/ct_analyzer/analyzer.py --json <source_file>
 ```
+
+### Alarm-fatigue filters (`--filter`)
+
+The unfiltered analyzer flags every dangerous instruction in every function,
+which in production codebases produces 5-10x more false positives than true
+positives. The `--filter` flag prunes high-confidence FPs:
+
+| Filter             | What it does                                                |
+|--------------------|-------------------------------------------------------------|
+| `ct-funcs`         | Suppress findings inside vetted CT primitives (`CRYPTO_memcmp`, `sodium_*`, `mbedtls_ct_*`, `fe_cswap`, ChaCha/Salsa rounds) |
+| `compiler-helpers` | Suppress libgcc/compiler-rt helpers (`__udivdi3`, etc.)     |
+| `memcmp-source`    | **Adds** findings for libc memcmp/strcmp on secret-named args |
+| `non-secret`       | Suppress findings in functions with no secret-named parameter |
+| `aggregate`        | Collapse multiple same-family findings in a function into one |
+
+Use `--filter all` for the recommended default set, or pass a comma-separated
+list. Add `--explain` to see why each finding was suppressed.
+
+Benchmark on 15-item corpus drawn from BoringSSL/OpenSSL/libsodium/mbedTLS
+plus 4 known-vulnerable patterns: filtered + smart-fusion config achieves
+F1=0.86 (vs F1=0.28 unfiltered) with ~5x less reviewer time per report.
+See [benchmark/README.md](../../benchmark/README.md) for methodology.
 
 ### Native Compiled Languages Only (C, C++, Go, Rust)
 
@@ -202,9 +227,9 @@ For each flagged violation, ask: **Does this operation's input depend on secret 
 
 1. **Static Analysis Only**: Analyzes assembly/bytecode, not runtime behavior. Cannot detect cache timing or microarchitectural side-channels.
 
-2. **No Data Flow Analysis**: Flags all dangerous operations regardless of whether they process secrets. Manual review required.
+2. **No Data Flow Analysis**: The base analyzer flags all dangerous operations regardless of whether they process secrets. The `--filter non-secret` heuristic uses parameter names (`key`, `mac`, `secret`, `priv`, `tag`, `nonce`, etc.) as a proxy; it can miss leaks in functions with obscure parameter naming. Manual review remains required for high-assurance audits.
 
-3. **Compiler/Runtime Variations**: Different compilers, optimization levels, and runtime versions may produce different output.
+3. **Compiler/Runtime Variations**: Different compilers, optimization levels, and runtime versions may produce different output. Use multiple `-O` levels or `--smart-fusion` in the benchmark harness for cross-opt persistence.
 
 ## Real-World Impact
 

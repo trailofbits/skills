@@ -937,6 +937,7 @@ def analyze_source(
     include_warnings: bool = False,
     function_filter: str = None,
     extra_flags: list[str] = None,
+    post_filters: list[str] | None = None,
 ) -> AnalysisReport:
     """
     Analyze a source file for constant-time violations.
@@ -1027,6 +1028,14 @@ def analyze_source(
             pattern = re.compile(function_filter)
             violations = [v for v in violations if pattern.search(v.function)]
             functions = [f for f in functions if pattern.search(f["name"])]
+
+        if post_filters:
+            try:
+                from .filters import apply_filters
+            except ImportError:
+                from filters import apply_filters
+            kept, _ = apply_filters(violations, post_filters, source_path=str(source_path.absolute()))
+            violations = kept
 
         return AnalysisReport(
             architecture=arch,
@@ -1227,6 +1236,21 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
         default=[],
         help="Extra flags to pass to the compiler",
     )
+    parser.add_argument(
+        "--filter",
+        action="append",
+        default=[],
+        help=(
+            "Comma-separated post-analysis filters that prune false positives. "
+            "Available: ct-funcs, aggregate, compiler-helpers, non-secret, memcmp-source. "
+            "Use 'all' for the recommended default set."
+        ),
+    )
+    parser.add_argument(
+        "--explain",
+        action="store_true",
+        help="When filters drop a finding, print the reason to stderr",
+    )
 
     args = parser.parse_args()
 
@@ -1268,6 +1292,25 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
                 function_filter=args.func,
                 extra_flags=args.extra_flags,
             )
+
+        # Apply post-analysis filters
+        filter_list: list[str] = []
+        for f in args.filter:
+            filter_list.extend(s.strip() for s in f.split(",") if s.strip())
+        if "all" in filter_list:
+            filter_list = ["compiler-helpers", "memcmp-source", "ct-funcs",
+                           "non-secret", "aggregate"]
+        if filter_list:
+            try:
+                from .filters import apply_filters
+            except ImportError:
+                from filters import apply_filters
+            src = args.source_file if not args.assembly else None
+            kept, suppressed = apply_filters(report.violations, filter_list, source_path=src)
+            report.violations = kept
+            if args.explain:
+                for v, why in suppressed:
+                    print(f"  [suppressed] {v.mnemonic} in {v.function}: {why}", file=sys.stderr)
 
         print(format_report(report, output_format))
         return 0 if report.passed else 1

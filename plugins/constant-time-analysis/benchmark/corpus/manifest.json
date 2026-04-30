@@ -1,0 +1,148 @@
+{
+  "description": "Constant-time analysis benchmark corpus. Items labeled clean (designed CT, expect 0 errors after secret-aware filtering), vulnerable (real timing leak, expect detection), or limitation_no_signal (real leak that instruction-level analysis cannot detect; documents an analyzer limitation).",
+  "items": [
+    {
+      "file": "boringssl/constant_time_select.c",
+      "source": "BoringSSL crypto/internal.h (constant_time_select_w family)",
+      "url": "https://raw.githubusercontent.com/google/boringssl/master/crypto/internal.h",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "Canonical CT primitives: value_barrier_w, constant_time_msb_w, constant_time_lt_w, constant_time_eq_w, constant_time_select_w. Bitwise/shift only; no branches, no division, no table indexing on secrets. value_barrier_w uses an inline asm clobber to defeat compiler simplification."
+    },
+    {
+      "file": "boringssl/crypto_memcmp.c",
+      "source": "BoringSSL crypto/mem.cc (CRYPTO_memcmp)",
+      "url": "https://raw.githubusercontent.com/google/boringssl/master/crypto/mem.cc",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "CRYPTO_memcmp loops len times unconditionally, accumulating XOR via OR. Loop bound `len` is PUBLIC. Final shift+sub is bit-twiddling, not a branch."
+    },
+    {
+      "file": "openssl/crypto_memcmp.c",
+      "source": "OpenSSL crypto/cryptlib.c CRYPTO_memcmp (1.1.1-stable branch; removed from master cryptlib.c)",
+      "url": "https://raw.githubusercontent.com/openssl/openssl/OpenSSL_1_1_1-stable/crypto/cryptlib.c",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "OpenSSL's textbook CT byte comparator. Pointers are volatile to prevent compiler-inserted early exits."
+    },
+    {
+      "file": "libsodium/sodium_memcmp.c",
+      "source": "libsodium src/libsodium/sodium/utils.c (sodium_memcmp + sodium_is_zero)",
+      "url": "https://raw.githubusercontent.com/jedisct1/libsodium/master/src/libsodium/sodium/utils.c",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "sodium_memcmp + sodium_is_zero. volatile-qualified pointers and accumulator block compiler-inserted early exits. Final return uses (d-1)>>8 bit collapse."
+    },
+    {
+      "file": "mbedtls/mbedtls_ct_memcmp.c",
+      "source": "mbedTLS library/constant_time.c (mbedtls_ct_memcmp + helpers)",
+      "url": "https://raw.githubusercontent.com/Mbed-TLS/mbedtls/v3.6.0/library/constant_time.c",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "mbedtls_ct_memcmp plus mbedtls_ct_uint_eq / mbedtls_ct_uint_if_else_0. Bitwise-mask combinations rather than branches. The unrolled 4-byte path was stripped because it requires MBEDTLS_EFFICIENT_UNALIGNED_VOLATILE_ACCESS asm helpers."
+    },
+    {
+      "file": "mixed/chacha20_quarterround.c",
+      "source": "DJB ChaCha20 reference / libsodium chacha20_ref.c",
+      "url": "https://raw.githubusercontent.com/jedisct1/libsodium/master/src/libsodium/crypto_stream/chacha20/ref/chacha20_ref.c",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "ChaCha20 is intentionally CT: ARX only; no branches/division/table-lookup on secrets. Loop counters and `len` are PUBLIC (any branch on `len` is a false positive)."
+    },
+    {
+      "file": "mixed/boringssl_chacha_quarterround.c",
+      "source": "BoringSSL crypto/chacha/chacha.cc (CRYPTO_hchacha20)",
+      "url": "https://raw.githubusercontent.com/google/boringssl/master/crypto/chacha/chacha.cc",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "BoringSSL HChaCha20. The for-loop bound (20) is a public constant. memcpy with sizeof(...) is also public-sized."
+    },
+    {
+      "file": "mixed/libsodium_chacha20_block.c",
+      "source": "libsodium crypto_stream/chacha20/ref/chacha20_ref.c (keysetup + 64-byte block)",
+      "url": "https://raw.githubusercontent.com/jedisct1/libsodium/master/src/libsodium/crypto_stream/chacha20/ref/chacha20_ref.c",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "20-round ChaCha20 block; identical CT properties to the reference. No data-dependent branches, divisions, or table accesses."
+    },
+    {
+      "file": "mixed/boringssl_curve25519_cswap.c",
+      "source": "BoringSSL crypto/curve25519/curve25519.cc (fe_cswap, fe_cmov)",
+      "url": "https://raw.githubusercontent.com/google/boringssl/master/crypto/curve25519/curve25519.cc",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "Conditional-swap and conditional-move primitives for the X25519 ladder. `b = 0 - b` converts a 0/1 bit to a bit-mask; the result is used only in AND/XOR. Loop bound FE_NUM_LIMBS is public."
+    },
+    {
+      "file": "mixed/x25519_fe_mul.c",
+      "source": "BoringSSL third_party/fiat curve25519_64 (fe_mul, donna64-style)",
+      "url": "https://raw.githubusercontent.com/google/boringssl/master/third_party/fiat/curve25519_64.h",
+      "label": "clean",
+      "ground_truth_violations": [],
+      "notes": "5-limb Curve25519 field-element multiply. Branchless reduction with shift+mask; no DIV; no secret-dependent control flow."
+    },
+    {
+      "file": "vulnerable/kyberslash.c",
+      "source": "synthetic, KyberSlash 2023 pattern (CVE-affected ML-KEM reference)",
+      "url": "https://kyberslash.cr.yp.to/",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"line": 25, "kind": "div_on_secret", "description": "secret_coef / GAMMA2 emits idiv on secret dividend"},
+        {"line": 32, "kind": "div_on_secret", "description": "secret % 3329 emits idiv on secret dividend"}
+      ],
+      "notes": "Original ML-KEM vulnerability that prompted the KyberSlash CVEs. The `public_block_count` function (line 36) uses / on a public length and is a deliberate FALSE-POSITIVE test."
+    },
+    {
+      "file": "vulnerable/lucky13.c",
+      "source": "synthetic, Lucky Thirteen 2013 pattern",
+      "url": "https://www.isg.rhul.ac.uk/tls/Lucky13.html",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"line": 22, "kind": "secret_loop_bound", "description": "for-loop bound is the secret padding_len"},
+        {"line": 23, "kind": "branch_on_secret", "description": "early-exit branch on padding mismatch"},
+        {"line": 33, "kind": "memcmp_on_secret", "description": "variable-time memcmp on the MAC bytes"}
+      ],
+      "notes": "CBC padding oracle. The pre-loop bound check `if (padding_len > len - 1)` on line 19 IS public (false positive if flagged)."
+    },
+    {
+      "file": "vulnerable/rsa_squareandmultiply.c",
+      "source": "synthetic, Kocher 1996 timing pattern",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"line": 20, "kind": "branch_on_secret", "description": "branch on a bit of secret exponent"},
+        {"line": 21, "kind": "div_on_secret", "description": "(result * base) % mod inside the secret-conditional"},
+        {"line": 24, "kind": "div_on_secret", "description": "(base * base) % mod is in the unconditional path but operates on secret-derived base"},
+        {"line": 39, "kind": "div_on_secret", "description": "Montgomery ladder still uses % mod on secret-derived r0, r1 - real timing leak even without the secret branch"}
+      ],
+      "notes": "Classic naive modexp + Montgomery ladder.  Both functions leak: naive via secret branching AND modulo, the ladder via the modulo alone.  Truly constant-time modexp requires Montgomery multiplication or Barrett reduction (no idiv)."
+    },
+    {
+      "file": "vulnerable/naive_mac_check.c",
+      "source": "synthetic, classic auth-bypass pattern",
+      "label": "vulnerable",
+      "ground_truth_violations": [
+        {"line": 21, "kind": "memcmp_on_secret", "description": "memcmp early-exits on first differing byte"},
+        {"line": 21, "kind": "branch_on_secret", "description": "branch on memcmp result decides accept/reject"},
+        {"line": 29, "kind": "memcmp_on_secret", "description": "strcmp on token has the same early-exit leak"}
+      ],
+      "notes": "Standard authentication-bypass anti-pattern. memcmp/strcmp do not promise constant-time semantics."
+    },
+    {
+      "file": "vulnerable/secret_table_lookup.c",
+      "source": "synthetic, AES T-table cache-timing pattern",
+      "label": "limitation_no_signal",
+      "ground_truth_violations": [],
+      "notes": "Cache-timing leak via secret-indexed table lookup. NOT detectable by an instruction-level analyzer (no DIV, no JCC). Included to document a known limitation. Expect 0 findings; the leak is real but invisible to this class of tool."
+    }
+  ],
+  "summary": {
+    "clean_count": 10,
+    "vulnerable_count": 4,
+    "limitation_count": 1,
+    "total": 15
+  },
+  "fetch_failures": [
+    "openssl master crypto/cryptlib.c — CRYPTO_memcmp moved out of cryptlib.c on master; fell back to OpenSSL_1_1_1-stable branch",
+    "BoringSSL .c paths — repo migrated to .cc (C++); fetched .cc and extracted into .c snippets"
+  ]
+}
