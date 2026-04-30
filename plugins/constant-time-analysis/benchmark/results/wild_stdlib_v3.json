@@ -1,0 +1,290 @@
+{
+  "label": "wild_stdlib_v3",
+  "n_packages": 9,
+  "n_packages_failed": 0,
+  "n_functions": 152,
+  "n_instructions": 48496,
+  "n_findings": 20,
+  "findings_per_1k_instr": 0.41,
+  "by_severity": {
+    "warning": 19,
+    "error": 1
+  },
+  "by_mnemonic": {
+    "JEQ": 8,
+    "JNE": 5,
+    "JLT": 4,
+    "JCC": 1,
+    "JGT": 1,
+    "IDIVQ": 1
+  },
+  "by_package": {
+    "crypto/subtle": 0,
+    "crypto/cipher": 2,
+    "crypto/aes": 1,
+    "crypto/sha256": 0,
+    "crypto/rsa": 14,
+    "crypto/ecdsa": 0,
+    "crypto/ed25519": 3,
+    "crypto/mlkem": 0,
+    "crypto/hmac": 0
+  },
+  "per_package": [
+    {
+      "package": "crypto/subtle",
+      "label_prefix": "stdlib",
+      "n_functions": 9,
+      "n_instructions": 176
+    },
+    {
+      "package": "crypto/cipher",
+      "label_prefix": "stdlib",
+      "n_functions": 45,
+      "n_instructions": 5309
+    },
+    {
+      "package": "crypto/aes",
+      "label_prefix": "stdlib",
+      "n_functions": 2,
+      "n_instructions": 104
+    },
+    {
+      "package": "crypto/sha256",
+      "label_prefix": "stdlib",
+      "n_functions": 5,
+      "n_instructions": 185
+    },
+    {
+      "package": "crypto/rsa",
+      "label_prefix": "stdlib",
+      "n_functions": 27,
+      "n_instructions": 6326
+    },
+    {
+      "package": "crypto/ecdsa",
+      "label_prefix": "stdlib",
+      "n_functions": 40,
+      "n_instructions": 27358
+    },
+    {
+      "package": "crypto/ed25519",
+      "label_prefix": "stdlib",
+      "n_functions": 16,
+      "n_instructions": 7653
+    },
+    {
+      "package": "crypto/mlkem",
+      "label_prefix": "stdlib",
+      "n_functions": 6,
+      "n_instructions": 562
+    },
+    {
+      "package": "crypto/hmac",
+      "label_prefix": "stdlib",
+      "n_functions": 2,
+      "n_instructions": 823
+    }
+  ],
+  "findings": [
+    {
+      "package": "crypto/cipher",
+      "function": "crypto/cipher.gcmWithRandomNonce.Seal",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/cipher/gcm.go",
+      "line": 123,
+      "address": "0x0112",
+      "mnemonic": "JCC",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "package": "crypto/cipher",
+      "function": "crypto/cipher.gcmWithRandomNonce.Open",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/cipher/gcm.go",
+      "line": 168,
+      "address": "0x0044",
+      "mnemonic": "JLT",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "package": "crypto/aes",
+      "function": "crypto/aes.NewCipher",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/aes/aes.go",
+      "line": 41,
+      "address": "0x0024",
+      "mnemonic": "JEQ",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.SignPSS",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/fips.go",
+      "line": 69,
+      "address": "0x0079",
+      "mnemonic": "JEQ",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+20 more BRANCH findings in this function)"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.VerifyPSS",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/fips.go",
+      "line": 152,
+      "address": "0x00d0",
+      "mnemonic": "JEQ",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+24 more BRANCH findings in this function)"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.EncryptOAEP",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/fips.go",
+      "line": 219,
+      "address": "0x0122",
+      "mnemonic": "JEQ",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+8 more BRANCH findings in this function)"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.decryptOAEP",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/fips.go",
+      "line": 385,
+      "address": "0x02a7",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+5 more BRANCH findings in this function)"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.SignPKCS1v15",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/fips.go",
+      "line": 304,
+      "address": "0x003d",
+      "mnemonic": "JEQ",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+7 more BRANCH findings in this function)"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.VerifyPKCS1v15",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/fips.go",
+      "line": 347,
+      "address": "0x0052",
+      "mnemonic": "JEQ",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+7 more BRANCH findings in this function)"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.checkFIPS140OnlyPublicKey",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/fips.go",
+      "line": 406,
+      "address": "0x00a8",
+      "mnemonic": "JLT",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.checkFIPS140OnlyPrivateKey",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/fips.go",
+      "line": 431,
+      "address": "0x0050",
+      "mnemonic": "JEQ",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.EncryptPKCS1v15",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/pkcs1v15.go",
+      "line": 54,
+      "address": "0x0104",
+      "mnemonic": "JGT",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.DecryptPKCS1v15",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/pkcs1v15.go",
+      "line": 123,
+      "address": "0x0056",
+      "mnemonic": "JEQ",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.DecryptPKCS1v15SessionKey",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/pkcs1v15.go",
+      "line": 169,
+      "address": "0x00ee",
+      "mnemonic": "JLT",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.decryptPKCS1v15",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/pkcs1v15.go",
+      "line": 201,
+      "address": "0x00b5",
+      "mnemonic": "JLT",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.GenerateMultiPrimeKey",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/rsa.go",
+      "line": 407,
+      "address": "0x00b0",
+      "mnemonic": "IDIVQ",
+      "severity": "error",
+      "reason": "IDIVQ has data-dependent timing; execution time varies based on operand values (+2 more DIV findings in this function)"
+    },
+    {
+      "package": "crypto/rsa",
+      "function": "crypto/rsa.fipsPublicKey",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/rsa/rsa.go",
+      "line": 629,
+      "address": "0x0042",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "package": "crypto/ed25519",
+      "function": "crypto/ed25519.PublicKey.Equal",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/ed25519/ed25519.go",
+      "line": 49,
+      "address": "0x0019",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "package": "crypto/ed25519",
+      "function": "crypto/ed25519.PrivateKey.Equal",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/ed25519/ed25519.go",
+      "line": 68,
+      "address": "0x0019",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "package": "crypto/ed25519",
+      "function": "crypto/ed25519.PrivateKey.Sign",
+      "file": "/root/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.0.linux-amd64/src/crypto/ed25519/ed25519.go",
+      "line": 106,
+      "address": "0x0103",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+4 more BRANCH findings in this function)"
+    }
+  ]
+}

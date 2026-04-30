@@ -1,0 +1,115 @@
+{
+  "label": "wild_circl_v3",
+  "n_packages": 12,
+  "n_packages_failed": 0,
+  "n_functions": 150,
+  "n_instructions": 27868,
+  "n_findings": 1,
+  "findings_per_1k_instr": 0.04,
+  "by_severity": {
+    "warning": 1
+  },
+  "by_mnemonic": {
+    "JNE": 1
+  },
+  "by_package": {
+    "github.com/cloudflare/circl/kem/mlkem/mlkem512": 0,
+    "github.com/cloudflare/circl/kem/mlkem/mlkem768": 0,
+    "github.com/cloudflare/circl/kem/mlkem/mlkem1024": 0,
+    "github.com/cloudflare/circl/sign/mldsa/mldsa44/internal": 0,
+    "github.com/cloudflare/circl/sign/mldsa/mldsa65/internal": 0,
+    "github.com/cloudflare/circl/sign/mldsa/mldsa87/internal": 0,
+    "github.com/cloudflare/circl/pke/kyber/internal/common": 1,
+    "github.com/cloudflare/circl/pke/kyber/kyber512/internal": 0,
+    "github.com/cloudflare/circl/pke/kyber/kyber768/internal": 0,
+    "github.com/cloudflare/circl/pke/kyber/kyber1024/internal": 0,
+    "github.com/cloudflare/circl/dh/x25519": 0,
+    "github.com/cloudflare/circl/dh/x448": 0
+  },
+  "per_package": [
+    {
+      "package": "github.com/cloudflare/circl/kem/mlkem/mlkem512",
+      "label_prefix": "circl",
+      "n_functions": 4,
+      "n_instructions": 1410
+    },
+    {
+      "package": "github.com/cloudflare/circl/kem/mlkem/mlkem768",
+      "label_prefix": "circl",
+      "n_functions": 4,
+      "n_instructions": 1410
+    },
+    {
+      "package": "github.com/cloudflare/circl/kem/mlkem/mlkem1024",
+      "label_prefix": "circl",
+      "n_functions": 4,
+      "n_instructions": 1410
+    },
+    {
+      "package": "github.com/cloudflare/circl/sign/mldsa/mldsa44/internal",
+      "label_prefix": "circl",
+      "n_functions": 26,
+      "n_instructions": 5126
+    },
+    {
+      "package": "github.com/cloudflare/circl/sign/mldsa/mldsa65/internal",
+      "label_prefix": "circl",
+      "n_functions": 26,
+      "n_instructions": 4976
+    },
+    {
+      "package": "github.com/cloudflare/circl/sign/mldsa/mldsa87/internal",
+      "label_prefix": "circl",
+      "n_functions": 26,
+      "n_instructions": 4924
+    },
+    {
+      "package": "github.com/cloudflare/circl/pke/kyber/internal/common",
+      "label_prefix": "circl",
+      "n_functions": 15,
+      "n_instructions": 2366
+    },
+    {
+      "package": "github.com/cloudflare/circl/pke/kyber/kyber512/internal",
+      "label_prefix": "circl",
+      "n_functions": 3,
+      "n_instructions": 1339
+    },
+    {
+      "package": "github.com/cloudflare/circl/pke/kyber/kyber768/internal",
+      "label_prefix": "circl",
+      "n_functions": 3,
+      "n_instructions": 1374
+    },
+    {
+      "package": "github.com/cloudflare/circl/pke/kyber/kyber1024/internal",
+      "label_prefix": "circl",
+      "n_functions": 3,
+      "n_instructions": 1373
+    },
+    {
+      "package": "github.com/cloudflare/circl/dh/x25519",
+      "label_prefix": "circl",
+      "n_functions": 18,
+      "n_instructions": 1042
+    },
+    {
+      "package": "github.com/cloudflare/circl/dh/x448",
+      "label_prefix": "circl",
+      "n_functions": 18,
+      "n_instructions": 1118
+    }
+  ],
+  "findings": [
+    {
+      "package": "github.com/cloudflare/circl/pke/kyber/internal/common",
+      "function": "github.com/cloudflare/circl/pke/kyber/internal/common.PolyDeriveUniformX4",
+      "file": "/root/go/pkg/mod/github.com/cloudflare/circl@v1.6.3/pke/kyber/internal/common/sample.go",
+      "line": 129,
+      "address": "0x0199",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    }
+  ]
+}

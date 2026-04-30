@@ -1,0 +1,136 @@
+{
+  "label": "wild_xcrypto_v3",
+  "n_packages": 12,
+  "n_packages_failed": 0,
+  "n_functions": 117,
+  "n_instructions": 13011,
+  "n_findings": 3,
+  "findings_per_1k_instr": 0.23,
+  "by_severity": {
+    "warning": 3
+  },
+  "by_mnemonic": {
+    "JNE": 2,
+    "JHI": 1
+  },
+  "by_package": {
+    "golang.org/x/crypto/chacha20poly1305": 0,
+    "golang.org/x/crypto/curve25519": 0,
+    "golang.org/x/crypto/nacl/box": 2,
+    "golang.org/x/crypto/salsa20": 0,
+    "golang.org/x/crypto/blake2b": 0,
+    "golang.org/x/crypto/blake2s": 0,
+    "golang.org/x/crypto/argon2": 0,
+    "golang.org/x/crypto/hkdf": 0,
+    "golang.org/x/crypto/pbkdf2": 0,
+    "golang.org/x/crypto/scrypt": 0,
+    "golang.org/x/crypto/poly1305": 1,
+    "golang.org/x/crypto/chacha20": 0
+  },
+  "per_package": [
+    {
+      "package": "golang.org/x/crypto/chacha20poly1305",
+      "label_prefix": "xcrypto",
+      "n_functions": 10,
+      "n_instructions": 1588
+    },
+    {
+      "package": "golang.org/x/crypto/curve25519",
+      "label_prefix": "xcrypto",
+      "n_functions": 6,
+      "n_instructions": 341
+    },
+    {
+      "package": "golang.org/x/crypto/nacl/box",
+      "label_prefix": "xcrypto",
+      "n_functions": 9,
+      "n_instructions": 546
+    },
+    {
+      "package": "golang.org/x/crypto/salsa20",
+      "label_prefix": "xcrypto",
+      "n_functions": 1,
+      "n_instructions": 111
+    },
+    {
+      "package": "golang.org/x/crypto/blake2b",
+      "label_prefix": "xcrypto",
+      "n_functions": 29,
+      "n_instructions": 2581
+    },
+    {
+      "package": "golang.org/x/crypto/blake2s",
+      "label_prefix": "xcrypto",
+      "n_functions": 20,
+      "n_instructions": 2324
+    },
+    {
+      "package": "golang.org/x/crypto/argon2",
+      "label_prefix": "xcrypto",
+      "n_functions": 21,
+      "n_instructions": 1959
+    },
+    {
+      "package": "golang.org/x/crypto/hkdf",
+      "label_prefix": "xcrypto",
+      "n_functions": 3,
+      "n_instructions": 378
+    },
+    {
+      "package": "golang.org/x/crypto/pbkdf2",
+      "label_prefix": "xcrypto",
+      "n_functions": 1,
+      "n_instructions": 247
+    },
+    {
+      "package": "golang.org/x/crypto/scrypt",
+      "label_prefix": "xcrypto",
+      "n_functions": 7,
+      "n_instructions": 1383
+    },
+    {
+      "package": "golang.org/x/crypto/poly1305",
+      "label_prefix": "xcrypto",
+      "n_functions": 3,
+      "n_instructions": 189
+    },
+    {
+      "package": "golang.org/x/crypto/chacha20",
+      "label_prefix": "xcrypto",
+      "n_functions": 7,
+      "n_instructions": 1364
+    }
+  ],
+  "findings": [
+    {
+      "package": "golang.org/x/crypto/nacl/box",
+      "function": "golang.org/x/crypto/nacl/box.SealAnonymous",
+      "file": "/root/go/pkg/mod/golang.org/x/crypto@v0.50.0/nacl/box/box.go",
+      "line": 137,
+      "address": "0x011b",
+      "mnemonic": "JHI",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "package": "golang.org/x/crypto/nacl/box",
+      "function": "golang.org/x/crypto/nacl/box.sealNonce",
+      "file": "/root/go/pkg/mod/golang.org/x/crypto@v0.50.0/nacl/box/box.go",
+      "line": 171,
+      "address": "0x0054",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "package": "golang.org/x/crypto/poly1305",
+      "function": "golang.org/x/crypto/poly1305.New",
+      "file": "/root/go/pkg/mod/golang.org/x/crypto@v0.50.0/poly1305/poly1305_compat.go",
+      "line": 56,
+      "address": "0x0076",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    }
+  ]
+}
