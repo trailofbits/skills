@@ -1118,8 +1118,14 @@ def rust_crate_of(symbol_or_demangled: str) -> str | None:
 
     Handles `<impl Trait for Type>::method` style names, which legacy
     mangling produces as `_<crate::...>::method` after applying the `$LT$`
-    / `$GT$` escapes. The crate name is the first identifier inside the
-    leading angle bracket, not the literal `_<crate` prefix.
+    / `$GT$` escapes.
+
+    For `<Type as TraitPath>::method` form (e.g. `<i64 as core::ops::Div>::div`),
+    the leading "crate" is actually a type name (`i64`, `usize`, `bool`).
+    The actual implementation crate is the trait's defining crate, which
+    appears as a path component later. We scan all path components and
+    prefer a match against `RUST_STDLIB_CRATES` so that stdlib trait
+    impls monomorphized into the user's binary are correctly classified.
     """
     s = symbol_or_demangled
     if s.startswith("_ZN") or s.startswith("_R"):
@@ -1136,7 +1142,15 @@ def rust_crate_of(symbol_or_demangled: str) -> str | None:
     if not s:
         return None
 
-    # Take chars up to the first `::` or non-identifier char.
+    # Scan all path-component tokens. If any is a known stdlib crate,
+    # prefer that. Required for `<i64 as core::ops::Div>::div`-style
+    # symbols where the leading `i64` is a primitive type, not a crate.
+    tokens = re.findall(r"[A-Za-z_][A-Za-z0-9_]*", s)
+    for t in tokens:
+        if t in RUST_STDLIB_CRATES:
+            return t
+
+    # Otherwise, the first identifier is the crate name.
     head = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)", s)
     return head.group(1) if head else None
 
@@ -1279,17 +1293,21 @@ def classify_violation(
     line = violation.line
     function = (violation.function or "")
 
-    # Rule V (function naming): `vartime_*` is the Rust crypto crate
-    # convention for explicitly-variable-time code paths. dalek, ring,
-    # k256/p256, rsa all use it. A branch in `Scalar::vartime_double_base_mul`
-    # is by-design variable-time on PUBLIC operands (signatures,
-    # public keys). High-confidence FP.
-    if "vartime" in function.lower():
-        # Skip if `vartime` appears as part of a bigger word, e.g.
-        # `vartimely_unsafe_function` (unlikely, but be precise).
-        import re as _re
-        if _re.search(r"(?:^|::|<|\b)(?:_)?vartime(?:_|::|>|\b)", function):
-            return TRIAGE_VARTIME
+    # Rule V (function naming): the Rust crypto convention for
+    # variable-time code paths uses `vartime` as part of the function
+    # name. Two common forms in audited crates:
+    #   - prefix:  `vartime_double_base_mul` (dalek)
+    #   - suffix:  `pow_vartime`, `sqn_vartime` (k256/p256, bls12_381)
+    # Both forms denote "this function is variable-time on PUBLIC
+    # operands by design" -- callers pass signatures, public keys,
+    # public scalars, public exponents. High-confidence FP.
+    import re as _re
+    if _re.search(
+        r"(?:^|::|<|\b)vartime_|"      # `vartime_foo` (prefix)
+        r"_vartime(?:$|::|>|\b)",       # `foo_vartime` (suffix)
+        function,
+    ):
+        return TRIAGE_VARTIME
 
     # Rules A & B: stdlib path, most specific marker wins.
     for marker, hint in _STDLIB_PATH_MARKERS:

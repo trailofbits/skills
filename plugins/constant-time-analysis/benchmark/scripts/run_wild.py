@@ -76,7 +76,141 @@ class WildResult:
     triage_breakdown: dict = field(default_factory=dict)
     errors: list = field(default_factory=list)
     warnings_sampled: list = field(default_factory=list)
+    # Clustered view of warnings: instead of N individual reports, group
+    # by (triage_hint, file, function). The reviewer reads the whole
+    # function once, decides for the cluster, and moves on.
+    warning_clusters: list = field(default_factory=list)
+    cluster_count: int = 0
     build_valid: bool = False
+
+
+_NORMALIZE_NUM_RE = re.compile(r"\b\d+\b")
+_NORMALIZE_HEX_RE = re.compile(r"\b0[xX][0-9a-fA-F]+\b")
+_NORMALIZE_IDENT_RE = re.compile(
+    r"\b[a-z_][a-zA-Z0-9_]*\b"
+)
+_KEEP_KEYWORDS = frozenset({
+    "if", "else", "while", "for", "in", "match", "let", "mut", "fn", "pub",
+    "self", "as", "true", "false", "return", "break", "continue", "loop",
+    "ref", "move", "and", "or", "not", "is_empty", "is_none", "is_some",
+    "is_zero", "is_negative", "len", "iter", "iter_mut", "into_iter",
+    "next", "unwrap", "expect", "ok", "err",
+})
+
+
+def _normalize_pattern(line: str) -> str:
+    """Reduce a source line to a structural pattern.
+
+    Examples:
+      `if rem > 0 {`           -> `if NAME > NUM {`
+      `if remaining > 0u8 {`   -> `if NAME > NUM {`
+      `match self.0.insert(u)` -> `match self.NUM.insert(NAME)`
+      `if a.len() != b.len()`  -> `if NAME.len() != NAME.len()`
+
+    Goal: collapse syntactic variants of the same source-level event
+    so a reviewer can decide once for the whole class.
+    """
+    if not line:
+        return ""
+    s = line.strip()
+    s = _NORMALIZE_HEX_RE.sub("HEX", s)
+    s = _NORMALIZE_NUM_RE.sub("NUM", s)
+    # Replace identifiers with NAME, keeping keywords / common method names.
+    def _sub(m: "re.Match") -> str:
+        ident = m.group(0)
+        return ident if ident in _KEEP_KEYWORDS else "NAME"
+    s = _NORMALIZE_IDENT_RE.sub(_sub, s)
+    # Collapse runs of NAME, NAME -> NAME.
+    s = re.sub(r"(?:NAME[\s,.]+){2,}", "NAME ", s)
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def cluster_warnings(violations: list[dict], by: str = "function") -> list[dict]:
+    """Group warnings into review-able clusters.
+
+    `by` selects the clustering granularity:
+
+      - "function": (triage_hint, file, function). The reviewer reads
+        each function once. Reduction depends on how many warnings
+        each function emits; typically 1.5-3x.
+
+      - "file": (triage_hint, file). The reviewer reads each file
+        once and decides whether every warning in it follows a known
+        pattern. Higher reduction (3-10x), more aggressive.
+
+      - "pattern": (triage_hint, normalized_source_line). The reviewer
+        decides per source-pattern, ignoring location. Most aggressive
+        (5-20x), best when many functions share idioms.
+
+    Each cluster output is:
+        {
+          "triage_hint": "...",
+          "key": {...},                 # the key fields (file, function, pattern)
+          "count": N,
+          "mnemonics": ["JE", "JNE"],
+          "distinct_locations": [{file, function, line}, ...],   # up to 3 examples
+          "representative_snippet": [...],
+          "representative_line": int,
+          "representative_function": "...",
+          "representative_file": "...",
+        }
+    """
+    if by not in ("function", "file", "pattern"):
+        raise ValueError(f"unknown clustering key: {by}")
+
+    by_key: dict[tuple, dict] = {}
+    for v in violations:
+        hint = v.get("triage_hint") or "unknown"
+        file_path = v.get("file") or ""
+        function = v.get("function") or ""
+        snippet = v.get("source_snippet") or []
+        cited = snippet[len(snippet) // 2] if snippet else ""
+
+        if by == "function":
+            key = ("function", hint, file_path, function)
+        elif by == "file":
+            key = ("file", hint, file_path)
+        else:  # pattern
+            key = ("pattern", hint, _normalize_pattern(cited))
+
+        slot = by_key.setdefault(
+            key,
+            {
+                "triage_hint": hint,
+                "key_kind": by,
+                "count": 0,
+                "mnemonics_set": set(),
+                "distinct_locations": [],
+                "representative_snippet": snippet or None,
+                "representative_line": v.get("line"),
+                "representative_function": function,
+                "representative_file": file_path,
+                "representative_pattern": _normalize_pattern(cited) if by == "pattern" else None,
+            },
+        )
+        slot["count"] += 1
+        for m in (v.get("mnemonic") or "").split("/"):
+            if m:
+                slot["mnemonics_set"].add(m)
+        if len(slot["distinct_locations"]) < 5:
+            loc = {
+                "file": file_path,
+                "function": function,
+                "line": v.get("line"),
+            }
+            if loc not in slot["distinct_locations"]:
+                slot["distinct_locations"].append(loc)
+        if slot["representative_snippet"] is None and snippet:
+            slot["representative_snippet"] = snippet
+            slot["representative_line"] = v.get("line")
+
+    out: list[dict] = []
+    for slot in by_key.values():
+        slot["mnemonics"] = sorted(slot.pop("mnemonics_set"))
+        out.append(slot)
+    out.sort(key=lambda c: -c["count"])
+    return out
 
 
 def collect_object_files(root: Path) -> list[Path]:
@@ -254,6 +388,17 @@ def main() -> int:
     warnings_user = [v for v in warnings if is_user_source(v.get("file"))]
     triage = Counter(v.get("triage_hint") or "unknown" for v in all_violations)
 
+    # Build clustered views at three granularities. Reviewers can pick
+    # the one that matches their workflow:
+    #   - function-clusters: reviewer reads each function once.
+    #   - file-clusters:     reviewer scans each file for a pattern.
+    #   - pattern-clusters:  reviewer decides per source-shape (most aggressive).
+    clusters_user_fn = cluster_warnings(warnings_user, by="function")
+    clusters_user_file = cluster_warnings(warnings_user, by="file")
+    clusters_user_pattern = cluster_warnings(warnings_user, by="pattern")
+    # All-warnings clustered at function granularity, for the dep-review crowd.
+    clusters_all = cluster_warnings(warnings, by="function")
+
     # Build-validity precondition.
     build_valid = n_disassembled > 0 and total_instructions >= 1000
 
@@ -277,11 +422,21 @@ def main() -> int:
         triage_breakdown=dict(triage),
         errors=errors,
         warnings_sampled=sampled,
+        warning_clusters=(
+            clusters_user_fn if warnings_user else clusters_all
+        ),
+        cluster_count=len(clusters_user_fn) if warnings_user else len(clusters_all),
         build_valid=build_valid,
     )
+    # Attach all three granularities for downstream tooling.
+    result_dict = asdict(result)
+    result_dict["clusters_user_function"] = clusters_user_fn
+    result_dict["clusters_user_file"] = clusters_user_file
+    result_dict["clusters_user_pattern"] = clusters_user_pattern
+    result_dict["clusters_all_function"] = clusters_all
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(asdict(result), indent=2))
+    args.out.write_text(json.dumps(result_dict, indent=2))
 
     print("", file=sys.stderr)
     if not build_valid:
@@ -298,6 +453,17 @@ def main() -> int:
         f"Totals: errors={len(errors)} (user={len(errors_user)})  "
         f"warnings={len(warnings)} (user={len(warnings_user)})  "
         f"objs={n_disassembled}  insns={total_instructions}",
+        file=sys.stderr,
+    )
+    n_user = max(1, len(warnings_user))
+    print(
+        f"User-warning clustering ({len(warnings_user)} reports):\n"
+        f"  by function: {len(clusters_user_fn):>5} clusters  "
+        f"({n_user/max(1,len(clusters_user_fn)):.1f}x reduction)\n"
+        f"  by file:     {len(clusters_user_file):>5} clusters  "
+        f"({n_user/max(1,len(clusters_user_file)):.1f}x reduction)\n"
+        f"  by pattern:  {len(clusters_user_pattern):>5} clusters  "
+        f"({n_user/max(1,len(clusters_user_pattern)):.1f}x reduction)",
         file=sys.stderr,
     )
     print("Triage breakdown:", file=sys.stderr)

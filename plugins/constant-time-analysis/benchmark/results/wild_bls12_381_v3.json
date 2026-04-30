@@ -1,0 +1,4374 @@
+{
+  "label": "bls12_381_v3",
+  "timestamp": 1777535031.959335,
+  "root": "benchmark/wild_rust/bls12_381/target/extracted_o",
+  "n_objects": 40,
+  "n_instructions": 78844,
+  "error_count": 140,
+  "warning_count": 82,
+  "error_count_user": 0,
+  "warning_count_user": 12,
+  "triage_breakdown": {
+    "user_code_review": 9,
+    "stdlib_iter_end_likely_fp": 15,
+    "dependency_source_review": 4,
+    "stdlib_bounds_check_likely_fp": 2,
+    "vartime_function_likely_fp": 8,
+    "stdlib_other_likely_fp": 184
+  },
+  "errors": [
+    {
+      "function": "_<i8 as funty::Integral>::checked_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 615,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i8 as funty::Integral>::checked_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1965,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i8 as funty::Integral>::checked_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 668,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i8 as funty::Integral>::checked_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i8 as funty::Integral>::wrapping_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i8 as funty::Integral>::wrapping_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1965,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i8 as funty::Integral>::wrapping_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i8 as funty::Integral>::wrapping_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i8 as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i8 as funty::Integral>::overflowing_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1965,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i8 as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i8 as funty::Integral>::overflowing_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i8 as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1965,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i8 as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %sil",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::checked_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 615,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::checked_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1965,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::checked_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 668,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::checked_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::wrapping_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::wrapping_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1965,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::wrapping_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::wrapping_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::overflowing_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1965,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::overflowing_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1965,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i16 as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %si",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::checked_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 615,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::checked_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1965,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::checked_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 668,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::checked_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::wrapping_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::wrapping_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1965,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::wrapping_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::wrapping_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::overflowing_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1965,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::overflowing_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1965,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i32 as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %esi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::checked_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 615,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::checked_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 615,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::checked_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::checked_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::checked_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 668,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::checked_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 668,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::checked_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::checked_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::wrapping_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::wrapping_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::wrapping_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::wrapping_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::wrapping_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::wrapping_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::wrapping_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::wrapping_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::overflowing_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::overflowing_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::overflowing_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::overflowing_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<i64 as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::wrapping_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::wrapping_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::wrapping_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::wrapping_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::wrapping_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::wrapping_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::wrapping_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::wrapping_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1644,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::overflowing_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::overflowing_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1706,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::overflowing_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::overflowing_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 1964,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "idiv   %rsi",
+      "mnemonic": "IDIV",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<isize as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "line": 2002,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u8 as funty::Integral>::checked_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 604,
+      "address": "",
+      "instruction": "div    %sil",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u8 as funty::Integral>::checked_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1986,
+      "address": "",
+      "instruction": "div    %sil",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u8 as funty::Integral>::checked_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 655,
+      "address": "",
+      "instruction": "div    %sil",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u8 as funty::Integral>::checked_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 2014,
+      "address": "",
+      "instruction": "div    %sil",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u8 as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1711,
+      "address": "",
+      "instruction": "div    %sil",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u8 as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1768,
+      "address": "",
+      "instruction": "div    %sil",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u8 as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1986,
+      "address": "",
+      "instruction": "div    %sil",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u8 as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 2014,
+      "address": "",
+      "instruction": "div    %sil",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u16 as funty::Integral>::checked_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 604,
+      "address": "",
+      "instruction": "div    %si",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u16 as funty::Integral>::checked_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1986,
+      "address": "",
+      "instruction": "div    %si",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u16 as funty::Integral>::checked_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 655,
+      "address": "",
+      "instruction": "div    %si",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u16 as funty::Integral>::checked_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 2014,
+      "address": "",
+      "instruction": "div    %si",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u16 as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1711,
+      "address": "",
+      "instruction": "div    %si",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u16 as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1768,
+      "address": "",
+      "instruction": "div    %si",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u16 as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1986,
+      "address": "",
+      "instruction": "div    %si",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u16 as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 2014,
+      "address": "",
+      "instruction": "div    %si",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u32 as funty::Integral>::checked_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 604,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u32 as funty::Integral>::checked_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1986,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u32 as funty::Integral>::checked_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 655,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u32 as funty::Integral>::checked_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 2014,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u32 as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1711,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u32 as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1768,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u32 as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1986,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u32 as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 2014,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::checked_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 604,
+      "address": "",
+      "instruction": "div    %rsi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::checked_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 604,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::checked_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1986,
+      "address": "",
+      "instruction": "div    %rsi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::checked_div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1986,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::checked_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 655,
+      "address": "",
+      "instruction": "div    %rsi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::checked_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 655,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::checked_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 2014,
+      "address": "",
+      "instruction": "div    %rsi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::checked_rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 2014,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1711,
+      "address": "",
+      "instruction": "div    %rsi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1711,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1768,
+      "address": "",
+      "instruction": "div    %rsi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1768,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1986,
+      "address": "",
+      "instruction": "div    %rsi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1986,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 2014,
+      "address": "",
+      "instruction": "div    %rsi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<u64 as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 2014,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<usize as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1711,
+      "address": "",
+      "instruction": "div    %rsi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<usize as funty::Integral>::overflowing_div",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1711,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<usize as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1768,
+      "address": "",
+      "instruction": "div    %rsi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<usize as funty::Integral>::overflowing_rem",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1768,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<usize as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1986,
+      "address": "",
+      "instruction": "div    %rsi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<usize as funty::Integral>::div_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 1986,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<usize as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 2014,
+      "address": "",
+      "instruction": "div    %rsi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<usize as funty::Integral>::rem_euclid",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "line": 2014,
+      "address": "",
+      "instruction": "div    %esi",
+      "mnemonic": "DIV",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<f32 as funty::Floating>::recip",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/f32.rs",
+      "line": 693,
+      "address": "",
+      "instruction": "divss  %xmm0,%xmm1",
+      "mnemonic": "DIVSS",
+      "reason": "DIVSS (scalar single FP division) has variable latency",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    },
+    {
+      "function": "_<f64 as funty::Floating>::recip",
+      "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/f64.rs",
+      "line": 703,
+      "address": "",
+      "instruction": "divsd  %xmm0,%xmm1",
+      "mnemonic": "DIVSD",
+      "reason": "DIVSD (scalar double FP division) has variable latency",
+      "severity": "error",
+      "triage_hint": "stdlib_other_likely_fp",
+      "source_snippet": null,
+      "object": "funty-afa3c205b4bd41c4.funty.2bfb0d72-cgu.0.rcgu.o"
+    }
+  ],
+  "warnings_sampled": [
+    {
+      "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+      "line": 120,
+      "address": "0x170",
+      "instruction": "je     170 <_ZN9bls12_3818pairings16MillerLoopResult20final_exponentiation15cycolotomic_exp17h447a799a62859161E+0x170>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "            let mut found_one = false;",
+        "            for i in (0..64).rev().map(|b| ((x >> b) & 1) == 1) {",
+        "                if found_one {",
+        "                    tmp = cyclotomic_square(tmp)",
+        "                } else {"
+      ],
+      "object": "bls12_381-9d9bb6f3fabf9973.bls12_381.dc6ebc59-cgu.2.rcgu.o"
+    },
+    {
+      "function": "bls12_381::pairings::multi_miller_loop",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+      "line": 680,
+      "address": "0x130",
+      "instruction": "jae    130 <_ZN9bls12_3818pairings17multi_miller_loop17h1b6ca4688ed9dadbE+0x130>",
+      "mnemonic": "JAE",
+      "reason": "2 conditional branches at this source line (JAE); inspect the if/for/match and confirm its condition does not depend on secret data; reached from: bls12_381::pairings::multi_miller_loop, bls12_381::pairings::pairing",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "            let mut found_one = false;",
+        "            for i in (0..64).rev().map(|b| ((x >> b) & 1) == 1) {",
+        "                if found_one {",
+        "                    tmp = cyclotomic_square(tmp)",
+        "                } else {"
+      ],
+      "object": "bls12_381-9d9bb6f3fabf9973.bls12_381.dc6ebc59-cgu.2.rcgu.o"
+    },
+    {
+      "function": "bls12_381::fp::Fp::pow_vartime",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp.rs",
+      "line": 315,
+      "address": "0x80",
+      "instruction": "jae    80 <_ZN9bls12_3812fp2Fp11pow_vartime17h3ffbbd02a0451a56E+0x80>",
+      "mnemonic": "JAE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res *= self;",
+        "                }"
+      ],
+      "object": "bls12_381-9d9bb6f3fabf9973.bls12_381.dc6ebc59-cgu.4.rcgu.o"
+    },
+    {
+      "function": "bls12_381::g2::G2Affine::is_torsion_free",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+      "line": 922,
+      "address": "0x230",
+      "instruction": "je     230 <_ZN9bls12_3812g28G2Affine15is_torsion_free17h0ba760f20f2d6845E+0x230>",
+      "mnemonic": "JE",
+      "reason": "3 conditional branches at this source line (JE); inspect the if/for/match and confirm its condition does not depend on secret data; reached from: bls12_381::g2::G2Affine::is_torsion_free, bls12_381::g2::G2Projective::clear_cofactor",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut acc = *self;",
+        "        while x != 0 {",
+        "            acc = acc.double();",
+        "            if x % 2 == 1 {"
+      ],
+      "object": "bls12_381-9d9bb6f3fabf9973.bls12_381.dc6ebc59-cgu.0.rcgu.o"
+    },
+    {
+      "function": "bls12_381::g2::G2Projective::batch_normalize",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+      "line": 952,
+      "address": "0xa0b",
+      "instruction": "jne    a0b <_ZN9bls12_3812g212G2Projective15batch_normalize17he1cf2bb956c046f0E+0xa0b>",
+      "mnemonic": "JNE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut acc = *self;",
+        "        while x != 0 {",
+        "            acc = acc.double();",
+        "            if x % 2 == 1 {"
+      ],
+      "object": "bls12_381-9d9bb6f3fabf9973.bls12_381.dc6ebc59-cgu.0.rcgu.o"
+    },
+    {
+      "function": "bls12_381::g1::G1Projective::mul_by_x",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+      "line": 782,
+      "address": "0xe8",
+      "instruction": "jb     e8 <_ZN9bls12_3812g112G1Projective8mul_by_x17h82c1fcd62fdf06efE+0xe8>",
+      "mnemonic": "JB",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut tmp = *self;",
+        "        while x != 0 {",
+        "            tmp = tmp.double();",
+        ""
+      ],
+      "object": "bls12_381-9d9bb6f3fabf9973.bls12_381.dc6ebc59-cgu.1.rcgu.o"
+    },
+    {
+      "function": "bls12_381::scalar::Scalar::pow_vartime",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/scalar.rs",
+      "line": 398,
+      "address": "0x40",
+      "instruction": "jae    40 <_ZN9bls12_3816scalar6Scalar11pow_vartime17hcb56d04eb800f1cbE+0x40>",
+      "mnemonic": "JAE",
+      "reason": "4 conditional branches at this source line (JAE); inspect the if/for/match and confirm its condition does not depend on secret data",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res.mul_assign(self);",
+        "                }"
+      ],
+      "object": "bls12_381-9d9bb6f3fabf9973.bls12_381.dc6ebc59-cgu.3.rcgu.o"
+    },
+    {
+      "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+      "line": 126,
+      "address": "0x110",
+      "instruction": "je     110 <_ZN9bls12_3818pairings16MillerLoopResult20final_exponentiation15cycolotomic_exp17h447a799a62859161E+0x110>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "            let mut found_one = false;",
+        "            for i in (0..64).rev().map(|b| ((x >> b) & 1) == 1) {",
+        "                if found_one {",
+        "                    tmp = cyclotomic_square(tmp)",
+        "                } else {"
+      ],
+      "object": "bls12_381-9d9bb6f3fabf9973.bls12_381.dc6ebc59-cgu.2.rcgu.o"
+    },
+    {
+      "function": "bls12_381::g2::G2Affine::is_torsion_free",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+      "line": 920,
+      "address": "0x28c",
+      "instruction": "jbe    28c <_ZN9bls12_3812g28G2Affine15is_torsion_free17h0ba760f20f2d6845E+0x28c>",
+      "mnemonic": "JBE",
+      "reason": "3 conditional branches at this source line (JBE); inspect the if/for/match and confirm its condition does not depend on secret data; reached from: bls12_381::g2::G2Affine::is_torsion_free, bls12_381::g2::G2Projective::clear_cofactor",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut acc = *self;",
+        "        while x != 0 {",
+        "            acc = acc.double();",
+        "            if x % 2 == 1 {"
+      ],
+      "object": "bls12_381-9d9bb6f3fabf9973.bls12_381.dc6ebc59-cgu.0.rcgu.o"
+    },
+    {
+      "function": "bls12_381::fp2::Fp2::pow_vartime",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp2.rs",
+      "line": 330,
+      "address": "0x90",
+      "instruction": "jae    90 <_ZN9bls12_3813fp23Fp211pow_vartime17h97f1fba36547df49E+0x90>",
+      "mnemonic": "JAE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "vartime_function_likely_fp",
+      "source_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res *= self;",
+        "                }"
+      ],
+      "object": "bls12_381-9d9bb6f3fabf9973.bls12_381.dc6ebc59-cgu.5.rcgu.o"
+    },
+    {
+      "function": "bls12_381::g1::G1Projective::mul_by_x",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+      "line": 785,
+      "address": "0x90",
+      "instruction": "je     90 <_ZN9bls12_3812g112G1Projective8mul_by_x17h82c1fcd62fdf06efE+0x90>",
+      "mnemonic": "JE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut tmp = *self;",
+        "        while x != 0 {",
+        "            tmp = tmp.double();",
+        ""
+      ],
+      "object": "bls12_381-9d9bb6f3fabf9973.bls12_381.dc6ebc59-cgu.1.rcgu.o"
+    },
+    {
+      "function": "bls12_381::g1::G1Projective::batch_normalize",
+      "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+      "line": 807,
+      "address": "0x60e",
+      "instruction": "jne    60e <_ZN9bls12_3812g112G1Projective15batch_normalize17h060f1902f49b52dcE+0x60e>",
+      "mnemonic": "JNE",
+      "reason": "conditional branch may leak timing information if condition depends on secret data",
+      "severity": "warning",
+      "triage_hint": "user_code_review",
+      "source_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut tmp = *self;",
+        "        while x != 0 {",
+        "            tmp = tmp.double();",
+        ""
+      ],
+      "object": "bls12_381-9d9bb6f3fabf9973.bls12_381.dc6ebc59-cgu.1.rcgu.o"
+    }
+  ],
+  "warning_clusters": [
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Affine::is_torsion_free",
+          "line": 920
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Affine::is_torsion_free",
+          "line": 922
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut acc = *self;",
+        "        while x != 0 {",
+        "            acc = acc.double();",
+        "            if x % 2 == 1 {"
+      ],
+      "representative_line": 920,
+      "representative_function": "bls12_381::g2::G2Affine::is_torsion_free",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JBE",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::mul_by_x",
+          "line": 782
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::mul_by_x",
+          "line": 785
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut tmp = *self;",
+        "        while x != 0 {",
+        "            tmp = tmp.double();",
+        ""
+      ],
+      "representative_line": 782,
+      "representative_function": "bls12_381::g1::G1Projective::mul_by_x",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+          "line": 120
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+          "line": 126
+        }
+      ],
+      "representative_snippet": [
+        "            let mut found_one = false;",
+        "            for i in (0..64).rev().map(|b| ((x >> b) & 1) == 1) {",
+        "                if found_one {",
+        "                    tmp = cyclotomic_square(tmp)",
+        "                } else {"
+      ],
+      "representative_line": 120,
+      "representative_function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Projective::batch_normalize",
+          "line": 952
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut acc = *self;",
+        "        while x != 0 {",
+        "            acc = acc.double();",
+        "            if x % 2 == 1 {"
+      ],
+      "representative_line": 952,
+      "representative_function": "bls12_381::g2::G2Projective::batch_normalize",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::batch_normalize",
+          "line": 807
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut tmp = *self;",
+        "        while x != 0 {",
+        "            tmp = tmp.double();",
+        ""
+      ],
+      "representative_line": 807,
+      "representative_function": "bls12_381::g1::G1Projective::batch_normalize",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::multi_miller_loop",
+          "line": 680
+        }
+      ],
+      "representative_snippet": [
+        "            let mut found_one = false;",
+        "            for i in (0..64).rev().map(|b| ((x >> b) & 1) == 1) {",
+        "                if found_one {",
+        "                    tmp = cyclotomic_square(tmp)",
+        "                } else {"
+      ],
+      "representative_line": 680,
+      "representative_function": "bls12_381::pairings::multi_miller_loop",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/scalar.rs",
+          "function": "bls12_381::scalar::Scalar::pow_vartime",
+          "line": 398
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res.mul_assign(self);",
+        "                }"
+      ],
+      "representative_line": 398,
+      "representative_function": "bls12_381::scalar::Scalar::pow_vartime",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/scalar.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp.rs",
+          "function": "bls12_381::fp::Fp::pow_vartime",
+          "line": 315
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res *= self;",
+        "                }"
+      ],
+      "representative_line": 315,
+      "representative_function": "bls12_381::fp::Fp::pow_vartime",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp2.rs",
+          "function": "bls12_381::fp2::Fp2::pow_vartime",
+          "line": 330
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res *= self;",
+        "                }"
+      ],
+      "representative_line": 330,
+      "representative_function": "bls12_381::fp2::Fp2::pow_vartime",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    }
+  ],
+  "cluster_count": 9,
+  "build_valid": true,
+  "clusters_user_function": [
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Affine::is_torsion_free",
+          "line": 920
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Affine::is_torsion_free",
+          "line": 922
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut acc = *self;",
+        "        while x != 0 {",
+        "            acc = acc.double();",
+        "            if x % 2 == 1 {"
+      ],
+      "representative_line": 920,
+      "representative_function": "bls12_381::g2::G2Affine::is_torsion_free",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JBE",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::mul_by_x",
+          "line": 782
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::mul_by_x",
+          "line": 785
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut tmp = *self;",
+        "        while x != 0 {",
+        "            tmp = tmp.double();",
+        ""
+      ],
+      "representative_line": 782,
+      "representative_function": "bls12_381::g1::G1Projective::mul_by_x",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+          "line": 120
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+          "line": 126
+        }
+      ],
+      "representative_snippet": [
+        "            let mut found_one = false;",
+        "            for i in (0..64).rev().map(|b| ((x >> b) & 1) == 1) {",
+        "                if found_one {",
+        "                    tmp = cyclotomic_square(tmp)",
+        "                } else {"
+      ],
+      "representative_line": 120,
+      "representative_function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Projective::batch_normalize",
+          "line": 952
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut acc = *self;",
+        "        while x != 0 {",
+        "            acc = acc.double();",
+        "            if x % 2 == 1 {"
+      ],
+      "representative_line": 952,
+      "representative_function": "bls12_381::g2::G2Projective::batch_normalize",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::batch_normalize",
+          "line": 807
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut tmp = *self;",
+        "        while x != 0 {",
+        "            tmp = tmp.double();",
+        ""
+      ],
+      "representative_line": 807,
+      "representative_function": "bls12_381::g1::G1Projective::batch_normalize",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::multi_miller_loop",
+          "line": 680
+        }
+      ],
+      "representative_snippet": [
+        "            let mut found_one = false;",
+        "            for i in (0..64).rev().map(|b| ((x >> b) & 1) == 1) {",
+        "                if found_one {",
+        "                    tmp = cyclotomic_square(tmp)",
+        "                } else {"
+      ],
+      "representative_line": 680,
+      "representative_function": "bls12_381::pairings::multi_miller_loop",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/scalar.rs",
+          "function": "bls12_381::scalar::Scalar::pow_vartime",
+          "line": 398
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res.mul_assign(self);",
+        "                }"
+      ],
+      "representative_line": 398,
+      "representative_function": "bls12_381::scalar::Scalar::pow_vartime",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/scalar.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp.rs",
+          "function": "bls12_381::fp::Fp::pow_vartime",
+          "line": 315
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res *= self;",
+        "                }"
+      ],
+      "representative_line": 315,
+      "representative_function": "bls12_381::fp::Fp::pow_vartime",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp2.rs",
+          "function": "bls12_381::fp2::Fp2::pow_vartime",
+          "line": 330
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res *= self;",
+        "                }"
+      ],
+      "representative_line": 330,
+      "representative_function": "bls12_381::fp2::Fp2::pow_vartime",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    }
+  ],
+  "clusters_user_file": [
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "file",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Affine::is_torsion_free",
+          "line": 920
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Affine::is_torsion_free",
+          "line": 922
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Projective::batch_normalize",
+          "line": 952
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut acc = *self;",
+        "        while x != 0 {",
+        "            acc = acc.double();",
+        "            if x % 2 == 1 {"
+      ],
+      "representative_line": 920,
+      "representative_function": "bls12_381::g2::G2Affine::is_torsion_free",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JBE",
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "file",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::mul_by_x",
+          "line": 782
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::mul_by_x",
+          "line": 785
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::batch_normalize",
+          "line": 807
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut tmp = *self;",
+        "        while x != 0 {",
+        "            tmp = tmp.double();",
+        ""
+      ],
+      "representative_line": 782,
+      "representative_function": "bls12_381::g1::G1Projective::mul_by_x",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "file",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+          "line": 120
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+          "line": 126
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::multi_miller_loop",
+          "line": 680
+        }
+      ],
+      "representative_snippet": [
+        "            let mut found_one = false;",
+        "            for i in (0..64).rev().map(|b| ((x >> b) & 1) == 1) {",
+        "                if found_one {",
+        "                    tmp = cyclotomic_square(tmp)",
+        "                } else {"
+      ],
+      "representative_line": 120,
+      "representative_function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "file",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/scalar.rs",
+          "function": "bls12_381::scalar::Scalar::pow_vartime",
+          "line": 398
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res.mul_assign(self);",
+        "                }"
+      ],
+      "representative_line": 398,
+      "representative_function": "bls12_381::scalar::Scalar::pow_vartime",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/scalar.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "file",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp.rs",
+          "function": "bls12_381::fp::Fp::pow_vartime",
+          "line": 315
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res *= self;",
+        "                }"
+      ],
+      "representative_line": 315,
+      "representative_function": "bls12_381::fp::Fp::pow_vartime",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "file",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp2.rs",
+          "function": "bls12_381::fp2::Fp2::pow_vartime",
+          "line": 330
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res *= self;",
+        "                }"
+      ],
+      "representative_line": 330,
+      "representative_function": "bls12_381::fp2::Fp2::pow_vartime",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    }
+  ],
+  "clusters_user_pattern": [
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "pattern",
+      "count": 6,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Affine::is_torsion_free",
+          "line": 920
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Affine::is_torsion_free",
+          "line": 922
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Projective::batch_normalize",
+          "line": 952
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::mul_by_x",
+          "line": 782
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::mul_by_x",
+          "line": 785
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut acc = *self;",
+        "        while x != 0 {",
+        "            acc = acc.double();",
+        "            if x % 2 == 1 {"
+      ],
+      "representative_line": 920,
+      "representative_function": "bls12_381::g2::G2Affine::is_torsion_free",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+      "representative_pattern": "while NAME != NUM {",
+      "mnemonics": [
+        "JB",
+        "JBE",
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "pattern",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+          "line": 120
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+          "line": 126
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::multi_miller_loop",
+          "line": 680
+        }
+      ],
+      "representative_snippet": [
+        "            let mut found_one = false;",
+        "            for i in (0..64).rev().map(|b| ((x >> b) & 1) == 1) {",
+        "                if found_one {",
+        "                    tmp = cyclotomic_square(tmp)",
+        "                } else {"
+      ],
+      "representative_line": 120,
+      "representative_function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+      "representative_pattern": "if NAME {",
+      "mnemonics": [
+        "JAE",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "pattern",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/scalar.rs",
+          "function": "bls12_381::scalar::Scalar::pow_vartime",
+          "line": 398
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp.rs",
+          "function": "bls12_381::fp::Fp::pow_vartime",
+          "line": 315
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp2.rs",
+          "function": "bls12_381::fp2::Fp2::pow_vartime",
+          "line": 330
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res.mul_assign(self);",
+        "                }"
+      ],
+      "representative_line": 398,
+      "representative_function": "bls12_381::scalar::Scalar::pow_vartime",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/scalar.rs",
+      "representative_pattern": "if ((*NAME >> NAME) & NUM) == NUM {",
+      "mnemonics": [
+        "JAE"
+      ]
+    }
+  ],
+  "clusters_all_function": [
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 4,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::checked_pow",
+          "line": 861
+        },
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::checked_pow",
+          "line": 862
+        },
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::checked_pow",
+          "line": 865
+        },
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::checked_pow",
+          "line": 860
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 861,
+      "representative_function": "_<i128 as funty::Integral>::checked_pow",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA",
+        "JE",
+        "JNE",
+        "JO"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 4,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::checked_pow",
+          "line": 1011
+        },
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::checked_pow",
+          "line": 1012
+        },
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::checked_pow",
+          "line": 1015
+        },
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::checked_pow",
+          "line": 1010
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1011,
+      "representative_function": "_<u128 as funty::Integral>::checked_pow",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA",
+        "JE",
+        "JNE",
+        "JO"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/range.rs",
+          "function": "bls12_381::fp::Fp::sum_of_products",
+          "line": 621
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 621,
+      "representative_function": "bls12_381::fp::Fp::sum_of_products",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/range.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 3,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::checked_div_euclid",
+          "line": 638
+        },
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::checked_div_euclid",
+          "line": 1965
+        },
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::checked_div_euclid",
+          "line": 1966
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 638,
+      "representative_function": "_<i128 as funty::Integral>::checked_div_euclid",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JGE",
+        "JNE",
+        "JNS"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Affine::is_torsion_free",
+          "line": 920
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Affine::is_torsion_free",
+          "line": 922
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut acc = *self;",
+        "        while x != 0 {",
+        "            acc = acc.double();",
+        "            if x % 2 == 1 {"
+      ],
+      "representative_line": 920,
+      "representative_function": "bls12_381::g2::G2Affine::is_torsion_free",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JBE",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::mul_by_x",
+          "line": 782
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::mul_by_x",
+          "line": 785
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut tmp = *self;",
+        "        while x != 0 {",
+        "            tmp = tmp.double();",
+        ""
+      ],
+      "representative_line": 782,
+      "representative_function": "bls12_381::g1::G1Projective::mul_by_x",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+          "line": 120
+        },
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+          "line": 126
+        }
+      ],
+      "representative_snippet": [
+        "            let mut found_one = false;",
+        "            for i in (0..64).rev().map(|b| ((x >> b) & 1) == 1) {",
+        "                if found_one {",
+        "                    tmp = cyclotomic_square(tmp)",
+        "                } else {"
+      ],
+      "representative_line": 120,
+      "representative_function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/range.rs",
+          "function": "ff::helpers::sqrt_tonelli_shanks",
+          "line": 1050
+        },
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/range.rs",
+          "function": "ff::helpers::sqrt_tonelli_shanks",
+          "line": 621
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1050,
+      "representative_function": "ff::helpers::sqrt_tonelli_shanks",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/range.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JB",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::saturating_pow",
+          "line": 1097
+        },
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::saturating_pow",
+          "line": 854
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1097,
+      "representative_function": "_<i128 as funty::Integral>::saturating_pow",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE",
+        "JNO"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::overflowing_div",
+          "line": 1641
+        },
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::overflowing_div",
+          "line": 1644
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1641,
+      "representative_function": "_<i128 as funty::Integral>::overflowing_div",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::overflowing_pow",
+          "line": 1870
+        },
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::overflowing_pow",
+          "line": 1871
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1870,
+      "representative_function": "_<i128 as funty::Integral>::overflowing_pow",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA",
+        "JBE",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 2,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::overflowing_pow",
+          "line": 1903
+        },
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::overflowing_pow",
+          "line": 1904
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1903,
+      "representative_function": "_<u128 as funty::Integral>::overflowing_pow",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA",
+        "JBE",
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/adapters/skip.rs",
+          "function": "bls12_381::g2::G2Projective::multiply",
+          "line": 35
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 35,
+      "representative_function": "bls12_381::g2::G2Projective::multiply",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/adapters/skip.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/iter/macros.rs",
+          "function": "bls12_381::g2::G2Projective::batch_normalize",
+          "line": 361
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 361,
+      "representative_function": "bls12_381::g2::G2Projective::batch_normalize",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+          "function": "bls12_381::g2::G2Projective::batch_normalize",
+          "line": 952
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut acc = *self;",
+        "        while x != 0 {",
+        "            acc = acc.double();",
+        "            if x % 2 == 1 {"
+      ],
+      "representative_line": 952,
+      "representative_function": "bls12_381::g2::G2Projective::batch_normalize",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/adapters/zip.rs",
+          "function": "bls12_381::g2::G2Projective::batch_normalize",
+          "line": 270
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 270,
+      "representative_function": "bls12_381::g2::G2Projective::batch_normalize",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/adapters/zip.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/adapters/skip.rs",
+          "function": "bls12_381::g1::G1Projective::multiply",
+          "line": 35
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 35,
+      "representative_function": "bls12_381::g1::G1Projective::multiply",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/adapters/skip.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/iter/macros.rs",
+          "function": "bls12_381::g1::G1Projective::batch_normalize",
+          "line": 361
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 361,
+      "representative_function": "bls12_381::g1::G1Projective::batch_normalize",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+          "function": "bls12_381::g1::G1Projective::batch_normalize",
+          "line": 807
+        }
+      ],
+      "representative_snippet": [
+        "        let mut x = crate::BLS_X >> 1;",
+        "        let mut tmp = *self;",
+        "        while x != 0 {",
+        "            tmp = tmp.double();",
+        ""
+      ],
+      "representative_line": 807,
+      "representative_function": "bls12_381::g1::G1Projective::batch_normalize",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/g1.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/adapters/zip.rs",
+          "function": "bls12_381::g1::G1Projective::batch_normalize",
+          "line": 270
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 270,
+      "representative_function": "bls12_381::g1::G1Projective::batch_normalize",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/adapters/zip.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/github.com-1ecc6299db9ec823/subtle-2.6.1/src/lib.rs",
+          "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation",
+          "line": 701
+        }
+      ],
+      "representative_snippet": [
+        "    #[inline]",
+        "    pub fn unwrap(self) -> T {",
+        "        assert_eq!(self.is_some.unwrap_u8(), 1);",
+        "",
+        "        self.value"
+      ],
+      "representative_line": 701,
+      "representative_function": "bls12_381::pairings::MillerLoopResult::final_exponentiation",
+      "representative_file": "/root/.cargo/registry/src/github.com-1ecc6299db9ec823/subtle-2.6.1/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/range.rs",
+          "function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+          "line": 665
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 665,
+      "representative_function": "bls12_381::pairings::MillerLoopResult::final_exponentiation::cycolotomic_exp",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/range.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JBE"
+      ]
+    },
+    {
+      "triage_hint": "user_code_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+          "function": "bls12_381::pairings::multi_miller_loop",
+          "line": 680
+        }
+      ],
+      "representative_snippet": [
+        "            let mut found_one = false;",
+        "            for i in (0..64).rev().map(|b| ((x >> b) & 1) == 1) {",
+        "                if found_one {",
+        "                    tmp = cyclotomic_square(tmp)",
+        "                } else {"
+      ],
+      "representative_line": 680,
+      "representative_function": "bls12_381::pairings::multi_miller_loop",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/pairings.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/iter/macros.rs",
+          "function": "_<bls12_381::pairings::multi_miller_loop::Adder as bls12_381::pairings::MillerLoopDriver>::addition_step",
+          "line": 146
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 146,
+      "representative_function": "_<bls12_381::pairings::multi_miller_loop::Adder as bls12_381::pairings::MillerLoopDriver>::addition_step",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/index.rs",
+          "function": "_<bls12_381::pairings::multi_miller_loop::Adder as bls12_381::pairings::MillerLoopDriver>::addition_step",
+          "line": 242
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 242,
+      "representative_function": "_<bls12_381::pairings::multi_miller_loop::Adder as bls12_381::pairings::MillerLoopDriver>::addition_step",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/index.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JBE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/range.rs",
+          "function": "bls12_381::scalar::Scalar::pow",
+          "line": 665
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 665,
+      "representative_function": "bls12_381::scalar::Scalar::pow",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/range.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/github.com-1ecc6299db9ec823/ff-0.13.1/src/lib.rs",
+          "function": "ff::Field::pow_vartime",
+          "line": 184
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res.mul_assign(self);",
+        "                }"
+      ],
+      "representative_line": 184,
+      "representative_function": "ff::Field::pow_vartime",
+      "representative_file": "/root/.cargo/registry/src/github.com-1ecc6299db9ec823/ff-0.13.1/src/lib.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/scalar.rs",
+          "function": "bls12_381::scalar::Scalar::pow_vartime",
+          "line": 398
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res.mul_assign(self);",
+        "                }"
+      ],
+      "representative_line": 398,
+      "representative_function": "bls12_381::scalar::Scalar::pow_vartime",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/scalar.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/iter/macros.rs",
+          "function": "bls12_381::fp::Fp::pow_vartime",
+          "line": 361
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 361,
+      "representative_function": "bls12_381::fp::Fp::pow_vartime",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/range.rs",
+          "function": "bls12_381::fp::Fp::pow_vartime",
+          "line": 665
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 665,
+      "representative_function": "bls12_381::fp::Fp::pow_vartime",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/range.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp.rs",
+          "function": "bls12_381::fp::Fp::pow_vartime",
+          "line": 315
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res *= self;",
+        "                }"
+      ],
+      "representative_line": 315,
+      "representative_function": "bls12_381::fp::Fp::pow_vartime",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/iter/macros.rs",
+          "function": "bls12_381::fp2::Fp2::pow_vartime",
+          "line": 361
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 361,
+      "representative_function": "bls12_381::fp2::Fp2::pow_vartime",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/range.rs",
+          "function": "bls12_381::fp2::Fp2::pow_vartime",
+          "line": 665
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 665,
+      "representative_function": "bls12_381::fp2::Fp2::pow_vartime",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/iter/range.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "vartime_function_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp2.rs",
+          "function": "bls12_381::fp2::Fp2::pow_vartime",
+          "line": 330
+        }
+      ],
+      "representative_snippet": [
+        "                res = res.square();",
+        "",
+        "                if ((*e >> i) & 1) == 1 {",
+        "                    res *= self;",
+        "                }"
+      ],
+      "representative_line": 330,
+      "representative_function": "bls12_381::fp2::Fp2::pow_vartime",
+      "representative_file": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild_rust/bls12_381/src/fp2.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/github.com-1ecc6299db9ec823/ff-0.13.1/src/helpers.rs",
+          "function": "ff::helpers::sqrt_ratio_generic",
+          "line": 120
+        }
+      ],
+      "representative_snippet": [
+        "    let is_square = sqrt_a.is_some();",
+        "    let is_nonsquare = sqrt_b.is_some();",
+        "    assert!(bool::from(",
+        "        num_is_zero | div_is_zero | (is_square ^ is_nonsquare)",
+        "    ));"
+      ],
+      "representative_line": 120,
+      "representative_function": "ff::helpers::sqrt_ratio_generic",
+      "representative_file": "/root/.cargo/registry/src/github.com-1ecc6299db9ec823/ff-0.13.1/src/helpers.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::wrapping_pow",
+          "line": 1476
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1476,
+      "representative_function": "_<i128 as funty::Integral>::wrapping_pow",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::overflowing_div_euclid",
+          "line": 1672
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1672,
+      "representative_function": "_<i128 as funty::Integral>::overflowing_div_euclid",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::pow",
+          "line": 1915
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1915,
+      "representative_function": "_<i128 as funty::Integral>::pow",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::checked_div",
+          "line": 611
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 611,
+      "representative_function": "_<i128 as funty::Integral>::checked_div",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i64 as funty::Integral>::checked_div",
+          "line": 615
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 615,
+      "representative_function": "_<i64 as funty::Integral>::checked_div",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::div_euclid",
+          "line": 1964
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1964,
+      "representative_function": "_<i128 as funty::Integral>::div_euclid",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::checked_rem",
+          "line": 664
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 664,
+      "representative_function": "_<i128 as funty::Integral>::checked_rem",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i64 as funty::Integral>::checked_rem",
+          "line": 668
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 668,
+      "representative_function": "_<i64 as funty::Integral>::checked_rem",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::checked_rem_euclid",
+          "line": 691
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 691,
+      "representative_function": "_<i128 as funty::Integral>::checked_rem_euclid",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::rem_euclid",
+          "line": 2002
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2002,
+      "representative_function": "_<i128 as funty::Integral>::rem_euclid",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i64 as funty::Integral>::overflowing_rem",
+          "line": 1706
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1706,
+      "representative_function": "_<i64 as funty::Integral>::overflowing_rem",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::overflowing_rem",
+          "line": 1703
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1703,
+      "representative_function": "_<i128 as funty::Integral>::overflowing_rem",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+          "function": "_<i128 as funty::Integral>::overflowing_rem_euclid",
+          "line": 1734
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1734,
+      "representative_function": "_<i128 as funty::Integral>::overflowing_rem_euclid",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/int_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u16 as funty::Integral>::saturating_pow",
+          "line": 1161
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1161,
+      "representative_function": "_<u16 as funty::Integral>::saturating_pow",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JNO"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u64 as funty::Integral>::checked_div",
+          "line": 604
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 604,
+      "representative_function": "_<u64 as funty::Integral>::checked_div",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::div_euclid",
+          "line": 1986
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1986,
+      "representative_function": "_<u128 as funty::Integral>::div_euclid",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u64 as funty::Integral>::checked_rem",
+          "line": 655
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 655,
+      "representative_function": "_<u64 as funty::Integral>::checked_rem",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::rem_euclid",
+          "line": 2014
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2014,
+      "representative_function": "_<u128 as funty::Integral>::rem_euclid",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::overflowing_div",
+          "line": 1711
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1711,
+      "representative_function": "_<u128 as funty::Integral>::overflowing_div",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::overflowing_rem",
+          "line": 1768
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 1768,
+      "representative_function": "_<u128 as funty::Integral>::overflowing_rem",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::checked_div",
+          "line": 599
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 599,
+      "representative_function": "_<u128 as funty::Integral>::checked_div",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::checked_div_euclid",
+          "line": 625
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 625,
+      "representative_function": "_<u128 as funty::Integral>::checked_div_euclid",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::checked_rem",
+          "line": 650
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 650,
+      "representative_function": "_<u128 as funty::Integral>::checked_rem",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Integral>::checked_rem_euclid",
+          "line": 676
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 676,
+      "representative_function": "_<u128 as funty::Integral>::checked_rem_euclid",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_other_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+          "function": "_<u128 as funty::Unsigned>::checked_next_power_of_two",
+          "line": 2165
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 2165,
+      "representative_function": "_<u128 as funty::Unsigned>::checked_next_power_of_two",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/num/uint_macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE",
+        "JB"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/github.com-1ecc6299db9ec823/group-0.13.0/src/wnaf.rs",
+          "function": "group::wnaf::LimbBuffer::new",
+          "line": 61
+        }
+      ],
+      "representative_snippet": [
+        "        self.cur_idx += 1;",
+        "        self.cur_limb = self.next_limb;",
+        "        match self.buf.len() {",
+        "            // There are no more bytes in the buffer; zero-extend.",
+        "            0 => self.next_limb = 0,"
+      ],
+      "representative_line": 61,
+      "representative_function": "group::wnaf::LimbBuffer::new",
+      "representative_file": "/root/.cargo/registry/src/github.com-1ecc6299db9ec823/group-0.13.0/src/wnaf.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_iter_end_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/iter/macros.rs",
+          "function": "group::wnaf::LimbBuffer::get",
+          "line": 242
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 242,
+      "representative_function": "group::wnaf::LimbBuffer::get",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/iter/macros.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JE",
+        "JNE"
+      ]
+    },
+    {
+      "triage_hint": "dependency_source_review",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/root/.cargo/registry/src/github.com-1ecc6299db9ec823/group-0.13.0/src/wnaf.rs",
+          "function": "group::wnaf::LimbBuffer::get",
+          "line": 84
+        }
+      ],
+      "representative_snippet": [
+        "        self.cur_idx += 1;",
+        "        self.cur_limb = self.next_limb;",
+        "        match self.buf.len() {",
+        "            // There are no more bytes in the buffer; zero-extend.",
+        "            0 => self.next_limb = 0,"
+      ],
+      "representative_line": 84,
+      "representative_function": "group::wnaf::LimbBuffer::get",
+      "representative_file": "/root/.cargo/registry/src/github.com-1ecc6299db9ec823/group-0.13.0/src/wnaf.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JAE"
+      ]
+    },
+    {
+      "triage_hint": "stdlib_bounds_check_likely_fp",
+      "key_kind": "function",
+      "count": 1,
+      "distinct_locations": [
+        {
+          "file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/index.rs",
+          "function": "rand_core::impls::fill_via_u32_chunks",
+          "line": 303
+        }
+      ],
+      "representative_snippet": null,
+      "representative_line": 303,
+      "representative_function": "rand_core::impls::fill_via_u32_chunks",
+      "representative_file": "/rustc/4b91a6ea7258a947e59c6522cd5898e7c0a6a88f/library/core/src/slice/index.rs",
+      "representative_pattern": null,
+      "mnemonics": [
+        "JA"
+      ]
+    }
+  ]
+}
