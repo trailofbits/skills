@@ -67,14 +67,20 @@ Based on the file extension or language context, refer to the appropriate guide:
 # Analyze any supported file type
 uv run {baseDir}/ct_analyzer/analyzer.py <source_file>
 
-# Include conditional branch warnings
+# Include conditional branch warnings (loop-control noise auto-filtered)
 uv run {baseDir}/ct_analyzer/analyzer.py --warnings <source_file>
+
+# Strict CT-contract enforcement: branches in `verify_*`/`ct_*`/etc. become ERRORs
+uv run {baseDir}/ct_analyzer/analyzer.py --warnings --strict <source_file>
 
 # Filter to specific functions
 uv run {baseDir}/ct_analyzer/analyzer.py --func 'sign|verify' <source_file>
 
 # JSON output for CI
 uv run {baseDir}/ct_analyzer/analyzer.py --json <source_file>
+
+# Forensic mode: disable warning-precision filters (Rust only)
+uv run {baseDir}/ct_analyzer/analyzer.py --warnings --no-precise-warnings <source_file>
 ```
 
 ### Native Compiled Languages Only (C, C++, Go, Rust)

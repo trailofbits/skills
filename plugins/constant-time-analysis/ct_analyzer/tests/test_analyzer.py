@@ -180,14 +180,19 @@ class TestAssemblyParser(unittest.TestCase):
         self.assertEqual(error_violations[0].mnemonic, "SDIV")
 
     def test_parse_conditional_branches_as_warnings(self):
-        """Parser should detect conditional branches as warnings."""
+        """Parser should detect conditional branches as warnings.
+
+        Uses a register-vs-register compare so the result is not
+        suppressed by the cmp-to-literal filter. The textbook
+        early-exit-memcmp pattern is exactly `cmp r, mem; jne fail`.
+        """
         assembly = """
         check_value:
-            cmpq    $0, %rdi
-            je      .Lzero
+            cmpq    %rsi, %rdi
+            jne     .Lmismatch
             movq    $1, %rax
             ret
-        .Lzero:
+        .Lmismatch:
             xorq    %rax, %rax
             ret
         """
@@ -196,7 +201,7 @@ class TestAssemblyParser(unittest.TestCase):
         functions, violations = parser.parse(assembly, include_warnings=True)
 
         warning_violations = [v for v in violations if v.severity == Severity.WARNING]
-        self.assertGreater(len(warning_violations), 0, "Should detect JE as warning")
+        self.assertGreater(len(warning_violations), 0, "Should detect JNE as warning")
 
     def test_parse_no_false_positives_on_clean_code(self):
         """Parser should not flag clean constant-time code."""
@@ -1391,6 +1396,216 @@ console.log(vulnerableRandom());
                 pass
             else:
                 raise
+
+
+class TestWarningPrecisionFilters(unittest.TestCase):
+    """Heuristic filters that drop low-signal warnings.
+
+    The premise: when ERROR-count is zero, the entire signal is in
+    WARNs. Hundreds of unactionable warnings drown the few real ones.
+    These filters were tuned against libcrux ML-KEM (97% reduction:
+    11725 -> 297) without suppressing any of the four CVE-derived
+    vulnerable patterns in the benchmark corpus.
+    """
+
+    def test_filter_cmp_imm_suppresses_loop_counter_branch(self):
+        """`cmp $0, %r; je ...` is loop control on a literal."""
+        from analyzer import AssemblyParser
+
+        asm = """
+        my_func:
+            cmpq    $0, %rcx
+            je      .Lend
+            addq    $1, %rax
+            ret
+        .Lend:
+            ret
+        """
+        parser = AssemblyParser("x86_64", "clang")
+        _, violations = parser.parse(asm, include_warnings=True)
+        self.assertEqual(
+            [v for v in violations if v.severity == Severity.WARNING],
+            [],
+            "JE following cmp-to-literal should be filtered",
+        )
+
+    def test_filter_test_self_suppresses_zero_check(self):
+        """`test %r, %r; jz ...` is the is-zero idiom."""
+        from analyzer import AssemblyParser
+
+        asm = """
+        my_func:
+            testq   %rax, %rax
+            jz      .Lzero
+            ret
+        .Lzero:
+            ret
+        """
+        parser = AssemblyParser("x86_64", "clang")
+        _, violations = parser.parse(asm, include_warnings=True)
+        self.assertEqual(
+            [v for v in violations if v.severity == Severity.WARNING], []
+        )
+
+    def test_filter_keeps_branch_after_register_compare(self):
+        """`cmp %rsi, %rdi; jne` IS the early-exit-memcmp pattern."""
+        from analyzer import AssemblyParser
+
+        asm = """
+        my_func:
+            cmpq    %rsi, %rdi
+            jne     .Lmismatch
+            movq    $1, %rax
+            ret
+        .Lmismatch:
+            xorq    %rax, %rax
+            ret
+        """
+        parser = AssemblyParser("x86_64", "clang")
+        _, violations = parser.parse(asm, include_warnings=True)
+        warns = [v for v in violations if v.severity == Severity.WARNING]
+        self.assertEqual(len(warns), 1)
+        self.assertEqual(warns[0].mnemonic, "JNE")
+
+    def test_filter_panic_target_suppresses_bounds_check(self):
+        """Branches into a panic landing pad are not timing oracles."""
+        from analyzer import AssemblyParser
+
+        asm = """
+        my_func:
+            cmpq    %rsi, %rdi
+            jae     .Lpanic
+            movq    %rax, (%rcx)
+            ret
+        .Lpanic:
+            callq   _ZN4core9panicking11panic_const23panic_const_div_by_zero17h0123456789abcdefE@PLT
+        """
+        parser = AssemblyParser("x86_64", "clang")
+        _, violations = parser.parse(asm, include_warnings=True)
+        self.assertEqual(
+            [v for v in violations if v.severity == Severity.WARNING],
+            [],
+            "JAE to a panic block should be filtered",
+        )
+
+    def test_aggregate_warnings_collapses_same_source_line(self):
+        """Multiple branches at the same file:line collapse to one."""
+        from analyzer import AssemblyParser, Severity, Violation
+
+        v1 = Violation(
+            function="f", file="x.rs", line=10, address="", instruction="",
+            mnemonic="JE", reason="r", severity=Severity.WARNING,
+        )
+        v2 = Violation(
+            function="f", file="x.rs", line=10, address="", instruction="",
+            mnemonic="JNE", reason="r", severity=Severity.WARNING,
+        )
+        v3 = Violation(
+            function="f", file="x.rs", line=20, address="", instruction="",
+            mnemonic="JE", reason="r", severity=Severity.WARNING,
+        )
+        out = AssemblyParser._aggregate_warnings([v1, v2, v3])
+        self.assertEqual(len(out), 2)
+        # First merged entry: line 10, both mnemonics in slash-form.
+        self.assertEqual(out[0].line, 10)
+        self.assertIn("JE", out[0].mnemonic)
+        self.assertIn("JNE", out[0].mnemonic)
+        self.assertEqual(out[1].line, 20)
+
+    def test_aggregate_does_not_collapse_errors(self):
+        """ERRORs are always reported individually."""
+        from analyzer import AssemblyParser, Severity, Violation
+
+        v1 = Violation(
+            function="f", file="x.rs", line=10, address="", instruction="",
+            mnemonic="DIVQ", reason="r", severity=Severity.ERROR,
+        )
+        v2 = Violation(
+            function="f", file="x.rs", line=10, address="", instruction="",
+            mnemonic="DIVL", reason="r", severity=Severity.ERROR,
+        )
+        out = AssemblyParser._aggregate_warnings([v1, v2])
+        self.assertEqual(len(out), 2)
+
+
+class TestStrictMode(unittest.TestCase):
+    """`--strict`: warnings inside CT-named functions become ERRORs."""
+
+    def test_promotes_in_ct_eq(self):
+        from analyzer import AssemblyParser
+
+        # JNE on a register-vs-register compare survives the cmp-imm filter.
+        asm = """
+        _ZN5myapp10ct_eq_byte17h0123456789abcdefE:
+            cmpq    %rsi, %rdi
+            jne     .Lfail
+            movq    $1, %rax
+            ret
+        .Lfail:
+            xorq    %rax, %rax
+            ret
+        """
+        # Add a `.loc` so the warning passes the user-source check.
+        asm_with_loc = (
+            '\t.file 1 "/home/u/myapp/src/lib.rs"\n'
+            "_ZN5myapp10ct_eq_byte17h0123456789abcdefE:\n"
+            "\t.loc 1 5 0\n"
+            "\tcmpq %rsi, %rdi\n"
+            "\t.loc 1 5 0\n"
+            "\tjne .Lfail\n"
+            "\tmovq $1, %rax\n"
+            "\tret\n"
+            ".Lfail:\n"
+            "\txorq %rax, %rax\n"
+            "\tret\n"
+        )
+        parser = AssemblyParser("x86_64", "rustc", strict=True)
+        _, violations = parser.parse(asm_with_loc, include_warnings=True)
+        errs = [v for v in violations if v.severity == Severity.ERROR]
+        self.assertEqual(len(errs), 1, f"expected 1 ERROR, got {violations}")
+        self.assertEqual(errs[0].mnemonic, "JNE")
+
+    def test_does_not_promote_outside_ct_named_function(self):
+        from analyzer import AssemblyParser
+
+        asm = (
+            '\t.file 1 "/home/u/myapp/src/lib.rs"\n'
+            "_ZN5myapp7add_one17h0123456789abcdefE:\n"
+            "\t.loc 1 5 0\n"
+            "\tcmpq %rsi, %rdi\n"
+            "\tjne .Lfail\n"
+            "\tret\n"
+            ".Lfail:\n"
+            "\tret\n"
+        )
+        parser = AssemblyParser("x86_64", "rustc", strict=True)
+        _, violations = parser.parse(asm, include_warnings=True)
+        self.assertEqual(
+            [v for v in violations if v.severity == Severity.ERROR],
+            [],
+            "non-CT function names should not be promoted",
+        )
+
+    def test_does_not_promote_in_third_party_source(self):
+        from analyzer import AssemblyParser
+
+        # Same CT-named function, but the .loc points into ~/.cargo/registry.
+        asm = (
+            '\t.file 1 "/home/u/.cargo/registry/src/idx/subtle-2.6.1/src/lib.rs"\n'
+            "_ZN6subtle3foo7verify_17h0123456789abcdefE:\n"
+            "\t.loc 1 318 0\n"
+            "\tcmpq %rsi, %rdi\n"
+            "\tjne .Lfail\n"
+            "\tret\n"
+            ".Lfail:\n"
+            "\tret\n"
+        )
+        parser = AssemblyParser("x86_64", "rustc", strict=True)
+        _, violations = parser.parse(asm, include_warnings=True)
+        warns = [v for v in violations if v.severity == Severity.WARNING]
+        errs = [v for v in violations if v.severity == Severity.ERROR]
+        self.assertEqual(len(errs), 0, "third-party source must not be promoted")
+        self.assertEqual(len(warns), 1)
 
 
 class TestRustDemangling(unittest.TestCase):

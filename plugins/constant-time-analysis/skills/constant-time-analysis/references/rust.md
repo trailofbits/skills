@@ -78,6 +78,32 @@ u32::conditional_select(&b, &a, Choice::from(cond as u8))
 
 The analyzer treats `subtle::*` as user code (it's not in `RUST_STDLIB_CRATES`); calls into it appear as `callq` to non-flagged routines.
 
+## Warning precision (default-on)
+
+When ERROR-count is zero, every WARN is the entire signal — and noise here is uniquely costly because a reviewer (human or AI) has to reason about each one. The analyzer applies three filters by default to keep WARNs actionable:
+
+1. **`cmp <reg>, $<imm>; jcc` is suppressed.** A branch that follows a compare against a literal is almost always loop control or argument validation on public data. Secrets are rarely compared to small constants. (`test r, r; jz` is treated the same.)
+2. **Branches into a panic landing pad are suppressed.** `cmp; jcc <panic-label>` where `<panic-label>` calls `core::panicking::*` is a bounds check or unwrap. The panic path is taken at most once before the program dies — not exploitable as a timing oracle.
+3. **Warnings sharing `(file, line, function)` are aggregated.** A single Rust source-level branch (`if`, `for`, `match`) can expand to a dozen asm-level conditional jumps (preamble, body, post-increment, exit edge). Reporting each as a separate warning hides the structural picture. The aggregated form shows the count and the union of mnemonics so you know the source-level event.
+
+Pass `--no-precise-warnings` to disable all three for forensic review of the raw asm.
+
+Real-world impact (libcrux ML-KEM `constant_time_ops.rs`, `--warnings`):
+- raw: 11,725 warnings
+- with default precision: 297 warnings (97% reduction)
+
+The benchmark corpus enforces these filters do not suppress any of the four CVE-derived vulnerable patterns.
+
+## `--strict` mode
+
+`--strict` promotes warnings to ERRORs when found in functions whose demangled name implies a constant-time contract: `verify*`, `compare*`, `equals*`, `ct_*`, `constant_time_*`, `_in_constant_time`. The premise: if the developer named the function `verify_tag` or `ct_eq`, any branch in it is a regression on its stated contract.
+
+Two guards prevent runaway false positives:
+- `--strict` only promotes when the source location is in **user code**. A JNE inside `subtle::ConstantTimeEq::ct_eq` whose source location is `~/.cargo/registry/.../subtle-2.6.1/src/lib.rs:318` (a length check that's part of subtle's public contract) stays a WARN. The same JNE in *your* `src/lib.rs` would become an ERROR.
+- The default-on precision filters still apply, so loop counters and panic targets are dropped before promotion.
+
+Use `--strict` in CI for crypto packages; use the default mode for general-purpose codebases.
+
 ## Patterns the analyzer flags
 
 ### 1. Hardware integer division on a runtime value
