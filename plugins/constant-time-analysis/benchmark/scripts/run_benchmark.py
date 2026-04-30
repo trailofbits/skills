@@ -119,7 +119,8 @@ def main():
         post_filters.extend(s.strip() for s in f.split(",") if s.strip())
     if "all" in post_filters:
         post_filters = ["compiler-helpers", "memcmp-source", "ct-funcs",
-                        "non-secret", "aggregate"]
+                        "non-secret", "div-public", "loop-backedge",
+                        "aggregate"]
 
     t0 = time.time()
     out = run(Path(args.corpus_dir), Path(args.manifest), args.warnings, opt_levels,

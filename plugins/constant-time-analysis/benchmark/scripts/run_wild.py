@@ -71,7 +71,9 @@ def analyze_object(obj: Path, filters: list[str]) -> tuple[list[dict], int, int]
     finally:
         Path(asm_path).unlink(missing_ok=True)
 
-    # Apply filters that don't need source paths
+    # Apply filters that don't need source paths.  Drop only the two
+    # source-level filters; the rest (including the new asm-only ones:
+    # div-public, loop-backedge) all run.
     asm_only_filters = [f for f in filters if f not in ("memcmp-source", "non-secret")]
     kept, _ = apply_filters(report.violations, asm_only_filters)
 
@@ -91,8 +93,11 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", required=True, help="Library root directory (built)")
     ap.add_argument("--label", required=True, help="Library label for output")
-    ap.add_argument("--filter", default="ct-funcs,compiler-helpers,aggregate",
-                    help="Filters to apply")
+    ap.add_argument("--filter",
+                    default="ct-funcs,compiler-helpers,div-public,loop-backedge,aggregate",
+                    help="Filters to apply (asm-only).  Source-level filters "
+                         "memcmp-source/non-secret are silently dropped if "
+                         "given because we have no .c paths in wild mode.")
     ap.add_argument("--out", default=None, help="Write findings JSON to this path")
     ap.add_argument("--limit", type=int, default=0,
                     help="If >0, only analyze the first N .o files (smoke test)")
@@ -113,6 +118,12 @@ def main() -> None:
         obj_files = obj_files[:args.limit]
 
     print(f"== {args.label}: {len(obj_files)} objects ==", file=sys.stderr)
+    if len(obj_files) == 0:
+        print(f"FATAL: no .o files under {root}.  Did the build succeed?  "
+              "Run `git submodule update --init --recursive` and re-build "
+              "before treating zero findings as a property of the code.",
+              file=sys.stderr)
+        sys.exit(2)
 
     all_findings: list[dict] = []
     total_funcs = 0
@@ -124,6 +135,13 @@ def main() -> None:
         all_findings.extend(findings)
         total_funcs += nfunc
         total_instrs += ninstr
+
+    if total_instrs < 1000:
+        print(f"FATAL: only {total_instrs} instructions parsed across "
+              f"{len(obj_files)} objects.  Either the build produced empty "
+              "objects, or the parser failed.  Refusing to report as a "
+              "headline number.", file=sys.stderr)
+        sys.exit(2)
 
     by_mnemonic = Counter(f["mnemonic"] for f in all_findings)
     by_severity = Counter(f["severity"] for f in all_findings)

@@ -64,6 +64,13 @@ class Violation:
     mnemonic: str
     reason: str
     severity: Severity
+    # The 6 instructions preceding this one in the same function. Used by
+    # operand-source heuristics (e.g. "was the DIV's divisor just loaded
+    # from an immediate?").  Empty list when not captured.
+    context_before: list[str] = field(default_factory=list)
+    # The 4 instructions after, plus the current one's full text. Used for
+    # branch-target / loop-backedge analysis.
+    context_after: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -816,8 +823,11 @@ class AssemblyParser:
         current_file = None
         current_line = None
         instruction_count = 0
+        recent: list[str] = []          # last N instructions in current function
+        pending_after: list[tuple[Violation, int]] = []  # (violation, remaining)
 
-        for line in assembly_text.split("\n"):
+        all_lines = assembly_text.split("\n")
+        for line in all_lines:
             line = line.strip()
 
             # Skip empty lines and comments
@@ -854,6 +864,8 @@ class AssemblyParser:
                     )
                 current_function = func_match.group(1)
                 instruction_count = 0
+                recent = []
+                pending_after = []
                 continue
 
             # Skip directives
@@ -896,33 +908,44 @@ class AssemblyParser:
 
             instruction_count += 1
 
+            # Feed any open "after" windows
+            for v, _ in pending_after:
+                v.context_after.append(instruction)
+            pending_after = [(v, n - 1) for v, n in pending_after if n > 1]
+
             # Check for violations
+            new_v = None
             if mnemonic in self.errors:
-                violations.append(
-                    Violation(
-                        function=current_function or "<unknown>",
-                        file=current_file or "",
-                        line=current_line,
-                        address=address,
-                        instruction=instruction,
-                        mnemonic=mnemonic.upper(),
-                        reason=self.errors[mnemonic],
-                        severity=Severity.ERROR,
-                    )
+                new_v = Violation(
+                    function=current_function or "<unknown>",
+                    file=current_file or "",
+                    line=current_line,
+                    address=address,
+                    instruction=instruction,
+                    mnemonic=mnemonic.upper(),
+                    reason=self.errors[mnemonic],
+                    severity=Severity.ERROR,
+                    context_before=list(recent[-6:]),
                 )
             elif include_warnings and mnemonic in self.warnings:
-                violations.append(
-                    Violation(
-                        function=current_function or "<unknown>",
-                        file=current_file or "",
-                        line=current_line,
-                        address=address,
-                        instruction=instruction,
-                        mnemonic=mnemonic.upper(),
-                        reason=self.warnings[mnemonic],
-                        severity=Severity.WARNING,
-                    )
+                new_v = Violation(
+                    function=current_function or "<unknown>",
+                    file=current_file or "",
+                    line=current_line,
+                    address=address,
+                    instruction=instruction,
+                    mnemonic=mnemonic.upper(),
+                    reason=self.warnings[mnemonic],
+                    severity=Severity.WARNING,
+                    context_before=list(recent[-6:]),
                 )
+            if new_v is not None:
+                violations.append(new_v)
+                pending_after.append((new_v, 4))
+
+            recent.append(instruction)
+            if len(recent) > 8:
+                recent.pop(0)
 
         # Don't forget the last function
         if current_function:
@@ -1306,7 +1329,8 @@ Note: VM-compiled and scripting languages analyze bytecode and don't use --arch 
             filter_list.extend(s.strip() for s in f.split(",") if s.strip())
         if "all" in filter_list:
             filter_list = ["compiler-helpers", "memcmp-source", "ct-funcs",
-                           "non-secret", "aggregate"]
+                           "non-secret", "div-public", "loop-backedge",
+                           "aggregate"]
         if filter_list:
             try:
                 from .filters import apply_filters

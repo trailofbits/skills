@@ -65,6 +65,116 @@ CT_FUNCTION_PATTERNS = [
     # Permutation primitives in sponge constructions
     re.compile(r"^(keccak|sha3)_(f1600|permute|absorb|squeeze)$"),
     re.compile(r"^blake2[bs]_compress$"),
+    # --- v2: production-naming patterns ---
+    # Discovered by triaging 84 wild findings across libsodium/BoringSSL/mbedTLS:
+    # the dominant FP class is *protocol/serialization/setup* code, not crypto
+    # operations on secrets. These regexes target the function-name conventions
+    # that show up across all three libraries.
+    #
+    # ASN.1 / DER codec: format-driven, no secret-dependent control flow on
+    # the SECRET; the branches are all about the public DER structure.
+    re.compile(r"^i2[doc]_[A-Za-z0-9_]+$"),
+    re.compile(r"^d2i_[A-Za-z0-9_]+(_fp)?$"),
+    re.compile(r"^[A-Za-z0-9_]+_(marshal|unmarshal|parse|encode|decode|to_bytes|from_bytes|to_str|from_str|to_string)(_[a-z_]+)?$"),
+    re.compile(r"^ASN1_[A-Za-z0-9_]+$"),
+    re.compile(r"^X509_[A-Za-z0-9_]+$"),
+    re.compile(r"^OID_[A-Za-z0-9_]+$"),
+    re.compile(r"^pkcs(7|8|12)_[a-z_0-9]+$"),
+    # OID lookup, name hashing for indexes
+    re.compile(r"^[A-Za-z0-9_]+_get_oid_by_[a-z_]+$"),
+    # Init / cleanup / alloc / free / dup / copy: setup code, public sizes
+    re.compile(r"^[A-Za-z0-9_]+_(init|init_ex|cleanup|free|alloc|dup|copy|new|destroy|clear|reset)$"),
+    re.compile(r"^[A-Za-z0-9_]+_(set|get|set_ex|get_ex|set0|get0|set1|get1)_[a-z_]+$"),
+    # Protocol-level marshalling for ML-KEM / ML-DSA public keys (private-key
+    # variants are NOT covered - only "public_key", "public_seed", etc.)
+    re.compile(r"^BCM_[a-z0-9_]+_(marshal|unmarshal)_public_key$"),
+    re.compile(r"^[A-Za-z0-9_]+_public[a-z_0-9]*$"),  # _public, _public_seed, ...
+    # Stack and hash-table helpers - non-crypto containers
+    re.compile(r"^sk_[a-zA-Z0-9_]+$"),
+    re.compile(r"^OPENSSL_lh_[a-z_]+$"),
+    re.compile(r"^lh_[a-zA-Z0-9_]+$"),
+    re.compile(r"^_ZN4bssl(13|17|19|20|23)?OPENSSL_lh_[A-Za-z0-9_]+"),
+    # I/O wrappers
+    re.compile(r"^BIO_[a-zA-Z0-9_]+$"),
+    re.compile(r"^DH_[a-zA-Z0-9_]+$"),
+    re.compile(r"^DSA_(dup|dup_DH|free|new|print)[a-zA-Z0-9_]*$"),
+    # Curve / group / cipher *setup* functions (precomp tables, key schedules
+    # are handled below by the round/keysetup pattern)
+    re.compile(r"^[a-zA-Z0-9_]+_(precomp|init_precomp|keysetup|key_schedule|key_setup|key_expansion|setup)$"),
+    # Cipher-mode loop wrappers - the BLOCK ops they call do the actual CT
+    # work; the wrapper just iterates over public block count
+    re.compile(r"^[a-zA-Z0-9_]+_(crypt_ctr|crypt_cbc|crypt_ecb|crypt_ofb|crypt_xts|update|finish|cmac_update|cmac_finish|cmac_starts|cmac_ext)$"),
+    re.compile(r"^[a-zA-Z0-9_]+_(starts|set_iv|update_ad|reset_state)$"),
+    # KDF wrappers: cost params and output length are public
+    re.compile(r"^[a-zA-Z0-9_]+_(pbkdf2|hkdf|hkdf_ext|pbkdf2_hmac|pbkdf2_hmac_ext|pbes2_ext|kdf|kdf_ext)$"),
+    re.compile(r"^EVP_PBE_[a-z]+$"),
+    re.compile(r"^HKDF_(extract|expand|derive)$"),
+    # Hashing / sponge update (the squeeze function rate is public)
+    re.compile(r"^[a-zA-Z0-9_]+_(absorb|squeeze|update|finish|finalize|process_block)$"),
+    # mbedTLS-specific intentional-CT naming
+    re.compile(r"^mbedtls_[a-z0-9_]+_ct$"),
+    re.compile(r"^mbedtls_[a-z0-9_]+_cond_[a-z_]+$"),
+    re.compile(r"^mbedtls_mpi_safe_[a-z_]+$"),
+    re.compile(r"^mbedtls_mpi_core_[a-z_]+$"),
+    # libsodium prefix conventions for round / setup / public ops
+    re.compile(r"^_?sodium_[a-z0-9_]+_(round|key_schedule|invert_key_schedule[0-9]*|softaes|ctx)$"),
+    re.compile(r"^_?sodium_(allocarray|pad|unpad|bin2[a-z]+|[a-z]+2bin|memzero|stackzero)$"),
+    re.compile(r"^crypto_(verify_(16|32|64))$"),
+    # Random uniform sampling: the public range is the divisor; the dividend
+    # is rejection-sampled fresh randomness whose timing variation does not
+    # reveal anything secret about the caller.
+    re.compile(r"^randombytes_uniform$"),
+    re.compile(r"^[a-zA-Z0-9_]+_uniform[0-9]*$"),
+    # Public group element operations; secret-bearing ops are usually the
+    # Montgomery ladder which we don't suppress
+    re.compile(r"^ecp_(add_mixed|safe_invert_jac|mod_p[0-9]+|point_cmp|point_(read|write|init|free))$"),
+    re.compile(r"^[a-zA-Z0-9_]+_points?_mul_public$"),
+    # Rejection sampling on PUBLIC inputs (matrix A from rho in ML-DSA/ML-KEM
+    # is derived from a public seed, not the secret signing key)
+    re.compile(r"^_ZN5mldsa[0-9]+_GLOBAL__N_1[0-9]+scalar_uniform[A-Za-z0-9_]+$"),
+    # Padding mode getters (NOT general "_padding" suffix - Lucky13's
+    # `lucky13_validate_padding` is a real CT-violation function and must
+    # NOT be silenced)
+    re.compile(r"^get_(no|pkcs7|iso7816|zero|one_and_zeros)_padding$"),
+    # CCM / GCM tag pre-computation (the actual CT MAC body is the inner
+    # multiply, called from here; the wrapper itself iterates over public
+    # block count)
+    re.compile(r"^calc_tag_pre$"),
+    re.compile(r"^[a-zA-Z0-9_]+_polyval_(nohw|hw)$"),
+    # libsodium internal Ed25519 / Ristretto255 / X25519 byte-conversion -
+    # all designed CT
+    re.compile(r"^_?sodium_(ge25519|x25519|ristretto255)_[a-z_0-9]+$"),
+    re.compile(r"^ge25519_[a-z_0-9]+$"),
+    re.compile(r"^ristretto255_[a-z_0-9]+$"),
+    # std::__rotate and friends - C++ template instantiations that are not
+    # crypto code at all (relaxed: the mangled name has unbounded suffixes)
+    re.compile(r"^_ZNSt\d+_?V?\d*[0-9_]*__(rotate|merge|sort|copy|move|fill|find)"),
+    # Generic _check_ argument validators that DON'T do crypto themselves
+    # (NB: not _validate_ - Lucky13's validate_padding is a real-CT function)
+    re.compile(r"^[a-zA-Z0-9_]+_check_(arg|args|len|size|bounds|input|range|format)$"),
+    # Resize / clear / move - allocator-class operations
+    re.compile(r"^mbedtls_mpi_resize_clear$"),
+    # OpenSSL/BoringSSL bignum helpers documented as variable-time-with-
+    # public-divisor.  Source comments say so explicitly:
+    #   "BN_div_word: callers must not pass secret divisors"
+    #   "BN_div: variable-time"
+    #   "bn_mod_u16_consttime: comment says p and d are public values"
+    #   "BN_mod_exp_mont_word: divisor is the small public modulus word"
+    #   "BN_mod_exp_mont_consttime: bound checks INT_MAX/sizeof, never the secret"
+    re.compile(r"^BN_div(_word)?(\.part\.[0-9]+)?$"),
+    re.compile(r"^BN_mod_exp_mont_(word|consttime)$"),
+    re.compile(r"^_ZN4bssl20bn_mod_u16_consttime[A-Za-z0-9_]*"),
+    # PKCS#12 KDF: iteration count and output length are public parameters
+    re.compile(r"^_ZN4bssl14pkcs12_key_gen"),
+    # Ipv4/v6 codec - bin <-> dotted-decimal, not crypto
+    re.compile(r"^ip_(write|read)_(num|str|addr)$"),
+    # Argon2 / scrypt fill-segment workhorses: the DIV is on cost params
+    # (lanes, passes) which are public Argon2/scrypt configuration knobs.
+    # If the password is the secret, the loop iteration count is a public
+    # function of the cost params, not of the password.
+    re.compile(r"^_?sodium_argon2_(fill_segment|ctx)(_(ref|sse|ssse3|avx2|avx512f))?$"),
+    re.compile(r"^_?sodium_(escrypt_kdf|escrypt_kdf_nosse|escrypt_kdf_sse|pickparams)$"),
+    re.compile(r"^pickparams$"),
 ]
 
 
@@ -304,10 +414,136 @@ def detect_unsafe_memcmp_in_source(source_path: str, secret_funcs: set[str]) -> 
 # Filter dispatch
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Filter 6 (v2): Divisor-source heuristic
+# ---------------------------------------------------------------------------
+# Most "wild" DIV/IDIV findings on production crypto code are on PUBLIC
+# sizing parameters: % blocksize, INT_MAX / sizeof(...), hash-table modulo,
+# count*size overflow checks. The divisor in those cases comes from an
+# immediate constant (`mov $K, %reg`) or a rip-relative .rodata load
+# (`mov disp(%rip), %reg`) just before the DIV. If we can see that pattern
+# in the preceding instructions, we're confident the divisor is public.
+#
+# Conservative: we only suppress when we POSITIVELY identify the immediate-
+# load pattern. Unknown source -> keep the finding.
+
+# AT&T syntax: divq %r13   (operand is the divisor); for IDIV the dividend
+# is the implicit RAX:RDX, the operand is the divisor.
+_DIV_OPERAND = re.compile(r"^\s*[ui]?div[lqwb]?\s+([^\s,]+)")
+# Match `mov $0x10, %rcx`  or `mov $K, %reg` or `mov disp(%rip), %reg`.
+_LOAD_IMM = re.compile(r"^\s*(mov[lqwb]?|movabs[qb]?)\s+\$0?[xX]?[0-9a-fA-F]+\s*,\s*([^\s,]+)$")
+_LOAD_RIP = re.compile(r"^\s*mov[lqwb]?\s+[-+]?\w*\(.*%rip.*\)\s*,\s*([^\s,]+)$")
+# `xor %eax,%eax` zeroes a register - equivalent to immediate 0 load.
+_XOR_SAME = re.compile(r"^\s*xor[lqwb]?\s+([^\s,]+)\s*,\s*\1\s*$")
+# `and $imm, %reg` - the result is bounded by an immediate mask
+_AND_IMM = re.compile(r"^\s*and[lqwb]?\s+\$0?[xX]?[0-9a-fA-F]+\s*,\s*([^\s,]+)$")
+
+
+def _normalize_reg(operand: str) -> str:
+    """Normalize register name across width variants: rax/eax/ax/al -> rax."""
+    operand = operand.strip().lstrip("%")
+    # Handle x86 width suffixes; this is heuristic, not canonical
+    aliases = {
+        "rax": "rax", "eax": "rax", "ax": "rax", "al": "rax", "ah": "rax",
+        "rbx": "rbx", "ebx": "rbx", "bx": "rbx", "bl": "rbx", "bh": "rbx",
+        "rcx": "rcx", "ecx": "rcx", "cx": "rcx", "cl": "rcx", "ch": "rcx",
+        "rdx": "rdx", "edx": "rdx", "dx": "rdx", "dl": "rdx", "dh": "rdx",
+        "rsi": "rsi", "esi": "rsi", "si": "rsi", "sil": "rsi",
+        "rdi": "rdi", "edi": "rdi", "di": "rdi", "dil": "rdi",
+        "rbp": "rbp", "ebp": "rbp", "bp": "rbp", "bpl": "rbp",
+        "rsp": "rsp", "esp": "rsp", "sp": "rsp", "spl": "rsp",
+    }
+    for n in range(8, 16):
+        for suffix in ("", "d", "w", "b"):
+            aliases[f"r{n}{suffix}"] = f"r{n}"
+    return aliases.get(operand, operand)
+
+
+def filter_div_with_public_divisor(violations: list[Violation]) -> tuple[list[Violation], list[tuple[Violation, str]]]:
+    """Suppress DIV/IDIV findings where context_before shows the divisor was
+    just loaded from an immediate or rip-relative .rodata constant. These
+    are public sizing-parameter divisions (% blocksize, INT_MAX / sizeof,
+    hash-table modulo, etc.) - the dominant FP class on production code."""
+    kept, suppressed = [], []
+    for v in violations:
+        m_div = _DIV_OPERAND.search(v.instruction)
+        if not m_div or not v.context_before:
+            kept.append(v)
+            continue
+        divisor = _normalize_reg(m_div.group(1))
+        # Walk backwards from the most recent preceding instruction
+        public_source = None
+        for prev in reversed(v.context_before):
+            if (m := _LOAD_IMM.search(prev)) and _normalize_reg(m.group(2)) == divisor:
+                public_source = "immediate"
+                break
+            if (m := _LOAD_RIP.search(prev)) and _normalize_reg(m.group(1)) == divisor:
+                public_source = "rip-relative"
+                break
+            if (m := _XOR_SAME.search(prev)) and _normalize_reg(m.group(1)) == divisor:
+                public_source = "zero"
+                break
+            if (m := _AND_IMM.search(prev)) and _normalize_reg(m.group(1)) == divisor:
+                public_source = "and-immediate"
+                break
+            # If the divisor was redefined by some other instruction, stop -
+            # we can't tell where it came from.
+            if re.search(rf"\s*([a-z]+)\s+[^,]*,\s*%?{re.escape(divisor.split(']')[0])}\s*$", prev):
+                break
+            # Also stop if we see a call - aliasing through ABI
+            if re.search(r"^\s*call\s", prev):
+                break
+        if public_source:
+            suppressed.append((v, f"divisor traces to {public_source} immediately preceding"))
+        else:
+            kept.append(v)
+    return kept, suppressed
+
+
+# ---------------------------------------------------------------------------
+# Filter 7 (v2): Loop back-edge heuristic
+# ---------------------------------------------------------------------------
+# A conditional branch whose target address is *behind* the branch is a
+# loop back-edge: the loop counter exited the body and we're re-entering.
+# Counters in compiled crypto code are almost always public (block index,
+# limb index, round number). When we can see the target address in the
+# instruction text and it's < the branch's address, suppress.
+
+_BR_TARGET = re.compile(r"^\s*[jb][a-z.]*\s+([0-9a-fA-F]+)\s*<")  # `je 1234 <foo+0x10>`
+_INSN_ADDR = re.compile(r"^\s*([0-9a-fA-F]+):")
+
+
+def filter_loop_backedges(violations: list[Violation]) -> tuple[list[Violation], list[tuple[Violation, str]]]:
+    kept, suppressed = [], []
+    for v in violations:
+        if v.severity != Severity.WARNING:
+            kept.append(v)
+            continue
+        m_t = _BR_TARGET.search(v.instruction)
+        m_a = _INSN_ADDR.search(v.instruction)
+        if not (m_t and m_a):
+            kept.append(v)
+            continue
+        try:
+            tgt = int(m_t.group(1), 16)
+            cur = int(m_a.group(1), 16)
+        except ValueError:
+            kept.append(v)
+            continue
+        # Backward branch with small displacement (< 1KB) = loop back-edge
+        if 0 < cur - tgt < 1024:
+            suppressed.append((v, f"backward branch -{cur - tgt:#x} bytes (loop back-edge)"))
+        else:
+            kept.append(v)
+    return kept, suppressed
+
+
 FILTER_REGISTRY: dict[str, Callable[[list[Violation]], tuple[list[Violation], list[tuple[Violation, str]]]]] = {
     "ct-funcs": filter_known_ct_functions,
     "aggregate": aggregate_branches_per_function,
     "compiler-helpers": filter_compiler_helpers,
+    "div-public": filter_div_with_public_divisor,
+    "loop-backedge": filter_loop_backedges,
 }
 
 

@@ -1,0 +1,393 @@
+{
+  "label": "libsodium_v2",
+  "n_objects": 141,
+  "n_functions": 1057,
+  "n_instructions": 77572,
+  "n_findings": 337,
+  "by_severity": {
+    "warning": 337
+  },
+  "by_mnemonic": {
+    "JNE": 178,
+    "JE": 80,
+    "JBE": 29,
+    "JA": 26,
+    "JB": 14,
+    "JAE": 10
+  },
+  "by_object": {
+    "libsodium_la-kem_mlkem768_ref.o": 15,
+    "libsodium_la-core_ed25519.o": 13,
+    "libaesni_la-aead_aes256gcm_aesni.o": 10,
+    "libsodium_la-ipcrypt_soft.o": 9,
+    "libsodium_la-utils.o": 9,
+    "libsodium_la-aead_chacha20poly1305.o": 8,
+    "libsodium_la-box_curve25519xchacha20poly1305.o": 8,
+    "libsodium_la-blake2b-ref.o": 8,
+    "libaesni_la-ipcrypt_aesni.o": 8,
+    "libsodium_la-kem_xwing.o": 7,
+    "libsodium_la-randombytes.o": 7,
+    "libsodium_la-crypto_box_easy.o": 6,
+    "libsodium_la-aead_aegis128l.o": 5,
+    "libsodium_la-aead_aegis256.o": 5,
+    "libsodium_la-ed25519_ref10.o": 5,
+    "libsodium_la-argon2-core.o": 5,
+    "libavx2_la-chacha20_dolbeau-avx2.o": 5,
+    "libssse3_la-chacha20_dolbeau-ssse3.o": 5,
+    "libsodium_la-chacha20_ref.o": 5,
+    "libsodium_la-aegis128l_soft.o": 4
+  },
+  "all_errors": [],
+  "warning_sample_n50_seed43": [
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_aead/aegis256/libsodium_la-aegis256_soft.o",
+      "function": "aegis256_declast",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_ipcrypt/libsodium_la-ipcrypt_soft.o",
+      "function": "nd_encrypt",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_box/libsodium_la-crypto_box_easy.o",
+      "function": "crypto_box_open_easy",
+      "mnemonic": "JBE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_scalarmult/curve25519/sandy2x/libsodium_la-sandy2x.o",
+      "function": "__sodium_scalarmult_curve25519_sandy2x_fe51_pack",
+      "mnemonic": "JA",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_pwhash/argon2/libsodium_la-argon2-core.o",
+      "function": "argon2_fill_first_blocks",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+4 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_auth/hmacsha512/libsodium_la-auth_hmacsha512.o",
+      "function": "crypto_auth_hmacsha512_verify",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_scalarmult/curve25519/ref10/libsodium_la-x25519_ref10.o",
+      "function": "crypto_scalarmult_curve25519_ref10.part.0",
+      "mnemonic": "JAE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/randombytes/internal/librdrand_la-randombytes_internal_random.o",
+      "function": "randombytes_getentropy",
+      "mnemonic": "JAE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_shorthash/siphash24/ref/libsodium_la-shorthash_siphash24_ref.o",
+      "function": "crypto_shorthash_siphash24",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/randombytes/libsodium_la-randombytes.o",
+      "function": "randombytes_implementation_name",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_aead/aegis128l/libsodium_la-aegis128l_soft.o",
+      "function": "decrypt_detached",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+32 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_sign/ed25519/ref10/libsodium_la-open.o",
+      "function": "crypto_sign_ed25519_open",
+      "mnemonic": "JBE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+5 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_pwhash/scryptsalsa208sha256/libsodium_la-pwhash_scryptsalsa208sha256.o",
+      "function": "crypto_pwhash_scryptsalsa208sha256_str_needs_rehash",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+6 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_stream/salsa208/ref/libsodium_la-stream_salsa208_ref.o",
+      "function": "crypto_stream_salsa208_xor",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+7 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_pwhash/argon2/libsodium_la-argon2-core.o",
+      "function": "_sodium_argon2_fill_memory_blocks",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+4 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/randombytes/sysrandom/libsodium_la-randombytes_sysrandom.o",
+      "function": "randombytes_sysrandom_buf",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+11 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_stream/chacha20/libsodium_la-stream_chacha20.o",
+      "function": "_crypto_stream_chacha20_pick_best_implementation",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_pwhash/scryptsalsa208sha256/libsodium_la-scrypt_platform.o",
+      "function": "_sodium_escrypt_alloc_region",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_pwhash/argon2/libsodium_la-pwhash_argon2i.o",
+      "function": "_needs_rehash",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+4 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_core/ed25519/libsodium_la-core_h2c.o",
+      "function": "core_h2c_string_to_hash_sha512",
+      "mnemonic": "JA",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+11 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_aead/aes256gcm/aesni/libaesni_la-aead_aes256gcm_aesni.o",
+      "function": "crypto_aead_aes256gcm_decrypt_afternm",
+      "mnemonic": "JBE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_box/curve25519xchacha20poly1305/libsodium_la-box_curve25519xchacha20poly1305.o",
+      "function": "crypto_box_curve25519xchacha20poly1305_beforenm",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_box/curve25519xchacha20poly1305/libsodium_la-box_seal_curve25519xchacha20poly1305.o",
+      "function": "crypto_box_curve25519xchacha20poly1305_seal_open",
+      "mnemonic": "JBE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_pwhash/argon2/libsodium_la-argon2-core.o",
+      "function": "_sodium_argon2_initialize",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+15 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_core/ed25519/libsodium_la-core_ed25519.o",
+      "function": "crypto_core_ed25519_add",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_core/ed25519/libsodium_la-core_ed25519.o",
+      "function": "crypto_core_ed25519_random",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_sign/ed25519/ref10/libsodium_la-open.o",
+      "function": "_crypto_sign_ed25519_verify_detached",
+      "mnemonic": "JBE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+7 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_secretstream/xchacha20poly1305/libsodium_la-secretstream_xchacha20poly1305.o",
+      "function": "crypto_secretstream_xchacha20poly1305_push",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+6 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_box/curve25519xsalsa20poly1305/libsodium_la-box_curve25519xsalsa20poly1305.o",
+      "function": "crypto_box_curve25519xsalsa20poly1305_beforenm",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_pwhash/argon2/libsodium_la-argon2.o",
+      "function": "_sodium_argon2_hash",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+9 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_xof/turboshake256/ref/libsodium_la-turboshake256_ref.o",
+      "function": "_sodium_turboshake256_ref",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_sign/ed25519/ref10/libsodium_la-keypair.o",
+      "function": "crypto_sign_ed25519_keypair",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_ipcrypt/libaesni_la-ipcrypt_aesni.o",
+      "function": "ndx_encrypt",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_stream/salsa208/ref/libsodium_la-stream_salsa208_ref.o",
+      "function": "crypto_stream_salsa208",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+11 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_core/ed25519/libsodium_la-core_ristretto255.o",
+      "function": "crypto_core_ristretto255_sub",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_aead/chacha20poly1305/libsodium_la-aead_chacha20poly1305.o",
+      "function": "crypto_aead_chacha20poly1305_encrypt_detached",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_aead/aes256gcm/aesni/libaesni_la-aead_aes256gcm_aesni.o",
+      "function": "crypto_aead_aes256gcm_encrypt_detached",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_stream/xchacha20/libsodium_la-stream_xchacha20.o",
+      "function": "crypto_stream_xchacha20",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_aead/aes256gcm/aesni/libaesni_la-aead_aes256gcm_aesni.o",
+      "function": "crypto_aead_aes256gcm_decrypt",
+      "mnemonic": "JBE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_core/ed25519/libsodium_la-core_ristretto255.o",
+      "function": "crypto_core_ristretto255_random",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_core/ed25519/libsodium_la-core_ed25519.o",
+      "function": "crypto_core_ed25519_scalar_negate",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_kdf/blake2b/libsodium_la-kdf_blake2b.o",
+      "function": "crypto_kdf_blake2b_derive_from_key",
+      "mnemonic": "JA",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_ipcrypt/libaesni_la-ipcrypt_aesni.o",
+      "function": "pfx_decrypt",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+5 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_aead/chacha20poly1305/libsodium_la-aead_chacha20poly1305.o",
+      "function": "crypto_aead_chacha20poly1305_ietf_decrypt",
+      "mnemonic": "JBE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_stream/chacha20/dolbeau/libavx2_la-chacha20_dolbeau-avx2.o",
+      "function": "chacha20_encrypt_bytes.part.0",
+      "mnemonic": "JBE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+11 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_auth/hmacsha512256/libsodium_la-auth_hmacsha512256.o",
+      "function": "crypto_auth_hmacsha512256_verify",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_stream/xsalsa20/libsodium_la-stream_xsalsa20.o",
+      "function": "crypto_stream_xsalsa20",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/sodium/libsodium_la-utils.o",
+      "function": "sodium_mprotect_noaccess",
+      "mnemonic": "JAE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/sodium/libsodium_la-utils.o",
+      "function": "sodium_sub",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/libsodium/src/libsodium/crypto_auth/hmacsha512/libsodium_la-auth_hmacsha512.o",
+      "function": "crypto_auth_hmacsha512",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    }
+  ]
+}
