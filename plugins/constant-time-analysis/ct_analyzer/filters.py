@@ -1104,6 +1104,122 @@ def filter_go_public_lines(violations: list[Violation]) -> tuple[list[Violation]
     return kept, suppressed
 
 
+# ---------------------------------------------------------------------------
+# Filter 11 (Rust): Same-source-line warning aggregation
+# ---------------------------------------------------------------------------
+# A single Rust source-level branch (`if`, `for`, `match`) often expands to a
+# dozen asm-level conditional jumps: loop preamble, loop body, post-increment
+# edge, post-loop fall-through. It also gets emitted into MULTIPLE function
+# bodies when the source code is reachable through several monomorphizations
+# of generics, and through both a free function and its trait-impl method
+# (the compiler keeps both because `-C link-dead-code=on`).  Aggregating by
+# `(file, line, function)` left those siblings unmerged.  We key on
+# `(file, line)` only and surface the function-set as metadata in the reason.
+#
+# Errors are never aggregated -- each one is meant to be triaged on its own
+# and they are rare enough to not need bundling.  This filter is a no-op on
+# error-only violation lists.
+
+def aggregate_warnings_per_source_line(violations: list[Violation]) -> list[Violation]:
+    """Collapse warnings sharing `(file, line)` into one entry.
+
+    Returns the rewritten violation list (representatives + un-aggregable
+    items in original order).  Errors and warnings without a known
+    `(file, line)` pass through unchanged.
+    """
+    # Pre-pass: group warnings by (file, line).
+    groups: dict[tuple, list[Violation]] = {}
+    for v in violations:
+        if v.severity == Severity.ERROR or not v.file or not v.line:
+            continue
+        key = (v.file, v.line)
+        groups.setdefault(key, []).append(v)
+
+    # Walk the original list, emitting each group's representative
+    # exactly once (at first occurrence) so output order is stable
+    # and matches the original violation stream.
+    emitted: set[tuple] = set()
+    out: list[Violation] = []
+    for v in violations:
+        if v.severity == Severity.ERROR or not v.file or not v.line:
+            out.append(v)
+            continue
+        key = (v.file, v.line)
+        if key in emitted:
+            continue
+        emitted.add(key)
+        vs = groups[key]
+        if len(vs) == 1:
+            out.append(vs[0])
+            continue
+        mnemonics = sorted({x.mnemonic for x in vs})
+        functions = sorted({x.function for x in vs})
+        v0 = vs[0]
+        # Single-function representative gets a short reason; multi-
+        # function aggregation appends the function-set so the
+        # reviewer sees all the call paths reaching this source line.
+        if len(functions) == 1:
+            fn_note = ""
+        elif len(functions) <= 3:
+            fn_note = f"; reached from: {', '.join(functions)}"
+        else:
+            fn_note = (
+                f"; reached from {len(functions)} functions including "
+                f"{', '.join(functions[:2])}"
+            )
+        out.append(
+            Violation(
+                function=functions[0],
+                file=v0.file,
+                line=v0.line,
+                address=v0.address,
+                instruction=v0.instruction,
+                mnemonic="/".join(mnemonics),
+                reason=(
+                    f"{len(vs)} conditional branches at this source line "
+                    f"({', '.join(mnemonics)}); inspect the if/for/match "
+                    f"and confirm its condition does not depend on secret data"
+                    f"{fn_note}"
+                ),
+                # Preserve the original Enum instance: under script invocation
+                # (`uv run analyzer.py`) `analyzer.Severity` and
+                # `__main__.Severity` resolve to two different classes, so
+                # `Severity.WARNING` from this module would compare unequal
+                # to `report.warning_count`'s `Severity.WARNING`.  Reusing
+                # the input violation's severity sidesteps the duplication.
+                severity=v0.severity,
+            )
+        )
+    return out
+
+
+def filter_rust_aggregate_warnings(violations: list[Violation]) -> tuple[list[Violation], list[tuple[Violation, str]]]:
+    """`(kept, suppressed)` wrapper around `aggregate_warnings_per_source_line`.
+
+    Group followers (warnings that get merged into a representative)
+    are reported as suppressed so `--explain` can surface them.
+    """
+    kept = aggregate_warnings_per_source_line(violations)
+    # Recover the suppressed set by diffing.  An aggregated representative
+    # has a synthesised reason string starting with "<N> conditional
+    # branches"; the originals are absent from `kept`.
+    by_key: dict[tuple, list[Violation]] = {}
+    for v in violations:
+        if v.severity == Severity.ERROR or not v.file or not v.line:
+            continue
+        by_key.setdefault((v.file, v.line), []).append(v)
+    suppressed: list[tuple[Violation, str]] = []
+    for key, vs in by_key.items():
+        if len(vs) <= 1:
+            continue
+        # Followers (everything except the first) are suppressed.
+        for v in vs[1:]:
+            suppressed.append((
+                v, f"merged into same-source-line representative at {key[0]}:{key[1]}",
+            ))
+    return kept, suppressed
+
+
 FILTER_REGISTRY: dict[str, Callable[[list[Violation]], tuple[list[Violation], list[tuple[Violation, str]]]]] = {
     "ct-funcs": filter_known_ct_functions,
     "aggregate": aggregate_branches_per_function,
@@ -1113,6 +1229,7 @@ FILTER_REGISTRY: dict[str, Callable[[list[Violation]], tuple[list[Violation], li
     "go-bounds-check": filter_go_bounds_checks,
     "go-stack-grow": filter_go_stack_grow,
     "go-public-line": filter_go_public_lines,
+    "rust-aggregate-warnings": filter_rust_aggregate_warnings,
 }
 
 
