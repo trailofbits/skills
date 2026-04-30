@@ -1104,6 +1104,24 @@ def filter_go_public_lines(violations: list[Violation]) -> tuple[list[Violation]
     return kept, suppressed
 
 
+def filter_rust_triage_classify(violations: list[Violation]) -> tuple[list[Violation], list[tuple[Violation, str]]]:
+    """Annotation filter: stamps `triage_hint` and `source_snippet` onto
+    every violation.  Suppresses nothing -- the partition for "FP-likely"
+    findings is the consumer's job (an agent inspecting `triage_hint`,
+    or a `--filter rust-vartime-suffix`-style suppression filter).
+
+    Lazily imports `attach_triage_metadata` from analyzer.py to avoid a
+    module-load-time circular import (filters.py imports Severity/Violation
+    from analyzer at top level).
+    """
+    try:
+        from .analyzer import attach_triage_metadata
+    except ImportError:
+        from analyzer import attach_triage_metadata
+    attach_triage_metadata(violations)
+    return violations, []
+
+
 # ---------------------------------------------------------------------------
 # Filter 11 (Rust): Same-source-line warning aggregation
 # ---------------------------------------------------------------------------
@@ -1230,6 +1248,7 @@ FILTER_REGISTRY: dict[str, Callable[[list[Violation]], tuple[list[Violation], li
     "go-stack-grow": filter_go_stack_grow,
     "go-public-line": filter_go_public_lines,
     "rust-aggregate-warnings": filter_rust_aggregate_warnings,
+    "rust-triage-classify": filter_rust_triage_classify,
 }
 
 

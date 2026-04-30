@@ -1289,6 +1289,11 @@ RUST_STDLIB_CRATES = frozenset(
 # downstream agent can confidently file as a false positive; a
 # `*_review` hint demands per-line review. The full taxonomy is
 # documented in references/rust.md.
+#
+# These constants are also exposed via the `rust-triage-classify`
+# named filter in filters.py, which lazily imports `classify_violation`
+# from this module to avoid a circular import (filters.py needs
+# Severity/Violation from here at load time).
 TRIAGE_STDLIB_ITER_END = "stdlib_iter_end_likely_fp"
 TRIAGE_STDLIB_BOUNDS = "stdlib_bounds_check_likely_fp"
 TRIAGE_STDLIB_OTHER = "stdlib_other_likely_fp"
@@ -1375,12 +1380,16 @@ _EARLY_RETURN_RE = re.compile(
     r"^\s*if\s+.+\s*(?:!=|==)\s*\w+(?:\[.+\])?\s*\{\s*$|"  # if a != b {
     r"return\s+\w+\s*[!=]=\s*"                              # return a == b ...
 )
+_VARTIME_FN_RE = re.compile(
+    r"(?:^|::|<|\b)vartime_|"      # `vartime_foo` (prefix)
+    r"_vartime(?:$|::|>|\b)",       # `foo_vartime` (suffix)
+)
 
 
 def classify_violation(
     violation: "Violation", source_snippet: list[str] | None = None
 ) -> str:
-    """Apply rules A-F to assign a triage hint.
+    """Apply rules A-G to assign a triage hint.
 
     The classifier is intentionally simple and conservative: when a rule
     doesn't fire cleanly, we return TRIAGE_NEEDS_REVIEW so the case
@@ -1391,7 +1400,6 @@ def classify_violation(
     negative one.
     """
     file_path = violation.file or ""
-    line = violation.line
     function = (violation.function or "")
 
     # Rule V (function naming): the Rust crypto convention for
@@ -1402,12 +1410,7 @@ def classify_violation(
     # Both forms denote "this function is variable-time on PUBLIC
     # operands by design" -- callers pass signatures, public keys,
     # public scalars, public exponents. High-confidence FP.
-    import re as _re
-    if _re.search(
-        r"(?:^|::|<|\b)vartime_|"      # `vartime_foo` (prefix)
-        r"_vartime(?:$|::|>|\b)",       # `foo_vartime` (suffix)
-        function,
-    ):
+    if _VARTIME_FN_RE.search(function):
         return TRIAGE_VARTIME
 
     # Rules A & B: stdlib path, most specific marker wins.
@@ -1472,6 +1475,26 @@ def classify_violation(
         return TRIAGE_EARLY_RETURN_CMP
 
     return TRIAGE_USER_REVIEW
+
+
+def attach_triage_metadata(violations: list["Violation"]) -> None:
+    """Populate `source_snippet` + `triage_hint` on each violation in place.
+
+    Files are cached by path so each source file is read at most once
+    even if it has dozens of violations.  Used by the parser's post-pass
+    and re-exposed as the `rust-triage-classify` named filter.
+    """
+    cache: dict[str, list[str] | None] = {}
+    for v in violations:
+        if not v.file or not v.line:
+            v.triage_hint = classify_violation(v, None)
+            continue
+        full = cache.get(v.file)
+        if v.file not in cache:
+            full = _read_source_snippet(v.file, v.line, ctx=2)
+            cache[v.file] = full
+        v.source_snippet = full
+        v.triage_hint = classify_violation(v, full)
 
 
 class AssemblyParser:
@@ -2087,20 +2110,14 @@ class AssemblyParser:
     def _attach_triage_metadata(violations: list[Violation]) -> None:
         """Populate `source_snippet` + `triage_hint` on each violation.
 
-        Files are cached by path so each source file is read at most
-        once even if it has dozens of violations.
+        Implementation lives in `filters.attach_triage_metadata` and is
+        also exposed as the named post-filter `rust-triage-classify`.
+        Annotation runs unconditionally on every Rust parse so the JSON
+        output schema stays consistent (`triage_hint` is always present);
+        the filter version is for users running the classifier on assembly
+        analyzed elsewhere.
         """
-        cache: dict[str, list[str] | None] = {}
-        for v in violations:
-            if not v.file or not v.line:
-                v.triage_hint = classify_violation(v, None)
-                continue
-            full = cache.get(v.file)
-            if v.file not in cache:
-                full = _read_source_snippet(v.file, v.line, ctx=2)
-                cache[v.file] = full
-            v.source_snippet = full
-            v.triage_hint = classify_violation(v, full)
+        attach_triage_metadata(violations)
 
     @staticmethod
     def _aggregate_warnings(violations: list[Violation]) -> list[Violation]:
