@@ -236,15 +236,16 @@ uv run {baseDir}/ct_analyzer/analyzer.py /tmp/libcrux/libcrux-ml-dsa/src/sample.
 
 Run against a Cargo project pulling in the most-used Rust crypto crates (`subtle`, `curve25519-dalek`, `ed25519-dalek`, `x25519-dalek`, `aes`, `chacha20poly1305`, `hmac`, `sha2`, `sha3`, `poly1305`):
 
-| Stage                       | Count | Reduction |
-|-----------------------------|------:|----------:|
-| Raw branches                | 11725+ |     —    |
-| After precision filters     |    74 | 99.4% off raw |
-| Auto-classified as FP       |    47 |  63% of remaining |
-| Need actual review          |    27 | down to 13 unique events after dedup |
-| ERRORs                      |     2 | one real finding |
+| Stage                       | Count |
+|-----------------------------|------:|
+| Raw conditional branches    | 11725+ |
+| After precision filters     |    74 |
+| After dedup by `(file, line)` |    25 |
+| Auto-classified as FP       |    10 |
+| Need review                 |    15 (all in dep source) |
+| ERRORs                      |     2 (same root finding) |
 
-The single non-trivial finding is in the `cipher` crate (used by `aes`, `chacha20poly1305`, etc.):
+**The two ERRORs (`DIVQ`/`DIVL` in `cipher::stream::SeekNum::into_block_byte`)** require nuance:
 
 ```text
 cipher-0.4.4/src/stream.rs:218
@@ -253,4 +254,12 @@ cipher-0.4.4/src/stream.rs:218
 >       let block = T::try_from(self/bs).map_err(|_| OverflowError)?;
 ```
 
-`SeekNum::into_block_byte` does hardware DIV/MOD on the stream-cipher seek position. The seek position is caller-supplied; in typical AEAD use it is public, but in any caller that derives the seek value from a secret (e.g. seek-by-secret-offset), this leaks. A latent issue exposed only by certain use patterns — and exactly the kind of finding that an instruction-level analyzer surfaces while leaving security verdict to the reviewer.
+This is `SeekNum::into_block_byte`, called from `StreamCipherSeek::try_seek(new_pos)`. Tracing the call chain in `chacha20poly1305-0.10.1/src/cipher.rs:44` shows:
+
+```rust
+cipher.seek(BLOCK_SIZE as u64);    // BLOCK_SIZE = 64, compile-time constant
+```
+
+In every standard AEAD/streaming-cipher use, the seek operand is a compile-time constant or a public byte offset (file position, disk-block index, etc.). The DIV stays in the asm because rustc fails to specialize the trait method body across the generic boundary, but the operands at every realized call site are public.
+
+**Verdict: latent code smell, not a realized vulnerability.** Using `& (BS - 1)` instead of `% bs` would be cleaner (BS is always a power of 2 for stream ciphers) and would silence the analyzer. If a caller ever passes a secret-derived `seek(secret_offset)`, the DIV would leak — but no such caller exists in any AEAD or streaming flow we audited. This is exactly the kind of finding an instruction-level tool is meant to surface: the structural risk is real, the security verdict requires call-site review, and the reviewer (using `--explain`) can answer it without leaving the report.

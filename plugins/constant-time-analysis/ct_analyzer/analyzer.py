@@ -1735,24 +1735,28 @@ class AssemblyParser:
 
     @staticmethod
     def _aggregate_warnings(violations: list[Violation]) -> list[Violation]:
-        """Collapse warnings sharing `(file, line, function)` into one entry.
+        """Collapse warnings sharing `(file, line)` into one entry.
 
         A single Rust source-level branch (`if`, `for`, `match`) often
         expands to a dozen asm-level conditional jumps: loop preamble,
-        loop body, post-increment edge, post-loop fall-through. Reporting
-        each as a separate warning hides the structural picture: there
-        are 8 source-level events the reviewer must triage, not 80
-        instruction-level events.
+        loop body, post-increment edge, post-loop fall-through. It also
+        gets emitted into MULTIPLE function bodies when the source code
+        is reachable through several monomorphizations of generics, and
+        through both a free function and its trait-impl method (the
+        compiler keeps both because `-C link-dead-code=on`). Aggregating
+        by `(file, line, function)` left those siblings unmerged. We
+        now key on `(file, line)` only and surface the function-set as
+        metadata in the reason.
 
         Errors are never aggregated -- each one is meant to be triaged
         on its own and they are rare enough to not need bundling.
         """
-        # Pre-pass: group warnings by (file, line, function).
+        # Pre-pass: group warnings by (file, line).
         groups: dict[tuple, list[Violation]] = {}
         for v in violations:
             if v.severity == Severity.ERROR or not v.file or not v.line:
                 continue
-            key = (v.file, v.line, v.function)
+            key = (v.file, v.line)
             groups.setdefault(key, []).append(v)
 
         # Walk the original list, emitting each group's representative
@@ -1764,7 +1768,7 @@ class AssemblyParser:
             if v.severity == Severity.ERROR or not v.file or not v.line:
                 out.append(v)
                 continue
-            key = (v.file, v.line, v.function)
+            key = (v.file, v.line)
             if key in emitted:
                 continue
             emitted.add(key)
@@ -1773,10 +1777,23 @@ class AssemblyParser:
                 out.append(vs[0])
                 continue
             mnemonics = sorted({x.mnemonic for x in vs})
+            functions = sorted({x.function for x in vs})
             v0 = vs[0]
+            # Single-function representative gets a short reason; multi-
+            # function aggregation appends the function-set so the
+            # reviewer sees all the call paths reaching this source line.
+            if len(functions) == 1:
+                fn_note = ""
+            elif len(functions) <= 3:
+                fn_note = f"; reached from: {', '.join(functions)}"
+            else:
+                fn_note = (
+                    f"; reached from {len(functions)} functions including "
+                    f"{', '.join(functions[:2])}"
+                )
             out.append(
                 Violation(
-                    function=v0.function,
+                    function=functions[0],
                     file=v0.file,
                     line=v0.line,
                     address=v0.address,
@@ -1786,6 +1803,7 @@ class AssemblyParser:
                         f"{len(vs)} conditional branches at this source line "
                         f"({', '.join(mnemonics)}); inspect the if/for/match "
                         f"and confirm its condition does not depend on secret data"
+                        f"{fn_note}"
                     ),
                     severity=Severity.WARNING,
                 )

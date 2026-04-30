@@ -1528,6 +1528,32 @@ class TestWarningPrecisionFilters(unittest.TestCase):
         out = AssemblyParser._aggregate_warnings([v1, v2])
         self.assertEqual(len(out), 2)
 
+    def test_aggregate_collapses_monomorphization_siblings(self):
+        """Same source line in two different functions (e.g. free fn vs
+        trait-impl method) is the same source-level event and must
+        collapse into one warning. Without this, libcrux SHA3's
+        `store_block` shows up twice (once as the free fn, once as the
+        Squeeze4 trait-impl), padding the review queue with duplicates.
+        """
+        from analyzer import AssemblyParser, Severity, Violation
+
+        v1 = Violation(
+            function="my_crate::store_block", file="x.rs", line=174,
+            address="", instruction="", mnemonic="JE", reason="r",
+            severity=Severity.WARNING,
+        )
+        v2 = Violation(
+            function="my_crate::_<impl Squeeze4 for ...>::store_block",
+            file="x.rs", line=174, address="", instruction="",
+            mnemonic="JE", reason="r", severity=Severity.WARNING,
+        )
+        out = AssemblyParser._aggregate_warnings([v1, v2])
+        self.assertEqual(len(out), 1, "monomorphization siblings should collapse")
+        # The merged report should mention both call paths so the
+        # reviewer doesn't lose context.
+        self.assertIn("reached from", out[0].reason)
+        self.assertIn("store_block", out[0].reason)
+
 
 class TestStrictMode(unittest.TestCase):
     """`--strict`: warnings inside CT-named functions become ERRORs."""
