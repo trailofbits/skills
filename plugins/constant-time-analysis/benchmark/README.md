@@ -49,20 +49,52 @@ benchmark scorer matches against reported findings to compute TP/FP/FN.
 
 ## Running the benchmark
 
+The three runner scripts (`run_benchmark.py`, `run_wild.py`,
+`track_trajectory.py`) all dispatch by `--language={c,go,rust}` into a
+language-specific harness.  Each language path keeps its own argparse
+contract and result-JSON schema -- the unification is purely a CLI
+convenience for the entry point.  Pass `--language <lang> --help` to
+see the per-language flags.
+
 ```bash
-# Baseline (no filters, all opt levels)
-PYTHONPATH=. python3 benchmark/scripts/run_benchmark.py \
+# Baseline (no filters, all opt levels) on the C corpus
+PYTHONPATH=. python3 benchmark/scripts/run_benchmark.py --language c \
     --warnings --opt O0 --opt O2 --opt O3 \
     --label baseline --out benchmark/results/00_baseline.json
 
-# Recommended config (all filters + smart opt fusion)
-PYTHONPATH=. python3 benchmark/scripts/run_benchmark.py \
+# Recommended config (all filters + smart opt fusion) on the C corpus
+PYTHONPATH=. python3 benchmark/scripts/run_benchmark.py --language c \
     --warnings --opt O0 --opt O2 --opt O3 \
     --filter ct-funcs,memcmp-source,non-secret,aggregate \
     --smart-fusion --label tuned --out benchmark/results/tuned.json
 
-# View the trajectory across iterations
-PYTHONPATH=. python3 benchmark/scripts/track_trajectory.py
+# Same script, Go corpus
+PYTHONPATH=. python3 benchmark/scripts/run_benchmark.py --language go \
+    --corpus-dir benchmark/corpus_go --manifest benchmark/corpus_go/manifest.json \
+    --warnings --opt O0 --opt O2 --opt O3 --filter all --smart-fusion \
+    --label go_tuned --out benchmark/results/go_tuned.json
+
+# Same script, Rust corpus
+PYTHONPATH=. python3 benchmark/scripts/run_benchmark.py --language rust \
+    --corpus-dir benchmark/corpus_rust --manifest benchmark/corpus_rust/manifest.json \
+    --warnings --opt O0 --opt O2 --opt O3 --filter all \
+    --label rust_tuned --out benchmark/results/rust_tuned.json
+
+# Wild-mode (production code) -- C library, Go workspace, Rust crate
+PYTHONPATH=. python3 benchmark/scripts/run_wild.py --language c \
+    --root benchmark/wild/libsodium --label libsodium
+
+PYTHONPATH=. python3 benchmark/scripts/run_wild.py --language go \
+    --workspace benchmark/wild_go/workspace \
+    --target stdlib:crypto/internal/fips140/mlkem --label go_stdlib
+
+PYTHONPATH=. python3 benchmark/scripts/run_wild.py --language rust \
+    --root benchmark/wild_rust/<crate>/target/release \
+    --label <crate> --out benchmark/results/wild_<crate>.json
+
+# Trajectory: C/Go renders against trajectory.jsonl, Rust against rust_trajectory.jsonl
+PYTHONPATH=. python3 benchmark/scripts/track_trajectory.py --language c
+PYTHONPATH=. python3 benchmark/scripts/track_trajectory.py --language rust pretty
 ```
 
 ## Improvement trajectory

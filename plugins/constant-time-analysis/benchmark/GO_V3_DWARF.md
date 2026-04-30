@@ -125,13 +125,13 @@ The wild result is a clean **report-by-noise-bound**: across 89,375 instructions
 cd plugins/constant-time-analysis
 
 # Curated benchmark (Go)
-PYTHONPATH=. python3 benchmark/scripts/run_benchmark.py \
+PYTHONPATH=. python3 benchmark/scripts/run_benchmark.py --language go \
   --warnings --opt O0 --opt O2 \
   --corpus-dir benchmark/corpus_go --manifest benchmark/corpus_go/manifest.json \
   --filter all --label go_v3 --out benchmark/results/go_13_filters_v13.json
 
 # Wild benchmark (Go) -- requires benchmark/wild_go/workspace/go.mod
-PYTHONPATH=. python3 benchmark/scripts/run_wild_go.py \
+PYTHONPATH=. python3 benchmark/scripts/run_wild.py --language go \
   --workspace benchmark/wild_go/workspace \
   --target stdlib:crypto/cipher --target stdlib:crypto/rsa \
   ... \
