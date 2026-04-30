@@ -1,0 +1,12 @@
+{
+  "label": "mbedtls",
+  "n_objects": 0,
+  "n_functions": 0,
+  "n_instructions": 0,
+  "n_findings": 0,
+  "by_severity": {},
+  "by_mnemonic": {},
+  "by_object": {},
+  "all_errors": [],
+  "warning_sample_n50_seed42": []
+}

@@ -1,0 +1,503 @@
+{
+  "label": "boringssl",
+  "n_objects": 367,
+  "n_functions": 4696,
+  "n_instructions": 371454,
+  "n_findings": 2918,
+  "by_severity": {
+    "warning": 2904,
+    "error": 14
+  },
+  "by_mnemonic": {
+    "JE": 1881,
+    "JNE": 587,
+    "JA": 97,
+    "JLE": 77,
+    "JBE": 77,
+    "JS": 73,
+    "JB": 54,
+    "JAE": 31,
+    "JG": 20,
+    "DIV": 7,
+    "DIVQ": 5,
+    "JGE": 3,
+    "JNS": 2,
+    "JL": 2,
+    "IDIV": 1,
+    "IDIVL": 1
+  },
+  "by_object": {
+    "bcm.cc.o": 839,
+    "pmbtoken.cc.o": 57,
+    "x_all.cc.o": 57,
+    "p_mldsa.cc.o": 54,
+    "cbs.cc.o": 50,
+    "hpke.cc.o": 47,
+    "p_rsa.cc.o": 40,
+    "stack.cc.o": 40,
+    "cbb.cc.o": 39,
+    "v3_utl.cc.o": 37,
+    "p_mlkem.cc.o": 32,
+    "bio.cc.o": 31,
+    "err.cc.o": 31,
+    "evp.cc.o": 31,
+    "evp_ctx.cc.o": 30,
+    "voprf.cc.o": 29,
+    "mem.cc.o": 28,
+    "p_ec.cc.o": 27,
+    "x_name.cc.o": 26,
+    "a_int.cc.o": 23
+  },
+  "all_errors": [
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/bn/exponentiation.cc.o",
+      "function": "BN_mod_exp_mont_word",
+      "mnemonic": "DIVQ",
+      "severity": "error",
+      "reason": "DIVQ has data-dependent timing; execution time varies based on operand values"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/evp/scrypt.cc.o",
+      "function": "EVP_PBE_scrypt",
+      "mnemonic": "DIV",
+      "severity": "error",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values (+1 more DIV findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/lhash/lhash.cc.o",
+      "function": "_ZN4bssl19OPENSSL_lh_retrieveEPKNS_6_LHASHEPKvPFjPFjS4_ES4_EPFiPFiS4_S4_ES4_S4_E",
+      "mnemonic": "DIVQ",
+      "severity": "error",
+      "reason": "DIVQ has data-dependent timing; execution time varies based on operand values"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/lhash/lhash.cc.o",
+      "function": "_ZN4bssl23OPENSSL_lh_retrieve_keyEPKNS_6_LHASHEPKvjPFiS4_S4_E",
+      "mnemonic": "DIVQ",
+      "severity": "error",
+      "reason": "DIVQ has data-dependent timing; execution time varies based on operand values"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/lhash/lhash.cc.o",
+      "function": "_ZN4bssl17OPENSSL_lh_insertEPNS_6_LHASHEPPvS2_PFjPFjPKvES5_EPFiPFiS5_S5_ES5_S5_E",
+      "mnemonic": "DIVQ",
+      "severity": "error",
+      "reason": "DIVQ has data-dependent timing; execution time varies based on operand values (+3 more DIV findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/lhash/lhash.cc.o",
+      "function": "_ZN4bssl17OPENSSL_lh_deleteEPNS_6_LHASHEPKvPFjPFjS3_ES3_EPFiPFiS3_S3_ES3_S3_E",
+      "mnemonic": "DIVQ",
+      "severity": "error",
+      "reason": "DIVQ has data-dependent timing; execution time varies based on operand values (+3 more DIV findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/lhash/lhash.cc.o",
+      "function": "_ZN4bssl20OPENSSL_lh_doall_argEPNS_6_LHASHEPFvPvS2_ES2_",
+      "mnemonic": "DIV",
+      "severity": "error",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values (+2 more DIV findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/pkcs8/pkcs8.cc.o",
+      "function": "_ZN4bssl14pkcs12_key_genEPKcmPKhmhjmPhPK9env_md_st.part.0",
+      "mnemonic": "DIV",
+      "severity": "error",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values (+4 more DIV findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/stack/stack.cc.o",
+      "function": "_ZNSt3_V28__rotateIPPvEET_S3_S3_S3_St26random_access_iterator_tag.isra.0",
+      "mnemonic": "IDIV",
+      "severity": "error",
+      "reason": "IDIV has data-dependent timing; execution time varies based on operand values (+1 more DIV findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "_ZN4bssl20bn_mod_u16_consttimeEPK9bignum_stt",
+      "mnemonic": "DIV",
+      "severity": "error",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "BN_mod_exp_mont_consttime",
+      "mnemonic": "IDIVL",
+      "severity": "error",
+      "reason": "IDIVL has data-dependent timing; execution time varies based on operand values"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "BN_div_word",
+      "mnemonic": "DIV",
+      "severity": "error",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "BN_div.part.0",
+      "mnemonic": "DIV",
+      "severity": "error",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "HKDF_expand",
+      "mnemonic": "DIV",
+      "severity": "error",
+      "reason": "DIV has data-dependent timing; execution time varies based on operand values"
+    }
+  ],
+  "warning_sample_n50_seed42": [
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "_ZN4bssl32BCM_mlkem1024_marshal_public_keyEP6cbb_stPK20MLKEM1024_public_key",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/conf/conf.cc.o",
+      "function": "NCONF_get_section",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/asn1/asn1_lib.cc.o",
+      "function": "ASN1_object_size",
+      "mnemonic": "JS",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+7 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/obj/obj.cc.o",
+      "function": "OBJ_dup",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+8 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/hpke/hpke.cc.o",
+      "function": "_ZL26p256_private_key_from_seedPhPKh",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+10 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/evp/p_rsa.cc.o",
+      "function": "_ZN12_GLOBAL__N_1L18rsa_pub_encode_pssEP6cbb_stPKN4bssl7EvpPkeyE",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+8 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/ec/ec_asn1.cc.o",
+      "function": "_ZN4bssl24ec_key_parse_private_keyEP6cbs_stPK11ec_group_stNS_4SpanIKS4_Lm18446744073709551615EEE",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+30 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/cipher/e_rc2.cc.o",
+      "function": "_ZL11RC2_decryptPjP10rc2_key_st",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "BN_mod_add_quick",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "_ZN4bssl20bn_mod_add_consttimeEP9bignum_stPKS0_S3_S3_P10bignum_ctx",
+      "mnemonic": "JB",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+15 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/bytestring/cbs.cc.o",
+      "function": "CBS_peek_asn1_tag",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+7 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "EC_POINT_clear_free",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+4 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/x509/x509_v3.cc.o",
+      "function": "X509v3_get_ext_by_critical",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+5 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/asn1/tasn_enc.cc.o",
+      "function": "_ZL21asn1_i2d_ex_primitivePP13ASN1_VALUE_stPPhPK12ASN1_ITEM_stiii",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+60 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/asn1/posix_time.cc.o",
+      "function": "_ZN4bssl19OPENSSL_gmtime_diffEPiS0_PK2tmS3_",
+      "mnemonic": "JLE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+20 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/bytestring/unicode.cc.o",
+      "function": "CBB_add_ucs2_be",
+      "mnemonic": "JA",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/evp/p_mlkem.cc.o",
+      "function": "_ZN12_GLOBAL__N_119MLKEMImplementationINS_15MLKEM1024TraitsEE12DecodePublicEPK15evp_pkey_alg_stPN4bssl7EvpPkeyEP6cbs_stSA_",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+4 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/evp/p_x25519.cc.o",
+      "function": "_ZN12_GLOBAL__N_1L28x25519_set1_tls_encodedpointEPN4bssl7EvpPkeyEPKhm",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "_ZN12_GLOBAL__N_111aes_encryptEPKhPhPK10aes_key_st",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "_ZN4bssl16ec_scalar_selectEPK11ec_group_stPNS_9EC_SCALAREmPKS3_S6_",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/asn1/asn1_lib.cc.o",
+      "function": "ASN1_STRING_type_new",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "BN_mod_mul",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+12 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/evp/p_mldsa.cc.o",
+      "function": "_ZN12_GLOBAL__N_119MLDSAImplementationINS_13MLDSA44TraitsEE8PkeyFreeEPN4bssl7EvpPkeyE",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "_ZN4bssl29BCM_mldsa87_generate_key_fipsEPhS0_P19MLDSA87_private_key",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/gen/bcm/sha256-x86_64-linux.S.o",
+      "function": "sha256_block_data_order_nohw",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "_ZL17check_mod_inversePiPK9bignum_stS2_S2_jP10bignum_ctx",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+13 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/x509/x509_set.cc.o",
+      "function": "X509_set_pubkey",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/evp/p_rsa.cc.o",
+      "function": "_ZN12_GLOBAL__N_1L19rsa_pss_params_copyEPN4bssl7EvpPkeyEPKS1_",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/x509/x_all.cc.o",
+      "function": "i2d_RSA_PUBKEY_bio",
+      "mnemonic": "JS",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "EC_GROUP_get_degree",
+      "mnemonic": "JLE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/obj/obj.cc.o",
+      "function": "OBJ_obj2txt",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+12 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/asn1/a_int.cc.o",
+      "function": "_ZL27asn1_parse_integer_contentsN4bssl4SpanIKhLm18446744073709551615EEEP14asn1_string_st",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+12 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/err/err.cc.o",
+      "function": "_ZN4bssl19ERR_SAVE_STATE_freeEPNS_17err_save_state_stE",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/gen/bcm/p256-x86_64-asm-linux.S.o",
+      "function": "ecp_nistz256_point_add_nohw",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/x509/x509_v3.cc.o",
+      "function": "X509v3_add_ext",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+7 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/trust_token/pmbtoken.cc.o",
+      "function": "_ZN4bssl36pmbtoken_exp2_derive_key_from_secretEP6cbb_stS1_PKhm",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/obj/obj.cc.o",
+      "function": "OBJ_txt2obj",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/err/err.cc.o",
+      "function": "ERR_peek_last_error_line",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+6 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/evp/p_mlkem.cc.o",
+      "function": "_ZN12_GLOBAL__N_119MLKEMImplementationINS_15MLKEM1024TraitsEE12SetRawPublicEPN4bssl7EvpPkeyEPKhm",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/trust_token/pmbtoken.cc.o",
+      "function": "_ZL13pmbtoken_readPK15PMBTOKEN_METHODPKN4bssl22TRUST_TOKEN_ISSUER_KEYEPhS6_PKhmiS8_m",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+24 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/cipher/e_rc2.cc.o",
+      "function": "_ZL11RC2_encryptPjP10rc2_key_st",
+      "mnemonic": "JNE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+1 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/bytestring/unicode.cc.o",
+      "function": "CBS_get_utf32_be",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+3 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/x509/v3_genn.cc.o",
+      "function": "_ZN4bssl16GENERAL_NAME_cmpEPK15GENERAL_NAME_stS2_",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+10 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/cipher/e_aeseax.cc.o",
+      "function": "_ZL18aead_aes_eax_sealvPK15evp_aead_ctx_stN4bssl4SpanIK15crypto_iovec_stLm18446744073709551615EEENS3_IhLm18446744073709551615EEEPmNS3_IKhLm18446744073709551615EEENS3_IK14crypto_ivec_stLm18446744073709551615EEE",
+      "mnemonic": "JB",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+51 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/x509/algorithm.cc.o",
+      "function": "_ZN4bssl23x509_digest_verify_initEP13env_md_ctx_stPK13X509_algor_stP11evp_pkey_st",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+17 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/trust_token/pmbtoken.cc.o",
+      "function": "_ZN4bssl18pmbtoken_pst1_readEPKNS_22TRUST_TOKEN_ISSUER_KEYEPhS3_PKhmiS5_m",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/fipsmodule.dir/crypto/fipsmodule/bcm.cc.o",
+      "function": "_ZN4bssl28ec_GFp_simple_is_at_infinityEPK11ec_group_stPKNS_11EC_JACOBIANE",
+      "mnemonic": "JLE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+8 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/mem.cc.o",
+      "function": "OPENSSL_zalloc",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+6 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/bio/bio.cc.o",
+      "function": "BIO_pending",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+2 more BRANCH findings in this function)"
+    },
+    {
+      "object": "/home/user/skills/plugins/constant-time-analysis/benchmark/wild/boringssl/build/CMakeFiles/crypto.dir/crypto/x509/x_crl.cc.o",
+      "function": "_ZL10crl_lookupP11X509_crl_stPP15x509_revoked_stPK14asn1_string_stPK12X509_name_st",
+      "mnemonic": "JE",
+      "severity": "warning",
+      "reason": "conditional branch may leak timing information if condition depends on secret data (+10 more BRANCH findings in this function)"
+    }
+  ]
+}

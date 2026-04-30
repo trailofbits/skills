@@ -839,6 +839,9 @@ class AssemblyParser:
                 or
                 # With .type directive
                 re.match(r"\.type\s+([a-zA-Z_][a-zA-Z0-9_]*),\s*@function", line)
+                or
+                # objdump -d:  0000000000000000 <function_name>:
+                re.match(r"^[0-9a-fA-F]+\s+<([a-zA-Z_][\w.]*)>:", line)
             )
 
             if func_match:
@@ -879,6 +882,10 @@ class AssemblyParser:
                 if part.startswith("0x") or re.match(r"^[0-9a-fA-F]{2,}$", part):
                     continue
                 if ":" in part and not part.endswith(":"):  # file:line reference
+                    continue
+                # objdump address prefixes look like "123:" or "ffff:" - all-hex with trailing colon.
+                # Skip them: a real mnemonic is alphanumeric (with optional . for AT&T suffixes / ARM).
+                if part.endswith(":") and re.match(r"^[0-9a-fA-F]+:$", part):
                     continue
                 # This should be the mnemonic
                 mnemonic = part.lower().rstrip(":")
