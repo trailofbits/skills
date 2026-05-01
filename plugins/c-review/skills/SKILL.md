@@ -64,6 +64,16 @@ Output directory contains: `context.md`, `plan.json`, `worker-prompts/`, `findin
 
 ---
 
+## Rationalizations to Reject
+
+- **"Background spawns parallelize the workers."** They do not — `Agent` calls in a single assistant message already run concurrently. `run_in_background=true` defeats the Phase 6a primer cache, so every worker pays full cache-creation (`cache_read_input_tokens=0`) and the ~15 K-token primer is wasted M times. This is the single most common defect — multiple recent runs spawned 7-of-8 (or all) workers with `bg=true`. Default: omit `run_in_background` from worker spawns.
+- **"I'll re-derive the cluster list / paths / pass prefixes inline instead of running `build_run_plan.py`."** The script is the only authority for selection and rendering. Paraphrasing it drops fields that the worker self-check requires, producing `worker-N abort: spawn prompt malformed`. Always run the script and `Read plan.json`.
+- **"The run partially succeeded — I'll just write `REPORT.md` from what completed."** Hiding partial runs behind a successful report is a correctness bug. If any Phase-5 cluster task is not `completed`, surface it prominently in `run-summary.md` and the final response.
+- **"Zero findings — skip Phase 8."** Skip dedup-judge only. Always run fp-judge and Phase 8b: SARIF consumers depend on a stable artifact set, and `generate_sarif.py` emits `results: []` for the empty case.
+- **"`Bash: ls README*` is fine for the preflight."** Under zsh, an unmatched glob aborts the whole compound command before `2>/dev/null` runs. Use `Glob` (preferred) or `find` (never fails on no-match).
+
+---
+
 ## Orchestration Workflow
 
 Run these phases **in the main conversation**.
@@ -164,9 +174,9 @@ A parallel batch from cold start cannot share cache (all M requests dispatch sim
 
 If `plan.run.cache_primer == true`, `build_run_plan.py` has written `${output_dir}/worker-prompts/cache-primer.txt`. Spawn it in its own assistant message: `Read` the file, pass verbatim as `Agent` `prompt` with `subagent_type=c-review:c-review-worker`, `model=${worker_model}`, `description="C review cache primer"`, no `run_in_background`. The script wrote the prefix byte-identical to `worker-1.txt` through the `<context>` block — that byte-identity is what gives the parallel workers their cache hit. The primer trailer contains `Cache primer: true`, which the worker system prompt treats as a first-class mode and returns exactly `worker-PRIMER abort: cache primer (no analysis performed)` in one text response with zero tool calls. Discard the abort line — Phase 7 ignores it (no `worker-N` id).
 
-Foreground spawn already serializes — no `sleep` needed before Phase 6c. Skip Phase 6a entirely if `plan.run.cache_primer == false`.
+Foreground spawn already serializes — no `sleep` needed before Phase 6b. Skip Phase 6a entirely if `plan.run.cache_primer == false`.
 
-#### Phase 6c: Spawn M real workers in ONE message
+#### Phase 6b: Spawn M real workers in ONE message
 
 > **🚨 STOP — read this before composing the spawn message.**
 >
@@ -225,8 +235,11 @@ Then build the index — workers wrote per-worker shards under `${output_dir}/fi
 ```bash
 # Use `find` rather than a `worker-*.txt` glob: zsh aborts the compound command on no-match
 # even with `2>/dev/null`, so an empty findings-index.d would otherwise drop the index file.
+# `awk 1` (vs `cat`) normalizes a missing trailing newline on any shard, so a future
+# worker that writes shards via Write/printf instead of `ls -1 | sort` can't silently glue
+# the last path of one shard onto the first of the next when sort -u dedupes.
 if [ -d "${output_dir}/findings-index.d" ]; then
-  find "${output_dir}/findings-index.d" -maxdepth 1 -type f -name 'worker-*.txt' -exec cat {} + 2>/dev/null \
+  find "${output_dir}/findings-index.d" -maxdepth 1 -type f -name 'worker-*.txt' -exec awk 1 {} + 2>/dev/null \
     | sort -u > "${output_dir}/findings-index.txt"
 else
   find "${output_dir}/findings" -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort > "${output_dir}/findings-index.txt"
@@ -268,14 +281,18 @@ Spawn sequentially (dedup first, fp-judge sees only merged primaries):
 **Entry:** fp-judge returned, or the run aborted early. **Exit:** `${output_dir}/REPORT.sarif` exists.
 
 ```bash
-test -f "${output_dir}/REPORT.sarif" || python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py" "${output_dir}"
+test -d "${output_dir}/findings" && python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py" "${output_dir}"
 ```
 
-Run unconditionally — generator is idempotent, emits `results: []` for zero-survivor runs, and handles partial runs (findings without `fp_verdict` are emitted as `LIKELY_TP` rather than being silently dropped). Skip only if `${output_dir}/findings/` doesn't exist (Phase 2 failed). After this phase, update `${output_dir}/run-summary.md` with judge/SARIF status.
+Run unconditionally whenever `findings/` exists — generator is idempotent (full overwrite), emits `results: []` for zero-survivor runs, and handles partial runs (findings without `fp_verdict` are emitted as `LIKELY_TP` rather than being silently dropped). Always overwriting protects against the case where fp-judge crashed mid-write and left a corrupt `REPORT.sarif` on disk. Skip only if `${output_dir}/findings/` doesn't exist (Phase 2 failed). After this phase, update `${output_dir}/run-summary.md` with judge/SARIF status.
 
 ### Phase 9: Return Report
 
-`Read ${output_dir}/REPORT.md` and return its content to the caller. Append an Artifacts list pointing at `findings/`, `findings-index.txt`, `run-summary.md`, `dedup-summary.md`, `fp-summary.md`, `REPORT.md`, `REPORT.sarif`.
+**Entry:** Phase 8b complete. **Exit:** every item in [Success Criteria](#success-criteria) verified true; `REPORT.md` returned to the caller.
+
+Before composing the response, walk the [Success Criteria](#success-criteria) checklist below and confirm each bullet against on-disk artifacts (`TaskList` for cluster tasks, `ls`/`Read` for the files). If any criterion fails, surface the failure prominently in the response — do **not** hide a partial run behind a successful report.
+
+Then `Read ${output_dir}/REPORT.md` and return its content to the caller. Append an Artifacts list pointing at `findings/`, `findings-index.txt`, `run-summary.md`, `dedup-summary.md`, `fp-summary.md`, `REPORT.md`, `REPORT.sarif`.
 
 ---
 

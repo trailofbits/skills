@@ -127,10 +127,16 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
    shard="{output_dir}/findings-index.d/worker-{N}.txt"
    mkdir -p "$(dirname "$shard")"
    # List every finding file you wrote — one absolute path per line, sorted.
-   ls -1 "{output_dir}/findings/"{PREFIX1,PREFIX2,...}-*.md 2>/dev/null | sort > "$shard"
+   # Iterate prefixes with a `for` loop, NOT brace expansion: bash leaves
+   # single-element braces like `{RACE}` literal (no comma → no expansion),
+   # which silently produces an empty shard for clusters that filtered down
+   # to one prefix (e.g. `concurrency`/`syscall-retval` under is_posix=false).
+   for pfx in PREFIX1 PREFIX2; do
+     ls -1 "{output_dir}/findings/${pfx}"-*.md 2>/dev/null
+   done | sort > "$shard"
    ```
 
-   Replace `{N}` with your worker number and `{PREFIX1,PREFIX2,...}` with the literal `pass_prefixes` brace expansion from your spawn prompt. If you wrote zero findings, still create an **empty** shard file — its presence is the "I ran, found nothing" signal:
+   Replace `{N}` with your worker number and `PREFIX1 PREFIX2` with the literal space-separated `pass_prefixes` from your spawn prompt — one shell word per prefix, no braces, no commas. If you wrote zero findings, still create an **empty** shard file — its presence is the "I ran, found nothing" signal:
 
    ```bash
    shard="{output_dir}/findings-index.d/worker-{N}.txt"
@@ -141,7 +147,8 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
 5. **Emit a coverage-gate table** (mandatory, immediately above your one-line summary). One row per entry in `pass_bug_classes`. Outcome is one of:
    - `filed: <id>[, <id>...]` — list every finding ID you wrote under this prefix
    - `cleared` — the pass's required searchers ran and produced no exploitable candidate (state the seed in one phrase, e.g. *"no `regcomp`/`pcre*` calls"*)
-   - `skipped: <reason>` — only valid when `pass_bug_classes[i]` is in `skip_subclasses`, or when `requires`/threat-model would have hard-dropped this pass; spell out which
+
+   `skipped:` is **not** a valid outcome. The orchestrator hard-drops `requires`/threat-model-filtered passes before spawning you (`Skip subclasses: (none)` in every spawn prompt today), so every entry in `pass_bug_classes` is in scope and must be either `filed:` or `cleared`. If you find yourself wanting to write `skipped:`, that's a coverage failure — run the pass.
 
    The table is your audit trail that every assigned pass actually ran. **"No obvious bugs" is not a valid outcome.** A pass that never appeared in your transcript is a coverage failure, not a clean run. Use this exact format:
 
@@ -171,10 +178,11 @@ A cluster prompt has YAML frontmatter with a `consolidated` flag:
 - **`consolidated: true`** (e.g. `buffer-write-sinks.md`) — the cluster file contains all bug patterns inline plus a shared-inventory phase. `sub_prompt_paths` is empty. Read the cluster file once and follow its phases in order. Do NOT Read any per-class sub-prompts — the cluster file is self-sufficient.
 
 - **`consolidated: false`** — the cluster file gives a shared-context preamble plus an ordered Pass list (Pass 1, Pass 2, …). Detailed bug patterns for each pass live in separate per-class prompt files, whose absolute paths your spawn prompt provides as `sub_prompt_paths`. `pass_bug_classes` and `pass_prefixes` are aligned 1:1 with `sub_prompt_paths`. For each index `i`:
-  1. If `pass_bug_classes[i]` is in `skip_subclasses`, skip that pass entirely.
-  2. `Read: sub_prompt_paths[i]` for the pass-specific bug patterns and FP guidance.
-  3. Apply them against the shared Phase-A context you already built — do not re-derive it.
-  4. File findings with `pass_prefixes[i]` as the ID prefix.
+  1. `Read: sub_prompt_paths[i]` for the pass-specific bug patterns and FP guidance.
+  2. Apply them against the shared Phase-A context you already built — do not re-derive it.
+  3. File findings with `pass_prefixes[i]` as the ID prefix.
+
+  `skip_subclasses` is reserved for future use and is currently always empty — every pass in `sub_prompt_paths` must run.
 
 Either way:
 
@@ -189,7 +197,7 @@ Either way:
 
 When a cluster prompt asks for an inventory, build a real inventory before pass-specific analysis. Do not use `head`, `tail`, or other output caps as a substitute for coverage. If output is too large, first get a count, split by subdirectory or callee, and record that the inventory was partitioned. A capped search is acceptable only when you explicitly note it as a sample and follow with partitioned searches or a reason the omitted matches are out of scope.
 
-Before emitting `worker-N complete:`, you MUST emit the coverage-gate table defined in step 5 of the assigned-task protocol. Every `pass_bug_classes` entry needs a row; every row's outcome is `filed: …` / `cleared (<one-phrase seed>)` / `skipped: <reason>`. Workers that omit the table are treated as malformed completions during review of the run summary. "No obvious bugs" is not a valid outcome unless you ran the pass's required seeds/searchers and inspected representative candidates or confirmed the seed returned empty.
+Before emitting `worker-N complete:`, you MUST emit the coverage-gate table defined in step 5 of the assigned-task protocol. Every `pass_bug_classes` entry needs a row; every row's outcome is `filed: …` or `cleared (<one-phrase seed>)`. Workers that omit the table are treated as malformed completions during review of the run summary. "No obvious bugs" is not a valid outcome unless you ran the pass's required seeds/searchers and inspected representative candidates or confirmed the seed returned empty.
 
 ---
 
