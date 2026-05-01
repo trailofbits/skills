@@ -18,52 +18,9 @@ jobs:
     name: Validate plugins and skills
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false
-
-      - name: Validate JSON files
-        run: |
-          echo "Validating marketplace.json..."
-          python3 -m json.tool .claude-plugin/marketplace.json > /dev/null
-
-          echo "Validating plugin.json files..."
-          for f in plugins/*/.claude-plugin/plugin.json; do
-            echo "  Checking $f"
-            python3 -m json.tool "$f" > /dev/null
-          done
-
-      - name: Check marketplace consistency
-        run: |
-          echo "Checking all marketplace plugins have directories..."
-          python3 -c "
-          import json
-          import os
-          import sys
-
-          with open('.claude-plugin/marketplace.json') as f:
-              marketplace = json.load(f)
-
-          errors = []
-          for plugin in marketplace['plugins']:
-              name = plugin['name']
-              source = plugin['source']
-              # source is like ./plugins/name
-              path = source.lstrip('./')
-              if not os.path.isdir(path):
-                  errors.append(f'Plugin {name}: directory {path} not found')
-
-              plugin_json = os.path.join(path, '.claude-plugin', 'plugin.json')
-              if not os.path.isfile(plugin_json):
-                  errors.append(f'Plugin {name}: missing {plugin_json}')
-
-          if errors:
-              for e in errors:
-                  print(f'ERROR: {e}', file=sys.stderr)
-              sys.exit(1)
-
-          print(f'All {len(marketplace[\"plugins\"])} plugins validated')
-          "
 
       - name: Validate SKILL.md frontmatter
         run: |
@@ -114,7 +71,8 @@ jobs:
       - name: Check for hardcoded paths
         run: |
           echo "Checking for hardcoded user paths..."
-          if grep -rE '/home/[a-z]|/Users/[A-Z]' plugins/ --include='*.md' --include='*.py' --include='*.json' | grep -v '/path/to'; then
+          # Exclude /path/to (example paths) and /home/vscode (standard devcontainer user)
+          if grep -rPn '(?<![a-zA-Z])(/home/[a-z]|/Users/[A-Z])' plugins/ --include='*.md' --include='*.py' --include='*.json' | grep -v '/path/to' | grep -v '/home/vscode'; then
             echo "ERROR: Found hardcoded user paths (see above)"
             exit 1
           fi
@@ -128,3 +86,9 @@ jobs:
             exit 1
           fi
           echo "No personal emails found"
+
+      - name: Validate plugin metadata
+        run: python3 .github/scripts/validate_plugin_metadata.py
+
+      - name: Validate Codex skill mappings
+        run: python3 .github/scripts/validate_codex_skills.py

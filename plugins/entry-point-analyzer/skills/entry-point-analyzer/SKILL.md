@@ -1,11 +1,7 @@
 ---
 name: entry-point-analyzer
 description: Analyzes smart contract codebases to identify state-changing entry points for security auditing. Detects externally callable functions that modify state, categorizes them by access level (public, admin, role-restricted, contract-only), and generates structured audit reports. Excludes view/pure/read-only functions. Use when auditing smart contracts (Solidity, Vyper, Solana/Rust, Move, TON, CosmWasm) or when asked to find entry points, audit flows, external functions, access control patterns, or privileged operations.
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
+allowed-tools: Read Grep Glob Bash
 ---
 
 # Entry Point Analyzer
@@ -94,7 +90,8 @@ If `which slither` returns nothing, proceed with manual analysis using the langu
 | `.sol` | Solidity | [{baseDir}/references/solidity.md]({baseDir}/references/solidity.md) |
 | `.vy` | Vyper | [{baseDir}/references/vyper.md]({baseDir}/references/vyper.md) |
 | `.rs` + `Cargo.toml` with `solana-program` | Solana (Rust) | [{baseDir}/references/solana.md]({baseDir}/references/solana.md) |
-| `.move` | Move (Aptos/Sui) | [{baseDir}/references/move.md]({baseDir}/references/move.md) |
+| `.move` + `Move.toml` with `edition` | [{baseDir}/references/move-sui.md]({baseDir}/references/move-sui.md) |
+| `.move` + `Move.toml` with `Aptos` | [{baseDir}/references/move-aptos.md]({baseDir}/references/move-aptos.md) |
 | `.fc`, `.func`, `.tact` | TON (FunC/Tact) | [{baseDir}/references/ton.md]({baseDir}/references/ton.md) |
 | `.rs` + `Cargo.toml` with `cosmwasm-std` | CosmWasm | [{baseDir}/references/cosmwasm.md]({baseDir}/references/cosmwasm.md) |
 

@@ -1,0 +1,8 @@
+{
+  "name": "supply-chain-risk-auditor",
+  "version": "1.0.0",
+  "description": "Audit supply-chain threat landscape of project dependencies for exploitation or takeover risk",
+  "author": {
+    "name": "Spencer Michaels"
+  }
+}

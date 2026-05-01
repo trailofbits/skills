@@ -313,6 +313,63 @@ apt install gnuplot
 | `-m 1000` | Memory limit in megabytes (default: 0 = unlimited) |
 | `-x ./dict.dict` | Use dictionary file to guide mutations |
 
+## Environment Variables That Matter
+
+AFL++ has [many environment variables](https://aflplus.plus/docs/env_variables/), but most are niche. These are the ones that matter in practice.
+
+### Always Set These
+
+```bash
+# Every campaign should use tmpfs — SSDs will thank you, and it's faster
+AFL_TMPDIR=/dev/shm
+```
+
+`AFL_TMPDIR` is a free performance win with no downsides — not setting it wears out your SSD and slows fuzzing.
+
+### Slow Targets
+
+```bash
+# Speeds up calibration ~2.5x — use when targets are slow (e.g., >10 ms/exec)
+AFL_FAST_CAL=1
+```
+
+`AFL_FAST_CAL` reduces calibration time with negligible precision loss. Recommended specifically for slow targets where calibration would otherwise take a long time.
+
+### Multi-Core Campaigns
+
+```bash
+# On the primary (-M) instance only — needed for afl-cmin, not for fuzzing itself
+AFL_FINAL_SYNC=1
+
+# On all instances — cache test cases in memory (default: 50 MB, good range: 50-250 MB)
+AFL_TESTCACHE_SIZE=100
+```
+
+`AFL_FINAL_SYNC` tells the primary instance to do a final import from all secondaries when stopping. This does not affect the fuzzing process itself — it only matters when you later run `afl-cmin` for corpus minimization, ensuring the primary's queue has the full combined corpus. `AFL_TESTCACHE_SIZE` caches test cases in memory to reduce disk I/O; the default is 50 MB and values between 50-250 MB work well for most campaigns.
+
+### CI/Automated Fuzzing
+
+```bash
+# Fail fast if fuzzing isn't finding anything
+AFL_EXIT_ON_TIME=3600  # 1 hour with no new paths = stop
+
+# Or run until "done" (all queue entries processed)
+AFL_EXIT_WHEN_DONE=1
+
+# Headless environments
+AFL_NO_UI=1
+```
+
+Unbounded fuzzing in CI wastes resources. Set time limits or use exit conditions.
+
+### Variables to Avoid
+
+| Variable | Why Skip It |
+|----------|-------------|
+| `AFL_NO_ARITH` | Can hurt coverage on binary formats, but may be useful for text-based targets |
+| `AFL_SHUFFLE_QUEUE` | Only for exotic setups, usually harmful |
+| `AFL_DISABLE_TRIM` | Trimming is valuable, don't disable without reason |
+
 ## Multi-Core Fuzzing
 
 AFL++ excels at multi-core fuzzing with two major advantages:
@@ -519,74 +576,6 @@ Compile and run:
 | `-G` input size limit | Smaller = faster, but may miss bugs |
 | ASan ratio | 1 ASan job per 4-8 non-ASan jobs |
 
-## Real-World Examples
-
-### Example: libpng
-
-Fuzzing libpng demonstrates fuzzing a C project with static libraries:
-
-```bash
-# Get source
-curl -L -O https://downloads.sourceforge.net/project/libpng/libpng16/1.6.37/libpng-1.6.37.tar.xz
-tar xf libpng-1.6.37.tar.xz
-cd libpng-1.6.37/
-
-# Install dependencies
-apt install zlib1g-dev
-
-# Configure and build static library
-export CC=afl-clang-fast CFLAGS=-fsanitize=fuzzer-no-link
-export CXX=afl-clang-fast++ CXXFLAGS="$CFLAGS"
-./configure --enable-shared=no
-export AFL_LLVM_CMPLOG=1
-export AFL_USE_ASAN=1
-make
-
-# Download harness
-curl -O https://raw.githubusercontent.com/glennrp/libpng/f8e5fa92b0e37ab597616f554bee254157998227/contrib/oss-fuzz/libpng_read_fuzzer.cc
-
-# Link fuzzer
-export AFL_USE_ASAN=1
-$CXX -fsanitize=fuzzer libpng_read_fuzzer.cc .libs/libpng16.a -lz -o fuzz
-
-# Prepare seeds and dictionary
-mkdir seeds/
-curl -o seeds/input.png https://raw.githubusercontent.com/glennrp/libpng/acfd50ae0ba3198ad734e5d4dec2b05341e50924/contrib/pngsuite/iftp1n3p08.png
-curl -O https://raw.githubusercontent.com/glennrp/libpng/2fff013a6935967960a5ae626fc21432807933dd/contrib/oss-fuzz/png.dict
-
-# Start fuzzing
-./afl++ <host/docker> afl-fuzz -i seeds -o out -- ./fuzz
-```
-
-### Example: CMake-based Project
-
-```cmake
-project(BuggyProgram)
-cmake_minimum_required(VERSION 3.0)
-
-add_executable(buggy_program main.cc)
-
-add_executable(fuzz main.cc harness.cc)
-target_compile_definitions(fuzz PRIVATE NO_MAIN=1)
-target_compile_options(fuzz PRIVATE -O2 -fsanitize=fuzzer-no-link)
-target_link_libraries(fuzz -fsanitize=fuzzer)
-```
-
-Build and fuzz:
-
-```bash
-# Build non-instrumented binary
-./afl++ <host/docker> cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ .
-./afl++ <host/docker> cmake --build . --target buggy_program
-
-# Build fuzzer
-./afl++ <host/docker> cmake -DCMAKE_C_COMPILER=afl-clang-fast -DCMAKE_CXX_COMPILER=afl-clang-fast++ .
-./afl++ <host/docker> cmake --build . --target fuzz
-
-# Fuzz
-./afl++ <host/docker> afl-fuzz -i seeds -o out -- ./fuzz
-```
-
 ## Troubleshooting
 
 | Problem | Cause | Solution |
@@ -624,7 +613,7 @@ Build and fuzz:
 **[AFL++ GitHub Repository](https://github.com/AFLplusplus/AFLplusplus)**
 Official repository with comprehensive documentation, examples, and issue tracker.
 
-**[Fuzzing in Depth](https://aflplus.plus/docs/fuzzing_in_depth.md)**
+**[Fuzzing in Depth](https://raw.githubusercontent.com/AFLplusplus/AFLplusplus/refs/heads/stable/docs/fuzzing_in_depth.md)**
 Advanced documentation by the AFL++ team covering instrumentation modes, optimization techniques, and advanced use cases.
 
 **[AFL++ Under The Hood](https://blog.ritsec.club/posts/afl-under-hood/)**

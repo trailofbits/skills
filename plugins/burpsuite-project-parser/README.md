@@ -100,4 +100,3 @@ All output is JSON, one object per line. Pipe to `jq` for formatting or use `gre
 scripts/burp-search.sh project.burp auditItems | jq .
 scripts/burp-search.sh project.burp auditItems | grep -i "sql injection"
 ```
-

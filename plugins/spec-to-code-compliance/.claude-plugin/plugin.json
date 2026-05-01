@@ -1,6 +1,6 @@
 {
   "name": "spec-to-code-compliance",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Specification-to-code compliance checker for blockchain audits with evidence-based alignment analysis",
   "author": {
     "name": "Omar Inuwa",

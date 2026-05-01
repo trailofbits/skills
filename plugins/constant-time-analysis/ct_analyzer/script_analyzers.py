@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import xml.sax.saxutils as _saxutils
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -2600,11 +2601,11 @@ class CSharpAnalyzer(ScriptAnalyzer):
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <OutputType>Library</OutputType>
-    <OutputPath>{output_dir}</OutputPath>
+    <OutputPath>{_saxutils.escape(str(output_dir))}</OutputPath>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="{source_path.absolute()}" />
+    <Compile Include="{_saxutils.escape(str(source_path.absolute()), {chr(34): "&quot;"})}" />
   </ItemGroup>
 </Project>
 """

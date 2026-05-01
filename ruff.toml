@@ -1,0 +1,12 @@
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[lint.per-file-ignores]
+"**/tests/**/*.py" = ["F401", "SIM118"]
+"**/test_samples/**/*.py" = ["F", "E", "B"]
+# ct_analyzer has long opcode tables and string constants
+"**/ct_analyzer/analyzer.py" = ["E501"]
+"**/ct_analyzer/script_analyzers.py" = ["E501", "SIM102", "SIM108", "F841"]

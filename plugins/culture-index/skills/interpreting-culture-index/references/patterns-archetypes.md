@@ -12,12 +12,13 @@ Culture Index identifies 19 distinct behavioral patterns based on the configurat
 | Rainmaker/Persuader | High A, High B, Low C | Aggressive, charming, fast. Closes deals, builds relationships. | Sales Hunter, BD, Account Executive |
 | Scholar/Specialist | Low B, High C, High D | Introverted, patient, detail-oriented. Deep expertise. | Engineer, CFO, Analyst |
 | Accommodator | Low A, High B, High C | Team player, patient, people-focused. Service orientation. | HR, Customer Success |
-| Debater | High B, Low A, Low D | Charming, non-conforming, unfiltered. Good storyteller. | Sales (relationship), Creative |
-| Technical Expert | Low A, Low B, Low C, High D | Efficient specialists. Fast-moving detail people. | Security, QC, Ops |
+| Influencer | Low A, High B, Low C, Low D | Open, optimistic, people-oriented. Avoids confrontation, easily distracted. | Customer Service, Retail, Event Hosting, Telemarketing |
+| Debater | Mid A, Mid-High B, Low C, High D | Social, non-conforming, intuition-driven. Persuasive storyteller. | Sales (relationship), Creative |
+| Technical Expert | Low A, Low B, High C, Low D | Accuracy-driven specialists. Private, skeptical, deep expertise. | Security, QC, Ops |
 | Craftsman | Low A, Low B, High C, High D | Patient, precise executors. Expert taskmasters. | Finance, Compliance |
-| Socializer | Low A, High B, High C, Low D | Go along, get along. Team-focused, people-focused, slowing down. | Support, HR |
-| Philosopher | High A, Low B, High C | Patient, analytical thinkers. Independent contemplation. | Strategy, Research |
-| Administrator | Moderate across traits | Versatile generalists. Can adapt to many situations. | Operations, General Management |
+| Socializer | Low A, High B, Low C, Low D | Socially flamboyant, people-oriented. Persuasive, charismatic, poor follow-through. | Support, HR |
+| Philosopher | Low A, Low B, High C, Low D | Cerebral, idea-driven non-conformist. Inward thinker, independent. | Strategy, Research |
+| Administrator | High A, High B, Low C, Mid D | Proactive, outgoing, organized. Natural follow-through with people skills. | Operations, General Management |
 
 </common_archetypes>
 

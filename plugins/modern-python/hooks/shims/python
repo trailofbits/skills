@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# PATH shim for python/python3 — intercepts bare invocations and
+# suggests the uv equivalent.  Works for both names via $0.
+cmd="$(basename "$0")"
+
+case "${1:-}" in
+  -m)
+    case "${2:-}" in
+      pip)
+        echo "ERROR: \`$cmd -m pip\` is not supported. Use:" >&2
+        echo "  uv add <package>       # add a dependency" >&2
+        echo "  uv remove <package>    # remove a dependency" >&2
+        ;;
+      *)
+        echo "ERROR: Use \`uv run $cmd -m ${2:-<module>}\` instead of \`$cmd -m ${2:-<module>}\`" >&2
+        ;;
+    esac
+    ;;
+  *)
+    echo "ERROR: Use \`uv run $cmd ${*:-}\` instead of \`$cmd ${*:-}\`" >&2
+    ;;
+esac
+
+exit 1

@@ -13,6 +13,7 @@ __pycache__/
 venv/
 ENV/
 .uv/
+uv.lock
 
 # IDE
 .idea/
@@ -28,3 +29,10 @@ build/
 
 # Local plugin cache
 .claude/
+
+# MCP server config (contains API keys)
+.mcp.json
+# Allow plugin-bundled MCP configs (no secrets, just CLI commands)
+!plugins/**/.mcp.json
+
+.env

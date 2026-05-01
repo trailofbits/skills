@@ -1,0 +1,9 @@
+{
+  "name": "debug-buttercup",
+  "version": "1.0.0",
+  "description": "Debug Buttercup Kubernetes deployments",
+  "author": {
+    "name": "Ronald Eytchison",
+    "email": "opensource@trailofbits.com"
+  }
+}

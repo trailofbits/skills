@@ -1,6 +1,6 @@
 # Ask Questions If Underspecified
 
-Ask the minimum set of clarifying questions needed to avoid wrong work.  
+Ask the minimum set of clarifying questions needed to avoid wrong work.
 
 **Author:** Kevin Valerio
 

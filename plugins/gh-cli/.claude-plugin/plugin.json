@@ -1,0 +1,10 @@
+{
+  "name": "gh-cli",
+  "version": "1.4.1",
+  "description": "Intercepts GitHub URL fetches and curl/wget commands, redirecting to the authenticated gh CLI.",
+  "author": {
+    "name": "William Tan",
+    "email": "opensource@trailofbits.com",
+    "url": "https://github.com/trailofbits"
+  }
+}

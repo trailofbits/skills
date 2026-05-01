@@ -160,19 +160,18 @@ Comprehensive token security analysis for both implementations and integrations:
 
 ```
 building-secure-contracts/
-├── not-so-smart-contracts-scanners/
-│   ├── algorand-vulnerability-scanner/
-│   ├── cairo-vulnerability-scanner/
-│   ├── cosmos-vulnerability-scanner/
-│   ├── solana-vulnerability-scanner/
-│   ├── substrate-vulnerability-scanner/
-│   └── ton-vulnerability-scanner/
-└── development-guidelines/
+└── skills/
+    ├── algorand-vulnerability-scanner/
     ├── audit-prep-assistant/
+    ├── cairo-vulnerability-scanner/
     ├── code-maturity-assessor/
+    ├── cosmos-vulnerability-scanner/
     ├── guidelines-advisor/
     ├── secure-workflow-guide/
-    └── token-integration-analyzer/
+    ├── solana-vulnerability-scanner/
+    ├── substrate-vulnerability-scanner/
+    ├── token-integration-analyzer/
+    └── ton-vulnerability-scanner/
 ```
 
 ---
