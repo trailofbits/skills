@@ -269,7 +269,7 @@ def render_cache_primer_prompt(
     """Tiny single-turn prompt that warms the prompt cache for the parallel batch.
 
     Shares its prefix byte-for-byte with every worker prompt (via the helper above) so
-    that the workers in Phase 6c read this entry from cache instead of paying full
+    that the workers in Phase 6b read this entry from cache instead of paying full
     cache-creation. The trailer instructs the agent to abort in one text response with
     no tool calls — duration ~3 s, no findings written.
     """

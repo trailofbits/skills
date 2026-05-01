@@ -15,7 +15,7 @@ From these inputs the orchestrator detects platform/language flags (`is_cpp`, `i
 
 Always-on clusters:
 
-- **buffer-write-sinks** — banned/unsafe stdlib calls, format strings, `snprintf` retval, overlapping buffers, `memcpy`/`strncpy`/`strncat` size and termination, scanf-uninit, flexible arrays, buffer overflows.
+- **buffer-write-sinks** — banned/unsafe stdlib calls, format strings, `snprintf` retval, overlapping buffers, `memcpy`/`strncpy`/`strncat` size and termination, `strlen`/`strcpy` pairs, scanf-uninit, flexible arrays, generic string-handling issues, buffer overflows.
 - **object-lifecycle** — uninitialized data, NULL deref, use-after-free, memory leaks.
 - **arithmetic-type** — operator precedence, integer overflow, OOB comparisons, NULL/zero conflation, type confusion, undefined behavior, compiler bugs.
 - **syscall-retval** — error / `errno` / `EINTR` handling, negative retval, `open()` issues, socket disconnect, half-closed sockets.
@@ -30,7 +30,7 @@ Conditional clusters:
 - **windows-fs-path** (`is_windows`) — DLL planting, Windows path handling, installer races.
 - **windows-ipc-crypto** (`is_windows`) — named pipes, Windows crypto, Windows allocators.
 
-Each worker inventories candidate sites once for its cluster (Phase A), then runs that cluster's focused passes and writes one markdown-with-YAML-frontmatter finding file per issue into a shared `findings/` directory. After workers exit, two judges run sequentially: a **dedup judge** merges duplicates, then an **FP + severity judge** assigns `fp_verdict` / `severity` / `attack_vector` / `exploitability` and writes `REPORT.md`. `scripts/generate_sarif.py` emits `REPORT.sarif` (SARIF 2.1.0) from the same frontmatter.
+Each worker inventories candidate sites once for its cluster (Phase A), then runs that cluster's focused passes and writes one markdown-with-YAML-frontmatter finding file per issue into a shared `findings/` directory. After workers exit, two judges run sequentially: a **dedup judge** merges duplicates, then an **FP + severity judge** assigns `fp_verdict` / `severity` / `attack_vector` / `exploitability` and writes `REPORT.md`. The orchestrator then runs `scripts/generate_sarif.py` (Phase 8b safety net) to emit `REPORT.sarif` (SARIF 2.1.0) from the same frontmatter — idempotent, runs unconditionally so a crashed fp-judge can't leave a corrupt or stale SARIF on disk.
 
 ## Architecture
 
@@ -43,9 +43,9 @@ Each worker inventories candidate sites once for its cluster (Phase A), then run
     ├── Phase 4: Select clusters from prompts/clusters/manifest.json
     ├── Phase 5: TaskCreate M cluster tasks (orchestrator-internal bookkeeping; workers
     │           have no Task tools and never read or write the ledger)
-    ├── Phase 6: (optional) Phase 6a cache primer + Phase 6b stagger when
-    │           plan.run.cache_primer=true; Phase 6c spawns M workers in a single
-    │           message (parallel Agent calls, subagent_type="c-review:c-review-worker")
+    ├── Phase 6: Phase 6a cache primer (foreground, gated on plan.run.cache_primer);
+    │           Phase 6b spawns M workers in a single message (parallel Agent calls,
+    │           subagent_type="c-review:c-review-worker")
     │           └── Each worker: validate spawn prompt (self-check) →
     │                            run assigned cluster prompt
     │                                   (Phase A inventory + focused passes) →
@@ -58,7 +58,9 @@ Each worker inventories candidate sites once for its cluster (Phase A), then run
     │           │                   Tier 2 same-function snippet-confirmed), writes dedup-summary.md
     │           └── FP+Severity:    reads primaries only, assigns fp_verdict + (for survivors)
     │                               severity / attack_vector / exploitability, writes
-    │                               fp-summary.md + REPORT.md, then runs generate_sarif.py
+    │                               fp-summary.md + REPORT.md (and REPORT.sarif on the happy path)
+    ├── Phase 8b: SARIF safety net — orchestrator unconditionally runs generate_sarif.py
+    │            whenever findings/ exists; idempotent full overwrite
     └── Phase 9: Return REPORT.md + artifact list
 ```
 
@@ -79,9 +81,10 @@ ${output_dir}/
 ├── findings-index.d/      # per-worker shards (each worker writes its own paths here)
 │   ├── worker-1.txt
 │   └── …
-├── findings-index.txt     # deterministic newline-separated manifest (concat of shards)
-├── dedup-summary.md       # dedup-judge (stage 1; absent on zero-findings runs)
-├── fp-summary.md          # fp+severity-judge (stage 2)
+├── findings-index.txt     # sorted, de-duplicated union of shards (canonical finding manifest)
+├── run-summary.md         # orchestrator-written: resolved params, worker outcomes, judge status
+├── dedup-summary.md       # dedup-judge output (minimal no-op summary on zero findings)
+├── fp-summary.md          # fp+severity-judge output
 ├── REPORT.md              # severity-filtered human-facing report
 └── REPORT.sarif           # SARIF 2.1.0, generated from finding frontmatter
 ```

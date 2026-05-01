@@ -11,6 +11,7 @@ description: >
 allowed-tools:
   - Agent
   - AskUserQuestion
+  - SendMessage
   - TaskCreate
   - TaskUpdate
   - TaskList
@@ -53,7 +54,7 @@ coordinator: write context.md → build_run_plan.py → TaskCreate × M
           → dedup-judge → fp-judge → SARIF safety net → return REPORT.md
 ```
 
-Output directory contains: `context.md`, `plan.json`, `worker-prompts/`, `findings/`, `findings-index.d/` (per-worker shards), `findings-index.txt`, `run-summary.md`, `dedup-summary.md` (omitted on zero-findings), `fp-summary.md`, `REPORT.md`, `REPORT.sarif`.
+Output directory contains: `context.md`, `plan.json`, `worker-prompts/`, `findings/`, `findings-index.d/` (per-worker shards), `findings-index.txt`, `run-summary.md`, `dedup-summary.md`, `fp-summary.md`, `REPORT.md`, `REPORT.sarif`.
 
 **Path convention:** set `${C_REVIEW_PLUGIN_ROOT}=${CLAUDE_PLUGIN_ROOT}` if that resolves (`Bash: ls "${CLAUDE_PLUGIN_ROOT}/prompts/clusters/buffer-write-sinks.md"`), otherwise `Bash: find ~/.claude -path '*/plugins/c-review/prompts/clusters/buffer-write-sinks.md' -print -quit`.
 
@@ -69,7 +70,7 @@ Output directory contains: `context.md`, `plan.json`, `worker-prompts/`, `findin
 - **"Background spawns parallelize the workers."** They do not — `Agent` calls in a single assistant message already run concurrently. `run_in_background=true` defeats the Phase 6a primer cache, so every worker pays full cache-creation (`cache_read_input_tokens=0`) and the ~15 K-token primer is wasted M times. This is the single most common defect — multiple recent runs spawned 7-of-8 (or all) workers with `bg=true`. Default: omit `run_in_background` from worker spawns.
 - **"I'll re-derive the cluster list / paths / pass prefixes inline instead of running `build_run_plan.py`."** The script is the only authority for selection and rendering. Paraphrasing it drops fields that the worker self-check requires, producing `worker-N abort: spawn prompt malformed`. Always run the script and `Read plan.json`.
 - **"The run partially succeeded — I'll just write `REPORT.md` from what completed."** Hiding partial runs behind a successful report is a correctness bug. If any Phase-5 cluster task is not `completed`, surface it prominently in `run-summary.md` and the final response.
-- **"Zero findings — skip Phase 8."** Skip dedup-judge only. Always run fp-judge and Phase 8b: SARIF consumers depend on a stable artifact set, and `generate_sarif.py` emits `results: []` for the empty case.
+- **"Zero findings — skip Phase 8."** Always run both judges and Phase 8b: dedup-judge writes a minimal no-op `dedup-summary.md` on an empty index, fp-judge writes empty `REPORT.md`/`REPORT.sarif`, and Phase 8b's SARIF generator emits `results: []` for the empty case. SARIF consumers depend on a stable artifact set.
 - **"`Bash: ls README*` is fine for the preflight."** Under zsh, an unmatched glob aborts the whole compound command before `2>/dev/null` runs. Use `Glob` (preferred) or `find` (never fails on no-match).
 
 ---
@@ -178,7 +179,7 @@ Foreground spawn already serializes — no `sleep` needed before Phase 6b. Skip 
 
 #### Phase 6b: Spawn M real workers in ONE message
 
-> **🚨 STOP — read this before composing the spawn message.**
+> **STOP — read this before composing the spawn message.**
 >
 > Workers MUST be spawned **foreground** (no `run_in_background` field, or `run_in_background=false`).
 > "Parallel" here means *one assistant message containing M `Agent` calls* — that already runs them concurrently. **Background spawns are NOT how you parallelize this skill.**
@@ -206,10 +207,10 @@ The spawn prompt is the single authority. Pass it verbatim — every field is re
 
 **Anti-patterns to reject:**
 
-- ❌ **Passing `run_in_background=true`** (the dominant historical defect — see warning above).
-- ❌ Hand-typing the spawn prompt instead of reading `worker-N.txt`.
-- ❌ Inserting Task-related instructions ("first call TaskList", "Assigned task id: <N>"). Workers have no Task tools.
-- ❌ Editing the rendered prompt before passing it (trimming "redundant" fields, collapsing pass lists).
+- **Passing `run_in_background=true`** (the dominant historical defect — see warning above).
+- Hand-typing the spawn prompt instead of reading `worker-N.txt`.
+- Inserting Task-related instructions ("first call TaskList", "Assigned task id: <N>"). Workers have no Task tools.
+- Editing the rendered prompt before passing it (trimming "redundant" fields, collapsing pass lists).
 
 ### Phase 7: Wait for Workers and Classify Outcomes
 
@@ -257,11 +258,11 @@ After task updates and index creation, run `TaskList` and write `${output_dir}/r
 
 If any Phase-5 cluster task is not `completed`, include it prominently in `run-summary.md` and the final response. Do not hide a partial run behind a successful report.
 
-**Always run Phase 8 even on zero findings** — fp-judge writes empty `REPORT.md`/`REPORT.sarif` so SARIF consumers get a stable artifact set. Dedup-judge is the only phase that can be skipped on an empty index.
+**Always run Phase 8 even on zero findings** — both judges short-circuit on an empty index: dedup-judge writes a minimal no-op `dedup-summary.md`, and fp-judge writes empty `REPORT.md`/`REPORT.sarif` so SARIF consumers get a stable artifact set.
 
 ### Phase 8: Judge Pipeline (sequential, dedup → fp+severity)
 
-**Entry:** `findings-index.txt` exists. **Exit:** dedup-judge has returned (skipped only when `findings-index.txt` is empty) and fp-judge has returned; `dedup-summary.md` (when applicable), `fp-summary.md`, `REPORT.md`, and ideally `REPORT.sarif` are written.
+**Entry:** `findings-index.txt` exists. **Exit:** dedup-judge and fp-judge have returned; `dedup-summary.md`, `fp-summary.md`, `REPORT.md`, and ideally `REPORT.sarif` are written.
 
 Each judge's full protocol is its system prompt (`agents/c-review-{dedup,fp}-judge.md`); spawn prompts pass only per-run variables. Do **not** reference `prompts/internal/judges/` — those files don't exist.
 
