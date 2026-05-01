@@ -1,36 +1,36 @@
 # c-review
 
-Comprehensive C/C++ security code review plugin. Runs assigned parallel workers over clusters of related bug classes and produces a deduplicated, severity-graded report plus SARIF.
+C/C++ security code review plugin. Based on [Trail of Bits Testing Handbook](https://appsec.guide/docs/languages/c-cpp/)
 
-## Features
+## Overview
 
-- **Clustered worker pool** — 7–11 parallel workers, each assigned one cluster of related bug classes. Sites are inventoried once per cluster (Phase A) and reused across all of the cluster's passes.
-- **File-based findings** — each finding is a markdown file with YAML frontmatter in a shared output directory; judges edit frontmatter in place (no separate handoff format).
-- **Up to 64 bug-class passes across 7 always-on + 4 conditional clusters** — 47 always-on plus up to 17 conditional (`cpp-semantics` under `is_cpp`; three Windows clusters under `is_windows`).
-- **Manifest-driven pass order** — `prompts/clusters/manifest.json` is the single source of truth for cluster gates, pass ordering, prefixes, and per-class prompt paths.
-- **Platform-aware** — auto-selects clusters from detected `is_cpp` / `is_posix` / `is_windows` flags.
-- **Threat-model-aware** — `REMOTE`, `LOCAL_UNPRIVILEGED`, or `BOTH`; out-of-scope passes (e.g. `privilege-drop` under `REMOTE`) are skipped.
-- **Judge pipeline** — dedup → FP+severity, sequentially.
-- **Severity filter** — report only Medium+ or High+ findings.
-- **SARIF 2.1.0 export** — `scripts/generate_sarif.py` deterministically writes `REPORT.sarif` for CI / IDE consumption.
+The skill takes the following inputs (collected via `AskUserQuestion`):
 
-## Usage
+- **Threat model** — `REMOTE`, `LOCAL_UNPRIVILEGED`, or `BOTH`. Drives which passes are in scope (e.g. `privilege-drop` is skipped under `REMOTE`).
+- **Scope subpath** — optional path under the repo root; defaults to the whole repo. Ambiguous scope requests are clarified.
+- **Worker model** — `haiku` / `sonnet` / `opus` for the parallel worker agents.
+- **Severity filter** — `all` / `medium` / `high`; controls what lands in `REPORT.md` and `REPORT.sarif`.
 
-```
-/c-review:c-review [optional free-text args]
-```
+From these inputs the orchestrator detects platform/language flags (`is_cpp`, `is_posix`, `is_windows`) over the scope and selects clusters from `prompts/clusters/manifest.json`. Each cluster groups related bug classes — based on C/C++ chapters of [appsec.guide](https://appsec.guide/) — and runs as one parallel worker.
 
-The skill self-collects parameters via a single `AskUserQuestion`. It pre-fills answers from any free text on the slash-command line and asks for unresolved required parameters:
+Always-on clusters:
 
-- Threat model — `REMOTE` / `LOCAL_UNPRIVILEGED` / `BOTH`
-- Worker model — `haiku` / `sonnet` / `opus`
-- Severity filter — `all` / `medium` / `high`
-- Scope subpath is optional. It defaults to repo root unless the user asks for a narrower scope; ambiguous scope requests are clarified.
+- **buffer-write-sinks** — banned/unsafe stdlib calls, format strings, `snprintf` retval, overlapping buffers, `memcpy`/`strncpy`/`strncat` size and termination, scanf-uninit, flexible arrays, buffer overflows.
+- **object-lifecycle** — uninitialized data, NULL deref, use-after-free, memory leaks.
+- **arithmetic-type** — operator precedence, integer overflow, OOB comparisons, NULL/zero conflation, type confusion, undefined behavior, compiler bugs.
+- **syscall-retval** — error / `errno` / `EINTR` handling, negative retval, `open()` issues, socket disconnect, half-closed sockets.
+- **concurrency** — spinlock init, thread safety, race conditions, signal-handler safety.
+- **ambient-state** — filesystem issues, access control, privilege drop, env vars, time-of-check, DoS.
+- **static-hygiene** — exploit mitigations, `printf` attribute, `va_start`/`va_end`, regex, `inet_aton`, `qsort`.
 
-Examples:
-- `/c-review:c-review` — asks for threat model, worker model, and severity filter
-- `/c-review:c-review flamenco only high severity sonnet` — fills scope + severity + worker model; asks only for threat model
-- `/c-review:c-review remote audit of src/net` — fills threat model + scope; asks for worker model and severity filter
+Conditional clusters:
+
+- **cpp-semantics** (`is_cpp`) — init order, virtual functions, smart pointers, move semantics, iterator invalidation, lambda captures, exception safety.
+- **windows-process** (`is_windows`) — `CreateProcess`, cross-process access, token privileges, service security.
+- **windows-fs-path** (`is_windows`) — DLL planting, Windows path handling, installer races.
+- **windows-ipc-crypto** (`is_windows`) — named pipes, Windows crypto, Windows allocators.
+
+Each worker inventories candidate sites once for its cluster (Phase A), then runs that cluster's focused passes and writes one markdown-with-YAML-frontmatter finding file per issue into a shared `findings/` directory. After workers exit, two judges run sequentially: a **dedup judge** merges duplicates, then an **FP + severity judge** assigns `fp_verdict` / `severity` / `attack_vector` / `exploitability` and writes `REPORT.md`. `scripts/generate_sarif.py` emits `REPORT.sarif` (SARIF 2.1.0) from the same frontmatter.
 
 ## Architecture
 
@@ -105,11 +105,3 @@ The authoritative list of clusters, pass ordering, gates, prefixes, and per-clas
 
 - Windows or Linux/macOS kernel drivers / modules
 - Managed languages (Java, C#, Python)
-- Embedded / bare-metal code without libc
-
-## Requirements
-
-- Claude Code with `Task*` and `Agent` tools available to the main conversation.
-- Named plugin subagents enabled so workers and judges get their tool sets eagerly (no `ToolSearch` bootstrap needed).
-- `Write` + `Edit` for finding-file creation and in-place frontmatter updates.
-- `python3` available on `PATH` for `scripts/build_run_plan.py` and `scripts/generate_sarif.py`.
