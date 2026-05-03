@@ -317,7 +317,7 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
                 "tool": {
                     "driver": {
                         "name": "c-review",
-                        "informationUri": "https://github.com/trailofbits/tob-skills/tree/main/plugins/c-review",
+                        "informationUri": "https://github.com/trailofbits/skills/tree/main/plugins/c-review",
                         "rules": rules,
                     }
                 },

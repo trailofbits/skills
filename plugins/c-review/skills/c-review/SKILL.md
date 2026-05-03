@@ -93,9 +93,15 @@ Probe within `${finding_scope_root:-.}`. Prefer `Glob`/`Grep` when available in 
 # is_cpp
 find "${finding_scope_root:-.}" -type f \( -name '*.cpp' -o -name '*.cxx' -o -name '*.cc' -o -name '*.hpp' -o -name '*.hh' \) -print -quit
 # is_posix
-grep -rlE '#include[[:space:]]*<(pthread|signal|sys/(socket|stat|types|wait)|unistd|errno)\.h>' --include='*.c' --include='*.h' "${finding_scope_root:-.}" | head -1
+grep -rlE '#include[[:space:]]*<(pthread|signal|sys/(socket|stat|types|wait)|unistd|errno)\.h>' \
+  --include='*.c' --include='*.h' \
+  --include='*.cpp' --include='*.cxx' --include='*.cc' --include='*.hpp' --include='*.hh' \
+  "${finding_scope_root:-.}" | head -1
 # is_windows
-grep -rlE '#include[[:space:]]*<(windows|winbase|winnt|winuser|winsock|ntdef|ntstatus)\.h>' --include='*.c' --include='*.h' "${finding_scope_root:-.}" | head -1
+grep -rlE '#include[[:space:]]*<(windows|winbase|winnt|winuser|winsock|ntdef|ntstatus)\.h>' \
+  --include='*.c' --include='*.h' \
+  --include='*.cpp' --include='*.cxx' --include='*.cc' --include='*.hpp' --include='*.hh' \
+  "${finding_scope_root:-.}" | head -1
 ```
 
 `compile_commands.json` is informational (no agent currently uses LSP), but the probe is mandatory so the run summary records whether richer local tooling is available. Probe via `Glob: **/compile_commands.json` under `${context_roots}`. If `Glob` is unavailable, use:

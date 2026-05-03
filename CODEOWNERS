@@ -7,10 +7,10 @@
 /plugins/audit-context-building/ @omarinuwa @dguido
 /plugins/building-secure-contracts/ @omarinuwa @dguido
 /plugins/burpsuite-project-parser/ @BuffaloWill @dguido
+/plugins/c-review/ @GrosQuildu @dguido
 /plugins/claude-in-chrome-troubleshooting/ @dguido
 /plugins/constant-time-analysis/ @tob-scott-a @dguido
 /plugins/culture-index/ @dguido
-/plugins/c-review/ @GrosQuildu
 /plugins/debug-buttercup/ @reytchison @dguido
 /plugins/devcontainer-setup/ @DarkaMaul @dguido
 /plugins/differential-review/ @omarinuwa @dguido
