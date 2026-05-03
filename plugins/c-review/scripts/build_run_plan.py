@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.13"
+# dependencies = []
+# ///
 """Build a deterministic c-review run plan.
 
 Reads ``prompts/clusters/manifest.json`` plus run-level flags, applies gate +
@@ -336,9 +340,7 @@ def render_worker_prompt(
     return "\n".join(lines)
 
 
-def main() -> int:
-    args = parse_args()
-
+def _validate_run_inputs(args: argparse.Namespace) -> tuple[Path, Path, Path, dict[str, Any]]:
     plugin_root: Path = args.plugin_root.resolve()
     if not plugin_root.is_dir():
         fail(f"--plugin-root {plugin_root} is not a directory")
@@ -358,6 +360,85 @@ def main() -> int:
     except json.JSONDecodeError as e:
         fail(f"manifest is not valid JSON: {e}")
 
+    return plugin_root, output_dir, manifest_path, manifest
+
+
+def _render_workers(
+    selected: list[dict[str, Any]],
+    *,
+    worker_prompts_dir: Path,
+    output_dir: Path,
+    scope_subpath: str,
+    context_roots: str,
+    threat_model: str,
+    severity_filter: str,
+    flags: dict[str, bool],
+    context_md_body: str,
+) -> list[dict[str, Any]]:
+    workers: list[dict[str, Any]] = []
+    for i, cluster in enumerate(selected, start=1):
+        prompt_text = render_worker_prompt(
+            worker_n=i,
+            cluster=cluster,
+            output_dir=output_dir,
+            scope_root=scope_subpath,
+            context_roots=context_roots,
+            threat_model=threat_model,
+            severity_filter=severity_filter,
+            flags=flags,
+            context_md_body=context_md_body,
+        )
+        prompt_path = worker_prompts_dir / f"worker-{i}.txt"
+        prompt_path.write_text(prompt_text)
+        workers.append(
+            {
+                "worker_n": i,
+                "cluster_id": cluster["cluster_id"],
+                "consolidated": cluster["consolidated"],
+                "cluster_prompt": cluster["cluster_prompt"],
+                "sub_prompt_paths": [p["prompt"] for p in cluster["passes"] if "prompt" in p],
+                "pass_bug_classes": [p["bug_class"] for p in cluster["passes"]],
+                "pass_prefixes": [p["prefix"] for p in cluster["passes"]],
+                "spawn_prompt_path": str(prompt_path),
+            }
+        )
+    return workers
+
+
+def _print_summary(
+    *,
+    plan_path: Path,
+    worker_prompts_dir: Path,
+    selected: list[dict[str, Any]],
+    cache_primer_path: Path | None,
+) -> None:
+    spawn_warning = (
+        "Spawn workers FOREGROUND only. Each Agent call MUST have no "
+        "run_in_background field (or run_in_background=false). Setting it to "
+        "true defeats the Phase-6a primer cache and burns ~15K cache-creation "
+        "tokens per worker. 'Parallel' = one assistant message with M Agent "
+        "calls; that is already concurrent — do not add run_in_background=true."
+    )
+
+    # Stderr banner so the warning shows up in the Bash tool result the
+    # orchestrator reads, not just inside the JSON summary.
+    print(f"WARNING: {spawn_warning}", file=sys.stderr)
+
+    summary = {
+        "plan_path": str(plan_path),
+        "worker_prompts_dir": str(worker_prompts_dir),
+        "worker_count": len(selected),
+        "cluster_ids": [c["cluster_id"] for c in selected],
+        "cache_primer_path": str(cache_primer_path) if cache_primer_path else None,
+        "spawn_instructions": spawn_warning,
+    }
+    print(json.dumps(summary, indent=2))
+
+
+def main() -> int:
+    args = parse_args()
+    plugin_root, output_dir, manifest_path, manifest = _validate_run_inputs(args)
+
     flags = {"is_cpp": args.is_cpp, "is_posix": args.is_posix, "is_windows": args.is_windows}
     selected = build_selection(
         manifest, plugin_root=plugin_root, flags=flags, threat_model=args.threat_model
@@ -373,51 +454,17 @@ def main() -> int:
     worker_prompts_dir = output_dir / "worker-prompts"
     worker_prompts_dir.mkdir(exist_ok=True)
 
-    plan = {
-        "version": 1,
-        "run": {
-            "output_dir": str(output_dir),
-            "finding_scope_root": args.scope_subpath,
-            "scope_root": args.scope_subpath,
-            "context_roots": args.context_roots,
-            "threat_model": args.threat_model,
-            "severity_filter": args.severity_filter,
-            "is_cpp": args.is_cpp,
-            "is_posix": args.is_posix,
-            "is_windows": args.is_windows,
-            "plugin_root": str(plugin_root),
-            "manifest_path": str(manifest_path),
-            "cache_primer": args.cache_primer,
-        },
-        "workers": [],
-    }
-
-    for i, cluster in enumerate(selected, start=1):
-        prompt_text = render_worker_prompt(
-            worker_n=i,
-            cluster=cluster,
-            output_dir=output_dir,
-            scope_root=args.scope_subpath,
-            context_roots=args.context_roots,
-            threat_model=args.threat_model,
-            severity_filter=args.severity_filter,
-            flags=flags,
-            context_md_body=context_md_body,
-        )
-        prompt_path = worker_prompts_dir / f"worker-{i}.txt"
-        prompt_path.write_text(prompt_text)
-        plan["workers"].append(
-            {
-                "worker_n": i,
-                "cluster_id": cluster["cluster_id"],
-                "consolidated": cluster["consolidated"],
-                "cluster_prompt": cluster["cluster_prompt"],
-                "sub_prompt_paths": [p["prompt"] for p in cluster["passes"] if "prompt" in p],
-                "pass_bug_classes": [p["bug_class"] for p in cluster["passes"]],
-                "pass_prefixes": [p["prefix"] for p in cluster["passes"]],
-                "spawn_prompt_path": str(prompt_path),
-            }
-        )
+    workers = _render_workers(
+        selected,
+        worker_prompts_dir=worker_prompts_dir,
+        output_dir=output_dir,
+        scope_subpath=args.scope_subpath,
+        context_roots=args.context_roots,
+        threat_model=args.threat_model,
+        severity_filter=args.severity_filter,
+        flags=flags,
+        context_md_body=context_md_body,
+    )
 
     cache_primer_path: Path | None = None
     if args.cache_primer:
@@ -433,35 +480,37 @@ def main() -> int:
                 context_md_body=context_md_body,
             )
         )
-        plan["cache_primer"] = {
-            "spawn_prompt_path": str(cache_primer_path),
-        }
+
+    plan: dict[str, Any] = {
+        "version": 1,
+        "run": {
+            "output_dir": str(output_dir),
+            "finding_scope_root": args.scope_subpath,
+            "scope_root": args.scope_subpath,
+            "context_roots": args.context_roots,
+            "threat_model": args.threat_model,
+            "severity_filter": args.severity_filter,
+            "is_cpp": args.is_cpp,
+            "is_posix": args.is_posix,
+            "is_windows": args.is_windows,
+            "plugin_root": str(plugin_root),
+            "manifest_path": str(manifest_path),
+            "cache_primer": args.cache_primer,
+        },
+        "workers": workers,
+    }
+    if cache_primer_path is not None:
+        plan["cache_primer"] = {"spawn_prompt_path": str(cache_primer_path)}
 
     plan_path = output_dir / "plan.json"
     plan_path.write_text(json.dumps(plan, indent=2) + "\n")
 
-    spawn_warning = (
-        "Spawn workers FOREGROUND only. Each Agent call MUST have no "
-        "run_in_background field (or run_in_background=false). Setting it to "
-        "true defeats the Phase-6a primer cache and burns ~15K cache-creation "
-        "tokens per worker. 'Parallel' = one assistant message with M Agent "
-        "calls; that is already concurrent — do not add run_in_background=true."
+    _print_summary(
+        plan_path=plan_path,
+        worker_prompts_dir=worker_prompts_dir,
+        selected=selected,
+        cache_primer_path=cache_primer_path,
     )
-
-    # Stderr banner so the warning shows up in the Bash tool result the
-    # orchestrator reads, not just inside the JSON summary.
-    print(f"WARNING: {spawn_warning}", file=sys.stderr)
-
-    # Print a compact summary for the orchestrator to parse via Read.
-    summary = {
-        "plan_path": str(plan_path),
-        "worker_prompts_dir": str(worker_prompts_dir),
-        "worker_count": len(selected),
-        "cluster_ids": [c["cluster_id"] for c in selected],
-        "cache_primer_path": str(cache_primer_path) if cache_primer_path else None,
-        "spawn_instructions": spawn_warning,
-    }
-    print(json.dumps(summary, indent=2))
     return 0
 
 

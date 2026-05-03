@@ -2,6 +2,17 @@
 
 C/C++ security code review plugin. Based on [Trail of Bits Testing Handbook](https://appsec.guide/docs/languages/c-cpp/)
 
+## Usage
+
+Invoke with `/c-review:c-review`. The skill will prompt for:
+
+- **Threat model** (`REMOTE` / `LOCAL_UNPRIVILEGED` / `BOTH`)
+- **Worker model** (`haiku` / `sonnet` / `opus`)
+- **Severity filter** (`all` / `medium` / `high`)
+- **Scope subpath** (optional — defaults to whole repo)
+
+Findings + SARIF are written to `$(pwd)/.c-review-results/<iso-timestamp>/`.
+
 ## Overview
 
 The skill takes the following inputs (collected via `AskUserQuestion`):

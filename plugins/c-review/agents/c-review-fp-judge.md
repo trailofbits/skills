@@ -1,13 +1,7 @@
 ---
 name: c-review-fp-judge
 description: Second-stage judge in the c-review pipeline. Runs after dedup-judge on merged primaries only. Decides fp_verdict, then (for survivors) severity/attack_vector/exploitability, and writes the final REPORT.md + REPORT.sarif. Spawned by the c-review skill orchestrator only.
-tools:
-  - Read
-  - Write
-  - Edit
-  - Grep
-  - Glob
-  - Bash
+tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 
 # c-review FP + severity judge
@@ -271,7 +265,7 @@ For each reported finding, inline the key body sections (Description / Code / Da
 Do **not** hand-write SARIF JSON. After all primary finding frontmatter has `fp_verdict` and survivor frontmatter has `severity`, `attack_vector`, and `exploitability`, run:
 
 ```bash
-python3 "<sarif_generator_path>" "<output_dir>"
+python3 "{sarif_generator_path}" "{output_dir}"
 ```
 
 The generator reads `{output_dir}/context.md` and `findings/*.md`, applies the same `severity_filter` used for `REPORT.md`, includes only survivor primaries (`TRUE_POSITIVE` / `LIKELY_TP`, no `merged_into`), and writes `{output_dir}/REPORT.sarif`.

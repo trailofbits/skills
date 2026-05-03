@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.13"
+# dependencies = []
+# ///
 """Generate c-review SARIF from finding frontmatter.
 
 Usage:
@@ -131,6 +135,29 @@ def parse_frontmatter(frontmatter: str) -> dict[str, Any]:
     return result
 
 
+def _split_inline_list(inner: str) -> list[str]:
+    """Split a YAML flow-list body on commas, respecting quoted strings."""
+    parts: list[str] = []
+    buf: list[str] = []
+    quote: str | None = None
+    for ch in inner:
+        if quote:
+            buf.append(ch)
+            if ch == quote:
+                quote = None
+        elif ch in ('"', "'"):
+            quote = ch
+            buf.append(ch)
+        elif ch == ",":
+            parts.append("".join(buf).strip())
+            buf = []
+        else:
+            buf.append(ch)
+    if buf:
+        parts.append("".join(buf).strip())
+    return parts
+
+
 def parse_scalar(value: str) -> Any:
     value = value.strip()
     if (value.startswith('"') and value.endswith('"')) or (
@@ -141,7 +168,7 @@ def parse_scalar(value: str) -> Any:
         inner = value[1:-1].strip()
         if not inner:
             return []
-        return [parse_scalar(part.strip()) for part in inner.split(",")]
+        return [parse_scalar(part) for part in _split_inline_list(inner)]
     if value.lower() == "true":
         return True
     if value.lower() == "false":
@@ -176,6 +203,8 @@ def location_parts(location: Any) -> tuple[str, int]:
     path, sep, line = value.rpartition(":")
     if sep and line.isdecimal():
         return normalize_path(path), int(line)
+    if sep and not line:
+        return normalize_path(path), 1
     return normalize_path(value), 1
 
 

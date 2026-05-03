@@ -1,37 +1,22 @@
 ---
 name: c-review
-description: >
-  Performs comprehensive C/C++ security review for memory corruption, integer overflows,
-  race conditions, and platform-specific vulnerabilities.
-  Use when asked to "audit C code", "C security audit", "find buffer overflows",
-  "review C++ for security", "check for use-after-free", "C++ vulnerability scan",
-  "audit Windows service", "review Linux daemon", "check signal handlers",
-  "review setuid program", or "native code security review".
-  NOT for kernel modules, managed languages, or embedded/bare-metal code.
-allowed-tools:
-  - Agent
-  - AskUserQuestion
-  - SendMessage
-  - TaskCreate
-  - TaskUpdate
-  - TaskList
-  - TaskGet
-  - Grep
-  - Glob
-  - Read
-  - Write
-  - Bash
+description: Performs comprehensive C/C++ security review for memory corruption, integer overflows, race conditions, and platform-specific vulnerabilities. Use when auditing native C/C++ applications, reviewing daemons or services for memory safety, or hunting integer overflow / use-after-free / race conditions in userspace code.
+allowed-tools: Agent AskUserQuestion SendMessage TaskCreate TaskUpdate TaskList TaskGet Grep Glob Read Write Bash
 ---
 
 # C/C++ Security Review
 
 Runs in the main conversation (invoke via `/c-review:c-review`). Orchestrator owns the `Task*` ledger as bookkeeping for retries; workers and judges have no Task tools. Workers and judges are named plugin subagents (`c-review:c-review-worker`, `c-review:c-review-dedup-judge`, `c-review:c-review-fp-judge`); tool sets are declared in `plugins/c-review/agents/*.md`. Findings are exchanged via markdown-with-YAML files in a shared output directory.
 
-## Scope
+## When to Use
 
-**Use for:** native C/C++ application security review (memory safety, integer overflow, races, type confusion, Linux/macOS daemons, Windows userspace services).
+Native C/C++ application security review: memory safety, integer overflow, races, type confusion, Linux/macOS daemons, Windows userspace services.
 
-**Not for:** kernel drivers/modules, managed languages, embedded/bare-metal without libc.
+## When NOT to Use
+
+- Kernel drivers/modules (Linux, Windows, macOS).
+- Managed languages (Java, C#, Python, Go, Rust).
+- Embedded/bare-metal code without libc.
 
 ## Subagents
 

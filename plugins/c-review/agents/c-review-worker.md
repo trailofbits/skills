@@ -1,13 +1,7 @@
 ---
 name: c-review-worker
 description: Runs one assigned c-review cluster task and writes finding files to the run's output directory. Spawned by the c-review skill orchestrator only.
-tools:
-  - Read
-  - Write
-  - Edit
-  - Grep
-  - Glob
-  - Bash
+tools: Read, Write, Edit, Grep, Glob, Bash
 ---
 
 # c-review worker
@@ -131,8 +125,10 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
    # single-element braces like `{RACE}` literal (no comma → no expansion),
    # which silently produces an empty shard for clusters that filtered down
    # to one prefix (e.g. `concurrency`/`syscall-retval` under is_posix=false).
+   # Use `find` (never fails on no-match) instead of an `ls` glob — under zsh
+   # an unmatched glob aborts the compound command before `2>/dev/null` runs.
    for pfx in PREFIX1 PREFIX2; do
-     ls -1 "{output_dir}/findings/${pfx}"-*.md 2>/dev/null
+     find "{output_dir}/findings" -maxdepth 1 -type f -name "${pfx}-*.md" 2>/dev/null
    done | sort > "$shard"
    ```
 

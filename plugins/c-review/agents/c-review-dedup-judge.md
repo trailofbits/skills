@@ -1,11 +1,7 @@
 ---
 name: c-review-dedup-judge
 description: Deduplication judge for the c-review pipeline. Merges duplicate findings deterministically by exact location, then narrowly reviews same-function same-class candidates. Spawned by the c-review skill orchestrator only.
-tools:
-  - Read
-  - Write
-  - Edit
-  - Glob
+tools: Read, Write, Edit, Glob
 ---
 
 # c-review dedup judge
@@ -76,12 +72,12 @@ Normalize `location` to one of: `(path, line)` (parseable), `multi` (multiple si
 Parsing rules, applied in order:
 
 1. Strip surrounding whitespace and any matching wrapping quotes (`"…"` or `'…'`).
-2. If the value contains a top-level comma (`foo.c:10, bar.c:20`) or any newline, classify as `multi`. Record every comma-separated segment in `raw_locations` for the summary; do **not** use this finding in Tier 1 bucketing. It remains eligible for Tier 2 via `(path, function, bug_class)` grouping if any of its raw segments share a path with another finding.
+2. If the value contains a top-level comma (`foo.c:10, bar.c:20`) or any newline, classify as `multi`. Record every comma-separated segment in `raw_locations` for the summary; do **not** use this finding in Tier 1 bucketing.
 3. If the value matches the markdown-link shape `[<text>](<url>)` optionally followed by `:<line>` (e.g. `[src/net/parse.c](/abs/src/net/parse.c):142`), extract `<text>` as `path` and the trailing line number as `line`. Ignore the URL. If no trailing `:<line>` is present, classify as `unparseable`.
 4. Otherwise split on the rightmost `:`. If the right side is a base-10 integer, use left=`path`, right=`line`. Else classify as `unparseable`.
 5. Normalize `path`: forward slashes only; strip any leading `./`; collapse duplicate `/`. Do **not** resolve symlinks or absolutize — the goal is a stable string key, not a canonical filesystem path.
 
-A finding classified as `unparseable` or `multi` is excluded from Tier 1 but participates in Tier 2 and Tier 3 where it can still be bucketed by `(function, bug_class)` or `bug_class`. Record the count of unparseable/multi findings in the summary.
+A finding classified as `unparseable` or `multi` is excluded from Tier 1 *and* Tier 2 (both require a parseable `(path, line)`). It participates in Tier 3, where it can still be bucketed by `bug_class`. Record the count of unparseable/multi findings in the summary.
 
 Call the parsed set the **working set**.
 

@@ -5,7 +5,7 @@ description: Detects thread safety and concurrency bugs
 
 **Finding ID Prefix:** `THREAD` (e.g., THREAD-001, THREAD-002)
 
-**Non-Thread-Safe Functions:**
+**Bug Patterns to Find (non-thread-safe functions):**
 
 1. **Network Functions**
    - `gethostbyname` - Returns static struct

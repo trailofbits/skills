@@ -12,7 +12,7 @@ description: Detects integer overflow and signedness issues
    - `a * b` multiplication overflow
    - Size calculations: `n * sizeof(type)`
 
-2. **Widthness Overflows**
+2. **Width Truncation**
    - 64-bit value assigned to 32-bit variable
    - Large value truncated to smaller type
 

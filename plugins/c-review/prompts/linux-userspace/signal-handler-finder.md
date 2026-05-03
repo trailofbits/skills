@@ -5,7 +5,7 @@ description: Finds async-signal-unsafe function calls
 
 **Finding ID Prefix:** `SIGNAL` (e.g., SIGNAL-001, SIGNAL-002)
 
-**Async-Signal-Unsafe Operations:**
+**Bug Patterns to Find (async-signal-unsafe operations):**
 
 1. **Memory Allocation**
    - `malloc`, `free`, `realloc`, `calloc`
