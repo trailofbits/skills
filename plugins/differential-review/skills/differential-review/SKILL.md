@@ -5,12 +5,7 @@ description: >
   Adapts analysis depth to codebase size, uses git history for context, calculates
   blast radius, checks test coverage, and generates comprehensive markdown reports.
   Automatically detects and prevents security regressions.
-allowed-tools:
-  - Read
-  - Write
-  - Grep
-  - Glob
-  - Bash
+allowed-tools: Read Write Grep Glob Bash
 ---
 
 # Differential Security Review
@@ -81,8 +76,10 @@ Phase 3: Blast Radius → Phase 4: Deep Context → Phase 5: Adversarial → Pha
 │     (Pre-Analysis + Phases 0-4: triage, code analysis, test coverage, blast radius)
 │
 ├─ Analyzing HIGH RISK change?
-│  └─ Read: adversarial.md
-│     (Phase 5: Attacker modeling, exploit scenarios, exploitability rating)
+│  ├─ Read: adversarial.md
+│  │  (Phase 5: Attacker modeling, exploit scenarios, exploitability rating)
+│  └─ Or delegate to: adversarial-modeler agent
+│     (Autonomous attacker modeling with concrete exploit scenarios)
 │
 ├─ Writing the final report?
 │  └─ Read: reporting.md
@@ -95,6 +92,17 @@ Phase 3: Blast Radius → Phase 4: Deep Context → Phase 5: Adversarial → Pha
 └─ Quick triage only?
    └─ Use Quick Reference above, skip detailed docs
 ```
+
+---
+
+## Agents
+
+**`adversarial-modeler`** — Models attacker perspectives and builds exploit
+scenarios for HIGH RISK code changes. Follows the 5-step adversarial
+methodology (attacker model, attack vectors, exploitability rating, exploit
+scenario, baseline cross-reference) and produces structured vulnerability
+reports. Delegate to this agent when Phase 5 analysis is needed on high-risk
+changes.
 
 ---
 

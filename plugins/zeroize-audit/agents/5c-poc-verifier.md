@@ -2,11 +2,7 @@
 name: 5c-poc-verifier
 description: "Verifies that each zeroize-audit PoC actually proves the vulnerability it claims to demonstrate. Reads PoC source code, finding details, and original source to check alignment between the PoC and the finding. Produces poc_verification.json consumed by the orchestrator."
 model: inherit
-allowed-tools:
-  - Read
-  - Write
-  - Grep
-  - Glob
+tools: Read, Write, Grep, Glob
 ---
 
 # 5c-poc-verifier

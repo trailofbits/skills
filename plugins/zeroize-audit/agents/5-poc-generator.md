@@ -2,12 +2,7 @@
 name: 5-poc-generator
 description: "Crafts bespoke proof-of-concept programs demonstrating that zeroize-audit findings are exploitable. Reads source code and finding details to generate tailored PoCs — each PoC is individually written, not templated. Each PoC exits 0 if the secret persists or 1 if wiped. Mandatory for every finding."
 model: inherit
-allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Grep
-  - Glob
+tools: Read, Write, Bash, Grep, Glob
 ---
 
 # 5-poc-generator

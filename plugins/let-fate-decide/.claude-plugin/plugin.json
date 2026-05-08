@@ -1,6 +1,6 @@
 {
   "name": "let-fate-decide",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Draws Tarot cards using cryptographic randomness to add entropy to vague or underspecified planning. Interprets the spread to guide next steps. Use when feeling lucky, invoking heart-of-the-cards energy, or when prompts are ambiguous.",
   "author": {
     "name": "Scott Arciszewski",

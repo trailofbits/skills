@@ -2,12 +2,7 @@
 name: 2b-rust-source-analyzer
 description: "Performs source-level zeroization analysis for Rust crates in zeroize-audit. Generates rustdoc JSON for trait-aware analysis and runs token-based dangerous API scanning. Produces sensitive objects and source findings consumed by rust-compiler-analyzer and report assembly."
 model: inherit
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Write
-  - Bash
+tools: Read, Grep, Glob, Write, Bash
 ---
 
 # 2b-rust-source-analyzer

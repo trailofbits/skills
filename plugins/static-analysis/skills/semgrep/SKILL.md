@@ -8,15 +8,7 @@ description: >-
   to scan code for vulnerabilities, run a security audit with Semgrep, find
   bugs, or perform static analysis. Spawns parallel workers for multi-language
   codebases.
-allowed-tools:
-  - Bash
-  - Read
-  - Glob
-  - Task
-  - AskUserQuestion
-  - TaskCreate
-  - TaskList
-  - TaskUpdate
+allowed-tools: Bash Read Glob Task AskUserQuestion TaskCreate TaskList TaskUpdate
 ---
 
 # Semgrep Security Scan

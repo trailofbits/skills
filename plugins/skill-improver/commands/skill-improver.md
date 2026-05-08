@@ -1,7 +1,7 @@
 ---
 description: "Iteratively reviews and fixes a Claude Code skill until it meets quality standards. Triggers on 'fix my skill', 'improve skill quality', 'skill improvement loop'."
 argument-hint: "<SKILL_NAME_OR_PATH> [--max-iterations N]"
-allowed-tools: ["Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup-skill-improver.sh:*)", "Task", "Read", "Edit", "Write", "Glob", "Grep"]
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup-skill-improver.sh:*) Task Read Edit Write Glob Grep
 ---
 
 # Skill Improver

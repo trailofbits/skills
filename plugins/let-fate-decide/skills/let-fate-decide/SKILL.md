@@ -1,11 +1,7 @@
 ---
 name: let-fate-decide
 description: "Draws 4 Tarot cards to inject entropy into planning when prompts are vague, ambiguous, or casually delegated. Interprets the spread to guide next steps. Use when the user says 'let fate decide', 'YOLO', 'whatever', 'idk', or other nonchalant phrases, makes Yu-Gi-Oh references, or when you are about to arbitrarily pick between multiple reasonable approaches. Prefer over ask-questions-if-underspecified when the user's tone is casual or playful rather than precision-seeking."
-allowed-tools:
-  - Bash
-  - Read
-  - Grep
-  - Glob
+allowed-tools: Bash Read Grep Glob
 ---
 
 # Let Fate Decide
@@ -16,7 +12,7 @@ When the path forward is unclear, let the cards speak.
 
 1. Run the drawing script:
    ```bash
-   uv run {baseDir}/scripts/draw_cards.py
+   uv run --no-config {baseDir}/scripts/draw_cards.py
    ```
 
 2. The script outputs JSON with 4 drawn cards, each with a `file` path relative to `{baseDir}/`

@@ -2,12 +2,7 @@
 name: 4-report-assembler
 description: "Collects all findings from source and compiler analysis, applies supersessions and confidence gates, normalizes IDs, and produces a comprehensive markdown report with structured JSON for downstream tools. Supports dual-mode invocation: interim (findings.json only) and final (merge PoC results, produce final-report.md)."
 model: inherit
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Write
-  - Bash
+tools: Read, Grep, Glob, Write, Bash
 ---
 
 # 4-report-assembler

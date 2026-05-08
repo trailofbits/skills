@@ -2,12 +2,7 @@
 name: 2-source-analyzer
 description: "Identifies sensitive objects, detects wipe calls, validates correctness, and performs data-flow/heap analysis for zeroize-audit. Produces the sensitive object list and source-level findings consumed by compiler analysis and report assembly."
 model: inherit
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Write
-  - Bash
+tools: Read, Grep, Glob, Write, Bash
 ---
 
 # 2-source-analyzer
