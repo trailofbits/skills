@@ -342,5 +342,92 @@ assert_blocked() {
     path_without_gh="${path_without_gh:+${path_without_gh}:}$dir"
   done
   export PATH="${SHIM_DIR}:${path_without_gh}"
+  # Neutralize the Homebrew-superenv fallback list so this test exercises the
+  # PATH-walk branch in isolation (CI runners often have /usr/bin/gh installed,
+  # which the default fallback list would pick up).
+  export GH_SHIM_FALLBACKS="/__gh_shim_test_no_fallback__/gh"
   run -127 bash -c '"$0" "$@" 2>&1' "$SHIM" pr list
+}
+
+# =============================================================================
+# Homebrew superenv fallback (issue #145)
+# =============================================================================
+#
+# The shim wins ensure_executable!'s ORIGINAL_PATHS resolution inside
+# Homebrew, then forks under a stripped PATH that no longer contains the
+# Homebrew prefix. Without a fallback the PATH walk fails and `brew install`
+# breaks under HOMEBREW_VERIFY_ATTESTATIONS=true. These tests pin that the
+# fallback fires only when the PATH walk finds nothing.
+
+# Helper: rebuild PATH with the shim dir and only directories that don't
+# contain a gh binary, so the PATH walk is forced into the fallback path.
+strip_path_of_gh() {
+  local path_without_gh=""
+  local IFS=:
+  for dir in $ORIG_PATH; do
+    [[ "$dir" == "$FAKE_GH_DIR" ]] && continue
+    [[ -x "$dir/gh" ]] && continue
+    path_without_gh="${path_without_gh:+${path_without_gh}:}$dir"
+  done
+  export PATH="${SHIM_DIR}:${path_without_gh}"
+}
+
+@test "shim: falls back to GH_SHIM_FALLBACKS when PATH walk finds nothing" {
+  strip_path_of_gh
+  export GH_SHIM_FALLBACKS="$FAKE_GH_DIR/gh"
+  run_shim pr list
+  assert_passthrough
+}
+
+@test "shim: prefers PATH-found gh over fallback" {
+  # FAKE_GH_DIR is on PATH (setup) and emits REAL_GH_CALLED. If the shim
+  # incorrectly preferred the fallback, output would carry MARKER_FALLBACK
+  # instead.
+  local marker_dir
+  marker_dir="$(mktemp -d)"
+  printf '#!/usr/bin/env bash\necho "MARKER_FALLBACK"\n' >"$marker_dir/gh"
+  chmod +x "$marker_dir/gh"
+  export GH_SHIM_FALLBACKS="$marker_dir/gh"
+  run_shim pr list
+  assert_passthrough
+  if [[ "$output" == *"MARKER_FALLBACK"* ]]; then
+    echo "Unexpected fallback invocation:"
+    echo "$output"
+    return 1
+  fi
+  rm -rf "$marker_dir"
+}
+
+@test "shim: tries fallbacks in order, skipping non-executable entries" {
+  strip_path_of_gh
+  local nonexec_dir
+  nonexec_dir="$(mktemp -d)"
+  : >"$nonexec_dir/gh" # exists but not executable
+  export GH_SHIM_FALLBACKS="$nonexec_dir/gh:$FAKE_GH_DIR/gh"
+  run_shim issue view 1
+  assert_passthrough
+  rm -rf "$nonexec_dir"
+}
+
+@test "shim: exits 127 when neither PATH nor fallback have gh" {
+  strip_path_of_gh
+  export GH_SHIM_FALLBACKS="/__gh_shim_test_no_fallback__/gh"
+  run -127 bash -c '"$0" "$@" 2>&1' "$SHIM" pr list
+}
+
+@test "shim: anti-pattern checks fire before fallback (api contents)" {
+  # Even when gh is reachable only via fallback, the deny rules run first,
+  # exit 1, and never invoke the fallback binary.
+  strip_path_of_gh
+  export GH_SHIM_FALLBACKS="$FAKE_GH_DIR/gh"
+  run_shim api repos/owner/repo/contents/file.txt
+  assert_blocked
+}
+
+@test "shim: anti-pattern checks fire before fallback (clone temp path)" {
+  strip_path_of_gh
+  export GH_SHIM_FALLBACKS="$FAKE_GH_DIR/gh"
+  unset CLAUDE_SESSION_ID 2>/dev/null || true
+  run_shim repo clone owner/repo /tmp/repos/repo
+  assert_blocked
 }
