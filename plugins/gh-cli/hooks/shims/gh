@@ -65,5 +65,38 @@ for dir in "${path_entries[@]}"; do
   fi
 done
 
+# Fallback for PATH-stripping environments. Some parents fork with PATH
+# stripped to internal/system dirs only — most notably Homebrew's superenv
+# during `brew install` with HOMEBREW_VERIFY_ATTESTATIONS=true (issue #145):
+# the shim wins ensure_executable!'s ORIGINAL_PATHS resolution, then runs
+# under a stripped child PATH that no longer contains the Homebrew prefix,
+# so the PATH walk above can't find the real gh.
+#
+# Check well-known install paths directly. The Cellar opt symlinks
+# (.../opt/gh/bin/gh) are stable across upgrades; the prefix bin entries
+# cover manual installs and non-Homebrew system packages. Tests can
+# override the list via GH_SHIM_FALLBACKS (colon-separated absolute paths).
+if [[ -n "${GH_SHIM_FALLBACKS:-}" ]]; then
+  IFS=: read -ra fallbacks <<<"$GH_SHIM_FALLBACKS"
+else
+  fallbacks=(
+    /opt/homebrew/opt/gh/bin/gh
+    /opt/homebrew/bin/gh
+    /usr/local/opt/gh/bin/gh
+    /usr/local/bin/gh
+    /home/linuxbrew/.linuxbrew/opt/gh/bin/gh
+    /home/linuxbrew/.linuxbrew/bin/gh
+    /usr/bin/gh
+  )
+fi
+for fallback in "${fallbacks[@]}"; do
+  if [[ -x "$fallback" ]]; then
+    set +e
+    exec "$fallback" "$@"
+    echo "ERROR: gh-cli shim: failed to exec $fallback (exit $?)" >&2
+    exit 126
+  fi
+done
+
 echo "ERROR: real gh binary not found on PATH" >&2
 exit 127
