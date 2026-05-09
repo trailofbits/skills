@@ -23,6 +23,7 @@ setup() {
 
 teardown() {
   rm -rf "$FAKE_GH_DIR"
+  [[ -n "${STRIP_PATH_ESSENTIALS_DIR:-}" ]] && rm -rf "$STRIP_PATH_ESSENTIALS_DIR"
   export PATH="$ORIG_PATH"
 }
 
@@ -361,6 +362,10 @@ assert_blocked() {
 
 # Helper: rebuild PATH with the shim dir and only directories that don't
 # contain a gh binary, so the PATH walk is forced into the fallback path.
+# On CI runners gh is apt-installed into /usr/bin alongside bash/rm/mktemp,
+# so naively skipping every dir that contains gh strips core utilities. We
+# symlink the essentials we need (run_shim invokes `bash`, teardown uses
+# `rm`, several tests call `mktemp`) into a clean dir and keep that on PATH.
 strip_path_of_gh() {
   local path_without_gh=""
   local IFS=:
@@ -369,7 +374,14 @@ strip_path_of_gh() {
     [[ -x "$dir/gh" ]] && continue
     path_without_gh="${path_without_gh:+${path_without_gh}:}$dir"
   done
-  export PATH="${SHIM_DIR}:${path_without_gh}"
+  STRIP_PATH_ESSENTIALS_DIR="$(mktemp -d)"
+  local cmd cmd_path
+  for cmd in bash sh rm mktemp printf chmod cat env; do
+    if cmd_path="$(command -v "$cmd" 2>/dev/null)"; then
+      ln -sf "$cmd_path" "${STRIP_PATH_ESSENTIALS_DIR}/${cmd}"
+    fi
+  done
+  export PATH="${SHIM_DIR}:${STRIP_PATH_ESSENTIALS_DIR}${path_without_gh:+:${path_without_gh}}"
 }
 
 @test "shim: falls back to GH_SHIM_FALLBACKS when PATH walk finds nothing" {
