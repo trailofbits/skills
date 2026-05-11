@@ -84,4 +84,4 @@ Re-dispatch one or both agents if:
 - Both agents agreed on something you think is wrong
 - A key piece of evidence wasn't considered
 
-Re-run with a tighter prompt. See [prompt-templates.md](prompt-templates.md#re-dispatching-on-hedged-agents).
+Re-run with a tighter prompt. Use the prompt template reference linked from [SKILL.md](../SKILL.md) Step 3.

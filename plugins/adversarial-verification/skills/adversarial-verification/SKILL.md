@@ -13,18 +13,19 @@ Dispatch two sub-agents with isolated context — one **advocate**, one **skepti
 
 **Announce at start:** "I'm using the adversarial-verification skill to stress-test this claim."
 
-## When to use
+## When to Use
 
-| Situation | Use this skill? |
-|-----------|----------------|
-| Choosing between 2+ technical approaches | YES |
-| Verifying a bug finding is real (not false positive) | YES |
-| Reviewing a design decision before commit | YES |
-| User asks "is this correct?" on non-trivial claim | YES |
-| Any claim you're inclined to agree with by default | YES — that's the tell |
-| Simple factual lookup ("what version is X?") | NO |
-| Obvious syntax error fix | NO |
-| User has already made the decision and is executing | NO |
+- Choosing between 2+ technical approaches
+- Verifying a bug finding is real (not a false positive)
+- Reviewing a design decision before commit
+- User asks "is this correct?" about a non-trivial claim
+- Any claim you're inclined to agree with by default — that's the tell
+
+## When NOT to Use
+
+- Simple factual lookup ("what version is X?")
+- Obvious syntax error fix
+- User has already made the decision and is executing
 
 ## The Process
 
@@ -84,6 +85,13 @@ Present three things:
 3. The recommendation (what action follows from the verdict)
 
 Do NOT dump the raw agent outputs unless the user asks. The verdict is the product.
+
+## Reference Guide
+
+- Mode selection quick reference: [references/decision-mode.md](references/decision-mode.md) and [references/proof-mode.md](references/proof-mode.md)
+- Prompt templates for advocate and skeptic dispatch: [references/prompt-templates.md](references/prompt-templates.md)
+- Verdict table and recommendation shape: [references/synthesis.md](references/synthesis.md)
+- Failure modes and recovery patterns: [references/anti-patterns.md](references/anti-patterns.md)
 
 ## Anti-patterns
 

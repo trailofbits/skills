@@ -10,7 +10,7 @@ Use for approach selection, architecture choice, tool selection, strategy debate
 - Any comparison between 2+ alternatives
 - Any design decision before implementation
 
-If the claim is "this bug is real" or "this vulnerability exists," use [proof-mode.md](proof-mode.md) instead.
+If the claim is "this bug is real" or "this vulnerability exists," return to [SKILL.md](../SKILL.md) Step 2 and pick Proof mode instead.
 
 ## Required inputs before dispatching
 

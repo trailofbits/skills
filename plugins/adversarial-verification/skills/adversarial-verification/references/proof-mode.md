@@ -10,7 +10,7 @@ Use for bug findings, security claims, and any assertion of the form "X is real"
 - "This finding is valid"
 - "This behavior is a bug, not by design"
 
-If the claim is "X is the best approach," use [decision-mode.md](decision-mode.md) instead.
+If the claim is "X is the best approach," return to [SKILL.md](../SKILL.md) Step 2 and pick Decision mode instead.
 
 ## The structure: N null hypotheses
 
@@ -46,6 +46,8 @@ Both agents get the SAME list of null hypotheses. They argue the SAME Ps from op
 
 ## Verdict rule for proof mode
 
+| Condition | Verdict |
+|-----------|---------|
 | All Ps REFUTED by advocate, NOT PROVED by skeptic | **CONFIRMED** — the finding is real |
 | Any P clearly PROVED by skeptic | **DISMISSED** — the finding is a false positive |
 | Any P in dispute (both sides plausible) | **UNCERTAIN** — gather more evidence for that specific P before committing |

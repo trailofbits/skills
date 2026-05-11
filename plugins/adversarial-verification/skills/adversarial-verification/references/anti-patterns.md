@@ -16,7 +16,7 @@ Common failure modes that destroy the adversarial value of this skill. Each has 
 
 **Why it happens:** Weak prompt. The agent defaulted to balanced reasoning because nothing stopped it.
 
-**Fix:** Re-dispatch with a stronger prompt. See [prompt-templates.md](prompt-templates.md#re-dispatching-on-hedged-agents). The key phrase: "Do not acknowledge merit in the opposing position. Do not hedge." Do not accept a hedged response as valid output.
+**Fix:** Re-dispatch with a stronger prompt. The key phrase: "Do not acknowledge merit in the opposing position. Do not hedge." Do not accept a hedged response as valid output. If you need the full templates, return to [SKILL.md](../SKILL.md) Step 3.
 
 ## 3. Shared context leakage
 
