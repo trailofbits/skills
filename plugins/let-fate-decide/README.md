@@ -6,11 +6,11 @@ entropy into vague or underspecified planning decisions.
 ## What It Does
 
 When a prompt is sufficiently ambiguous, or the user explicitly invokes fate,
-this skill draws from a standard 78-card Tarot deck using cryptographic
-randomness and deals the 12 Houses of the Zodiac spread. Each house receives
-one Major Arcana card followed by two Minor Arcana cards, and all 36 cards may
-appear reversed. Claude then interprets the spread and uses the reading to
-inform its approach.
+this skill shuffles a 22-card Major Arcana deck and a 56-card Minor Arcana
+deck independently using cryptographic randomness, then deals the 12 Houses of
+the Zodiac spread. Each house receives one Major Arcana card followed by two
+Minor Arcana cards, and all 36 cards may appear reversed. Claude then
+interprets the spread and uses the reading to inform its approach.
 
 ## Triggers
 
@@ -32,11 +32,13 @@ inform its approach.
 6. Claude interprets the spread
 7. The interpretation informs the planning direction
 
-The default spread records a conservative unordered-card entropy budget of
-107.25 bits: 19.30 bits from Major Arcana selection, 51.95 bits from Minor
-Arcana selection (assuming `secrets.randbelow()` is cryptographically secure),
-and 36 bits from independent card reversal choices. The actual ordered
-assignment of cards to houses contains more entropy.
+The default spread records a conservative unordered-card entropy budget
+exceeding 100 bits: roughly `log2(C(22,12))` bits from Major Arcana selection,
+`log2(C(56,24))` bits from Minor Arcana selection (assuming
+`secrets.randbelow()` is cryptographically secure), and 36 bits from
+independent card reversal choices. Exact values are computed at draw time and
+reported in the JSON output under `entropy_bits`. The actual ordered assignment
+of cards to houses contains more entropy.
 
 In security, audit, and correctness workflows, this skill is only a discovery
 and hypothesis-generation aid. It can suggest where to look next, but evidence

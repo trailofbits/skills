@@ -11,17 +11,28 @@ Major Arcana card plus two Minor Arcana cards. Each card has an independent
 # ///
 
 import json
+import math
 import os
 import secrets
 import sys
 
 SPREAD_NAME = "12 Houses of the Zodiac"
-ENTROPY_BITS = {
-    "major_arcana": 19.30,
-    "minor_shuffle": 51.95,
-    "reversals": 36.0,
-    "total": 107.25,
-}
+
+
+def _entropy_bits():
+    """Conservative unordered-card entropy budget for the default spread."""
+    major = math.log2(math.comb(22, 12))
+    minor = math.log2(math.comb(56, 24))
+    reversals = 36.0
+    return {
+        "major_arcana": round(major, 2),
+        "minor_shuffle": round(minor, 2),
+        "reversals": reversals,
+        "total": round(major + minor + reversals, 2),
+    }
+
+
+ENTROPY_BITS = _entropy_bits()
 
 MAJOR_ARCANA = (
     ("major", "00-the-fool"),
@@ -201,6 +212,36 @@ def draw_cards(n=4, include_content=False):
     return hand
 
 
+def _build_house_record(
+    *,
+    house_number,
+    house_meta,
+    major_card,
+    minor_pair,
+    position,
+    include_content,
+):
+    """Build the JSON record for one zodiac house."""
+    house_name, focus, house_id = house_meta
+    major_suit, major_id = major_card
+    (m1_suit, m1_id), (m2_suit, m2_id) = minor_pair
+    house_file = f"houses/{house_id}.md"
+    record = {
+        "house": house_number,
+        "name": house_name,
+        "focus": focus,
+        "file": house_file,
+        "cards": [
+            card_record(major_suit, major_id, position, "major_arcana", include_content),
+            card_record(m1_suit, m1_id, position + 1, "minor_arcana_1", include_content),
+            card_record(m2_suit, m2_id, position + 2, "minor_arcana_2", include_content),
+        ],
+    }
+    if include_content:
+        record["content"] = read_reference_file(house_file)
+    return record
+
+
 def draw_zodiac_spread(include_content=False):
     """Draw the default 12 Houses of the Zodiac spread."""
     major_deck = list(MAJOR_ARCANA)
@@ -209,110 +250,77 @@ def draw_zodiac_spread(include_content=False):
     fisher_yates_shuffle(minor_deck)
 
     houses = []
-    minor_index = 0
-    position = 1
-    for house_number, (house_name, focus, house_id) in enumerate(ZODIAC_HOUSES, start=1):
-        major_suit, major_id = major_deck[house_number - 1]
-        first_minor_suit, first_minor_id = minor_deck[minor_index]
-        second_minor_suit, second_minor_id = minor_deck[minor_index + 1]
-        minor_index += 2
-        house_file = f"houses/{house_id}.md"
+    for i, house_meta in enumerate(ZODIAC_HOUSES):
+        houses.append(
+            _build_house_record(
+                house_number=i + 1,
+                house_meta=house_meta,
+                major_card=major_deck[i],
+                minor_pair=(minor_deck[2 * i], minor_deck[2 * i + 1]),
+                position=1 + 3 * i,
+                include_content=include_content,
+            )
+        )
 
-        house = {
-            "house": house_number,
-            "name": house_name,
-            "focus": focus,
-            "file": house_file,
-            "cards": [
-                card_record(
-                    major_suit,
-                    major_id,
-                    position,
-                    "major_arcana",
-                    include_content,
-                ),
-                card_record(
-                    first_minor_suit,
-                    first_minor_id,
-                    position + 1,
-                    "minor_arcana_1",
-                    include_content,
-                ),
-                card_record(
-                    second_minor_suit,
-                    second_minor_id,
-                    position + 2,
-                    "minor_arcana_2",
-                    include_content,
-                ),
-            ],
-        }
-        if include_content:
-            house["content"] = read_reference_file(house_file)
-        houses.append(house)
-        position += 3
-
+    bits = ENTROPY_BITS
     return {
         "spread": SPREAD_NAME,
         "houses": houses,
-        "entropy_bits": ENTROPY_BITS,
+        "entropy_bits": bits,
         "entropy_note": (
             "Assumes secrets.randbelow() provides cryptographically secure "
             "bounded draws. This is a conservative unordered-card budget: "
-            "19.30 bits from Major Arcana selection, 51.95 bits from Minor "
-            "Arcana selection, and 36 reversal bits. Ordered house assignment "
+            f"{bits['major_arcana']} bits from Major Arcana selection, "
+            f"{bits['minor_shuffle']} bits from Minor Arcana selection, and "
+            f"{bits['reversals']} reversal bits. Ordered house assignment "
             "contains more entropy."
         ),
     }
 
 
-def draw(n=None, include_content=False):
-    """Draw the default spread, or a legacy n-card hand when n is provided."""
-    if n is None:
-        return draw_zodiac_spread(include_content=include_content)
-    return draw_cards(n, include_content=include_content)
+USAGE = "Usage: draw_cards.py [--content] [--legacy [count]]"
+
+
+def _parse_args(argv):
+    """Parse CLI argv into (include_content, legacy, count). Exits on error."""
+    args = list(argv)
+    include_content = "--content" in args
+    if include_content:
+        args.remove("--content")
+    legacy = "--legacy" in args
+    if legacy:
+        args.remove("--legacy")
+    count = None
+    if args:
+        if not legacy:
+            print(
+                f"Error: positional count requires --legacy. {USAGE}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        try:
+            count = int(args[0])
+        except ValueError:
+            print(
+                f"Error: '{args[0]}' is not a valid integer. {USAGE}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if count < 1 or count > 78:
+            print(f"Error: card count must be 1-78, got {count}", file=sys.stderr)
+            sys.exit(1)
+    return include_content, legacy, count
 
 
 def main():
-    n = None
-    include_content = False
-    legacy = False
-    args = sys.argv[1:]
-    if "--content" in args:
-        include_content = True
-        args.remove("--content")
-    if "--legacy" in args:
-        legacy = True
-        args.remove("--legacy")
-    if args:
-        try:
-            n = int(args[0])
-        except ValueError:
-            print(
-                f"Error: '{args[0]}' is not a valid integer. "
-                f"Usage: draw_cards.py [--content] [--legacy] [count]",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        if n < 1 or n > 78:
-            print(
-                f"Error: card count must be 1-78, got {n}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        legacy = True
+    include_content, legacy, count = _parse_args(sys.argv[1:])
     try:
         if legacy:
-            if n is None:
-                n = 4
-            hand = draw_cards(n, include_content=include_content)
+            hand = draw_cards(count if count is not None else 4, include_content=include_content)
         else:
-            hand = draw(include_content=include_content)
+            hand = draw_zodiac_spread(include_content=include_content)
     except OSError as e:
-        print(
-            f"Error: failed to read system entropy source: {e}",
-            file=sys.stderr,
-        )
+        print(f"Error: failed to read system entropy source: {e}", file=sys.stderr)
         sys.exit(1)
     print(json.dumps(hand, indent=2))
 

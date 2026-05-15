@@ -78,11 +78,12 @@ The script uses `secrets` for cryptographic randomness:
 4. Each house receives 1 Major Arcana card followed by 2 Minor Arcana cards
 5. Each of the 36 cards independently has a 50% chance of being reversed
 
-The default spread records a conservative unordered-card entropy budget of
-107.25 bits: 19.30 bits from Major Arcana selection, 51.95 bits from Minor
-Arcana selection (assuming `secrets.randbelow()` is cryptographically secure),
-plus 36 reversal bits. The actual ordered assignment of cards to houses
-contains more entropy.
+The default spread records a conservative unordered-card entropy budget
+exceeding 100 bits: roughly `log2(C(22,12))` bits from Major Arcana selection,
+`log2(C(56,24))` bits from Minor Arcana selection (assuming
+`secrets.randbelow()` is cryptographically secure), plus 36 reversal bits. The
+exact values are computed and reported in the JSON output under `entropy_bits`.
+The actual ordered assignment of cards to houses contains more entropy.
 
 ### The Spread
 
@@ -106,8 +107,10 @@ The default spread is **12 Houses of the Zodiac**:
 Within each house, the Major Arcana card sets the archetypal theme and the two
 Minor Arcana cards provide practical detail.
 
-For compatibility with older workflows, `draw_cards.py --legacy` or
-`draw_cards.py 4` returns the previous 4-card hand.
+For compatibility with older workflows, `draw_cards.py --legacy` returns the
+previous 4-card hand, and `draw_cards.py --legacy <count>` returns a custom
+hand of 1-78 cards. A positional count without `--legacy` is rejected, because
+the new default spread has a fixed shape.
 
 ### Reference Files
 
@@ -144,23 +147,29 @@ Key rules:
   implements the chosen option). Prefer `--content` so all 36 card
   meanings and all 12 house meanings are available from the draw output.
 
-## Example Session
+## Example Session (House-Level Fragment)
+
+A real reading synthesizes all 12 houses; the fragment below shows only what
+one house contributes so the format is clear. Do not stop after one house in
+actual use.
 
 ```
 User: "I dunno, just make it work somehow"
 
 [Draw cards]
-1st House: The Magician (upright), Five of Swords (reversed), Ten of Pentacles (upright)
+1st House (Self): The Magician (upright), Five of Swords (reversed),
+                  Ten of Pentacles (upright)
 
-Interpretation: The self/starting point is resourceful and tool-rich
+House contribution: The starting stance is resourceful and tool-rich
 (Magician), but the practical details warn against combative edge-case work
 (Five of Swords reversed) while still favoring maintainable craft
-(Ten of Pentacles). Treat this as a nudge toward a simple, durable first move,
-then let the remaining houses refine risk, delivery, and hidden constraints.
-
-Approach: Implement the simplest correct solution with clear structure,
-prioritizing long-term readability over clever optimizations.
+(Ten of Pentacles). This is one input into the overall reading; combine with
+the remaining 11 houses before deciding on an approach.
 ```
+
+The named `draw` agent returns a more compact form for portent questions: 3-5
+concise bullets covering the dominant theme, the main risk or blind spot, and
+the recommended next action.
 
 ## Error Handling
 

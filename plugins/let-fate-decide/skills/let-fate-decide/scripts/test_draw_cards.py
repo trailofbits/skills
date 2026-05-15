@@ -6,6 +6,7 @@
 # ///
 
 import json
+import math
 import subprocess
 import sys
 from collections import Counter
@@ -69,8 +70,8 @@ def test_draw_cards_default_is_4():
     assert len(hand) == 4
 
 
-def test_draw_default_is_zodiac_spread():
-    hand = draw_cards.draw()
+def test_draw_zodiac_spread_default_shape():
+    hand = draw_cards.draw_zodiac_spread()
     assert hand["spread"] == draw_cards.SPREAD_NAME
     assert len(hand["houses"]) == 12
 
@@ -114,10 +115,14 @@ def test_draw_cards_no_duplicate_cards():
 def test_zodiac_spread_shape():
     spread = draw_cards.draw_zodiac_spread()
     assert spread["spread"] == "12 Houses of the Zodiac"
-    assert spread["entropy_bits"]["major_arcana"] == 19.30
-    assert spread["entropy_bits"]["minor_shuffle"] == 51.95
-    assert spread["entropy_bits"]["reversals"] == 36.0
-    assert spread["entropy_bits"]["total"] == 107.25
+    bits = spread["entropy_bits"]
+    expected_major = round(math.log2(math.comb(22, 12)), 2)
+    expected_minor = round(math.log2(math.comb(56, 24)), 2)
+    assert bits["major_arcana"] == expected_major
+    assert bits["minor_shuffle"] == expected_minor
+    assert bits["reversals"] == 36.0
+    assert bits["total"] == round(expected_major + expected_minor + 36.0, 2)
+    assert bits["total"] >= 100, "Entropy budget must clear the 100-bit floor"
     assert len(spread["houses"]) == 12
     for house in spread["houses"]:
         assert set(house) == {"house", "name", "focus", "file", "cards"}
@@ -163,21 +168,25 @@ def test_security_framing_requires_evidence():
     assert "cannot prove safety, dismiss a finding, or replace" in guide_text
 
 
-def test_pentacles_numbered_ranks_are_numeric():
-    for card_file in (SKILL_DIR / "cards" / "pentacles").glob("*-of-pentacles.md"):
+def test_numbered_ranks_are_numeric_across_all_suits():
+    word_ranks = ("Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten")
+    for card_file in (SKILL_DIR / "cards").glob("*/*.md"):
+        if card_file.parent.name == "major":
+            continue
         text = card_file.read_text()
-        assert "**Rank**: Two" not in text
-        assert "**Rank**: Three" not in text
-        assert "**Rank**: Four" not in text
-        assert "**Rank**: Five" not in text
-        assert "**Rank**: Six" not in text
-        assert "**Rank**: Seven" not in text
-        assert "**Rank**: Eight" not in text
-        assert "**Rank**: Nine" not in text
-        assert "**Rank**: Ten" not in text
+        for word in word_ranks:
+            assert f"**Rank**: {word}" not in text, (
+                f"{card_file} still uses word-form rank '{word}'; use the digit form"
+            )
 
 
 def test_reviewed_cards_avoid_unsafe_shortcuts():
+    """Regression guard: these exact phrases were removed in 1.2.0; do not reintroduce.
+
+    This is an exact-string blacklist, not a semantic check. Add new bad phrases
+    here as they are identified during review; rewordings of existing phrases
+    will not trip this test and must be caught manually.
+    """
     risky_phrases = (
         "Follow your intuition on this one",
         "The solution that feels right probably is",
@@ -306,9 +315,9 @@ def test_cli_default_output():
     assert len(spread["houses"]) == 12
 
 
-def test_cli_custom_count():
+def test_cli_legacy_custom_count():
     result = subprocess.run(
-        [sys.executable, str(Path(__file__).parent / "draw_cards.py"), "2"],
+        [sys.executable, str(Path(__file__).parent / "draw_cards.py"), "--legacy", "2"],
         capture_output=True,
         text=True,
     )
@@ -328,9 +337,20 @@ def test_cli_legacy_default_count():
     assert len(cards) == 4
 
 
+def test_cli_positional_count_without_legacy_is_error():
+    """Positional count requires --legacy; the new default has a fixed shape."""
+    result = subprocess.run(
+        [sys.executable, str(Path(__file__).parent / "draw_cards.py"), "4"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1
+    assert "--legacy" in result.stderr
+
+
 def test_cli_invalid_arg():
     result = subprocess.run(
-        [sys.executable, str(Path(__file__).parent / "draw_cards.py"), "abc"],
+        [sys.executable, str(Path(__file__).parent / "draw_cards.py"), "--legacy", "abc"],
         capture_output=True,
         text=True,
     )
@@ -340,14 +360,14 @@ def test_cli_invalid_arg():
 
 def test_cli_out_of_range():
     result = subprocess.run(
-        [sys.executable, str(Path(__file__).parent / "draw_cards.py"), "0"],
+        [sys.executable, str(Path(__file__).parent / "draw_cards.py"), "--legacy", "0"],
         capture_output=True,
         text=True,
     )
     assert result.returncode == 1
 
     result = subprocess.run(
-        [sys.executable, str(Path(__file__).parent / "draw_cards.py"), "79"],
+        [sys.executable, str(Path(__file__).parent / "draw_cards.py"), "--legacy", "79"],
         capture_output=True,
         text=True,
     )
