@@ -15,6 +15,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import draw_cards
 
+SKILL_DIR = Path(__file__).parent.parent
+
 
 def test_build_deck_has_78_cards():
     deck = draw_cards.build_deck()
@@ -33,6 +35,16 @@ def test_build_deck_has_56_minor_arcana():
     assert len(minors) == 56, f"Expected 56 minor arcana, got {len(minors)}"
 
 
+def test_build_minor_deck_has_56_cards():
+    deck = draw_cards.build_minor_deck()
+    assert len(deck) == 56, f"Expected 56 minor cards, got {len(deck)}"
+
+
+def test_build_minor_deck_excludes_major_arcana():
+    deck = draw_cards.build_minor_deck()
+    assert all(suit != "major" for suit, _ in deck)
+
+
 def test_build_deck_all_unique():
     deck = draw_cards.build_deck()
     card_ids = [c[1] for c in deck]
@@ -46,29 +58,35 @@ def test_build_deck_four_suits_14_each():
         assert suits[suit] == 14, f"Expected 14 {suit}, got {suits[suit]}"
 
 
-def test_draw_returns_requested_count():
+def test_draw_cards_returns_requested_count():
     for n in [1, 2, 4, 10]:
-        hand = draw_cards.draw(n)
+        hand = draw_cards.draw_cards(n)
         assert len(hand) == n, f"draw({n}) returned {len(hand)} cards"
 
 
-def test_draw_default_is_4():
-    hand = draw_cards.draw()
+def test_draw_cards_default_is_4():
+    hand = draw_cards.draw_cards()
     assert len(hand) == 4
 
 
-def test_draw_clamps_to_78():
-    hand = draw_cards.draw(100)
+def test_draw_default_is_zodiac_spread():
+    hand = draw_cards.draw()
+    assert hand["spread"] == draw_cards.SPREAD_NAME
+    assert len(hand["houses"]) == 12
+
+
+def test_draw_cards_clamps_to_78():
+    hand = draw_cards.draw_cards(100)
     assert len(hand) == 78
 
 
-def test_draw_zero_returns_empty():
-    hand = draw_cards.draw(0)
+def test_draw_cards_zero_returns_empty():
+    hand = draw_cards.draw_cards(0)
     assert len(hand) == 0
 
 
-def test_draw_card_structure():
-    hand = draw_cards.draw(1)
+def test_draw_cards_card_structure():
+    hand = draw_cards.draw_cards(1)
     card = hand[0]
     assert "suit" in card
     assert "card_id" in card
@@ -81,16 +99,141 @@ def test_draw_card_structure():
     assert card["file"].endswith(".md")
 
 
-def test_draw_positions_are_sequential():
-    hand = draw_cards.draw(4)
+def test_draw_cards_positions_are_sequential():
+    hand = draw_cards.draw_cards(4)
     positions = [c["position"] for c in hand]
     assert positions == [1, 2, 3, 4]
 
 
-def test_draw_no_duplicate_cards():
-    hand = draw_cards.draw(78)
+def test_draw_cards_no_duplicate_cards():
+    hand = draw_cards.draw_cards(78)
     card_ids = [c["card_id"] for c in hand]
     assert len(card_ids) == len(set(card_ids)), "Duplicate cards drawn"
+
+
+def test_zodiac_spread_shape():
+    spread = draw_cards.draw_zodiac_spread()
+    assert spread["spread"] == "12 Houses of the Zodiac"
+    assert spread["entropy_bits"]["major_arcana"] == 19.30
+    assert spread["entropy_bits"]["minor_shuffle"] == 51.95
+    assert spread["entropy_bits"]["reversals"] == 36.0
+    assert spread["entropy_bits"]["total"] == 107.25
+    assert len(spread["houses"]) == 12
+    for house in spread["houses"]:
+        assert set(house) == {"house", "name", "focus", "file", "cards"}
+        assert house["file"].startswith("houses/")
+        assert house["file"].endswith(".md")
+        assert len(house["cards"]) == 3
+
+
+def test_zodiac_house_files_exist():
+    spread = draw_cards.draw_zodiac_spread()
+    for house in spread["houses"]:
+        path = SKILL_DIR / house["file"]
+        assert path.exists(), f"Missing house file: {path}"
+
+
+def test_zodiac_house_files_cover_technical_contexts():
+    spread = draw_cards.draw_zodiac_spread()
+    for house in spread["houses"]:
+        text = (SKILL_DIR / house["file"]).read_text()
+        assert "## Building New Projects" in text
+        assert "## Vulnerability Discovery" in text
+        assert "## Correctness Verification" in text
+        assert "## Technical Workflow Lenses" in text
+
+
+def test_technical_context_lenses_reference_exists():
+    reference = SKILL_DIR / "references" / "TECHNICAL_CONTEXT_LENSES.md"
+    text = reference.read_text()
+    assert "## Audit Pipeline Stage" in text
+    assert "## Evidence Mode" in text
+    assert "## Domain Lens" in text
+    assert "## Failure Class Lens" in text
+    assert "## Human and Organizational Lens" in text
+    assert "## House Affinity Map" in text
+
+
+def test_security_framing_requires_evidence():
+    skill_text = (SKILL_DIR / "SKILL.md").read_text()
+    guide_text = (SKILL_DIR / "references" / "INTERPRETATION_GUIDE.md").read_text()
+    assert "Security and Correctness Use" in skill_text
+    assert "never sufficient by itself" in skill_text
+    assert "only evidence can dismiss a security or correctness concern" in skill_text
+    assert "cannot prove safety, dismiss a finding, or replace" in guide_text
+
+
+def test_pentacles_numbered_ranks_are_numeric():
+    for card_file in (SKILL_DIR / "cards" / "pentacles").glob("*-of-pentacles.md"):
+        text = card_file.read_text()
+        assert "**Rank**: Two" not in text
+        assert "**Rank**: Three" not in text
+        assert "**Rank**: Four" not in text
+        assert "**Rank**: Five" not in text
+        assert "**Rank**: Six" not in text
+        assert "**Rank**: Seven" not in text
+        assert "**Rank**: Eight" not in text
+        assert "**Rank**: Nine" not in text
+        assert "**Rank**: Ten" not in text
+
+
+def test_reviewed_cards_avoid_unsafe_shortcuts():
+    risky_phrases = (
+        "Follow your intuition on this one",
+        "The solution that feels right probably is",
+        "Ship it.",
+        "The approach is sound.",
+        "The approach will succeed.",
+        "Speed matters here—refine later.",
+    )
+    for card_file in (SKILL_DIR / "cards").glob("*/*.md"):
+        text = card_file.read_text()
+        for phrase in risky_phrases:
+            assert phrase not in text, f"{phrase!r} still appears in {card_file}"
+
+
+def test_zodiac_spread_content_includes_house_content():
+    spread = draw_cards.draw_zodiac_spread(include_content=True)
+    for house in spread["houses"]:
+        assert "content" in house
+        assert house["content"].startswith("# ")
+
+
+def test_zodiac_spread_uses_one_major_per_house():
+    spread = draw_cards.draw_zodiac_spread()
+    major_cards = []
+    for house in spread["houses"]:
+        card = house["cards"][0]
+        assert card["role"] == "major_arcana"
+        assert card["suit"] == "major"
+        major_cards.append(card["card_id"])
+    assert len(major_cards) == 12
+    assert len(set(major_cards)) == 12
+
+
+def test_zodiac_spread_uses_two_minors_per_house():
+    spread = draw_cards.draw_zodiac_spread()
+    minor_cards = []
+    for house in spread["houses"]:
+        for card in house["cards"][1:]:
+            assert card["role"] in {"minor_arcana_1", "minor_arcana_2"}
+            assert card["suit"] != "major"
+            minor_cards.append(card["card_id"])
+    assert len(minor_cards) == 24
+    assert len(set(minor_cards)) == 24
+
+
+def test_zodiac_spread_all_cards_can_be_reversed():
+    spread = draw_cards.draw_zodiac_spread()
+    cards = [card for house in spread["houses"] for card in house["cards"]]
+    assert len(cards) == 36
+    assert all(isinstance(card["reversed"], bool) for card in cards)
+
+
+def test_zodiac_spread_positions_are_sequential():
+    spread = draw_cards.draw_zodiac_spread()
+    positions = [card["position"] for house in spread["houses"] for card in house["cards"]]
+    assert positions == list(range(1, 37))
 
 
 def test_fisher_yates_preserves_elements():
@@ -151,15 +294,16 @@ def test_uses_secrets_module():
 
 
 def test_cli_default_output():
-    """Run the script and verify JSON output with 4 cards."""
+    """Run the script and verify JSON output with the default spread."""
     result = subprocess.run(
         [sys.executable, str(Path(__file__).parent / "draw_cards.py")],
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0
-    cards = json.loads(result.stdout)
-    assert len(cards) == 4
+    spread = json.loads(result.stdout)
+    assert spread["spread"] == draw_cards.SPREAD_NAME
+    assert len(spread["houses"]) == 12
 
 
 def test_cli_custom_count():
@@ -171,6 +315,17 @@ def test_cli_custom_count():
     assert result.returncode == 0
     cards = json.loads(result.stdout)
     assert len(cards) == 2
+
+
+def test_cli_legacy_default_count():
+    result = subprocess.run(
+        [sys.executable, str(Path(__file__).parent / "draw_cards.py"), "--legacy"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    cards = json.loads(result.stdout)
+    assert len(cards) == 4
 
 
 def test_cli_invalid_arg():
@@ -211,14 +366,15 @@ def test_constants_are_immutable():
     assert isinstance(draw_cards.MAJOR_ARCANA, tuple), "MAJOR_ARCANA is not a tuple"
     assert isinstance(draw_cards.RANKS, tuple), "RANKS is not a tuple"
     assert isinstance(draw_cards.SUITS, tuple), "SUITS is not a tuple"
+    assert isinstance(draw_cards.ZODIAC_HOUSES, tuple), "ZODIAC_HOUSES is not a tuple"
 
 
-def test_draw_rejects_non_int():
-    """draw() must reject non-int types cleanly."""
+def test_draw_cards_rejects_non_int():
+    """draw_cards() must reject non-int types cleanly."""
     for bad in [None, "3", 2.5, True, False, [4]]:
         try:
-            draw_cards.draw(bad)
-            assert False, f"draw({bad!r}) should have raised TypeError"
+            draw_cards.draw_cards(bad)
+            assert False, f"draw_cards({bad!r}) should have raised TypeError"
         except TypeError:
             pass
 

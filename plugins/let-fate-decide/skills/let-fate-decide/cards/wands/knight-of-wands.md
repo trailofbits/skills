@@ -11,4 +11,6 @@ Haste, delays, frustration, recklessness. Speed without direction causes
 collisions. The fire burns out of control without discipline.
 
 ## In Technical Context
-Move boldly but watch for recklessness. Iterate fast with guardrails.
+Use the momentum for a bold prototype or implementation push, with guardrails
+that keep the blast radius small. If reversed, slow down enough to restore
+direction before adding more energy.

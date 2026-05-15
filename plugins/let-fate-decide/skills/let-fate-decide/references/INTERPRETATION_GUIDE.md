@@ -1,21 +1,46 @@
 # Interpretation Guide
 
-How to read a 4-card Tarot spread and map it to technical decisions.
+How to read the 12 Houses of the Zodiac Tarot spread and map it to technical
+decisions.
 
 ## The Spread Positions
 
-| Position | Role | Maps To |
-|----------|------|---------|
-| 1 - Context | The nature of the situation | Problem domain, current state, what's really being asked |
-| 2 - Challenge | The tension or obstacle | Technical debt, ambiguity, constraints, competing requirements |
-| 3 - Guidance | The recommended approach | Architecture pattern, methodology, tool choice, strategy |
-| 4 - Outcome | Where this path leads | Expected results, what success looks like, long-term effects |
+Each house contains 3 cards:
+
+- The first card is always Major Arcana and sets the house's archetypal theme.
+- The second and third cards are Minor Arcana and supply practical details.
+- The house file under `houses/` explains how that house maps to technical
+  contexts such as building, vulnerability discovery, and correctness work.
+- `TECHNICAL_CONTEXT_LENSES.md` maps common technical workflows to reusable
+  audit, evidence, domain, failure-class, and human/organizational lenses.
+
+| House | Role | Maps To |
+|-------|------|---------|
+| 1 - Self | Identity, agency, first impulse | How to begin, the operating stance |
+| 2 - Resources | Values, assets, limits | Constraints, dependencies, budget, invariants |
+| 3 - Communication | Learning and exchange | Interfaces, naming, docs, coordination |
+| 4 - Foundations | Roots and context | Existing architecture, history, hidden coupling |
+| 5 - Creativity | Experimentation and play | Prototypes, UI choices, expressive design |
+| 6 - Practice | Service and routine | Testing, quality, maintenance, workflow |
+| 7 - Partnership | Others and contracts | Users, APIs, integrations, collaboration |
+| 8 - Transformation | Risk and shared state | Migrations, secrets, permissions, deep refactors |
+| 9 - Exploration | Principles and broad vision | Strategy, standards, research, long-term bets |
+| 10 - Calling | Public outcome and reputation | Delivery, reliability, production readiness |
+| 11 - Community | Groups and systems | Ecosystem fit, shared tooling, team impact |
+| 12 - The Hidden | Blind spots and endings | Unknown risks, cleanup, deferred costs |
 
 ## Reading the Cards
 
 ### Step 1: Read Each Card File
 
-For each drawn card, read its meaning file. Note both the upright and reversed meanings. Use whichever matches the card's orientation in the draw.
+For each house, read its house file. For each drawn card, read its meaning
+file. Note both the upright and reversed meanings. Use whichever matches the
+card's orientation in the draw.
+
+The `In Technical Context` section in a card file is a starting translation,
+not a replacement for the orientation. If that technical note sounds too
+decisive for the card's reversed meaning, adapt it through the reversed text
+instead of following the sentence literally.
 
 ### Step 2: Map to Context
 
@@ -37,14 +62,32 @@ Translate the card's archetypal meaning into the current technical situation:
 - **Queen**: Mastery with empathy, nurturing growth, mature judgment
 - **King**: Authority, established patterns, proven approaches
 
+When the task resembles a specialized skill workflow, choose the relevant lens
+from `TECHNICAL_CONTEXT_LENSES.md` before deciding what action the reading
+supports. This keeps the reading grounded in the actual mode of work: audit
+pipeline stage, evidence type, technical domain, failure class, or stakeholder
+coordination.
+
 ### Step 3: Synthesize the Story
 
-Read all 4 positions as a narrative:
+Read all 12 houses as a narrative:
 
-1. "The situation is really about [Card 1]..."
-2. "The challenge here is [Card 2]..."
-3. "The cards suggest [Card 3] as the approach..."
-4. "This leads toward [Card 4]..."
+1. "The beginning stance is [House 1]..."
+2. "The available resources and constraints are [House 2]..."
+3. "The communication or interface concern is [House 3]..."
+4. "The foundation or hidden dependency is [House 4]..."
+5. "The creative opening is [House 5]..."
+6. "The quality and maintenance requirement is [House 6]..."
+7. "The integration or collaboration point is [House 7]..."
+8. "The transformation or risk is [House 8]..."
+9. "The guiding principle is [House 9]..."
+10. "The delivery target is [House 10]..."
+11. "The ecosystem or team impact is [House 11]..."
+12. "The blind spot or closure is [House 12]..."
+
+When time is tight, prioritize House 1 for the initial stance, House 6 for
+execution quality, House 8 for risk, House 10 for delivery, and House 12 for
+blind spots.
 
 ### Step 4: Make a Decision
 
@@ -52,6 +95,11 @@ The reading should bias you toward one of the viable approaches. State:
 - Which approach the reading supports
 - How specific cards influenced the choice
 - What the reading suggests you should watch out for
+
+For vulnerability discovery and correctness verification, the decision should
+be about where to investigate next or which hypothesis to test. The reading can
+prioritize attention, but it cannot prove safety, dismiss a finding, or replace
+reproduction, testing, formal reasoning, or source-level evidence.
 
 ## Reversed Cards
 
@@ -83,6 +131,7 @@ If multiple court cards appear in sequence (Page, Knight, Queen, King), the read
 
 - Not a substitute for requirements gathering when requirements are gettable
 - Not permission to ignore best practices
+- Not evidence that a security or correctness concern is real or false
 - Not a way to avoid thinking critically
 - Not deterministic (it's entropy, that's the point)
 

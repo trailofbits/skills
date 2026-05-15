@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Draw Tarot cards using the secrets module for cryptographic randomness.
 
-Shuffles a full 78-card deck via Fisher-Yates and draws 4 from the top.
-Each card has an independent 50/50 chance of being reversed.
+The default draw is the 12 Houses of the Zodiac spread: each house gets one
+Major Arcana card plus two Minor Arcana cards. Each card has an independent
+50/50 chance of being reversed.
 """
 # /// script
 # requires-python = ">=3.11"
@@ -13,6 +14,14 @@ import json
 import os
 import secrets
 import sys
+
+SPREAD_NAME = "12 Houses of the Zodiac"
+ENTROPY_BITS = {
+    "major_arcana": 19.30,
+    "minor_shuffle": 51.95,
+    "reversals": 36.0,
+    "total": 107.25,
+}
 
 MAJOR_ARCANA = (
     ("major", "00-the-fool"),
@@ -58,14 +67,78 @@ RANKS = (
 
 SUITS = ("wands", "cups", "swords", "pentacles")
 
+ZODIAC_HOUSES = (
+    (
+        "First House",
+        "Self, identity, agency, and how the work begins",
+        "01-first-house",
+    ),
+    (
+        "Second House",
+        "Resources, values, constraints, and what must be preserved",
+        "02-second-house",
+    ),
+    (
+        "Third House",
+        "Communication, learning, interfaces, and local connections",
+        "03-third-house",
+    ),
+    (
+        "Fourth House",
+        "Foundations, context, history, and hidden dependencies",
+        "04-fourth-house",
+    ),
+    (
+        "Fifth House",
+        "Creativity, experimentation, delight, and expressive choices",
+        "05-fifth-house",
+    ),
+    (
+        "Sixth House",
+        "Practice, quality, maintenance, and day-to-day execution",
+        "06-sixth-house",
+    ),
+    (
+        "Seventh House",
+        "Partnership, collaboration, contracts, and external users",
+        "07-seventh-house",
+    ),
+    (
+        "Eighth House",
+        "Transformation, risk, shared state, and deep change",
+        "08-eighth-house",
+    ),
+    (
+        "Ninth House",
+        "Exploration, principles, strategy, and broader meaning",
+        "09-ninth-house",
+    ),
+    (
+        "Tenth House",
+        "Reputation, delivery, public outcome, and long-term direction",
+        "10-tenth-house",
+    ),
+    (
+        "Eleventh House",
+        "Community, systems, networks, and shared aspirations",
+        "11-eleventh-house",
+    ),
+    (
+        "Twelfth House",
+        "The unconscious, blind spots, endings, and what is hidden",
+        "12-twelfth-house",
+    ),
+)
+
 
 def build_deck():
     """Build the full 78-card Tarot deck."""
-    deck = list(MAJOR_ARCANA)
-    for suit in SUITS:
-        for rank in RANKS:
-            deck.append((suit, f"{rank}-of-{suit}"))
-    return deck
+    return list(MAJOR_ARCANA) + build_minor_deck()
+
+
+def build_minor_deck():
+    """Build the 56-card Minor Arcana deck."""
+    return [(suit, f"{rank}-of-{suit}") for suit in SUITS for rank in RANKS]
 
 
 def fisher_yates_shuffle(deck):
@@ -81,51 +154,143 @@ def is_reversed():
     return secrets.randbits(1) == 1
 
 
-def draw(n=4, include_content=False):
-    """Shuffle deck and draw n cards, each possibly reversed."""
+def card_record(suit, card_id, position, role, include_content=False):
+    """Return the JSON-serializable record for a drawn card."""
+    card = {
+        "suit": suit,
+        "card_id": card_id,
+        "reversed": is_reversed(),
+        "position": position,
+        "role": role,
+        "file": f"cards/{suit}/{card_id}.md",
+    }
+    if include_content:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        cards_dir = os.path.join(os.path.dirname(script_dir), "cards")
+        path = os.path.join(cards_dir, suit, f"{card_id}.md")
+        try:
+            with open(path) as f:
+                card["content"] = f.read()
+        except OSError as e:
+            card["content"] = f"(error reading card file {path}: {e})"
+    return card
+
+
+def read_reference_file(relative_file):
+    """Read a skill-local reference file for --content output."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    skill_dir = os.path.dirname(script_dir)
+    path = os.path.join(skill_dir, relative_file)
+    try:
+        with open(path) as f:
+            return f.read()
+    except OSError as e:
+        return f"(error reading reference file {path}: {e})"
+
+
+def draw_cards(n=4, include_content=False):
+    """Shuffle the full deck and draw n cards, each possibly reversed."""
     if not isinstance(n, int) or isinstance(n, bool):
         raise TypeError(f"n must be int, got {type(n).__name__}")
     deck = build_deck()
     fisher_yates_shuffle(deck)
-    # Resolve cards directory relative to this script
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    cards_dir = os.path.join(os.path.dirname(script_dir), "cards")
     hand = []
     for i in range(min(n, len(deck))):
         suit, card_id = deck[i]
-        reversed_flag = is_reversed()
-        card = {
-            "suit": suit,
-            "card_id": card_id,
-            "reversed": reversed_flag,
-            "position": i + 1,
-            "file": f"cards/{suit}/{card_id}.md",
-        }
-        if include_content:
-            path = os.path.join(cards_dir, suit, f"{card_id}.md")
-            try:
-                with open(path) as f:
-                    card["content"] = f.read()
-            except OSError as e:
-                card["content"] = f"(error reading card file {path}: {e})"
-        hand.append(card)
+        hand.append(card_record(suit, card_id, i + 1, "card", include_content))
     return hand
 
 
+def draw_zodiac_spread(include_content=False):
+    """Draw the default 12 Houses of the Zodiac spread."""
+    major_deck = list(MAJOR_ARCANA)
+    minor_deck = build_minor_deck()
+    fisher_yates_shuffle(major_deck)
+    fisher_yates_shuffle(minor_deck)
+
+    houses = []
+    minor_index = 0
+    position = 1
+    for house_number, (house_name, focus, house_id) in enumerate(ZODIAC_HOUSES, start=1):
+        major_suit, major_id = major_deck[house_number - 1]
+        first_minor_suit, first_minor_id = minor_deck[minor_index]
+        second_minor_suit, second_minor_id = minor_deck[minor_index + 1]
+        minor_index += 2
+        house_file = f"houses/{house_id}.md"
+
+        house = {
+            "house": house_number,
+            "name": house_name,
+            "focus": focus,
+            "file": house_file,
+            "cards": [
+                card_record(
+                    major_suit,
+                    major_id,
+                    position,
+                    "major_arcana",
+                    include_content,
+                ),
+                card_record(
+                    first_minor_suit,
+                    first_minor_id,
+                    position + 1,
+                    "minor_arcana_1",
+                    include_content,
+                ),
+                card_record(
+                    second_minor_suit,
+                    second_minor_id,
+                    position + 2,
+                    "minor_arcana_2",
+                    include_content,
+                ),
+            ],
+        }
+        if include_content:
+            house["content"] = read_reference_file(house_file)
+        houses.append(house)
+        position += 3
+
+    return {
+        "spread": SPREAD_NAME,
+        "houses": houses,
+        "entropy_bits": ENTROPY_BITS,
+        "entropy_note": (
+            "Assumes secrets.randbelow() provides cryptographically secure "
+            "bounded draws. This is a conservative unordered-card budget: "
+            "19.30 bits from Major Arcana selection, 51.95 bits from Minor "
+            "Arcana selection, and 36 reversal bits. Ordered house assignment "
+            "contains more entropy."
+        ),
+    }
+
+
+def draw(n=None, include_content=False):
+    """Draw the default spread, or a legacy n-card hand when n is provided."""
+    if n is None:
+        return draw_zodiac_spread(include_content=include_content)
+    return draw_cards(n, include_content=include_content)
+
+
 def main():
-    n = 4
+    n = None
     include_content = False
+    legacy = False
     args = sys.argv[1:]
     if "--content" in args:
         include_content = True
         args.remove("--content")
+    if "--legacy" in args:
+        legacy = True
+        args.remove("--legacy")
     if args:
         try:
             n = int(args[0])
         except ValueError:
             print(
                 f"Error: '{args[0]}' is not a valid integer. "
-                f"Usage: draw_cards.py [--content] [count]",
+                f"Usage: draw_cards.py [--content] [--legacy] [count]",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -135,8 +300,14 @@ def main():
                 file=sys.stderr,
             )
             sys.exit(1)
+        legacy = True
     try:
-        hand = draw(n, include_content=include_content)
+        if legacy:
+            if n is None:
+                n = 4
+            hand = draw_cards(n, include_content=include_content)
+        else:
+            hand = draw(include_content=include_content)
     except OSError as e:
         print(
             f"Error: failed to read system entropy source: {e}",

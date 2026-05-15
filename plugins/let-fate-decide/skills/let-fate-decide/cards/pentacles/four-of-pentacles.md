@@ -1,6 +1,6 @@
 # Four of Pentacles
 
-**Suit**: Pentacles | **Rank**: Four
+**Suit**: Pentacles | **Rank**: 4
 
 ## Upright
 Security, conservation, and control. Holding tightly to what you have out of
