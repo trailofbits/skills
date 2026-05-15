@@ -26,7 +26,7 @@ def _entropy_bits():
     reversals = 36.0
     return {
         "major_arcana": round(major, 2),
-        "minor_shuffle": round(minor, 2),
+        "minor_arcana": round(minor, 2),
         "reversals": reversals,
         "total": round(major + minor + reversals, 2),
     }
@@ -271,7 +271,7 @@ def draw_zodiac_spread(include_content=False):
             "Assumes secrets.randbelow() provides cryptographically secure "
             "bounded draws. This is a conservative unordered-card budget: "
             f"{bits['major_arcana']} bits from Major Arcana selection, "
-            f"{bits['minor_shuffle']} bits from Minor Arcana selection, and "
+            f"{bits['minor_arcana']} bits from Minor Arcana selection, and "
             f"{bits['reversals']} reversal bits. Ordered house assignment "
             "contains more entropy."
         ),

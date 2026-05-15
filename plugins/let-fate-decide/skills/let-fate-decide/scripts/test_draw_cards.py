@@ -119,7 +119,7 @@ def test_zodiac_spread_shape():
     expected_major = round(math.log2(math.comb(22, 12)), 2)
     expected_minor = round(math.log2(math.comb(56, 24)), 2)
     assert bits["major_arcana"] == expected_major
-    assert bits["minor_shuffle"] == expected_minor
+    assert bits["minor_arcana"] == expected_minor
     assert bits["reversals"] == 36.0
     assert bits["total"] == round(expected_major + expected_minor + 36.0, 2)
     assert bits["total"] >= 100, "Entropy budget must clear the 100-bit floor"
