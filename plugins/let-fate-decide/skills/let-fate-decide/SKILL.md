@@ -167,9 +167,9 @@ House contribution: The starting stance is resourceful and tool-rich
 the remaining 11 houses before deciding on an approach.
 ```
 
-The named `draw` agent returns a more compact form for portent questions: 3-5
-concise bullets covering the dominant theme, the main risk or blind spot, and
-the recommended next action.
+The named `draw` agent returns a more compact form for portent questions:
+3 concise bullets covering the dominant theme, the main risk or blind spot,
+and the recommended next action.
 
 ## Error Handling
 

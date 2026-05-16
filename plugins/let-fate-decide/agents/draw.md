@@ -33,7 +33,7 @@ Verdict: {chosen option}
 Reason: {1 sentence connecting card meaning to choice}
 ```
 
-If the input is a portent question (no options), return 3-5 concise bullets:
+If the input is a portent question (no options), return 3 concise bullets:
 ```
 - {dominant theme across the spread}
 - {main risk, blind spot, or constraint}

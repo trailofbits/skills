@@ -111,21 +111,37 @@ Reversed cards don't mean "bad." They indicate:
 
 ## Special Patterns
 
-### Multiple Major Arcana
-The situation is more significant than it appears. Take extra care with the decision.
+The 12-house spread deals 12 Major Arcana, 24 Minor Arcana, and an
+independent reversal flag per card. The patterns below are calibrated to those
+baselines (one Major per house is guaranteed, so "multiple Majors" is not a
+signal in this spread).
 
-### All One Suit
-Strong thematic message:
-- All Wands: Focus on action and momentum
-- All Cups: Focus on user needs and team dynamics
-- All Swords: Focus on analysis and clear thinking
-- All Pentacles: Focus on craft and practical quality
+### Heavy Reversal Count
+The spread averages 18 reversed cards out of 36. If 24 or more are reversed
+(roughly the 6th percentile of draws), the reading is telling you that many
+things are blocked, inverted, or shadowed. Step back and reconsider the
+assumptions driving the work before proceeding.
 
-### All Reversed
-Something is being overlooked. Step back and reconsider assumptions before proceeding.
+### Heavy Minor Suit Concentration
+Each Minor suit is expected to contribute about 6 of the 24 Minor draws. If
+one suit contributes 10 or more, the reading carries that suit's thematic
+emphasis across many houses:
+- Heavy Wands: Focus on action, momentum, and creative drive
+- Heavy Cups: Focus on user needs, team dynamics, and emotional state
+- Heavy Swords: Focus on analysis, conflict, and clear thinking
+- Heavy Pentacles: Focus on craft, resources, and practical quality
 
-### Court Card Progression
-If multiple court cards appear in sequence (Page, Knight, Queen, King), the reading suggests a journey from exploration to mastery.
+### Weighty Majors in Critical Houses
+Death, The Tower, The Devil, Judgement, or The World landing in House 1
+(Self), House 8 (Transformation), or House 12 (The Hidden) amplifies themes
+of identity, deep change, or unseen factors. Treat these as cues to slow
+down and investigate before committing.
+
+### Court Cards Clustering in People Houses
+Court cards (Page, Knight, Queen, King) appearing in Houses 3 (Communication),
+7 (Partnership), or 11 (Community) reinforce a people-oriented reading: the
+work hinges on collaboration, contracts, or social dynamics rather than purely
+technical execution.
 
 ## What the Reading Is NOT
 
