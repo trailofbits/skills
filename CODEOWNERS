@@ -25,7 +25,9 @@
 /plugins/let-fate-decide/ @tob-scott-a @dguido
 /plugins/modern-python/ @Ninja3047 @dguido
 /plugins/mutation-testing/ @bohendo @dguido
+/plugins/offsec-reference/ @dguido
 /plugins/property-based-testing/ @hbrodin @dguido
+/plugins/ptest/ @dguido
 /plugins/seatbelt-sandboxer/ @smichaels-tob @dguido
 /plugins/skill-improver/ @GrosQuildu @dguido
 /plugins/second-opinion/ @dguido

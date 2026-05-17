@@ -1,0 +1,9 @@
+{
+  "name": "ptest",
+  "version": "3.0.0",
+  "description": "Structured penetration testing framework with gated phases guiding methodical progression from recon through exploitation to reporting",
+  "author": {
+    "name": "n4igme"
+  },
+  "keywords": ["pentest", "penetration-testing", "security", "recon", "exploitation", "post-exploitation", "red-teaming", "offensive-security"]
+}

@@ -392,6 +392,24 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/dimensional-analysis"
+    },
+    {
+      "name": "offsec-reference",
+      "version": "1.0.0",
+      "description": "Comprehensive offensive security reference covering bug bounty, exploit development, web attacks, OSINT, red teaming, EDR evasion, and vulnerability classes",
+      "author": {
+        "name": "n4igme"
+      },
+      "source": "./plugins/offsec-reference"
+    },
+    {
+      "name": "ptest",
+      "version": "3.0.0",
+      "description": "Structured penetration testing framework with gated phases guiding methodical progression from recon through exploitation to reporting",
+      "author": {
+        "name": "n4igme"
+      },
+      "source": "./plugins/ptest"
     }
   ]
 }
