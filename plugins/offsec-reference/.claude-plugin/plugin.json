@@ -1,0 +1,9 @@
+{
+  "name": "offsec-reference",
+  "version": "1.0.0",
+  "description": "Comprehensive offensive security reference covering bug bounty, exploit development, web attacks, OSINT, red teaming, EDR evasion, and vulnerability classes",
+  "author": {
+    "name": "n4igme"
+  },
+  "keywords": ["offensive-security", "bug-bounty", "exploit-development", "red-team", "web-security", "osint", "edr-evasion", "pentest"]
+}

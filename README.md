@@ -49,6 +49,13 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [building-secure-contracts](plugins/building-secure-contracts/) | Smart contract security toolkit with vulnerability scanners for 6 blockchains |
 | [entry-point-analyzer](plugins/entry-point-analyzer/) | Identify state-changing entry points in smart contracts for security auditing |
 
+### Penetration Testing
+
+| Plugin | Description |
+|--------|-------------|
+| [offsec-reference](plugins/offsec-reference/) | Comprehensive offensive security reference covering bug bounty, exploit development, web attacks, OSINT, red teaming, EDR evasion, and vulnerability classes |
+| [ptest](plugins/ptest/) | Structured penetration testing framework with gated phases guiding methodical progression from recon through exploitation to reporting |
+
 ### Code Auditing
 
 | Plugin | Description |
