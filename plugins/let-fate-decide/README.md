@@ -6,9 +6,11 @@ entropy into vague or underspecified planning decisions.
 ## What It Does
 
 When a prompt is sufficiently ambiguous, or the user explicitly invokes fate,
-this skill shuffles a full 78-card Tarot deck using cryptographic randomness
-and draws 4 cards (which may appear reversed). Claude then interprets the
-spread and uses the reading to inform its approach.
+this skill shuffles a 22-card Major Arcana deck and a 56-card Minor Arcana
+deck independently using cryptographic randomness, then deals the 12 Houses of
+the Zodiac spread. Each house receives one Major Arcana card followed by two
+Minor Arcana cards, and all 36 cards may appear reversed. Claude then
+interprets the spread and uses the reading to inform its approach.
 
 ## Triggers
 
@@ -22,13 +24,37 @@ spread and uses the reading to inform its approach.
 
 ## How It Works
 
-1. A Python script uses `secrets` to perform a Fisher-Yates shuffle
-2. 4 cards are drawn from the top of the shuffled deck
-3. Each card has an independent 50% chance of being reversed
-4. Claude reads the drawn cards' meaning files and interprets the spread
-5. The interpretation informs the planning direction
+1. A Python script uses `secrets.randbelow()` to perform Fisher-Yates shuffles
+2. A Major Arcana deck and Minor Arcana deck are shuffled separately
+3. 12 houses are dealt, each with 1 Major Arcana and 2 Minor Arcana cards
+4. Each card has an independent 50% chance of being reversed
+5. Claude reads the house reference files and drawn cards' meaning files
+6. Claude interprets the spread
+7. The interpretation informs the planning direction
 
-## Card Organization
+The default spread records a conservative unordered-card entropy budget
+exceeding 100 bits: roughly `log2(C(22,12))` bits from Major Arcana selection,
+`log2(C(56,24))` bits from Minor Arcana selection (assuming
+`secrets.randbelow()` is cryptographically secure), and 36 bits from
+independent card reversal choices. Exact values are computed at draw time and
+reported in the JSON output under `entropy_bits`. The actual ordered assignment
+of cards to houses contains more entropy.
+
+In security, audit, and correctness workflows, this skill is only a discovery
+and hypothesis-generation aid. It can suggest where to look next, but evidence
+from review, testing, reproduction, or formal reasoning must decide whether a
+risk is real or resolved.
+
+## Reference Organization
+
+Each zodiac house has its own markdown file under `houses/`. These files
+explain the house's technical meaning for building new projects, vulnerability
+discovery, correctness verification, and recurring workflows from the local
+security and engineering workflows this skill supports.
+
+`references/TECHNICAL_CONTEXT_LENSES.md` distills those workflow themes into
+audit-stage, evidence-mode, domain, failure-class, and human/organizational
+lenses.
 
 Each of the 78 Tarot cards has its own markdown file:
 

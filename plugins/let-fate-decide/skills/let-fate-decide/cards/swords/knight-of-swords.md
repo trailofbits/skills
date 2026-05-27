@@ -9,4 +9,6 @@ Ambition and determination charge forward at full speed. Fast thinking and decis
 Reckless action without direction or regard for consequences. Restlessness leads to scattered energy and unfinished work. Speed without purpose causes collateral damage.
 
 ## In Technical Context
-Charge ahead with the implementation. Speed matters here—refine later.
+Move decisively and cut away ambiguity, but do not outrun the evidence.
+Precision matters more than raw speed: identify the key fact, test it, and act
+without endless deliberation.

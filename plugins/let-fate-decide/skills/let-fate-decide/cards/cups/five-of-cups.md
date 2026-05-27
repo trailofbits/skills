@@ -9,4 +9,6 @@ Loss, grief, and regret dominate your attention. You are fixated on what has spi
 Acceptance, moving on, and finding peace. The grieving period ends and you begin to see what was salvaged. Forgiveness—of yourself or others—opens a new path forward.
 
 ## In Technical Context
-Stop mourning the sunk cost. Three cups remain standing—focus on what works.
+Separate the failed investment from the remaining useful pieces. Upright, stop
+letting sunk cost dominate the plan; reversed, convert what was learned into a
+cleaner path forward.

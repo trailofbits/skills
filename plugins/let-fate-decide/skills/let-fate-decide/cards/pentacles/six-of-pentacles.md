@@ -1,6 +1,6 @@
 # Six of Pentacles
 
-**Suit**: Pentacles | **Rank**: Six
+**Suit**: Pentacles | **Rank**: 6
 
 ## Upright
 Generosity, charity, and sharing wealth. Giving and receiving in balance.
