@@ -31,7 +31,7 @@ Each house contains 3 cards:
 
 ## Reading the Cards
 
-### Step 1: Read Each Card File
+### Step 1: Read Each House and Card File
 
 For each house, read its house file. For each drawn card, read its meaning
 file. Note both the upright and reversed meanings. Use whichever matches the
@@ -118,7 +118,7 @@ signal in this spread).
 
 ### Heavy Reversal Count
 The spread averages 18 reversed cards out of 36. If 24 or more are reversed
-(roughly the 6th percentile of draws), the reading is telling you that many
+(roughly the top 3% of draws), the reading is telling you that many
 things are blocked, inverted, or shadowed. Step back and reconsider the
 assumptions driving the work before proceeding.
 

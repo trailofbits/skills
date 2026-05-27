@@ -81,12 +81,12 @@ SUITS = ("wands", "cups", "swords", "pentacles")
 ZODIAC_HOUSES = (
     (
         "First House",
-        "Self, identity, agency, and how the work begins",
+        "Self, identity, agency, and first motion",
         "01-first-house",
     ),
     (
         "Second House",
-        "Resources, values, constraints, and what must be preserved",
+        "Resources, values, constraints, and preservation",
         "02-second-house",
     ),
     (
@@ -96,47 +96,47 @@ ZODIAC_HOUSES = (
     ),
     (
         "Fourth House",
-        "Foundations, context, history, and hidden dependencies",
+        "Foundations, history, context, and hidden dependencies",
         "04-fourth-house",
     ),
     (
         "Fifth House",
-        "Creativity, experimentation, delight, and expressive choices",
+        "Creativity, experimentation, expressiveness, and delight",
         "05-fifth-house",
     ),
     (
         "Sixth House",
-        "Practice, quality, maintenance, and day-to-day execution",
+        "Practice, service, quality, routine, and maintenance",
         "06-sixth-house",
     ),
     (
         "Seventh House",
-        "Partnership, collaboration, contracts, and external users",
+        "Partnership, contracts, users, and external counterparts",
         "07-seventh-house",
     ),
     (
         "Eighth House",
-        "Transformation, risk, shared state, and deep change",
+        "Transformation, risk, shared state, secrets, and deep change",
         "08-eighth-house",
     ),
     (
         "Ninth House",
-        "Exploration, principles, strategy, and broader meaning",
+        "Exploration, principles, standards, and broader strategy",
         "09-ninth-house",
     ),
     (
         "Tenth House",
-        "Reputation, delivery, public outcome, and long-term direction",
+        "Delivery, reputation, public outcome, and long-term direction",
         "10-tenth-house",
     ),
     (
         "Eleventh House",
-        "Community, systems, networks, and shared aspirations",
+        "Community, networks, systems, and shared aspirations",
         "11-eleventh-house",
     ),
     (
         "Twelfth House",
-        "The unconscious, blind spots, endings, and what is hidden",
+        "Blind spots, hidden costs, endings, and unconscious assumptions",
         "12-twelfth-house",
     ),
 )

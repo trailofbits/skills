@@ -138,6 +138,20 @@ def test_zodiac_house_files_exist():
         assert path.exists(), f"Missing house file: {path}"
 
 
+def test_zodiac_focus_matches_house_domain():
+    spread = draw_cards.draw_zodiac_spread()
+    for house in spread["houses"]:
+        text = (SKILL_DIR / house["file"]).read_text()
+        domain = next(
+            line[len("**Domain**: ") :].strip()
+            for line in text.splitlines()
+            if line.startswith("**Domain**: ")
+        )
+        assert house["focus"] == domain, (
+            f"focus/Domain drift in {house['file']}: {house['focus']!r} != {domain!r}"
+        )
+
+
 def test_zodiac_house_files_cover_technical_contexts():
     spread = draw_cards.draw_zodiac_spread()
     for house in spread["houses"]:
