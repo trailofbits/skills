@@ -32,6 +32,6 @@ gh pr view 123 --repo owner/repo
 gh api repos/owner/repo/pulls
 ```
 
-For the original Claude plugin implementation, see:
+For the hook implementation, see:
 - `plugins/gh-cli/README.md`
 - `plugins/gh-cli/hooks/`

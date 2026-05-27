@@ -90,5 +90,20 @@ jobs:
       - name: Validate plugin metadata
         run: python3 .github/scripts/validate_plugin_metadata.py
 
-      - name: Validate Codex skill mappings
-        run: python3 .github/scripts/validate_codex_skills.py
+      - name: Install Claude Code CLI
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/claude-cli" @anthropic-ai/claude-code@latest
+          echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/claude-cli/bin/claude" --version
+
+      - name: Check Claude loadability
+        run: python3 .github/scripts/check_claude_loadability.py
+
+      - name: Install Codex CLI
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/codex-cli" @openai/codex@latest
+          echo "$RUNNER_TEMP/codex-cli/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/codex-cli/bin/codex" --version
+
+      - name: Check Codex loadability
+        run: python3 .github/scripts/check_codex_loadability.py
