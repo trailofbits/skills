@@ -2,7 +2,7 @@
 
 ## Default Configuration
 
-- Model: `gpt-5.3-codex`
+- Model: `gpt-5.5`
 - Reasoning effort: `xhigh`
 
 ## Approach
@@ -17,7 +17,7 @@ stdout.
 
 Use this prompt verbatim — it is from OpenAI's [Build Code Review
 with the Codex SDK](https://developers.openai.com/cookbook/examples/codex/build_code_review_with_codex_sdk)
-cookbook, and GPT-5.2-codex and later received specific training
+cookbook, and GPT-5.4 and later received specific training
 on it:
 
 ```
@@ -86,7 +86,7 @@ been staged would be silently excluded. Generate the full diff:
 
 ```bash
 codex exec \
-  -c model='"gpt-5.3-codex"' \
+  -c model='"gpt-5.5"' \
   -c model_reasoning_effort='"xhigh"' \
   --sandbox read-only \
   --ephemeral \
@@ -141,16 +141,16 @@ diagnose the failure.
 
 ## Model Fallback
 
-If `gpt-5.3-codex` fails with an auth error (e.g., "not supported
+If `gpt-5.5` fails with an auth error (e.g., "not supported
 when using Codex with a ChatGPT account"), retry with
-`gpt-5.2-codex`. Log the fallback for the user.
+`gpt-5.4`. Log the fallback for the user.
 
 ## Error Handling
 
 | Error | Action |
 |-------|--------|
 | `codex: command not found` | Tell user: `npm i -g @openai/codex` |
-| Model auth error | Retry with `gpt-5.2-codex` |
+| Model auth error | Retry with `gpt-5.4` |
 | Timeout | Suggest narrowing the diff scope |
 | `EPERM` / sandbox errors | Expected — `codex exec` runs sandboxed. Ignore these. |
 | Empty/missing output file | Read `$stderr_log` to diagnose the failure |
