@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Trail of Bits">
+  <rect width="64" height="64" rx="12" fill="#D83A34"/>
+  <path d="M17 18h30v7H35v26h-7V25H17z" fill="#fff"/>
+  <path d="M39 33h6.5c3.6 0 6.5 2.9 6.5 6.5S49.1 46 45.5 46H39zm6.3 7c.6 0 1.2-.5 1.2-1.2s-.5-1.2-1.2-1.2h-.8V40z" fill="#fff"/>
+</svg>
