@@ -172,14 +172,15 @@ structured output schema.
 
 Summary:
 - Uses `codex exec` (not `codex review`) for headless operation
-- Model: `gpt-5.3-codex`, reasoning: `xhigh`
+- Model: configured/default Codex model, reasoning: `xhigh`
 - Uses OpenAI's published code review prompt (fine-tuned into the model)
 - Diff is generated manually and piped via stdin with the prompt
 - `--output-schema` produces structured JSON findings
 - `-o` captures only the final message (no thinking/exec noise)
 - All three scopes (uncommitted, branch, commit) support project
   context and focus instructions (no limitations)
-- Falls back to `gpt-5.2-codex` on auth errors
+- For pinned runs, pass `-m <model>` or `--model <model>` with a
+  currently available Codex model
 - Output is clean JSON — parse and present findings by priority
 - Set `timeout: 600000` on the Bash call
 
@@ -219,7 +220,7 @@ When the user picks "Both" (the default):
 2. Collect both results, then present with clear headers:
 
 ```
-## Codex Review (gpt-5.3-codex)
+## Codex Review (configured/default model)
 <codex output>
 
 ## Gemini Review (gemini-3.1-pro-preview)
@@ -236,7 +237,7 @@ Summarize where the two reviews agree and differ.
 | `gemini: command not found` | Tell user: `npm i -g @google/gemini-cli` |
 | Gemini `code-review` extension missing | Tell user: `gemini extensions install https://github.com/gemini-cli-extensions/code-review` |
 | Gemini `gemini-cli-security` extension missing | Tell user: `gemini extensions install https://github.com/gemini-cli-extensions/security` |
-| Model auth error (Codex) | Retry with `gpt-5.2-codex` |
+| Model auth error (Codex) | Retry without an explicit model so Codex uses the configured/default model; if the user requested a pinned run, ask them for a currently available model from the Codex model list |
 | Empty diff | Tell user there are no changes to review |
 | Timeout | Inform user and suggest narrowing the diff scope |
 | Tool partially unavailable | Run only the available tool, note the skip |

@@ -2,7 +2,7 @@
 
 ## Default Configuration
 
-- Model: `gpt-5.3-codex`
+- Model: configured/default Codex model
 - Reasoning effort: `xhigh`
 
 ## Approach
@@ -17,8 +17,7 @@ stdout.
 
 Use this prompt verbatim — it is from OpenAI's [Build Code Review
 with the Codex SDK](https://developers.openai.com/cookbook/examples/codex/build_code_review_with_codex_sdk)
-cookbook, and GPT-5.2-codex and later received specific training
-on it:
+cookbook, and Codex models are trained to use it:
 
 ```
 You are acting as a reviewer for a proposed code change made by another engineer.
@@ -86,7 +85,6 @@ been staged would be silently excluded. Generate the full diff:
 
 ```bash
 codex exec \
-  -c model='"gpt-5.3-codex"' \
   -c model_reasoning_effort='"xhigh"' \
   --sandbox read-only \
   --ephemeral \
@@ -139,18 +137,24 @@ End with the overall verdict and confidence.
 If the output file is empty or missing, read `$stderr_log` to
 diagnose the failure.
 
-## Model Fallback
+## Model Selection
 
-If `gpt-5.3-codex` fails with an auth error (e.g., "not supported
-when using Codex with a ChatGPT account"), retry with
-`gpt-5.2-codex`. Log the fallback for the user.
+Do not pin a model by default. Let `codex exec` use the user's
+configured/default Codex model so the skill continues to work as
+model availability changes across ChatGPT and API-key accounts.
+
+For pinned runs, add `-m <model>` or `--model <model>` to the base
+command with a currently available model from the Codex model list.
+If a pinned model fails with an auth or availability error, retry
+without the explicit model and log that Codex used the configured
+default instead.
 
 ## Error Handling
 
 | Error | Action |
 |-------|--------|
 | `codex: command not found` | Tell user: `npm i -g @openai/codex` |
-| Model auth error | Retry with `gpt-5.2-codex` |
+| Model auth error | Retry without an explicit model so Codex uses the configured/default model; if the user requested a pinned run, ask them for a currently available model from the Codex model list |
 | Timeout | Suggest narrowing the diff scope |
 | `EPERM` / sandbox errors | Expected — `codex exec` runs sandboxed. Ignore these. |
 | Empty/missing output file | Read `$stderr_log` to diagnose the failure |
