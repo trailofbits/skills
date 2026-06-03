@@ -12,12 +12,18 @@ from __future__ import annotations
 
 import pytest
 
-from build_run_plan import split_oversized_clusters
+from build_run_plan import build_selection, split_oversized_clusters
 
 
-def _mk_cluster(cid: str, n_passes: int, *, consolidated: bool = False) -> dict:
+def _mk_cluster(
+    cid: str,
+    n_passes: int,
+    *,
+    consolidated: bool = False,
+    max_passes_per_worker: int | None = None,
+) -> dict:
     """Construct a synthetic cluster entry matching build_selection()'s output shape."""
-    return {
+    cluster = {
         "cluster_id": cid,
         "consolidated": consolidated,
         "cluster_prompt": f"/abs/prompts/clusters/{cid}.md",
@@ -26,6 +32,9 @@ def _mk_cluster(cid: str, n_passes: int, *, consolidated: bool = False) -> dict:
             for i in range(n_passes)
         ],
     }
+    if max_passes_per_worker is not None:
+        cluster["max_passes_per_worker"] = max_passes_per_worker
+    return cluster
 
 
 # --- Pass-through (single-chunk) cases ---------------------------------------
@@ -93,11 +102,122 @@ def test_split_preserves_cluster_prompt_and_consolidated():
         assert chunk["consolidated"] is True
 
 
+def test_cluster_override_splits_below_global_max():
+    src = [_mk_cluster("output-heavy", 3, max_passes_per_worker=1)]
+    out = split_oversized_clusters(src, max_passes=4)
+    assert [c["cluster_id"] for c in out] == [
+        "output-heavy-1",
+        "output-heavy-2",
+        "output-heavy-3",
+    ]
+    assert [len(c["passes"]) for c in out] == [1, 1, 1]
+
+
+def test_cluster_override_does_not_affect_other_clusters():
+    src = [
+        _mk_cluster("output-heavy", 3, max_passes_per_worker=1),
+        _mk_cluster("normal", 3),
+    ]
+    out = split_oversized_clusters(src, max_passes=4)
+    assert [c["cluster_id"] for c in out] == [
+        "output-heavy-1",
+        "output-heavy-2",
+        "output-heavy-3",
+        "normal",
+    ]
+
+
+def test_manifest_override_survives_selection_after_pass_filtering(tmp_path):
+    prompt_path = tmp_path / "prompts" / "clusters" / "heavy.md"
+    prompt_path.parent.mkdir(parents=True)
+    prompt_path.write_text("# heavy\n", encoding="utf-8")
+    manifest = {
+        "version": 1,
+        "clusters": [
+            {
+                "cluster_id": "heavy",
+                "prompt": "prompts/clusters/heavy.md",
+                "consolidated": True,
+                "max_passes_per_worker": 1,
+                "gate": "always",
+                "passes": [
+                    {
+                        "bug_class": "filtered",
+                        "prefix": "FILTERED",
+                        "requires": ["has_unsafe"],
+                    },
+                    {"bug_class": "kept-a", "prefix": "KEPTA"},
+                    {"bug_class": "kept-b", "prefix": "KEPTB"},
+                ],
+            }
+        ],
+    }
+
+    selected = build_selection(
+        manifest,
+        plugin_root=tmp_path,
+        flags={
+            "has_unsafe": False,
+            "has_ffi": False,
+            "has_concurrency": False,
+            "has_async": False,
+        },
+        threat_model="REMOTE",
+    )
+    out = split_oversized_clusters(selected, max_passes=4)
+
+    assert [c["cluster_id"] for c in out] == ["heavy-1", "heavy-2"]
+    assert [[p["prefix"] for p in c["passes"]] for c in out] == [["KEPTA"], ["KEPTB"]]
+
+
+@pytest.mark.parametrize("override", [False, "1", 0, -1])
+def test_build_selection_rejects_invalid_manifest_override(tmp_path, override):
+    prompt_path = tmp_path / "prompts" / "clusters" / "heavy.md"
+    prompt_path.parent.mkdir(parents=True)
+    prompt_path.write_text("# heavy\n", encoding="utf-8")
+    manifest = {
+        "version": 1,
+        "clusters": [
+            {
+                "cluster_id": "heavy",
+                "prompt": "prompts/clusters/heavy.md",
+                "consolidated": True,
+                "max_passes_per_worker": override,
+                "gate": "always",
+                "passes": [{"bug_class": "kept", "prefix": "KEPT"}],
+            }
+        ],
+    }
+
+    with pytest.raises(SystemExit) as excinfo:
+        build_selection(
+            manifest,
+            plugin_root=tmp_path,
+            flags={
+                "has_unsafe": False,
+                "has_ffi": False,
+                "has_concurrency": False,
+                "has_async": False,
+            },
+            threat_model="REMOTE",
+        )
+
+    assert excinfo.value.code == 2
+
+
+@pytest.mark.parametrize("override", [False, "1", 0, -1])
+def test_split_rejects_invalid_standalone_override(override):
+    src = [_mk_cluster("invalid", 3, max_passes_per_worker=override)]
+
+    with pytest.raises(ValueError, match="positive integer"):
+        split_oversized_clusters(src, max_passes=4)
+
+
 # --- Identity (disable) case -------------------------------------------------
 
 def test_max_passes_zero_is_identity_no_suffix():
     """N=0 is the explicit 'disable chunking' sentinel — pass through with bare ids."""
-    src = [_mk_cluster("a", 8), _mk_cluster("b", 3)]
+    src = [_mk_cluster("a", 8), _mk_cluster("b", 3, max_passes_per_worker=1)]
     out = split_oversized_clusters(src, max_passes=0)
     assert out == src
 

@@ -23,6 +23,10 @@ def normalize_worker_id(value: str) -> str:
     return f"worker-{int(suffix)}"
 
 
+def flatten_claimed_count_args(values: list[list[str]]) -> list[str]:
+    return [value for group in values for value in group]
+
+
 def parse_claimed_counts(values: list[str]) -> dict[str, int]:
     claimed: dict[str, int] = {}
     for value in values:
@@ -222,9 +226,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--claimed-count",
         action="append",
+        nargs="+",
         default=[],
         metavar="worker-N=N",
-        help="Expected finding count parsed from the worker complete line.",
+        help=(
+            "Expected finding count parsed from worker complete lines. Repeat the flag or "
+            "pass multiple worker-N=N values after one flag."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -232,7 +240,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     try:
-        claimed_counts = parse_claimed_counts(args.claimed_count)
+        claimed_counts = parse_claimed_counts(flatten_claimed_count_args(args.claimed_count))
         errors = validate_plan(
             args.plan_json,
             workers=args.worker,

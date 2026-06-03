@@ -5,7 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from validate_artifacts import validate_plan
+from validate_artifacts import (
+    flatten_claimed_count_args,
+    parse_args,
+    parse_claimed_counts,
+    validate_plan,
+)
 
 
 def _write_plan(tmp_path: Path) -> Path:
@@ -43,6 +48,37 @@ def _write_coverage(tmp_path: Path, rows: list[tuple[str, str, str]]) -> None:
 def _touch_shard(tmp_path: Path, lines: list[str] | None = None) -> None:
     content = "" if lines is None else "\n".join(lines) + "\n"
     (tmp_path / "findings-index.d" / "worker-1.txt").write_text(content, encoding="utf-8")
+
+
+def test_cli_accepts_grouped_claimed_counts(tmp_path: Path) -> None:
+    args = parse_args(
+        [
+            str(tmp_path / "plan.json"),
+            "--claimed-count",
+            "worker-1=0",
+            "worker-2=3",
+        ]
+    )
+
+    counts = parse_claimed_counts(flatten_claimed_count_args(args.claimed_count))
+
+    assert counts == {"worker-1": 0, "worker-2": 3}
+
+
+def test_cli_accepts_repeated_claimed_count_flags(tmp_path: Path) -> None:
+    args = parse_args(
+        [
+            str(tmp_path / "plan.json"),
+            "--claimed-count",
+            "worker-1=0",
+            "--claimed-count",
+            "worker-2=3",
+        ]
+    )
+
+    counts = parse_claimed_counts(flatten_claimed_count_args(args.claimed_count))
+
+    assert counts == {"worker-1": 0, "worker-2": 3}
 
 
 def test_zero_finding_worker_with_cleared_coverage_passes(tmp_path: Path) -> None:

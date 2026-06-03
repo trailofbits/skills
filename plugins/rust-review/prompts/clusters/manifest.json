@@ -37,6 +37,7 @@
       "cluster_id": "concurrency-locking",
       "prompt": "prompts/clusters/concurrency-locking.md",
       "consolidated": true,
+      "max_passes_per_worker": 1,
       "gate": "has_concurrency",
       "passes": [
         { "bug_class": "double-lock-deadlock", "prefix": "DLOCK" },
@@ -78,6 +79,7 @@
       "cluster_id": "recursion-dos",
       "prompt": "prompts/clusters/recursion-dos.md",
       "consolidated": false,
+      "max_passes_per_worker": 1,
       "gate": "always",
       "passes": [
         { "bug_class": "recursive-deserialize-stack-overflow", "prefix": "RECURSEDES",  "prompt": "prompts/general/recursive-deserialize-stack-overflow-finder.md" },

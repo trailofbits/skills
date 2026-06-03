@@ -19,6 +19,11 @@ Inputs (`AskUserQuestion`): threat model, scope subpath (optional), worker model
 
 From these inputs the orchestrator detects Rust capability flags (`has_unsafe`, `has_ffi`, `has_concurrency`, `has_async`) over the scope and selects clusters from `prompts/clusters/manifest.json`. Each cluster groups related bug classes anchored on a shared mental model and runs as one parallel worker.
 
+The planner normally caps workers at four passes each, but output-heavy clusters
+can declare a smaller `max_passes_per_worker` in the manifest. Today
+`concurrency-locking` and `recursion-dos` run one pass per worker to avoid
+losing coverage when inventory-heavy analysis exhausts the worker output budget.
+
 Always-on clusters:
 
 - **unsafe-boundary** (consolidated) — Unsafe Reachability Analysis (URAPI), `transmute` misuse, pointer-cast hazards via `as` (PTRCAST), raw-pointer arithmetic, `#[repr(C)]` layout, enum discriminant and niche validity (ENUMUB), `// SAFETY:` documentation rules, `debug_assert!`-guarded safety invariants.

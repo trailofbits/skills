@@ -156,7 +156,7 @@ python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/build_run_plan.py" \
 
 The script writes `plan.json` + `worker-prompts/worker-N.txt` + (if `--cache-primer=true`, the default) `worker-prompts/cache-primer.txt`, and prints a JSON summary on stdout. Exits non-zero on any missing prompt — surface the message and stop. Typical M: 7 (pure safe Rust, no FFI / concurrency / async), 10 (concurrent safe Rust), 15 (full Rust: unsafe + FFI + concurrency + async). After it returns, `Read plan.json` for the structured selection — never re-derive filtering or paths.
 
-`--max-passes-per-worker N` caps the per-worker pass count. The planner deterministically splits any cluster with more than `N` passes into `ceil(K/N)` contiguous chunks; each chunk becomes its own `rust-review-worker` spawn with a `-{i}`-suffixed `cluster_id` (e.g. `unsafe-boundary-1`, `unsafe-boundary-2`). The shared prompt-cache prefix and `Cluster prompt:` path are byte-identical across chunks, so the cache primer still warms every worker. Default 4 is calibrated against the heavy-tail clusters in `manifest.json`. Pass `--max-passes-per-worker 0` to disable chunking entirely (one worker per cluster).
+`--max-passes-per-worker N` caps the per-worker pass count. The planner deterministically splits any cluster with more than `N` passes into `ceil(K/N)` contiguous chunks; each chunk becomes its own `rust-review-worker` spawn with a `-{i}`-suffixed `cluster_id` (e.g. `unsafe-boundary-1`, `unsafe-boundary-2`). The shared prompt-cache prefix and `Cluster prompt:` path are byte-identical across chunks, so the cache primer still warms every worker. Default 4 is calibrated against the heavy-tail clusters in `manifest.json`. Some output-heavy clusters declare a smaller manifest-level `max_passes_per_worker` override so each expensive pass gets its own worker. Pass `--max-passes-per-worker 0` to disable all chunking, including manifest overrides (one worker per cluster).
 
 ### Phase 5: Create Bookkeeping Tasks (orchestrator-internal)
 
@@ -228,11 +228,23 @@ If any non-retryable, stop. Otherwise re-spawn each `pending` retryable with `at
 
 #### Sanity-check + write index
 
-For every provisional `complete:` cluster, validate the worker-owned shard, coverage file, coverage rows, filed IDs, and claimed finding count against `plan.json` before marking the task completed. Run one command per completed worker, or one command with repeated flags for all provisional completions:
+For every provisional `complete:` cluster, validate the worker-owned shard, coverage file, coverage rows, filed IDs, and claimed finding count against `plan.json` before marking the task completed. Run one command per completed worker, or validate multiple workers in one command. Both claimed-count forms below are valid; do not pass bare `worker-N=N` values without either grouping them after a `--claimed-count` flag or repeating the flag.
 
 ```bash
 python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
   --worker worker-N --claimed-count worker-N=<claimed_count_from_complete_line>
+```
+
+```bash
+python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
+  --worker worker-1 --worker worker-2 \
+  --claimed-count worker-1=0 worker-2=3
+```
+
+```bash
+python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
+  --worker worker-1 --worker worker-2 \
+  --claimed-count worker-1=0 --claimed-count worker-2=3
 ```
 
 If validation exits non-zero, treat the completion as malformed and retryable (classifier row #4): mark the task `pending`, store the validator output in `metadata.abort_reason`, set `needs_respawn=true`, and increment `attempt`. Missing `findings-index.d/worker-N.txt`, missing `coverage/worker-N.md`, missing coverage rows, invalid `skipped:` rows, filed IDs absent from the shard or disk, and claimed-count mismatches are all malformed completions. After the retry cap, leave the cluster task incomplete and surface the validator output in `run-summary.md` and the final response. Only validation-clean provisional completions may be `TaskUpdate`d to `completed`.

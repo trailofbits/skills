@@ -153,7 +153,7 @@ python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/build_run_plan.py" \
 
 The script writes `plan.json` + `worker-prompts/worker-N.txt` + (if `--cache-primer=true`, the default) `worker-prompts/cache-primer.txt`, and prints a JSON summary on stdout. Exits non-zero on any missing prompt — surface the message and stop. Typical M with the default `--max-passes-per-worker 4` (REMOTE, `is_posix=true`): 13 (C POSIX), 15 (C++ POSIX), 16 (C POSIX + Windows), 18 (C++ POSIX + Windows); `LOCAL_UNPRIVILEGED` adds ~1 because `ambient-state` keeps its two REMOTE-skipped passes. After it returns, `Read plan.json` for the structured selection — never re-derive filtering or paths.
 
-`--max-passes-per-worker N` caps the per-worker pass count. The planner deterministically splits any cluster with more than `N` passes into `ceil(K/N)` contiguous chunks; each chunk becomes its own `c-review-worker` spawn with a `-{i}`-suffixed `cluster_id` (e.g. `buffer-write-sinks-1`, `buffer-write-sinks-2`). The shared prompt-cache prefix and `Cluster prompt:` path are byte-identical across chunks, so the cache primer still warms every worker. Default 4 is calibrated against the heavy clusters in `manifest.json` (`buffer-write-sinks` has 13 passes). Pass `--max-passes-per-worker 0` to disable chunking entirely (one worker per cluster, identical to pre-chunking behavior).
+`--max-passes-per-worker N` caps the per-worker pass count. The planner deterministically splits any cluster with more than `N` passes into `ceil(K/N)` contiguous chunks; each chunk becomes its own `c-review-worker` spawn with a `-{i}`-suffixed `cluster_id` (e.g. `buffer-write-sinks-1`, `buffer-write-sinks-2`). The shared prompt-cache prefix and `Cluster prompt:` path are byte-identical across chunks, so the cache primer still warms every worker. Default 4 is calibrated against the heavy clusters in `manifest.json` (`buffer-write-sinks` has 13 passes). Some output-heavy clusters may declare a smaller manifest-level `max_passes_per_worker` override so each expensive pass group gets a smaller worker. Pass `--max-passes-per-worker 0` to disable all chunking, including manifest overrides (one worker per cluster).
 
 ### Phase 5: Create Bookkeeping Tasks (orchestrator-internal)
 
@@ -231,6 +231,22 @@ For every provisional `complete:` cluster, validate the worker-owned shard, cove
 python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
   --worker worker-N --claimed-count worker-N=<claimed_count_from_complete_line>
 ```
+
+Grouped claimed-count values are valid:
+
+```bash
+python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
+  --claimed-count worker-1=0 worker-2=3
+```
+
+Repeated `--claimed-count` flags are also valid:
+
+```bash
+python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
+  --claimed-count worker-1=0 --claimed-count worker-2=3
+```
+
+Do not pass bare `worker-N=N` arguments unless they are grouped after `--claimed-count` or preceded by their own repeated `--claimed-count` flag.
 
 If validation exits non-zero, treat the completion as malformed and retryable (classifier row #4): mark the task `pending`, store the validator output in `metadata.abort_reason`, set `needs_respawn=true`, and increment `attempt`. Missing `findings-index.d/worker-N.txt`, missing `coverage/worker-N.md`, missing coverage rows, invalid `skipped:` rows, filed IDs absent from the shard or disk, and claimed-count mismatches are all malformed completions. After the retry cap, leave the cluster task incomplete and surface the validator output in `run-summary.md` and the final response. Only validation-clean provisional completions may be `TaskUpdate`d to `completed`.
 

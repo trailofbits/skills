@@ -24,6 +24,8 @@ The skill takes the following inputs (collected via `AskUserQuestion`):
 
 From these inputs the orchestrator detects platform/language flags (`is_cpp`, `is_posix`, `is_windows`) over the scope and selects clusters from `prompts/clusters/manifest.json`. Each cluster groups related bug classes — based on C/C++ chapters of [appsec.guide](https://appsec.guide/) — and runs as one parallel worker.
 
+The planner normally caps workers at four passes each. Output-heavy clusters can declare a smaller manifest-level `max_passes_per_worker` override when future runs show a cluster needs finer-grained workers to preserve complete coverage.
+
 Always-on clusters:
 
 - **buffer-write-sinks** — banned/unsafe stdlib calls, format strings, `snprintf` retval, overlapping buffers, `memcpy`/`strncpy`/`strncat` size and termination, `strlen`/`strcpy` pairs, scanf-uninit, flexible arrays, generic string-handling issues, buffer overflows.
