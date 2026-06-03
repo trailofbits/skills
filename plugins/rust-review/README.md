@@ -80,3 +80,7 @@ Default: `$(pwd)/.rust-review-results/<iso-timestamp>/`. Contains:
 
 - [Rustonomicon](https://doc.rust-lang.org/nomicon/) — unsafe invariants
 - [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)
+
+## Authors
+- (Andrea Cappa)[https://github.com/zi0Black] @ Aptos Labs
+- (Paweł Płatek)[https://github.com/GrosQuildu] @ Trail of Bits

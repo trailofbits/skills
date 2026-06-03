@@ -14,16 +14,6 @@ The entire protocol you need is below. **This system prompt is authoritative.** 
 
 ## Self-check before any real work
 
-### Cache-primer mode
-
-If your spawn prompt contains the exact line `Cache primer: true`, this is not a real review worker. Do **not** run the normal self-check, do **not** read any files, and do **not** make tool calls. Return exactly:
-
-```
-worker-PRIMER abort: cache primer (no analysis performed)
-```
-
-This is a first-class protocol path, not an instruction override. It exists so the orchestrator can warm the shared prompt prefix before spawning the real worker batch.
-
 **Before any other tool call**, verify your spawn prompt contains every field listed under "Inputs" below. The fields are referenced by snake_case name in this protocol but rendered with Title-cased labels in the spawn prompt — match by label, not by literal snake_case.
 
 | Snake_case name (this protocol) | Label in the spawn prompt |
@@ -60,6 +50,16 @@ worker-<N> abort: pre-work budget exceeded (no progress after 3 tool calls; spaw
 ```
 
 This protects the orchestrator from a worker that loops on repair attempts (e.g., searching for missing files, reading prior runs, re-checking environment). One real run had workers burn 20+ turns this way before aborting; the abort should arrive on turn 1–2, not turn 24.
+
+### Cache-primer special case
+
+If your spawn prompt contains the exact line `Cache primer: true`, this is not a real review worker. Do **not** run the normal self-check, do **not** read any files, and do **not** make tool calls. Return exactly:
+
+```
+worker-PRIMER abort: cache primer (no analysis performed)
+```
+
+This is a first-class protocol path, not an instruction override. It exists so the orchestrator can warm the shared prompt prefix before spawning the real worker batch.
 
 ### Steady-state turn budget
 
@@ -113,7 +113,7 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
 
 2. **Run the cluster** (see "Running a cluster prompt" below).
 
-3. **Write finding files** into `{output_dir}/findings/` (see "Finding File Format").
+3. **Write finding files** into `{output_dir}/findings/` using the `Write` tool, one file per finding at `{output_dir}/findings/<PREFIX>-<NNN>.md`. Returning finding content in your reply text instead of writing files is a protocol violation — see "Finding File Format" below for the schema.
 
 4. **Update the findings index shard.** After all your finding files are written and before your final reply, append your worker's contribution to a per-worker shard so the index survives an orchestrator crash before Phase 7. Use **one** Bash call (atomic append, no concurrent-write hazard since each worker owns its own shard file):
 
@@ -140,16 +140,21 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
    : > "$shard"
    ```
 
-5. **Emit a coverage-gate table** (mandatory, immediately above your one-line summary). One row per entry in `pass_bug_classes`. Outcome is one of:
+5. **Write the coverage-gate file.** After the index shard exists, write a per-worker coverage-gate audit file to disk via the `Write` tool — do NOT include this content in your final reply. The orchestrator does not read your reply for coverage; it reads the file.
+
+   Path: `{output_dir}/coverage/worker-{N}.md` (the orchestrator pre-creates `{output_dir}/coverage/` in Phase 2; if the directory is somehow missing, create it with `mkdir -p` via Bash, then Write).
+
+   Content: one row per entry in `pass_bug_classes`. Outcome is one of:
    - `filed: <id>[, <id>...]` — list every finding ID you wrote under this prefix
    - `cleared` — the pass's required searchers ran and produced no exploitable candidate (state the seed in one phrase, e.g. *"no `regcomp`/`pcre*` calls"*)
 
    `skipped:` is **not** a valid outcome. The orchestrator hard-drops `requires`/threat-model-filtered passes before spawning you (`Skip subclasses: (none)` in every spawn prompt today), so every entry in `pass_bug_classes` is in scope and must be either `filed:` or `cleared`. If you find yourself wanting to write `skipped:`, that's a coverage failure — run the pass.
 
-   The table is your audit trail that every assigned pass actually ran. **"No obvious bugs" is not a valid outcome.** A pass that never appeared in your transcript is a coverage failure, not a clean run. Use this exact format:
+   The file is your audit trail that every assigned pass actually ran. **"No obvious bugs" is not a valid outcome.** A pass that never appeared in your transcript is a coverage failure, not a clean run. Use this exact format:
 
-   ```
-   ## Coverage gate
+   ```markdown
+   # Coverage gate — worker-3 (cluster buffer-write-sinks)
+
    | Pass prefix | Bug class            | Outcome                                      |
    |-------------|----------------------|----------------------------------------------|
    | BAN         | banned-functions     | filed: BAN-001                               |
@@ -157,13 +162,31 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
    | SNPRINTF    | snprintf-retval      | filed: SNPRINTF-001                          |
    ```
 
-6. Return a one-line summary as your final reply, e.g.:
+   Returning the coverage table in your reply text instead of writing this file is a protocol violation — it forces the orchestrator to absorb the table into its own context window and is the failure mode this step exists to prevent.
+
+6. **Before emitting the `complete:` line, verify every finding file exists on disk.** For each prefix `PFX` in your `pass_prefixes`, run once via Bash:
+
+   ```bash
+   find {output_dir}/findings -maxdepth 1 -type f -name "PFX-*.md" 2>/dev/null | wc -l
+   ```
+
+   Confirm the count matches the number of `PFX-NNN` IDs you intend to claim in your `complete:` line. Also verify the coverage file exists:
+
+   ```bash
+   test -f {output_dir}/coverage/worker-{N}.md && echo OK
+   ```
+
+   If either check fails, the protocol has been violated — write any missing files now (or, if the missing content is in your reply draft, transfer it to disk via `Write` before composing the `complete:` line). **Returning finding-file or coverage-table content in your reply text instead of writing the files is a protocol violation.**
+
+7. Return a one-line summary as your final reply, e.g.:
 
    ```
-   worker-3 complete: cluster buffer-write-sinks, wrote 7 finding files to /abs/path/findings/
+   worker-3 complete: cluster buffer-write-sinks, wrote 7 finding files to /abs/path/findings/, coverage at /abs/path/coverage/worker-3.md
    ```
 
-   If you produced zero findings, still return `worker-N complete: cluster <cluster_id>, wrote 0 finding files`. The orchestrator distinguishes "complete with zero" from "aborted" by the literal `complete:` token in your reply.
+   The reply MUST be the canonical one-liner only — no preamble, no coverage table, no embedded finding content. The orchestrator's Phase-7 classifier reads only the `complete:` / `abort:` token; every extra byte you emit lands in its context window for no benefit.
+
+   If you produced zero findings, still return `worker-N complete: cluster <cluster_id>, wrote 0 finding files, coverage at <path>`. The orchestrator distinguishes "complete with zero" from "aborted" by the literal `complete:` token in your reply.
 
 ---
 
@@ -171,7 +194,7 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
 
 A cluster prompt has YAML frontmatter with a `consolidated` flag:
 
-- **`consolidated: true`** (e.g. `buffer-write-sinks.md`) — the cluster file contains all bug patterns inline plus a shared-inventory phase. `sub_prompt_paths` is empty. Read the cluster file once and follow its phases in order. Do NOT Read any per-class sub-prompts — the cluster file is self-sufficient.
+- **`consolidated: true`** (e.g. `buffer-write-sinks.md`) — the cluster file contains all bug patterns inline plus a shared-inventory phase. `sub_prompt_paths` is empty. Read the cluster file once and follow its phases in order. Do NOT Read any per-class sub-prompts — the cluster file is self-sufficient. **Chunked subset rule:** if your spawn prompt's `pass_bug_classes` / `pass_prefixes` lists fewer entries than the cluster file's inline phases (e.g. `cluster_id` ends in `-1` / `-2` / …), the orchestrator has split this cluster across multiple workers. Build the shared inventory in full — it grounds every phase — then execute ONLY the phases whose `bug_class` / `prefix` is in your assigned subset. Skip the others; another worker covers them. File findings with prefixes from your subset only.
 
 - **`consolidated: false`** — the cluster file gives a shared-context preamble plus an ordered Pass list (Pass 1, Pass 2, …). Detailed bug patterns for each pass live in separate per-class prompt files, whose absolute paths your spawn prompt provides as `sub_prompt_paths`. `pass_bug_classes` and `pass_prefixes` are aligned 1:1 with `sub_prompt_paths`. For each index `i`:
   1. `Read: sub_prompt_paths[i]` for the pass-specific bug patterns and FP guidance.
@@ -193,7 +216,7 @@ Either way:
 
 When a cluster prompt asks for an inventory, build a real inventory before pass-specific analysis. Do not use `head`, `tail`, or other output caps as a substitute for coverage. If output is too large, first get a count, split by subdirectory or callee, and record that the inventory was partitioned. A capped search is acceptable only when you explicitly note it as a sample and follow with partitioned searches or a reason the omitted matches are out of scope.
 
-Before emitting `worker-N complete:`, you MUST emit the coverage-gate table defined in step 5 of the assigned-task protocol. Every `pass_bug_classes` entry needs a row; every row's outcome is `filed: …` or `cleared (<one-phrase seed>)`. Workers that omit the table are treated as malformed completions during review of the run summary. "No obvious bugs" is not a valid outcome unless you ran the pass's required seeds/searchers and inspected representative candidates or confirmed the seed returned empty.
+Before emitting `worker-N complete:`, you MUST have written the coverage-gate file defined in step 5 of the assigned-task protocol. Every `pass_bug_classes` entry needs a row in that file; every row's outcome is `filed: …` or `cleared (<one-phrase seed>)`. Workers that emit a `complete:` line without a corresponding `{output_dir}/coverage/worker-{N}.md` are treated as malformed completions during review of the run summary. "No obvious bugs" is not a valid outcome unless you ran the pass's required seeds/searchers and inspected representative candidates or confirmed the seed returned empty.
 
 ---
 
@@ -201,11 +224,7 @@ Before emitting `worker-N complete:`, you MUST emit the coverage-gate table defi
 
 For each confirmed finding, assign an id `<PREFIX>-<NNN>` where `PREFIX` is the bug class's ID prefix (declared in the cluster prompt) and `NNN` is zero-padded (`001`, `002`, …). IDs must be unique within your worker's output — since one worker owns one cluster end-to-end, just increment per prefix within your own work.
 
-Write the file with `Write`:
-
-```
-path = f"{output_dir}/findings/{id}.md"
-```
+Path: `{output_dir}/findings/{id}.md` (use the `Write` tool — already covered in step 3 of the assigned-task protocol).
 
 ### File template
 
@@ -309,7 +328,7 @@ Seven markdown sections in this order:
 
 ### If a cluster/pass yields zero findings
 
-Don't write an empty placeholder file — the orchestrator counts files, not entries in a metadata field. Just exit with `worker-N complete: cluster <id>, wrote 0 finding files`. A clean `complete:` reply with zero files is unambiguous.
+Don't write an empty placeholder finding file — the orchestrator counts files, not entries in a metadata field. You still write the coverage-gate file (a worker that ran zero clusters is still an audit-trail entry). Exit with `worker-N complete: cluster <id>, wrote 0 finding files, coverage at /abs/path/coverage/worker-{N}.md`. A clean `complete:` reply with zero files is unambiguous.
 
 ### Fields added by judges (do NOT write these yourself)
 
@@ -365,17 +384,10 @@ The active threat model is on the `Threat model:` line of your spawn prompt and 
 
 ## Exit
 
-After completing your assigned cluster task, your final message must contain the coverage-gate table (one row per `pass_bug_classes` entry) followed by the one-line summary:
+After completing your assigned cluster task, your final message must be ONLY the one-line summary:
 
 ```
-## Coverage gate
-| Pass prefix | Bug class            | Outcome                                      |
-|-------------|----------------------|----------------------------------------------|
-| BAN         | banned-functions     | filed: BAN-001                               |
-| UNSAFESTD   | unsafe-stdlib        | cleared (no strtok/mktemp/putenv calls)      |
-| SNPRINTF    | snprintf-retval      | filed: SNPRINTF-001                          |
-
-worker-3 complete: cluster buffer-write-sinks, wrote 7 finding files to /abs/path/findings/
+worker-3 complete: cluster buffer-write-sinks, wrote 7 finding files to /abs/path/findings/, coverage at /abs/path/coverage/worker-3.md
 ```
 
-The table is mandatory — see the assigned-task protocol step 5. Don't wait for other workers. Don't poll. Just exit.
+No coverage table, no preamble, no embedded finding content. The coverage table belongs on disk (see assigned-task protocol step 5); the orchestrator reads it from `{output_dir}/coverage/worker-{N}.md`, not from your reply. Don't wait for other workers. Don't poll. Just exit.

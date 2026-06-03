@@ -244,7 +244,7 @@
     },
     {
       "name": "c-review",
-      "version": "1.1.2",
+      "version": "1.2.0",
       "description": "Comprehensive C/C++ security code review with specialized bug-finding agents covering memory safety, type safety, concurrency, and Linux/Windows userspace-specific issues",
       "author": {
         "name": "Paweł Płatek"
@@ -253,12 +253,10 @@
     },
     {
       "name": "rust-review",
-      "version": "1.6.0",
+      "version": "1.0.0",
       "description": "Comprehensive Rust security code review with specialized bug-finding agents covering the safe/unsafe boundary, memory safety in unsafe blocks, concurrency, panic-induced DoS, recursion-induced stack overflow, FFI, and async runtime hazards",
       "author": {
-        "name": "Trail of Bits",
-        "email": "opensource@trailofbits.com",
-        "url": "https://github.com/trailofbits"
+        "name": "Andrea Cappa & Paweł Płatek"
       },
       "source": "./plugins/rust-review"
     },

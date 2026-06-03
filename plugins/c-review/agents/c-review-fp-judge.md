@@ -199,6 +199,8 @@ out_of_scope: 1
 
 ## Step 5 — `REPORT.md` (markdown, human-facing)
 
+**`REPORT.md` MUST be created via the `Write` tool at `{output_dir}/REPORT.md`. Returning its contents in your final reply instead of writing the file is a protocol violation. Your final reply is the one-liner shown in the Exit section — `REPORT.md` lives on disk only.**
+
 Apply `severity_filter` from `context.md`:
 - `all` → include every surviving finding.
 - `medium` → drop `LOW`.
@@ -242,7 +244,7 @@ reported_findings: 2
 - **FP verdict:** LIKELY_TP — `<fp_rationale>`
 - **Severity rationale:** `<severity_rationale>`
 
-<inline Description / Code / Data flow / Impact / Recommendation from the finding file>
+<embed Description / Code / Data flow / Impact / Recommendation block here — this content becomes part of the REPORT.md file you Write to disk, not part of your reply>
 
 ---
 
@@ -256,7 +258,7 @@ reported_findings: 2
 - `REPORT.sarif` — SARIF 2.1.0 machine-readable export of the same findings
 ```
 
-For each reported finding, inline the key body sections (Description / Code / Data flow / Impact / Recommendation) for `CRITICAL`/`HIGH`; for `MEDIUM`/`LOW` you may summarize and reference the file path.
+For each reported finding, include the key body sections (Description / Code / Data flow / Impact / Recommendation) directly inside the `REPORT.md` file you Write to disk for `CRITICAL`/`HIGH`; for `MEDIUM`/`LOW` you may summarize and reference the file path. "Include in `REPORT.md`" means "embed in the file you write" — never paste finding bodies into your final reply.
 
 ---
 

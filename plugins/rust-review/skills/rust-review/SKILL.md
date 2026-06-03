@@ -142,7 +142,7 @@ Write `${output_dir}/context.md` with: YAML frontmatter (`threat_model`, `severi
 
 **Entry:** capability flags + `threat_model` known; `${output_dir}/findings/` exists. **Exit:** `${output_dir}/plan.json` and `${output_dir}/worker-prompts/*.txt` written; `M = worker_count` known.
 
-Selection, filtering, path resolution, and spawn-prompt rendering are **delegated to the script** to prevent the "orchestrator paraphrases the spawn template and drops fields" failure mode:
+Selection, filtering, path resolution, and spawn-prompt rendering are **delegated to the script** to keep spawn prompts complete and consistent:
 
 ```bash
 python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/build_run_plan.py" \
@@ -156,7 +156,7 @@ python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/build_run_plan.py" \
 
 The script writes `plan.json` + `worker-prompts/worker-N.txt` + (if `--cache-primer=true`, the default) `worker-prompts/cache-primer.txt`, and prints a JSON summary on stdout. Exits non-zero on any missing prompt — surface the message and stop. Typical M: 7 (pure safe Rust, no FFI / concurrency / async), 10 (concurrent safe Rust), 15 (full Rust: unsafe + FFI + concurrency + async). After it returns, `Read plan.json` for the structured selection — never re-derive filtering or paths.
 
-`--max-passes-per-worker N` caps the per-worker pass count. The planner deterministically splits any cluster with more than `N` passes into `ceil(K/N)` contiguous chunks; each chunk becomes its own `rust-review-worker` spawn with a `-{i}`-suffixed `cluster_id` (e.g. `unsafe-boundary-1`, `unsafe-boundary-2`). The shared prompt-cache prefix and `Cluster prompt:` path are byte-identical across chunks, so the cache primer still warms every worker. Default 4 is calibrated against the heavy-tail clusters in `manifest.json`. Pass `--max-passes-per-worker 0` to disable chunking entirely (one worker per cluster, identical to pre-1.5.0 behavior).
+`--max-passes-per-worker N` caps the per-worker pass count. The planner deterministically splits any cluster with more than `N` passes into `ceil(K/N)` contiguous chunks; each chunk becomes its own `rust-review-worker` spawn with a `-{i}`-suffixed `cluster_id` (e.g. `unsafe-boundary-1`, `unsafe-boundary-2`). The shared prompt-cache prefix and `Cluster prompt:` path are byte-identical across chunks, so the cache primer still warms every worker. Default 4 is calibrated against the heavy-tail clusters in `manifest.json`. Pass `--max-passes-per-worker 0` to disable chunking entirely (one worker per cluster).
 
 ### Phase 5: Create Bookkeeping Tasks (orchestrator-internal)
 
@@ -183,7 +183,7 @@ Foreground spawn already serializes — no `sleep` needed before Phase 6b. Skip 
 > Workers MUST be spawned **foreground** (no `run_in_background` field, or `run_in_background=false`).
 > "Parallel" here means *one assistant message containing M `Agent` calls* — that already runs them concurrently. **Background spawns are NOT how you parallelize this skill.**
 >
-> Background spawns defeat Phase 6a's primer cache: every worker pays full cache-creation on its first turn (`cache_read_input_tokens=0`), and the primer's ~15 K tokens are wasted M times over. Two real runs (audit logs available) had exactly this symptom — every worker started with `first_cr=0`.
+> Background spawns defeat Phase 6a's primer cache: every worker pays full cache-creation on its first turn (`cache_read_input_tokens=0`), and the primer's ~15 K tokens are wasted M times over. Two real runs had exactly this symptom — every worker started with `first_cr=0`.
 >
 > Before sending the spawn message, audit your draft: every `Agent` call must have **no** `run_in_background` key. If you wrote `run_in_background=true`, delete it.
 
@@ -206,7 +206,7 @@ The spawn prompt is the single authority. Pass it verbatim — every field is re
 
 **Anti-patterns to reject:**
 
-- **Passing `run_in_background=true`** (the dominant historical defect — see warning above).
+- **Passing `run_in_background=true`** (see warning above).
 - Hand-typing the spawn prompt instead of reading `worker-N.txt`.
 - Inserting Task-related instructions ("first call TaskList", "Assigned task id: <N>"). Workers have no Task tools.
 - Editing the rendered prompt before passing it (trimming "redundant" fields, collapsing pass lists).

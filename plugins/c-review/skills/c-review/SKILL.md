@@ -39,7 +39,7 @@ coordinator: write context.md → build_run_plan.py → TaskCreate × M
           → dedup-judge → fp-judge → SARIF safety net → return REPORT.md
 ```
 
-Output directory contains: `context.md`, `plan.json`, `worker-prompts/`, `findings/`, `findings-index.d/` (per-worker shards), `findings-index.txt`, `run-summary.md`, `dedup-summary.md`, `fp-summary.md`, `REPORT.md`, `REPORT.sarif`.
+Output directory contains: `context.md`, `plan.json`, `worker-prompts/`, `findings/`, `findings-index.d/` (per-worker shards), `findings-index.txt`, `coverage/` (per-worker coverage-gate files), `run-summary.md`, `dedup-summary.md`, `fp-summary.md`, `REPORT.md`, `REPORT.sarif`.
 
 **Path convention:** set `${C_REVIEW_PLUGIN_ROOT}=${CLAUDE_PLUGIN_ROOT}` if that resolves (`Bash: ls "${CLAUDE_PLUGIN_ROOT}/prompts/clusters/buffer-write-sinks.md"`), otherwise `Bash: find ~/.claude -path '*/plugins/c-review/prompts/clusters/buffer-write-sinks.md' -print -quit`.
 
@@ -118,13 +118,15 @@ If absent, suggest CMake `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`/Bear/compiledb to 
 
 ### Phase 2: Output Directory
 
-**Entry:** Phase 1 flags set. **Exit:** absolute `output_dir` resolved; `${output_dir}/findings/` exists.
+**Entry:** Phase 1 flags set. **Exit:** absolute `output_dir` resolved; `${output_dir}/findings/` and `${output_dir}/coverage/` exist.
 
 Resolve an absolute path for `output_dir` (default: `$(pwd)/.c-review-results/$(date -u +%Y%m%dT%H%M%SZ)/`):
 
 ```bash
-mkdir -p "${output_dir}/findings"
+mkdir -p "${output_dir}/findings" "${output_dir}/coverage"
 ```
+
+The `coverage/` subdirectory holds per-worker coverage-gate audit files (`coverage/worker-{N}.md`). Workers write to it instead of embedding the table in their reply — see `agents/c-review-worker.md` step 5.
 
 ### Phase 3: Codebase Context
 
@@ -145,10 +147,13 @@ python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/build_run_plan.py" \
   --plugin-root "${C_REVIEW_PLUGIN_ROOT}" --output-dir "${output_dir}" \
   --threat-model "${threat_model}" --severity-filter "${severity_filter}" \
   --scope-subpath "${finding_scope_root:-.}" --context-roots "${context_roots:-.}" \
-  --is-cpp "${is_cpp}" --is-posix "${is_posix}" --is-windows "${is_windows}"
+  --is-cpp "${is_cpp}" --is-posix "${is_posix}" --is-windows "${is_windows}" \
+  --max-passes-per-worker 4
 ```
 
-The script writes `plan.json` + `worker-prompts/worker-N.txt` + (if `--cache-primer=true`, the default) `worker-prompts/cache-primer.txt`, and prints a JSON summary on stdout. Exits non-zero on any missing prompt — surface the message and stop. Typical M: 7 (C POSIX), 8 (C++ POSIX), 10 (C POSIX + Windows), 11 (C++ POSIX + Windows). After it returns, `Read plan.json` for the structured selection — never re-derive filtering or paths.
+The script writes `plan.json` + `worker-prompts/worker-N.txt` + (if `--cache-primer=true`, the default) `worker-prompts/cache-primer.txt`, and prints a JSON summary on stdout. Exits non-zero on any missing prompt — surface the message and stop. Typical M with the default `--max-passes-per-worker 4` (REMOTE, `is_posix=true`): 13 (C POSIX), 15 (C++ POSIX), 16 (C POSIX + Windows), 18 (C++ POSIX + Windows); `LOCAL_UNPRIVILEGED` adds ~1 because `ambient-state` keeps its two REMOTE-skipped passes. After it returns, `Read plan.json` for the structured selection — never re-derive filtering or paths.
+
+`--max-passes-per-worker N` caps the per-worker pass count. The planner deterministically splits any cluster with more than `N` passes into `ceil(K/N)` contiguous chunks; each chunk becomes its own `c-review-worker` spawn with a `-{i}`-suffixed `cluster_id` (e.g. `buffer-write-sinks-1`, `buffer-write-sinks-2`). The shared prompt-cache prefix and `Cluster prompt:` path are byte-identical across chunks, so the cache primer still warms every worker. Default 4 is calibrated against the heavy clusters in `manifest.json` (`buffer-write-sinks` has 13 passes). Pass `--max-passes-per-worker 0` to disable chunking entirely (one worker per cluster, identical to pre-chunking behavior).
 
 ### Phase 5: Create Bookkeeping Tasks (orchestrator-internal)
 
@@ -243,7 +248,7 @@ fi
 After task updates and index creation, run `TaskList` and write `${output_dir}/run-summary.md` with:
 
 - resolved parameters (`threat_model`, `severity_filter`, `finding_scope_root`, `context_roots`, language/platform flags, compile-commands status)
-- worker outcome table (`worker_n`, `cluster_id`, claimed finding count, shard line count, task status, retry/abort state)
+- worker outcome table (`worker_n`, `cluster_id`, claimed finding count, shard line count, coverage-file path (`coverage/worker-{N}.md`), task status, retry/abort state)
 - `findings-index.txt` line count and any mismatch against worker claims
 - judge status once Phase 8 finishes, or the reason a judge was skipped/failed
 

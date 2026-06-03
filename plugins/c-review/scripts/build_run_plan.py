@@ -100,7 +100,26 @@ def parse_args() -> argparse.Namespace:
             "false to skip and pay full cache-creation on every worker (useful for A/B testing)."
         ),
     )
-    return p.parse_args()
+    p.add_argument(
+        "--max-passes-per-worker",
+        type=int,
+        default=4,
+        help=(
+            "Cap the number of passes assigned to a single worker. Any cluster with more "
+            "passes than this is partitioned deterministically into contiguous chunks, each "
+            "spawned as its own c-review-worker with a -{i}-suffixed cluster_id. Default 4 "
+            "splits the heavy clusters (buffer-write-sinks 13, arithmetic-type 7, "
+            "syscall-retval 7, cpp-semantics 7, ambient-state/static-hygiene 6) and leaves "
+            "the rest unchanged. Pass 0 to disable chunking entirely (one worker per cluster, "
+            "regardless of size). Negative values are rejected."
+        ),
+    )
+    args = p.parse_args()
+    if args.max_passes_per_worker < 0:
+        raise SystemExit(
+            f"--max-passes-per-worker must be >= 0, got {args.max_passes_per_worker}"
+        )
+    return args
 
 
 def fail(msg: str) -> NoReturn:
@@ -207,6 +226,52 @@ def build_selection(
     if not selected:
         fail("no clusters selected after filtering — refusing to start an empty review")
     return selected
+
+
+def split_oversized_clusters(
+    selected: list[dict[str, Any]], *, max_passes: int
+) -> list[dict[str, Any]]:
+    """Partition any cluster whose `passes` exceeds `max_passes` into contiguous chunks.
+
+    Each oversized cluster is replaced by `ceil(K / max_passes)` pseudo-cluster
+    entries, in manifest pass order. Each chunk shares the source cluster's
+    `cluster_prompt` and `consolidated` flag; its `cluster_id` is the source id
+    with a `-{i}` suffix (1-indexed). Clusters whose pass count is already
+    within `max_passes` pass through with bare `cluster_id` and an identical
+    `passes` list.
+
+    `max_passes == 0` is the explicit "disable chunking" sentinel: the input
+    list is returned unchanged. `max_passes < 0` is rejected as a programmer
+    error — the CLI layer must enforce `>= 0` before calling.
+
+    The transformation is pure and deterministic: same input + same
+    `max_passes` always yields an identical list. No randomization, no I/O.
+    """
+    if max_passes < 0:
+        raise ValueError(f"max_passes must be >= 0, got {max_passes}")
+    if max_passes == 0:
+        return selected
+
+    out: list[dict[str, Any]] = []
+    for cluster in selected:
+        passes = cluster["passes"]
+        k = len(passes)
+        if k <= max_passes:
+            out.append(cluster)
+            continue
+        # Greedy left-to-right contiguous partition.
+        n_chunks = (k + max_passes - 1) // max_passes
+        for i in range(n_chunks):
+            chunk_passes = passes[i * max_passes : (i + 1) * max_passes]
+            out.append(
+                {
+                    "cluster_id": f"{cluster['cluster_id']}-{i + 1}",
+                    "consolidated": cluster["consolidated"],
+                    "cluster_prompt": cluster["cluster_prompt"],
+                    "passes": chunk_passes,
+                }
+            )
+    return out
 
 
 def _render_shared_prefix_lines(
@@ -442,6 +507,9 @@ def main() -> int:
     flags = {"is_cpp": args.is_cpp, "is_posix": args.is_posix, "is_windows": args.is_windows}
     selected = build_selection(
         manifest, plugin_root=plugin_root, flags=flags, threat_model=args.threat_model
+    )
+    selected = split_oversized_clusters(
+        selected, max_passes=args.max_passes_per_worker
     )
 
     context_md_path = output_dir / "context.md"

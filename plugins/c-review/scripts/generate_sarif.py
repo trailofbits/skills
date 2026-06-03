@@ -90,6 +90,7 @@ RULE_DESCRIPTIONS = {
     "token-privilege": "Windows token or privilege misuse",
     "type-confusion": "Type confusion or unsafe cast",
     "undefined-behavior": "Undefined behavior",
+    "uninitialized-data": "Use of uninitialized memory",
     "unsafe-stdlib": "Unsafe standard library use",
     "use-after-free": "Use-after-free or double free",
     "va-start-end": "va_list lifecycle misuse",

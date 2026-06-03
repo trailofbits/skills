@@ -59,7 +59,7 @@ If your spawn prompt contains the exact line `Cache primer: true`, this is not a
 worker-PRIMER abort: cache primer (no analysis performed)
 ```
 
-This is a first-class protocol path, not an instruction override. It exists so the orchestrator can warm the shared prompt prefix before spawning the real worker batch. It is intentionally placed below the normal self-check and pre-work budget so a non-primer worker does not begin its prompt under a global "no tool calls" rule.
+This is a first-class protocol path, not an instruction override. It exists so the orchestrator can warm the shared prompt prefix before spawning the real worker batch.
 
 ### Steady-state turn budget
 
@@ -74,7 +74,7 @@ Once you've passed the pre-work self-check and started real cluster work, keep a
 
   This still parses as a `complete:` reply — the orchestrator will not retry. The truncation note is for the human reader of the run summary.
 
-The caps are deliberately wide. A typical clean run is 50–150 tool calls; one historical run had a worker burn 392 calls on a single cluster, which is the failure mode this cap exists to bound. Do **not** engineer your work to fit the hard cap — most clusters should finish well below the soft cap.
+The caps are deliberately wide. A typical clean run is 50–150 tool calls. Do **not** engineer your work to fit the hard cap — most clusters should finish well below the soft cap.
 
 ---
 
@@ -162,7 +162,7 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
    | UNINITREAD  | uninitialized-read   | filed: UNINITREAD-001                        |
    ```
 
-   Returning the coverage table in your reply text instead of writing this file is a protocol violation — it forces the orchestrator to absorb the table into its own context window and is the failure mode this step exists to prevent.
+   Returning the coverage table in your reply text instead of writing this file is a protocol violation — it forces the orchestrator to absorb the table into its own context window.
 
 6. **Before emitting the `complete:` line, verify every finding file exists on disk.** For each prefix `PFX` in your `pass_prefixes`, run once via Bash:
 
