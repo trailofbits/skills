@@ -252,6 +252,17 @@
       "source": "./plugins/c-review"
     },
     {
+      "name": "rust-review",
+      "version": "1.6.0",
+      "description": "Comprehensive Rust security code review with specialized bug-finding agents covering the safe/unsafe boundary, memory safety in unsafe blocks, concurrency, panic-induced DoS, recursion-induced stack overflow, FFI, and async runtime hazards",
+      "author": {
+        "name": "Trail of Bits",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/rust-review"
+    },
+    {
       "name": "modern-python",
       "version": "1.5.0",
       "description": "Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools.",
