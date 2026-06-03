@@ -98,13 +98,13 @@ Probe within `${finding_scope_root:-.}`. Prefer `Glob`/`Grep`; fall back to `Bas
 find "${finding_scope_root:-.}" -name '*.rs' -print -quit
 
 # has_unsafe
-grep -rlE '\bunsafe\s*(\{|fn|impl|trait)\b' --include='*.rs' "${finding_scope_root:-.}" | head -1
+grep -rlE '\bunsafe\s+(extern|fn|impl|trait)\b|\bunsafe\s*\{' --include='*.rs' "${finding_scope_root:-.}" | head -1
 
 # has_ffi
 grep -rlE 'extern\s+"C"|#\[repr\(C\)\]|use\s+(libc|core::ffi|cty)' --include='*.rs' "${finding_scope_root:-.}" | head -1
 
 # has_concurrency
-grep -rlE '\b(std::(thread|sync)|parking_lot::|crossbeam|rayon::|tokio::sync)' --include='*.rs' "${finding_scope_root:-.}" | head -1
+grep -rlE '\b(std::(thread|sync)|parking_lot::|crossbeam|rayon::|tokio::sync|core::sync::atomic|std::sync::atomic|Atomic[A-Za-z0-9_]*|UnsafeCell|static\s+mut|unsafe\s+impl\s+(Send|Sync)|memmap2::|Mmap(Options|Mut)?|MAP_SHARED|shm_open|mmap\s*\()' --include='*.rs' "${finding_scope_root:-.}" | head -1
 
 # has_async
 grep -rlE '\basync\s+(fn|move|\{)|\.await\b|tokio::|async_std::|futures::' --include='*.rs' "${finding_scope_root:-.}" | head -1
@@ -219,7 +219,7 @@ The Phase-6 `Agent` invocations block until each worker returns. Inspect each wo
 
 | # | Match (in return text) | Outcome | Action |
 |---|---|---|---|
-| 1 | `worker-N complete:` | **success** | `TaskUpdate` to `completed`. |
+| 1 | `worker-N complete:` | **provisional success** | Parse the `wrote N finding files` count, then run the artifact validator below before `TaskUpdate` to `completed`. |
 | 2 | `abort: spawn prompt malformed`, `abort: pre-work budget exceeded`, or `abort: TaskList unavailable` (legacy) | **non-retryable orchestrator bug** | Stop the run, surface the abort + spawn-prompt path. Re-running the same prompt repeats the failure — pre-work-budget exhaustion always means the worker couldn't pass its self-check, which a retry won't fix. |
 | 3 | other `worker-N abort:` | **retryable** | Mark `pending`, set `metadata.abort_reason`, `needs_respawn=true`, increment `attempt`. |
 | 4 | `Agent` errored or no `complete:`/`abort:` token | **retryable** | Same as #3 (transient worker crash). |
@@ -228,7 +228,14 @@ If any non-retryable, stop. Otherwise re-spawn each `pending` retryable with `at
 
 #### Sanity-check + write index
 
-For every `complete:` cluster, list `${output_dir}/findings/${prefix}-*.md` for each `pass_prefix` (from `plan.json`). A worker that says "wrote N finding files" with N>0 but zero files on disk is **suspicious** — treat as retryable (classifier row #4). Zero claimed + zero on disk is fine.
+For every provisional `complete:` cluster, validate the worker-owned shard, coverage file, coverage rows, filed IDs, and claimed finding count against `plan.json` before marking the task completed. Run one command per completed worker, or one command with repeated flags for all provisional completions:
+
+```bash
+python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
+  --worker worker-N --claimed-count worker-N=<claimed_count_from_complete_line>
+```
+
+If validation exits non-zero, treat the completion as malformed and retryable (classifier row #4): mark the task `pending`, store the validator output in `metadata.abort_reason`, set `needs_respawn=true`, and increment `attempt`. Missing `findings-index.d/worker-N.txt`, missing `coverage/worker-N.md`, missing coverage rows, invalid `skipped:` rows, filed IDs absent from the shard or disk, and claimed-count mismatches are all malformed completions. After the retry cap, leave the cluster task incomplete and surface the validator output in `run-summary.md` and the final response. Only validation-clean provisional completions may be `TaskUpdate`d to `completed`.
 
 Then build the index — workers wrote per-worker shards under `${output_dir}/findings-index.d/`, prefer those:
 

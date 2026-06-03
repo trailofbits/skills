@@ -195,7 +195,18 @@ def parse_context(output_dir: Path) -> dict[str, Any]:
 
 def iter_findings(output_dir: Path) -> list[dict[str, Any]]:
     findings = []
-    for path in sorted((output_dir / "findings").glob("*.md")):
+    index_path = output_dir / "findings-index.txt"
+    if index_path.exists():
+        paths = [
+            Path(line.strip())
+            for line in index_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    else:
+        paths = sorted((output_dir / "findings").glob("*.md"))
+    for path in paths:
+        if not path.is_absolute():
+            path = output_dir / path
         frontmatter, _ = split_frontmatter(path.read_text(encoding="utf-8"))
         frontmatter["_path"] = str(path)
         findings.append(frontmatter)

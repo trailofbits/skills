@@ -272,7 +272,7 @@ Do **not** hand-write SARIF JSON. After all primary finding frontmatter has `fp_
 python3 "{sarif_generator_path}" "{output_dir}"
 ```
 
-The generator reads `{output_dir}/context.md` and `findings/*.md`, applies the same `severity_filter` used for `REPORT.md`, includes only survivor primaries (`TRUE_POSITIVE` / `LIKELY_TP`, no `merged_into`), and writes `{output_dir}/REPORT.sarif`.
+The generator reads `{output_dir}/context.md` and the canonical `findings-index.txt` when present (falling back to `findings/*.md` only if the index is absent), applies the same `severity_filter` used for `REPORT.md`, includes only survivor primaries (`TRUE_POSITIVE` / `LIKELY_TP`, no `merged_into`), and writes `{output_dir}/REPORT.sarif`.
 
 If the command fails, surface the error in your final response and do not invent a SARIF file manually. If no findings pass the filter, the generator still writes a valid SARIF file with `"results": []`.
 

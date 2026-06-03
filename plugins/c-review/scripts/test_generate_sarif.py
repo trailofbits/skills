@@ -17,16 +17,17 @@ def _write_finding(
     title: str,
     location: str,
     severity: str = "HIGH",
-    fp_verdict: str = "TRUE_POSITIVE",
+    fp_verdict: str | None = "TRUE_POSITIVE",
 ) -> None:
     findings_dir.mkdir(parents=True, exist_ok=True)
+    fp_line = f"fp_verdict: {fp_verdict}\n" if fp_verdict is not None else ""
     content = f"""---
 id: {fid}
 bug_class: {bug_class}
 title: {title}
 location: {location}
 severity: {severity}
-fp_verdict: {fp_verdict}
+{fp_line}\
 confidence: High
 attack_vector: Remote
 exploitability: Reliable
@@ -93,6 +94,39 @@ def test_build_sarif_result_rule_id_matches_bug_class(output_dir: Path) -> None:
         "Missing bounds check in parse_header"
     )
     assert by_rule["type-confusion"]["properties"]["bug_class"] == "type-confusion"
+
+
+def test_build_sarif_uses_canonical_findings_index(tmp_path: Path) -> None:
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n",
+        encoding="utf-8",
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="BOF-001",
+        bug_class="buffer-overflow",
+        title="Indexed judged finding",
+        location="src/net/parse.c:142",
+    )
+    _write_finding(
+        findings,
+        fid="UAF-001",
+        bug_class="use-after-free",
+        title="Orphaned unjudged finding",
+        location="src/net/parse.c:199",
+        fp_verdict=None,
+    )
+    (tmp_path / "findings-index.txt").write_text(
+        f"{findings / 'BOF-001.md'}\n\n",
+        encoding="utf-8",
+    )
+
+    sarif = build_sarif(tmp_path)
+
+    results = sarif["runs"][0]["results"]
+    assert [r["properties"]["finding_id"] for r in results] == ["BOF-001"]
+    assert results[0]["properties"]["unjudged"] is False
 
 
 def test_build_sarif_empty_findings(tmp_path: Path) -> None:

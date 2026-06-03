@@ -176,7 +176,7 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
    test -f {output_dir}/coverage/worker-{N}.md && echo OK
    ```
 
-   If either check fails, the protocol has been violated — write any missing files now (or, if the missing content is in your reply draft, transfer it to disk via `Write` before composing the `complete:` line). **Returning finding-file or coverage-table content in your reply text instead of writing the files is a protocol violation.**
+   If either check fails, the protocol has been violated — write any missing files now, transferring any finding or coverage content still sitting in your reply draft to disk via `Write`, before composing the `complete:` line. Your shard, coverage rows, and finding files are validated before `complete:` is accepted: missing artifacts, missing coverage rows, `skipped:` outcomes, filed IDs absent from the shard or disk, and claimed-count mismatches are all rejected. **Returning finding-file or coverage-table content in your reply text instead of writing the files is a protocol violation.**
 
 7. Return a one-line summary as your final reply, e.g.:
 
@@ -216,7 +216,7 @@ Either way:
 
 When a cluster prompt asks for an inventory, build a real inventory before pass-specific analysis. Do not use `head`, `tail`, or other output caps as a substitute for coverage. If output is too large, first get a count, split by subdirectory or callee, and record that the inventory was partitioned. A capped search is acceptable only when you explicitly note it as a sample and follow with partitioned searches or a reason the omitted matches are out of scope.
 
-Before emitting `worker-N complete:`, you MUST have written the coverage-gate file defined in step 5 of the assigned-task protocol. Every `pass_bug_classes` entry needs a row in that file; every row's outcome is `filed: …` or `cleared (<one-phrase seed>)`. Workers that emit a `complete:` line without a corresponding `{output_dir}/coverage/worker-{N}.md` are treated as malformed completions during review of the run summary. "No obvious bugs" is not a valid outcome unless you ran the pass's required seeds/searchers and inspected representative candidates or confirmed the seed returned empty.
+Before emitting `worker-N complete:`, you MUST have written the coverage-gate file defined in step 5 of the assigned-task protocol. Every `pass_bug_classes` entry needs a row in that file; every row's outcome is `filed: …` or `cleared (<one-phrase seed>)`. Workers that emit a `complete:` line without a corresponding `{output_dir}/coverage/worker-{N}.md` are rejected by the artifact validator. "No obvious bugs" is not a valid outcome unless you ran the pass's required seeds/searchers and inspected representative candidates or confirmed the seed returned empty.
 
 ---
 
