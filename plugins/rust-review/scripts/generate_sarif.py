@@ -3,7 +3,7 @@
 # requires-python = ">=3.13"
 # dependencies = []
 # ///
-"""Generate c-review SARIF from finding frontmatter.
+"""Generate rust-review SARIF from finding frontmatter.
 
 Usage:
     python3 generate_sarif.py /path/to/output_dir
@@ -33,71 +33,79 @@ SURVIVOR_VERDICTS = {"TRUE_POSITIVE", "LIKELY_TP"}
 UNJUDGED_FALLBACK_VERDICT = "LIKELY_TP"
 CONFIDENCE_TO_SEVERITY = {"HIGH": "MEDIUM", "MEDIUM": "MEDIUM", "LOW": "LOW"}
 
+# Rust bug_class slugs from prompts/clusters/manifest.json.
 RULE_DESCRIPTIONS = {
-    "access-control": "Missing or incorrect authorization check",
-    "banned-functions": "Use of banned or deprecated C/C++ APIs",
-    "buffer-overflow": "Out-of-bounds write to a buffer",
-    "compiler-bugs": "Compiler-optimization-sensitive undefined behavior",
-    "createprocess": "Windows CreateProcess or process launch misuse",
-    "cross-process": "Unsafe cross-process handle or memory operation",
-    "dll-planting": "DLL search-order hijacking risk",
-    "dos": "Denial of service vulnerability",
-    "eintr-handling": "Missing EINTR handling",
-    "envvar": "Unsafe environment variable handling",
-    "errno-handling": "Incorrect errno handling",
-    "error-handling": "Missing or incorrect error handling",
-    "exception-safety": "C++ exception safety issue",
-    "exploit-mitigations": "Missing or misconfigured exploit mitigation",
-    "filesystem-issues": "Filesystem race or path handling issue",
-    "flexible-array": "Flexible array or struct-size misuse",
-    "format-string": "Format string vulnerability",
-    "half-closed-socket": "Half-closed socket handling issue",
-    "inet-aton": "Legacy IPv4 parsing API misuse",
-    "init-order": "C++ static initialization order issue",
-    "integer-overflow": "Integer overflow or wraparound",
-    "installer-race": "Windows installer filesystem race",
-    "iterator-invalidation": "C++ iterator invalidation",
-    "lambda-capture": "Unsafe C++ lambda capture lifetime",
-    "memcpy-size": "Incorrect memcpy or memory operation size",
-    "memory-leak": "Memory leak on security-relevant path",
-    "move-semantics": "C++ move semantics misuse",
-    "named-pipe": "Windows named pipe security issue",
-    "negative-retval": "Negative return value used unsafely",
-    "null-deref": "Null pointer dereference",
-    "null-zero": "NULL or zero confusion",
-    "oob-comparison": "Out-of-bounds comparison",
-    "open-issues": "File open or creation misuse",
-    "operator-precedence": "Operator precedence issue",
-    "overlapping-buffers": "Overlapping memory operation buffers",
-    "printf-attr": "Missing printf-format attribute",
-    "privilege-drop": "Privilege drop flaw",
-    "qsort": "qsort or comparator misuse",
-    "race-condition": "Race condition or inconsistent synchronization",
-    "regex-issues": "Regex safety issue",
-    "scanf-uninit": "scanf leaves target uninitialized",
-    "service-security": "Windows service security issue",
-    "signal-handler": "Unsafe signal handler",
-    "smart-pointer": "C++ smart pointer misuse",
-    "snprintf-retval": "snprintf return value misuse",
-    "socket-disconnect": "Socket disconnect handling issue",
-    "spinlock-init": "Uninitialized lock primitive",
-    "string-issues": "String encoding or termination issue",
-    "strlen-strcpy": "strlen/strcpy size mismatch",
-    "strncat-misuse": "strncat size argument misuse",
-    "strncpy-termination": "strncpy missing termination",
-    "thread-safety": "Thread safety issue",
-    "time-issues": "Time handling issue",
-    "token-privilege": "Windows token or privilege misuse",
-    "type-confusion": "Type confusion or unsafe cast",
-    "undefined-behavior": "Undefined behavior",
-    "uninitialized-data": "Use of uninitialized memory",
-    "unsafe-stdlib": "Unsafe standard library use",
-    "use-after-free": "Use-after-free or double free",
-    "va-start-end": "va_list lifecycle misuse",
-    "virtual-function": "C++ virtual function misuse",
-    "windows-alloc": "Windows allocation API misuse",
-    "windows-crypto": "Windows cryptography API misuse",
-    "windows-path": "Windows path handling issue",
+    # unsafe-boundary
+    "unsafe-reaching-api": "Safe API reaches unsafe without a sound boundary proof",
+    "transmute-misuse": "Incorrect mem::transmute or transmute_copy usage",
+    "raw-pointer-arith": "Raw pointer arithmetic without proven bounds or validity",
+    "repr-c-layout": "Unsound #[repr(C)] layout for FFI or foreign memory",
+    "safety-doc": "Missing or incorrect // SAFETY: at an unsafe site",
+    "debug-assert-safety": "debug_assert! is the only safety invariant in release builds",
+    "pointer-cast": "Unsound cast via `as` between pointers, integers, or enums",
+    "enum-discriminant": "Invalid enum discriminant or niche read/write",
+    # memory-safety
+    "use-after-free": "Use-after-free via dangled raw pointer",
+    "double-free": "Double free via ptr::read or duplicate drop",
+    "invalid-free": "Invalid free via write to uninitialized memory",
+    "uninitialized-read": "Read from MaybeUninit before assume_init",
+    "buffer-overflow-unsafe": "Safe index or size flows into unchecked unsafe access",
+    "union-ub": "Undefined behavior from union field misuse",
+    "vec-set-len-uninit": "Vec length advanced without initializing new elements",
+    "panic-unwind-unsafe": "Panic during unsafe container mutation leaves stale metadata",
+    # concurrency-locking
+    "double-lock-deadlock": "MutexGuard double-lock from lexical scope",
+    "abba-deadlock": "ABBA lock ordering deadlock",
+    "condvar-misuse": "Condvar wait without a matching notifier",
+    "channel-starvation": "Channel send or receive starvation or deadlock",
+    "once-reentrancy": "Once::call_once reentrancy hazard",
+    "reentrancy-unsafe": "Signal handler or callback reentrancy across unsafe code",
+    # concurrency-data-race
+    "atomic-race": "Non-atomic read-modify-write race on shared state",
+    "unsafe-sync-impl": "unsafe impl Sync over interior mutability",
+    "send-sync-bounds": "Missing or incorrect Send or Sync bounds",
+    "shared-memory-race": "Cross-process shared memory data race",
+    "static-mut-race": "Unsynchronized read or write of static mut across threads",
+    # panic-dos
+    "resource-exhaustion": "CPU or memory exhaustion DoS on untrusted input",
+    "unwrap-on-untrusted": "unwrap or expect on attacker-controlled input",
+    "arithmetic-overflow": "Integer overflow on an attacker-reachable path",
+    "assertion-reachable": "Attacker-reachable assert! or unreachable! panic",
+    "out-of-bounds-index": "Slice or vector index without bounds check on untrusted input",
+    "str-slice-boundary": "str slice or split_at panic off a UTF-8 char boundary",
+    # recursion-dos
+    "recursive-deserialize-stack-overflow": "Unbounded recursive Deserialize stack overflow",
+    "recursive-format-stack-overflow": "Recursive Display, Debug, or Serialize stack overflow",
+    "recursive-drop-stack-overflow": "Implicit recursive Drop of Box<Self> chain",
+    # error-handling
+    "result-discarded": "Security-relevant Result discarded without handling",
+    "drop-panic": "Panic inside a Drop implementation",
+    "lossy-from-into": "Lossy From, Into, or as conversion",
+    "lossy-str-conversion": "Lossy UTF-8 or OS string or path conversion",
+    # logic-correctness
+    "ord-eq-hash": "Ord, Eq, or Hash invariant violation",
+    "adversarial-trait": "Hostile generic trait impl breaks invariants",
+    "closure-panic": "Closure may panic across unsafe scaffolding",
+    "float-edge": "NaN or Inf float comparison or ordering edge case",
+    # ffi-cross-language
+    "cstring-dangling": "CString::as_ptr used after CString is dropped",
+    "abi-mismatch": "FFI ABI signature or calling convention mismatch",
+    "repr-c-padding": "#[repr(C)] padding leaks uninitialized data",
+    "packed-field-ref": "Reference to field of repr(packed) struct",
+    "opaque-pointer": "Opaque pointer ownership confusion across FFI",
+    "foreign-drop": "Mismatched drop of FFI-allocated memory",
+    "closure-ffi": "Rust closure across extern C without catch_unwind",
+    "dyn-trait-ffi": "dyn Trait fat pointer unsafely crosses FFI",
+    # async-runtime
+    "async-blocking": "Blocking call inside an async runtime",
+    "cancel-safety": "Cancellation-unsafe .await sequence",
+    "select-bias": "tokio::select! branch bias or fairness issue",
+    # static-hygiene
+    "cargo-lint-config": "Cargo lint config weakens safety checks",
+    "msrv-mismatch": "MSRV or edition mismatch with APIs in use",
+    "deprecated-api": "Deprecated unsafe API (e.g. mem::uninitialized)",
+    # resource-handling
+    "raw-fd-lifecycle": "Raw file descriptor double-close or leak",
 }
 
 
@@ -295,7 +303,7 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
                 "ruleId": str(finding.get("bug_class", "unknown")),
                 "level": sarif_level(severity),
                 "message": {
-                    "text": str(finding.get("title") or finding.get("id") or "c-review finding")
+                    "text": str(finding.get("title") or finding.get("id") or "rust-review finding")
                 },
                 "locations": [
                     {
@@ -328,8 +336,8 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
             {
                 "tool": {
                     "driver": {
-                        "name": "c-review",
-                        "informationUri": "https://github.com/trailofbits/skills/tree/main/plugins/c-review",
+                        "name": "rust-review",
+                        "informationUri": "https://github.com/trailofbits/skills/tree/main/plugins/rust-review",
                         "rules": rules,
                     }
                 },
@@ -349,7 +357,7 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate REPORT.sarif for a c-review output dir")
+    parser = argparse.ArgumentParser(description="Generate REPORT.sarif for a rust-review output dir")
     parser.add_argument("output_dir", type=Path)
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()

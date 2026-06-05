@@ -3,7 +3,7 @@
 # requires-python = ">=3.13"
 # dependencies = []
 # ///
-"""Build a deterministic c-review run plan.
+"""Build a deterministic rust-review run plan.
 
 Reads ``prompts/clusters/manifest.json`` plus run-level flags, applies gate +
 per-pass filtering, verifies every referenced prompt resolves on disk, and
@@ -22,13 +22,13 @@ output without further validation.
 
 Usage:
     python3 build_run_plan.py \\
-        --plugin-root /abs/plugins/c-review \\
-        --output-dir /abs/.c-review-results/<ts> \\
+        --plugin-root /abs/plugins/rust-review \\
+        --output-dir /abs/.rust-review-results/<ts> \\
         --threat-model REMOTE \\
         --severity-filter medium \\
         --scope-subpath src \\
         --context-roots . \\
-        --is-cpp false --is-posix true --is-windows false
+        --has-unsafe false --has-ffi true --has-concurrency true --has-async false
 """
 
 from __future__ import annotations
@@ -41,8 +41,8 @@ from typing import Any, NoReturn
 
 THREAT_MODELS = {"REMOTE", "LOCAL_UNPRIVILEGED", "BOTH"}
 SEVERITY_FILTERS = {"all", "medium", "high"}
-GATE_VALUES = {"always", "is_cpp", "is_windows"}
-KNOWN_REQUIRES = {"is_cpp", "is_posix", "is_windows"}
+GATE_VALUES = {"always", "has_unsafe", "has_ffi", "has_concurrency", "has_async"}
+KNOWN_REQUIRES = {"has_unsafe", "has_ffi", "has_concurrency", "has_async"}
 
 
 def parse_bool(value: str) -> bool:
@@ -62,7 +62,7 @@ def parse_args() -> argparse.Namespace:
         "--plugin-root",
         required=True,
         type=Path,
-        help="Absolute path to the c-review plugin root (contains prompts/clusters/manifest.json)",
+        help="Absolute path to the rust-review plugin root (contains prompts/clusters/manifest.json)",
     )
     p.add_argument(
         "--output-dir", required=True, type=Path, help="Absolute path to the run's output directory"
@@ -81,9 +81,10 @@ def parse_args() -> argparse.Namespace:
             "remain limited to --scope-subpath."
         ),
     )
-    p.add_argument("--is-cpp", required=True, type=parse_bool)
-    p.add_argument("--is-posix", required=True, type=parse_bool)
-    p.add_argument("--is-windows", required=True, type=parse_bool)
+    p.add_argument("--has-unsafe", required=True, type=parse_bool)
+    p.add_argument("--has-ffi", required=True, type=parse_bool)
+    p.add_argument("--has-concurrency", required=True, type=parse_bool)
+    p.add_argument("--has-async", required=True, type=parse_bool)
     p.add_argument(
         "--manifest",
         type=Path,
@@ -107,13 +108,11 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Cap the number of passes assigned to a single worker. Any cluster with more "
             "passes than this is partitioned deterministically into contiguous chunks, each "
-            "spawned as its own c-review-worker with a -{i}-suffixed cluster_id. Clusters "
+            "spawned as its own rust-review-worker with a -{i}-suffixed cluster_id. Clusters "
             "may declare a smaller manifest-level max_passes_per_worker for output-heavy "
-            "coverage. Default 4 splits the heavy clusters (buffer-write-sinks 13, "
-            "arithmetic-type 7, syscall-retval 7, cpp-semantics 7, "
-            "ambient-state/static-hygiene 6) and leaves the rest unchanged. Pass 0 to "
-            "disable all chunking, including manifest overrides. Negative values are "
-            "rejected."
+            "coverage. Default 4 splits the broad heavy-tail clusters and leaves most clusters "
+            "unchanged. Pass 0 to disable all chunking, including manifest overrides. Negative "
+            "values are rejected."
         ),
     )
     args = p.parse_args()
@@ -129,13 +128,11 @@ def fail(msg: str) -> NoReturn:
     sys.exit(2)
 
 
-def gate_passes(cluster_gate: str, *, is_cpp: bool, is_windows: bool) -> bool:
+def gate_passes(cluster_gate: str, *, flags: dict[str, bool]) -> bool:
     if cluster_gate == "always":
         return True
-    if cluster_gate == "is_cpp":
-        return is_cpp
-    if cluster_gate == "is_windows":
-        return is_windows
+    if cluster_gate in flags:
+        return flags[cluster_gate]
     fail(f"unknown cluster gate {cluster_gate!r}")
 
 
@@ -176,7 +173,7 @@ def build_selection(
         gate = cluster.get("gate")
         if gate not in GATE_VALUES:
             fail(f"cluster {cid!r}: invalid gate {gate!r}")
-        if not gate_passes(gate, is_cpp=flags["is_cpp"], is_windows=flags["is_windows"]):
+        if not gate_passes(gate, flags=flags):
             continue
         try:
             cluster_max_passes = cluster_max_passes_per_worker(cluster, cid=cid)
@@ -265,8 +262,8 @@ def split_oversized_clusters(
     chunking is enabled, that positive integer overrides the global max for
     only that cluster.
 
-    The transformation is pure and deterministic: same input + same
-    `max_passes` always yields an identical list. No randomization, no I/O.
+    The transformation is pure and deterministic: same input + same `max_passes`
+    always yields an identical list. No randomization, no I/O.
     """
     if max_passes < 0:
         raise ValueError(f"max_passes must be >= 0, got {max_passes}")
@@ -321,7 +318,7 @@ def _render_shared_prefix_lines(
     trailers afterwards.
     """
     lines: list[str] = []
-    lines.append("You are a c-review worker on a parallel C/C++ security review.")
+    lines.append("You are a rust-review worker on a parallel Rust security review.")
     lines.append("Follow the protocol in your system prompt verbatim.")
     lines.append("")
     lines.append(f"Output directory: {output_dir}")
@@ -337,9 +334,10 @@ def _render_shared_prefix_lines(
     lines.append(f"Threat model: {threat_model}")
     lines.append(f"Severity filter: {severity_filter}")
     lines.append(
-        f"Codebase: is_cpp={'true' if flags['is_cpp'] else 'false'}, "
-        f"is_posix={'true' if flags['is_posix'] else 'false'}, "
-        f"is_windows={'true' if flags['is_windows'] else 'false'}"
+        f"Codebase: has_unsafe={'true' if flags['has_unsafe'] else 'false'}, "
+        f"has_ffi={'true' if flags['has_ffi'] else 'false'}, "
+        f"has_concurrency={'true' if flags['has_concurrency'] else 'false'}, "
+        f"has_async={'true' if flags['has_async'] else 'false'}"
     )
     lines.append("")
     lines.append("<context>")
@@ -533,7 +531,12 @@ def main() -> int:
     args = parse_args()
     plugin_root, output_dir, manifest_path, manifest = _validate_run_inputs(args)
 
-    flags = {"is_cpp": args.is_cpp, "is_posix": args.is_posix, "is_windows": args.is_windows}
+    flags = {
+        "has_unsafe": args.has_unsafe,
+        "has_ffi": args.has_ffi,
+        "has_concurrency": args.has_concurrency,
+        "has_async": args.has_async,
+    }
     selected = build_selection(
         manifest, plugin_root=plugin_root, flags=flags, threat_model=args.threat_model
     )
@@ -587,9 +590,10 @@ def main() -> int:
             "context_roots": args.context_roots,
             "threat_model": args.threat_model,
             "severity_filter": args.severity_filter,
-            "is_cpp": args.is_cpp,
-            "is_posix": args.is_posix,
-            "is_windows": args.is_windows,
+            "has_unsafe": args.has_unsafe,
+            "has_ffi": args.has_ffi,
+            "has_concurrency": args.has_concurrency,
+            "has_async": args.has_async,
             "plugin_root": str(plugin_root),
             "manifest_path": str(manifest_path),
             "cache_primer": args.cache_primer,

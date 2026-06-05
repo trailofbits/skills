@@ -1,30 +1,30 @@
 ---
-name: c-review
-description: Performs comprehensive C/C++ security review for memory corruption, integer overflows, race conditions, and platform-specific vulnerabilities. Use when auditing native C/C++ applications, reviewing daemons or services for memory safety, or hunting integer overflow / use-after-free / race conditions in userspace code.
+name: rust-review
+description: Performs comprehensive Rust security review for safe/unsafe boundary issues, memory safety in unsafe blocks, concurrency hazards, panic-induced DoS, FFI safety, and async runtime mistakes. Use when auditing Rust crates, services, or libraries — particularly those with `unsafe`, FFI, or concurrent code.
 allowed-tools: Agent AskUserQuestion SendMessage TaskCreate TaskUpdate TaskList TaskGet Grep Glob Read Write Bash
 ---
 
-# C/C++ Security Review
+# Rust Security Review
 
-Runs in the main conversation (invoke via `/c-review:c-review`). Orchestrator owns the `Task*` ledger as bookkeeping for retries; workers and judges have no Task tools. Workers and judges are named plugin subagents (`c-review:c-review-worker`, `c-review:c-review-dedup-judge`, `c-review:c-review-fp-judge`); tool sets are declared in `plugins/c-review/agents/*.md`. Findings are exchanged via markdown-with-YAML files in a shared output directory.
+Runs in the main conversation (invoke via `/rust-review:rust-review`). Orchestrator owns the `Task*` ledger as bookkeeping for retries; workers and judges have no Task tools. Workers and judges are named plugin subagents (`rust-review:rust-review-worker`, `rust-review:rust-review-dedup-judge`, `rust-review:rust-review-fp-judge`); tool sets are declared in `plugins/rust-review/agents/*.md`. Findings are exchanged via markdown-with-YAML files in a shared output directory.
 
 ## When to Use
 
-Native C/C++ application security review: memory safety, integer overflow, races, type confusion, Linux/macOS daemons, Windows userspace services.
+Rust application/library security review: safe/unsafe boundary auditing, memory safety in `unsafe` blocks, concurrency hazards, panic-induced DoS on servers, FFI safety, async-runtime mistakes.
 
 ## When NOT to Use
 
-- Kernel drivers/modules (Linux, Windows, macOS).
-- Managed languages (Java, C#, Python, Go, Rust).
-- Embedded/bare-metal code without libc.
+- Pure-C / pure-C++ codebases — use `c-review` instead.
+- Smart contracts (Solana programs / NEAR contracts / Ink!) — use `solana-vulnerability-scanner` or the contract-specific skill.
+- Kernel-mode Rust drivers without userspace allocator — coverage is incomplete; flag as advisory only.
 
 ## Subagents
 
 | Subagent type | Purpose | Tool set |
 |---|---|---|
-| `c-review:c-review-worker` | Run assigned cluster, write findings | Read, Write, Edit, Grep, Glob, Bash |
-| `c-review:c-review-dedup-judge` | Merge duplicates (runs **first**) | Read, Write, Edit, Glob |
-| `c-review:c-review-fp-judge` | FP + severity + final reports (runs **second**) | Read, Write, Edit, Grep, Glob, Bash |
+| `rust-review:rust-review-worker` | Run assigned cluster, write findings | Read, Write, Edit, Grep, Glob, Bash |
+| `rust-review:rust-review-dedup-judge` | Merge duplicates (runs **first**) | Read, Write, Edit, Glob |
+| `rust-review:rust-review-fp-judge` | FP + severity + final reports (runs **second**) | Read, Write, Edit, Grep, Glob, Bash |
 
 Tools come from each agent's frontmatter at spawn time. The orchestrator's `Task*`/`Agent`/`Bash`/etc. come from this skill's `allowed-tools`.
 
@@ -41,7 +41,7 @@ coordinator: write context.md → build_run_plan.py → TaskCreate × M
 
 Output directory contains: `context.md`, `plan.json`, `worker-prompts/`, `findings/`, `findings-index.d/` (per-worker shards), `findings-index.txt`, `coverage/` (per-worker coverage-gate files), `run-summary.md`, `dedup-summary.md`, `fp-summary.md`, `REPORT.md`, `REPORT.sarif`.
 
-**Path convention:** set `${C_REVIEW_PLUGIN_ROOT}=${CLAUDE_PLUGIN_ROOT}` if that resolves (`Bash: ls "${CLAUDE_PLUGIN_ROOT}/prompts/clusters/buffer-write-sinks.md"`), otherwise `Bash: find ~/.claude -path '*/plugins/c-review/prompts/clusters/buffer-write-sinks.md' -print -quit`.
+**Path convention:** set `${RUST_REVIEW_PLUGIN_ROOT}=${CLAUDE_PLUGIN_ROOT}` if that resolves (`Bash: ls "${CLAUDE_PLUGIN_ROOT}/prompts/clusters/unsafe-boundary.md"`), otherwise `Bash: find ~/.claude -path '*/plugins/rust-review/prompts/clusters/unsafe-boundary.md' -print -quit`.
 
 **Scope convention:** keep two scopes separate throughout the run:
 
@@ -52,7 +52,11 @@ Output directory contains: `context.md`, `plan.json`, `worker-prompts/`, `findin
 
 ## Rationalizations to Reject
 
-- **"Background spawns parallelize the workers."** They do not — `Agent` calls in a single assistant message already run concurrently. `run_in_background=true` defeats the Phase 6a primer cache, so every worker pays full cache-creation (`cache_read_input_tokens=0`) and the ~15 K-token primer is wasted M times. This is the single most common defect — multiple recent runs spawned 7-of-8 (or all) workers with `bg=true`. Default: omit `run_in_background` from worker spawns.
+- **"`unsafe` is rare, skip the memory-safety cluster."** Run the cluster anyway; it self-gates per-pass on `has_unsafe`. The unsafe-boundary cluster always runs (consolidated, covers safety-doc and repr(C) hygiene that apply to FFI declarations even without `unsafe { }` blocks visible at this scope).
+- **"The compiler caught it."** The borrow checker proves absence of safe-code data races; it proves nothing about unsafe blocks, panic reachability, ABBA deadlocks, atomic-load/store sequencing, or FFI ABI mismatch.
+- **"`unwrap()` is fine if it's `// SAFETY: documented infallible`."** `// SAFETY:` documents `unsafe` operations, not infallibility claims. An `unwrap()` on documented-infallible input is still risky if the documentation is wrong — file as low severity and let the FP judge decide.
+- **"`has_unsafe=false` so skip the run."** Pure safe-Rust crates still have panic-DoS, atomic races, drop-panics, and trait-implementation hazards. Run the always-on clusters.
+- **"Background spawns parallelize the workers."** They do not — `Agent` calls in a single assistant message already run concurrently. `run_in_background=true` defeats the Phase 6a primer cache, so every worker pays full cache-creation (`cache_read_input_tokens=0`) and the ~15 K-token primer is wasted M times. Default: omit `run_in_background` from worker spawns.
 - **"I'll re-derive the cluster list / paths / pass prefixes inline instead of running `build_run_plan.py`."** The script is the only authority for selection and rendering. Paraphrasing it drops fields that the worker self-check requires, producing `worker-N abort: spawn prompt malformed`. Always run the script and `Read plan.json`.
 - **"The run partially succeeded — I'll just write `REPORT.md` from what completed."** Hiding partial runs behind a successful report is a correctness bug. If any Phase-5 cluster task is not `completed`, surface it prominently in `run-summary.md` and the final response.
 - **"Zero findings — skip Phase 8."** Always run both judges and Phase 8b: dedup-judge writes a minimal no-op `dedup-summary.md` on an empty index, fp-judge writes empty `REPORT.md`/`REPORT.sarif`, and Phase 8b's SARIF generator emits `results: []` for the empty case. SARIF consumers depend on a stable artifact set.
@@ -68,7 +72,7 @@ Run these phases **in the main conversation**.
 
 **Entry:** skill invoked. **Exit:** `threat_model`, `worker_model`, `severity_filter` resolved; `scope_subpath` resolved or set to `"."`; `finding_scope_root=scope_subpath`; `context_roots` resolved.
 
-The skill is invoked directly (no command wrapper). Parse any free-text arguments the user passed on the `/c-review:c-review` line (e.g. `flamenco only`, `high severity only`, `use haiku`) and pre-fill the answers they imply — then ask for any missing required parameters with **one** `AskUserQuestion` call. Never silently default the required parameters.
+The skill is invoked directly (no command wrapper). Parse any free-text arguments the user passed on the `/rust-review:rust-review` line (e.g. `flamenco only`, `high severity only`, `use haiku`) and pre-fill the answers they imply — then ask for any missing required parameters with **one** `AskUserQuestion` call. Never silently default the required parameters.
 
 Required parameters:
 
@@ -85,75 +89,74 @@ After resolving `scope_subpath`, set `finding_scope_root="${scope_subpath:-.}"`.
 
 ### Phase 1: Prerequisites
 
-**Entry:** Phase 0 complete. **Exit:** `is_cpp`, `is_posix`, `is_windows` flags determined.
+**Entry:** Phase 0 complete. **Exit:** `has_unsafe`, `has_ffi`, `has_concurrency`, `has_async` flags determined. Abort with a clear message if no `*.rs` files exist under `${finding_scope_root}`.
 
-Probe within `${finding_scope_root:-.}`. Prefer `Glob`/`Grep` when available in the orchestrator's tool set; some sessions only expose `Bash`, so fall back to the equivalents below — both forms produce identical signals (non-empty output ⇒ flag true):
-
-```bash
-# is_cpp
-find "${finding_scope_root:-.}" -type f \( -name '*.cpp' -o -name '*.cxx' -o -name '*.cc' -o -name '*.hpp' -o -name '*.hh' \) -print -quit
-# is_posix
-grep -rlE '#include[[:space:]]*<(pthread|signal|sys/(socket|stat|types|wait)|unistd|errno)\.h>' \
-  --include='*.c' --include='*.h' \
-  --include='*.cpp' --include='*.cxx' --include='*.cc' --include='*.hpp' --include='*.hh' \
-  "${finding_scope_root:-.}" | head -1
-# is_windows
-grep -rlE '#include[[:space:]]*<(windows|winbase|winnt|winuser|winsock|ntdef|ntstatus)\.h>' \
-  --include='*.c' --include='*.h' \
-  --include='*.cpp' --include='*.cxx' --include='*.cc' --include='*.hpp' --include='*.hh' \
-  "${finding_scope_root:-.}" | head -1
-```
-
-`compile_commands.json` is informational (no agent currently uses LSP), but the probe is mandatory so the run summary records whether richer local tooling is available. Probe via `Glob: **/compile_commands.json` under `${context_roots}`. If `Glob` is unavailable, use:
+Probe within `${finding_scope_root:-.}`. Prefer `Glob`/`Grep`; fall back to `Bash` equivalents below (non-empty output ⇒ flag true).
 
 ```bash
-printf '%s\n' "${context_roots:-.}" | tr ',' '\n' | while IFS= read -r root; do
-  [ -n "$root" ] && find "$root" -name compile_commands.json -print -quit
-done | head -1
-# `find "$root"` is quoted intentionally so a context root containing spaces
-# (e.g. "/Users/me/My Repo") survives word-splitting. Do not unquote it.
+# Rust source presence (precondition)
+find "${finding_scope_root:-.}" -name '*.rs' -print -quit
+
+# has_unsafe
+grep -rlE '\bunsafe\s+(extern|fn|impl|trait)\b|\bunsafe\s*\{' --include='*.rs' "${finding_scope_root:-.}" | head -1
+
+# has_ffi
+grep -rlE 'extern\s+"C"|#\[repr\(C\)\]|use\s+(libc|core::ffi|cty)' --include='*.rs' "${finding_scope_root:-.}" | head -1
+
+# has_concurrency
+grep -rlE '\b(std::(thread|sync)|parking_lot::|crossbeam|rayon::|tokio::sync|core::sync::atomic|std::sync::atomic|Atomic[A-Za-z0-9_]*|UnsafeCell|static\s+mut|unsafe\s+impl\s+(Send|Sync)|memmap2::|Mmap(Options|Mut)?|MAP_SHARED|shm_open|mmap\s*\()' --include='*.rs' "${finding_scope_root:-.}" | head -1
+
+# has_async
+grep -rlE '\basync\s+(fn|move|\{)|\.await\b|tokio::|async_std::|futures::' --include='*.rs' "${finding_scope_root:-.}" | head -1
 ```
 
-If absent, suggest CMake `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`/Bear/compiledb to the user but continue.
+Note for `Cargo.toml`: also probe for `[dependencies] tokio`, `async-std`, etc., to set `has_async=true` even if the scope subpath has no `.await` yet (library crates often re-export).
+
+Also probe `Cargo.toml` presence (informational — note in `run-summary.md` whether the audit was over a Cargo workspace, single crate, or loose `.rs` files):
+
+```bash
+find "${context_roots:-.}" -name 'Cargo.toml' -print -quit
+```
 
 ### Phase 2: Output Directory
 
 **Entry:** Phase 1 flags set. **Exit:** absolute `output_dir` resolved; `${output_dir}/findings/` and `${output_dir}/coverage/` exist.
 
-Resolve an absolute path for `output_dir` (default: `$(pwd)/.c-review-results/$(date -u +%Y%m%dT%H%M%SZ)/`):
+Resolve an absolute path for `output_dir` (default: `$(pwd)/.rust-review-results/$(date -u +%Y%m%dT%H%M%SZ)/`):
 
 ```bash
 mkdir -p "${output_dir}/findings" "${output_dir}/coverage"
 ```
 
-The `coverage/` subdirectory holds per-worker coverage-gate audit files (`coverage/worker-{N}.md`). Workers write to it instead of embedding the table in their reply — see `agents/c-review-worker.md` step 5.
+The `coverage/` subdirectory holds per-worker coverage-gate audit files (`coverage/worker-{N}.md`). Workers write to it instead of embedding the table in their reply — see `agents/rust-review-worker.md` step 5.
 
 ### Phase 3: Codebase Context
 
 **Entry:** `${output_dir}` exists. **Exit:** `${output_dir}/context.md` written.
 
-Skim `README.{md,rst,txt}` and any build file (`Makefile`, `CMakeLists.txt`, `meson.build`, `configure.ac`) — preflight with the `Glob` tool before any `Read` (a `Read` on a missing file aborts the turn). Do **not** use `Bash: ls README*` for the preflight: under zsh, an unmatched glob aborts the whole compound command before `2>/dev/null` runs (observed: a Phase-3 `ls src/X/README*` call failed with `no matches found` and dropped the entire preflight). If you must use `Bash`, use `find . -maxdepth 2 -name 'README*' -o -name 'Makefile' -o -name 'CMakeLists.txt' -o -name 'meson.build'`, which never fails on no-match.
+Skim `README.{md,rst,txt}` and any build/manifest file (`Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `build.rs`) — preflight with the `Glob` tool before any `Read` (a `Read` on a missing file aborts the turn). Do **not** use `Bash: ls README*` for the preflight: under zsh, an unmatched glob aborts the whole compound command before `2>/dev/null` runs. If you must use `Bash`, use `find . -maxdepth 2 -name 'README*' -o -name 'Cargo.toml' -o -name 'rust-toolchain.toml' -o -name 'build.rs'`, which never fails on no-match.
 
-Write `${output_dir}/context.md` with: YAML frontmatter (`threat_model`, `severity_filter`, `scope_subpath`, `finding_scope_root`, `context_roots`, `is_cpp`, `is_posix`, `is_windows`, `output_dir`, `compile_commands` as `present`/`absent` plus path when present), then a short markdown body with five sections — **Purpose** (1-3 sentences), **Scope** (what's in `finding_scope_root`, and that findings outside it are out of scope), **Entry points** (where untrusted data enters: network, files, CLI, IPC), **Trust boundaries** (sandboxed vs trusted peers vs arbitrary remote), **Existing hardening** (fuzzing corpora, sanitizers, privilege separation).
+Write `${output_dir}/context.md` with: YAML frontmatter (`threat_model`, `severity_filter`, `scope_subpath`, `finding_scope_root`, `context_roots`, `has_unsafe`, `has_ffi`, `has_concurrency`, `has_async`, `output_dir`, `cargo_manifest` as `workspace`/`single-crate`/`absent` plus path when present), then a short markdown body with five sections — **Purpose** (1-3 sentences), **Scope** (what's in `finding_scope_root`, and that findings outside it are out of scope), **Entry points** (where untrusted data enters: network, files, CLI, IPC, `serde` deserialization, FFI inputs), **Trust boundaries** (sandboxed vs trusted peers vs arbitrary remote), **Existing hardening** (fuzzing harnesses, MIRI runs, `clippy::pedantic`, `cargo-deny`, `cargo-audit`).
 
 ### Phase 4: Build Run Plan (deterministic)
 
-**Entry:** language flags + `threat_model` known; `${output_dir}/findings/` exists. **Exit:** `${output_dir}/plan.json` and `${output_dir}/worker-prompts/*.txt` written; `M = worker_count` known.
+**Entry:** capability flags + `threat_model` known; `${output_dir}/findings/` exists. **Exit:** `${output_dir}/plan.json` and `${output_dir}/worker-prompts/*.txt` written; `M = worker_count` known.
 
-Selection, filtering, path resolution, and spawn-prompt rendering are **delegated to the script** to prevent the "orchestrator paraphrases the spawn template and drops fields" failure mode:
+Selection, filtering, path resolution, and spawn-prompt rendering are **delegated to the script** to keep spawn prompts complete and consistent:
 
 ```bash
-python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/build_run_plan.py" \
-  --plugin-root "${C_REVIEW_PLUGIN_ROOT}" --output-dir "${output_dir}" \
+python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/build_run_plan.py" \
+  --plugin-root "${RUST_REVIEW_PLUGIN_ROOT}" --output-dir "${output_dir}" \
   --threat-model "${threat_model}" --severity-filter "${severity_filter}" \
   --scope-subpath "${finding_scope_root:-.}" --context-roots "${context_roots:-.}" \
-  --is-cpp "${is_cpp}" --is-posix "${is_posix}" --is-windows "${is_windows}" \
+  --has-unsafe "${has_unsafe}" --has-ffi "${has_ffi}" \
+  --has-concurrency "${has_concurrency}" --has-async "${has_async}" \
   --max-passes-per-worker 4
 ```
 
-The script writes `plan.json` + `worker-prompts/worker-N.txt` + (if `--cache-primer=true`, the default) `worker-prompts/cache-primer.txt`, and prints a JSON summary on stdout. Exits non-zero on any missing prompt — surface the message and stop. Typical M with the default `--max-passes-per-worker 4` (REMOTE, `is_posix=true`): 13 (C POSIX), 15 (C++ POSIX), 16 (C POSIX + Windows), 18 (C++ POSIX + Windows); `LOCAL_UNPRIVILEGED` adds ~1 because `ambient-state` keeps its two REMOTE-skipped passes. After it returns, `Read plan.json` for the structured selection — never re-derive filtering or paths.
+The script writes `plan.json` + `worker-prompts/worker-N.txt` + (if `--cache-primer=true`, the default) `worker-prompts/cache-primer.txt`, and prints a JSON summary on stdout. Exits non-zero on any missing prompt — surface the message and stop. Typical M: 7 (pure safe Rust, no FFI / concurrency / async), 10 (concurrent safe Rust), 15 (full Rust: unsafe + FFI + concurrency + async). After it returns, `Read plan.json` for the structured selection — never re-derive filtering or paths.
 
-`--max-passes-per-worker N` caps the per-worker pass count. The planner deterministically splits any cluster with more than `N` passes into `ceil(K/N)` contiguous chunks; each chunk becomes its own `c-review-worker` spawn with a `-{i}`-suffixed `cluster_id` (e.g. `buffer-write-sinks-1`, `buffer-write-sinks-2`). The shared prompt-cache prefix and `Cluster prompt:` path are byte-identical across chunks, so the cache primer still warms every worker. Default 4 is calibrated against the heavy clusters in `manifest.json` (`buffer-write-sinks` has 13 passes). Some output-heavy clusters may declare a smaller manifest-level `max_passes_per_worker` override so each expensive pass group gets a smaller worker. Pass `--max-passes-per-worker 0` to disable all chunking, including manifest overrides (one worker per cluster).
+`--max-passes-per-worker N` caps the per-worker pass count. The planner deterministically splits any cluster with more than `N` passes into `ceil(K/N)` contiguous chunks; each chunk becomes its own `rust-review-worker` spawn with a `-{i}`-suffixed `cluster_id` (e.g. `unsafe-boundary-1`, `unsafe-boundary-2`). The shared prompt-cache prefix and `Cluster prompt:` path are byte-identical across chunks, so the cache primer still warms every worker. Default 4 is calibrated against the heavy-tail clusters in `manifest.json`. Some output-heavy clusters declare a smaller manifest-level `max_passes_per_worker` override so each expensive pass gets its own worker. Pass `--max-passes-per-worker 0` to disable all chunking, including manifest overrides (one worker per cluster).
 
 ### Phase 5: Create Bookkeeping Tasks (orchestrator-internal)
 
@@ -169,7 +172,7 @@ The task ledger is **orchestrator bookkeeping only** (TUI visibility + Phase-7 r
 
 A parallel batch from cold start cannot share cache (all M requests dispatch simultaneously, none has finished writing). To warm the prefix, spawn a tiny primer first — **foreground** (background spawns don't share cache with subsequent foreground spawns).
 
-If `plan.run.cache_primer == true`, `build_run_plan.py` has written `${output_dir}/worker-prompts/cache-primer.txt`. Spawn it in its own assistant message: `Read` the file, pass verbatim as `Agent` `prompt` with `subagent_type=c-review:c-review-worker`, `model=${worker_model}`, `description="C review cache primer"`, no `run_in_background`. The script wrote the prefix byte-identical to `worker-1.txt` through the `<context>` block — that byte-identity is what gives the parallel workers their cache hit. The primer trailer contains `Cache primer: true`, which the worker system prompt treats as a first-class mode and returns exactly `worker-PRIMER abort: cache primer (no analysis performed)` in one text response with zero tool calls. Discard the abort line — Phase 7 ignores it (no `worker-N` id).
+If `plan.run.cache_primer == true`, `build_run_plan.py` has written `${output_dir}/worker-prompts/cache-primer.txt`. Spawn it in its own assistant message: `Read` the file, pass verbatim as `Agent` `prompt` with `subagent_type=rust-review:rust-review-worker`, `model=${worker_model}`, `description="Rust review cache primer"`, no `run_in_background`. The script wrote the prefix byte-identical to `worker-1.txt` through the `<context>` block — that byte-identity is what gives the parallel workers their cache hit. The primer trailer contains `Cache primer: true`, which the worker system prompt treats as a first-class mode and returns exactly `worker-PRIMER abort: cache primer (no analysis performed)` in one text response with zero tool calls. Discard the abort line — Phase 7 ignores it (no `worker-N` id).
 
 Foreground spawn already serializes — no `sleep` needed before Phase 6b. Skip Phase 6a entirely if `plan.run.cache_primer == false`.
 
@@ -180,7 +183,7 @@ Foreground spawn already serializes — no `sleep` needed before Phase 6b. Skip 
 > Workers MUST be spawned **foreground** (no `run_in_background` field, or `run_in_background=false`).
 > "Parallel" here means *one assistant message containing M `Agent` calls* — that already runs them concurrently. **Background spawns are NOT how you parallelize this skill.**
 >
-> Background spawns defeat Phase 6a's primer cache: every worker pays full cache-creation on its first turn (`cache_read_input_tokens=0`), and the primer's ~15 K tokens are wasted M times over. Two real runs (audit logs available) had exactly this symptom — every worker started with `first_cr=0`.
+> Background spawns defeat Phase 6a's primer cache: every worker pays full cache-creation on its first turn (`cache_read_input_tokens=0`), and the primer's ~15 K tokens are wasted M times over. Two real runs had exactly this symptom — every worker started with `first_cr=0`.
 >
 > Before sending the spawn message, audit your draft: every `Agent` call must have **no** `run_in_background` key. If you wrote `run_in_background=true`, delete it.
 
@@ -193,9 +196,9 @@ For each worker `N ∈ [1..M]`:
 
 | Parameter | Value |
 |-----------|-------|
-| `subagent_type` | `c-review:c-review-worker` |
+| `subagent_type` | `rust-review:rust-review-worker` |
 | `model` | `${worker_model}` (haiku / sonnet / opus) |
-| `description` | `C review worker N` |
+| `description` | `Rust review worker N` |
 | `prompt` | the full text of `worker-N.txt` (no edits) |
 | `run_in_background` | **field MUST be omitted, OR set to `false`.** Never `true`. See the foreground-spawn warning above. |
 
@@ -203,7 +206,7 @@ The spawn prompt is the single authority. Pass it verbatim — every field is re
 
 **Anti-patterns to reject:**
 
-- **Passing `run_in_background=true`** (the dominant historical defect — see warning above).
+- **Passing `run_in_background=true`** (see warning above).
 - Hand-typing the spawn prompt instead of reading `worker-N.txt`.
 - Inserting Task-related instructions ("first call TaskList", "Assigned task id: <N>"). Workers have no Task tools.
 - Editing the rendered prompt before passing it (trimming "redundant" fields, collapsing pass lists).
@@ -225,28 +228,24 @@ If any non-retryable, stop. Otherwise re-spawn each `pending` retryable with `at
 
 #### Sanity-check + write index
 
-For every provisional `complete:` cluster, validate the worker-owned shard, coverage file, coverage rows, filed IDs, and claimed finding count against `plan.json` before marking the task completed. Run one command per completed worker, or one command with repeated flags for all provisional completions:
+For every provisional `complete:` cluster, validate the worker-owned shard, coverage file, coverage rows, filed IDs, and claimed finding count against `plan.json` before marking the task completed. Run one command per completed worker, or validate multiple workers in one command. Both claimed-count forms below are valid; do not pass bare `worker-N=N` values without either grouping them after a `--claimed-count` flag or repeating the flag.
 
 ```bash
-python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
+python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
   --worker worker-N --claimed-count worker-N=<claimed_count_from_complete_line>
 ```
 
-Grouped claimed-count values are valid:
-
 ```bash
-python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
+python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
+  --worker worker-1 --worker worker-2 \
   --claimed-count worker-1=0 worker-2=3
 ```
 
-Repeated `--claimed-count` flags are also valid:
-
 ```bash
-python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
+python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
+  --worker worker-1 --worker worker-2 \
   --claimed-count worker-1=0 --claimed-count worker-2=3
 ```
-
-Do not pass bare `worker-N=N` arguments unless they are grouped after `--claimed-count` or preceded by their own repeated `--claimed-count` flag.
 
 If validation exits non-zero, treat the completion as malformed and retryable (classifier row #4): mark the task `pending`, store the validator output in `metadata.abort_reason`, set `needs_respawn=true`, and increment `attempt`. Missing `findings-index.d/worker-N.txt`, missing `coverage/worker-N.md`, missing coverage rows, invalid `skipped:` rows, filed IDs absent from the shard or disk, and claimed-count mismatches are all malformed completions. After the retry cap, leave the cluster task incomplete and surface the validator output in `run-summary.md` and the final response. Only validation-clean provisional completions may be `TaskUpdate`d to `completed`.
 
@@ -270,7 +269,7 @@ fi
 
 After task updates and index creation, run `TaskList` and write `${output_dir}/run-summary.md` with:
 
-- resolved parameters (`threat_model`, `severity_filter`, `finding_scope_root`, `context_roots`, language/platform flags, compile-commands status)
+- resolved parameters (`threat_model`, `severity_filter`, `finding_scope_root`, `context_roots`, capability flags `has_unsafe`/`has_ffi`/`has_concurrency`/`has_async`, Cargo manifest status)
 - worker outcome table (`worker_n`, `cluster_id`, claimed finding count, shard line count, coverage-file path (`coverage/worker-{N}.md`), task status, retry/abort state)
 - `findings-index.txt` line count and any mismatch against worker claims
 - judge status once Phase 8 finishes, or the reason a judge was skipped/failed
@@ -283,12 +282,12 @@ If any Phase-5 cluster task is not `completed`, include it prominently in `run-s
 
 **Entry:** `findings-index.txt` exists. **Exit:** dedup-judge and fp-judge have returned; `dedup-summary.md`, `fp-summary.md`, `REPORT.md`, and ideally `REPORT.sarif` are written.
 
-Each judge's full protocol is its system prompt (`agents/c-review-{dedup,fp}-judge.md`); spawn prompts pass only per-run variables. Do **not** reference `prompts/internal/judges/` — those files don't exist.
+Each judge's full protocol is its system prompt (`agents/rust-review-{dedup,fp}-judge.md`); spawn prompts pass only per-run variables. Do **not** reference `prompts/internal/judges/` — those files don't exist.
 
 Spawn sequentially (dedup first, fp-judge sees only merged primaries):
 
-- `Agent(subagent_type="c-review:c-review-dedup-judge", description="Dedup judge", prompt=f"output_dir: {output_dir}")`
-- `Agent(subagent_type="c-review:c-review-fp-judge", description="FP + severity judge", prompt=f"output_dir: {output_dir}\nsarif_generator_path: {sarif_generator_path}")` — resolve `sarif_generator_path` to `${C_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py`.
+- `Agent(subagent_type="rust-review:rust-review-dedup-judge", description="Dedup judge", prompt=f"output_dir: {output_dir}")`
+- `Agent(subagent_type="rust-review:rust-review-fp-judge", description="FP + severity judge", prompt=f"output_dir: {output_dir}\nsarif_generator_path: {sarif_generator_path}")` — resolve `sarif_generator_path` to `${RUST_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py`.
 
 **Judge failure handling.** Same shape as Phase 7's classifier, applied to judge return text:
 
@@ -301,7 +300,7 @@ Spawn sequentially (dedup first, fp-judge sees only merged primaries):
 **Entry:** fp-judge returned, or the run aborted early. **Exit:** `${output_dir}/REPORT.sarif` exists.
 
 ```bash
-test -d "${output_dir}/findings" && python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py" "${output_dir}"
+test -d "${output_dir}/findings" && python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py" "${output_dir}"
 ```
 
 Run unconditionally whenever `findings/` exists — generator is idempotent (full overwrite), emits `results: []` for zero-survivor runs, and handles partial runs (findings without `fp_verdict` are emitted as `LIKELY_TP` rather than being silently dropped). Always overwriting protects against the case where fp-judge crashed mid-write and left a corrupt `REPORT.sarif` on disk. Skip only if `${output_dir}/findings/` doesn't exist (Phase 2 failed). After this phase, update `${output_dir}/run-summary.md` with judge/SARIF status.
@@ -318,7 +317,7 @@ Then `Read ${output_dir}/REPORT.md` and return its content to the caller. Append
 
 ## Finding file frontmatter — three stages
 
-Authoritative schema: `agents/c-review-worker.md` ("Finding File Format"). Three-stage write:
+Authoritative schema: `agents/rust-review-worker.md` ("Finding File Format"). Three-stage write:
 
 1. **Worker** — base fields (`id`, `bug_class`, `title`, `location`, `function`, `confidence`, `worker`) + seven body sections.
 2. **Dedup-judge** — adds `merged_into` on duplicates, or `also_known_as` + `locations` on primaries that absorbed.
@@ -326,7 +325,7 @@ Authoritative schema: `agents/c-review-worker.md` ("Finding File Format"). Three
 
 ## Bug classes / clusters
 
-Authoritative: `prompts/clusters/manifest.json`. 47 always-on bug classes, up to 64 with all conditional clusters enabled. `buffer-write-sinks` is fully consolidated (its sub-prompts are not re-read at runtime).
+Authoritative: `prompts/clusters/manifest.json`. ~24 always-on bug classes, up to ~39 with all conditional clusters enabled. `unsafe-boundary` and `concurrency-locking` are fully consolidated (their sub-prompts are not re-read at runtime).
 
 ---
 
@@ -335,7 +334,7 @@ Authoritative: `prompts/clusters/manifest.json`. 47 always-on bug classes, up to
 The phase exits already cover most of this; the orchestrator-visible end-state is:
 
 - Every Phase-5 cluster task is `completed` (verify via `TaskList`).
-- `${output_dir}/run-summary.md` exists and records resolved scope/context, compile-commands probe result, worker claims vs index count, task status, and judge/SARIF status.
+- `${output_dir}/run-summary.md` exists and records resolved scope/context, Cargo manifest probe result, worker claims vs index count, task status, and judge/SARIF status.
 - Every primary finding (no `merged_into`) has `fp_verdict` + `fp_rationale`; every survivor (`TRUE_POSITIVE`/`LIKELY_TP`) also has `severity`, `attack_vector`, `exploitability`, `severity_rationale`.
 - `REPORT.md` exists, severity-filtered per `severity_filter`.
 - `REPORT.sarif` exists (Phase 8b safety net guarantees this).
