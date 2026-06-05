@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/persist-session-id.sh\""
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT:-.}/hooks/persist-session-id.sh\""
           }
         ]
       },
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/setup-shims.sh\""
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT:-.}/hooks/setup-shims.sh\""
           }
         ]
       }
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/intercept-github-fetch.sh\""
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT:-.}/hooks/intercept-github-fetch.sh\""
           }
         ]
       },
@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/intercept-github-curl.sh\""
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT:-.}/hooks/intercept-github-curl.sh\""
           }
         ]
       }
@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/cleanup-clones.sh\""
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT:-.}/hooks/cleanup-clones.sh\""
           }
         ]
       }
