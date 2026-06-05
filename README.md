@@ -25,9 +25,9 @@ Codex supports Claude plugin marketplaces directly, so this repository does not 
 Install the marketplace with:
 
 ```sh
-git clone https://github.com/trailofbits/skills.git ~/.codex/trailofbits-skills
-/plugins marketplace add ~/.codex/trailofbits-skills
-/plugins menu
+codex plugin marketplace add trailofbits/skills
+codex plugin list
+codex plugin add <plugin-name>@trailofbits
 ```
 
 ### Local Development

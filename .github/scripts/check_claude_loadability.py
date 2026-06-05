@@ -38,10 +38,10 @@ def run_claude(claude_bin: str, repo: Path, env: dict[str, str], args: list[str]
     return result.stdout
 
 
-def parse_json_output(output: str) -> Any:
+def parse_json_output(output: str, context: str) -> Any:
     text = output.strip()
     if not text:
-        return None
+        raise RuntimeError(f"{context}: expected JSON output, got empty response")
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -113,6 +113,9 @@ def main() -> int:
     marketplace = json.loads((repo / MARKETPLACE).read_text(encoding="utf-8"))
     marketplace_name = marketplace["name"]
     plugin_names = [plugin["name"] for plugin in marketplace["plugins"]]
+    if not plugin_names:
+        print(f"ERROR: no plugins listed in {MARKETPLACE}", file=sys.stderr)
+        return 1
     errors: list[str] = []
 
     with tempfile.TemporaryDirectory(prefix="claude-load-check-") as tmp:
@@ -132,7 +135,8 @@ def main() -> int:
         )
         run_claude(claude_bin, repo, env, ["plugin", "marketplace", "add", str(repo)])
         available = parse_json_output(
-            run_claude(claude_bin, repo, env, ["plugin", "list", "--available", "--json"])
+            run_claude(claude_bin, repo, env, ["plugin", "list", "--available", "--json"]),
+            "claude plugin list --available --json",
         )
         available_ids = {plugin["pluginId"] for plugin in available.get("available", [])}
         expected_ids = {f"{name}@{marketplace_name}" for name in plugin_names}
@@ -155,7 +159,8 @@ def main() -> int:
             )
 
         installed = parse_json_output(
-            run_claude(claude_bin, repo, env, ["plugin", "list", "--json"])
+            run_claude(claude_bin, repo, env, ["plugin", "list", "--json"]),
+            "claude plugin list --json",
         )
         installed_by_id = {plugin["id"]: plugin for plugin in installed}
         missing_installed = sorted(expected_ids - set(installed_by_id))

@@ -49,7 +49,7 @@
     },
     {
       "name": "claude-in-chrome-troubleshooting",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Diagnose and fix Claude in Chrome MCP extension connectivity issues",
       "author": {
         "name": "Dan Guido"
@@ -115,7 +115,7 @@
     },
     {
       "name": "gh-cli",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "description": "Intercepts GitHub URL fetches and curl/wget commands, redirecting to the authenticated gh CLI.",
       "author": {
         "name": "William Tan",
@@ -253,7 +253,7 @@
     },
     {
       "name": "modern-python",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "description": "Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools.",
       "author": {
         "name": "William Tan",
@@ -335,7 +335,7 @@
     },
     {
       "name": "zeroize-audit",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "Detects missing or compiler-optimized zeroization of sensitive data with assembly and control-flow analysis",
       "author": {
         "name": "Trail of Bits",
@@ -365,7 +365,7 @@
     },
     {
       "name": "skill-improver",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "description": "Automatically reviews and fixes Claude Code skills through iterative refinement until they meet quality standards. Requires plugin-dev plugin.",
       "author": {
         "name": "Paweł Płatek",

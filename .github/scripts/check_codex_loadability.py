@@ -106,6 +106,9 @@ def main() -> int:
     marketplace = json.loads(marketplace_path.read_text(encoding="utf-8"))
     marketplace_name = marketplace["name"]
     plugin_names = [plugin["name"] for plugin in marketplace["plugins"]]
+    if not plugin_names:
+        print(f"ERROR: no plugins listed in {MARKETPLACE}", file=sys.stderr)
+        return 1
 
     errors: list[str] = []
     loaded_plugin_count = 0
@@ -165,9 +168,18 @@ def main() -> int:
         nonlocal request_id
         request_id += 1
         write({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
+        skipped_errors: list[str] = []
         while True:
-            message = read_rpc_message(proc, log_path, args.timeout)
+            try:
+                message = read_rpc_message(proc, log_path, args.timeout)
+            except TimeoutError as exc:
+                if skipped_errors:
+                    detail = "\n".join(skipped_errors[-3:])
+                    raise TimeoutError(f"{exc}\nskipped error messages:\n{detail}") from exc
+                raise
             if message.get("id") != request_id:
+                if "error" in message:
+                    skipped_errors.append(json.dumps(message)[:500])
                 continue
             if "error" in message:
                 raise RuntimeError(f"{method} failed: {message['error']}")
