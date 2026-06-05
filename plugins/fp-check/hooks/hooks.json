@@ -1,18 +1,6 @@
 {
-  "description": "Enforce fp-check verification completeness — prevent premature verdicts and incomplete agent output",
+  "description": "Enforce fp-check subagent output completeness — verify data-flow-analyzer, exploitability-verifier, and poc-builder produced their required phase outputs",
   "hooks": {
-    "Stop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "You are a verification completeness checker for the fp-check false positive analysis skill. The agent is about to stop. Check whether the verification process was completed properly.\n\nScan the conversation for evidence of ALL of the following for EVERY bug that was being verified:\n\n1. Phase 1 (Data Flow Analysis): Trust boundaries mapped, API contracts checked, environment protections analyzed, cross-references checked\n2. Phase 2 (Exploitability Verification): Attacker control confirmed or denied, mathematical bounds analyzed (or marked N/A), race conditions analyzed (or marked N/A), adversarial analysis completed\n3. Phase 3 (Impact Assessment): Real security impact vs operational robustness distinguished, primary controls vs defense-in-depth distinguished\n4. Phase 4 (PoC Creation): Pseudocode PoC created, executable/unit test PoCs created or explicitly skipped with justification, negative PoC created, PoC verification completed\n5. Phase 5 (Devil's Advocate): All 13 challenge questions addressed\n6. Gate Review: All 6 gates (Process, Reachability, Real Impact, PoC Validation, Math Bounds, Environment) evaluated with pass/fail\n7. Verdict: Each bug has a TRUE POSITIVE or FALSE POSITIVE verdict with evidence\n\nIf ANY bug is missing ANY of these phases or the gate review, return 'block' with the specific gaps.\nIf all bugs have complete verification with verdicts, return 'approve'.\nIf the conversation is not about fp-check verification at all, return 'approve'.",
-            "timeout": 30
-          }
-        ]
-      }
-    ],
     "SubagentStop": [
       {
         "matcher": "*",
