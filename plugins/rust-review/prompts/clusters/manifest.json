@@ -55,10 +55,10 @@
       "gate": "has_concurrency",
       "passes": [
         { "bug_class": "atomic-race",        "prefix": "ATOMICRACE",   "prompt": "prompts/general/atomic-race-finder.md" },
-        { "bug_class": "unsafe-sync-impl",   "prefix": "UNSAFESYNC",   "prompt": "prompts/general/unsafe-sync-impl-finder.md" },
+        { "bug_class": "unsafe-sync-impl",   "prefix": "UNSAFESYNC",   "prompt": "prompts/general/unsafe-sync-impl-finder.md", "requires": ["has_unsafe"] },
         { "bug_class": "send-sync-bounds",   "prefix": "SENDSYNCBOUND","prompt": "prompts/general/send-sync-bounds-finder.md" },
         { "bug_class": "shared-memory-race", "prefix": "SHMRACE",      "prompt": "prompts/general/shared-memory-race-finder.md" },
-        { "bug_class": "static-mut-race",    "prefix": "STATICMUT",    "prompt": "prompts/general/static-mut-race-finder.md" }
+        { "bug_class": "static-mut-race",    "prefix": "STATICMUT",    "prompt": "prompts/general/static-mut-race-finder.md", "requires": ["has_unsafe"] }
       ]
     },
     {
@@ -72,7 +72,8 @@
         { "bug_class": "arithmetic-overflow",  "prefix": "ARITHOFL",    "prompt": "prompts/general/arithmetic-overflow-finder.md" },
         { "bug_class": "assertion-reachable",  "prefix": "ASSERTREACH", "prompt": "prompts/general/assertion-reachable-finder.md" },
         { "bug_class": "out-of-bounds-index",  "prefix": "OOBIDX",      "prompt": "prompts/general/out-of-bounds-index-finder.md" },
-        { "bug_class": "str-slice-boundary",   "prefix": "STRSLICE",    "prompt": "prompts/general/str-slice-boundary-finder.md" }
+        { "bug_class": "str-slice-boundary",   "prefix": "STRSLICE",    "prompt": "prompts/general/str-slice-boundary-finder.md" },
+        { "bug_class": "refcell-borrow-panic", "prefix": "REFCELLPANIC", "prompt": "prompts/general/refcell-borrow-panic-finder.md" }
       ]
     },
     {
@@ -96,7 +97,8 @@
         { "bug_class": "result-discarded", "prefix": "RESDISC",   "prompt": "prompts/general/result-discarded-finder.md" },
         { "bug_class": "drop-panic",       "prefix": "DROPPANIC", "prompt": "prompts/general/drop-panic-finder.md" },
         { "bug_class": "lossy-from-into",  "prefix": "LOSSYFROM", "prompt": "prompts/general/lossy-from-into-finder.md" },
-        { "bug_class": "lossy-str-conversion", "prefix": "LOSSYSTR", "prompt": "prompts/general/lossy-str-conversion-finder.md" }
+        { "bug_class": "lossy-str-conversion", "prefix": "LOSSYSTR", "prompt": "prompts/general/lossy-str-conversion-finder.md" },
+        { "bug_class": "bufwriter-unflushed",  "prefix": "BUFFLUSH", "prompt": "prompts/general/bufwriter-unflushed-finder.md" }
       ]
     },
     {
@@ -105,10 +107,14 @@
       "consolidated": false,
       "gate": "always",
       "passes": [
-        { "bug_class": "ord-eq-hash",        "prefix": "ORDEQHASH",    "prompt": "prompts/general/ord-eq-hash-finder.md" },
-        { "bug_class": "adversarial-trait",  "prefix": "TRAITADV",     "prompt": "prompts/general/adversarial-trait-finder.md" },
-        { "bug_class": "closure-panic",      "prefix": "CLOSUREPANIC", "prompt": "prompts/general/closure-panic-finder.md" },
-        { "bug_class": "float-edge",         "prefix": "FLOATEDGE",    "prompt": "prompts/general/float-edge-finder.md" }
+        { "bug_class": "ord-eq-hash",               "prefix": "ORDEQHASH",    "prompt": "prompts/general/ord-eq-hash-finder.md" },
+        { "bug_class": "adversarial-trait",         "prefix": "TRAITADV",     "prompt": "prompts/general/adversarial-trait-finder.md", "requires": ["has_unsafe"] },
+        { "bug_class": "closure-panic",             "prefix": "CLOSUREPANIC", "prompt": "prompts/general/closure-panic-finder.md", "requires": ["has_unsafe"] },
+        { "bug_class": "float-edge",                "prefix": "FLOATEDGE",    "prompt": "prompts/general/float-edge-finder.md" },
+        { "bug_class": "string-comparison",         "prefix": "STRCMP",       "prompt": "prompts/general/string-comparison-finder.md" },
+        { "bug_class": "serialize-struct-mismatch", "prefix": "SERFIELDS",    "prompt": "prompts/general/serialize-struct-mismatch-finder.md" },
+        { "bug_class": "nondeterminism",            "prefix": "NONDET",       "prompt": "prompts/general/nondeterminism-finder.md" },
+        { "bug_class": "collection-key-mutation",   "prefix": "KEYMUT",       "prompt": "prompts/general/collection-key-mutation-finder.md" }
       ]
     },
     {
@@ -120,11 +126,19 @@
         { "bug_class": "cstring-dangling", "prefix": "CSTRDANGLE",   "prompt": "prompts/general/cstring-dangling-finder.md" },
         { "bug_class": "abi-mismatch",     "prefix": "ABIMISMATCH",  "prompt": "prompts/general/abi-mismatch-finder.md" },
         { "bug_class": "repr-c-padding",   "prefix": "REPRCPAD",     "prompt": "prompts/general/repr-c-padding-finder.md" },
-        { "bug_class": "packed-field-ref", "prefix": "PACKEDREF",    "prompt": "prompts/general/packed-field-ref-finder.md" },
         { "bug_class": "opaque-pointer",   "prefix": "OPAQUEPTR",    "prompt": "prompts/general/opaque-pointer-finder.md" },
         { "bug_class": "foreign-drop",     "prefix": "FOREIGNDROP",  "prompt": "prompts/general/foreign-drop-finder.md" },
         { "bug_class": "closure-ffi",      "prefix": "CLOSUREFFI",   "prompt": "prompts/general/closure-ffi-finder.md" },
         { "bug_class": "dyn-trait-ffi",    "prefix": "DYNFFI",       "prompt": "prompts/general/dyn-trait-ffi-finder.md" }
+      ]
+    },
+    {
+      "cluster_id": "layout-safety",
+      "prompt": "prompts/clusters/layout-safety.md",
+      "consolidated": false,
+      "gate": "has_packed_repr",
+      "passes": [
+        { "bug_class": "packed-field-ref", "prefix": "PACKEDREF", "prompt": "prompts/general/packed-field-ref-finder.md" }
       ]
     },
     {
@@ -155,7 +169,27 @@
       "consolidated": false,
       "gate": "always",
       "passes": [
-        { "bug_class": "raw-fd-lifecycle",     "prefix": "RAWFD",      "prompt": "prompts/general/raw-fd-lifecycle-finder.md" }
+        { "bug_class": "raw-fd-lifecycle", "prefix": "RAWFD",    "prompt": "prompts/general/raw-fd-lifecycle-finder.md" },
+        { "bug_class": "destructor-skip",  "prefix": "DROPSKIP", "prompt": "prompts/general/destructor-skip-finder.md" }
+      ]
+    },
+    {
+      "cluster_id": "input-os-safety",
+      "prompt": "prompts/clusters/input-os-safety.md",
+      "consolidated": false,
+      "gate": "has_fs_io",
+      "passes": [
+        { "bug_class": "path-traversal-join", "prefix": "PATHJOIN",  "prompt": "prompts/general/path-traversal-join-finder.md" },
+        { "bug_class": "toctou",              "prefix": "TOCTOU",    "prompt": "prompts/general/toctou-finder.md" }
+      ]
+    },
+    {
+      "cluster_id": "info-disclosure",
+      "prompt": "prompts/clusters/info-disclosure.md",
+      "consolidated": false,
+      "gate": "always",
+      "passes": [
+        { "bug_class": "pointer-exposure", "prefix": "PTREXPOSE", "prompt": "prompts/general/pointer-exposure-finder.md" }
       ]
     }
   ]

@@ -9,13 +9,14 @@ covers:
   - assertion-reachable  # ASSERTREACH
   - out-of-bounds-index  # OOBIDX
   - str-slice-boundary   # STRSLICE
+  - refcell-borrow-panic # REFCELLPANIC
 ---
 
 # Cluster: Panic-induced DoS and availability
 
 Rust panics terminate the thread (or process under `panic = "abort"`). On servers, an attacker-triggered panic is a DoS. **`RESEXHAUST` runs first:** CPU/RAM exhaustion via unbounded loops, O(n²) work, or uncapped `Vec::reserve` often leaves the process alive (no panic) — a distinct availability class from abort-on-panic.
 
-ID prefixes: `RESEXHAUST`, `UNWRAP`, `ARITHOFL`, `ASSERTREACH`, `OOBIDX`, `STRSLICE`.
+ID prefixes: `RESEXHAUST`, `UNWRAP`, `ARITHOFL`, `ASSERTREACH`, `OOBIDX`, `STRSLICE`, `REFCELLPANIC`.
 
 ## Phase A — Profile gate (do this first)
 
@@ -53,6 +54,8 @@ Grep: pattern="\bas\s+(u\d+|i\d+|usize|isize)\b"
 Grep: pattern="\[\s*\w+\s*\]"  # bracket indexing
 Grep: pattern="[^/\w](/|%)[^/=]"  # division / modulo — unconditional panic on zero
 Grep: pattern="\[[^\]]*\.\.[^\]]*\]|\.split_at(_mut)?\s*\(|\.truncate\s*\("  # str range-slice / split_at / truncate — char-boundary panic
+Grep: pattern="RefCell|\.borrow_mut\s*\("
+Grep: pattern="\.try_borrow_mut\s*\(\s*\)\s*\.(unwrap(_err)?|expect)\s*\("  # try_borrow_mut().unwrap()/expect() re-introduces the panic
 ```
 
 **Negative-signal grep (sites already hardened, skip for `ARITHOFL`):**
@@ -69,5 +72,6 @@ These methods never panic on overflow — they're the explicit non-panicking alt
 - `RESEXHAUST` vs `RECURSEDES` / `RECURSEFMT` / `RECURSEDROP` (recursion-dos): stack exhaustion from depth, not CPU/RAM amplification in safe loops.
 - `RESEXHAUST` vs `TRAITADV`: untrusted length into safe `Vec::reserve` files here; untrusted trait return into `unsafe`/`set_len` files at `TRAITADV` / `SETLEN`.
 - `OOBIDX` owns integer-index OOB on `Vec`/`[T]`; `STRSLICE` owns `str` range-slice / `split_at` / `truncate` panics where the byte index lands off a UTF-8 char boundary (a panic that fires even *in bounds*).
+- `REFCELLPANIC` owns single-threaded interior-mutability borrow panics; a borrow panic inside `Drop` routes to `DROPPANIC`; cross-thread/callback reentrancy routes to the concurrency-locking reentrancy classes.
 
 Run finders in declared order: `RESEXHAUST` first, then panic passes.

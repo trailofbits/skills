@@ -73,6 +73,7 @@ RULE_DESCRIPTIONS = {
     "assertion-reachable": "Attacker-reachable assert! or unreachable! panic",
     "out-of-bounds-index": "Slice or vector index without bounds check on untrusted input",
     "str-slice-boundary": "str slice or split_at panic off a UTF-8 char boundary",
+    "refcell-borrow-panic": "Attacker-reachable RefCell double-borrow panic",
     # recursion-dos
     "recursive-deserialize-stack-overflow": "Unbounded recursive Deserialize stack overflow",
     "recursive-format-stack-overflow": "Recursive Display, Debug, or Serialize stack overflow",
@@ -82,16 +83,20 @@ RULE_DESCRIPTIONS = {
     "drop-panic": "Panic inside a Drop implementation",
     "lossy-from-into": "Lossy From, Into, or as conversion",
     "lossy-str-conversion": "Lossy UTF-8 or OS string or path conversion",
+    "bufwriter-unflushed": "BufWriter dropped without flush swallows write errors",
     # logic-correctness
     "ord-eq-hash": "Ord, Eq, or Hash invariant violation",
     "adversarial-trait": "Hostile generic trait impl breaks invariants",
     "closure-panic": "Closure may panic across unsafe scaffolding",
     "float-edge": "NaN or Inf float comparison or ordering edge case",
+    "string-comparison": "Partial or case-insensitive string comparison bypasses a check",
+    "serialize-struct-mismatch": "serialize_struct field-count mismatch corrupts output",
+    "nondeterminism": "Nondeterministic iteration or hashing in replicated state",
+    "collection-key-mutation": "Mutating a key already stored in a map or set",
     # ffi-cross-language
     "cstring-dangling": "CString::as_ptr used after CString is dropped",
     "abi-mismatch": "FFI ABI signature or calling convention mismatch",
     "repr-c-padding": "#[repr(C)] padding leaks uninitialized data",
-    "packed-field-ref": "Reference to field of repr(packed) struct",
     "opaque-pointer": "Opaque pointer ownership confusion across FFI",
     "foreign-drop": "Mismatched drop of FFI-allocated memory",
     "closure-ffi": "Rust closure across extern C without catch_unwind",
@@ -104,8 +109,16 @@ RULE_DESCRIPTIONS = {
     "cargo-lint-config": "Cargo lint config weakens safety checks",
     "msrv-mismatch": "MSRV or edition mismatch with APIs in use",
     "deprecated-api": "Deprecated unsafe API (e.g. mem::uninitialized)",
+    # layout-safety
+    "packed-field-ref": "Reference to field of repr(packed) struct",
     # resource-handling
     "raw-fd-lifecycle": "Raw file descriptor double-close or leak",
+    "destructor-skip": "Drop skipped via process::exit or mem::forget leaks cleanup",
+    # input-os-safety
+    "path-traversal-join": "Path::join with attacker input escapes the intended directory",
+    "toctou": "Filesystem time-of-check to time-of-use race",
+    # info-disclosure
+    "pointer-exposure": "Raw memory address leaked to an externally observable sink",
 }
 
 

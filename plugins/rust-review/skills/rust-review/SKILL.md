@@ -17,6 +17,7 @@ Rust application/library security review: safe/unsafe boundary auditing, memory 
 - Pure-C / pure-C++ codebases — use `c-review` instead.
 - Smart contracts (Solana programs / NEAR contracts / Ink!) — use `solana-vulnerability-scanner` or the contract-specific skill.
 - Kernel-mode Rust drivers without userspace allocator — coverage is incomplete; flag as advisory only.
+- Secrets/key memory hygiene (zeroization, `Zeroize`/`ZeroizeOnDrop`/`secrecy` usage, lingering stack/heap copies) — use the `zeroize-audit` skill; rust-review does not cover memory zeroization.
 
 ## Subagents
 
@@ -89,7 +90,7 @@ After resolving `scope_subpath`, set `finding_scope_root="${scope_subpath:-.}"`.
 
 ### Phase 1: Prerequisites
 
-**Entry:** Phase 0 complete. **Exit:** `has_unsafe`, `has_ffi`, `has_concurrency`, `has_async` flags determined. Abort with a clear message if no `*.rs` files exist under `${finding_scope_root}`.
+**Entry:** Phase 0 complete. **Exit:** `has_unsafe`, `has_ffi`, `has_concurrency`, `has_async`, `has_packed_repr`, `has_fs_io` flags determined. Abort with a clear message if no `*.rs` files exist under `${finding_scope_root}`.
 
 Probe within `${finding_scope_root:-.}`. Prefer `Glob`/`Grep`; fall back to `Bash` equivalents below (non-empty output ⇒ flag true).
 
@@ -108,7 +109,18 @@ grep -rlE '\b(std::(thread|sync)|parking_lot::|crossbeam|rayon::|tokio::sync|cor
 
 # has_async
 grep -rlE '\basync\s+(fn|move|\{)|\.await\b|tokio::|async_std::|futures::' --include='*.rs' "${finding_scope_root:-.}" | head -1
+
+# has_packed_repr (outer #[repr(...packed...)] and inner #![repr(...packed...)])
+grep -rlE '#!?\[repr\([^]]*packed' --include='*.rs' "${finding_scope_root:-.}" | head -1
+
+# has_fs_io (path types / construction)
+grep -rlE '\bPathBuf\b|\bPath\b' --include='*.rs' "${finding_scope_root:-.}" | head -1
+
+# has_fs_io (fs module and file APIs)
+grep -rlE '\bfs::|\bFile::(open|create)\b|OpenOptions|\.exists\(\)|\.metadata\(|symlink_metadata|read_dir|read_to_string' --include='*.rs' "${finding_scope_root:-.}" | head -1
 ```
+
+As with the other flags, non-empty output (from either probe) means the flag is true. These detectors are intentionally conservative: when in doubt they set the flag true, because a false-positive flag only costs a harmless extra worker while a false-negative would skip a real pass. `has_fs_io` keys on path types (`PathBuf`/`Path`, which also covers `&Path` parameters and bare `Path::` calls) and filesystem anchors (`fs::`/`File::`/`OpenOptions`/`read_dir`/…) rather than the bare `.join(`/`.push(` calls — path construction is reached via the path-type anchors, so leaving join/push out of the gate avoids matching unrelated iterator/`JoinHandle` joins and `Vec::push` that would make the gate fire on nearly every crate.
 
 Note for `Cargo.toml`: also probe for `[dependencies] tokio`, `async-std`, etc., to set `has_async=true` even if the scope subpath has no `.await` yet (library crates often re-export).
 
@@ -136,7 +148,7 @@ The `coverage/` subdirectory holds per-worker coverage-gate audit files (`covera
 
 Skim `README.{md,rst,txt}` and any build/manifest file (`Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `build.rs`) — preflight with the `Glob` tool before any `Read` (a `Read` on a missing file aborts the turn). Do **not** use `Bash: ls README*` for the preflight: under zsh, an unmatched glob aborts the whole compound command before `2>/dev/null` runs. If you must use `Bash`, use `find . -maxdepth 2 -name 'README*' -o -name 'Cargo.toml' -o -name 'rust-toolchain.toml' -o -name 'build.rs'`, which never fails on no-match.
 
-Write `${output_dir}/context.md` with: YAML frontmatter (`threat_model`, `severity_filter`, `scope_subpath`, `finding_scope_root`, `context_roots`, `has_unsafe`, `has_ffi`, `has_concurrency`, `has_async`, `output_dir`, `cargo_manifest` as `workspace`/`single-crate`/`absent` plus path when present), then a short markdown body with five sections — **Purpose** (1-3 sentences), **Scope** (what's in `finding_scope_root`, and that findings outside it are out of scope), **Entry points** (where untrusted data enters: network, files, CLI, IPC, `serde` deserialization, FFI inputs), **Trust boundaries** (sandboxed vs trusted peers vs arbitrary remote), **Existing hardening** (fuzzing harnesses, MIRI runs, `clippy::pedantic`, `cargo-deny`, `cargo-audit`).
+Write `${output_dir}/context.md` with: YAML frontmatter (`threat_model`, `severity_filter`, `scope_subpath`, `finding_scope_root`, `context_roots`, `has_unsafe`, `has_ffi`, `has_concurrency`, `has_async`, `has_packed_repr`, `has_fs_io`, `output_dir`, `cargo_manifest` as `workspace`/`single-crate`/`absent` plus path when present), then a short markdown body with five sections — **Purpose** (1-3 sentences), **Scope** (what's in `finding_scope_root`, and that findings outside it are out of scope), **Entry points** (where untrusted data enters: network, files, CLI, IPC, `serde` deserialization, FFI inputs), **Trust boundaries** (sandboxed vs trusted peers vs arbitrary remote), **Existing hardening** (fuzzing harnesses, MIRI runs, `clippy::pedantic`, `cargo-deny`, `cargo-audit`).
 
 ### Phase 4: Build Run Plan (deterministic)
 
@@ -151,10 +163,11 @@ python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/build_run_plan.py" \
   --scope-subpath "${finding_scope_root:-.}" --context-roots "${context_roots:-.}" \
   --has-unsafe "${has_unsafe}" --has-ffi "${has_ffi}" \
   --has-concurrency "${has_concurrency}" --has-async "${has_async}" \
+  --has-packed-repr "${has_packed_repr}" --has-fs-io "${has_fs_io}" \
   --max-passes-per-worker 4
 ```
 
-The script writes `plan.json` + `worker-prompts/worker-N.txt` + (if `--cache-primer=true`, the default) `worker-prompts/cache-primer.txt`, and prints a JSON summary on stdout. Exits non-zero on any missing prompt — surface the message and stop. Typical M: 7 (pure safe Rust, no FFI / concurrency / async), 10 (concurrent safe Rust), 15 (full Rust: unsafe + FFI + concurrency + async). After it returns, `Read plan.json` for the structured selection — never re-derive filtering or paths.
+The script writes `plan.json` + `worker-prompts/worker-N.txt` + (if `--cache-primer=true`, the default) `worker-prompts/cache-primer.txt`, and prints a JSON summary on stdout. Exits non-zero on any missing prompt — surface the message and stop. Typical M: ~8 (pure safe Rust, no FFI / concurrency / async — `info-disclosure` is always on), ~11 (concurrent safe Rust), ~16 (full Rust: unsafe + FFI + concurrency + async, plus `input-os-safety` when `has_fs_io` and `layout-safety` when `has_packed_repr`). `input-os-safety` and `layout-safety` are conditional gates, so M rises with the capability flags. After it returns, `Read plan.json` for the structured selection — never re-derive filtering or paths.
 
 `--max-passes-per-worker N` caps the per-worker pass count. The planner deterministically splits any cluster with more than `N` passes into `ceil(K/N)` contiguous chunks; each chunk becomes its own `rust-review-worker` spawn with a `-{i}`-suffixed `cluster_id` (e.g. `unsafe-boundary-1`, `unsafe-boundary-2`). The shared prompt-cache prefix and `Cluster prompt:` path are byte-identical across chunks, so the cache primer still warms every worker. Default 4 is calibrated against the heavy-tail clusters in `manifest.json`. Some output-heavy clusters declare a smaller manifest-level `max_passes_per_worker` override so each expensive pass gets its own worker. Pass `--max-passes-per-worker 0` to disable all chunking, including manifest overrides (one worker per cluster).
 
@@ -325,7 +338,7 @@ Authoritative schema: `agents/rust-review-worker.md` ("Finding File Format"). Th
 
 ## Bug classes / clusters
 
-Authoritative: `prompts/clusters/manifest.json`. ~24 always-on bug classes, up to ~39 with all conditional clusters enabled. `unsafe-boundary` and `concurrency-locking` are fully consolidated (their sub-prompts are not re-read at runtime).
+Authoritative: `prompts/clusters/manifest.json`. ~32 always-on bug classes, up to ~49 with all conditional clusters enabled. PATHJOIN and TOCTOU are no longer always-on (now gated behind `has_fs_io` via `input-os-safety`), and PACKEDREF moved out of the FFI cluster into the conditional `layout-safety` cluster (`has_packed_repr`); PTREXPOSE stays always-on via the new `info-disclosure` cluster. `unsafe-boundary` and `concurrency-locking` are fully consolidated (their sub-prompts are not re-read at runtime).
 
 ---
 

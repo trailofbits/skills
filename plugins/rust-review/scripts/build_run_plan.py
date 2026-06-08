@@ -28,7 +28,8 @@ Usage:
         --severity-filter medium \\
         --scope-subpath src \\
         --context-roots . \\
-        --has-unsafe false --has-ffi true --has-concurrency true --has-async false
+        --has-unsafe false --has-ffi true --has-concurrency true --has-async false \\
+        --has-packed-repr false --has-fs-io true
 """
 
 from __future__ import annotations
@@ -41,8 +42,21 @@ from typing import Any, NoReturn
 
 THREAT_MODELS = {"REMOTE", "LOCAL_UNPRIVILEGED", "BOTH"}
 SEVERITY_FILTERS = {"all", "medium", "high"}
-GATE_VALUES = {"always", "has_unsafe", "has_ffi", "has_concurrency", "has_async"}
-KNOWN_REQUIRES = {"has_unsafe", "has_ffi", "has_concurrency", "has_async"}
+
+# Single source of truth for the per-run capability flags. Everything that
+# enumerates flags (CLI args, the gate/requires vocabularies, the flags dict,
+# the rendered prompt, and plan["run"]) derives from this tuple so a new flag
+# is added in exactly one place and cannot silently drift across call sites.
+CAPABILITY_FLAGS = (
+    "has_unsafe",
+    "has_ffi",
+    "has_concurrency",
+    "has_async",
+    "has_packed_repr",
+    "has_fs_io",
+)
+GATE_VALUES = {"always", *CAPABILITY_FLAGS}
+KNOWN_REQUIRES = set(CAPABILITY_FLAGS)
 
 
 def parse_bool(value: str) -> bool:
@@ -81,10 +95,8 @@ def parse_args() -> argparse.Namespace:
             "remain limited to --scope-subpath."
         ),
     )
-    p.add_argument("--has-unsafe", required=True, type=parse_bool)
-    p.add_argument("--has-ffi", required=True, type=parse_bool)
-    p.add_argument("--has-concurrency", required=True, type=parse_bool)
-    p.add_argument("--has-async", required=True, type=parse_bool)
+    for flag in CAPABILITY_FLAGS:
+        p.add_argument(f"--{flag.replace('_', '-')}", required=True, type=parse_bool)
     p.add_argument(
         "--manifest",
         type=Path,
@@ -334,10 +346,10 @@ def _render_shared_prefix_lines(
     lines.append(f"Threat model: {threat_model}")
     lines.append(f"Severity filter: {severity_filter}")
     lines.append(
-        f"Codebase: has_unsafe={'true' if flags['has_unsafe'] else 'false'}, "
-        f"has_ffi={'true' if flags['has_ffi'] else 'false'}, "
-        f"has_concurrency={'true' if flags['has_concurrency'] else 'false'}, "
-        f"has_async={'true' if flags['has_async'] else 'false'}"
+        "Codebase: "
+        + ", ".join(
+            f"{flag}={'true' if flags[flag] else 'false'}" for flag in CAPABILITY_FLAGS
+        )
     )
     lines.append("")
     lines.append("<context>")
@@ -531,12 +543,7 @@ def main() -> int:
     args = parse_args()
     plugin_root, output_dir, manifest_path, manifest = _validate_run_inputs(args)
 
-    flags = {
-        "has_unsafe": args.has_unsafe,
-        "has_ffi": args.has_ffi,
-        "has_concurrency": args.has_concurrency,
-        "has_async": args.has_async,
-    }
+    flags = {flag: getattr(args, flag) for flag in CAPABILITY_FLAGS}
     selected = build_selection(
         manifest, plugin_root=plugin_root, flags=flags, threat_model=args.threat_model
     )
@@ -590,10 +597,7 @@ def main() -> int:
             "context_roots": args.context_roots,
             "threat_model": args.threat_model,
             "severity_filter": args.severity_filter,
-            "has_unsafe": args.has_unsafe,
-            "has_ffi": args.has_ffi,
-            "has_concurrency": args.has_concurrency,
-            "has_async": args.has_async,
+            **flags,
             "plugin_root": str(plugin_root),
             "manifest_path": str(manifest_path),
             "cache_primer": args.cache_primer,
