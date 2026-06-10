@@ -168,7 +168,7 @@
     },
     {
       "name": "semgrep-rule-creator",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "description": "Create custom Semgrep rules for detecting bug patterns and security vulnerabilities",
       "author": {
         "name": "Maciej Domanski"
@@ -275,7 +275,7 @@
     },
     {
       "name": "second-opinion",
-      "version": "1.6.1",
+      "version": "1.7.0",
       "description": "Runs code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on uncommitted changes, branch diffs, or specific commits. Bundles Codex's built-in MCP server for direct tool access.",
       "author": {
         "name": "Dan Guido"
@@ -375,7 +375,7 @@
     },
     {
       "name": "fp-check",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Systematic false positive verification for security bug analysis with mandatory gate reviews",
       "author": {
         "name": "Maciej Domanski"
