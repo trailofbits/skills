@@ -7,6 +7,8 @@ allowed-tools: Bash Read Grep Glob
 # Trailmark Summary
 
 Runs `trailmark analyze --language auto --summary` on a target directory.
+This is a v0.2-safe workflow; do not require Trailmark 0.4.0 just to produce a
+summary.
 
 ## When to Use
 
@@ -47,6 +49,15 @@ and return. Do NOT run `pip install`, `uv pip install`,
 `git clone`, or any install command. The user must install
 trailmark themselves.
 
+Optionally record the version if the installed build supports it:
+
+```bash
+trailmark --version 2>/dev/null || uv run trailmark --version 2>/dev/null || true
+```
+
+Do not fail if the version command is missing; older v0.2.x builds may still
+support the summary workflow.
+
 **Step 2: Detect languages with Trailmark's parse API.**
 
 ```bash
@@ -81,3 +92,4 @@ The output must include ALL THREE of:
 If any are missing, report the gap. Do not fabricate output.
 
 Return the detected language list plus the full Trailmark summary output.
+If a version string was available, include it in the returned metadata.

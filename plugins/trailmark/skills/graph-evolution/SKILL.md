@@ -15,7 +15,9 @@ description: >
 Builds Trailmark code graphs at two source snapshots and computes a
 structural diff. Surfaces security-relevant changes that text-level
 diffs miss: new attack paths, complexity shifts, blast radius growth,
-taint propagation changes, and privilege boundary modifications.
+taint propagation changes, and privilege boundary modifications. Native
+`trailmark diff` is a Trailmark 0.4.0+ feature; use the API/plugin fallback
+when the installed build is older.
 
 ## When to Use
 
@@ -43,6 +45,7 @@ taint propagation changes, and privilege boundary modifications.
 | "Low-severity structural changes can be ignored" | INFO-level changes (dead code removal) can mask removed security checks | Classify every change, review removals for replaced functionality |
 | "One snapshot's graph is enough for comparison" | Single-snapshot analysis can't detect evolution — you need both before and after | Always build and export both graphs |
 | "Tool isn't installed, I'll compare manually" | Manual comparison misses what graph analysis catches | Install trailmark first |
+| "Native diff is always available" | Trailmark 0.2.x installs may not have the `diff` CLI | Check `trailmark diff --help` before using it |
 
 ---
 
@@ -57,6 +60,17 @@ uv pip install trailmark
 **DO NOT** fall back to "manual comparison" or reading source files as a
 substitute for running trailmark. The tool must be installed and used
 programmatically. If installation fails, report the error.
+
+Check for native v0.4 diff support before using `trailmark diff`:
+
+```bash
+trailmark diff --help 2>/dev/null || uv run trailmark diff --help 2>/dev/null
+```
+
+If unavailable, skip the native diff command and rely on `engine.diff_against()`
+when present plus `graph_diff.py` over exported JSON. If neither native diff nor
+`diff_against()` exists, still compute the plugin's JSON diff from the two
+exports and state that native entrypoint diff data was unavailable.
 
 ---
 
@@ -84,7 +98,7 @@ programmatically. If installation fails, report the error.
 │  └─ Read: references/report-format.md
 │
 ├─ Already have two graph JSON exports?
-│  └─ Jump to Phase 3 (run native diff + graph_diff.py)
+│  └─ Jump to Phase 3 (run native diff if available + graph_diff.py)
 │
 └─ Starting from two git refs?
    └─ Start at Phase 1
@@ -158,7 +172,10 @@ instead of `auto`.
 
 ### Phase 3: Compute Structural Diff
 
-Run **both**:
+Run the native Trailmark diff only when the version gate above succeeds. Always
+run the plugin's `graph_diff.py` helper for subgraph membership changes.
+
+When native diff is available, run **both**:
 
 1. Trailmark's native structural diff for nodes, edges, and entrypoints
 2. The plugin's `graph_diff.py` helper for subgraph membership changes
@@ -174,8 +191,19 @@ uv run {baseDir}/scripts/graph_diff.py \
     --after "{after_json}" > "{work_dir}/subgraph_diff.json"
 ```
 
-If either diff command fails or writes an empty JSON file, stop and report the
-error instead of continuing to Phase 4.
+If a diff command you chose to run fails or writes an empty JSON file, stop and
+report the error instead of continuing to Phase 4.
+
+Fallback for Trailmark 0.2.x:
+
+```bash
+uv run {baseDir}/scripts/graph_diff.py \
+    --before "{before_json}" \
+    --after "{after_json}" > "{work_dir}/subgraph_diff.json"
+```
+
+In the report, mark native `trailmark_diff.json` as unavailable and interpret
+the `graph_diff.py` node/edge/subgraph output instead.
 
 The native Trailmark diff contains:
 
@@ -197,8 +225,9 @@ The subgraph diff contains:
 
 ### Phase 4: Interpret Diff and Generate Report
 
-Read **both** diff JSON files and generate a security-focused markdown
-report.
+Read every diff JSON file produced in Phase 3 and generate a security-focused
+markdown report. On Trailmark 0.2.x, this may be only `subgraph_diff.json`;
+state that native entrypoint diff data was unavailable.
 See [references/report-format.md](references/report-format.md) for
 the full template.
 

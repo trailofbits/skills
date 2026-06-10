@@ -1,6 +1,6 @@
 ---
 name: trailmark
-description: "Builds and queries multi-language source code graphs for security analysis. Includes pre-analysis passes for blast radius, taint propagation, privilege boundaries, and entry point enumeration. Use when analyzing call paths, mapping attack surface, finding complexity hotspots, enumerating entry points, tracing taint propagation, measuring blast radius, or building a code graph for audit prioritization. Prefer `trailmark.parse.detect_languages()` or `--language auto` when the target language is unknown or polyglot."
+description: "Builds and queries multi-language source and binary code graphs for security analysis. Includes pre-analysis passes for blast radius, taint propagation, privilege boundaries, entry point enumeration, proxy/unresolved-call tracking, type/reference queries, structural traversal, graph diffs, and audit augmentation. Use when analyzing call paths, mapping attack surface, finding complexity hotspots, enumerating entry points, tracing taint propagation, measuring blast radius, importing SARIF/weAudit/binary findings, or building a code graph for audit prioritization. Feature-gate Trailmark 0.4.x APIs before using them; prefer `trailmark.parse.detect_languages()` or `--language auto` when the target language is unknown or polyglot."
 ---
 
 # Trailmark
@@ -16,6 +16,8 @@ semantic metadata for security analysis.
 - Understanding call relationships in unfamiliar codebases
 - Security review or audit preparation across polyglot projects
 - Adding LLM-inferred annotations (assumptions, preconditions) to code units
+- Importing external binary-analysis graphs to connect source and binary views
+- Querying transitive slices, entrypoint paths, subgraph edges, or type references
 - Pre-analysis before mutation testing (genotoxic skill) or diagramming
 
 ## When NOT to Use
@@ -35,6 +37,7 @@ semantic metadata for security analysis.
 | "Uncertain edges don't matter" | Dynamic dispatch is where type confusion bugs hide | Account for `uncertain` edges in security claims |
 | "Single-language analysis is enough" | Polyglot repos have FFI boundaries where bugs cluster | Use the correct `--language` flag per component |
 | "Complexity hotspots are the only thing worth checking" | Low-complexity functions on tainted paths are high-value targets | Combine complexity with taint and blast radius data |
+| "The docs mention a v0.4 method, so I can call it anywhere" | Many environments still have Trailmark 0.2.x installed | Check the installed version or probe method availability before using v0.4-only features |
 
 ---
 
@@ -52,6 +55,41 @@ source files by hand as a substitute for running trailmark. The tool must be
 installed and used programmatically. If installation fails, report the error
 to the user instead of silently switching to manual code reading.
 
+## Version Gate
+
+Trailmark 0.4.0 expands the graph model and query surface. Before using a
+feature listed as **v0.4+**, check the installed version:
+
+```bash
+trailmark --version 2>/dev/null || uv run trailmark --version 2>/dev/null
+```
+
+Accept `trailmark 0.4.0` or newer. If the version command is unavailable or
+reports `< 0.4.0`, use only the v0.2-safe baseline below. When working
+programmatically and version output is unavailable, probe with `hasattr()` and
+fall back instead of assuming the method exists:
+
+```python
+if hasattr(engine, "entrypoint_paths_to"):
+    paths = engine.entrypoint_paths_to("sensitive_sink")
+else:
+    paths = []  # v0.2 fallback: use attack_surface() + paths_between()
+```
+
+**v0.2-safe baseline:** `analyze`, `--language auto`,
+`detect_languages()`, `supported_languages()`, `QueryEngine.from_directory()`,
+`callers_of()`, `callees_of()`, `paths_between()`, `complexity_hotspots()`,
+`attack_surface()`, `summary()`, `to_json()`, `preanalysis()`,
+`annotate()`, `annotations_of()`, `findings()`, `subgraph()`,
+`subgraph_names()`, `augment_sarif()`, and `augment_weaudit()`.
+
+**v0.4+ features:** CLI `--version`/`version`, native `entrypoints`,
+`diff`, and `diagram` subcommands; expanded parser coverage; proxy nodes for
+unresolved calls; node origins; binary graph augmentation; transitive
+`ancestors_of()` / `reachable_from()`; `connect_subgraphs()`;
+`entrypoint_paths_to()`; `nodes_with_annotation()`; `clear_annotations()`;
+`subgraph_edges()`; `generic_parameters()`; and `type_references()`.
+
 ## Quick Start
 
 ```bash
@@ -64,6 +102,12 @@ uv run trailmark analyze --language python,rust {targetDir}
 
 # Complexity hotspots
 uv run trailmark analyze --language auto --complexity 10 {targetDir}
+
+# v0.4+: version, entrypoint, diff, and native diagram commands
+uv run trailmark --version
+uv run trailmark entrypoints --language auto {targetDir}
+uv run trailmark diff --repo {repoDir} main HEAD --json
+uv run trailmark diagram -t {targetDir} -T call-graph -f main --depth 2
 ```
 
 ### Programmatic API
@@ -88,6 +132,15 @@ engine.attack_surface()
 engine.summary()
 engine.to_json()
 
+# v0.4+: transitive slices and entrypoint path queries
+if hasattr(engine, "ancestors_of"):
+    engine.ancestors_of("sensitive_sink")
+    engine.reachable_from("entry_func")
+if hasattr(engine, "entrypoint_paths_to"):
+    engine.entrypoint_paths_to("sensitive_sink")
+if hasattr(engine, "connect_subgraphs"):
+    engine.connect_subgraphs("tainted", "privilege_boundary")
+
 # Run pre-analysis (blast radius, entrypoints, privilege
 # boundaries, taint propagation)
 result = engine.preanalysis()
@@ -98,6 +151,8 @@ engine.subgraph("tainted")
 engine.subgraph("high_blast_radius")
 engine.subgraph("privilege_boundary")
 engine.subgraph("entrypoint_reachable")
+if hasattr(engine, "subgraph_edges"):
+    engine.subgraph_edges("tainted")
 
 # Add LLM-inferred annotations
 from trailmark.models import AnnotationKind
@@ -111,6 +166,18 @@ engine.annotations_of("function_name",
                        kind=AnnotationKind.BLAST_RADIUS)
 engine.annotations_of("function_name",
                        kind=AnnotationKind.TAINT_PROPAGATION)
+if hasattr(engine, "nodes_with_annotation"):
+    engine.nodes_with_annotation(AnnotationKind.FINDING)
+if hasattr(engine, "clear_annotations"):
+    engine.clear_annotations("function_name", kind=AnnotationKind.ASSUMPTION)
+
+# v0.4+: generic/type-reference and binary augmentation APIs
+if hasattr(engine, "generic_parameters"):
+    engine.generic_parameters("GenericTypeOrFunction")
+if hasattr(engine, "type_references"):
+    engine.type_references("function_name")
+if hasattr(engine, "augment_binary"):
+    engine.augment_binary("binary_graph.json")
 ```
 
 ## Pre-Analysis Passes
@@ -154,13 +221,26 @@ uv run trailmark analyze --language auto {targetDir}
 uv run trailmark analyze --language python,rust {targetDir}
 ```
 
+As of Trailmark 0.4.0, parser names include: `python`, `javascript`,
+`typescript`, `php`, `ruby`, `c`, `cpp`, `c_sharp`, `java`, `go`, `rust`,
+`solidity`, `cairo`, `circom`, `haskell`, `erlang`, `masm`, `swift`, `objc`,
+`kotlin`, `dart`, `move`, `tact`, `func`, `sway`, `rego`, `proto`, `thrift`,
+and `graphql`. Treat this list as documentation, not a source of truth; call
+`supported_languages()` on the installed build before relying on a parser.
+
 ## Graph Model
 
 **Node kinds:** `function`, `method`, `class`, `module`, `struct`,
 `interface`, `trait`, `enum`, `namespace`, `contract`, `library`,
-`template`
+`template`; **v0.4+** also materializes unresolved references as `proxy`
+nodes.
 
-**Edge kinds:** `calls`, `inherits`, `implements`, `contains`, `imports`
+**Node origins:** **v0.4+** nodes may carry origin `source`, `proxy`,
+`binary`, or `synthetic`. v0.2 exports may omit origin.
+
+**Edge kinds:** `calls`, `inherits`, `implements`, `contains`, `imports`;
+**v0.4+** adds `resolves_to`, `type_uses`, `specializes`, and
+`corresponds_to`.
 
 **Edge confidence:** `certain` (direct call, `self.method()`), `inferred`
 (attribute access on non-self object), `uncertain` (dynamic dispatch)
@@ -191,6 +271,15 @@ paths. Mismatches are where vulnerabilities hide:
 
 **Edge confidence:** Dynamic dispatch produces `uncertain` edges. Account for
 confidence when making security claims.
+
+**Proxy nodes (v0.4+):** Unresolved calls are preserved as nodes such as
+`proxy.unresolved:<symbol>`. Do not treat these as source code functions; use
+them to identify resolution gaps, dynamic dispatch, external APIs, or binary
+linkage candidates.
+
+**Binary augmentation (v0.4+):** `engine.augment_binary()` imports an external
+binary-analysis graph JSON file. Trailmark connects it to source nodes when
+possible; it does not disassemble binaries itself.
 
 **Subgraphs:** Named collections of node IDs produced by pre-analysis.
 Query with `engine.subgraph("name")`. Available after `engine.preanalysis()`.
