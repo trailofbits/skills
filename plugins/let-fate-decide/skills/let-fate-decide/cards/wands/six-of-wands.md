@@ -11,4 +11,6 @@ Fall from grace, egotism, lack of recognition. Success breeds arrogance or
 the win goes unnoticed. Stay grounded regardless of external validation.
 
 ## In Technical Context
-The approach will succeed. Ship confidently and communicate the win.
+The approach has signs of success, so make the win reproducible. Finish the
+verification, document why this path worked, and communicate the result without
+letting confidence turn into complacency.

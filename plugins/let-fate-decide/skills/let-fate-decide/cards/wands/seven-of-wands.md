@@ -11,4 +11,6 @@ Exhaustion, giving up, overwhelmed. The constant defense is wearing you down.
 Know when persistence becomes stubbornness.
 
 ## In Technical Context
-Defend your technical decision against pushback. The approach is sound.
+Pressure-test the technical decision instead of folding at the first pushback.
+Hold your ground when the evidence supports it, but distinguish real critique
+from noise.

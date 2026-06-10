@@ -9,4 +9,6 @@ New feelings, emotional awakening, and a surge of creativity and intuition. This
 Emotional loss, blocked creativity, and a sense of emptiness. You may be suppressing your feelings or struggling to connect with your inner voice. Something is damming the flow.
 
 ## In Technical Context
-Follow your intuition on this one. The solution that feels right probably is.
+Treat intuition as a useful signal, not proof. Build a small prototype, user
+check, or focused test around the approach that feels right before committing
+to it.

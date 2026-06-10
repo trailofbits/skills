@@ -1,10 +1,7 @@
 ---
 name: sharp-edges
 description: "Identifies error-prone APIs, dangerous configurations, and footgun designs that enable security mistakes. Use when reviewing API designs, configuration schemas, cryptographic library ergonomics, or evaluating whether code follows 'secure by default' and 'pit of success' principles. Triggers: footgun, misuse-resistant, secure defaults, API usability, dangerous configuration."
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
+allowed-tools: Read Grep Glob
 ---
 
 # Sharp Edges Analysis
@@ -24,6 +21,10 @@ Evaluates whether APIs, configurations, and interfaces are resistant to develope
 - Implementation bugs (use standard code review)
 - Business logic flaws (use domain-specific analysis)
 - Performance optimization (different concern)
+
+## Agent
+
+The `sharp-edges-analyzer` agent runs the full sharp edges analysis workflow autonomously. Use it when you want a dedicated analysis of APIs, configurations, or interfaces for misuse resistance and footgun potential. The agent follows the four-phase workflow (Surface Identification, Edge Case Probing, Threat Modeling, Validate Findings) and reads language-specific references on demand.
 
 ## Core Principle
 

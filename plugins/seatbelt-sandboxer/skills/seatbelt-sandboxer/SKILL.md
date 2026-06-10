@@ -1,12 +1,7 @@
 ---
 name: seatbelt-sandboxer
 description: "Generates minimal macOS Seatbelt sandbox configurations. Use when sandboxing, isolating, or restricting macOS applications with allowlist-based profiles."
-allowed-tools:
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
+allowed-tools: Read Write Bash Glob Grep
 ---
 
 # macOS Seatbelt Sandbox Profiling

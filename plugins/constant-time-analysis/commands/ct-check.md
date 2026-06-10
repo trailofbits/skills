@@ -2,11 +2,7 @@
 name: trailofbits:ct-check
 description: Detects timing side-channels in cryptographic code
 argument-hint: "<source-file> [--warnings] [--json] [--arch <arch>]"
-allowed-tools:
-  - Bash
-  - Read
-  - Grep
-  - Glob
+allowed-tools: Bash Read Grep Glob
 ---
 
 # Check Constant-Time Properties

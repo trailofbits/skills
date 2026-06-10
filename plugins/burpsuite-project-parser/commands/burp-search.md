@@ -2,9 +2,7 @@
 name: trailofbits:burp-search
 description: Searches Burp Suite project files for security analysis
 argument-hint: "<burp-file> [operation]"
-allowed-tools:
-  - Bash
-  - Read
+allowed-tools: Bash Read
 ---
 
 # Search Burp Suite Project Files
