@@ -49,6 +49,7 @@ uv pip install trailmark
 | `graph-evolution` | Compare code graphs at two snapshots to surface security-relevant structural changes text diffs miss |
 | `mermaid-to-proverif` | Convert Mermaid sequence diagrams into ProVerif formal verification models |
 | `audit-augmentation` | Project SARIF, weAudit, and v0.4 binary-analysis graph findings onto code graphs as annotations and subgraphs |
+| `trailmark-finding-triage` | Triage one finding, SARIF result, weAudit annotation, suspicious function, or report excerpt with reachability, taint, privilege-boundary, and blast-radius evidence |
 | `trailmark-summary` | Quick structural overview (auto-detected languages, entry points, dependencies) for vivisect/galvanize |
 | `trailmark-structural` | Full structural analysis with all pre-analysis passes (blast radius, taint, privilege boundaries, complexity) |
 
@@ -73,6 +74,7 @@ trailmark/
     ├── mermaid-to-proverif/          # Sequence diagram → ProVerif
     │   └── examples/
     ├── audit-augmentation/           # SARIF/weAudit integration
+    ├── trailmark-finding-triage/      # Single-finding evidence packets
     ├── trailmark-summary/            # Quick overview for vivisect/galvanize
     └── trailmark-structural/         # Full structural analysis
 ```
@@ -84,3 +86,4 @@ trailmark/
 | `mutation-testing` | Guidance for running mutation frameworks (mewt, muton) — use before genotoxic for triage |
 | `differential-review` | Text-level security diff review — complements graph-evolution's structural analysis |
 | `audit-context-building` | Deep architectural context before vulnerability hunting |
+| `variant-analysis` | Search for related candidates after trailmark-finding-triage identifies a repeatable root cause |

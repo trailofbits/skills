@@ -18,6 +18,7 @@ semantic metadata for security analysis.
 - Adding LLM-inferred annotations (assumptions, preconditions) to code units
 - Importing external binary-analysis graphs to connect source and binary views
 - Querying transitive slices, entrypoint paths, subgraph edges, or type references
+- Producing graph evidence for one suspicious function or candidate finding
 - Pre-analysis before mutation testing (genotoxic skill) or diagramming
 
 ## When NOT to Use
@@ -303,3 +304,7 @@ security analysis patterns.
 
 See [references/preanalysis-passes.md](references/preanalysis-passes.md) for
 pre-analysis pass documentation.
+
+Use `trailmark-finding-triage` when the user has one concrete candidate
+finding, SARIF result, weAudit annotation, suspicious function, or report
+excerpt and needs a handoff-ready reachability and blast-radius evidence packet.
