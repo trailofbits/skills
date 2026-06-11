@@ -64,31 +64,40 @@ feature listed as **v0.4+**, check the installed version:
 trailmark --version 2>/dev/null || uv run trailmark --version 2>/dev/null
 ```
 
-Accept `trailmark 0.4.0` or newer. If the version command is unavailable or
-reports `< 0.4.0`, use only the v0.2-safe baseline below. When working
-programmatically and version output is unavailable, probe with `hasattr()` and
-fall back instead of assuming the method exists:
+Compare the reported version numerically (not lexically). `0.4.0` or newer
+means the full v0.4 surface is available. The version command itself was added
+in 0.2.2, so a failure means either a pre-0.2.2 install or trailmark missing
+entirely — distinguish with `trailmark analyze --help`. When working
+programmatically, probe with `hasattr()` and fall back instead of assuming a
+v0.4-only method exists:
 
 ```python
-if hasattr(engine, "entrypoint_paths_to"):
-    paths = engine.entrypoint_paths_to("sensitive_sink")
+if hasattr(engine, "subgraph_edges"):
+    edges = engine.subgraph_edges("tainted")
 else:
-    paths = []  # v0.2 fallback: use attack_surface() + paths_between()
+    # v0.2 fallback: filter engine.to_json() edges whose endpoints
+    # are both in engine.subgraph("tainted")
+    edges = []
 ```
 
-**v0.2-safe baseline:** `analyze`, `--language auto`,
-`detect_languages()`, `supported_languages()`, `QueryEngine.from_directory()`,
-`callers_of()`, `callees_of()`, `paths_between()`, `complexity_hotspots()`,
-`attack_surface()`, `summary()`, `to_json()`, `preanalysis()`,
-`annotate()`, `annotations_of()`, `findings()`, `subgraph()`,
-`subgraph_names()`, `augment_sarif()`, and `augment_weaudit()`.
+**v0.2-safe baseline:** CLI `analyze`, `diff`, `entrypoints`, `augment`, and
+`--language auto`; `QueryEngine.from_directory()`, `callers_of()`,
+`callees_of()`, `paths_between()`, `ancestors_of()`, `reachable_from()`,
+`entrypoint_paths_to()`, `complexity_hotspots()`, `attack_surface()`,
+`summary()`, `to_json()`, `preanalysis()`, `annotate()`, `annotations_of()`,
+`nodes_with_annotation()`, `clear_annotations()`, `findings()`, `subgraph()`,
+`subgraph_names()`, `diff_against()`, `augment_sarif()`, and
+`augment_weaudit()`.
 
-**v0.4+ features:** CLI `--version`/`version`, native `entrypoints`,
-`diff`, and `diagram` subcommands; expanded parser coverage; proxy nodes for
-unresolved calls; node origins; binary graph augmentation; transitive
-`ancestors_of()` / `reachable_from()`; `connect_subgraphs()`;
-`entrypoint_paths_to()`; `nodes_with_annotation()`; `clear_annotations()`;
-`subgraph_edges()`; `generic_parameters()`; and `type_references()`.
+**Added in 0.2.2:** CLI `--version` flag and `version` subcommand.
+
+**Added in 0.3.x:** the `trailmark.parse` module with module-level
+`detect_languages()` and `supported_languages()`.
+
+**v0.4+ features:** native `diagram` subcommand; expanded parser coverage;
+proxy nodes for unresolved calls; node origins; binary graph augmentation via
+`augment_binary()`; `connect_subgraphs()`; `subgraph_edges()`;
+`generic_parameters()`; and `type_references()`.
 
 ## Quick Start
 
@@ -103,16 +112,21 @@ uv run trailmark analyze --language python,rust {targetDir}
 # Complexity hotspots
 uv run trailmark analyze --language auto --complexity 10 {targetDir}
 
-# v0.4+: version, entrypoint, diff, and native diagram commands
-uv run trailmark --version
+# Entrypoint inventory and structural diff (v0.2-safe)
 uv run trailmark entrypoints --language auto {targetDir}
 uv run trailmark diff --repo {repoDir} main HEAD --json
+
+# Version report (0.2.2+)
+uv run trailmark --version
+
+# v0.4+: native diagram command
 uv run trailmark diagram -t {targetDir} -T call-graph -f main --depth 2
 ```
 
 ### Programmatic API
 
 ```python
+# trailmark.parse is a 0.3+ module; on 0.2.x pass language="auto" instead
 from trailmark.parse import detect_languages, supported_languages
 from trailmark.query.api import QueryEngine
 
@@ -132,12 +146,12 @@ engine.attack_surface()
 engine.summary()
 engine.to_json()
 
-# v0.4+: transitive slices and entrypoint path queries
-if hasattr(engine, "ancestors_of"):
-    engine.ancestors_of("sensitive_sink")
-    engine.reachable_from("entry_func")
-if hasattr(engine, "entrypoint_paths_to"):
-    engine.entrypoint_paths_to("sensitive_sink")
+# Transitive slices and entrypoint path queries (v0.2-safe)
+engine.ancestors_of("sensitive_sink")
+engine.reachable_from("entry_func")
+engine.entrypoint_paths_to("sensitive_sink")
+
+# v0.4+: connect named subgraphs
 if hasattr(engine, "connect_subgraphs"):
     engine.connect_subgraphs("tainted", "privilege_boundary")
 
@@ -166,10 +180,8 @@ engine.annotations_of("function_name",
                        kind=AnnotationKind.BLAST_RADIUS)
 engine.annotations_of("function_name",
                        kind=AnnotationKind.TAINT_PROPAGATION)
-if hasattr(engine, "nodes_with_annotation"):
-    engine.nodes_with_annotation(AnnotationKind.FINDING)
-if hasattr(engine, "clear_annotations"):
-    engine.clear_annotations("function_name", kind=AnnotationKind.ASSUMPTION)
+engine.nodes_with_annotation(AnnotationKind.FINDING)
+engine.clear_annotations("function_name", kind=AnnotationKind.ASSUMPTION)
 
 # v0.4+: generic/type-reference and binary augmentation APIs
 if hasattr(engine, "generic_parameters"):

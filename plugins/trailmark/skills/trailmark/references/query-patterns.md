@@ -12,12 +12,17 @@ from trailmark.query.api import QueryEngine
 
 engine = QueryEngine.from_directory("{targetDir}", language="auto")
 
-if hasattr(engine, "entrypoint_paths_to"):
-    paths = engine.entrypoint_paths_to("sensitive_sink")  # v0.4+
+if hasattr(engine, "subgraph_edges"):
+    edges = engine.subgraph_edges("tainted")  # v0.4+
 else:
-    paths = []
-    for ep in engine.attack_surface():
-        paths.extend(engine.paths_between(ep["node_id"], "sensitive_sink"))
+    # v0.2 fallback: filter exported edges by subgraph membership
+    import json
+    graph = json.loads(engine.to_json())
+    member_ids = {node["id"] for node in engine.subgraph("tainted")}
+    edges = [
+        e for e in graph.get("edges", [])
+        if e["source"] in member_ids and e["target"] in member_ids
+    ]
 ```
 
 ## 1. Mapping Attack Surface
@@ -74,34 +79,20 @@ for caller in callers:
 Check if a function is reachable from any entrypoint:
 
 ```python
-if hasattr(engine, "entrypoint_paths_to"):
-    paths = engine.entrypoint_paths_to("sensitive_function_id")
-else:
-    paths = []
-    for ep in engine.attack_surface():
-        paths.extend(engine.paths_between(ep["node_id"], "sensitive_function_id"))
-
+paths = engine.entrypoint_paths_to("sensitive_function_id")
 if paths:
     print(f"Reachable via {len(paths)} path(s)")
 else:
     print("Not reachable from any entrypoint")
 ```
 
-For Trailmark 0.4.0+, prefer `entrypoint_paths_to()` because it searches all
-detected entrypoints directly. On older versions, use `attack_surface()` plus
-`paths_between()` as shown in the version-gated example above.
-
 ## 6. Transitive Slices
 
-Trailmark 0.4.0+ exposes upward and downward transitive slices:
+Upward and downward transitive slices (v0.2-safe):
 
 ```python
-if hasattr(engine, "ancestors_of"):
-    callers_to_sink = engine.ancestors_of("execute_query")
-    downstream = engine.reachable_from("handle_request")
-else:
-    callers_to_sink = engine.callers_of("execute_query")
-    downstream = engine.callees_of("handle_request")
+callers_to_sink = engine.ancestors_of("execute_query")
+downstream = engine.reachable_from("handle_request")
 ```
 
 Use `ancestors_of()` for "who could eventually reach this sink?" and
@@ -164,6 +155,7 @@ Ask Trailmark which languages it supports, detect what exists under the
 target tree, then choose `auto` or an explicit list:
 
 ```python
+# trailmark.parse is a 0.3+ module; on 0.2.x pass language="auto" instead
 from trailmark.parse import detect_languages, supported_languages
 from trailmark.query.api import QueryEngine
 
@@ -178,13 +170,13 @@ As of Trailmark 0.4.0, supported parser names include `python`, `javascript`,
 `typescript`, `php`, `ruby`, `c`, `cpp`, `c_sharp`, `java`, `go`, `rust`,
 `solidity`, `cairo`, `circom`, `haskell`, `erlang`, `masm`, `swift`, `objc`,
 `kotlin`, `dart`, `move`, `tact`, `func`, `sway`, `rego`, `proto`, `thrift`,
-and `graphql`. Always call `supported_languages()` on the installed build
-before relying on this list.
+and `graphql`. Treat this list as documentation, not a source of truth; on
+0.3+ builds call `supported_languages()` before relying on it.
 
 ## 11. CLI Patterns
 
 ```bash
-# Version check before v0.4-only commands
+# Version check before v0.4-only commands (version CLI itself is 0.2.2+)
 uv run trailmark --version
 
 # Quick summary with auto-detection
@@ -197,8 +189,10 @@ uv run trailmark analyze --language python,rust --complexity 8 {targetDir}
 # Entrypoint inventory
 uv run trailmark entrypoints --language auto {targetDir}
 
-# v0.4+: native diff and native diagram
+# Structural diff between two refs or directories
 uv run trailmark diff --repo {repoDir} main HEAD --json
+
+# v0.4+: native diagram
 uv run trailmark diagram -t {targetDir} -T call-graph -f main --depth 2
 
 # Full JSON output for piping to other tools
@@ -225,13 +219,11 @@ for ann in engine.annotations_of("handle_request"):
 assumptions = engine.annotations_of("handle_request", kind=AnnotationKind.ASSUMPTION)
 
 # Clear annotations (all, or by kind)
-if hasattr(engine, "clear_annotations"):
-    engine.clear_annotations("handle_request", kind=AnnotationKind.ASSUMPTION)
-    engine.clear_annotations("handle_request")
+engine.clear_annotations("handle_request", kind=AnnotationKind.ASSUMPTION)
+engine.clear_annotations("handle_request")
 
-# v0.4+: nodes with a given annotation
-if hasattr(engine, "nodes_with_annotation"):
-    finding_nodes = engine.nodes_with_annotation(AnnotationKind.FINDING)
+# Nodes with a given annotation
+finding_nodes = engine.nodes_with_annotation(AnnotationKind.FINDING)
 ```
 
 **Annotation kinds:** `ASSUMPTION`, `PRECONDITION`, `POSTCONDITION`, `INVARIANT`.

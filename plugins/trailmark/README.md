@@ -3,10 +3,10 @@
 **Source code graph analysis for security auditing.** Parses code into queryable graphs of functions, classes, and calls, then uses that structure for diagram generation, mutation testing triage, protocol verification, and differential review.
 
 These skills support Trailmark 0.2.x through the 0.4.0 release line. Prefer
-`--language auto`, `trailmark.parse.detect_languages()`, and
-`QueryEngine.preanalysis()` for the v0.2-safe core workflow. Before using
-features added for v0.4.0, check the installed Trailmark version or probe for
-the method/CLI command first.
+`--language auto`, `trailmark.parse.detect_languages()` (0.3+), and
+`QueryEngine.preanalysis()` for the core workflow. Before using features added
+for v0.4.0, check the installed Trailmark version or probe for the method/CLI
+command first.
 
 ## Compatibility
 
@@ -16,19 +16,18 @@ Use this guard before relying on v0.4-only features:
 trailmark --version 2>/dev/null || uv run trailmark --version 2>/dev/null
 ```
 
-If the command reports `trailmark 0.4.0` or newer, the expanded v0.4 feature
-set is available. If the command is missing or reports an older version, stay
-on the v0.2-safe surface: `analyze`, `--language auto`, `detect_languages()`,
-`QueryEngine.from_directory()`, `summary()`, `complexity_hotspots()`,
-`attack_surface()`, `preanalysis()`, annotations, and SARIF/weAudit
-augmentation.
+Compare the reported version numerically. If it is `0.4.0` or newer, the
+expanded v0.4 feature set is available. If the command is missing or reports
+an older version, stay on the v0.2-safe baseline — the `trailmark` skill's
+Version Gate section has the authoritative list. (The version CLI itself was
+added in 0.2.2, so a missing command can also mean trailmark is not installed
+at all.)
 
-v0.4.0 adds expanded parser coverage, explicit proxy nodes for unresolved calls,
-node origins (`source`, `proxy`, `binary`, `synthetic`), new edge kinds
-(`resolves_to`, `type_uses`, `specializes`, `corresponds_to`), transitive query
-helpers, entrypoint path queries, subgraph edge queries, generic/type-reference
-queries, CLI `version`/`entrypoints`/`diff`/`diagram`, and binary graph
-augmentation via `augment_binary()`.
+v0.4.0 adds expanded parser coverage, explicit proxy nodes for unresolved
+calls, node origins (`source`, `proxy`, `binary`, `synthetic`), new edge kinds
+(`resolves_to`, `type_uses`, `specializes`, `corresponds_to`), subgraph edge
+and connection queries, generic/type-reference queries, the native
+`trailmark diagram` CLI, and binary graph augmentation via `augment_binary()`.
 
 ## Prerequisites
 

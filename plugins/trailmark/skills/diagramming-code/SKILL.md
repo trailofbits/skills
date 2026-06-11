@@ -105,7 +105,7 @@ Diagram Progress:
 - [ ] Step 1: Verify trailmark is installed
 - [ ] Step 2: Identify diagram type from user request
 - [ ] Step 3: Determine focus node and parameters
-- [ ] Step 4: Run diagram.py script
+- [ ] Step 4: Run diagram.py script (or native trailmark diagram on v0.4+)
 - [ ] Step 5: Verify output is non-empty and well-formed
 - [ ] Step 6: Embed diagram in response
 ```
