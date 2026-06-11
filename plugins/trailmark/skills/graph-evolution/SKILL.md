@@ -301,6 +301,12 @@ line-level code review. The two are complementary — graph-evolution
 finds attack paths that text diffs miss, while differential-review
 provides git blame context and micro-adversarial analysis.
 
+**trailmark-review-gate skill:**
+Use trailmark-review-gate after graph-evolution when a branch, pull request,
+fix commit, or release diff needs a PASS/WARN/FAIL/UNKNOWN structural review
+packet. The gate applies deterministic review rules to graph-evolution output;
+it does not replace human review.
+
 **genotoxic skill:**
 If graph-evolution reveals new high-CC tainted nodes, feed them to
 genotoxic for mutation testing triage.

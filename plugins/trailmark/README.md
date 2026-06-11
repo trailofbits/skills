@@ -47,6 +47,7 @@ uv pip install trailmark
 | `genotoxic` | Triage mutation testing results using graph analysis — classify survived mutants as false positives, missing tests, or fuzzing targets |
 | `vector-forge` | Mutation-driven test vector generation — find coverage gaps via mutation testing, then generate Wycheproof-style vectors that close them |
 | `graph-evolution` | Compare code graphs at two snapshots to surface security-relevant structural changes text diffs miss |
+| `trailmark-review-gate` | Apply PASS/WARN/FAIL/UNKNOWN structural gate rules to branch, PR, fix, or release diffs |
 | `mermaid-to-proverif` | Convert Mermaid sequence diagrams into ProVerif formal verification models |
 | `audit-augmentation` | Project SARIF, weAudit, and v0.4 binary-analysis graph findings onto code graphs as annotations and subgraphs |
 | `trailmark-finding-triage` | Triage one finding, SARIF result, weAudit annotation, suspicious function, or report excerpt with reachability, taint, privilege-boundary, and blast-radius evidence |
@@ -71,6 +72,7 @@ trailmark/
     │   └── references/
     ├── graph-evolution/              # Structural diff
     │   └── scripts/graph_diff.py
+    ├── trailmark-review-gate/         # Structural review gates
     ├── mermaid-to-proverif/          # Sequence diagram → ProVerif
     │   └── examples/
     ├── audit-augmentation/           # SARIF/weAudit integration
