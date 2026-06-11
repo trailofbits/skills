@@ -308,3 +308,7 @@ pre-analysis pass documentation.
 Use `trailmark-finding-triage` when the user has one concrete candidate
 finding, SARIF result, weAudit annotation, suspicious function, or report
 excerpt and needs a handoff-ready reachability and blast-radius evidence packet.
+
+Use `trailmark-variant-neighborhood` after one seed issue is known and the user
+needs graph-derived variant candidates for `variant-analysis`, Semgrep, CodeQL,
+or manual review.

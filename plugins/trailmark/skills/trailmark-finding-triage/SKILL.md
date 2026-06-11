@@ -125,7 +125,8 @@ Write the evidence packet using
 
 Hand off promoted PoC-worthy issues to the user's PoC workflow. Hand off
 related findings to a composition workflow. Hand off repeatable root causes to
-`variant-analysis` or a custom Semgrep/CodeQL rule workflow.
+`trailmark-variant-neighborhood`, `variant-analysis`, or a custom Semgrep/CodeQL
+rule workflow.
 
 ## Example Prompts
 
