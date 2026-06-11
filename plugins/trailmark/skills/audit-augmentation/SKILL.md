@@ -27,6 +27,7 @@ also import an external binary-analysis graph JSON export via
 - Cross-referencing static analysis findings with blast radius or taint data
 - Querying which functions have high-severity findings
 - Visualizing audit coverage alongside code structure
+- Preparing one SARIF or weAudit result for `trailmark-finding-triage`
 
 ## When NOT to Use
 
@@ -161,6 +162,10 @@ annotated nodes. Use `engine.subgraph_names()` to see available subgraphs.
 - Findings on tainted nodes: overlap `sarif:error` with `tainted` subgraph
 - Findings on high blast radius nodes: overlap with `high_blast_radius`
 - Findings on privilege boundaries: overlap with `privilege_boundary`
+
+For one candidate finding that needs a reachability verdict or PoC handoff,
+continue with `trailmark-finding-triage` and use the augmented node as the
+bound candidate.
 
 ## Annotation Format
 
