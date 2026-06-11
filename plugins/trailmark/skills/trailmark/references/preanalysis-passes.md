@@ -144,7 +144,15 @@ Query any subgraph:
 ```python
 nodes = engine.subgraph("tainted")
 names = engine.subgraph_names()
+
+# Trailmark 0.4.0+
+if hasattr(engine, "subgraph_edges"):
+    tainted_call_edges = engine.subgraph_edges("tainted", edge_kinds=("calls",))
 ```
+
+Use `subgraph_edges()` only after checking for Trailmark 0.4.0+ or probing the
+method. On v0.2.x, export `engine.to_json()` and filter edges whose endpoints
+are both in `engine.subgraph(name)`.
 
 ---
 

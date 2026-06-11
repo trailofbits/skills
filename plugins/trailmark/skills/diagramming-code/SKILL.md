@@ -13,7 +13,9 @@ description: >
 
 Generates Mermaid diagrams from Trailmark's code graph. A pre-made script
 handles Mermaid syntax generation; Claude selects the diagram type and
-parameters.
+parameters. Trailmark 0.4.0 includes a native `trailmark diagram` command; use
+it only after a version/command check, otherwise use this skill's bundled
+script.
 
 ## When to Use
 
@@ -42,12 +44,29 @@ uv pip install trailmark
 script uses Trailmark's parsed graph for accuracy. If installation fails,
 report the error to the user.
 
+## Version Gate
+
+Check whether native v0.4 diagram support exists:
+
+```bash
+trailmark diagram --help 2>/dev/null || uv run trailmark diagram --help 2>/dev/null
+```
+
+If this succeeds, you may use `trailmark diagram`. If it fails, use
+`uv run {baseDir}/scripts/diagram.py`, which keeps the older skill workflow
+intact. Do not assume the native CLI exists on Trailmark 0.2.x.
+
 ---
 
 ## Quick Start
 
 ```bash
 uv run {baseDir}/scripts/diagram.py \
+    --target {targetDir} --language auto --type call-graph \
+    --focus main --depth 2
+
+# Trailmark 0.4.0+ equivalent after the Version Gate succeeds
+uv run trailmark diagram \
     --target {targetDir} --language auto --type call-graph \
     --focus main --depth 2
 ```
@@ -86,7 +105,7 @@ Diagram Progress:
 - [ ] Step 1: Verify trailmark is installed
 - [ ] Step 2: Identify diagram type from user request
 - [ ] Step 3: Determine focus node and parameters
-- [ ] Step 4: Run diagram.py script
+- [ ] Step 4: Run diagram.py script (or native trailmark diagram on v0.4+)
 - [ ] Step 5: Verify output is non-empty and well-formed
 - [ ] Step 6: Embed diagram in response
 ```
@@ -114,6 +133,8 @@ above.
 Default `--depth 2`. Use `--direction LR` for dependency flows.
 
 **Step 4:** Run the script and capture stdout.
+If the native v0.4 CLI is available, either command is acceptable; prefer the
+bundled script when you need behavior consistent with this skill's references.
 
 **Step 5:** Check: output starts with `flowchart` or `classDiagram`,
 contains at least one node. If empty or malformed, consult
@@ -127,6 +148,8 @@ contains at least one node. If empty or malformed, consult
 
 ```
 uv run {baseDir}/scripts/diagram.py [OPTIONS]
+# or, on Trailmark 0.4.0+:
+uv run trailmark diagram [OPTIONS]
 ```
 
 | Argument | Short | Default | Description |
