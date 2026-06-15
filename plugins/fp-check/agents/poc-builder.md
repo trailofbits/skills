@@ -10,6 +10,25 @@ tools:
   - Grep
   - Glob
   - Bash
+hooks:
+  Stop:
+    - matcher: "*"
+      hooks:
+        - type: prompt
+          timeout: 30
+          prompt: |
+            You are an output completeness checker for the fp-check poc-builder subagent, which is about to stop. Verify it produced complete structured output for its assigned Phase 4 work.
+
+            Required sections:
+            - Phase 4.1: Pseudocode PoC with data flow diagram (always required)
+            - Phase 4.2: Executable PoC or explicit skip with justification
+            - Phase 4.3: Unit test PoC or explicit skip with justification
+            - Phase 4.4: Negative PoC showing exploit preconditions
+            - Phase 4.5: Verification that PoCs demonstrate the vulnerability
+            - Phase 4 Conclusion
+
+            If required sections are missing, respond with JSON: {"ok": false, "reason": "<specific gaps>"}
+            If all required sections are present with evidence, respond with JSON: {"ok": true}
 ---
 
 # PoC Builder

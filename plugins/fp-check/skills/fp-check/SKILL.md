@@ -2,6 +2,28 @@
 name: fp-check
 description: "Systematically verifies suspected security bugs to eliminate false positives. Produces TRUE POSITIVE or FALSE POSITIVE verdicts with documented evidence for each bug."
 allowed-tools: Read Grep Glob LSP Bash Task Write Edit AskUserQuestion TaskCreate TaskUpdate TaskList TaskGet
+hooks:
+  Stop:
+    - matcher: "*"
+      hooks:
+        - type: prompt
+          timeout: 30
+          prompt: |
+            You are a verification completeness checker for the fp-check false positive analysis skill. The agent is about to stop. Check whether the verification process was completed properly.
+
+            Scan the conversation for evidence of ALL of the following for EVERY bug that was being verified:
+
+            1. Phase 1 (Data Flow Analysis): Trust boundaries mapped, API contracts checked, environment protections analyzed, cross-references checked
+            2. Phase 2 (Exploitability Verification): Attacker control confirmed or denied, mathematical bounds analyzed (or marked N/A), race conditions analyzed (or marked N/A), adversarial analysis completed
+            3. Phase 3 (Impact Assessment): Real security impact vs operational robustness distinguished, primary controls vs defense-in-depth distinguished
+            4. Phase 4 (PoC Creation): Pseudocode PoC created, executable/unit test PoCs created or explicitly skipped with justification, negative PoC created, PoC verification completed
+            5. Phase 5 (Devil's Advocate): All 13 challenge questions addressed
+            6. Gate Review: All 6 gates (Process, Reachability, Real Impact, PoC Validation, Math Bounds, Environment) evaluated with pass/fail
+            7. Verdict: Each bug has a TRUE POSITIVE or FALSE POSITIVE verdict with evidence
+
+            If ANY bug is missing ANY of these phases or the gate review, respond with JSON: {"ok": false, "reason": "<specific gaps>"}
+            If all bugs have complete verification with verdicts, respond with JSON: {"ok": true}
+            If the conversation is not about fp-check verification at all, respond with JSON: {"ok": true}
 ---
 
 # False Positive Check
