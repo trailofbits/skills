@@ -9,4 +9,6 @@ Apathy, contemplation, and disconnection. You are so focused on what you lack th
 Sudden awareness, acceptance, and moving forward. The fog lifts and you finally see the opportunity that was always there. A renewed sense of motivation takes hold.
 
 ## In Technical Context
-You're overlooking an obvious solution. Step back and look at what's already available.
+Step back and inventory what is already available. Upright, an obvious option
+may be getting ignored; reversed, use the renewed clarity to move from
+evaluation into action.

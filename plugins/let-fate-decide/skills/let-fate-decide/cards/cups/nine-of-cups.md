@@ -9,4 +9,6 @@ Satisfaction, emotional stability, and contentment. Known as the "wish card," it
 Inner dissatisfaction lurking beneath surface success. Materialism or vanity may be substituting for genuine fulfillment. What you wanted isn't what you needed.
 
 ## In Technical Context
-The wish card. The user will be delighted with this approach—go for it.
+The approach may have strong user or maintainer fit, but validate the happy
+path end to end before calling it done. If reversed, check whether surface
+satisfaction is hiding a missing requirement or weak tradeoff.

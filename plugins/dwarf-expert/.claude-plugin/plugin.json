@@ -1,6 +1,6 @@
 {
   "name": "dwarf-expert",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Interact with and understand the DWARF debugging format",
   "author": {
     "name": "Evan Hellman",
