@@ -26,13 +26,12 @@ Arithmetic-overflow panics (`a + b`, `a - b`, `a * b`, `-a`, `a << b`) are condi
 Grep: pattern="overflow-checks\s*=" path="**/Cargo.toml"
 ```
 
-- If `overflow-checks = true` on the relevant profile (often `[profile.release]` in security-sensitive crates — Solana programs, Substrate runtimes, etc.): plain `+ - *` are panic candidates.
-- If unset or `false` on release: plain `+ - *` wrap silently in release builds — **not** a panic-DoS, but may still be a logic/correctness bug (route to `cluster-logic-correctness`).
+- If `overflow-checks = true` on the relevant profile (often `[profile.release]` in security-sensitive crates — Solana programs, Substrate runtimes, etc.): plain `+ - * << >>` and unary `-` are panic candidates.
+- If unset or `false` on release: plain `+ - *` wrap silently and `<< >>` mask the shift amount (mod bit-width) in release builds — **not** a panic-DoS (debug-only), though the wrap may still be a logic/correctness bug (route to `cluster-logic-correctness`).
 
 **Unconditional arithmetic panics** (fire regardless of `overflow-checks`, score these always):
 - `/` or `%` by zero
 - `i::MIN / -1`, `i::MIN % -1`
-- Shift by ≥ bit-width (panics in debug; masked in release — debug-only DoS)
 
 ## Phase B — Resource exhaustion inventory (RESEXHAUST)
 

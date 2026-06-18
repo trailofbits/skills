@@ -5,18 +5,18 @@ description: Audits unsafe impl Send/Sync over types with interior mutability
 
 **Finding ID Prefix:** `UNSAFESYNC`.
 
-**Bug shape:** `unsafe impl Sync for MyStruct { }` where `MyStruct` contains a raw pointer or `UnsafeCell` whose mutation is not protected by a `Mutex`/`RwLock`/atomic.
+**Bug shape:** a manual `unsafe impl Send`/`Sync for MyStruct {}` overrides the auto-derived `!Send`/`!Sync` of a payload that is not actually thread-safe — a raw pointer, `UnsafeCell`, or a handle to non-thread-safe foreign state. The unsoundness can come from **either** unsynchronized interior mutation through `&self`, **or** simply making a non-thread-safe payload transferable (`Send`) / shareable (`Sync`) across threads with **no Rust-side mutation at all** (e.g. `struct W(*mut CHandle); unsafe impl Send for W {}` over a single-threaded C handle).
 
 **Gates:**
 
 1. `unsafe impl (Send | Sync) for T` exists.
 2. `T` contains at least one raw pointer field, `UnsafeCell`, or interior-mutable wrapper.
-3. The methods on `T` taking `&self` mutate the interior without an internal synchronization primitive.
+3. At least **one** of: (a) `T`'s `&self` methods mutate the interior without internal synchronization; **or** (b) `T` holds a raw pointer / non-`Send` / non-`Sync` field and the manual impl lets that payload be transferred (`Send`) or shared (`Sync`) across threads without the wrapped resource being thread-safe — **no `&self` mutation required**. Treat the test as "the auto-derived `!Send`/`!Sync` was overridden without a justifying invariant", not strictly "mutation through `&self`".
 
 **FPs:**
 
 - Interior mutation goes through `Atomic*`.
-- All `&self` methods are read-only (only `&mut self` mutates — but that's Send/Sync-safe).
+- The payload is genuinely thread-safe for the trait being impl'd (every field is itself `Send`/`Sync`, or interior mutation goes through an atomic/`Mutex`/`RwLock`), making the manual impl redundant rather than unsound. (Note: confining mutation to `&mut self` does **not** by itself make a manual `unsafe impl Send`/`Sync` sound — `Sync` concerns shared `&self` access to a possibly non-thread-safe payload and `Send` concerns transfer, neither of which requires `&self` mutation.)
 - `T` documents an invariant explaining external synchronization required (e.g., wrapper over single-threaded FFI handle).
 
 **Search patterns:**
@@ -28,3 +28,5 @@ UnsafeCell|\bCell\b|\bRefCell\b
 ```
 
 The first pattern uses `impl\b.*\b(Send|Sync)\b` (not `impl\s+(Send|Sync)`) so it also matches the dominant generic forms `unsafe impl<T> Send for Wrapper<T>` and `unsafe impl<T: ?Sized> Sync for Box<T>`, where `<...>` sits between `impl` and the trait. The second/third lines seed Gate 2's raw-pointer / interior-mutable fields (`*mut`/`*const`, `Cell`/`RefCell`), not just `UnsafeCell`.
+
+**Recommendation:** remove the manual `unsafe impl` and let the type stay `!Send`/`!Sync`; or make the payload genuinely thread-safe (wrap mutation in `Mutex`/`RwLock`/atomics, or replace the raw pointer with a `Send`/`Sync` type); or, if the impl is truly required, document the exact synchronization invariant the caller must uphold and why it justifies overriding the auto trait.

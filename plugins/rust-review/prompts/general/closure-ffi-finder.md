@@ -5,7 +5,7 @@ description: Detects Rust closures passed to extern "C" callbacks without panic 
 
 **Finding ID Prefix:** `CLOSUREFFI`.
 
-**Bug shape:** A Rust closure (or function pointer derived from one) is registered as a C callback via FFI. When the C library invokes the callback and the Rust closure panics, the unwind crosses the `extern "C"` boundary into C — undefined behavior in editions prior to 2024, and `abort` since (still undesirable on a server). Two derivatives: (a) the closure captures `&'a T` references whose lifetime cannot be enforced by Rust on the C side, producing UAF when C invokes the callback after the captures' scope ends; (b) `Box<dyn FnMut>` is `into_raw`'d and passed as user-data without a paired `from_raw` in a deregister path, producing leaks plus the panic-unwind hazard.
+**Bug shape:** A Rust closure (or function pointer derived from one) is registered as a C callback via FFI. When the C library invokes the callback and the Rust closure panics, the unwind crosses the `extern "C"` boundary into C — **undefined behavior before Rust 1.81, and a process `abort` since Rust 1.81** (a compiler-version change, *not* the 2024 edition — edition-2021 code on rustc ≥ 1.81 already aborts; still a DoS on a server). Two derivatives: (a) the closure captures `&'a T` references whose lifetime cannot be enforced by Rust on the C side, producing UAF when C invokes the callback after the captures' scope ends; (b) `Box<dyn FnMut>` is `into_raw`'d and passed as user-data without a paired `from_raw` in a deregister path, producing leaks plus the panic-unwind hazard.
 
 **Verification gates (ALL must pass):**
 
