@@ -22,7 +22,7 @@ ID prefixes: `DLOCK`, `ABBA`, `CONDVAR`, `CHANSTARVE`, `ONCEREENTRY`, `REENTRANT
 ## Phase A — Build the lock map (ONCE)
 
 ```
-Grep: pattern="\b(Mutex|RwLock|parking_lot::(Mutex|RwLock))::new\b|::new\s*\(\s*\)"
+Grep: pattern="\b(Mutex|RwLock|parking_lot::(Mutex|RwLock))::new\b"
 Grep: pattern="\.(lock|read|write|try_lock|try_read|try_write)\s*\("
 Grep: pattern="\bCondvar\b"
 Grep: pattern="\b(mpsc::(channel|sync_channel)|crossbeam_channel::(bounded|unbounded)|tokio::sync::(mpsc|oneshot|broadcast))\b"
@@ -63,7 +63,7 @@ The closure passed to `Once::call_once` / `OnceCell::get_or_init` / `OnceLock::g
 
 ### 6. `REENTRANT` — Non-reentrant code reachable from a signal handler
 
-The set of operations safe to call from a POSIX signal handler is small (the "async-signal-safe" set per `signal-safety(7)`): no `malloc`/`free`, no `Mutex::lock`, no `printf`/`println!`, no allocation, no Rust panics. Rust's `std::sync::Mutex` is not reentrant; calling `lock()` twice on the same mutex from the same thread deadlocks (already covered by `DLOCK` for lexical cases — this pass catches the *signal-handler* case).
+The set of operations safe to call from a POSIX signal handler is small (the "async-signal-safe" set per `signal-safety(7)`): no `malloc`/`free`, no `Mutex::lock`, no `printf`/`println!`, no allocation, no Rust panics. Rust's `std::sync::Mutex` is not reentrant; calling `lock()` twice on the same mutex from the same thread is **unspecified** per the std contract — it deadlocks or panics, but never returns (already covered by `DLOCK` for lexical cases — this pass catches the *signal-handler* case).
 
 For each handler registered via `libc::signal`, `libc::sigaction`, `signal_hook`, or `nix::sys::signal::sigaction` as an `extern "C" fn` (the actual signal-handler body). Note `tokio::signal` does **not** belong here — users never register an `extern "C" fn` with it; it installs its own handler and delivers signals via an async `Signal` stream in a normal task (see the FP list below):
 
@@ -77,7 +77,7 @@ For each handler registered via `libc::signal`, `libc::sigaction`, `signal_hook`
 - `tokio::signal::ctrl_c` and similar async-runtime-mediated signal facilities (the handler runs in a normal task, not the signal-handler context).
 - Functions exposed as signal handlers but documented `unsafe fn` whose `/// # Safety` block lists the async-signal-safe operations only.
 
-**Patch:** restrict the signal-handler body to writing an `AtomicBool` flag and have the main thread observe and react. For reentrant-lock patterns outside signal handlers, document the invariant that the callback must not re-enter, or switch to a reentrant lock primitive (`parking_lot::ReentrantMutex`) with explicit rationale.
+**Patch:** restrict the signal-handler body to writing an `AtomicBool` flag and have the main thread observe and react. For reentrant-lock patterns outside signal handlers, document the invariant that the callback must not re-enter, or switch to a reentrant lock primitive (`parking_lot::ReentrantMutex`, whose guard yields only `&T` — reentrant *mutation* additionally needs a `Cell`/`RefCell` inside it) with explicit rationale.
 
 ---
 

@@ -16,7 +16,7 @@ description: Detects safe-side index arithmetic flowing into unchecked unsafe me
 
 **FPs:**
 
-- Index is a hardcoded constant statically less than known capacity.
+- Index is a hardcoded constant statically less than the indexed slice/array's **length** (for a fixed-size `[T; N]`, `len == N`, so a constant `< N` is safe). A constant that is `< capacity` but `>= len` is **not** an FP — `len..capacity` is uninitialized (see gate 3 and the `.capacity()` note below).
 - Bounds check uses `checked_*` / `saturating_*` arithmetic AND is compared against `.len()` of the same slice/Vec the unsafe op indexes. (A guard against `.capacity()` is **not** an FP — it admits uninitialized `len..capacity` indices, so REPORT it.)
 - Caller is private (`fn`, not `pub fn`, no exposed trait impl) and all internal callsites pass safe constants.
 

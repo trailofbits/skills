@@ -24,10 +24,13 @@ The same applies to `&[T]` / `&mut [T]` / `&str` (also fat pointers — `(data, 
 **Search patterns:**
 
 ```
-extern\s+"C"\s*\{[^}]*\bdyn\b
+extern\s+"C"\s*\{
 \bextern\s+"C"\s*fn\b[^{]*\bdyn\b
-#\[repr\(C\)\][\s\S]{0,200}\bdyn\b
+#\[repr\(C\)\]
 \bBox<\s*dyn\s+\w
+\bdyn\s+\w
 ```
+
+`Grep` is line-oriented (ripgrep default), so a body-spanning `extern\s+"C"\s*\{[^}]*\bdyn\b` or `#\[repr\(C\)\][\s\S]{0,200}\bdyn\b` does **not** match across a multi-line `extern` block or struct definition (the `{` / attribute and the `dyn` land on different lines). Match the `extern "C" {` / `#[repr(C)]` opener and **Read** the block to enumerate its `dyn`-typed parameters, returns, and fields.
 
 **Patch:** replace `&dyn Trait` with a `*mut c_void` + `#[repr(C)] struct Vtable { f1: extern "C" fn(...), ... }` pair; or with a single concrete `#[repr(C)]` struct type when the trait has one implementation worth exposing. Document the layout contract in a `// SAFETY:` comment.

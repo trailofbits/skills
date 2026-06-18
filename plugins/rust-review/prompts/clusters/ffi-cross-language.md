@@ -27,6 +27,7 @@ Grep: pattern="\bimpl\s+Drop\s+for\s+\w+"
 Grep: pattern="libc::(malloc|free)|CoTaskMem|g_malloc|CFAllocator|LocalAlloc"
 Grep: pattern="\bdyn\s+Fn(Once|Mut)?\b|\bextern\s+\"C\"\s*fn\b|catch_unwind"
 Grep: pattern="\bdyn\s+\w|\bBox<\s*dyn\s+\w"
+Grep: pattern="\bc_void\b"                                                                  # OPAQUEPTR seed: *mut/*const c_void opaque handles
 ```
 
 ## Phase B — Run finders in order

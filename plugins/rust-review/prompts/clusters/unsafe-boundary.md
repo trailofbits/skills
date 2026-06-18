@@ -52,7 +52,12 @@ Do NOT file findings during Phase A.
 
 ### 1. `URAPI` — Unsafe Reaching API exposure
 
-For each `pub fn` in `urapis[]`: confirm there is **either** a documented invariant the caller must uphold (in the rustdoc `/// # Safety` block) **or** a runtime check that proves it. If the public function takes untrusted input (network, file, IPC, user CLI) and that input flows into the unsafe block without validation, file `URAPI` finding.
+For each `pub fn` in `urapis[]`, the bar depends on whether the function is `unsafe`:
+
+- A `pub unsafe fn` may discharge its precondition with a rustdoc `/// # Safety` block listing the invariants the caller must uphold — that contract legitimately shifts the obligation to callers.
+- A **safe** `pub fn` may **not**: a safe function must be sound for *all* inputs reachable from safe code, so a `/// # Safety` doc on it carries no soundness weight — it must **validate at runtime** or be marked `unsafe fn`. A safe `pub fn` that documents a caller obligation it does not enforce is *itself* the unsoundness.
+
+If a safe `pub fn` takes untrusted input (network, file, IPC, user CLI) and that input flows into the unsafe block without runtime validation — or a `pub unsafe fn` does so without an actually-upheld documented contract — file a `URAPI` finding.
 
 ### 2. `TRANS` — `mem::transmute` misuse
 
@@ -103,7 +108,7 @@ Constructing a Rust enum value whose bit pattern does not correspond to a declar
 
 - `transmute` or cast preceded by an `assert!`, `if`, or exhaustive `match` validating the integer against the declared discriminants on the same code path.
 - Niche-slot writes where the writer demonstrably zeros via `MaybeUninit::zeroed()` (yielding `None`) and then constructs the `Some` value through a safe constructor.
-- Enums declared with `#[repr(u8)]`, `#[repr(u32)]`, `#[repr(C)]`, `#[repr(C, u32)]`, or other primitive/C reprs at FFI boundaries — discriminant width is fixed and field layout is specified for these variants. Only `#[repr(Rust)]` is unsound at FFI.
+- **Passing a valid, Rust-constructed enum value by value** through `extern "C"` when it has a primitive/C repr (`#[repr(u8)]`, `#[repr(u32)]`, `#[repr(C)]`, `#[repr(C, u32)]`, …): the discriminant width is fixed and the layout specified, so the *layout* is sound — this is the fix for the `#[repr(Rust)]`-at-FFI sub-pattern, **not** a blanket exemption. *Reading* a foreign-controlled value **into** such an enum is still `ENUMUB`: a fixed `#[repr(u8)]` does not make bytes `2..=255` valid for `enum E { A = 0, B = 1 }`, so a `transmute` / `ptr::read` / `*ptr.cast::<E>()` of foreign bytes remains UB unless they are proven to be a declared discriminant (per the Integer→fieldless-enum sub-pattern above).
 - `#[non_exhaustive]` enums whose construction sites are all internal and audited.
 
 **Patch:** define a `TryFrom<u32>` (or the source integer type) returning `Err` for unknown discriminants and replace the transmute with the checked conversion; decode `bool` via `match byte { 0 => false, 1 => true, _ => return Err(...) }`; give FFI-exposed enums a primitive `#[repr(...)]` and validate the discriminant at the boundary; introduce a typed wrapper that owns the niche-write invariant.

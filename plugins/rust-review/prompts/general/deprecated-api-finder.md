@@ -12,7 +12,7 @@ description: Detects deprecated unsafe-adjacent APIs (mem::uninitialized, std::i
 
 **Out of scope** (do NOT flag here):
 
-- `mem::zeroed` is **not** deprecated. Zeroing a type with no valid all-zero representation (`NonNull`, references, `bool`, many enums) is an *invalid-value* soundness bug that belongs to the `uninitialized-read` (UNINITREAD) pass, not this one.
+- `mem::zeroed` is **not** deprecated. Zeroing a type with no valid all-zero representation (`NonNull`, references, many enums) is an *invalid-value* soundness bug that belongs to the `uninitialized-read` (UNINITREAD) pass, not this one. (Note: `bool` is **not** such a type — its all-zero byte is `false`, so `mem::zeroed::<bool>()` is sound; `bool`'s hazard is an *arbitrary* non-`0`/`1` byte, not zeroing.)
 - `*const ()` / `*mut ()` are idiomatic type-erased pointers (FFI handles, vtable erasure), not deprecated APIs.
 
 **FPs to reject:** occurrences inside string literals/comments, or in `#[cfg(test)]` fixtures. A `#[allow(deprecated)]` annotation clears only the *deprecation* aspect (DEPRECAPI) — it does **not** clear the underlying soundness bug: `#[allow(deprecated)] mem::uninitialized::<T>()` for a `T` with no valid uninit representation is still UB (rustc's `invalid_value` lint still fires), which the `uninitialized-read` (UNINITREAD) pass must still report. So treat `#[allow(deprecated)]` as suppressing the DEPRECAPI finding only, never the invalid-value/UB concern.
