@@ -221,7 +221,14 @@ The Phase-6 `Agent` invocations block until each worker returns. Inspect each wo
 | 3 | other `worker-N abort:` | **retryable** | Mark `pending`, set `metadata.abort_reason`, `needs_respawn=true`, increment `attempt`. |
 | 4 | `Agent` errored or no `complete:`/`abort:` token | **retryable** | Same as #3 (transient worker crash). |
 
-If any non-retryable, stop. Otherwise re-spawn each `pending` retryable with `attempt < 2` in one parallel block (cap = 2 attempts per cluster). Replacement workers can safely overwrite partial files — finding IDs are deterministic per prefix.
+If any non-retryable, stop. Otherwise, **before re-spawning, clear each retryable worker's prefix-space on disk** — the Phase-7 index is built from disk, so a crashed attempt's higher-id stragglers (files the replacement never re-emits) would otherwise be resurrected into the report. For each prefix in the worker's `pass_prefixes` (from its task `metadata`):
+
+```bash
+# zsh-safe: `find … -delete` never aborts on no-match (an `rm PREFIX-*.md` glob would).
+find "${output_dir}/findings" -maxdepth 1 -type f -name 'PREFIX-*.md' -delete
+```
+
+Then re-spawn each `pending` retryable with `attempt < 2` in one parallel block (cap = 2 attempts per cluster). Replacement workers reuse deterministic finding IDs per prefix, so a cleared prefix-space plus a fresh write yields a consistent shard / coverage / disk set.
 
 #### Sanity-check + write index
 
@@ -264,13 +271,17 @@ find "${output_dir}/findings" -maxdepth 1 -type f -name '*.md' 2>/dev/null \
 # orphan whose worker failed to record it. It is already in the index above (so it
 # is NOT dropped) — print it so the bookkeeping gap can be surfaced. Non-fatal.
 if [ -d "${output_dir}/findings-index.d" ]; then
+  # Reconcile by basename (finding ids are unique), so a path-format difference
+  # between the worker `find` and this one (trailing slash, /var↔/private/var)
+  # cannot manufacture false orphans. Any basename on disk but in no shard is an
+  # orphan whose worker failed to record it.
   comm -13 \
-    <(find "${output_dir}/findings-index.d" -maxdepth 1 -type f -name 'worker-*.txt' -exec awk 1 {} + 2>/dev/null | sed '/^[[:space:]]*$/d' | sort -u) \
-    "${output_dir}/findings-index.txt"
+    <(find "${output_dir}/findings-index.d" -maxdepth 1 -type f -name 'worker-*.txt' -exec awk 1 {} + 2>/dev/null | sed 's#.*/##; /^[[:space:]]*$/d' | sort -u) \
+    <(find "${output_dir}/findings" -maxdepth 1 -type f -name '*.md' 2>/dev/null | sed 's#.*/##' | sort -u)
 fi
 ```
 
-The shards stay the per-worker audit trail (`validate_artifacts.py` checks them) and the dedup-judge's crash-recovery fallback, but they no longer gate what reaches the pipeline. If the `comm` reconcile prints any path, record those orphans in `run-summary.md` (and which worker's shard was incomplete). Still cross-check the index line count against the sum of `wrote N` worker claims; log mismatches but don't abort.
+The shards stay the per-worker audit trail (`validate_artifacts.py` checks them) and the dedup-judge's crash-recovery fallback, but they no longer gate what reaches the pipeline. For each orphan basename the reconcile prints, map its `<PREFIX>` to the owning worker via `plan.json` and note in `run-summary.md` that that worker's shard was incomplete — the finding is already in the index (so it is not lost), but the bookkeeping gap should be visible. Still cross-check the index line count against the sum of `wrote N` worker claims; log mismatches but don't abort.
 
 After task updates and index creation, run `TaskList` and write `${output_dir}/run-summary.md` with:
 
