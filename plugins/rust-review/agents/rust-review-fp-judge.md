@@ -94,7 +94,7 @@ For each primary (judge the whole merged group as one finding):
 
 ## Step 2 — Severity (survivors only)
 
-**Only** assign severity to findings with `fp_verdict ∈ {TRUE_POSITIVE, LIKELY_TP}`. Skip `LIKELY_FP`, `FALSE_POSITIVE`, and `OUT_OF_SCOPE` — those get no severity.
+**Only** assign severity to findings with `fp_verdict ∈ {TRUE_POSITIVE, LIKELY_TP}`. Skip `LIKELY_FP`, `FALSE_POSITIVE`, and `OUT_OF_SCOPE` — those get no severity. Step-1 threat-model verdicts take **precedence** over the severity tables below: a finding the threat-model rules marked `OUT_OF_SCOPE` (e.g. local-only under `REMOTE`) or `LIKELY_FP` (e.g. same-user, no boundary crossed, under `LOCAL_UNPRIVILEGED`) is not a survivor and gets no severity — never reclassify it as LOW.
 
 Severity is **not absolute**. The same bug can be Critical under `REMOTE` and Low under `LOCAL_UNPRIVILEGED`.
 
@@ -107,7 +107,7 @@ For a merged cross-class group, assess severity against the **framing that carri
 | CRITICAL | Remote code execution via reachable `unsafe { }` corruption / FFI, authentication bypass, sandbox escape from a Rust process |
 | HIGH | Remote DoS via reachable `unwrap`/`panic!`/`assert!`/arithmetic overflow on attacker input; remote memory disclosure via `repr(C)` padding leak; remotely reachable `transmute`/raw-pointer misuse |
 | MEDIUM | Remote DoS requiring narrow conditions (race window, large allocation); discarded `Result` that downgrades correctness on hot path; cancellation-unsafe `.await` that observable corrupts shared state |
-| LOW | Local-only triggers, theoretical UB, defense-in-depth (missing `// SAFETY:`, missing `[lints]` config) |
+| LOW | Theoretical UB, defense-in-depth (missing `// SAFETY:`, missing `[lints]` config), or a remotely-reachable issue with negligible impact. (Local-only triggers are **not** LOW here — they are `OUT_OF_SCOPE` per Step 1.) |
 
 ### Local unprivileged threat model
 
@@ -116,7 +116,7 @@ For a merged cross-class group, assess severity against the **framing that carri
 | CRITICAL | Privilege escalation to root, kernel code execution, container/sandbox escape |
 | HIGH | Access to other users' data, arbitrary file read/write as a privileged user |
 | MEDIUM | Local DoS, disclosure of system data, limited privilege-boundary crossing |
-| LOW | Same-user bugs (no privilege boundary crossed) |
+| LOW | A privilege-boundary crossing with minimal impact (e.g. leak of non-sensitive system data to a less-privileged user). Pure same-user bugs that cross no boundary are `LIKELY_FP` per Step 1, **not** LOW. |
 
 ### Both
 
@@ -303,7 +303,7 @@ If `REPORT.md` is missing, you returned its content in your reply instead of wri
 ## Anti-Patterns
 
 - Critical-on-every-unsafe-finding without regard to reachability — `transmute` alone is not HIGH unless attacker bytes reach it.
-- Ignoring the threat model (local-only panic-DoS in a `REMOTE` review of a CLI tool → LOW).
+- Ignoring the threat model (local-only panic-DoS in a `REMOTE` review of a CLI tool → `OUT_OF_SCOPE` per Step 1, **not** LOW).
 - Under-weighting panic-induced DoS on long-running servers.
 - Hand-writing SARIF JSON instead of running the bundled generator.
 - Letting `REPORT.md` and `REPORT.sarif` describe different reported sets.

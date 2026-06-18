@@ -10,11 +10,11 @@
         { "bug_class": "unsafe-reaching-api", "prefix": "URAPI" },
         { "bug_class": "transmute-misuse",    "prefix": "TRANS" },
         { "bug_class": "raw-pointer-arith",   "prefix": "RAWPTR" },
-        { "bug_class": "repr-c-layout",       "prefix": "REPRC" },
-        { "bug_class": "safety-doc",          "prefix": "SAFETYDOC" },
-        { "bug_class": "debug-assert-safety", "prefix": "DEBUGSAFETY" },
         { "bug_class": "pointer-cast",        "prefix": "PTRCAST" },
-        { "bug_class": "enum-discriminant",   "prefix": "ENUMUB" }
+        { "bug_class": "repr-c-layout",       "prefix": "REPRC" },
+        { "bug_class": "enum-discriminant",   "prefix": "ENUMUB" },
+        { "bug_class": "safety-doc",          "prefix": "SAFETYDOC" },
+        { "bug_class": "debug-assert-safety", "prefix": "DEBUGSAFETY" }
       ]
     },
     {
@@ -23,11 +23,11 @@
       "consolidated": false,
       "gate": "has_unsafe",
       "passes": [
-        { "bug_class": "use-after-free",        "prefix": "UAF",        "prompt": "prompts/general/use-after-free-finder.md" },
-        { "bug_class": "double-free",           "prefix": "DFREE",      "prompt": "prompts/general/double-free-finder.md" },
-        { "bug_class": "invalid-free",          "prefix": "INVFREE",    "prompt": "prompts/general/invalid-free-finder.md" },
         { "bug_class": "uninitialized-read",    "prefix": "UNINITREAD", "prompt": "prompts/general/uninitialized-read-finder.md" },
         { "bug_class": "vec-set-len-uninit",    "prefix": "SETLEN",     "prompt": "prompts/general/vec-set-len-uninit-finder.md" },
+        { "bug_class": "invalid-free",          "prefix": "INVFREE",    "prompt": "prompts/general/invalid-free-finder.md" },
+        { "bug_class": "use-after-free",        "prefix": "UAF",        "prompt": "prompts/general/use-after-free-finder.md" },
+        { "bug_class": "double-free",           "prefix": "DFREE",      "prompt": "prompts/general/double-free-finder.md" },
         { "bug_class": "buffer-overflow-unsafe","prefix": "BOF",        "prompt": "prompts/general/buffer-overflow-unsafe-finder.md" },
         { "bug_class": "union-ub",              "prefix": "UNIONUB",    "prompt": "prompts/general/union-ub-finder.md" },
         { "bug_class": "panic-unwind-unsafe",   "prefix": "PANICUNWIND","prompt": "prompts/general/panic-unwind-unsafe-finder.md" }

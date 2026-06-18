@@ -250,3 +250,45 @@ def test_worker_absent_from_plan_fails(tmp_path: Path) -> None:
 def test_normalize_worker_id_rejects_non_numeric() -> None:
     with pytest.raises(ValueError, match="invalid worker id"):
         normalize_worker_id("worker-abc")
+
+
+def test_frontmatter_id_mismatch_fails(tmp_path: Path) -> None:
+    """A finding file whose frontmatter id disagrees with its filename (e.g.
+    BOF-001.md carrying id: UAF-999) must be rejected — Phase 7 otherwise keys on
+    the stem while the judges/SARIF trust the frontmatter."""
+    plan_path = _write_plan(tmp_path)
+    finding = tmp_path / "findings" / "BOF-001.md"
+    finding.write_text("---\nid: UAF-999\nbug_class: use-after-free\n---\n", encoding="utf-8")
+    _touch_shard(tmp_path, [str(finding)])
+    _write_coverage(
+        tmp_path,
+        [
+            ("BOF", "buffer-overflow", "filed: BOF-001"),
+            ("UAF", "use-after-free", "cleared"),
+        ],
+    )
+
+    errors = validate_plan(plan_path, workers=["worker-1"])
+
+    assert any("frontmatter id 'UAF-999' does not match" in error for error in errors)
+
+
+def test_shard_path_outside_findings_fails(tmp_path: Path) -> None:
+    """A shard that lists a finding file outside output_dir/findings is rejected —
+    Phase 7's canonical index only scans findings/, so an outside file would pass
+    validation but never reach the report."""
+    plan_path = _write_plan(tmp_path)
+    outside = tmp_path / "BOF-001.md"  # NOT under findings/
+    outside.write_text("---\nid: BOF-001\n---\n", encoding="utf-8")
+    _touch_shard(tmp_path, [str(outside)])
+    _write_coverage(
+        tmp_path,
+        [
+            ("BOF", "buffer-overflow", "filed: BOF-001"),
+            ("UAF", "use-after-free", "cleared"),
+        ],
+    )
+
+    errors = validate_plan(plan_path, workers=["worker-1"])
+
+    assert any("outside findings/" in error for error in errors)

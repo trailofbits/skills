@@ -20,7 +20,7 @@ description: Detects format/Display/Debug/Serialize/log macros applied to recurs
    - No truncating wrapper (`pretty_assertions::Comparison`, custom `Truncated<&T>`, `tracing` field redaction, etc.).
    - No `serde_stacker` deserializer/serializer wrapping the codec.
 
-**Why it matters:** stack overflow is uncatchable — `catch_unwind` does **not** trap it. The thread (or the process under most server runtimes) terminates regardless of `panic` strategy. `serde_json` enforces a 128-deep recursion limit on **parse**, but the symmetric limit on `Serialize`/`Debug`/`Display` does **not** exist; an attacker can submit input that parses successfully into `serde_json::Value` and then crashes the server the first time it is logged or re-emitted. The same gap exists in `serde_yaml`, `toml`, and `ron`. Error chains (`anyhow`, `eyre`, `thiserror` with `#[source]`) compound the risk: a Display of one error transitively formats every wrapped cause.
+**Why it matters:** stack overflow is uncatchable — `catch_unwind` does **not** trap it. The **entire process** aborts (a stack overflow in any thread aborts the whole process via the runtime's SIGSEGV handler — never just the offending thread), regardless of `panic` strategy. `serde_json` enforces a 128-deep recursion limit on **parse**, but the symmetric limit on `Serialize`/`Debug`/`Display` does **not** exist; an attacker can submit input that parses successfully into `serde_json::Value` and then crashes the server the first time it is logged or re-emitted. The same gap exists in `serde_yaml`, `toml`, and `ron`. Error chains (`anyhow`, `eyre`, `thiserror` with `#[source]`) compound the risk: a Display of one error transitively formats every wrapped cause.
 
 **FPs (reject):**
 

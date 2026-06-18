@@ -16,8 +16,8 @@ description: Detects Path::join / PathBuf::push with attacker-controlled compone
 **FPs:**
 
 - Argument is validated before the call (refuses absolute and `Component::ParentDir` components).
-- `canonicalize()` result is verified to remain under the base dir via `starts_with`.
+- `canonicalize()` result is verified to remain under the base dir via `starts_with` — **valid only for operations on an existing target** (open/read/remove). `canonicalize` returns `NotFound` (ENOENT) on a not-yet-created path, so it cannot validate a create/write target.
 - Argument is a compile-time literal with no attacker influence.
 - Result is not used for an actual filesystem access.
 
-**Patch:** reject absolute and `Component::ParentDir` components before `join`/`push`, or `canonicalize` the result and verify it is still under the intended base dir.
+**Patch:** reject absolute and `Component::ParentDir` components before `join`/`push` — the only approach that works for **create/write** targets. For operations on an **existing** path, you may instead `canonicalize` the result (and the base, in case it is itself a symlink) and verify the result stays under the base via `starts_with`. Do not rely on `canonicalize` for create/write paths — it fails with `NotFound` on a not-yet-existing target.

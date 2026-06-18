@@ -10,7 +10,7 @@ description: Detects unsafe code trusting return values from user-supplied trait
 **Gates:**
 
 1. Public generic API with a trait-bounded parameter (`T: Read`, `T: Iterator`, `T: Hasher`, `T: ExactSizeIterator`, custom traits).
-2. The implementation uses the trait method's return value (size, count, index, hash) as input to an `unsafe` operation OR to a length-allocating call (`Vec::with_capacity`, `Vec::set_len`).
+2. The implementation feeds the trait method's return value (size, count, index, hash) into an `unsafe` operation or a length-trusting sink — `Vec::set_len`, `get_unchecked`, `ptr::write`/`copy_nonoverlapping` at a computed offset, or `from_raw_parts`. (`Vec::with_capacity`/`reserve` is **not** an OOB-write sink — it only reserves, with `len` still `0`, so a hostile size cannot write out of bounds through it — but an attacker-controlled capacity is a separate allocation/memory-exhaustion DoS; note that distinctly rather than as memory corruption.)
 3. No defensive check ensures the reported value matches reality (e.g., `ExactSizeIterator::len()` is a hint, not a guarantee — `unsafe` code must not trust it).
 
 **FPs:**

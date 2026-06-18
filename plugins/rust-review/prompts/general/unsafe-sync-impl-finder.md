@@ -10,7 +10,7 @@ description: Audits unsafe impl Send/Sync over types with interior mutability
 **Gates:**
 
 1. `unsafe impl (Send | Sync) for T` exists.
-2. `T` contains at least one raw pointer field, `UnsafeCell`, or interior-mutable wrapper.
+2. `T` contains at least one field that is **not** auto-`Send`/`Sync`: a raw pointer (`*mut`/`*const`), `NonNull`, `UnsafeCell`/`Cell`/`RefCell`, `Rc`, a `MutexGuard`, or any other `!Send`/`!Sync` type (e.g. an FFI handle). It need not be a literal raw pointer — `struct W(NonNull<CHandle>)` / `struct W(Rc<u32>)` are the common real shapes.
 3. At least **one** of: (a) `T`'s `&self` methods mutate the interior without internal synchronization; **or** (b) `T` holds a raw pointer / non-`Send` / non-`Sync` field and the manual impl lets that payload be transferred (`Send`) or shared (`Sync`) across threads without the wrapped resource being thread-safe — **no `&self` mutation required**. Treat the test as "the auto-derived `!Send`/`!Sync` was overridden without a justifying invariant", not strictly "mutation through `&self`".
 
 **FPs:**
@@ -23,7 +23,7 @@ description: Audits unsafe impl Send/Sync over types with interior mutability
 
 ```
 unsafe\s+impl\b.*\b(Send|Sync)\b\s+for
-UnsafeCell|\bCell\b|\bRefCell\b
+UnsafeCell|\bCell\b|\bRefCell\b|\bNonNull\b|\bRc<|\bMutexGuard\b
 \*mut\s|\*const\s
 ```
 

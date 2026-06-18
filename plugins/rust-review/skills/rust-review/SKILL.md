@@ -102,7 +102,7 @@ find "${finding_scope_root:-.}" -name '*.rs' -print -quit
 grep -rlE '\bunsafe\s+(extern|fn|impl|trait)\b|\bunsafe\s*\{' --include='*.rs' "${finding_scope_root:-.}" | head -1
 
 # has_ffi
-grep -rlE 'extern\s+"C"|#\[repr\(C\)\]|use\s+(libc|core::ffi|cty)' --include='*.rs' "${finding_scope_root:-.}" | head -1
+grep -rlE 'extern\s+"(C|system|stdcall|cdecl|win64|sysv64|aapcs|fastcall|thiscall|vectorcall|efiapi)(-unwind)?"|extern\s+\{|#\[repr\(C\)\]|use\s+(libc|core::ffi|cty)' --include='*.rs' "${finding_scope_root:-.}" | head -1
 
 # has_concurrency
 grep -rlE '\b(std::(thread|sync)|parking_lot::|crossbeam|rayon::|tokio::sync|core::sync::atomic|std::sync::atomic|Atomic[A-Za-z0-9_]*|UnsafeCell|static\s+mut|unsafe\s+impl\s+(Send|Sync)|memmap2::|Mmap(Options|Mut)?|MAP_SHARED|shm_open|mmap\s*\()' --include='*.rs' "${finding_scope_root:-.}" | head -1
@@ -127,7 +127,11 @@ Note for `Cargo.toml`: also probe for `[dependencies] tokio`, `async-std`, etc.,
 Also probe `Cargo.toml` presence (informational — note in `run-summary.md` whether the audit was over a Cargo workspace, single crate, or loose `.rs` files):
 
 ```bash
-find "${context_roots:-.}" -name 'Cargo.toml' -print -quit
+# context_roots may be comma-separated (build_run_plan.py treats it as a list),
+# so probe each root rather than passing "a,b" as one (nonexistent) path.
+echo "${context_roots:-.}" | tr ',' '\n' | while IFS= read -r root; do
+  find "${root:-.}" -name 'Cargo.toml' -print -quit
+done | head -1
 ```
 
 ### Phase 2: Output Directory
@@ -237,11 +241,14 @@ The Phase-6 `Agent` invocations block until each worker returns. Inspect each wo
 | 3 | other `worker-N abort:` | **retryable** | Mark `pending`, set `metadata.abort_reason`, `needs_respawn=true`, increment `attempt`. |
 | 4 | `Agent` errored or no `complete:`/`abort:` token | **retryable** | Same as #3 (transient worker crash). |
 
-If any non-retryable, stop. Otherwise, **before re-spawning, clear each retryable worker's prefix-space on disk** — the Phase-7 index is built from disk, so a crashed attempt's higher-id stragglers (files the replacement never re-emits) would otherwise be resurrected into the report. For each prefix in the worker's `pass_prefixes` (from its task `metadata`):
+If any non-retryable, stop. Otherwise, **before re-spawning, clear each retryable worker's prefix-space on disk** — the Phase-7 index is built from disk, so a crashed attempt's higher-id stragglers (files the replacement never re-emits) would otherwise be resurrected into the report. Loop over the worker's actual `pass_prefixes` (from its task `metadata`), substituting each real prefix for `${pfx}` — do **not** run the command with a literal `PREFIX`:
 
 ```bash
 # zsh-safe: `find … -delete` never aborts on no-match (an `rm PREFIX-*.md` glob would).
-find "${output_dir}/findings" -maxdepth 1 -type f -name 'PREFIX-*.md' -delete
+# Replace `PREFIX1 PREFIX2` with the worker's actual space-separated pass_prefixes.
+for pfx in PREFIX1 PREFIX2; do
+  find "${output_dir}/findings" -maxdepth 1 -type f -name "${pfx}-*.md" -delete
+done
 ```
 
 Then re-spawn each `pending` retryable with `attempt < 2` in one parallel block (cap = 2 attempts per cluster). Replacement workers reuse deterministic finding IDs per prefix, so a cleared prefix-space plus a fresh write yields a consistent shard / coverage / disk set.
@@ -322,7 +329,7 @@ Each judge's full protocol is its system prompt (`agents/rust-review-{dedup,fp}-
 **Judge failure handling.** Same shape as Phase 7's classifier, applied to judge return text:
 
 - `… complete:` → **success.**
-- `… abort:` → **non-retryable.** Surface the abort line plus `ls -l ${output_dir}/findings-index.txt`; stop.
+- `… abort:` → **non-retryable for that judge.** Surface the abort line plus `ls -l ${output_dir}/findings-index.txt`, then **still run Phase 8b** (its SARIF + `REPORT.md` safety net guarantees the artifact set even when a judge aborts — see Phase 8b's "fp-judge returned, or the run aborted early" entry), and stop without spawning further judges. "Stop" means do not continue the judge pipeline — it does **not** mean skip Phase 8b.
 - No `complete:` (help message / error / question) → **retryable once.** `SendMessage(to=<agentId>, …)` rather than a fresh spawn (the agent already paid the protocol-parse cost). Include the explicit finding paths from `findings-index.txt`. If the second try still fails, surface the transcript and continue to Phase 8b.
 
 ### Phase 8b: Report safety net (SARIF + REPORT.md)

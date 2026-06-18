@@ -16,7 +16,7 @@ description: Detects Rust closures passed to extern "C" callbacks without panic 
 **FPs to reject:**
 
 - Trampoline already uses `catch_unwind` and converts to a C-friendly error code.
-- Closure is `extern "C"` with `#[unwind(abort)]` or the crate is built with `-C panic=abort` AND that is documented.
+- The trampoline body is provably panic-free (gate 3 already covers this), or the callback runs in a non-server / non-DoS-relevant context. (Note: `#[unwind(abort)]` is **not** a valid guard — that attribute was removed years ago and does not compile. And `-C panic=abort` is **not** a mitigation: under it a panic in the callback still aborts the whole process — the same DoS the bug shape warns about — and `catch_unwind` becomes a no-op.)
 - The callback is registered for `signal()` and the issue is signal-safety (covered by `REENTRANT`).
 
 **Search patterns:**

@@ -12,7 +12,7 @@ description: Detects recursive types whose implicit Drop walks the structure rec
 3. `T` is reachable from an untrusted source (Phase B) — direct deserialization, programmatic construction in a loop fed by request data, or accumulation across requests.
 4. The path producing `T` does not itself cap depth before storage (e.g., parser-side depth limit applies on insert).
 
-**Why it matters:** dropping a `Box<Node>`-chained list of depth `N` consumes `N` stack frames *after* the function returns. The overflow happens at `}` — frequently at the end of a request handler, far from any visible recursion in source. Stack overflow is **not** catchable: `catch_unwind` does not trap it, and `panic = "unwind"` does not help. A single oversized request — even one that was rejected and returned an error — can crash the process during cleanup. This is the canonical Rust footgun (`rust-lang/rust#10116`, still open).
+**Why it matters:** dropping a `Box<Node>`-chained list of depth `N` consumes `N` stack frames *after* the function returns. The overflow happens at `}` — frequently at the end of a request handler, far from any visible recursion in source. Stack overflow is **not** catchable: `catch_unwind` does not trap it, and `panic = "unwind"` does not help. A single oversized request — even one that was rejected and returned an error — can crash the process during cleanup. This is the canonical Rust footgun (`rust-lang/rust#58068`, "Recursive Drop causes stack overflow even for object trees", still open).
 
 **FPs (reject):**
 

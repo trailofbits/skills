@@ -5,12 +5,12 @@ description: Detects undefined behavior from creating references to fields of #[
 
 **Finding ID Prefix:** `PACKEDREF`.
 
-**Bug shape:** `#[repr(packed)]` / `#[repr(C, packed)]` / `#[repr(packed(N))]` removes inter-field padding, so fields with alignment > 1 can sit at unaligned addresses. Rust requires every `&T` / `&mut T` to be aligned *at creation*, not only on dereference. Taking `&s.field`, `&mut s.field`, `&s.field as *const _`, or any context that implicitly borrows the field (`println!("{}", s.field)`, `&self` method calls on the field, `match &s.field`, indexing a nested array field) is UB when the field is misaligned. Common in C-FFI layout-matched structs and wire formats. Modern rustc rejects most sites as `E0793`, but legacy code, `#[allow(unaligned_references)]`, and macro-generated borrows still appear.
+**Bug shape:** `#[repr(packed)]` / `#[repr(C, packed)]` / `#[repr(packed(N))]` removes inter-field padding, so fields with alignment > 1 can sit at unaligned addresses. Rust requires every `&T` / `&mut T` to be aligned *at creation*, not only on dereference. Taking `&s.field`, `&mut s.field`, `&s.field as *const _`, or any context that implicitly borrows the field (`println!("{}", s.field)`, `&self` method calls on the field, `match &s.field`, indexing a nested array field) is UB when the field is misaligned. Common in C-FFI layout-matched structs and wire formats. Modern rustc rejects these sites as a hard error (`E0793`); the older `unaligned_references` lint was **converted to that hard error** (rust-lang/rust#82523), so `#[allow(unaligned_references)]` no longer suppresses anything — it is a no-op that still emits `E0793`. Macro-generated borrows and pre-error legacy snapshots are where these still surface.
 
 **Verification gates (ALL must pass):**
 
 1. **Packed struct in scope:** a type annotated `#[repr(packed)]`, `#[repr(C, packed)]`, or `#[repr(packed(N))]` (including via type alias or generic instantiation).
-2. **Reference or implicit borrow of a field:** explicit `&s.field` / `&mut s.field`; `&s.field as *const _` / `&mut s.field as *mut _` (the `&` still forms an unaligned reference before the cast); or an auto-borrow site such as `println!`/`format!`/`Debug` on a non-`Copy` field, passing `s.field` where a reference is expected, or indexing/splitting a nested array field.
+2. **Reference or implicit borrow of a field:** explicit `&s.field` / `&mut s.field`; `&s.field as *const _` / `&mut s.field as *mut _` (the `&` still forms an unaligned reference before the cast); or an auto-borrow site — `println!`/`format!`/`write!`/`Debug` of a field (the format machinery borrows **every** argument regardless of `Copy`, so `println!("{}", s.copy_field)` is still `E0793`), passing `s.field` where a reference is expected, or indexing/splitting a nested array field. Only a *braced* `{ s.field }` or a prior by-value copy avoids forming the reference.
 3. **Field may be misaligned:** the field type has `align_of > 1` (skip `u8`/`i8`/`bool` and `[u8; N]`). For `#[repr(packed(N))]` with `N > 1`, skip fields whose type alignment is `<= N` only when a `// SAFETY:` comment proves both the struct base address and field offset meet that alignment; otherwise flag for reviewer confirmation.
 4. **Not a by-value copy:** the access is not `{ s.field }`, `let v = s.field`, or an assignment/move that copies by value without forming a reference.
 
@@ -26,7 +26,7 @@ description: Detects undefined behavior from creating references to fields of #[
 
 ```
 #\[repr\([^\]]*packed
-\b&(?:mut\s+)?[\w.]+\.\w+
+(?:^|[^&\w])&(?:mut\s+)?[\w.]+\.\w+
 \b(?:println|format|write|writeln)!\([^)]*\.\w+
 ```
 

@@ -27,7 +27,7 @@ Grep: pattern="overflow-checks\s*=" path="**/Cargo.toml"
 ```
 
 - If `overflow-checks = true` on the relevant profile (often `[profile.release]` in security-sensitive crates — Solana programs, Substrate runtimes, etc.): plain `+ - * << >>` and unary `-` are panic candidates.
-- If unset or `false` on release: plain `+ - *` wrap silently and `<< >>` mask the shift amount (mod bit-width) in release builds — **not** a panic-DoS (debug-only), though the wrap may still be a logic/correctness bug (route to `cluster-logic-correctness`).
+- If unset or `false` on release: plain `+ - *` wrap silently and `<< >>` mask the shift amount (mod bit-width) in release builds — **not** a panic-DoS. If the wrapped value is security-relevant (a length / index / capacity / allocation size, an auth or accounting counter, etc.), still file it under `ARITHOFL`, noting it is a *release-silent wrap* (not a panic); the fp+severity judge ranks it. There is **no** arithmetic pass in `logic-correctness`, so do not "route" it elsewhere — filing under `ARITHOFL` with the release-silent note is how a silent-wrap bug reaches the report.
 
 **Unconditional arithmetic panics** (fire regardless of `overflow-checks`, score these always):
 - `/` or `%` by zero
@@ -60,10 +60,10 @@ Grep: pattern="\.try_borrow_mut\s*\(\s*\)\s*\.(unwrap(_err)?|expect)\s*\("  # tr
 **Negative-signal grep (sites already hardened, skip for `ARITHOFL`):**
 
 ```
-Grep: pattern="\b(checked|saturating|wrapping|overflowing)_(add|sub|mul|div|shl|shr|neg|pow)\b"
+Grep: pattern="\b(checked|saturating|wrapping|overflowing)_(add|sub|mul|shl|shr|neg|pow)\b"
 ```
 
-These methods never panic on overflow — they're the explicit non-panicking alternatives. Use this grep to *exclude* hardened sites from the arithmetic inventory, not to find panic candidates. (One exception: `checked_*().unwrap()` chains — those re-introduce a panic and should fall out of the `unwrap` grep above.)
+These methods never panic on overflow — they're the explicit non-panicking alternatives. Use this grep to *exclude* hardened sites from the arithmetic inventory, not to find panic candidates. **Do not exclude `div`/`rem` this way:** only `checked_div`/`checked_rem` are divide-by-zero-safe — `wrapping_div`/`saturating_div`/`overflowing_div` (and the `_rem` forms) **still panic on divide-by-zero**, so they stay in the div-by-zero inventory. (One exception to the exclusion: `checked_*().unwrap()` chains re-introduce a panic and should fall out of the `unwrap` grep above.)
 
 ## Deconfliction
 

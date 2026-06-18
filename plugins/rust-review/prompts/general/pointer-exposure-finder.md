@@ -14,7 +14,7 @@ description: Detects raw memory addresses leaked to externally observable sinks,
 
 **FPs:**
 
-- Output guarded by `#[cfg(debug_assertions)]` or `cfg!(debug)` — never reaches production.
+- Output guarded by `#[cfg(debug_assertions)]` / `cfg!(debug_assertions)` — compiled out of release builds. (Note: `cfg!(debug)` / `#[cfg(debug)]` is **not** a real guard — `debug` is not a built-in cfg name; it is `false` in normal dev builds and triggers the `unexpected_cfgs` warning. The correct flag is `debug_assertions`. Caveat: `[profile.release] debug-assertions = true` re-enables it in release.)
 - Value never leaves the process (internal data-structure key, purely in-process logging).
 - Address used only as an opaque integer key, never sent outside the process boundary.
 

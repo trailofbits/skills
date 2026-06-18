@@ -9,7 +9,7 @@ description: Detects unwrap/expect on Result/Option flowing from attacker-contro
 
 1. `.unwrap()`, `.unwrap_err()`, or `.expect("...")` site.
 2. The `Result`/`Option` is produced by parsing/decoding/lookup of external input (HTTP request, file content, IPC message, CLI arg, env var, untrusted serde input).
-3. The call site is not inside `std::panic::catch_unwind` AND the surrounding scope does not have a panic recovery wrapper.
+3. The panic is not reliably recovered. A `std::panic::catch_unwind` wrapper only counts as recovery under a `panic = "unwind"` build — under `panic = "abort"` (common on servers/embedded) `catch_unwind` is a no-op and the panic aborts the whole process, so an `unwrap` it "guards" is still a DoS and must be filed. Likewise `catch_unwind` cannot reliably stop a panic crossing an FFI/`extern` boundary. Treat "inside `catch_unwind`" as recovery only when the build is `panic = "unwind"` and the panic does not cross FFI.
 
 **FPs (reject):**
 

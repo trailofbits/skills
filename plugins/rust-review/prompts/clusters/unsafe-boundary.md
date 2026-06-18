@@ -29,7 +29,7 @@ Run these scans and keep results as `unsafe_map` for all eight passes:
 Grep: pattern="\bunsafe\s*\{"                          # Unsafe blocks (UB)
 Grep: pattern="\bunsafe\s+fn\s"                        # Unsafe functions (UF)
 Grep: pattern="\bunsafe\s+impl\s"                      # Unsafe trait impls
-Grep: pattern="\bextern\s+\"C\""                        # FFI entry points
+Grep: pattern="\bextern\s+\"(C|system|stdcall|cdecl|win64|sysv64|aapcs|fastcall|thiscall|vectorcall|efiapi)(-unwind)?\""  # FFI entry points (any non-Rust ABI)
 Grep: pattern="#\[repr\(C\)\]"                         # FFI-safe layouts
 Grep: pattern="\btransmute(_copy)?\s*[:<(]"             # mem::transmute usage
 Grep: pattern="(\*mut|\*const)\s+\w"                  # Raw pointer types
@@ -95,7 +95,7 @@ Constructing a Rust enum value whose bit pattern does not correspond to a declar
 
 **`transmute::<u8, bool>(byte)`** and equivalents: `bool` has exactly two valid bit patterns (`0` and `1`); any other byte is UB. Decode `bool` from C buffers via `byte != 0`, not via transmute.
 
-**Niche writes** through a raw pointer or FFI buffer into a field of type `Option<&T>`, `Option<&mut T>`, `Option<Box<T>>`, `Option<NonNull<T>>`, or `Option<fn(...)>`: the all-zeros pattern is `None`; any other pattern must be a valid `Some(T)`. Writing untrusted bytes into such a slot can violate `T`'s validity invariant. Severity depends on `T`: `Option<&T>` / `Option<&mut T>` reconstituted with an unaligned or non-dereferenceable address is **instant UB** on construction (references carry alignment and validity invariants beyond non-null), and `Option<fn(...)>` with a non-function bit pattern is instant UB. For `Option<NonNull<T>>` and `Option<Box<T>>`, the inner type's only validity invariant is non-null, so an attacker-supplied non-zero pattern survives construction — but every later dereference is UB on a wild pointer. (Note: `Option<NonZero*>` has the same niche layout but no validity hazard at all, because every non-zero bit pattern is a valid `NonZeroN`; writes there are only a *logic* hazard, not a UB hazard.)
+**Niche writes** through a raw pointer or FFI buffer into a field of type `Option<&T>`, `Option<&mut T>`, `Option<Box<T>>`, `Option<NonNull<T>>`, or `Option<fn(...)>`: the all-zeros pattern is `None`; any other pattern must be a valid `Some(T)`. Writing untrusted bytes into such a slot can violate `T`'s validity invariant. Severity depends on `T`: `Option<&T>` / `Option<&mut T>` / `Option<Box<T>>` reconstituted with an unaligned or non-dereferenceable address is **instant UB** on construction — references **and `Box`** carry the same alignment + dereferenceability validity invariants beyond non-null — and `Option<fn(...)>` with a non-function bit pattern is instant UB. For `Option<NonNull<T>>` the inner type's only validity invariant is non-null, so an attacker-supplied non-zero pattern survives construction — but every later dereference is UB on a wild pointer. (Note: `Option<NonZero*>` has the same niche layout but no validity hazard at all, because every non-zero bit pattern is a valid `NonZeroN`; writes there are only a *logic* hazard, not a UB hazard.)
 
 **`#[repr(Rust)]` enum at FFI boundary** — discriminant width is implementation-defined and field layout is unspecified. Passing such an enum by value through `extern "C"`, storing it in a `#[repr(C)]` struct that crosses FFI, or reading it from a foreign-written buffer is unsound.
 

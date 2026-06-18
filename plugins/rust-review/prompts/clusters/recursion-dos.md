@@ -10,7 +10,7 @@ covers:
 
 # Cluster: Recursion-induced stack overflow
 
-Stack overflow is *not* a panic. It cannot be caught with `std::panic::catch_unwind`, and it aborts the process unconditionally regardless of `panic = "abort" | "unwind"`. On a server, an attacker who controls the *depth* of a parsed/formatted/dropped data structure converts that depth into a per-frame stack consumer and crashes the thread. The shared mental model across this cluster: **recursive descent over attacker-shaped data depth → stack consumption proportional to depth → SIGSEGV abort**.
+Stack overflow is *not* a panic. It cannot be caught with `std::panic::catch_unwind`, and it aborts the process unconditionally regardless of `panic = "abort" | "unwind"`. On a server, an attacker who controls the *depth* of a parsed/formatted/dropped data structure converts that depth into a per-frame stack consumer and crashes the **entire process** (a stack overflow in any thread aborts the whole process via the runtime's SIGSEGV handler — never just the offending thread). The shared mental model across this cluster: **recursive descent over attacker-shaped data depth → stack consumption proportional to depth → SIGSEGV abort**.
 
 Three families share the same recursive-descent pattern but trigger at different lifecycle stages:
 

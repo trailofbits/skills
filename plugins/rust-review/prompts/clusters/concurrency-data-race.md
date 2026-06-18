@@ -35,3 +35,4 @@ Run finders in declared order: `ATOMICRACE`, `UNSAFESYNC`, `SENDSYNCBOUND`, `SHM
 - `STATICMUT` vs `ATOMICRACE`: unsynchronized `static mut` (or raw access to it) vs incorrect `Atomic*` sequencing — file both if both apply at different sites.
 - `STATICMUT` vs `UNSAFESYNC`: `static mut` race is not fixed by an unsound `Sync` impl on a wrapper; prefer `STATICMUT` at the `static mut` site.
 - `SHMRACE` vs `STATICMUT`: cross-process mmap vs in-process `static mut` — different trust boundaries.
+- `UNSAFESYNC` vs `SENDSYNCBOUND`: a manual `unsafe impl Send`/`Sync` *definition* over a non-thread-safe payload is `UNSAFESYNC`; `SENDSYNCBOUND` only files when a missing bound is laundered across threads by an `unsafe` spawn primitive / `transmute` (not by the manual impl itself). When a single `unsafe impl Send for W {}` both exists and lets its value cross a thread, file `UNSAFESYNC` at the impl site; do not double-file `SENDSYNCBOUND` for the same impl.

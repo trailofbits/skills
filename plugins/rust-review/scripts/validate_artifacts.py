@@ -11,6 +11,29 @@ from pathlib import Path
 from typing import Any
 
 FINDING_ID_RE = re.compile(r"\b[A-Z][A-Z0-9_]*-\d{3,}\b")
+FRONTMATTER_ID_RE = re.compile(r"^\s*id:\s*(.+?)\s*$")
+
+
+def frontmatter_id(path: Path) -> str | None:
+    """Return the `id:` value from a finding file's YAML frontmatter, or None.
+
+    Phase 7 otherwise keys everything on the filename stem; without this the
+    frontmatter `id` (which dedup/fp-judge and generate_sarif trust) can silently
+    disagree with the filename (e.g. a file named BOF-001.md carrying id: UAF-999).
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if not text.startswith("---"):
+        return None
+    end = text.find("\n---", 3)
+    block = text[: end if end != -1 else len(text)]
+    for line in block.splitlines():
+        match = FRONTMATTER_ID_RE.match(line)
+        if match:
+            return match.group(1).strip().strip('"').strip("'")
+    return None
 
 
 def normalize_worker_id(value: str) -> str:
@@ -125,9 +148,23 @@ def _validate_worker(
         errors.append(f"{worker_id}: missing shard {shard_path}")
     else:
         shard_paths, shard_ids = _read_shard(shard_path, output_dir)
+        findings_dir = (output_dir / "findings").resolve()
         for path in shard_paths:
             if not path.is_file():
                 errors.append(f"{worker_id}: shard references missing finding file {path}")
+                continue
+            if path.resolve().parent != findings_dir:
+                errors.append(
+                    f"{worker_id}: shard references finding file outside findings/: {path}"
+                )
+            declared = frontmatter_id(path)
+            if declared is None:
+                errors.append(f"{worker_id}: finding {path.name} has no parseable frontmatter id")
+            elif declared != path.stem:
+                errors.append(
+                    f"{worker_id}: finding {path.name} frontmatter id {declared!r} "
+                    f"does not match its filename stem {path.stem!r}"
+                )
 
     if worker_id in claimed_counts and claimed_counts[worker_id] != len(shard_paths):
         errors.append(
