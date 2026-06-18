@@ -256,7 +256,8 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
         if "merged_into" in finding:
             continue
         verdict = str(finding.get("fp_verdict", "")).upper()
-        if not verdict:
+        unjudged = not verdict
+        if unjudged:
             # Unjudged finding — fp-judge was skipped (partial run). Treat as
             # LIKELY_TP and infer severity from worker-assigned confidence.
             finding["fp_verdict"] = UNJUDGED_FALLBACK_VERDICT
@@ -267,7 +268,13 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
             finding["unjudged"] = True
         elif verdict not in SURVIVOR_VERDICTS:
             continue
-        if not severity_allowed(str(finding.get("severity", "")).upper(), severity_filter):
+        # Judged survivors are filtered by their validated severity. Unjudged
+        # findings carry only an *inferred* severity that no judge confirmed, so
+        # filtering them on that guess would silently drop them (SKILL.md Phase
+        # 8b). Always surface them — marked unjudged below — regardless of filter.
+        if not unjudged and not severity_allowed(
+            str(finding.get("severity", "")).upper(), severity_filter
+        ):
             continue
         findings.append(finding)
 
@@ -290,13 +297,17 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
         also_known_as = finding.get("also_known_as", [])
         if not isinstance(also_known_as, list):
             also_known_as = [str(also_known_as)]
+        unjudged = bool(finding.get("unjudged", False))
+        title = str(finding.get("title") or finding.get("id") or "c-review finding")
+        if unjudged:
+            # No judge validated this verdict/severity — mark it loudly so a SARIF
+            # consumer never reads the inferred severity as confirmed.
+            title = f"[UNVALIDATED SEVERITY — not judged] {title}"
         results.append(
             {
                 "ruleId": str(finding.get("bug_class", "unknown")),
                 "level": sarif_level(severity),
-                "message": {
-                    "text": str(finding.get("title") or finding.get("id") or "c-review finding")
-                },
+                "message": {"text": title},
                 "locations": [
                     {
                         "physicalLocation": {
@@ -315,7 +326,8 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
                     "attack_vector": str(finding.get("attack_vector", "")),
                     "exploitability": str(finding.get("exploitability", "")),
                     "fp_verdict": str(finding.get("fp_verdict", "")),
-                    "unjudged": bool(finding.get("unjudged", False)),
+                    "unjudged": unjudged,
+                    "severity_validated": not unjudged,
                     "also_known_as": also_known_as,
                 },
             }
