@@ -53,7 +53,7 @@ Output directory contains: `context.md`, `plan.json`, `worker-prompts/`, `findin
 
 ## Rationalizations to Reject
 
-- **"`unsafe` is rare, skip the memory-safety cluster."** Run the cluster anyway; it self-gates per-pass on `has_unsafe`. The unsafe-boundary cluster always runs (consolidated, covers safety-doc and repr(C) hygiene that apply to FFI declarations even without `unsafe { }` blocks visible at this scope).
+- **"`unsafe` is rare, so hand-skip the memory-safety cluster."** Don't edit the cluster list — set `has_unsafe` accurately in Phase 1 and let `build_run_plan.py` decide. Every memory-safety bug class (UAF, double-free, uninitialized reads, `Vec::set_len`, union UB) requires `unsafe`, so the planner runs the **whole** `memory-safety` cluster when `has_unsafe=true` and correctly omits it when `false` — there is no "run it anyway." The **unsafe-boundary** cluster is different: it has no `requires` and always runs (consolidated; its safety-doc and `repr(C)` hygiene apply to FFI declarations even without visible `unsafe { }` blocks).
 - **"The compiler caught it."** The borrow checker proves absence of safe-code data races; it proves nothing about unsafe blocks, panic reachability, ABBA deadlocks, atomic-load/store sequencing, or FFI ABI mismatch.
 - **"`unwrap()` is fine if it's `// SAFETY: documented infallible`."** `// SAFETY:` documents `unsafe` operations, not infallibility claims. An `unwrap()` on documented-infallible input is still risky if the documentation is wrong — file as low severity and let the FP judge decide.
 - **"`has_unsafe=false` so skip the run."** Pure safe-Rust crates still have panic-DoS, atomic races, drop-panics, and trait-implementation hazards. Run the always-on clusters.
