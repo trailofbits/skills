@@ -42,7 +42,7 @@ If `findings-index.txt` exists, it is canonical: `Read` it and parse one path pe
 - And the finding list is empty → zero-findings run. Proceed with an empty primaries set and still write `REPORT.md` and `REPORT.sarif` (with `results: []`).
 - And findings exist → dedup did not run. Treat every non-merged finding as a primary and add a prominent note to `fp-summary.md` and `REPORT.md` that dedup was skipped.
 
-**Process only primaries** — findings where `merged_into` is absent. Skip files that have `merged_into` in their frontmatter; they are already represented by their primary (which carries `also_known_as`).
+**Process only primaries** — findings where `merged_into` is absent. Skip files that have `merged_into` in their frontmatter; they are already represented by their primary (which carries `also_known_as`). **But when a primary carries `also_known_as`, judge the whole merged group, not just the primary file** — read every absorbed finding too (see the per-primary process). Dedup asserts the merged findings are the *same defect* (possibly reported under a different `bug_class` by a Tier-3 cross-class merge), so the group gets exactly one verdict; reading every framing first stops a class-specific `FALSE_POSITIVE` from hiding a real bug that a merged finding described differently.
 
 ## Verification toolkit
 
@@ -72,15 +72,15 @@ Be conservative: when uncertain between `LIKELY_TP` and `LIKELY_FP`, prefer `LIK
 
 ### Per-primary FP process
 
-For each primary:
+For each primary (judge the whole merged group as one finding):
 
-1. `Read` the file. Parse YAML frontmatter and body.
-2. Open the referenced `location` in the source to verify the claim matches the code.
+1. `Read` the primary file. Parse YAML frontmatter and body. If it carries `also_known_as`, `Glob: {output_dir}/findings/<id>.md` for each absorbed id and `Read` only the ones that resolve — each absorbed file is the *same defect* seen by another worker, possibly under a different `bug_class` and a different `## Description`/`## Code`/`## Data flow`, so treat its evidence as part of this one finding. If an absorbed id does not resolve (missing file or malformed id), note it in `fp_rationale` and judge from the files that did resolve — **never abort the pass for a missing absorbed file**; the primary's own evidence is always enough to render a verdict.
+2. Open the referenced `location` (and any distinct `locations` carried over from absorbed files) in the source to verify the claim matches the code.
 3. Trace reachability:
    - **REMOTE**: can network input reach this without local access?
    - **LOCAL**: can an unprivileged user trigger this? Does it cross a privilege boundary?
 4. Check mitigations actually applied at this site (bounds checks, FORTIFY, sanitizers, type constraints).
-5. Render `fp_verdict` + one-line `fp_rationale`.
+5. Render **one** `fp_verdict` + one-line `fp_rationale` for the whole group. Because dedup asserts the members are the same defect, they share a single verdict — they cannot split into one TP and one FP. If the bug is real and reachable under **any** of the merged framings, the verdict is `TRUE_POSITIVE`/`LIKELY_TP`; name the framing that carries it in the rationale. Use `FALSE_POSITIVE`/`LIKELY_FP` only when **every** framing fails.
 
 ### Threat-model-specific rules
 
@@ -96,6 +96,8 @@ For each primary:
 **Only** assign severity to findings with `fp_verdict ∈ {TRUE_POSITIVE, LIKELY_TP}`. Skip `LIKELY_FP`, `FALSE_POSITIVE`, and `OUT_OF_SCOPE` — those get no severity.
 
 Severity is **not absolute**. The same bug can be Critical under `REMOTE` and Low under `LOCAL_UNPRIVILEGED`.
+
+For a merged cross-class group, assess severity against the **framing that carried the verdict**, not blindly against the primary's `bug_class`. If the group survived because an absorbed finding's framing is the real bug (e.g. the primary is labeled `buffer-overflow` but the verdict rests on the absorbed `memcpy-size` framing), pick the severity tier from *that* framing's attack model and name the carrying `bug_class` in `severity_rationale`. (The SARIF `ruleId` still reads the primary's `bug_class`; `severity_rationale` is where the carrying class stays auditable.)
 
 ### Remote threat model
 

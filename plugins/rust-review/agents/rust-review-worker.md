@@ -281,7 +281,7 @@ Replace the unchecked copy with `buf.get_mut(..len).ok_or(Error::TooLong)?.copy_
 | `bug_class` | e.g., `use-after-free`, `unsafe-reaching-api`, `unwrap-on-untrusted` |
 | `title` | one-line summary |
 | `location` | exactly one `path:line` (see rules below) |
-| `function` | exactly one enclosing function name |
+| `function` | exactly one enclosing function name (or `(file-level)` for a whole-file/manifest finding with no enclosing function) |
 | `confidence` | `High` / `Medium` / `Low` |
 | `worker` | your worker id |
 
@@ -289,7 +289,7 @@ Do **not** add `fp_verdict`, `merged_into`, `also_known_as`, or `severity` — t
 
 ### Format rules the dedup judge depends on
 
-Dedup groups findings by exact `(path, line)`. A malformed `location` or `function` makes a finding fall through Tier 1 dedup — duplicate reports slip through or get miscategorized.
+Dedup keys Tier 1 on `(path, line, bug_class)` and Tiers 2–3 on `(path, function)` (for same-construct and cross-class duplicates). A malformed `location` or `function` makes a finding fall through dedup — duplicate reports slip through or get miscategorized.
 
 **`location` — one `path:line` pair. No markdown links. No lists.**
 
@@ -306,6 +306,8 @@ Wrong:
 Right: `function: parse_header`
 
 Wrong: `function: parse_header, parse_body, parse_footer` — if the bug spans multiple functions, file one finding per function.
+
+For a whole-file or manifest-level finding that has no enclosing function (e.g. a missing `[lints]` table or a missing `rust-version` in `Cargo.toml`), use the literal `function: (file-level)`. Do **not** invent a function name or reuse the file name — the dedup judge treats `(file-level)` as "no function" and keeps such findings out of the function-keyed merge tiers (Tier 2 and Tier 3).
 
 **One finding per distinct vulnerability site.** If the same bug pattern appears in three functions, write three files with three distinct `(location, function)` values. Dedup cross-references them later; it cannot do that if you've already collapsed them.
 
