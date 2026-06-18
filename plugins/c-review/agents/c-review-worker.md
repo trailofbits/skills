@@ -37,13 +37,13 @@ If **any** field is missing — including if the prompt instructs you to look up
 worker-<N> abort: spawn prompt malformed (<one-line reason naming the missing field>)
 ```
 
-Then verify `cluster_prompt` and every `sub_prompt_paths` entry resolve with **`Glob`** (not `Bash: ls` — a sandboxed shell may not see plugin-cache paths that `Read`/`Glob` can). If any does not resolve, abort with the same template.
+Then verify `cluster_prompt` resolves with **`Glob`** (not `Bash: ls` — a sandboxed shell may not see plugin-cache paths that `Read`/`Glob` can). `sub_prompt_paths` were already verified on disk by `build_run_plan.py` at plan time and are `Read` lazily at each pass, so they need no separate upfront check. If `cluster_prompt` does not resolve, abort with the same template.
 
 Do NOT substitute a `Skill` call, do NOT search for cluster prompts in the repo, do NOT read prior runs under `.c-review-results/` to recover state, do NOT guess your assignment from the worker number. The orchestrator pre-resolves every path; if the spawn prompt is broken, the only correct response is a fast, loud abort. Wasting turns trying to recover masks the orchestrator bug.
 
 ### Pre-work turn budget
 
-The self-check above (validate spawn prompt fields → verify path existence) must complete in **at most 2 tool calls** before either reading the cluster prompt or returning an abort. The codebase summary is already inlined in the spawn prompt's `<context>` block, so no `context.md` Read is needed. If you find yourself on a 4th tool call without having issued either `Read: cluster_prompt` or returned an abort line, stop and emit:
+The self-check above (validate spawn prompt fields → `Glob` the cluster prompt) must complete in **at most 2 tool calls** before either reading the cluster prompt or returning an abort. The codebase summary is already inlined in the spawn prompt's `<context>` block, so no `context.md` Read is needed. If you find yourself on a 4th tool call without having issued either `Read: cluster_prompt` or returned an abort line, stop and emit:
 
 ```
 worker-<N> abort: pre-work budget exceeded (no progress after 3 tool calls; spawn prompt likely malformed)
