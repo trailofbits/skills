@@ -262,23 +262,27 @@ python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir
 
 If validation exits non-zero, treat the completion as malformed and retryable (classifier row #4): mark the task `pending`, store the validator output in `metadata.abort_reason`, set `needs_respawn=true`, and increment `attempt`. Missing `findings-index.d/worker-N.txt`, missing `coverage/worker-N.md`, missing coverage rows, invalid `skipped:` rows, filed IDs absent from the shard or disk, and claimed-count mismatches are all malformed completions. After the retry cap, leave the cluster task incomplete and surface the validator output in `run-summary.md` and the final response. Only validation-clean provisional completions may be `TaskUpdate`d to `completed`.
 
-Then build the index — workers wrote per-worker shards under `${output_dir}/findings-index.d/`, prefer those:
+Then build the index. The canonical index is the set of finding files **actually on disk**, not the shard union — building from disk guarantees that a finding written without a matching shard entry (a worker that crashed between its `Write` and its shard-append, or the single-prefix empty-shard trap the worker prompt warns about) is still picked up by dedup → fp-judge → REPORT/SARIF instead of silently vanishing, and that every index entry resolves to a real file:
 
 ```bash
-# Use `find` rather than a `worker-*.txt` glob: zsh aborts the compound command on no-match
-# even with `2>/dev/null`, so an empty findings-index.d would otherwise drop the index file.
-# `awk 1` (vs `cat`) normalizes a missing trailing newline on any shard, so a future
-# worker that writes shards via Write/printf instead of `ls -1 | sort` can't silently glue
-# the last path of one shard onto the first of the next when sort -u dedupes.
+# Canonical index = every finding file on disk. `find` never fails on no-match
+# (an empty findings/ yields an empty index — the unambiguous "zero findings"
+# signal). `sort -u` collapses Phase-7 retry duplicates: replacement workers reuse
+# deterministic ids, so the same path appears once.
+find "${output_dir}/findings" -maxdepth 1 -type f -name '*.md' 2>/dev/null \
+  | sort -u > "${output_dir}/findings-index.txt"
+
+# Reconcile against the per-worker shards: any path on disk but in NO shard is an
+# orphan whose worker failed to record it. It is already in the index above (so it
+# is NOT dropped) — print it so the bookkeeping gap can be surfaced. Non-fatal.
 if [ -d "${output_dir}/findings-index.d" ]; then
-  find "${output_dir}/findings-index.d" -maxdepth 1 -type f -name 'worker-*.txt' -exec awk 1 {} + 2>/dev/null \
-    | sort -u > "${output_dir}/findings-index.txt"
-else
-  find "${output_dir}/findings" -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort > "${output_dir}/findings-index.txt"
+  comm -13 \
+    <(find "${output_dir}/findings-index.d" -maxdepth 1 -type f -name 'worker-*.txt' -exec awk 1 {} + 2>/dev/null | sed '/^[[:space:]]*$/d' | sort -u) \
+    "${output_dir}/findings-index.txt"
 fi
 ```
 
-`sort -u` collapses duplicates from Phase-7 retries. Empty file is the unambiguous "zero findings" signal. Cross-check the line count against the sum of `wrote N` worker claims; log mismatches but don't abort.
+The shards stay the per-worker audit trail (`validate_artifacts.py` checks them) and the dedup-judge's crash-recovery fallback, but they no longer gate what reaches the pipeline. If the `comm` reconcile prints any path, record those orphans in `run-summary.md` (and which worker's shard was incomplete). Still cross-check the index line count against the sum of `wrote N` worker claims; log mismatches but don't abort.
 
 After task updates and index creation, run `TaskList` and write `${output_dir}/run-summary.md` with:
 

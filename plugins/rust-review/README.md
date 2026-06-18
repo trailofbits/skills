@@ -71,7 +71,7 @@ Default: `$(pwd)/.rust-review-results/<iso-timestamp>/`. Contains:
 - `worker-prompts/` — verbatim spawn prompts, one per worker (+ optional `cache-primer.txt`)
 - `findings/` — one markdown file per finding (`<PREFIX>-NNN.md` with YAML frontmatter)
 - `findings-index.d/` — per-worker shards listing finding paths (survive an orchestrator crash)
-- `findings-index.txt` — canonical sorted union of shards
+- `findings-index.txt` — canonical sorted list of every finding file on disk (reconciled against the shards)
 - `run-summary.md` — worker outcome table, retry/abort state, judge status
 - `dedup-summary.md` — Tier 1–3 merge + Tier 4 related summary
 - `fp-summary.md` — verdict counts and per-primary verdict table

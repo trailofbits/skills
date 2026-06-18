@@ -64,8 +64,8 @@ Each worker inventories candidate sites once for its cluster (Phase A), then run
     │                                   (Phase A inventory + focused passes) →
     │                                   write finding files + per-worker shard
     │                                   under findings-index.d/ → exit
-    ├── Phase 7: Wait until all workers complete; concatenate findings-index.d/ shards
-    │           into findings-index.txt
+    ├── Phase 7: Wait until all workers complete; build findings-index.txt from findings/ on disk,
+    │           reconciled against the findings-index.d/ shards
     ├── Phase 8: Judges sequentially — Dedup → FP+Severity
     │           ├── Dedup-judge:    reads ALL findings, merges duplicates (Tier 1 exact loc+class,
     │           │                   Tier 2 same-function snippet, Tier 3 cross-class same-bug;
@@ -95,7 +95,7 @@ ${output_dir}/
 ├── findings-index.d/      # per-worker shards (each worker writes its own paths here)
 │   ├── worker-1.txt
 │   └── …
-├── findings-index.txt     # sorted, de-duplicated union of shards (canonical finding manifest)
+├── findings-index.txt     # sorted, de-duplicated list of finding files on disk, reconciled vs shards (canonical manifest)
 ├── run-summary.md         # orchestrator-written: resolved params, worker outcomes, judge status
 ├── dedup-summary.md       # dedup-judge output (minimal no-op summary on zero findings)
 ├── fp-summary.md          # fp+severity-judge output
