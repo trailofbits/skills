@@ -24,8 +24,11 @@ description: Detects double-free via ptr::read ownership duplication on non-Copy
 
 ```
 ptr::read(_unaligned|_volatile)?\s*\(
+\.read(_unaligned|_volatile)?\s*\(\s*\)
 mem::forget\b
 ManuallyDrop::
 ```
+
+The second pattern catches the idiomatic raw-pointer **method** form `p.read()` / `p.read_unaligned()`, which the `ptr::read(...)` free-function pattern misses (verify each hit is a raw-pointer read, not `io::Read`).
 
 **Patch:** wrap the duplicate in `ManuallyDrop::new(...)`, or call `mem::forget(original)` after the read.

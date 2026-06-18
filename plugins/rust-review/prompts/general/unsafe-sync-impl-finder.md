@@ -22,6 +22,9 @@ description: Audits unsafe impl Send/Sync over types with interior mutability
 **Search patterns:**
 
 ```
-unsafe\s+impl\s+(Send|Sync)\s+for
-UnsafeCell
+unsafe\s+impl\b.*\b(Send|Sync)\b\s+for
+UnsafeCell|\bCell\b|\bRefCell\b
+\*mut\s|\*const\s
 ```
+
+The first pattern uses `impl\b.*\b(Send|Sync)\b` (not `impl\s+(Send|Sync)`) so it also matches the dominant generic forms `unsafe impl<T> Send for Wrapper<T>` and `unsafe impl<T: ?Sized> Sync for Box<T>`, where `<...>` sits between `impl` and the trait. The second/third lines seed Gate 2's raw-pointer / interior-mutable fields (`*mut`/`*const`, `Cell`/`RefCell`), not just `UnsafeCell`.

@@ -31,8 +31,9 @@ Run these scans:
 Grep: pattern="\bunsafe\s*\{"
 Grep: pattern="\.(as_ptr|as_mut_ptr|into_raw|from_raw)\("
 Grep: pattern="\bptr::(read|write|copy(_nonoverlapping)?|drop_in_place|offset|add|sub)\b"
+Grep: pattern="\.(add|sub|offset|read|write|copy_to|copy_from|copy_to_nonoverlapping|copy_from_nonoverlapping)(_unaligned|_volatile)?\s*\("  # raw-pointer METHOD form (p.read(), p.add(i)) — complements the ptr:: free-fn line above
 Grep: pattern="\b(get_unchecked(_mut)?)\s*\("
-Grep: pattern="\bMaybeUninit::(assume_init|uninit|new|zeroed)"
+Grep: pattern="\bMaybeUninit::(<[^>]*>::)?(assume_init|uninit|new|zeroed)|\.assume_init(_read|_mut|_ref)?\s*\("  # turbofish MaybeUninit::<T>::uninit() and the .assume_init() method form
 Grep: pattern="\b(mem::uninitialized|mem::zeroed|mem::transmute|mem::forget|ManuallyDrop::)"
 Grep: pattern="\b(alloc|dealloc|realloc)::"
 Grep: pattern="\bunion\s+\w+\b"

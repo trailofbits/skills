@@ -74,4 +74,14 @@ These methods never panic on overflow — they're the explicit non-panicking alt
 - `OOBIDX` owns integer-index OOB on `Vec`/`[T]`; `STRSLICE` owns `str` range-slice / `split_at` / `truncate` panics where the byte index lands off a UTF-8 char boundary (a panic that fires even *in bounds*).
 - `REFCELLPANIC` owns single-threaded interior-mutability borrow panics; a borrow panic inside `Drop` routes to `DROPPANIC`; cross-thread/callback reentrancy routes to the concurrency-locking reentrancy classes.
 
-Run finders in declared order: `RESEXHAUST` first, then panic passes.
+## Pass order
+
+Run the seven passes in manifest order, applying the Phase A–C inventories above (detailed detection + FP guidance live in the per-class finder files):
+
+1. **`RESEXHAUST` — resource-exhaustion** (first) — uncapped alloc / O(n²) / unbounded loop on untrusted input; often no panic at all (pure availability). Phase B.
+2. **`UNWRAP` — unwrap-on-untrusted** — `unwrap()`/`expect()` on an attacker-controlled `Result`/`Option`. Phase C.
+3. **`ARITHOFL` — arithmetic-overflow** — overflow panic on a reachable path, gated by `overflow-checks` (see Phase A). Phase A/C.
+4. **`ASSERTREACH` — assertion-reachable** — reachable `assert!` / `unreachable!` / `panic!` / `todo!`. Phase C.
+5. **`OOBIDX` — out-of-bounds-index** — integer index past a `Vec`/`[T]` bound on untrusted input. Phase C.
+6. **`STRSLICE` — str-slice-boundary** — `str` range-slice / `split_at` / `truncate` landing off a UTF-8 char boundary. Phase C.
+7. **`REFCELLPANIC` — refcell-borrow-panic** — reachable `RefCell` double-borrow panic. Phase C.

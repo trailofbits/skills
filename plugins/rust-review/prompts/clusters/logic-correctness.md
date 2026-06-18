@@ -20,7 +20,8 @@ ID prefixes: `ORDEQHASH`, `TRAITADV`, `CLOSUREPANIC`, `FLOATEDGE`, `STRCMP`, `SE
 ## Phase A
 
 ```
-Grep: pattern="impl\s+(Ord|PartialOrd|Eq|PartialEq|Hash)\s+for"
+Grep: pattern="impl\b[^{]*?\b(Ord|PartialOrd|Eq|PartialEq|Hash)\b[^{]*\bfor\b"  # hand impls incl. generic `impl<T> Ord for W<T>` and `impl PartialOrd<Other> for Foo`
+Grep: pattern="#\[derive\([^)]*\b(Ord|PartialOrd|Eq|PartialEq|Hash)\b"          # derived — a hand/derive split across these traits is a common inconsistency source
 Grep: pattern="\b(f32|f64)\b"
 Grep: pattern="<\s*\w+\s*:\s*[A-Z]"  # generic trait bounds
 Grep: pattern="\bcatch_unwind\b"
@@ -30,4 +31,22 @@ Grep: pattern="\bHashMap\b|\bHashSet\b"
 Grep: pattern="peek_mut|RefCell\b|Cell\b"
 ```
 
-Run finders in declared order.
+## Phase B — Run finders in order
+
+Apply each pass against the Phase-A inventory; detailed detection + FP guidance live in the per-class finder files (do not re-derive them here).
+
+1. **`ORDEQHASH` — ord-eq-hash** — hand `Ord`/`PartialOrd`/`Eq`/`PartialEq`/`Hash` impls that violate the consistency contracts (incl. a hand/derive split across them). Seed: the `impl … for` and `#[derive(…)]` greps.
+2. **`TRAITADV` — adversarial-trait** *(requires `has_unsafe`)* — a hostile generic trait impl breaks an invariant an `unsafe` block relies on. Seed: generic trait bounds.
+3. **`CLOSUREPANIC` — closure-panic** *(requires `has_unsafe`)* — a user closure invoked between two pointer ops panics and leaves an `unsafe` scaffold inconsistent. Seed: `catch_unwind`, closures in unsafe windows.
+4. **`FLOATEDGE` — float-edge** — NaN/Inf comparison or ordering edge cases (e.g. saturating `f64 as usize`). Seed: `f32` / `f64`.
+5. **`STRCMP` — string-comparison** — partial / case-insensitive comparison bypasses a check. Seed: `starts_with` / `ends_with` / `contains`.
+6. **`SERFIELDS` — serialize-struct-mismatch** — `serialize_struct(len)` field-count disagreement corrupts output. Seed: `serialize_struct(`.
+7. **`NONDET` — nondeterminism** — `HashMap`/`HashSet` iteration or hashing introduces nondeterminism in replicated/consensus state. Seed: `HashMap` / `HashSet`.
+8. **`KEYMUT` — collection-key-mutation** — mutating a key or heap element already stored in a map/set/heap breaks its ordering/hash invariant. Seed: `peek_mut` / `RefCell` / `Cell`.
+
+## Deconfliction
+
+- `ORDEQHASH` vs `KEYMUT`: a *broken* `Ord`/`Hash` impl is `ORDEQHASH`; mutating an otherwise-correct key already inside a collection is `KEYMUT`.
+- `FLOATEDGE` vs `ORDEQHASH`: a NaN-induced `PartialOrd` surprise at a use site is `FLOATEDGE`; a hand `Ord` impl that is internally inconsistent is `ORDEQHASH`.
+- `NONDET` vs `KEYMUT`: nondeterministic *iteration order* is `NONDET`; in-place *key mutation* breaking lookup is `KEYMUT`.
+- `CLOSUREPANIC` (here) vs `PANICUNWIND` (memory-safety): a user `Fn` panicking between two pointer ops vs container metadata left stale across unwind.

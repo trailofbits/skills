@@ -20,9 +20,9 @@ ID prefixes: `ATOMICRACE`, `UNSAFESYNC`, `SENDSYNCBOUND`, `SHMRACE`, `STATICMUT`
 
 ```
 Grep: pattern="\bAtomic(Bool|Usize|U8|U16|U32|U64|I8|I16|I32|I64|Isize|Ptr)\b"
-Grep: pattern="\bunsafe\s+impl\s+(Send|Sync)\b"
+Grep: pattern="\bunsafe\s+impl\b.*\b(Send|Sync)\b"  # tolerates generic `unsafe impl<T> Send for W<T>` (the `<...>` sits between impl and Send/Sync)
 Grep: pattern="(Send|Sync)\s+for\s+\w"
-Grep: pattern="\b(load|store|fetch_(add|sub|or|and|xor)|compare_(exchange(_weak)?|and_swap))\b"
+Grep: pattern="\b(load|store|swap|fetch_(add|sub|or|and|xor|nand|max|min|update)|compare_(exchange(_weak)?|and_swap))\b"  # incl. swap / fetch_update / fetch_max|min — common RMW + CAS-loop sites
 Grep: pattern="\bMAP_SHARED\b|memmap2::MmapMut|shm_open|memfd_create|CreateFileMapping"
 Grep: pattern="\bstatic\s+mut\b"
 Grep: pattern="&raw\s+(const|mut)\s+|addr_of_mut!|thread::spawn|tokio::spawn|rayon::spawn"

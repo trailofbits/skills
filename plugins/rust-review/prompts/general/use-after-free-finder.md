@@ -27,8 +27,12 @@ If any gate fails, do not file.
 
 ```
 \.(as_ptr|as_mut_ptr)\(
-ptr::(read|write|copy(_nonoverlapping)?|offset|add)
+\b(Box|CString)::into_raw\b|Vec::into_raw_parts|\btransmute\b
+ptr::(read|write|copy(_nonoverlapping)?)
+\.(offset|add|sub|read|write)\s*\(
 let\s+\w+\s*=\s*[^;]+\.as_ptr\(\)
 ```
+
+Notes: `offset`/`add`/`sub` and `read`/`write` are **methods** on raw pointers (`p.add(i)`, `p.read()`), not `ptr::` free functions — `ptr::offset` / `ptr::add` do not exist, so the dereference is seeded by the method-form line, not the `ptr::` line. The `into_raw` / `into_raw_parts` / `transmute` line seeds the extraction sources named in Gate 1 that `.as_ptr()` alone misses.
 
 **Patch recommendation to suggest:** bind the source to a longer-lived variable, or use `Box::leak` / `mem::forget` explicitly when intentional, or replace the raw pointer with a `&T` whose lifetime the borrow-checker can verify.

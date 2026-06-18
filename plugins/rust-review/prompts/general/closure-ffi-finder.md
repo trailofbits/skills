@@ -11,7 +11,7 @@ description: Detects Rust closures passed to extern "C" callbacks without panic 
 
 1. **Closure→C call:** Rust closure (`|...| { ... }`, `Box::new(|...| ...)`, `Box<dyn Fn(...)>`) converted to a function-pointer-typed argument of an `extern "C" fn(..)` or registered through a `*mut c_void` + trampoline pattern (`extern "C" fn trampoline(... user_data: *mut c_void)`).
 2. **No `catch_unwind` guard:** the trampoline (or the closure body itself if directly `extern "C"`) does not wrap the call in `std::panic::catch_unwind` and convert the result to an error code / safe-default return.
-3. **Untrusted callable surface:** the closure body calls into Rust code that *can* panic — `unwrap`/`expect`/indexing/`assert!`/arithmetic on untrusted inputs/allocations. (If the body is provably panic-free — `no_std` arithmetic in `wrapping_*` form, no allocs, no panics — note as low severity or skip.)
+3. **Untrusted callable surface:** the closure body calls into Rust code that *can* panic — `unwrap`/`expect`/indexing/`assert!`/arithmetic on untrusted inputs/allocations. (If the body is provably panic-free — `no_std` arithmetic in `wrapping_*` form, no allocs, no `unwrap`/`expect`/indexing/`assert!` — this gate is **not** met, so do not file: the unwind-across-FFI hazard requires a reachable panic. Do not assign or lower a severity yourself — that is the fp+severity judge's job; your decision here is file / don't-file on whether a panic is reachable.)
 
 **FPs to reject:**
 
@@ -22,12 +22,14 @@ description: Detects Rust closures passed to extern "C" callbacks without panic 
 **Search patterns:**
 
 ```
-extern\s+"C"\s*\{[^}]*fn[^}]*fn[^}]*\)
+extern\s+"C"\s*\{
 \bextern\s+"C"\s*fn\b
-\bBox::into_raw\s*\([^)]*Box::new\s*\(\s*\|
+\bBox::into_raw\b
 \bdyn\s+Fn(Once|Mut)?\b
 catch_unwind
 ```
+
+The first pattern matches only the `extern "C" {` block opener — ripgrep is line-oriented, so the old body-spanning `extern "C" \{[^}]*fn...fn...\)` could not match a multi-line block; Read the located block to enumerate its function-pointer callback params instead.
 
 For each hit, find the trampoline and check for `catch_unwind`.
 
