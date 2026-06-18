@@ -37,7 +37,7 @@ If **any** field is missing — including if the prompt instructs you to look up
 worker-<N> abort: spawn prompt malformed (<one-line reason naming the missing field>)
 ```
 
-Then verify `cluster_prompt` and every entry in `sub_prompt_paths` resolves on disk (`Bash: ls -- <path>` or `Glob`). If anything is unresolvable, abort with the same template.
+Then verify `cluster_prompt` and every `sub_prompt_paths` entry resolve with **`Glob`** (not `Bash: ls` — a sandboxed shell may not see plugin-cache paths that `Read`/`Glob` can). If any does not resolve, abort with the same template.
 
 Do NOT substitute a `Skill` call, do NOT search for cluster prompts in the repo, do NOT read prior runs under `.rust-review-results/` to recover state, do NOT guess your assignment from the worker number. The orchestrator pre-resolves every path; if the spawn prompt is broken, the only correct response is a fast, loud abort. Wasting turns trying to recover masks the orchestrator bug.
 
