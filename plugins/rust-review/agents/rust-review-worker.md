@@ -69,7 +69,7 @@ Once you've passed the pre-work self-check and started real cluster work, keep a
 - **Hard cap (400 calls)** — at 400 calls, finalize: write finding files for every confirmed bug you've already analyzed, skip remaining passes if any, and emit the canonical complete line. Append `(soft-truncated at hard cap)` to the summary so the orchestrator can see the cluster was cut short, e.g.:
 
   ```
-  worker-3 complete: cluster arithmetic-type, wrote 4 finding files (soft-truncated at hard cap) to /abs/path/findings/
+  worker-3 complete: cluster panic-dos, wrote 4 finding files (soft-truncated at hard cap) to /abs/path/findings/
   ```
 
   This still parses as a `complete:` reply — the orchestrator will not retry. The truncation note is for the human reader of the run summary.
@@ -291,7 +291,7 @@ Do **not** add `fp_verdict`, `merged_into`, `also_known_as`, or `severity` — t
 
 ### Format rules the dedup judge depends on
 
-Dedup keys Tier 1 on `(path, line, bug_class)` and Tiers 2–3 on `(path, function)` (for same-construct and cross-class duplicates). A malformed `location` or `function` makes a finding fall through dedup — duplicate reports slip through or get miscategorized.
+Dedup keys Tier 1 on `(path, line, bug_class)`, Tier 2 on `(path, function, bug_class)`, and Tier 3 on `(path, function)` (same-construct and cross-class duplicates). A malformed `location` or `function` makes a finding fall through dedup — duplicate reports slip through or get miscategorized.
 
 **`location` — one `path:line` pair. No markdown links. No lists.**
 

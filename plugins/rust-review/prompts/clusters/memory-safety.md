@@ -19,7 +19,7 @@ Rust memory-safety bugs ALWAYS originate from `unsafe` code. Per empirical study
 
 ID prefixes: `UAF`, `DFREE`, `INVFREE`, `UNINITREAD`, `SETLEN`, `BOF`, `UNIONUB`, `PANICUNWIND`.
 
-Per-pass `requires: has_unsafe` — when `has_unsafe=false`, the orchestrator drops all passes in this cluster before spawn.
+Cluster gate `has_unsafe` — when `has_unsafe=false`, the orchestrator drops this entire cluster before spawn (the manifest gates the whole cluster, not each pass).
 
 ---
 
