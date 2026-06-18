@@ -24,7 +24,7 @@ The entire protocol you need is below. **This system prompt is authoritative.** 
 | `scope_root` | `Scope root:` (legacy alias for `finding_scope_root`) |
 | `threat_model` | `Threat model:` |
 | `severity_filter` | `Severity filter:` |
-| `is_cpp` / `is_posix` / `is_windows` | `Codebase: is_cpp=… is_posix=… is_windows=…` |
+| `is_cpp` / `is_posix` / `is_windows` | `Codebase: is_cpp=…, is_posix=…, is_windows=…` (comma-separated) |
 
 The complete required set:
 
@@ -95,10 +95,10 @@ Per-worker assignment:
 - Your worker id (e.g., `worker-3`)
 - `cluster_id` — your assigned cluster's identifier (e.g., `buffer-write-sinks`)
 - `cluster_prompt` — absolute path to the cluster prompt file
-- `sub_prompt_paths` — ordered list of absolute paths for non-consolidated cluster passes (empty list for consolidated clusters)
+- `sub_prompt_paths` — ordered list of absolute paths for non-consolidated cluster passes. For consolidated clusters the renderer **omits the section entirely** (no `Sub-prompt paths:` label at all — it is not rendered as an empty list). Per the self-check carve-out above, a consolidated cluster with no `sub_prompt_paths` is well-formed; do **not** treat the absent section as a missing required field and false-abort.
 - `pass_bug_classes` — bug-class names aligned 1:1 with `sub_prompt_paths`
 - `pass_prefixes` — finding-id prefixes aligned 1:1 with `sub_prompt_paths`
-- `skip_subclasses` — bug classes to skip (may be empty); compare against `pass_bug_classes`
+- `skip_subclasses` — **reserved for future use; currently always `(none)`.** The planner hard-drops `requires`/threat-model-filtered passes before spawn, so every entry in `pass_bug_classes` is in scope and must run — there is nothing to compare or skip today (see "Assigned task protocol" below and the coverage-gate rule).
 
 The codebase summary (purpose, scope, entry points, trust boundaries, existing hardening) is already inlined in your spawn prompt inside the `<context>…</context>` block. Do **not** `Read: {output_dir}/context.md` from disk — the inlined block is the canonical copy and the on-disk file exists only for the judges and the human reading the run.
 
@@ -144,7 +144,7 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
 
    Path: `{output_dir}/coverage/worker-{N}.md` (the orchestrator pre-creates `{output_dir}/coverage/` in Phase 2; if the directory is somehow missing, create it with `mkdir -p` via Bash, then Write).
 
-   Content: one row per entry in `pass_bug_classes`. Outcome is one of:
+   Content: one row per entry in `pass_bug_classes`. The `Pass prefix` and `Bug class` cells MUST be **verbatim, character-for-character copies** of the spawn prompt's `Pass prefixes:` and `Pass bug classes:` lines (split each on `, `), paired by position. The artifact validator keys each row on the exact `(prefix, bug_class)` string pair from `plan.json`; any paraphrase, pluralization, hyphen↔space change, or reordering is rejected as a *missing coverage row* and fails your whole worker. Do not "tidy up" a class name. Outcome is one of:
    - `filed: <id>[, <id>...]` — list every finding ID you wrote under this prefix
    - `cleared` — the pass's required searchers ran and produced no exploitable candidate (state the seed in one phrase, e.g. *"no `regcomp`/`pcre*` calls"*)
 
@@ -194,7 +194,7 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
 
 A cluster prompt has YAML frontmatter with a `consolidated` flag:
 
-- **`consolidated: true`** (e.g. `buffer-write-sinks.md`) — the cluster file contains all bug patterns inline plus a shared-inventory phase. `sub_prompt_paths` is empty. Read the cluster file once and follow its phases in order. Do NOT Read any per-class sub-prompts — the cluster file is self-sufficient. **Chunked subset rule:** if your spawn prompt's `pass_bug_classes` / `pass_prefixes` lists fewer entries than the cluster file's inline phases (e.g. `cluster_id` ends in `-1` / `-2` / …), the orchestrator has split this cluster across multiple workers. Build the shared inventory in full — it grounds every phase — then execute ONLY the phases whose `bug_class` / `prefix` is in your assigned subset. Skip the others; another worker covers them. File findings with prefixes from your subset only.
+- **`consolidated: true`** (e.g. `buffer-write-sinks.md`) — the cluster file contains all bug patterns inline plus a shared-inventory phase. `sub_prompt_paths` is omitted (the spawn prompt has no `Sub-prompt paths:` section). Read the cluster file once and follow its phases in order. Do NOT Read any per-class sub-prompts — the cluster file is self-sufficient. **Chunked subset rule:** if your spawn prompt's `pass_bug_classes` / `pass_prefixes` lists fewer entries than the cluster file's inline phases (e.g. `cluster_id` ends in `-1` / `-2` / …), the orchestrator has split this cluster across multiple workers. Build the shared inventory in full — it grounds every phase — then execute ONLY the phases whose `bug_class` / `prefix` is in your assigned subset. Skip the others; another worker covers them. File findings with prefixes from your subset only.
 
 - **`consolidated: false`** — the cluster file gives a shared-context preamble plus an ordered Pass list (Pass 1, Pass 2, …). Detailed bug patterns for each pass live in separate per-class prompt files, whose absolute paths your spawn prompt provides as `sub_prompt_paths`. `pass_bug_classes` and `pass_prefixes` are aligned 1:1 with `sub_prompt_paths`. For each index `i`:
   1. `Read: sub_prompt_paths[i]` for the pass-specific bug patterns and FP guidance.

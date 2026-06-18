@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -209,12 +210,15 @@ def location_parts(location: Any) -> tuple[str, int]:
     value = str(location or "")
     if "," in value or "\n" in value:
         return value, 1
+    # SARIF region.startLine has a schema minimum of 1; a `:0` line (or any
+    # non-positive value) would make the whole REPORT.sarif fail strict
+    # validation / GitHub code-scanning ingestion, so clamp to >= 1.
     match = re.match(r"^\[([^\]]+)\]\([^)]+\):(\d+)$", value)
     if match:
-        return normalize_path(match.group(1)), int(match.group(2))
+        return normalize_path(match.group(1)), max(1, int(match.group(2)))
     path, sep, line = value.rpartition(":")
     if sep and line.isdecimal():
-        return normalize_path(path), int(line)
+        return normalize_path(path), max(1, int(line))
     if sep and not line:
         return normalize_path(path), 1
     return normalize_path(value), 1
@@ -255,6 +259,17 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
     for finding in iter_findings(output_dir):
         if "merged_into" in finding:
             continue
+        if not (finding.get("id") or finding.get("bug_class") or finding.get("title")):
+            # No parseable frontmatter (e.g. a worker crashed mid-write before
+            # emitting the `---` block). Skip rather than fabricate a phantom
+            # result with ruleId "unknown" and an empty id/uri. Phase-7
+            # validate_artifacts.py is the primary guard; this is defense in depth.
+            print(
+                "generate_sarif: skipping finding with no parseable frontmatter: "
+                f"{finding.get('_path', '?')}",
+                file=sys.stderr,
+            )
+            continue
         verdict = str(finding.get("fp_verdict", "")).upper()
         unjudged = not verdict
         if unjudged:
@@ -268,13 +283,23 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
             finding["unjudged"] = True
         elif verdict not in SURVIVOR_VERDICTS:
             continue
+
+        # A judged survivor whose `severity` the fp-judge never wrote (it crashed
+        # or half-wrote the frontmatter) must NOT be silently dropped — this
+        # generator is the safety net against exactly that. Surface it with a
+        # defaulted severity, marked unvalidated, and exempt from the filter.
+        sev = str(finding.get("severity", "")).upper()
+        severity_unvalidated = (not unjudged) and (sev not in SEVERITY_ORDER)
+        if severity_unvalidated:
+            finding["severity"] = "MEDIUM"
+            finding["severity_missing"] = True
+
         # Judged survivors are filtered by their validated severity. Unjudged
-        # findings carry only an *inferred* severity that no judge confirmed, so
-        # filtering them on that guess would silently drop them (SKILL.md Phase
-        # 8b). Always surface them — marked unjudged below — regardless of filter.
-        if not unjudged and not severity_allowed(
-            str(finding.get("severity", "")).upper(), severity_filter
-        ):
+        # findings (no fp_verdict) and judged survivors missing a severity carry
+        # only an *inferred* severity that no judge confirmed, so filtering them
+        # on that guess would silently drop them (SKILL.md Phase 8b). Always
+        # surface those — marked unvalidated below — regardless of filter.
+        if not unjudged and not severity_unvalidated and not severity_allowed(sev, severity_filter):
             continue
         findings.append(finding)
 
@@ -298,10 +323,12 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
         if not isinstance(also_known_as, list):
             also_known_as = [str(also_known_as)]
         unjudged = bool(finding.get("unjudged", False))
+        severity_missing = bool(finding.get("severity_missing", False))
+        severity_validated = not (unjudged or severity_missing)
         title = str(finding.get("title") or finding.get("id") or "c-review finding")
-        if unjudged:
-            # No judge validated this verdict/severity — mark it loudly so a SARIF
-            # consumer never reads the inferred severity as confirmed.
+        if not severity_validated:
+            # No judge validated this severity — mark it loudly so a SARIF
+            # consumer never reads the inferred/defaulted severity as confirmed.
             title = f"[UNVALIDATED SEVERITY — not judged] {title}"
         results.append(
             {
@@ -327,7 +354,7 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
                     "exploitability": str(finding.get("exploitability", "")),
                     "fp_verdict": str(finding.get("fp_verdict", "")),
                     "unjudged": unjudged,
-                    "severity_validated": not unjudged,
+                    "severity_validated": severity_validated,
                     "also_known_as": also_known_as,
                 },
             }
@@ -343,6 +370,17 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
                         "name": "c-review",
                         "informationUri": "https://github.com/trailofbits/skills/tree/main/plugins/c-review",
                         "rules": rules,
+                    }
+                },
+                # Declares the %SRCROOT% symbol each result's artifactLocation
+                # references (finding URIs are repo-relative). Optional per SARIF
+                # 2.1.0 but consumers expect a matching originalUriBaseIds entry.
+                "originalUriBaseIds": {
+                    "%SRCROOT%": {
+                        "description": {
+                            "text": "Root of the audited C/C++ project; "
+                            "finding URIs are relative to this."
+                        }
                     }
                 },
                 "invocations": [

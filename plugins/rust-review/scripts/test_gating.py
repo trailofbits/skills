@@ -168,3 +168,215 @@ def test_rendered_prefix_lists_every_capability_flag():
     codebase = next(line for line in lines if line.startswith("Codebase: "))
     for flag in build_run_plan.CAPABILITY_FLAGS:
         assert f"{flag}=" in codebase
+
+
+def test_full_run_all_flags_end_to_end_snapshot():
+    """Golden snapshot of the production fan-out: real manifest, every capability
+    flag on, default --max-passes-per-worker 4. Locks the selection->split seam
+    (29 workers with these exact chunk ids/sizes), so a manifest edit that grows a
+    cluster, or a regression in the selection->split pipeline, cannot silently
+    change worker count or chunk ids without failing a test."""
+    flags = make_flags(
+        has_unsafe=True,
+        has_ffi=True,
+        has_concurrency=True,
+        has_async=True,
+        has_packed_repr=True,
+        has_fs_io=True,
+    )
+    selected = build_selection(
+        load_manifest(), plugin_root=PLUGIN_ROOT, flags=flags, threat_model="REMOTE"
+    )
+    split = build_run_plan.split_oversized_clusters(selected, max_passes=4)
+
+    expected_ids = [
+        "unsafe-boundary-1",
+        "unsafe-boundary-2",
+        "memory-safety-1",
+        "memory-safety-2",
+        "concurrency-locking-1",
+        "concurrency-locking-2",
+        "concurrency-locking-3",
+        "concurrency-locking-4",
+        "concurrency-locking-5",
+        "concurrency-locking-6",
+        "concurrency-data-race-1",
+        "concurrency-data-race-2",
+        "panic-dos-1",
+        "panic-dos-2",
+        "recursion-dos-1",
+        "recursion-dos-2",
+        "recursion-dos-3",
+        "error-handling-1",
+        "error-handling-2",
+        "logic-correctness-1",
+        "logic-correctness-2",
+        "ffi-cross-language-1",
+        "ffi-cross-language-2",
+        "layout-safety",
+        "async-runtime",
+        "static-hygiene",
+        "resource-handling",
+        "input-os-safety",
+        "info-disclosure",
+    ]
+    expected_sizes = [
+        4,
+        4,
+        4,
+        4,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        4,
+        1,
+        4,
+        3,
+        1,
+        1,
+        1,
+        4,
+        1,
+        4,
+        4,
+        4,
+        3,
+        1,
+        3,
+        3,
+        2,
+        2,
+        1,
+    ]
+
+    assert [c["cluster_id"] for c in split] == expected_ids
+    assert [len(c["passes"]) for c in split] == expected_sizes
+    assert len(split) == 29
+
+
+def test_non_remote_threat_models_select():
+    """The non-REMOTE threat models must also drive a valid selection. No pass in
+    the manifest is threat-model-gated today, so the cluster set matches REMOTE —
+    this exercises the LOCAL_UNPRIVILEGED / BOTH code path that no other test hits."""
+    flags = make_flags(has_unsafe=True, has_ffi=True, has_concurrency=True, has_async=True)
+    remote = [c["cluster_id"] for c in select(flags, threat_model="REMOTE")]
+    assert [c["cluster_id"] for c in select(flags, threat_model="LOCAL_UNPRIVILEGED")] == remote
+    assert [c["cluster_id"] for c in select(flags, threat_model="BOTH")] == remote
+
+
+def test_skip_threat_models_filters_pass(tmp_path):
+    """pass_filtered_out drops a pass whose skip_threat_models includes the active
+    threat model, and keeps it under another model."""
+    prompt = tmp_path / "prompts" / "clusters" / "c.md"
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text("# c\n", encoding="utf-8")
+    sub = tmp_path / "prompts" / "general" / "p.md"
+    sub.parent.mkdir(parents=True)
+    sub.write_text("# p\n", encoding="utf-8")
+    manifest = {
+        "version": 1,
+        "clusters": [
+            {
+                "cluster_id": "c",
+                "prompt": "prompts/clusters/c.md",
+                "consolidated": False,
+                "gate": "always",
+                "passes": [
+                    {
+                        "bug_class": "remote-only",
+                        "prefix": "RO",
+                        "prompt": "prompts/general/p.md",
+                        "skip_threat_models": ["LOCAL_UNPRIVILEGED"],
+                    },
+                    {"bug_class": "always", "prefix": "AL", "prompt": "prompts/general/p.md"},
+                ],
+            }
+        ],
+    }
+    flags = make_flags()
+    local = build_selection(
+        manifest, plugin_root=tmp_path, flags=flags, threat_model="LOCAL_UNPRIVILEGED"
+    )
+    remote = build_selection(manifest, plugin_root=tmp_path, flags=flags, threat_model="REMOTE")
+    local_c = cluster_by_id(local, "c")
+    remote_c = cluster_by_id(remote, "c")
+    assert local_c is not None and remote_c is not None
+    assert prefixes(local_c) == ["AL"]
+    assert prefixes(remote_c) == ["RO", "AL"]
+
+
+def _render_cluster(cluster: dict[str, Any]) -> str:
+    return build_run_plan.render_worker_prompt(
+        worker_n=1,
+        cluster=cluster,
+        output_dir=Path("/tmp/out"),
+        scope_root=".",
+        context_roots=".",
+        threat_model="REMOTE",
+        severity_filter="all",
+        flags=make_flags(has_unsafe=True, has_fs_io=True),
+        context_md_body="ctx",
+    )
+
+
+def test_spawn_prompt_consolidated_omits_subprompt_section():
+    """Contract lock (worker.md self-check): a consolidated cluster's spawn prompt
+    must NOT render a 'Sub-prompt paths:' section at all — its absence is
+    well-formed, not a missing required field."""
+    prompt = _render_cluster(
+        {
+            "cluster_id": "unsafe-boundary",
+            "consolidated": True,
+            "cluster_prompt": "/abs/unsafe-boundary.md",
+            "passes": [{"bug_class": "transmute-misuse", "prefix": "TRANS"}],
+        }
+    )
+    assert "Sub-prompt paths:" not in prompt
+    assert "Pass bug classes: transmute-misuse" in prompt
+    assert "Pass prefixes: TRANS" in prompt
+    assert "Skip subclasses: (none)" in prompt
+
+
+def test_spawn_prompt_nonconsolidated_includes_subprompt_section():
+    prompt = _render_cluster(
+        {
+            "cluster_id": "memory-safety",
+            "consolidated": False,
+            "cluster_prompt": "/abs/memory-safety.md",
+            "passes": [
+                {
+                    "bug_class": "use-after-free",
+                    "prefix": "UAF",
+                    "prompt": "/abs/general/use-after-free-finder.md",
+                }
+            ],
+        }
+    )
+    assert "Sub-prompt paths:" in prompt
+    assert "  - /abs/general/use-after-free-finder.md" in prompt
+    assert "Skip subclasses: (none)" in prompt
+
+
+def test_spawn_prompt_codebase_line_is_comma_separated():
+    """Contract lock (worker.md:27 illustration): the Codebase flags line is
+    comma-separated."""
+    prompt = _render_cluster(
+        {
+            "cluster_id": "info-disclosure",
+            "consolidated": False,
+            "cluster_prompt": "/abs/info-disclosure.md",
+            "passes": [
+                {
+                    "bug_class": "pointer-exposure",
+                    "prefix": "PTREXPOSE",
+                    "prompt": "/abs/general/pointer-exposure-finder.md",
+                }
+            ],
+        }
+    )
+    codebase = next(line for line in prompt.splitlines() if line.startswith("Codebase: "))
+    assert ", " in codebase
+    assert codebase.startswith("Codebase: has_unsafe=true, has_ffi=")

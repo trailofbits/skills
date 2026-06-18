@@ -37,10 +37,10 @@ Glob: {output_dir}/findings-index.txt
 Load the finding list through this chain in order:
 
 1. If `findings-index.txt` exists, `Read` it and parse one path per line. This file is canonical: it is deterministic, sorted, and includes the orchestrator's final view of worker output.
-2. If the canonical index is missing (for example, the orchestrator died before Phase 7), `Glob: {output_dir}/findings-index.d/worker-*.txt` and `Read` each shard. Each shard contains one path per line; concatenate and de-duplicate.
-3. If neither the canonical index nor shards exist, `Glob: {output_dir}/findings/*.md` as a last-resort recovery list.
+2. If the canonical index is missing (for example, the orchestrator died before Phase 7), reconstruct the list **from disk**: `Glob: {output_dir}/findings-index.d/worker-*.txt` and `Read` each shard, **and** `Glob: {output_dir}/findings/*.md`. Take the **union** of the two, de-duplicated by basename (finding ids are unique). Do **not** trust the shards as authoritative: a worker that hit the single-prefix empty-shard trap (see `rust-review-worker.md` step 4) wrote real finding files to disk but an *empty* shard, so a shard-only list would silently drop those findings. Unioning with the `findings/*.md` glob mirrors SKILL.md's disk-canonical reconciliation (Phase 7) and is the only safe recovery.
+3. If `findings-index.d/` does not exist at all, the `findings/*.md` glob from step 2 is the entire recovery list.
 
-An **empty** canonical `findings-index.txt` is the unambiguous "zero findings" signal — write a minimal `dedup-summary.md` noting zero findings and exit cleanly. If the index is missing and shard files exist but concatenate to an empty list, also treat it as zero findings. If no shard files match, continue to the `findings/*.md` fallback.
+An **empty** canonical `findings-index.txt` is the unambiguous "zero findings" signal — write a minimal `dedup-summary.md` noting zero findings and exit cleanly. If the index is missing and the disk reconstruction (shards ∪ `findings/*.md`) is empty, also treat it as zero findings.
 
 If `Glob` itself raises `InputValidationError` or "tool not found", try `Read: {output_dir}/findings-index.txt` once and parse one path per line. If that direct read also fails, abort with a one-line error:
 
@@ -127,7 +127,7 @@ From the remaining working set, bucket by the tuple `(path, function, bug_class)
 
    If **any** bullet fails, **do not merge**. Leave the findings as-is.
 
-3. When merging, apply the same deterministic primary selection and frontmatter edits as Tier 1.
+3. When merging, apply the same deterministic primary selection and frontmatter edits as Tier 1 — **except** that a member which already absorbed duplicates in an earlier tier (it carries `also_known_as`) must remain the primary, and if two members are both already such primaries you must **not** merge them (leave them separate; see Hard Invariants). This protects the "a primary never becomes a non-primary" invariant: a Tier-1 primary can re-enter a Tier-2 `(path, function, bug_class)` bucket alongside a higher-confidence partner ≤5 lines away, and the bare confidence-then-id ordering would otherwise demote it and transitively orphan everything merged into it.
 
 **Rationalizations to reject:**
 - "They're both buffer overflows in the same function, probably the same bug." → Same bug class in the same function is *candidacy*, not evidence. Require snippet identity.
@@ -172,7 +172,7 @@ These constraints protect real findings from being dropped. Violating any one is
 
 - **Never merge across files.**
 - **Cross-class merges happen only in Tier 3.** Tiers 1–2 are class-scoped by construction (their bucket keys include `bug_class`) and must never merge across classes — a blind syntactic collision at a shared `(path, line)`, common for whole-file/manifest findings that fall back to a placeholder like `Cargo.toml:1` (e.g. `cargo-lint-config` vs `msrv-mismatch`), must not collapse two classes. Tier 3 may merge across classes, but only when a full reading confirms the findings are the *same underlying bug* labeled differently; the default there is still do-not-merge.
-- **A primary never becomes a non-primary.** Once a finding carries `also_known_as`/`locations` (it absorbed others in an earlier tier), no later tier may stamp `merged_into` on it. In a Tier-3 bucket, an already-absorbing member must be selected as the primary; if two members already absorbed in earlier tiers, do not merge them. Otherwise a hidden primary transitively orphans everything merged into it — both fp-judge and SARIF skip any file with `merged_into`.
+- **A primary never becomes a non-primary.** Once a finding carries `also_known_as`/`locations` (it absorbed others in an earlier tier), no later tier may stamp `merged_into` on it. In any Tier-2 **or** Tier-3 bucket, an already-absorbing member must be selected as the primary; if two members already absorbed in earlier tiers, do not merge them. Otherwise a hidden primary transitively orphans everything merged into it — both fp-judge and SARIF skip any file with `merged_into`.
 - **Never delete a finding file.** Always set `merged_into` on non-primaries.
 - **Deterministic primary selection** — do not substitute your own judgment about "most detailed description."
 - **Default to keep separate** when any rule is ambiguous.

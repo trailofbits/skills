@@ -312,10 +312,12 @@ If any Phase-5 cluster task is not `completed`, include it prominently in `run-s
 
 Each judge's full protocol is its system prompt (`agents/rust-review-{dedup,fp}-judge.md`); spawn prompts pass only per-run variables. Do **not** reference `prompts/internal/judges/` — those files don't exist.
 
-Spawn sequentially (dedup first, fp-judge sees only merged primaries):
+> **STOP — these two judges run in SEQUENCE, not in parallel.** Unlike the Phase-6b workers (which you spawn as M `Agent` calls in *one* message precisely because that runs them concurrently), the judges have a hard data dependency: fp-judge must see the `merged_into` / `also_known_as` annotations dedup-judge writes, and it only skips files already carrying `merged_into`. If you emit both `Agent` calls in one message they run concurrently — fp-judge reads findings before any merge annotations exist, judges every duplicate as a separate primary, and (because `dedup-summary.md` doesn't exist yet) trips its "dedup did not run" fallback, producing an inflated, duplicated `REPORT.md`/SARIF.
+>
+> Spawn dedup-judge in its **own** assistant message, wait for its `dedup-judge complete:` (or `abort:`) return, **then** spawn fp-judge in a **separate** message. Before composing the fp-judge spawn, confirm dedup finished — `Glob: ${output_dir}/dedup-summary.md` must resolve (or you saw the dedup `complete:` token). **Never put both judge `Agent` calls in the same message.**
 
-- `Agent(subagent_type="rust-review:rust-review-dedup-judge", description="Dedup judge", prompt=f"output_dir: {output_dir}")`
-- `Agent(subagent_type="rust-review:rust-review-fp-judge", description="FP + severity judge", prompt=f"output_dir: {output_dir}\nsarif_generator_path: {sarif_generator_path}")` — resolve `sarif_generator_path` to `${RUST_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py`.
+1. **First message** — `Agent(subagent_type="rust-review:rust-review-dedup-judge", description="Dedup judge", prompt=f"output_dir: {output_dir}")`. Wait for its return and classify it (below) before continuing.
+2. **Then, in a separate message** — `Agent(subagent_type="rust-review:rust-review-fp-judge", description="FP + severity judge", prompt=f"output_dir: {output_dir}\nsarif_generator_path: {sarif_generator_path}")` — resolve `sarif_generator_path` to `${RUST_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py`.
 
 **Judge failure handling.** Same shape as Phase 7's classifier, applied to judge return text:
 
@@ -360,7 +362,7 @@ Authoritative schema: `agents/rust-review-worker.md` ("Finding File Format"). Th
 
 ## Bug classes / clusters
 
-Authoritative: `prompts/clusters/manifest.json`. 37 always-on bug classes (those in `always`-gated clusters), 69 across all clusters when every conditional gate is enabled. The `memory-safety` cluster is gated on `has_unsafe` (all its bug classes require `unsafe`); PATHJOIN and TOCTOU are gated behind `has_fs_io` via `input-os-safety`, and PACKEDREF lives in the conditional `layout-safety` cluster (`has_packed_repr`); PTREXPOSE stays always-on via the `info-disclosure` cluster. `unsafe-boundary` and `concurrency-locking` are fully consolidated (their sub-prompts are not re-read at runtime).
+Authoritative: `prompts/clusters/manifest.json`. 37 bug classes live in `always`-gated clusters (so the cluster always runs); of those, 35 always fire and 2 — `adversarial-trait` (TRAITADV) and `closure-panic` (CLOSUREPANIC) in `logic-correctness` — additionally carry `requires: has_unsafe`, so they only fire when `has_unsafe=true`. 69 bug classes across all clusters when every conditional gate is enabled. The `memory-safety` cluster is gated on `has_unsafe` (all its bug classes require `unsafe`); PATHJOIN and TOCTOU are gated behind `has_fs_io` via `input-os-safety`, and PACKEDREF lives in the conditional `layout-safety` cluster (`has_packed_repr`); PTREXPOSE stays always-on via the `info-disclosure` cluster. `unsafe-boundary` and `concurrency-locking` are fully consolidated (their sub-prompts are not re-read at runtime).
 
 ---
 

@@ -24,7 +24,7 @@ The entire protocol you need is below. **This system prompt is authoritative.** 
 | `scope_root` | `Scope root:` (legacy alias for `finding_scope_root`) |
 | `threat_model` | `Threat model:` |
 | `severity_filter` | `Severity filter:` |
-| `has_unsafe` / `has_ffi` / `has_concurrency` / `has_async` / `has_packed_repr` / `has_fs_io` | `Codebase: has_unsafe=… has_ffi=… has_concurrency=… has_async=… has_packed_repr=… has_fs_io=…` |
+| `has_unsafe` / `has_ffi` / `has_concurrency` / `has_async` / `has_packed_repr` / `has_fs_io` | `Codebase: has_unsafe=…, has_ffi=…, has_concurrency=…, has_async=…, has_packed_repr=…, has_fs_io=…` (comma-separated) |
 
 The complete required set:
 
@@ -146,7 +146,7 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
 
    Path: `{output_dir}/coverage/worker-{N}.md` (the orchestrator pre-creates `{output_dir}/coverage/` in Phase 2; if the directory is somehow missing, create it with `mkdir -p` via Bash, then Write).
 
-   Content: one row per entry in `pass_bug_classes`. Outcome is one of:
+   Content: one row per entry in `pass_bug_classes`. The `Pass prefix` and `Bug class` cells MUST be **verbatim, character-for-character copies** of the spawn prompt's `Pass prefixes:` and `Pass bug classes:` lines (split each on `, `), paired by position. The artifact validator keys each row on the exact `(prefix, bug_class)` string pair from `plan.json`; any paraphrase, pluralization, hyphen↔space change, or reordering is rejected as a *missing coverage row* and fails your whole worker (e.g. writing `information disclosure` for the class `info-disclosure`). Do not "tidy up" a class name. Outcome is one of:
    - `filed: <id>[, <id>...]` — list every finding ID you wrote under this prefix
    - `cleared` — the pass's required searchers ran and produced no exploitable candidate (state the seed in one phrase, e.g. *"no `regcomp`/`pcre*` calls"*)
 

@@ -201,3 +201,120 @@ def test_judged_finding_below_filter_is_still_dropped(tmp_path: Path) -> None:
     )
 
     assert build_sarif(tmp_path)["runs"][0]["results"] == []
+
+
+def test_judged_fp_findings_are_dropped(tmp_path: Path) -> None:
+    """fp-judge-rejected findings (FALSE_POSITIVE / LIKELY_FP) must never reach
+    SARIF; a TRUE_POSITIVE in the same dir still surfaces. This guards the core
+    fp-judge stage — a regression here would ship false positives to users."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="BOF-001",
+        bug_class="buffer-overflow-unsafe",
+        title="real",
+        location="src/a.rs:1",
+        fp_verdict="TRUE_POSITIVE",
+    )
+    _write_finding(
+        findings,
+        fid="BOF-002",
+        bug_class="buffer-overflow-unsafe",
+        title="false positive",
+        location="src/b.rs:1",
+        fp_verdict="FALSE_POSITIVE",
+    )
+    _write_finding(
+        findings,
+        fid="BOF-003",
+        bug_class="buffer-overflow-unsafe",
+        title="likely false positive",
+        location="src/c.rs:1",
+        fp_verdict="LIKELY_FP",
+    )
+
+    results = build_sarif(tmp_path)["runs"][0]["results"]
+    assert [r["properties"]["finding_id"] for r in results] == ["BOF-001"]
+
+
+def test_zero_line_is_clamped_to_one(tmp_path: Path) -> None:
+    """A location ending in :0 must not emit region.startLine 0 — the SARIF schema
+    minimum is 1, and a 0 makes the whole REPORT.sarif fail strict validation /
+    GitHub code-scanning ingestion."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="BOF-001",
+        bug_class="buffer-overflow-unsafe",
+        title="zero line",
+        location="src/lib.rs:0",
+    )
+
+    results = build_sarif(tmp_path)["runs"][0]["results"]
+    region = results[0]["locations"][0]["physicalLocation"]["region"]
+    assert region["startLine"] == 1
+
+
+def test_judged_survivor_missing_severity_is_surfaced_not_dropped(tmp_path: Path) -> None:
+    """A judged survivor whose severity the fp-judge failed to write must be
+    surfaced (marked unvalidated) even under a strict filter — the safety net must
+    not silently delete a confirmed true positive."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: high\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    findings.mkdir()
+    (findings / "BOF-001.md").write_text(
+        "---\nid: BOF-001\nbug_class: buffer-overflow-unsafe\n"
+        "title: Confirmed but severity not written\nlocation: src/lib.rs:5\n"
+        "fp_verdict: TRUE_POSITIVE\nconfidence: High\n---\n\nBody.\n",
+        encoding="utf-8",
+    )
+
+    results = build_sarif(tmp_path)["runs"][0]["results"]
+    assert len(results) == 1
+    result = results[0]
+    assert result["properties"]["finding_id"] == "BOF-001"
+    assert result["properties"]["severity_validated"] is False
+    assert result["message"]["text"].startswith("[UNVALIDATED SEVERITY")
+
+
+def test_frontmatterless_finding_is_skipped_not_phantom(tmp_path: Path) -> None:
+    """A finding file with no parseable frontmatter must be skipped, not emitted as
+    a phantom result with ruleId 'unknown' and an empty id/uri."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="BOF-001",
+        bug_class="buffer-overflow-unsafe",
+        title="real",
+        location="src/a.rs:1",
+    )
+    (findings / "broken.md").write_text("no frontmatter here\n", encoding="utf-8")
+
+    results = build_sarif(tmp_path)["runs"][0]["results"]
+    assert [r["properties"]["finding_id"] for r in results] == ["BOF-001"]
+    assert all(r["ruleId"] != "unknown" for r in results)
+
+
+def test_location_parts_branch_coverage() -> None:
+    """Cover location_parts shapes: plain, markdown-link, trailing-colon, multi,
+    bare path, and the :0 clamp."""
+    from generate_sarif import location_parts
+
+    assert location_parts("src/lib.rs:42") == ("src/lib.rs", 42)
+    assert location_parts("[src/lib.rs](/abs/src/lib.rs):42") == ("src/lib.rs", 42)
+    assert location_parts("src/lib.rs:") == ("src/lib.rs", 1)
+    assert location_parts("src/lib.rs") == ("src/lib.rs", 1)
+    assert location_parts("a.rs:1, b.rs:2") == ("a.rs:1, b.rs:2", 1)
+    assert location_parts("src/lib.rs:0") == ("src/lib.rs", 1)
+    assert location_parts(None) == ("", 1)

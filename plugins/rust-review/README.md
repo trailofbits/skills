@@ -27,7 +27,6 @@ losing coverage when inventory-heavy analysis exhausts the worker output budget.
 Always-on clusters:
 
 - **unsafe-boundary** (consolidated) — Unsafe Reachability Analysis (URAPI), `transmute` misuse, pointer-cast hazards via `as` (PTRCAST), raw-pointer arithmetic, `#[repr(C)]` layout, enum discriminant and niche validity (ENUMUB), `// SAFETY:` documentation rules, `debug_assert!`-guarded safety invariants.
-- **memory-safety** — UAF via dangled raw pointer, double-free via `ptr::read`, invalid-free via assignment-to-uninit, uninitialized-read via premature `assume_init`, `Vec::set_len` without slot init (SETLEN), buffer overflow via safe→unsafe index propagation, union variant misread, panic-unsafe custom container drop (PANICUNWIND). Per-pass `requires: has_unsafe`.
 - **panic-dos** — resource exhaustion DoS (RESEXHAUST, P0), `unwrap`/`expect` on untrusted input, arithmetic overflow, reachable `unreachable!`/`assert!`, vector OOB indexing, non-char-boundary `str` slicing panics (STRSLICE), reachable `RefCell` double-borrow panics (REFCELLPANIC).
 - **recursion-dos** — stack-overflow aborts (uncatchable, distinct from panics) on recursive types: unbounded deserialization depth (`serde_yaml`/`toml`/`ron`/custom `Deserialize`), recursive `Display`/`Debug`/`Serialize` on attacker-shaped values, implicit `Drop` of `Box<Self>`-style chains.
 - **error-handling** — discarded `Result`s, panics inside `Drop`, lossy `From`/`Into` and `as` casts, lossy UTF-8 / OS-string / path conversions (LOSSYSTR), unflushed `BufWriter` swallowing write errors (BUFFLUSH).
@@ -38,6 +37,7 @@ Always-on clusters:
 
 Conditional clusters:
 
+- **memory-safety** (`has_unsafe`) — UAF via dangled raw pointer, double-free via `ptr::read`, invalid-free via assignment-to-uninit, uninitialized-read via premature `assume_init`, `Vec::set_len` without slot init (SETLEN), buffer overflow via safe→unsafe index propagation, union variant misread, panic-unsafe custom container drop (PANICUNWIND). The whole cluster is gated on `has_unsafe` (every memory-safety bug class requires `unsafe`), so it is omitted entirely for pure safe-Rust crates.
 - **concurrency-locking** (`has_concurrency`, consolidated) — `MutexGuard` double-lock from lexical scope, ABBA ordering, `Condvar` wait without notifier, channel starvation, `Once::call_once` reentrancy, signal-handler / callback reentrancy.
 - **concurrency-data-race** (`has_concurrency`) — non-atomic atomic sequences, `unsafe impl Sync` over interior mutability, missing `Send`/`Sync` bounds, cross-process shared-memory races, unsynchronized `static mut` (STATICMUT). The unsafe-sync-impl (UNSAFESYNC) and static-mut (STATICMUT) passes require `has_unsafe`.
 - **ffi-cross-language** (`has_ffi`) — `CString::as_ptr` dangling, ABI mismatch, `#[repr(C)]` padding leak, opaque-pointer ownership confusion, FFI-owned-memory drop mismatches, Rust closures across `extern "C"` without `catch_unwind`, `dyn Trait` fat pointers crossing FFI.
