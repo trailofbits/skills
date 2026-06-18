@@ -43,7 +43,7 @@ Conditional clusters:
 - **windows-fs-path** (`is_windows`) — DLL planting, Windows path handling, installer races.
 - **windows-ipc-crypto** (`is_windows`) — named pipes, Windows crypto, Windows allocators.
 
-Each worker inventories candidate sites once for its cluster (Phase A), then runs that cluster's focused passes and writes one markdown-with-YAML-frontmatter finding file per issue into a shared `findings/` directory. After workers exit, two judges run sequentially: a **dedup judge** merges duplicates, then an **FP + severity judge** assigns `fp_verdict` / `severity` / `attack_vector` / `exploitability` and writes `REPORT.md`. The orchestrator then runs `scripts/generate_sarif.py` (Phase 8b safety net) to emit `REPORT.sarif` (SARIF 2.1.0) from the same frontmatter — idempotent, runs unconditionally so a crashed fp-judge can't leave a corrupt or stale SARIF on disk.
+Each worker inventories candidate sites once for its cluster (Phase A), then runs that cluster's focused passes and writes one markdown-with-YAML-frontmatter finding file per issue into a shared `findings/` directory. After workers exit, two judges run sequentially: a **dedup judge** merges duplicates, then an **FP + severity judge** assigns `fp_verdict` / `severity` / `attack_vector` / `exploitability` and writes `REPORT.md`. The orchestrator then runs `scripts/generate_sarif.py` (Phase 8b safety net) to emit `REPORT.sarif` (SARIF 2.1.0) from the same frontmatter — idempotent, runs unconditionally so a crashed fp-judge can't leave a corrupt or stale SARIF on disk. The same phase also guarantees `REPORT.md`: if the fp-judge crashed or returned the report as chat text instead of writing it, the orchestrator writes `REPORT.md` from the finding files.
 
 ## Architecture
 
@@ -67,13 +67,14 @@ Each worker inventories candidate sites once for its cluster (Phase A), then run
     ├── Phase 7: Wait until all workers complete; concatenate findings-index.d/ shards
     │           into findings-index.txt
     ├── Phase 8: Judges sequentially — Dedup → FP+Severity
-    │           ├── Dedup-judge:    reads ALL findings, merges duplicates (Tier 1 exact loc,
-    │           │                   Tier 2 same-function snippet-confirmed), writes dedup-summary.md
+    │           ├── Dedup-judge:    reads ALL findings, merges duplicates (Tier 1 exact loc+class,
+    │           │                   Tier 2 same-function snippet, Tier 3 cross-class same-bug;
+    │           │                   Tier 4 = related, not merged), writes dedup-summary.md
     │           └── FP+Severity:    reads primaries only, assigns fp_verdict + (for survivors)
     │                               severity / attack_vector / exploitability, writes
     │                               fp-summary.md + REPORT.md (and REPORT.sarif on the happy path)
-    ├── Phase 8b: SARIF safety net — orchestrator unconditionally runs generate_sarif.py
-    │            whenever findings/ exists; idempotent full overwrite
+    ├── Phase 8b: report safety net — orchestrator unconditionally runs generate_sarif.py
+    │            whenever findings/ exists (idempotent), and writes REPORT.md itself if the fp-judge didn't
     └── Phase 9: Return REPORT.md + artifact list
 ```
 

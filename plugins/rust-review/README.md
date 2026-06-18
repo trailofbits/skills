@@ -45,7 +45,7 @@ Conditional clusters:
 - **input-os-safety** (`has_fs_io`) — `PathBuf::join` path traversal (PATHJOIN), filesystem TOCTOU (TOCTOU).
 - **async-runtime** (`has_async`) — blocking calls in async, cancellation-unsafe `.await` sequences, `tokio::select!` branch bias.
 
-Same orchestration as `c-review`: workers spawn foreground in a single message (with optional cache primer), write markdown-with-YAML-frontmatter finding files, then a dedup-judge merges duplicates, then an fp-judge assigns `fp_verdict` / `severity` / `attack_vector` / `exploitability`. SARIF safety net runs unconditionally.
+Same orchestration as `c-review`: workers spawn foreground in a single message (with optional cache primer), write markdown-with-YAML-frontmatter finding files, then a dedup-judge merges duplicates, then an fp-judge assigns `fp_verdict` / `severity` / `attack_vector` / `exploitability`. A report safety net then runs: SARIF is regenerated unconditionally, and the orchestrator writes `REPORT.md` itself if the fp-judge failed to.
 
 ## Architecture
 
@@ -53,7 +53,7 @@ Same orchestration as `c-review`: workers spawn foreground in a single message (
 coordinator: write context.md → build_run_plan.py → TaskCreate × M
           → spawn primer (foreground) → spawn M workers (parallel)
           → classify Phase-7 outcomes + write findings-index.txt
-          → dedup-judge → fp-judge → SARIF safety net → return REPORT.md
+          → dedup-judge → fp-judge → report safety net (SARIF + REPORT.md) → return REPORT.md
 ```
 
 | Subagent type | Purpose | Tool set |
@@ -73,7 +73,7 @@ Default: `$(pwd)/.rust-review-results/<iso-timestamp>/`. Contains:
 - `findings-index.d/` — per-worker shards listing finding paths (survive an orchestrator crash)
 - `findings-index.txt` — canonical sorted union of shards
 - `run-summary.md` — worker outcome table, retry/abort state, judge status
-- `dedup-summary.md` — Tier 1/2/3 merge summary
+- `dedup-summary.md` — Tier 1–3 merge + Tier 4 related summary
 - `fp-summary.md` — verdict counts and per-primary verdict table
 - `REPORT.md` — human-readable final report grouped by severity, filtered per `severity_filter`
 - `REPORT.sarif` — SARIF 2.1.0 export, idempotent (full overwrite), always written

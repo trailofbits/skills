@@ -37,7 +37,7 @@ Tools come from each agent's frontmatter at spawn time. The orchestrator's `Task
 coordinator: write context.md → build_run_plan.py → TaskCreate × M
           → spawn primer (foreground) → spawn M workers (parallel)
           → classify Phase-7 outcomes + write findings-index.txt
-          → dedup-judge → fp-judge → SARIF safety net → return REPORT.md
+          → dedup-judge → fp-judge → report safety net (SARIF + REPORT.md) → return REPORT.md
 ```
 
 Output directory contains: `context.md`, `plan.json`, `worker-prompts/`, `findings/`, `findings-index.d/` (per-worker shards), `findings-index.txt`, `coverage/` (per-worker coverage-gate files), `run-summary.md`, `dedup-summary.md`, `fp-summary.md`, `REPORT.md`, `REPORT.sarif`.
@@ -308,15 +308,22 @@ Spawn sequentially (dedup first, fp-judge sees only merged primaries):
 - `… abort:` → **non-retryable.** Surface the abort line plus `ls -l ${output_dir}/findings-index.txt`; stop.
 - No `complete:` (help message / error / question) → **retryable once.** `SendMessage(to=<agentId>, …)` rather than a fresh spawn (the agent already paid the protocol-parse cost). Include the explicit finding paths from `findings-index.txt`. If the second try still fails, surface the transcript and continue to Phase 8b.
 
-### Phase 8b: SARIF safety net
+### Phase 8b: Report safety net (SARIF + REPORT.md)
 
-**Entry:** fp-judge returned, or the run aborted early. **Exit:** `${output_dir}/REPORT.sarif` exists.
+**Entry:** fp-judge returned, or the run aborted early. **Exit:** `${output_dir}/REPORT.sarif` and `${output_dir}/REPORT.md` both exist.
 
 ```bash
 test -d "${output_dir}/findings" && python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py" "${output_dir}"
 ```
 
-Run unconditionally whenever `findings/` exists — generator is idempotent (full overwrite), emits `results: []` for zero-survivor runs, and handles partial runs (findings without `fp_verdict` are emitted as `LIKELY_TP` rather than being silently dropped). Always overwriting protects against the case where fp-judge crashed mid-write and left a corrupt `REPORT.sarif` on disk. Skip only if `${output_dir}/findings/` doesn't exist (Phase 2 failed). After this phase, update `${output_dir}/run-summary.md` with judge/SARIF status.
+Run the SARIF generator unconditionally whenever `findings/` exists — it is idempotent (full overwrite), emits `results: []` for zero-survivor runs, and handles partial runs (findings without `fp_verdict` are emitted as `LIKELY_TP` rather than being silently dropped). Always overwriting protects against an fp-judge that crashed mid-write and left a corrupt `REPORT.sarif` on disk.
+
+Then guarantee `REPORT.md` exists. Unlike SARIF (mechanical), `REPORT.md` is the fp-judge's **curated** artifact, so do **not** overwrite a judge-written one. Check for it, and if it is missing (the judge crashed, its write was blocked by the harness, or it returned the report as chat text instead of writing the file), **the orchestrator writes `REPORT.md` itself** rather than failing the run:
+
+- If the fp-judge returned the report body in its transcript, `Write` that text verbatim to `${output_dir}/REPORT.md`.
+- Otherwise synthesize it from the on-disk findings: take the survivor primaries (`fp_verdict ∈ {TRUE_POSITIVE, LIKELY_TP}`, no `merged_into`; if the judge never ran, treat a finding with no `fp_verdict` as a survivor) listed in `findings-index.txt`, apply `severity_filter` from `context.md`, and `Write` a `REPORT.md` mirroring the fp-judge template — YAML frontmatter (`stage: final-report`, `threat_model`, `severity_filter`, `total_primaries`, `reported_findings`), a severity-distribution table, then one section per reported finding grouped by severity (embed the Description / Code / Data flow / Impact / Recommendation body for CRITICAL/HIGH; reference the finding file for MEDIUM/LOW).
+
+Either way, note in `${output_dir}/run-summary.md` that `REPORT.md` was orchestrator-synthesized (not judge-authored). Skip the SARIF generator and this check only if `${output_dir}/findings/` doesn't exist (Phase 2 failed). After this phase, update `${output_dir}/run-summary.md` with judge / SARIF / report status.
 
 ### Phase 9: Return Report
 
@@ -349,5 +356,5 @@ The phase exits already cover most of this; the orchestrator-visible end-state i
 - Every Phase-5 cluster task is `completed` (verify via `TaskList`).
 - `${output_dir}/run-summary.md` exists and records resolved scope/context, Cargo manifest probe result, worker claims vs index count, task status, and judge/SARIF status.
 - Every primary finding (no `merged_into`) has `fp_verdict` + `fp_rationale`; every survivor (`TRUE_POSITIVE`/`LIKELY_TP`) also has `severity`, `attack_vector`, `exploitability`, `severity_rationale`.
-- `REPORT.md` exists, severity-filtered per `severity_filter`.
+- `REPORT.md` exists, severity-filtered per `severity_filter` (Phase 8b safety net guarantees this even when the fp-judge fails to write it).
 - `REPORT.sarif` exists (Phase 8b safety net guarantees this).

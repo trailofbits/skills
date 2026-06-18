@@ -15,6 +15,7 @@ Responsibilities (all in one pass):
 3. Write `{output_dir}/fp-summary.md` with verdict counts and FP patterns.
 4. Write `{output_dir}/REPORT.md` — the final human-readable markdown report, grouped by severity, filtered per `severity_filter`.
 5. Run the bundled SARIF generator to write `{output_dir}/REPORT.sarif`. **Both outputs are mandatory.**
+6. **Verify** both `REPORT.md` and `REPORT.sarif` exist on disk before reporting success (Step 7).
 
 You do not merge duplicates (dedup ran before you). You do not re-open merged non-primaries. Do not invoke `Skill(...)` for any reason.
 
@@ -275,6 +276,18 @@ python3 "{sarif_generator_path}" "{output_dir}"
 The generator reads `{output_dir}/context.md` and the canonical `findings-index.txt` when present (falling back to `findings/*.md` only if the index is absent), applies the same `severity_filter` used for `REPORT.md`, includes only survivor primaries (`TRUE_POSITIVE` / `LIKELY_TP`, no `merged_into`), and writes `{output_dir}/REPORT.sarif`.
 
 If the command fails, surface the error in your final response and do not invent a SARIF file manually. If no findings pass the filter, the generator still writes a valid SARIF file with `"results": []`.
+
+---
+
+## Step 7 — Verify both outputs exist before claiming success
+
+`REPORT.md` and `REPORT.sarif` are both mandatory deliverables. Before emitting your completion line, confirm both are on disk:
+
+```bash
+test -f "{output_dir}/REPORT.md" && test -f "{output_dir}/REPORT.sarif" && echo "outputs OK"
+```
+
+If `REPORT.md` is missing, you returned its content in your reply instead of writing it to disk (a protocol violation) — `Write` it to `{output_dir}/REPORT.md` now and re-run the check. Only state `REPORT.md + REPORT.sarif written` in your completion line **after both `test -f` checks pass**. Never claim an artifact is written without verifying it on disk. (If you cannot write `REPORT.md`, the orchestrator's Phase-8b safety net will regenerate it — but you must still report the failure rather than falsely claim success.)
 
 ---
 
