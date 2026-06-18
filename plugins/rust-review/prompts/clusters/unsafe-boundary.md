@@ -23,7 +23,7 @@ ID prefixes: `URAPI`, `TRANS`, `RAWPTR`, `PTRCAST`, `REPRC`, `ENUMUB`, `SAFETYDO
 
 ## Phase A — Build the unsafe-reachability map (ONCE per run)
 
-Run these scans and keep results as `unsafe_map` for all five passes:
+Run these scans and keep results as `unsafe_map` for all eight passes:
 
 ```
 Grep: pattern="\bunsafe\s*\{"                          # Unsafe blocks (UB)
