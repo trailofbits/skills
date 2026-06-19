@@ -41,7 +41,13 @@ coordinator: write context.md → build_run_plan.py → TaskCreate × M
 
 Output directory contains: `context.md`, `plan.json`, `worker-prompts/`, `findings/`, `findings-index.d/` (per-worker shards), `findings-index.txt`, `coverage/` (per-worker coverage-gate files), `run-summary.md`, `dedup-summary.md`, `fp-summary.md`, `REPORT.md`, `REPORT.sarif`.
 
-**Path convention:** set `${C_REVIEW_PLUGIN_ROOT}=${CLAUDE_PLUGIN_ROOT}` if that resolves (`Bash: ls "${CLAUDE_PLUGIN_ROOT}/prompts/clusters/buffer-write-sinks.md"`), otherwise `Bash: find ~/.claude -path '*/plugins/c-review/prompts/clusters/buffer-write-sinks.md' -print -quit`.
+**Path convention:** every later phase shells out to `${C_REVIEW_PLUGIN_ROOT}/scripts/*.py`, so resolve that variable first to the plugin directory that contains `prompts/clusters/buffer-write-sinks.md` (and `scripts/build_run_plan.py`). Try in order, first hit wins:
+
+1. **Native Claude Code** — `${CLAUDE_PLUGIN_ROOT}`, accepted if `Bash: ls "${CLAUDE_PLUGIN_ROOT}/prompts/clusters/buffer-write-sinks.md"` resolves.
+2. **Codex** — `${CODEX_PLUGIN_ROOT}` (set it the same way if that var is present and resolves the marker).
+3. **Fallback search** — covers Codex installs under `~/.codex`, Claude installs under `~/.claude`, and a local checkout / repo run: `Bash: find ~/.claude ~/.codex . -path '*/plugins/c-review/prompts/clusters/buffer-write-sinks.md' -print -quit 2>/dev/null`. Take the match and strip the trailing `/prompts/clusters/buffer-write-sinks.md` to get the root (the home dirs are searched before `.` so an installed copy wins over any vendored copy in the audited repo).
+
+Set `C_REVIEW_PLUGIN_ROOT` to the resolved root. If all three fail, **abort** with a message naming the roots searched — do not enter Phase 4 with an empty variable (every `python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/..."` call would fail with a confusing path error).
 
 **Scope convention:** keep two scopes separate throughout the run:
 
@@ -221,14 +227,17 @@ The Phase-6 `Agent` invocations block until each worker returns. Inspect each wo
 | 3 | other `worker-N abort:` | **retryable** | Mark `pending`, set `metadata.abort_reason`, `needs_respawn=true`, increment `attempt`. |
 | 4 | `Agent` errored or no `complete:`/`abort:` token | **retryable** | Same as #3 (transient worker crash). |
 
-If any non-retryable, stop. Otherwise, **before re-spawning, clear each retryable worker's prefix-space on disk** — the Phase-7 index is built from disk, so a crashed attempt's higher-id stragglers (files the replacement never re-emits) would otherwise be resurrected into the report. For each prefix in the worker's `pass_prefixes` (from its task `metadata`):
+If any non-retryable, stop. Otherwise, **before re-spawning, clear each retryable worker's prefix-space on disk** — the Phase-7 index is built from disk, so a crashed attempt's higher-id stragglers (files the replacement never re-emits) would otherwise be resurrected into the report. Loop over the worker's actual `pass_prefixes` (from its task `metadata`), substituting each real prefix for `${pfx}` — do **not** run the command with a literal `PREFIX`:
 
 ```bash
 # zsh-safe: `find … -delete` never aborts on no-match (an `rm PREFIX-*.md` glob would).
-find "${output_dir}/findings" -maxdepth 1 -type f -name 'PREFIX-*.md' -delete
+# Replace `PREFIX1 PREFIX2` with the worker's actual space-separated pass_prefixes.
+for pfx in PREFIX1 PREFIX2; do
+  find "${output_dir}/findings" -maxdepth 1 -type f -name "${pfx}-*.md" -delete
+done
 ```
 
-Then re-spawn each `pending` retryable with `attempt < 2` in one parallel block (cap = 2 attempts per cluster). Replacement workers reuse deterministic finding IDs per prefix, so a cleared prefix-space plus a fresh write yields a consistent shard / coverage / disk set.
+Then re-spawn each `pending` retryable with `attempt <= 2` in one parallel block (cap = 2 attempts per cluster). `attempt` was just incremented to `2` on the first failure, so the guard must admit `2` to allow the single retry — `attempt < 2` would block every retry. A second failure increments to `3`, which fails `<= 2` and ends retries. Replacement workers reuse deterministic finding IDs per prefix, so a cleared prefix-space plus a fresh write yields a consistent shard / coverage / disk set.
 
 #### Sanity-check + write index
 
@@ -290,7 +299,7 @@ After task updates and index creation, run `TaskList` and write `${output_dir}/r
 - `findings-index.txt` line count and any mismatch against worker claims
 - judge status once Phase 8 finishes, or the reason a judge was skipped/failed
 
-If any Phase-5 cluster task is not `completed`, include it prominently in `run-summary.md` and the final response. Do not hide a partial run behind a successful report.
+If any Phase-5 cluster task is not `completed` — **or** any worker returned a `complete:` line carrying the `truncated at hard cap` token (it hit the tool-call cap before searching every pass; its coverage file will show one or more `cleared (NOT SEARCHED — truncated at hard cap)` rows) — include it prominently in `run-summary.md` and the final response. A hard-cap-truncated worker is marked `completed` for ledger purposes but is a **partial** result: do not let that `completed` status hide the incomplete coverage behind a successful report.
 
 **Always run Phase 8 even on zero findings** — both judges short-circuit on an empty index: dedup-judge writes a minimal no-op `dedup-summary.md`, and fp-judge writes empty `REPORT.md`/`REPORT.sarif` so SARIF consumers get a stable artifact set.
 
@@ -310,7 +319,7 @@ Each judge's full protocol is its system prompt (`agents/c-review-{dedup,fp}-jud
 **Judge failure handling.** Same shape as Phase 7's classifier, applied to judge return text:
 
 - `… complete:` → **success.**
-- `… abort:` → **non-retryable.** Surface the abort line plus `ls -l ${output_dir}/findings-index.txt`; stop.
+- `… abort:` → **non-retryable for that judge.** Surface the abort line plus `ls -l ${output_dir}/findings-index.txt`, then **still run Phase 8b** (its SARIF + `REPORT.md` safety net guarantees the artifact set even when a judge aborts), and stop without spawning further judges. "Stop" means do not continue the judge pipeline — it does **not** mean skip Phase 8b.
 - No `complete:` (help message / error / question) → **retryable once.** `SendMessage(to=<agentId>, …)` rather than a fresh spawn (the agent already paid the protocol-parse cost). Include the explicit finding paths from `findings-index.txt`. If the second try still fails, surface the transcript and continue to Phase 8b.
 
 ### Phase 8b: Report safety net (SARIF + REPORT.md)
