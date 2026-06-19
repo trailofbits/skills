@@ -27,7 +27,7 @@ description: Detects undefined behavior from creating references to fields of #[
 ```
 #\[repr\([^\]]*packed
 (?:^|[^&\w])&(?:mut\s+)?[\w.]+\.\w+
-\b(?:println|format|write|writeln)!\([^)]*\.\w+
+\b(?:e?print(?:ln)?|format|write(?:ln)?|panic|assert(?:_eq|_ne)?|dbg)!\([^)]*\.\w+
 ```
 
 For each `repr(packed*` hit, grep the struct name for field-borrow sites and check the gates per site.

@@ -24,7 +24,7 @@ description: Detects invalid-free via assignment to dereferenced pointer over un
 
 ```
 alloc::alloc\s*\(|MaybeUninit::uninit\(\)
-\*\s*\w+\s*=\s
+\*\s*[\w.]+\s*(\([^)]*\))?\s*=[^=]
 ptr::write\b
 ```
 

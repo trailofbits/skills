@@ -27,7 +27,7 @@ description: Detects unsynchronized reads/writes to static mut shared across thr
 \bstatic\s+mut\b
 &raw\s+(const|mut)\s+|addr_of_mut!
 ptr::(read|write|copy|swap)(_nonoverlapping)?
-\b(Atomic|Mutex|RwLock|OnceLock|LazyLock|Once)\b
+\b(Atomic\w+|Mutex|RwLock|OnceLock|LazyLock|Once)\b
 thread::spawn|tokio::spawn|rayon::spawn|extern\s+"C"
 ```
 

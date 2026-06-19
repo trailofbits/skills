@@ -20,7 +20,7 @@ Read `Cargo.toml`, `rust-toolchain.toml`, `clippy.toml` if present.
 
 ```
 Grep: pattern="unsafe_code|missing_docs|warnings"
-Grep: pattern="mem::uninitialized|MaybeUninit::uninit\(\)\.assume_init"
+Grep: pattern="mem::uninitialized"  # deprecated API (DEPRECAPI); the modern `MaybeUninit::uninit().assume_init()` is a UNINITREAD/memory-safety concern, not seeded here
 ```
 
 Run finders in declared order.

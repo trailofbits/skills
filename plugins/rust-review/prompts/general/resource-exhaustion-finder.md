@@ -16,7 +16,7 @@ description: Detects CPU or memory exhaustion DoS on untrusted size/count — un
 **Search patterns:**
 
 ```
-(Vec|String|BytesMut|VecDeque)::(with_capacity|reserve)\s*\(|\.resize\s*\(|vec!\[[^;]+;\s*\w+\]|repeat\s*\(
+(Vec|String|BytesMut|VecDeque)::(with_capacity|reserve)\s*\(|\.(reserve|reserve_exact|try_reserve|resize)\s*\(|vec!\[[^;]+;\s*\w+\]|repeat\s*\(
 unbounded(_channel)?|async_channel::unbounded|crossbeam.*unbounded
 for\s+\w+\s+in\s+0\.\.|while\s+.*\.len\(\)|loop\s*\{
 ```

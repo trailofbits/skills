@@ -29,7 +29,7 @@ Run these scans:
 
 ```
 Grep: pattern="\bunsafe\s*\{"
-Grep: pattern="\.(as_ptr|as_mut_ptr|into_raw|from_raw)\("
+Grep: pattern="(\.|::)(as_ptr|as_mut_ptr|into_raw|from_raw(_parts)?)\("  # method `.into_raw()` AND assoc-fn `Box::from_raw(`/`Rc::into_raw(`/`Vec::from_raw_parts(`/`CString::from_raw(`
 Grep: pattern="\bptr::(read|write|copy(_nonoverlapping)?|drop_in_place|offset|add|sub)\b"
 Grep: pattern="\.(add|sub|offset|read|write|copy_to|copy_from|copy_to_nonoverlapping|copy_from_nonoverlapping)(_unaligned|_volatile)?\s*\("  # raw-pointer METHOD form (p.read(), p.add(i)) — complements the ptr:: free-fn line above
 Grep: pattern="\b(get_unchecked(_mut)?)\s*\("

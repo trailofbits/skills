@@ -36,7 +36,7 @@ Grep: pattern="overflow-checks\s*=" path="**/Cargo.toml"
 ## Phase B — Resource exhaustion inventory (RESEXHAUST)
 
 ```
-Grep: pattern="(Vec|String|BytesMut|VecDeque)::(with_capacity|reserve)\s*\("
+Grep: pattern="(Vec|String|BytesMut|VecDeque)::(with_capacity|reserve)\s*\(|\.(reserve|reserve_exact|try_reserve|with_capacity)\s*\("  # assoc-fn `Vec::with_capacity(` + dominant method `buf.reserve(`/`v.reserve_exact(`
 Grep: pattern="\.resize\s*\(|vec!\[[^;]+;\s*\w+\]|repeat\s*\("
 Grep: pattern="unbounded(_channel)?|async_channel::unbounded|crossbeam.*unbounded"
 Grep: pattern="for\s+\w+\s+in\s+0\.\.|while\s+.*\.len\(\)|loop\s*\{"
@@ -51,7 +51,7 @@ Grep: pattern="\.unwrap(_err)?\s*\(\s*\)|\.expect\s*\("
 Grep: pattern="(panic!|todo!|unimplemented!|unreachable!|assert(_eq|_ne)?!)\s*\("
 Grep: pattern="\bas\s+(u\d+|i\d+|usize|isize)\b"
 Grep: pattern="\[\s*\w+\s*\]"  # bracket indexing
-Grep: pattern="[^/\w](/|%)[^/=]"  # division / modulo — unconditional panic on zero
+Grep: pattern="[\w)\]]\s*[/%]\s*[\w(]"  # division / modulo — unconditional panic on divide-by-zero (matches tight `a/b`, `len%n`, `(x)/y`; over-matches `/` `%` inside strings — FP-triage those)
 Grep: pattern="\[[^\]]*\.\.[^\]]*\]|\.split_at(_mut)?\s*\(|\.truncate\s*\("  # str range-slice / split_at / truncate — char-boundary panic
 Grep: pattern="RefCell|\.borrow_mut\s*\("
 Grep: pattern="\.try_borrow_mut\s*\(\s*\)\s*\.(unwrap(_err)?|expect)\s*\("  # try_borrow_mut().unwrap()/expect() re-introduces the panic

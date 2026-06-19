@@ -15,7 +15,7 @@ ID prefixes: `PTREXPOSE`.
 ## Phase A
 
 ```
-Grep: pattern="\bas\s+usize\b|\{:p\}|\.(addr|expose_provenance|expose_addr)\(\)"
+Grep: pattern="\bas\s+usize\b|\{[^{}]*:[^{}]*p\}|\.(addr|expose_provenance|expose_addr)\(\)"  # `{:p}` / `{ptr:p}` / `{0:p}` / `{:>16p}` pointer formats
 ```
 
 Run finders in declared order.

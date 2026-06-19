@@ -5,7 +5,7 @@ description: Detects reads from uninitialized memory in Rust unsafe blocks
 
 **Finding ID Prefix:** `UNINITREAD`.
 
-**Bug shape:** `MaybeUninit::<T>::assume_init()` (or `assume_init_ref`/`assume_init_mut`) called before every field of `T` is written. Also: deprecated `mem::uninitialized::<T>()` is UB for essentially every `T` — anything but `MaybeUninit`/unions — because uninitialized memory is not a valid value of the type. This includes even integers (`mem::uninitialized::<u8>()` is UB, as rustc's `invalid_value` lint reports: "integers must be initialized"). Only types for which uninitialized bytes are themselves a valid value are exempt — so "zeroable vs not" is the wrong axis.
+**Bug shape:** `MaybeUninit::<T>::assume_init()` (or `assume_init_ref`/`assume_init_mut`/`assume_init_read`) called before every field of `T` is written. Also: deprecated `mem::uninitialized::<T>()` is UB for essentially every `T` — anything but `MaybeUninit`/unions — because uninitialized memory is not a valid value of the type. This includes even integers (`mem::uninitialized::<u8>()` is UB, as rustc's `invalid_value` lint reports: "integers must be initialized"). Only types for which uninitialized bytes are themselves a valid value are exempt — so "zeroable vs not" is the wrong axis.
 
 **Verification gates:**
 
@@ -22,7 +22,7 @@ description: Detects reads from uninitialized memory in Rust unsafe blocks
 **Search patterns:**
 
 ```
-\bassume_init(_ref|_mut)?\b
+\bassume_init(_ref|_mut|_read)?\b
 mem::uninitialized\b
 MaybeUninit::(uninit|new|zeroed)
 ```

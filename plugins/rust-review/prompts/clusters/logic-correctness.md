@@ -25,8 +25,10 @@ Grep: pattern="#\[derive\([^)]*\b(Ord|PartialOrd|Eq|PartialEq|Hash)\b"          
 Grep: pattern="\b(f32|f64)\b"
 Grep: pattern="<\s*\w+\s*:\s*[A-Z]"  # generic trait bounds
 Grep: pattern="\bcatch_unwind\b"
+Grep: pattern="\bFn(Once|Mut)?\b|\bptr::(read|write)\b|\bdrop_in_place\b"  # closure-accepting bounds + pointer ops → CLOSUREPANIC unsafe windows
 Grep: pattern="\b(starts_with|ends_with|contains)\b"
-Grep: pattern="serialize_struct\("
+Grep: pattern="eq_ignore_ascii_case|to_lowercase|to_uppercase|to_ascii_lowercase|to_ascii_uppercase"  # case-folding → STRCMP case-mixing
+Grep: pattern="serialize_(struct|tuple|seq|map)\("
 Grep: pattern="\bHashMap\b|\bHashSet\b"
 Grep: pattern="peek_mut|RefCell\b|Cell\b"
 ```
@@ -37,10 +39,10 @@ Apply each pass against the Phase-A inventory; detailed detection + FP guidance 
 
 1. **`ORDEQHASH` — ord-eq-hash** — hand `Ord`/`PartialOrd`/`Eq`/`PartialEq`/`Hash` impls that violate the consistency contracts (incl. a hand/derive split across them). Seed: the `impl … for` and `#[derive(…)]` greps.
 2. **`TRAITADV` — adversarial-trait** *(requires `has_unsafe`)* — a hostile generic trait impl breaks an invariant an `unsafe` block relies on. Seed: generic trait bounds.
-3. **`CLOSUREPANIC` — closure-panic** *(requires `has_unsafe`)* — a user closure invoked between two pointer ops panics and leaves an `unsafe` scaffold inconsistent. Seed: `catch_unwind`, closures in unsafe windows.
+3. **`CLOSUREPANIC` — closure-panic** *(requires `has_unsafe`)* — a user closure invoked between two pointer ops panics and leaves an `unsafe` scaffold inconsistent. Seed: `Fn`/`FnMut`/`FnOnce` bounds + `ptr::read`/`ptr::write`/`drop_in_place` windows, `catch_unwind`.
 4. **`FLOATEDGE` — float-edge** — NaN/Inf comparison or ordering edge cases (e.g. saturating `f64 as usize`). Seed: `f32` / `f64`.
-5. **`STRCMP` — string-comparison** — partial / case-insensitive comparison bypasses a check. Seed: `starts_with` / `ends_with` / `contains`.
-6. **`SERFIELDS` — serialize-struct-mismatch** — `serialize_struct(len)` field-count disagreement corrupts output. Seed: `serialize_struct(`.
+5. **`STRCMP` — string-comparison** — partial / case-insensitive comparison bypasses a check. Seed: `starts_with`/`ends_with`/`contains` + case-folding (`eq_ignore_ascii_case`, `to_lowercase`, …).
+6. **`SERFIELDS` — serialize-struct-mismatch** — `serialize_struct(len)` (or `serialize_tuple`/`serialize_seq(Some(N))`/`serialize_map(Some(N))`) field-count disagreement corrupts output. Seed: `serialize_struct(`/`serialize_tuple(`/`serialize_seq(`/`serialize_map(`.
 7. **`NONDET` — nondeterminism** — `HashMap`/`HashSet` iteration or hashing introduces nondeterminism in replicated/consensus state. Seed: `HashMap` / `HashSet`.
 8. **`KEYMUT` — collection-key-mutation** — mutating a key or heap element already stored in a map/set/heap breaks its ordering/hash invariant. Seed: `peek_mut` / `RefCell` / `Cell`.
 

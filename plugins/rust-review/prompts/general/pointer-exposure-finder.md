@@ -5,11 +5,11 @@ description: Detects raw memory addresses leaked to externally observable sinks,
 
 **Finding ID Prefix:** `PTREXPOSE`.
 
-**Bug shape:** A runtime memory address derived from `ptr as usize`, `{:p}` formatting, `.addr()` / `.expose_provenance()`, or a pointer-to-integer transmute reaches an externally observable sink (log shipped off-host, HTTP response, serialized output, error string returned to a remote party). The leaked address defeats ASLR and supplies layout information to exploit any co-present memory-corruption bug.
+**Bug shape:** A runtime memory address derived from `ptr as usize`, `{:p}` formatting, or `.addr()` / `.expose_provenance()` reaches an externally observable sink (log shipped off-host, HTTP response, serialized output, error string returned to a remote party). The leaked address defeats ASLR and supplies layout information to exploit any co-present memory-corruption bug.
 
 **Gates:**
 
-1. An address value is derived from a pointer, reference, or `Box`/`Arc`/`Rc` via cast, `{:p}`, `.addr()` / `.expose_provenance()` (the stable-since-1.84 exposing form; older `.expose_addr()`), or transmute.
+1. An address value is derived from a pointer, reference, or `Box`/`Arc`/`Rc` via cast, `{:p}`, or `.addr()` / `.expose_provenance()` (the stable-since-1.84 exposing form; older `.expose_addr()`). (A pointer laundered to an integer via `transmute` is surfaced by the `TRANS`/`PTRCAST` pass in unsafe-boundary; this pass keys on the cast / format / `addr` forms that the info-disclosure Phase-A grep seeds.)
 2. The value reaches a sink observable by an external or unprivileged party: log shipped off-host, API response, serialized data, or error message returned over a channel.
 
 **FPs:**

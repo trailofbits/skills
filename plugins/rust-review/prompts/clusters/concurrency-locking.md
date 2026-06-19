@@ -26,7 +26,7 @@ Grep: pattern="\b(Mutex|RwLock|parking_lot::(Mutex|RwLock))::new\b"
 Grep: pattern="\.(lock|read|write|try_lock|try_read|try_write)\s*\("
 Grep: pattern="\bCondvar\b"
 Grep: pattern="\b(mpsc::(channel|sync_channel)|crossbeam_channel::(bounded|unbounded)|tokio::sync::(mpsc|oneshot|broadcast))\b"
-Grep: pattern="\b(Once::call_once|OnceCell::get_or_init|OnceLock::get_or_init|LazyLock::(new|force)|Lazy::(new|force))\b"
+Grep: pattern="\.(call_once|get_or_init)\s*\(|\b(Once::call_once|OnceCell::get_or_init|OnceLock::get_or_init|LazyLock::(new|force)|Lazy::(new|force))\b"  # dominant method form `INIT.call_once(`/`CELL.get_or_init(` + type-qualified forms
 Grep: pattern="\bsigaction\b|\bsignal_hook\b|\blibc::signal\b|nix::sys::signal"
 ```
 
