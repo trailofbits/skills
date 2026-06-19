@@ -42,7 +42,13 @@ coordinator: write context.md → build_run_plan.py → TaskCreate × M
 
 Output directory contains: `context.md`, `plan.json`, `worker-prompts/`, `findings/`, `findings-index.d/` (per-worker shards), `findings-index.txt`, `coverage/` (per-worker coverage-gate files), `run-summary.md`, `dedup-summary.md`, `fp-summary.md`, `REPORT.md`, `REPORT.sarif`.
 
-**Path convention:** set `${RUST_REVIEW_PLUGIN_ROOT}=${CLAUDE_PLUGIN_ROOT}` if that resolves (`Bash: ls "${CLAUDE_PLUGIN_ROOT}/prompts/clusters/unsafe-boundary.md"`), otherwise `Bash: find ~/.claude -path '*/plugins/rust-review/prompts/clusters/unsafe-boundary.md' -print -quit`.
+**Path convention:** every later phase shells out to `${RUST_REVIEW_PLUGIN_ROOT}/scripts/*.py`, so resolve that variable first to the plugin directory that contains `prompts/clusters/unsafe-boundary.md` (and `scripts/build_run_plan.py`). Try in order, first hit wins:
+
+1. **Native Claude Code** — `${CLAUDE_PLUGIN_ROOT}`, accepted if `Bash: ls "${CLAUDE_PLUGIN_ROOT}/prompts/clusters/unsafe-boundary.md"` resolves.
+2. **Codex** — `${CODEX_PLUGIN_ROOT}` (set it the same way if that var is present and resolves the marker).
+3. **Fallback search** — covers Codex installs under `~/.codex`, Claude installs under `~/.claude`, and a local checkout / repo run: `Bash: find ~/.claude ~/.codex . -path '*/plugins/rust-review/prompts/clusters/unsafe-boundary.md' -print -quit 2>/dev/null`. Take the match and strip the trailing `/prompts/clusters/unsafe-boundary.md` to get the root (the home dirs are searched before `.` so an installed copy wins over any vendored copy in the audited repo).
+
+Set `RUST_REVIEW_PLUGIN_ROOT` to the resolved root. If all three fail, **abort** with a message naming the roots searched — do not enter Phase 4 with an empty variable (every `python3 "${RUST_REVIEW_PLUGIN_ROOT}/scripts/..."` call would fail with a confusing path error).
 
 **Scope convention:** keep two scopes separate throughout the run:
 
@@ -309,7 +315,7 @@ After task updates and index creation, run `TaskList` and write `${output_dir}/r
 - `findings-index.txt` line count and any mismatch against worker claims
 - judge status once Phase 8 finishes, or the reason a judge was skipped/failed
 
-If any Phase-5 cluster task is not `completed`, include it prominently in `run-summary.md` and the final response. Do not hide a partial run behind a successful report.
+If any Phase-5 cluster task is not `completed` — **or** any worker returned a `complete:` line carrying the `truncated at hard cap` token (it hit the tool-call cap before searching every pass; its coverage file will show one or more `cleared (NOT SEARCHED — truncated at hard cap)` rows) — include it prominently in `run-summary.md` and the final response. A hard-cap-truncated worker is marked `completed` for ledger purposes but is a **partial** result: do not let that `completed` status hide the incomplete coverage behind a successful report.
 
 **Always run Phase 8 even on zero findings** — both judges short-circuit on an empty index: dedup-judge writes a minimal no-op `dedup-summary.md`, and fp-judge writes empty `REPORT.md`/`REPORT.sarif` so SARIF consumers get a stable artifact set.
 

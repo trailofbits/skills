@@ -16,4 +16,4 @@ description: Detects Rust-side raw pointers to C-owned memory used as if Rust-ma
 - `Box::from_raw` paired with `Box::into_raw` on the same lifecycle (Rust manages start-to-end).
 - C library exposes an explicit `_take_ownership` API and Rust calls it.
 
-**Patch:** never `from_raw` over C-owned memory; expose Rust-side as `*const Foo` newtype with explicit `Drop` calling the C free.
+**Patch:** never `from_raw` over C-owned memory; wrap it in a newtype over `*mut Foo` / `NonNull<Foo>` (a `Drop` impl needs a nominal type — you cannot `impl Drop` for a bare pointer, and the C free function takes `*mut`, not `*const`) whose `Drop` calls the C free.

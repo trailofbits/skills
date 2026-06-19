@@ -15,7 +15,7 @@ ID prefixes: `PTREXPOSE`.
 ## Phase A
 
 ```
-Grep: pattern="\bas\s+usize\b|\{:p\}|\.addr\(\)"
+Grep: pattern="\bas\s+usize\b|\{:p\}|\.(addr|expose_provenance|expose_addr)\(\)"
 ```
 
 Run finders in declared order.

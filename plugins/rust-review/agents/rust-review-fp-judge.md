@@ -277,7 +277,7 @@ python3 "{sarif_generator_path}" "{output_dir}"
 
 The generator reads `{output_dir}/context.md` and the canonical `findings-index.txt` when present (falling back to `findings/*.md` only if the index is absent), applies the same `severity_filter` used for `REPORT.md`, includes only survivor primaries (`TRUE_POSITIVE` / `LIKELY_TP`, no `merged_into`), and writes `{output_dir}/REPORT.sarif`.
 
-If the command fails, surface the error in your final response and do not invent a SARIF file manually. If no findings pass the filter, the generator still writes a valid SARIF file with `"results": []`.
+If the command fails, do **not** invent a SARIF file manually and do **not** end your turn with bare error text — the orchestrator's return-text classifier reads output carrying neither a `complete:` nor an `abort:` token as an ambiguous "retryable" failure and would futilely re-run a deterministic script error. A SARIF-only failure is **not** fatal: `REPORT.sarif` is mechanical and Phase 8b regenerates it unconditionally. So finish `REPORT.md` (Step 7) and still emit your canonical `fp+severity-judge complete:` line, appended with an explicit ` (SARIF generation FAILED: <error>; Phase-8b safety net will regenerate REPORT.sarif)` suffix — never claim `REPORT.sarif written` when it was not. If no findings pass the filter, the generator still writes a valid SARIF file with `"results": []` (success, not a failure).
 
 ---
 
@@ -289,7 +289,7 @@ If the command fails, surface the error in your final response and do not invent
 test -f "{output_dir}/REPORT.md" && test -f "{output_dir}/REPORT.sarif" && echo "outputs OK"
 ```
 
-If `REPORT.md` is missing, you returned its content in your reply instead of writing it to disk (a protocol violation) — `Write` it to `{output_dir}/REPORT.md` now and re-run the check. Only state `REPORT.md + REPORT.sarif written` in your completion line **after both `test -f` checks pass**. Never claim an artifact is written without verifying it on disk. (If you cannot write `REPORT.md`, the orchestrator's Phase-8b safety net will regenerate it — but you must still report the failure rather than falsely claim success.)
+If `REPORT.md` is missing, you returned its content in your reply instead of writing it to disk (a protocol violation) — `Write` it to `{output_dir}/REPORT.md` now and re-run the check. Only state `REPORT.md + REPORT.sarif written` in your completion line **after both `test -f` checks pass**. Never claim an artifact is written without verifying it on disk. The one allowed exception is a Step-6 SARIF *generator* failure with `REPORT.md` present: emit `fp+severity-judge complete:` with the explicit ` (SARIF generation FAILED: <error>; Phase-8b safety net will regenerate REPORT.sarif)` suffix from Step 6 instead of the `written` form — still a `complete:` (so the orchestrator does not retry the deterministic failure), just an honest one. (If you cannot write `REPORT.md`, the orchestrator's Phase-8b safety net will regenerate it — but you must still report the failure rather than falsely claim success.)
 
 ---
 

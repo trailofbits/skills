@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.13"
+# requires-python = ">=3.11"
 # dependencies = []
 # ///
 """Build a deterministic rust-review run plan.
@@ -129,9 +129,7 @@ def parse_args() -> argparse.Namespace:
     )
     args = p.parse_args()
     if args.max_passes_per_worker < 0:
-        raise SystemExit(
-            f"--max-passes-per-worker must be >= 0, got {args.max_passes_per_worker}"
-        )
+        raise SystemExit(f"--max-passes-per-worker must be >= 0, got {args.max_passes_per_worker}")
     return args
 
 
@@ -285,12 +283,8 @@ def split_oversized_clusters(
     out: list[dict[str, Any]] = []
     for cluster in selected:
         passes = cluster["passes"]
-        cluster_max_passes = cluster_max_passes_per_worker(
-            cluster, cid=str(cluster["cluster_id"])
-        )
-        effective_max_passes = (
-            cluster_max_passes if cluster_max_passes is not None else max_passes
-        )
+        cluster_max_passes = cluster_max_passes_per_worker(cluster, cid=str(cluster["cluster_id"]))
+        effective_max_passes = cluster_max_passes if cluster_max_passes is not None else max_passes
         k = len(passes)
         if k <= effective_max_passes:
             out.append(cluster)
@@ -298,9 +292,7 @@ def split_oversized_clusters(
         # Greedy left-to-right contiguous partition.
         n_chunks = (k + effective_max_passes - 1) // effective_max_passes
         for i in range(n_chunks):
-            chunk_passes = passes[
-                i * effective_max_passes : (i + 1) * effective_max_passes
-            ]
+            chunk_passes = passes[i * effective_max_passes : (i + 1) * effective_max_passes]
             out.append(
                 {
                     "cluster_id": f"{cluster['cluster_id']}-{i + 1}",
@@ -347,9 +339,7 @@ def _render_shared_prefix_lines(
     lines.append(f"Severity filter: {severity_filter}")
     lines.append(
         "Codebase: "
-        + ", ".join(
-            f"{flag}={'true' if flags[flag] else 'false'}" for flag in CAPABILITY_FLAGS
-        )
+        + ", ".join(f"{flag}={'true' if flags[flag] else 'false'}" for flag in CAPABILITY_FLAGS)
     )
     lines.append("")
     lines.append("<context>")
@@ -547,9 +537,7 @@ def main() -> int:
     selected = build_selection(
         manifest, plugin_root=plugin_root, flags=flags, threat_model=args.threat_model
     )
-    selected = split_oversized_clusters(
-        selected, max_passes=args.max_passes_per_worker
-    )
+    selected = split_oversized_clusters(selected, max_passes=args.max_passes_per_worker)
 
     context_md_path = output_dir / "context.md"
     if not context_md_path.is_file():

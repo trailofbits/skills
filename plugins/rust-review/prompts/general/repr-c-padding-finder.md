@@ -13,4 +13,4 @@ description: Detects #[repr(C)] structs whose padding bytes leak uninitialized m
 
 **Why:** padding bytes are uninitialized → information disclosure across FFI.
 
-**Patch:** read the raw bytes from a `MaybeUninit<T>` you zeroed and then wrote fields into **through its pointer** — do **not** `assume_init` the value out and then read *its* bytes (a typed copy may not preserve the zeroed padding). Better still, give the struct explicit padding fields / use a no-padding `#[repr(C)]` layout (e.g. via `zerocopy`), or serialize field-by-field instead of dumping raw bytes. `MaybeUninit::<T>::zeroed()` only initializes padding soundly when zero is also a valid bit pattern for every field.
+**Patch:** read the raw bytes from a `MaybeUninit<T>` you zeroed and then wrote fields into **through its pointer** — do **not** `assume_init` the value out and then read *its* bytes (a typed copy may not preserve the zeroed padding). Better still, give the struct explicit padding fields / use a no-padding `#[repr(C)]` layout (e.g. via `zerocopy`), or serialize field-by-field instead of dumping raw bytes.

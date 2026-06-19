@@ -19,7 +19,7 @@ ID prefixes: `CSTRDANGLE`, `ABIMISMATCH`, `REPRCPAD`, `OPAQUEPTR`, `FOREIGNDROP`
 ## Phase A
 
 ```
-Grep: pattern="extern\s+\"(C|system|stdcall|cdecl|win64|sysv64|aapcs|fastcall|thiscall|vectorcall|efiapi)(-unwind)?\"|extern\s+\{"
+Grep: pattern="extern\s+\"(C|system|stdcall|cdecl|win64|sysv64|aapcs|fastcall|thiscall|vectorcall|efiapi)(-unwind)?\"|extern\s+\{|\bextern\s+fn\b"
 Grep: pattern="CString::|CStr::|CString::new"
 Grep: pattern="#\[repr\((C|transparent)"
 Grep: pattern="bindgen|cbindgen"

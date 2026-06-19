@@ -82,6 +82,14 @@ def test_has_packed_repr_matches_outer_and_inner_attrs() -> None:
     assert not matches(pattern, "#[repr(C)]")
 
 
+def test_ffi_extern_inventory_matches_bare_extern_fn() -> None:
+    pattern = cluster_pattern("ffi-cross-language.md", "efiapi")
+    assert matches(pattern, 'extern "C" fn foo();')
+    assert matches(pattern, "extern { fn foo(); }")
+    assert matches(pattern, "extern fn foo() {}")
+    assert not matches(pattern, "let external = 1;")
+
+
 def test_has_fs_io_path_probe_matches_path_types() -> None:
     pattern = skill_pattern(r"\bPath\b")
     assert matches(pattern, "fn f(p: &Path) {}")

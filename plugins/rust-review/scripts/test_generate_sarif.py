@@ -129,6 +129,30 @@ def test_build_sarif_uses_canonical_findings_index(tmp_path: Path) -> None:
     assert results[0]["properties"]["unjudged"] is False
 
 
+def test_missing_index_entry_is_skipped_not_crash(tmp_path: Path) -> None:
+    """A stale findings-index.txt entry pointing at a file that no longer exists must
+    be skipped with a warning, not raise FileNotFoundError — Phase-8b's safety net
+    must still produce REPORT.sarif from the survivors that do exist."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="BOF-001",
+        bug_class="buffer-overflow-unsafe",
+        title="real",
+        location="src/a.rs:1",
+    )
+    (tmp_path / "findings-index.txt").write_text(
+        f"{findings / 'BOF-001.md'}\n{findings / 'GHOST-404.md'}\n",
+        encoding="utf-8",
+    )
+
+    results = build_sarif(tmp_path)["runs"][0]["results"]
+    assert [r["properties"]["finding_id"] for r in results] == ["BOF-001"]
+
+
 def test_build_sarif_empty_findings(tmp_path: Path) -> None:
     (tmp_path / "context.md").write_text(
         "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n",

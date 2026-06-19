@@ -35,6 +35,7 @@ Grep: pattern="\btransmute(_copy)?\s*[:<(]"             # mem::transmute usage
 Grep: pattern="(\*mut|\*const)\s+\w"                  # Raw pointer types
 Grep: pattern="\.(as_ptr|as_mut_ptr|into_raw|from_raw)\(" # Raw pointer extraction
 Grep: pattern="\b(get_unchecked(_mut)?|copy_nonoverlapping|ptr::(write|read|offset|add|sub))\s*\("
+Grep: pattern="\.(add|sub|offset|read|write|copy_to|copy_from|copy_to_nonoverlapping|copy_from_nonoverlapping)(_unaligned|_volatile)?\s*\("  # raw-pointer METHOD form (p.add(i), p.offset(n), p.read()) — the path-qualified ptr:: line above does NOT match these, yet the RAWPTR pass audits them
 Grep: pattern="\bas\s+\*(const|mut)\s+\w"              # ptr-type reinterpretation via `as`
 Grep: pattern="\bas\s+(usize|isize)\b"                 # ptr↔int candidates (Read confirms ptr side)
 Grep: pattern="\btransmute(_copy)?\s*::\s*<\s*u8\s*,\s*bool"   # transmute<u8, bool>
@@ -86,11 +87,11 @@ For every `.offset()`, `.add()`, `.sub()`, `ptr::write`, `ptr::read`, `copy_nono
 - Numeric `as` casts not involving any pointer type — that is `LOSSYFROM` / `ARITHOFL` territory.
 - Casts inside `bytemuck`, `zerocopy`, `cast_slice*` and similar zero-copy helpers whose trait bounds (`Pod`, `AnyBitPattern`, `FromBytes`) prove the layout contract.
 
-**Patch:** prefer `.cast::<U>()` for typed pointer casts (still unsafe but searchable as a clear keyword); use `ptr.addr()` and `ptr::with_exposed_provenance` for the int↔ptr round-trip under Strict Provenance; preserve metadata via `<*const [T]>::len()` / `ptr::metadata` / `ptr::from_raw_parts` instead of fat→thin truncation.
+**Patch:** prefer `.cast::<U>()` for typed pointer casts (still unsafe but searchable as a clear keyword); for the int↔ptr round-trip pick **one** provenance model and pair its APIs correctly — under **Strict Provenance** use `ptr.addr()` to read the address and `base_ptr.with_addr(addr)` to rebuild a pointer from a base that already has valid provenance (you cannot fabricate a pointer from a bare integer), while under the **Exposed Provenance** model use `ptr.expose_provenance()` paired with `ptr::with_exposed_provenance(addr)`. Do **not** mix them: `ptr.addr()` followed by `ptr::with_exposed_provenance` is unsound because `addr()` never exposes provenance, so the rebuilt pointer has none. Preserve metadata via `<*const [T]>::len()` / `ptr::metadata` / `ptr::from_raw_parts` instead of fat→thin truncation.
 
 ### 4. `REPRC` — Layout guarantees at the unsafe boundary
 
-Structs passed to/from FFI, transmuted, or accessed via raw pointer reads must be `#[repr(C)]` (or `#[repr(transparent)]` / `#[repr(packed)]` with care). Default `#[repr(Rust)]` allows field reordering between compiler versions. Flag any struct used at an unsafe boundary without explicit `repr`.
+Structs passed to/from FFI, transmuted, or accessed via raw pointer reads must carry a **layout-defining** `repr`: `#[repr(C)]`, `#[repr(transparent)]` (single-field newtype), or `#[repr(C, packed)]` when fields must be unaligned. A bare `#[repr(packed)]` is **not** sufficient — `packed` alone only drops padding, leaving the unspecified `#[repr(Rust)]` field *ordering* in place, so it does not give a stable/C-compatible layout and is not a substitute for `#[repr(C)]`; use `#[repr(C, packed)]`. Default `#[repr(Rust)]` allows field reordering between compiler versions. Flag any struct used at an unsafe boundary without a layout-defining `repr` — a struct carrying only `#[repr(packed)]` (no `C`) counts as missing one.
 
 ### 4a. `ENUMUB` — Enum discriminant and niche validity
 

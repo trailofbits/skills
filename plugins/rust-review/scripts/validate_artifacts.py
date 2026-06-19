@@ -10,8 +10,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Match only a top-level (non-indented) `id:` key. generate_sarif's frontmatter
+# parser treats indented lines as non-top-level and skips them; anchoring with a
+# leading `\s*` here would instead pick up an indented `id:` nested under another
+# mapping key, making the two scripts disagree on the value this check exists to
+# police. Keep them in lockstep: no leading whitespace.
 FINDING_ID_RE = re.compile(r"\b[A-Z][A-Z0-9_]*-\d{3,}\b")
-FRONTMATTER_ID_RE = re.compile(r"^\s*id:\s*(.+?)\s*$")
+FRONTMATTER_ID_RE = re.compile(r"^id:\s*(.+?)\s*$")
 
 
 def frontmatter_id(path: Path) -> str | None:

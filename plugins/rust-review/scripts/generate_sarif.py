@@ -221,7 +221,16 @@ def iter_findings(output_dir: Path) -> list[dict[str, Any]]:
     for path in paths:
         if not path.is_absolute():
             path = output_dir / path
-        frontmatter, _ = split_frontmatter(path.read_text(encoding="utf-8"))
+        # A stale/missing index entry (e.g. a finding moved or deleted after the
+        # Phase-7 index was written) must NOT crash the Phase-8b safety net, whose
+        # whole job is to guarantee REPORT.sarif exists. Skip-and-warn instead of
+        # letting read_text raise FileNotFoundError.
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"warning: skipping unreadable finding file {path}: {exc}", file=sys.stderr)
+            continue
+        frontmatter, _ = split_frontmatter(text)
         frontmatter["_path"] = str(path)
         findings.append(frontmatter)
     return findings

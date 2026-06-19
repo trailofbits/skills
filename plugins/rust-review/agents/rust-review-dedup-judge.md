@@ -61,9 +61,11 @@ After the finding list is loaded, also `Read: {output_dir}/context.md` once for 
 ## Parse findings into the working set
 
 For each finding file, `Read` it and parse the YAML frontmatter into an in-memory record with:
-`id, bug_class, location, function, confidence, title, merged_into (if any from a prior pass)`.
+`id, bug_class, location, function, confidence, title, merged_into (if any from a prior pass), also_known_as (if any from a prior pass), locations (if any from a prior pass)`.
 
-**Skip** findings that already have a `merged_into` field (idempotency — re-runs must be no-ops).
+You **must** load `also_known_as`/`locations` into the record: a finding carrying `also_known_as` is an existing primary that already absorbed duplicates in an earlier pass or run, and Tier 2's carry-forward rule (below) relies on detecting it to keep it as the primary. Omitting these fields means a re-run / crash-recovery pass cannot tell a prior primary apart from a fresh finding, and the bare confidence-then-id ordering can then demote it and orphan everything merged into it.
+
+**Skip** findings that already have a `merged_into` field (idempotency — re-runs must be no-ops). Do **not** skip findings that carry `also_known_as` but no `merged_into` — they are live primaries and must stay in the working set so the carry-forward rule can protect them.
 
 Note: there are **no `fp_verdict` fields yet** when you run. Your filtering is strictly structural (parse / already-merged).
 

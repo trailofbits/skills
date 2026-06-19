@@ -17,7 +17,7 @@ description: Audits unsafe impl Send/Sync over types with interior mutability
 
 - Interior mutation goes through `Atomic*`.
 - The payload is genuinely thread-safe for the trait being impl'd (every field is itself `Send`/`Sync`, or interior mutation goes through an atomic/`Mutex`/`RwLock`), making the manual impl redundant rather than unsound. (Note: confining mutation to `&mut self` does **not** by itself make a manual `unsafe impl Send`/`Sync` sound — `Sync` concerns shared `&self` access to a possibly non-thread-safe payload and `Send` concerns transfer, neither of which requires `&self` mutation.)
-- `T` documents an invariant explaining external synchronization required (e.g., wrapper over single-threaded FFI handle).
+- `T`'s manual impl is justified by an invariant that is **actually enforced for all safe uses** — not merely documented. `unsafe impl Send`/`Sync` grants the capability to *all* safe code, so a `// SAFETY:`/doc comment alone does **not** make it sound: a bare `*mut CHandle` wrapper that safe code can freely construct and move across threads is still unsound *even with* a "caller must use one thread" comment (that is the bug shape above, not an FP). The invariant counts only when the type's API upholds it — e.g. the sole constructor is `unsafe` (shifting the obligation to callers), or every access is gated behind a `Mutex`/`RwLock`/atomic the wrapper owns. Verify enforcement, not the mere presence of a comment.
 
 **Search patterns:**
 

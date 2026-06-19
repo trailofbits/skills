@@ -25,3 +25,8 @@ Grep: pattern="process::exit|libc::exit"
 ```
 
 Run finders in declared order.
+
+## Deconfliction
+
+- `RAWFD` vs `DROPSKIP`: a file descriptor / handle / socket whose lifecycle is mishandled (double-close, leak, `from_raw_fd` without ownership transfer) is `RAWFD`. Any *other* security-relevant `Drop` skipped via `mem::forget` / `ManuallyDrop` / `process::exit` (secrets, connections, transactions, locks) is `DROPSKIP`. When a `mem::forget` / `ManuallyDrop` / `exit` strands an fd-backed value (`OwnedFd`, `File`, `TcpStream`), file `RAWFD` — the fd leak is the precise bug — and do **not** also file `DROPSKIP` for the same site.
+- Foreign-allocator free mismatch on FFI-owned memory is `FOREIGNDROP` (ffi-cross-language cluster), not `RAWFD`/`DROPSKIP`.
