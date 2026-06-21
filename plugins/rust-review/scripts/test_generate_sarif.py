@@ -18,16 +18,18 @@ def _write_finding(
     location: str,
     severity: str = "HIGH",
     fp_verdict: str | None = "TRUE_POSITIVE",
+    merged_into: str | None = None,
 ) -> None:
     findings_dir.mkdir(parents=True, exist_ok=True)
     fp_line = f"fp_verdict: {fp_verdict}\n" if fp_verdict is not None else ""
+    merged_line = f"merged_into: {merged_into}\n" if merged_into else ""
     content = f"""---
 id: {fid}
 bug_class: {bug_class}
 title: {title}
 location: {location}
 severity: {severity}
-{fp_line}\
+{fp_line}{merged_line}\
 confidence: High
 attack_vector: Remote
 exploitability: Reliable
@@ -374,6 +376,85 @@ def test_skipped_findings_surfaced_in_invocation(tmp_path: Path) -> None:
     assert all(n["level"] == "warning" for n in notifications)
     assert any("GHOST-404" in n["message"]["text"] for n in notifications)
     assert any("broken.md" in n["message"]["text"] for n in notifications)
+
+
+def test_merged_finding_whose_target_was_fp_rejected_is_emitted(tmp_path: Path) -> None:
+    """A finding merged into an FP-rejected primary must not inherit the rejection;
+    its own TRUE_POSITIVE verdict must still surface."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="DUP-A",
+        bug_class="buffer-overflow-unsafe",
+        title="real bug, folded into DUP-B",
+        location="src/a.rs:10",
+        fp_verdict="TRUE_POSITIVE",
+        merged_into="DUP-B",
+    )
+    _write_finding(
+        findings,
+        fid="DUP-B",
+        bug_class="buffer-overflow-unsafe",
+        title="the duplicate, later judged FP",
+        location="src/a.rs:10",
+        fp_verdict="FALSE_POSITIVE",
+    )
+
+    result_ids = [r["properties"]["finding_id"] for r in build_sarif(tmp_path)["runs"][0]["results"]]
+    assert result_ids == ["DUP-A"]
+
+
+def test_merged_finding_with_surviving_target_is_skipped(tmp_path: Path) -> None:
+    """When the merge target survives, the merged finding is still skipped — no
+    false duplicate."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="DUP-A",
+        bug_class="buffer-overflow-unsafe",
+        title="folded duplicate",
+        location="src/a.rs:10",
+        fp_verdict="TRUE_POSITIVE",
+        merged_into="DUP-B",
+    )
+    _write_finding(
+        findings,
+        fid="DUP-B",
+        bug_class="buffer-overflow-unsafe",
+        title="surviving primary",
+        location="src/a.rs:10",
+        fp_verdict="TRUE_POSITIVE",
+    )
+
+    result_ids = [r["properties"]["finding_id"] for r in build_sarif(tmp_path)["runs"][0]["results"]]
+    assert result_ids == ["DUP-B"]
+
+
+def test_merged_finding_whose_target_is_missing_is_emitted(tmp_path: Path) -> None:
+    """A finding merged into a missing target id (aborted dedup / stale field)
+    must survive."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="DUP-A",
+        bug_class="buffer-overflow-unsafe",
+        title="orphaned by missing target",
+        location="src/a.rs:10",
+        fp_verdict="TRUE_POSITIVE",
+        merged_into="DUP-GHOST",
+    )
+
+    result_ids = [r["properties"]["finding_id"] for r in build_sarif(tmp_path)["runs"][0]["results"]]
+    assert result_ids == ["DUP-A"]
 
 
 def test_location_parts_branch_coverage() -> None:

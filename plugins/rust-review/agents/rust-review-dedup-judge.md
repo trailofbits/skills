@@ -97,6 +97,8 @@ Bucket the working set by the exact tuple `(path, line, bug_class)`. Including `
 
    This ordering is total and deterministic — two runs on the same input must pick the same primary.
 
+   **Carry-forward guard (checked before the ordering; overrides it).** If a member already carries `also_known_as` — it absorbed duplicates in an earlier tier or run — it **must remain the primary**, even if a sibling has higher confidence. If two members both carry `also_known_as`, **do not merge** (leave the bucket separate; see Hard Invariants).
+
 2. **Annotate frontmatter:**
    - On each **non-primary** finding file, `Edit` the frontmatter to add:
      ```yaml
@@ -110,6 +112,7 @@ Bucket the working set by the exact tuple `(path, line, bug_class)`. Including `
        - <each merged location>
      ```
      Preserve the primary's `location` field unchanged. `locations` is additive; de-duplicate entries.
+   - If a non-primary has higher `confidence` than the primary (only possible under the carry-forward guard), raise the primary's `confidence` to the group maximum before writing frontmatter — the group is one defect, so its severity should reflect the strongest worker analysis.
 
 3. Remove the merged non-primaries from the working set.
 
@@ -152,7 +155,7 @@ From the remaining working set, bucket by the tuple `(path, function)` — **not
    - Root cause and threat-model framing match (the same attacker-controlled input reaching the same sink).
 
    If **any** bullet fails — or you are unsure — **do not merge**. Leave the findings separate; they surface as a Tier 4 related group.
-3. When merging, pick the primary by the deterministic ordering of Tiers 1–2 (higher `confidence`, then lexicographically smallest `id`) — **except** that a member which already absorbed duplicates in an earlier tier (it carries `also_known_as`) must remain the primary, and if two members are both already such primaries you must **not** merge them (leave them separate; see Hard Invariants). The primary keeps its own `bug_class`; each non-primary gets `merged_into: <primary-id>`, and the primary gains `also_known_as` + `locations`. Record the absorbed `bug_class` values in the summary so the cross-class merge is auditable.
+3. When merging, pick the primary by the deterministic ordering of Tiers 1–2 (higher `confidence`, then lexicographically smallest `id`) — **except** that a member which already absorbed duplicates in an earlier tier (it carries `also_known_as`) must remain the primary, and if two members are both already such primaries you must **not** merge them (leave them separate; see Hard Invariants). The primary keeps its own `bug_class`; each non-primary gets `merged_into: <primary-id>`, and the primary gains `also_known_as` + `locations`. As in Tier 1, if a non-primary has higher `confidence` the primary is raised to the group maximum. Record the absorbed `bug_class` values in the summary so the cross-class merge is auditable.
 
 **Rationalizations to reject:**
 - "Both findings are in the same function, so they're the same bug." → Same function is the *bucket*, not evidence. Require same-construct identity.
@@ -174,7 +177,7 @@ These constraints protect real findings from being dropped. Violating any one is
 
 - **Never merge across files.**
 - **Cross-class merges happen only in Tier 3.** Tiers 1–2 are class-scoped by construction (their bucket keys include `bug_class`) and must never merge across classes — a blind syntactic collision at a shared `(path, line)`, common for whole-file/manifest findings that fall back to a placeholder like `Cargo.toml:1` (e.g. `cargo-lint-config` vs `msrv-mismatch`), must not collapse two classes. Tier 3 may merge across classes, but only when a full reading confirms the findings are the *same underlying bug* labeled differently; the default there is still do-not-merge.
-- **A primary never becomes a non-primary.** Once a finding carries `also_known_as`/`locations` (it absorbed others in an earlier tier), no later tier may stamp `merged_into` on it. In any Tier-2 **or** Tier-3 bucket, an already-absorbing member must be selected as the primary; if two members already absorbed in earlier tiers, do not merge them. Otherwise a hidden primary transitively orphans everything merged into it — both fp-judge and SARIF skip any file with `merged_into`.
+- **A primary never becomes a non-primary.** Once a finding carries `also_known_as`/`locations` (it absorbed others in an earlier tier or an earlier run), no later tier **or re-run pass** may stamp `merged_into` on it. In any Tier-1, Tier-2, **or** Tier-3 bucket, an already-absorbing member must be selected as the primary; if two members already absorbed, do not merge them. Otherwise a hidden primary transitively orphans everything merged into it — both fp-judge and SARIF skip any file with `merged_into`.
 - **Never delete a finding file.** Always set `merged_into` on non-primaries.
 - **Deterministic primary selection** — do not substitute your own judgment about "most detailed description."
 - **Default to keep separate** when any rule is ambiguous.

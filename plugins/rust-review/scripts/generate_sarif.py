@@ -290,11 +290,45 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
     context = parse_context(output_dir)
     severity_filter = str(context.get("severity_filter", "all")).lower()
     threat_model = str(context.get("threat_model", "UNKNOWN"))
-    raw_findings, skipped = iter_findings(output_dir)
-    findings = []
-    for finding in raw_findings:
-        if "merged_into" in finding:
+    all_findings, skipped = iter_findings(output_dir)
+
+    # Skip a merged finding only when its merge target survives; otherwise the
+    # old blind skip dropped real bugs whose target was FP-rejected or missing.
+    by_id = {str(f.get("id")): f for f in all_findings if f.get("id")}
+
+    def terminal_primary(fid: str) -> str | None:
+        seen: set[str] = set()
+        while fid in by_id and fid not in seen:
+            seen.add(fid)
+            nxt = by_id[fid].get("merged_into")
+            if not nxt:
+                return fid
+            fid = str(nxt)
+        return None
+
+    survivor_ids: set[str] = set()
+    for f in all_findings:
+        if "merged_into" in f:
             continue
+        if not (f.get("id") or f.get("bug_class") or f.get("title")):
+            continue
+        verdict = str(f.get("fp_verdict", "")).upper()
+        if verdict and verdict not in SURVIVOR_VERDICTS:
+            continue
+        survivor_ids.add(str(f.get("id")))
+
+    findings = []
+    for finding in all_findings:
+        merged_target = finding.get("merged_into")
+        if merged_target:
+            if terminal_primary(str(merged_target)) in survivor_ids:
+                continue
+            print(
+                "generate_sarif: merge target did not survive -- emitting "
+                f"{finding.get('id', '?')} (merged_into: {merged_target}): "
+                f"{finding.get('_path', '?')}",
+                file=sys.stderr,
+            )
         if not (finding.get("id") or finding.get("bug_class") or finding.get("title")):
             # No parseable frontmatter (e.g. a worker crashed mid-write before
             # emitting the `---` block). Skip rather than fabricate a phantom
