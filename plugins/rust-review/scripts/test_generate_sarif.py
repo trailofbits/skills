@@ -311,6 +311,33 @@ def test_judged_survivor_missing_severity_is_surfaced_not_dropped(tmp_path: Path
     assert result["message"]["text"].startswith("[UNVALIDATED SEVERITY")
 
 
+def test_malformed_frontmatter_finding_is_skipped_not_crash(tmp_path: Path) -> None:
+    """Regression for malformed frontmatter: a scalar then a list item on one key
+    used to raise AttributeError and abort the run, so no REPORT.sarif was emitted
+    at all. The malformed file must be skipped so survivors still surface."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="BOF-001",
+        bug_class="buffer-overflow-unsafe",
+        title="real",
+        location="src/a.rs:1",
+    )
+    # Scalar then list item on one key: parse_frontmatter appends to the scalar.
+    (findings / "MALFORMED.md").write_text(
+        "---\nid: MALFORMED\nbug_class: use-after-free\n"
+        "title: bad frontmatter\nlocation: src/a.rs:42\n"
+        "  - src/b.rs:88\nseverity: HIGH\n---\n\nBody.\n",
+        encoding="utf-8",
+    )
+
+    results = build_sarif(tmp_path)["runs"][0]["results"]
+    assert [r["properties"]["finding_id"] for r in results] == ["BOF-001"]
+
+
 def test_frontmatterless_finding_is_skipped_not_phantom(tmp_path: Path) -> None:
     """A finding file with no parseable frontmatter must be skipped, not emitted as
     a phantom result with ruleId 'unknown' and an empty id/uri."""

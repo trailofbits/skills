@@ -235,7 +235,14 @@ def iter_findings(output_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str
             print(f"warning: skipping unreadable finding file {path}: {exc}", file=sys.stderr)
             skipped.append({"path": str(path), "reason": f"unreadable ({exc.__class__.__name__})"})
             continue
-        frontmatter, _ = split_frontmatter(text)
+        # parse_frontmatter raises on malformed YAML (e.g. a scalar then a list
+        # item on one key). One bad file must not sink the Phase-8b net, so catch
+        # broadly; narrowing to AttributeError would only patch this one shape.
+        try:
+            frontmatter, _ = split_frontmatter(text)
+        except Exception as exc:
+            print(f"warning: skipping unparseable finding file {path}: {exc}", file=sys.stderr)
+            continue
         frontmatter["_path"] = str(path)
         findings.append(frontmatter)
     return findings, skipped
