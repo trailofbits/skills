@@ -108,7 +108,7 @@ find "${finding_scope_root:-.}" -name '*.rs' -print -quit
 grep -rlE '\bunsafe\s+(extern|fn|impl|trait)\b|\bunsafe\s*\{' --include='*.rs' "${finding_scope_root:-.}" | head -1
 
 # has_ffi
-grep -rlE 'extern\s+"(C|system|stdcall|cdecl|win64|sysv64|aapcs|fastcall|thiscall|vectorcall|efiapi)(-unwind)?"|extern\s+\{|#\[repr\(C[,)]|\b(CString|CStr)\b|use\s+(libc|core::ffi|std::ffi|std::os::raw|cty)' --include='*.rs' "${finding_scope_root:-.}" | head -1
+grep -rlE 'extern\s+"(C|system|stdcall|cdecl|win64|sysv64|aapcs|fastcall|thiscall|vectorcall|efiapi)(-unwind)?"|\bextern\s+fn\b|extern\s+\{|#\[repr\((C|transparent)\b|\b(CString|CStr)\b|use\s+(libc|core::ffi|std::ffi|std::os::raw|cty)|\blibc::|\b(bindgen|cbindgen)\b|\bc_void\b' --include='*.rs' "${finding_scope_root:-.}" | head -1
 
 # has_concurrency
 grep -rlE '\b(std::(thread|sync)|parking_lot::|crossbeam|rayon::|tokio::sync|core::sync::atomic|std::sync::atomic|Atomic[A-Za-z0-9_]*|UnsafeCell|static\s+mut|unsafe\s+impl\s+(Send|Sync)|memmap2::|Mmap(Options|Mut)?|MAP_SHARED|shm_open|mmap\s*\(|memfd_create|shared_memory|raw_sync|CreateFileMapping|MapViewOfFile)' --include='*.rs' "${finding_scope_root:-.}" | head -1
