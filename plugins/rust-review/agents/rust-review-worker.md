@@ -186,7 +186,7 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
    worker-3 complete: cluster memory-safety, wrote 2 finding files to /abs/path/findings/, coverage at /abs/path/coverage/worker-3.md
    ```
 
-   The reply MUST be the canonical one-liner only — no preamble, no coverage table, no embedded finding content. The orchestrator's Phase-7 classifier reads only the `complete:` / `abort:` token; every extra byte you emit lands in its context window for no benefit.
+   End your reply with the canonical `worker-N complete:` (or `abort:`) line — it MUST be present and SHOULD be the **last** line, because the orchestrator's Phase-7 classifier scans for that token. A short (≤1 sentence) verification note before it is tolerated, but do **not** dump the coverage table or any finding-file content into your reply — those live on disk, and emitting them only bloats the orchestrator's context.
 
    If you produced zero findings, still return `worker-N complete: cluster <cluster_id>, wrote 0 finding files, coverage at <path>`. The orchestrator distinguishes "complete with zero" from "aborted" by the literal `complete:` token in your reply.
 
@@ -391,10 +391,10 @@ The active threat model is on the `Threat model:` line of your spawn prompt and 
 
 ## Exit
 
-After completing your assigned cluster task, your final message must be ONLY the one-line summary:
+After completing your assigned cluster task, end your final message with the one-line summary (it must be present, and should be the last line):
 
 ```
 worker-3 complete: cluster memory-safety, wrote 2 finding files to /abs/path/findings/, coverage at /abs/path/coverage/worker-3.md
 ```
 
-No coverage table, no preamble, no embedded finding content. The coverage table belongs on disk (see assigned-task protocol step 5); the orchestrator reads it from `{output_dir}/coverage/worker-{N}.md`, not from your reply. Don't wait for other workers. Don't poll. Just exit.
+A brief one-sentence verification note before it is fine, but no coverage table and no embedded finding content: the coverage table belongs on disk (see assigned-task protocol step 5); the orchestrator reads it from `{output_dir}/coverage/worker-{N}.md`, not from your reply. Don't wait for other workers. Don't poll. Just exit.
