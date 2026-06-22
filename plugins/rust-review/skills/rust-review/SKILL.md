@@ -189,7 +189,7 @@ The task ledger is **orchestrator bookkeeping only** (TUI visibility + Phase-7 r
 
 ### Phase 6: Spawn workers (optional cache-primer first, then M in parallel)
 
-**Entry:** `cluster_task_ids[]` populated; per-worker spawn prompt files exist at `${output_dir}/worker-prompts/worker-N.txt`. **Exit:** all M `Agent` calls have returned (the parallel spawn block completed).
+**Entry:** `cluster_task_ids[]` populated; per-worker spawn prompt files exist at `${output_dir}/worker-prompts/worker-N.txt`. **Exit:** all M `Agent` calls — across every wave — have returned (the parallel spawn block(s) completed).
 
 #### Phase 6a: Cache primer (gated on `plan.run.cache_primer`)
 
@@ -199,20 +199,29 @@ If `plan.run.cache_primer == true`, `build_run_plan.py` has written `${output_di
 
 Foreground spawn already serializes — no `sleep` needed before Phase 6b. Skip Phase 6a entirely if `plan.run.cache_primer == false`.
 
-#### Phase 6b: Spawn M real workers in ONE message
+#### Phase 6b: Spawn M real workers in parallel (one message per wave of ≤16)
 
 > **STOP — read this before composing the spawn message.**
 >
 > Workers MUST be spawned **foreground** (no `run_in_background` field, or `run_in_background=false`).
-> "Parallel" here means *one assistant message containing M `Agent` calls* — that already runs them concurrently. **Background spawns are NOT how you parallelize this skill.**
+> "Parallel" here means *one assistant message containing the wave's `Agent` calls* — that already runs them concurrently. (For large `M`, split into consecutive waves of ≤16 calls, one message per wave — see "Required spawn shape" below.) **Background spawns are NOT how you parallelize this skill.**
 >
 > Background spawns defeat Phase 6a's primer cache: every worker pays full cache-creation on its first turn (`cache_read_input_tokens=0`), and the primer's ~15 K tokens are wasted M times over. Two real runs had exactly this symptom — every worker started with `first_cr=0`.
 >
 > Before sending the spawn message, audit your draft: every `Agent` call must have **no** `run_in_background` key. If you wrote `run_in_background=true`, delete it.
 
-**Required spawn shape:** emit a single assistant message containing M `Agent` tool invocations. Sequential spawning serializes the review and is also wrong, but that failure is loud (timing); the background-spawn failure is silent (cost).
+**Required spawn shape:** emit a single assistant message containing the wave's `Agent` tool invocations — that one message is what runs them concurrently. Sequential spawning (one `Agent` call per message) serializes the review and is also wrong, but that failure is loud (timing); the background-spawn failure is silent (cost).
 
-For each worker `N ∈ [1..M]`:
+**Waves when `M` exceeds the per-message cap.** The harness caps the number of `Agent` calls it will dispatch from a single assistant message (observed: ~20 in Claude Code — a real 25-worker run silently kept only the first 20 and had to spawn the remaining 5 in a second message). So when `M > 16`, **plan the waves up front**: split the workers into consecutive waves of **≤16 `Agent` calls**, each wave its own single assistant message. Rules:
+
+- **Within a wave:** all `Agent` calls in **one** message, **foreground** (no `run_in_background`) — identical shape to a single-wave run.
+- **Across waves:** wave _k+1_ is a **separate** message that can only be sent after wave _k_'s `Agent` calls all return (a tool-use message ends the turn). Waves are therefore serialized with respect to each other — that is correct and loud; accept it. Do **not** try to overlap them.
+- **Never** reach for `run_in_background=true` to fit more workers in one message. More *waves*, never background — background defeats the primer cache (see the STOP box) and is the cardinal error this skill guards against.
+- **Cache across waves:** the primer prefix has a ~5-minute cache TTL that refreshes on every hit, so back-to-back waves keep hitting it (the 25-worker run confirmed `cache_read≈14 K` on its second wave). If a later wave will start more than ~5 minutes after the previous one (very large `M` or slow workers), re-spawn the Phase-6a primer in its own message first to re-warm the prefix before that wave.
+- **Balance the waves** (e.g. `M=25` → 13+12, not 20+5) so no wave hugs the cap and the last wave isn't a tiny straggler.
+- After every wave has returned, proceed to Phase 7 with the **full** set of M worker results.
+
+For each worker `N ∈ [1..M]` (in its assigned wave):
 
 1. `Read: ${output_dir}/worker-prompts/worker-N.txt`
 2. Pass the file contents **verbatim** as the `Agent` tool's `prompt` argument:
@@ -230,6 +239,7 @@ The spawn prompt is the single authority. Pass it verbatim — every field is re
 **Anti-patterns to reject:**
 
 - **Passing `run_in_background=true`** (see warning above).
+- **Cramming more than ~16 `Agent` calls into one message** when `M` is large — the harness silently keeps only the first ~20 and drops the rest. Use balanced waves of ≤16, never background spawns, to cover all M.
 - Hand-typing the spawn prompt instead of reading `worker-N.txt`.
 - Inserting Task-related instructions ("first call TaskList", "Assigned task id: <N>"). Workers have no Task tools.
 - Editing the rendered prompt before passing it (trimming "redundant" fields, collapsing pass lists).
