@@ -23,11 +23,11 @@ Rust application/library security review: safe/unsafe boundary auditing, memory 
 
 | Subagent type | Purpose | Tool set |
 |---|---|---|
-| `rust-review:rust-review-worker` | Run assigned cluster, write findings | Read, Write, Edit, Grep, Bash |
+| `rust-review:rust-review-worker` | Run assigned cluster, write findings | Read, Write, Edit, Bash |
 | `rust-review:rust-review-dedup-judge` | Merge duplicates (runs **first**) | Read, Write, Edit, Glob |
-| `rust-review:rust-review-fp-judge` | FP + severity + final reports (runs **second**) | Read, Write, Edit, Grep, Bash |
+| `rust-review:rust-review-fp-judge` | FP + severity + final reports (runs **second**) | Read, Write, Edit, Bash |
 
-Tools come from each agent's frontmatter at spawn time. The orchestrator's `Task*`/`Agent`/`Bash`/etc. come from this skill's `allowed-tools`. **Glob/Bash interaction:** in current Claude Code, an agent granted `Bash` is **not** also granted `Glob` (a `Glob` call returns `No such tool available: Glob`; the harness expects `find`/`ls` via `Bash` instead). So only the dedup-judge — the one agent that holds **no** `Bash` — uses `Glob`; the worker, fp-judge, and the orchestrator resolve and probe paths with `Read` / `Bash find` / `test -f` instead. Do **not** reintroduce `Glob` into a `Bash`-holding agent's protocol.
+Tools come from each agent's frontmatter at spawn time. The orchestrator's `Task*`/`Agent`/`Bash`/etc. come from this skill's `allowed-tools`. **Search-tool / `Bash` interaction:** in current Claude Code, an agent granted `Bash` is **not** also granted the dedicated `Glob` **or `Grep`** tools (the calls return `No such tool available`; the harness expects `find`/`grep`/`rg` via `Bash` instead). So only the dedup-judge — the one agent that holds **no** `Bash` — uses `Glob`; the worker, fp-judge, and the orchestrator resolve and search paths with `Read` / `Bash` `find` / `rg` / `grep` / `test -f` instead. Because the cluster/finder prompt seeds are written in ripgrep regex syntax (`\s`, `\d`, `\b`), `Bash`-holding agents must run them with **`rg`**. If `rg` is not installed its call fails *loudly* (`command not found`) — fall back to `grep -E` with POSIX classes (`\s`→`[[:space:]]`, `\d`→`[[:digit:]]`, drop `\b`), never a raw-`\s` `grep` whose *silent* empty becomes a bad `cleared`. Do **not** reintroduce `Glob`/`Grep` into a `Bash`-holding agent's protocol.
 
 ---
 
@@ -98,7 +98,7 @@ After resolving `scope_subpath`, set `finding_scope_root="${scope_subpath:-.}"`.
 
 **Entry:** Phase 0 complete. **Exit:** `has_unsafe`, `has_ffi`, `has_concurrency`, `has_async`, `has_packed_repr`, `has_fs_io` flags determined. Abort with a clear message if no `*.rs` files exist under `${finding_scope_root}`.
 
-Probe within `${finding_scope_root:-.}` with `Grep` and the `Bash` equivalents below (non-empty output ⇒ flag true). Don't reach for `Glob` for file-listing probes — it is unavailable to this orchestrator because it holds `Bash`; use `find`/`grep` via `Bash`.
+Probe within `${finding_scope_root:-.}` with the `Bash` commands below (non-empty output ⇒ flag true). The dedicated `Grep`/`Glob` tools are unavailable to this orchestrator because it holds `Bash` — use `grep`/`rg`/`find` via `Bash`. (The probe regexes use `\s`/`\b`; if your `grep` lacks GNU `\s` support, run them with `rg -uu` — which honors `\s` and still searches ignored files — or, if `rg` is not installed either, replace `\s`→`[[:space:]]` and drop `\b`. Widening is safe here: a false-positive capability flag only adds a harmless extra worker, whereas a missed match would skip a whole pass.)
 
 ```bash
 # Rust source presence (precondition)

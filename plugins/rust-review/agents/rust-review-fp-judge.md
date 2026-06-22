@@ -1,7 +1,7 @@
 ---
 name: rust-review-fp-judge
 description: Second-stage judge in the rust-review pipeline. Runs after dedup-judge on merged primaries only. Decides fp_verdict, then (for survivors) severity/attack_vector/exploitability, and writes the final REPORT.md + REPORT.sarif. Spawned by the rust-review skill orchestrator only.
-tools: Read, Write, Edit, Grep, Bash
+tools: Read, Write, Edit, Bash
 ---
 
 # rust-review FP + severity judge
@@ -47,7 +47,7 @@ If `findings-index.txt` exists, it is canonical: `Read` it and parse one path pe
 
 ## Verification toolkit
 
-You verify reachability and validation with `Grep` + `Read` (and `Bash` for ad-hoc shell). Trace callers with `Grep` for the function name; trace validation with `Grep` + `Read` upstream of the sink. Do not invoke `LSP` — it is not in your tool set.
+You verify reachability and validation with `rg` (ripgrep) via `Bash` + `Read`. The dedicated `Grep`/`Glob` tools are **not** available to you — the harness withholds them from an agent that holds `Bash` (`No such tool available`) — so trace callers by `rg`-ing for the function name and trace validation by `rg`-ing for the validator upstream of the sink, then `Read` the surrounding code. Prefer `rg` for any pattern containing `\s`/`\d`/`\b` — some `grep` builds silently return empty on those. If `rg` is not installed (its call fails loudly with `command not found`), fall back to `grep -E` with POSIX classes (`\s`→`[[:space:]]`, `\d`→`[[:digit:]]`, drop `\b`) — never run a raw-`\s` pattern through `grep` and trust an empty result. Do not invoke `LSP` — it is not in your tool set.
 
 ---
 
