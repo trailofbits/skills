@@ -23,9 +23,9 @@ Grep: pattern="extern\s+\"(C|system|stdcall|cdecl|win64|sysv64|aapcs|fastcall|th
 Grep: pattern="CString::|CStr::|CString::new"
 Grep: pattern="#\[repr\((C|transparent)"
 Grep: pattern="bindgen|cbindgen"
-Grep: pattern="\bimpl\s+Drop\s+for\s+\w+"
+Grep: pattern="\bimpl\b[^{]*?\bDrop\s+for\s+\w+"
 Grep: pattern="libc::(malloc|free)|CoTaskMem|g_malloc|CFAllocator|LocalAlloc"
-Grep: pattern="\bdyn\s+Fn(Once|Mut)?\b|\bextern\s+\"C\"\s*fn\b|catch_unwind"
+Grep: pattern="\bdyn\s+Fn(Once|Mut)?\b|\bextern\s+\"(C|C-unwind|system)\"\s*fn\b|catch_unwind"
 Grep: pattern="\bdyn\s+\w|\bBox<\s*dyn\s+\w"
 Grep: pattern="\bc_void\b"                                                                  # OPAQUEPTR seed: *mut/*const c_void opaque handles
 ```

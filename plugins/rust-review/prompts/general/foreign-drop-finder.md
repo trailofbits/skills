@@ -25,7 +25,7 @@ The inverse — `extern "C" fn` *takes* a `Box<T>` allocated by Rust and returns
 **Search patterns:**
 
 ```
-\bimpl\s+Drop\s+for\s+\w+
+\bimpl\b[^{]*?\bDrop\s+for\s+\w+
 \bBox::from_raw\b|\bVec::from_raw_parts\b|\bdealloc\s*\(
 \blibc::(malloc|calloc|realloc|strdup)\b
 CoTaskMemAlloc|LocalAlloc|GlobalAlloc[^:]|CFAllocator|g_malloc

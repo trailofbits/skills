@@ -23,7 +23,7 @@ description: Detects Rust closures passed to extern "C" callbacks without panic 
 
 ```
 extern\s+"C"\s*\{
-\bextern\s+"C"\s*fn\b
+\bextern\s+"(C|C-unwind|system)"\s*fn\b
 \bBox::into_raw\b
 \bdyn\s+Fn(Once|Mut)?\b
 catch_unwind
