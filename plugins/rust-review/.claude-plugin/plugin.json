@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Comprehensive Rust security code review with specialized bug-finding agents covering the safe/unsafe boundary, memory safety in unsafe blocks, concurrency, panic-induced DoS, recursion-induced stack overflow, FFI, and async runtime hazards",
   "author": {
-    "name": "Aptos Labs"
+    "name": "Andrea Cappa (Aptos Labs) & Paweł Płatek (Trail of Bits)"
   },
   "keywords": ["rust", "security", "code-review", "static-analysis", "unsafe", "ffi", "concurrency", "async", "memory-safety"]
 }

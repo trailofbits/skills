@@ -19,10 +19,12 @@ Inputs (`AskUserQuestion`): threat model, scope subpath (optional), worker model
 
 From these inputs the orchestrator detects Rust capability flags (`has_unsafe`, `has_ffi`, `has_concurrency`, `has_async`, `has_packed_repr`, `has_fs_io`) over the scope and selects clusters from `prompts/clusters/manifest.json`. Each cluster groups related bug classes anchored on a shared mental model and runs as one parallel worker.
 
-The planner normally caps workers at four passes each, but output-heavy clusters
-can declare a smaller `max_passes_per_worker` in the manifest. Today
-`concurrency-locking` and `recursion-dos` run one pass per worker to avoid
-losing coverage when inventory-heavy analysis exhausts the worker output budget.
+The planner caps each **non-consolidated** worker at four passes, splitting larger
+clusters into `-1`/`-2`/… chunks; output-heavy clusters can declare a smaller
+`max_passes_per_worker` in the manifest (today `recursion-dos` runs one pass per
+worker). **Consolidated clusters (`unsafe-boundary`, `concurrency-locking`) are
+never chunked** — one worker owns the whole cluster so its shared Phase-A inventory
+is built once and grounds every phase.
 
 Always-on clusters:
 
@@ -45,7 +47,7 @@ Conditional clusters:
 - **input-os-safety** (`has_fs_io`) — `PathBuf::join` path traversal (PATHJOIN), filesystem TOCTOU (TOCTOU).
 - **async-runtime** (`has_async`) — blocking calls in async, cancellation-unsafe `.await` sequences, `tokio::select!` branch bias.
 
-Same orchestration as `c-review`: workers spawn foreground in a single message (with optional cache primer), write markdown-with-YAML-frontmatter finding files, then a dedup-judge merges duplicates, then an fp-judge assigns `fp_verdict` / `severity` / `attack_vector` / `exploitability`. A report safety net then runs: SARIF is regenerated unconditionally, and the orchestrator writes `REPORT.md` itself if the fp-judge failed to.
+Same orchestration as `c-review`: workers spawn foreground (one message per wave of ≤16 workers, after an optional cache primer), write markdown-with-YAML-frontmatter finding files, then a dedup-judge merges duplicates, then an fp-judge assigns `fp_verdict` / `severity` / `attack_vector` / `exploitability`. A report safety net then runs: SARIF is regenerated unconditionally, and the orchestrator writes `REPORT.md` itself if the fp-judge failed to.
 
 ## Architecture
 
@@ -58,9 +60,11 @@ coordinator: write context.md → build_run_plan.py → TaskCreate × M
 
 | Subagent type | Purpose | Tool set |
 |---|---|---|
-| `rust-review:rust-review-worker` | Run assigned cluster, write findings | Read, Write, Edit, Grep, Glob, Bash |
+| `rust-review:rust-review-worker` | Run assigned cluster, write findings | Read, Write, Edit, Bash |
 | `rust-review:rust-review-dedup-judge` | Merge duplicates (runs **first**) | Read, Write, Edit, Glob |
-| `rust-review:rust-review-fp-judge` | FP + severity + final reports (runs **second**) | Read, Write, Edit, Grep, Glob, Bash |
+| `rust-review:rust-review-fp-judge` | FP + severity + final reports (runs **second**) | Read, Write, Edit, Bash |
+
+In current Claude Code an agent granted `Bash` is not also granted the dedicated `Glob`/`Grep` tools (the harness expects `find`/`grep`/`rg` via `Bash`). So the worker and fp-judge search and resolve paths with `Read`/`Bash`, running the ripgrep-syntax prompt seeds through `rg`; only the dedup-judge — which holds no `Bash` — uses `Glob`.
 
 ## Output directory layout
 
@@ -90,5 +94,5 @@ Default: `$(pwd)/.rust-review-results/<iso-timestamp>/`. Contains:
 - [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)
 
 ## Authors
-- (Andrea Cappa)[https://github.com/zi0Black] @ Aptos Labs
-- (Paweł Płatek)[https://github.com/GrosQuildu] @ Trail of Bits
+- [Andrea Cappa](https://github.com/zi0Black) @ Aptos Labs
+- [Paweł Płatek](https://github.com/GrosQuildu) @ Trail of Bits
