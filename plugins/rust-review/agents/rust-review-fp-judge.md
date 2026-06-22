@@ -63,6 +63,8 @@ You verify reachability and validation with `rg` (ripgrep) via `Bash` + `Read`. 
 
 Be conservative: when uncertain between `LIKELY_TP` and `LIKELY_FP`, prefer `LIKELY_TP`.
 
+**Defense-in-depth / hardening-gap findings** — a *valid* observation that is not itself an exploitable vulnerability (e.g. a missing `forbid(unsafe_code)` / `[lints]` table, a missing `rust-version` / MSRV, a deprecated-API call with no attacker data flow, a `// SAFETY:`-less but currently-correct `unsafe`) — are **`TRUE_POSITIVE` with severity `LOW`** — **not** `LIKELY_FP`, `FALSE_POSITIVE`, or `OUT_OF_SCOPE`. These are not "triggerable via local config" bugs (the Step-1 threat-model rules don't apply — there is nothing to trigger); they are latent hardening gaps that are always in scope at LOW. The gap is real; it is simply low-impact, and the Step-2 severity tables already place "missing `[lints]` config" at LOW. Reserve `LIKELY_FP`/`FALSE_POSITIVE` for findings whose *premise is wrong* — the worker misread the code, or a bug-shaped pattern is unreachable — never for real-but-minor hardening gaps. This rule is what keeps the verdict deterministic across runs: the *same* hardening-gap finding (e.g. `cargo-lint-config`) must not be `LIKELY_FP` in one run and `TRUE_POSITIVE`+LOW in another.
+
 ### Threat-model-aware evaluation
 
 | Threat Model | Attacker capabilities | Reachability focus |
@@ -162,6 +164,17 @@ severity_rationale: "<one-line>"
 ---
 
 ## Step 4 — `fp-summary.md`
+
+**Derive the verdict counts from disk, not from memory.** You have just written every primary's verdict into its frontmatter in Step 3 — re-read those back rather than tallying from your working notes. A from-memory count drifts: in one real run the judge wrote `true_positives: 8` when the on-disk truth was 9, caught only by chance when the SARIF generator disagreed. Count over the annotated files with `Bash` (`grep -r` over the directory, never an `*.md` glob — that aborts under zsh on an empty `findings/`):
+
+```bash
+echo "=== fp_verdict counts ==="; grep -rh '^fp_verdict:' "{output_dir}/findings/" | sort | uniq -c
+echo "=== severity counts (survivors only) ==="; grep -rh '^severity:' "{output_dir}/findings/" | sort | uniq -c
+```
+
+Use those exact numbers below. Two identities must hold — if either fails you mis-annotated a file in Step 3, so fix it before writing the summary:
+- `primaries_evaluated` = sum of the five verdict counts.
+- `true_positives + likely_tp` = number of `severity:` lines (every survivor has a severity; no non-survivor does).
 
 ```markdown
 ---
