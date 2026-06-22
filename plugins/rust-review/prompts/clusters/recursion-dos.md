@@ -30,7 +30,7 @@ A type is *recursive* if it (transitively) contains itself behind an indirection
 
 ```
 Grep: pattern="Box<\s*Self\s*>|Vec<\s*Self\s*>|Option<\s*Box<\s*Self"
-Grep: pattern="(Rc|Arc)<\s*(Self|RefCell<\s*Self)"
+Grep: pattern="(Rc|Arc)<\s*(Self|RefCell<\s*Self|Mutex<\s*Self|RwLock<\s*Self|Box<\s*Self)"
 Grep: pattern="HashMap<[^,>]+,\s*(Self|Box<\s*Self)"
 Grep: pattern="enum\s+\w+\b"   # candidates for recursive enum (AST/JSON-value shapes)
 Grep: pattern="struct\s+\w+\b" # candidates for recursive struct (tree/linked-list shapes)
