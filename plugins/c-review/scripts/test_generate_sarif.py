@@ -328,6 +328,50 @@ def test_frontmatterless_finding_is_skipped_not_phantom(tmp_path: Path) -> None:
     assert all(r["ruleId"] != "unknown" for r in results)
 
 
+def test_clean_run_reports_zero_skips(output_dir: Path) -> None:
+    """A healthy run records skipped_findings: 0 and adds no skip notifications."""
+    invocation = build_sarif(output_dir)["runs"][0]["invocations"][0]
+    assert invocation["executionSuccessful"] is True
+    assert invocation["properties"]["skipped_findings"] == 0
+    assert "skipped_paths" not in invocation["properties"]
+    assert "toolExecutionNotifications" not in invocation
+
+
+def test_skipped_findings_surfaced_in_invocation(tmp_path: Path) -> None:
+    """Dropped finding files (missing index entry + frontmatterless file) must be
+    surfaced in the artifact — a count, the paths, and one warning notification
+    each — while executionSuccessful stays True and good findings still emit."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="UAF-001",
+        bug_class="use-after-free",
+        title="real",
+        location="src/a.c:1",
+    )
+    (findings / "broken.md").write_text("no frontmatter here\n", encoding="utf-8")
+    # Index lists the good file, a frontmatterless file, and a ghost (unreadable).
+    (tmp_path / "findings-index.txt").write_text(
+        f"{findings / 'UAF-001.md'}\n{findings / 'broken.md'}\n{findings / 'GHOST-404.md'}\n",
+        encoding="utf-8",
+    )
+
+    run = build_sarif(tmp_path)["runs"][0]
+    invocation = run["invocations"][0]
+    assert [r["properties"]["finding_id"] for r in run["results"]] == ["UAF-001"]
+    assert invocation["executionSuccessful"] is True
+    assert invocation["properties"]["skipped_findings"] == 2
+    assert len(invocation["properties"]["skipped_paths"]) == 2
+    notifications = invocation["toolExecutionNotifications"]
+    assert len(notifications) == 2
+    assert all(n["level"] == "warning" for n in notifications)
+    assert any("GHOST-404" in n["message"]["text"] for n in notifications)
+    assert any("broken.md" in n["message"]["text"] for n in notifications)
+
+
 def test_location_parts_branch_coverage() -> None:
     """Cover location_parts shapes: plain, markdown-link, trailing-colon, multi,
     bare path, and the :0 clamp."""

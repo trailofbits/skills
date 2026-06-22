@@ -24,7 +24,7 @@ The skill takes the following inputs (collected via `AskUserQuestion`):
 
 From these inputs the orchestrator detects platform/language flags (`is_cpp`, `is_posix`, `is_windows`) over the scope and selects clusters from `prompts/clusters/manifest.json`. Each cluster groups related bug classes — based on C/C++ chapters of [appsec.guide](https://appsec.guide/) — and runs as one parallel worker.
 
-The planner normally caps workers at four passes each. Output-heavy clusters can declare a smaller manifest-level `max_passes_per_worker` override when future runs show a cluster needs finer-grained workers to preserve complete coverage.
+The planner caps each **non-consolidated** worker at four passes, splitting larger clusters into `-1`/`-2`/… chunks; output-heavy clusters can declare a smaller manifest-level `max_passes_per_worker` override for finer-grained workers. **The consolidated cluster `buffer-write-sinks` (13 passes) is never chunked** — one worker builds its shared inventory once and runs every phase (chunking would force each chunk to rebuild that inventory, which workers skip in practice), making it the heaviest worker in the fan-out.
 
 Always-on clusters:
 
@@ -57,8 +57,8 @@ Each worker inventories candidate sites once for its cluster (Phase A), then run
     ├── Phase 5: TaskCreate M cluster tasks (orchestrator-internal bookkeeping; workers
     │           have no Task tools and never read or write the ledger)
     ├── Phase 6: Phase 6a cache primer (foreground, gated on plan.run.cache_primer);
-    │           Phase 6b spawns M workers in a single message (parallel Agent calls,
-    │           subagent_type="c-review:c-review-worker")
+    │           Phase 6b spawns M workers foreground, one message per wave of ≤16
+    │           (parallel Agent calls, subagent_type="c-review:c-review-worker")
     │           └── Each worker: validate spawn prompt (self-check) →
     │                            run assigned cluster prompt
     │                                   (Phase A inventory + focused passes) →

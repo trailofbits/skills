@@ -186,8 +186,12 @@ def parse_context(output_dir: Path) -> dict[str, Any]:
     return frontmatter
 
 
-def iter_findings(output_dir: Path) -> list[dict[str, Any]]:
-    findings = []
+def iter_findings(output_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Return (parsed findings, skipped records). Each skipped record is
+    `{"path": ..., "reason": ...}` for a finding file that could not be read —
+    the caller surfaces these in the SARIF so the loss is not stderr-only."""
+    findings: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
     index_path = output_dir / "findings-index.txt"
     if index_path.exists():
         paths = [
@@ -202,17 +206,18 @@ def iter_findings(output_dir: Path) -> list[dict[str, Any]]:
             path = output_dir / path
         # A stale/missing index entry (e.g. a finding moved or deleted after the
         # Phase-7 index was written) must NOT crash the Phase-8b safety net, whose
-        # whole job is to guarantee REPORT.sarif exists. Skip-and-warn instead of
+        # whole job is to guarantee REPORT.sarif exists. Skip-and-record instead of
         # letting read_text raise FileNotFoundError.
         try:
             text = path.read_text(encoding="utf-8")
         except OSError as exc:
             print(f"warning: skipping unreadable finding file {path}: {exc}", file=sys.stderr)
+            skipped.append({"path": str(path), "reason": f"unreadable ({exc.__class__.__name__})"})
             continue
         frontmatter, _ = split_frontmatter(text)
         frontmatter["_path"] = str(path)
         findings.append(frontmatter)
-    return findings
+    return findings, skipped
 
 
 def location_parts(location: Any) -> tuple[str, int]:
@@ -264,8 +269,9 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
     context = parse_context(output_dir)
     severity_filter = str(context.get("severity_filter", "all")).lower()
     threat_model = str(context.get("threat_model", "UNKNOWN"))
+    raw_findings, skipped = iter_findings(output_dir)
     findings = []
-    for finding in iter_findings(output_dir):
+    for finding in raw_findings:
         if "merged_into" in finding:
             continue
         if not (finding.get("id") or finding.get("bug_class") or finding.get("title")):
@@ -273,11 +279,12 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
             # emitting the `---` block). Skip rather than fabricate a phantom
             # result with ruleId "unknown" and an empty id/uri. Phase-7
             # validate_artifacts.py is the primary guard; this is defense in depth.
+            path = str(finding.get("_path", "?"))
             print(
-                "generate_sarif: skipping finding with no parseable frontmatter: "
-                f"{finding.get('_path', '?')}",
+                f"generate_sarif: skipping finding with no parseable frontmatter: {path}",
                 file=sys.stderr,
             )
+            skipped.append({"path": path, "reason": "no parseable frontmatter"})
             continue
         verdict = str(finding.get("fp_verdict", "")).upper()
         unjudged = not verdict
@@ -369,6 +376,33 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
             }
         )
 
+    # Surface any finding files that were dropped (unreadable / no frontmatter)
+    # in the artifact itself — stderr is ephemeral, but a code-scanning consumer
+    # reads only REPORT.sarif. We keep executionSuccessful=True on purpose: the
+    # run DID complete and the vast majority of findings are present; flipping it
+    # false can make platforms discard the entire run (losing the good findings
+    # too). The skip count + per-file warning notifications are the proportionate
+    # signal.
+    invocation: dict[str, Any] = {
+        "executionSuccessful": True,
+        "properties": {
+            "threat_model": threat_model,
+            "severity_filter": severity_filter,
+            "skipped_findings": len(skipped),
+        },
+    }
+    if skipped:
+        invocation["properties"]["skipped_paths"] = [s["path"] for s in skipped]
+        invocation["toolExecutionNotifications"] = [
+            {
+                "level": "warning",
+                "message": {
+                    "text": f"Skipped finding file (excluded from results): {s['path']} — {s['reason']}"
+                },
+            }
+            for s in skipped
+        ]
+
     return {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
         "version": "2.1.0",
@@ -392,15 +426,7 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
                         }
                     }
                 },
-                "invocations": [
-                    {
-                        "executionSuccessful": True,
-                        "properties": {
-                            "threat_model": threat_model,
-                            "severity_filter": severity_filter,
-                        },
-                    }
-                ],
+                "invocations": [invocation],
                 "results": results,
             }
         ],
@@ -418,6 +444,14 @@ def main() -> int:
     sarif = build_sarif(output_dir)
     output_path.write_text(json.dumps(sarif, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {output_path}")
+    skipped_count = sarif["runs"][0]["invocations"][0]["properties"]["skipped_findings"]
+    if skipped_count:
+        # Stdout (not just stderr) so the orchestrator's Bash capture sees it and
+        # Phase 8b can note the loss in run-summary.md.
+        print(
+            f"WARNING: skipped {skipped_count} unreadable/frontmatterless finding "
+            "file(s) — see REPORT.sarif invocations[].properties.skipped_findings"
+        )
     return 0
 
 

@@ -254,6 +254,12 @@ def split_oversized_clusters(
     pass count pass through with bare `cluster_id` and an identical `passes`
     list.
 
+    **Consolidated clusters (`consolidated: true`) are never chunked**, regardless
+    of pass count or any `max_passes_per_worker` override: one worker owns the whole
+    cluster so its shared Phase-A inventory grounds every phase (chunking would force
+    each chunk to rebuild that inventory, which workers skip in practice). Only
+    non-consolidated clusters are partitioned.
+
     `max_passes == 0` is the explicit "disable chunking" sentinel: the input
     list is returned unchanged, including any manifest-level overrides.
     `max_passes < 0` is rejected as a programmer error — the CLI layer must
@@ -274,7 +280,17 @@ def split_oversized_clusters(
     out: list[dict[str, Any]] = []
     for cluster in selected:
         passes = cluster["passes"]
+        # Validate any manifest override regardless of `consolidated` (keeps the
+        # invalid-override guard live) — but consolidated clusters are not chunked.
         cluster_max_passes = cluster_max_passes_per_worker(cluster, cid=str(cluster["cluster_id"]))
+        # Consolidated clusters are NEVER chunked: their shared Phase-A inventory
+        # grounds every phase, and splitting forces each chunk to rebuild it (which
+        # workers skip in practice — see c-review-worker.md's chunked-subset rule).
+        # One worker owns the whole consolidated cluster, builds the inventory once,
+        # and runs all its phases. Pass through with a bare cluster_id.
+        if cluster.get("consolidated"):
+            out.append(cluster)
+            continue
         effective_max_passes = cluster_max_passes if cluster_max_passes is not None else max_passes
         k = len(passes)
         if k <= effective_max_passes:

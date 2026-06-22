@@ -1,11 +1,12 @@
 """Unit tests for the cluster-chunking helper in build_run_plan.py.
 
-The helper partitions any cluster whose `passes` list exceeds
+The helper partitions any **non-consolidated** cluster whose `passes` list exceeds
 `max_passes_per_worker` into contiguous, order-preserving chunks. Each chunk
 becomes its own pseudo-cluster entry, carrying the source cluster's prompt
 path and `consolidated` flag, with a `-{i}` suffix appended to its
 cluster_id (1-indexed). Clusters that fit within the threshold pass through
-unchanged.
+unchanged. **Consolidated clusters are never chunked** (one worker owns all
+phases so the shared Phase-A inventory grounds every phase).
 """
 
 from __future__ import annotations
@@ -28,8 +29,7 @@ def _mk_cluster(
         "consolidated": consolidated,
         "cluster_prompt": f"/abs/prompts/clusters/{cid}.md",
         "passes": [
-            {"bug_class": f"{cid}-bc-{i}", "prefix": f"{cid.upper()}{i}"}
-            for i in range(n_passes)
+            {"bug_class": f"{cid}-bc-{i}", "prefix": f"{cid.upper()}{i}"} for i in range(n_passes)
         ],
     }
     if max_passes_per_worker is not None:
@@ -38,6 +38,7 @@ def _mk_cluster(
 
 
 # --- Pass-through (single-chunk) cases ---------------------------------------
+
 
 def test_pass_through_k_equals_one():
     """K=1 < N=4 → 1 chunk, bare cluster_id, byte-identical to input."""
@@ -63,6 +64,7 @@ def test_pass_through_preserves_consolidated_flag():
 
 
 # --- Split cases -------------------------------------------------------------
+
 
 def test_split_k_5_n_4_yields_4_plus_1():
     src = [_mk_cluster("big", 5)]
@@ -94,12 +96,26 @@ def test_split_preserves_pass_order():
     assert flat == expected_bcs
 
 
-def test_split_preserves_cluster_prompt_and_consolidated():
+def test_consolidated_cluster_never_chunks():
+    """Consolidated clusters are exempt from chunking — one worker owns all phases
+    so the shared Phase-A inventory grounds every phase (it would otherwise be
+    rebuilt per chunk, which workers skip in practice)."""
     src = [_mk_cluster("share", 8, consolidated=True)]
     out = split_oversized_clusters(src, max_passes=4)
-    for chunk in out:
-        assert chunk["cluster_prompt"] == "/abs/prompts/clusters/share.md"
-        assert chunk["consolidated"] is True
+    assert len(out) == 1
+    assert out[0]["cluster_id"] == "share"  # bare id, no -1/-2 suffix
+    assert out[0]["consolidated"] is True
+    assert out[0]["cluster_prompt"] == "/abs/prompts/clusters/share.md"
+    assert len(out[0]["passes"]) == 8
+
+
+def test_consolidated_cluster_ignores_mppw_override():
+    """An mppw override on a consolidated cluster is validated but does not chunk it."""
+    src = [_mk_cluster("share", 6, consolidated=True, max_passes_per_worker=1)]
+    out = split_oversized_clusters(src, max_passes=4)
+    assert len(out) == 1
+    assert out[0]["cluster_id"] == "share"
+    assert len(out[0]["passes"]) == 6
 
 
 def test_cluster_override_splits_below_global_max():
@@ -127,7 +143,7 @@ def test_cluster_override_does_not_affect_other_clusters():
     ]
 
 
-def test_manifest_override_survives_selection_after_pass_filtering(tmp_path):
+def test_consolidated_override_ignored_passes_still_filtered(tmp_path):
     prompt_path = tmp_path / "prompts" / "clusters" / "heavy.md"
     prompt_path.parent.mkdir(parents=True)
     prompt_path.write_text("# heavy\n", encoding="utf-8")
@@ -161,8 +177,10 @@ def test_manifest_override_survives_selection_after_pass_filtering(tmp_path):
     )
     out = split_oversized_clusters(selected, max_passes=4)
 
-    assert [c["cluster_id"] for c in out] == ["heavy-1", "heavy-2"]
-    assert [[p["prefix"] for p in c["passes"]] for c in out] == [["KEPTA"], ["KEPTB"]]
+    # Consolidated cluster: the mppw override is ignored (no chunking), but pass
+    # filtering still applies — the `requires: is_posix` pass is dropped.
+    assert [c["cluster_id"] for c in out] == ["heavy"]
+    assert [[p["prefix"] for p in c["passes"]] for c in out] == [["KEPTA", "KEPTB"]]
 
 
 @pytest.mark.parametrize("override", [False, "1", 0, -1])
@@ -205,6 +223,7 @@ def test_split_rejects_invalid_standalone_override(override):
 
 # --- Identity (disable) case -------------------------------------------------
 
+
 def test_max_passes_zero_is_identity_no_suffix():
     """N=0 is the explicit 'disable chunking' sentinel — pass through with bare ids."""
     src = [_mk_cluster("a", 8), _mk_cluster("b", 3, max_passes_per_worker=1)]
@@ -214,12 +233,13 @@ def test_max_passes_zero_is_identity_no_suffix():
 
 # --- Multiple clusters in one call -------------------------------------------
 
+
 def test_mixed_input_handles_each_cluster_independently():
     src = [
-        _mk_cluster("small", 2),     # pass-through
+        _mk_cluster("small", 2),  # pass-through
         _mk_cluster("split-me", 6),  # 4 + 2
-        _mk_cluster("exact", 4),     # pass-through
-        _mk_cluster("huge", 9),      # 4 + 4 + 1
+        _mk_cluster("exact", 4),  # pass-through
+        _mk_cluster("huge", 9),  # 4 + 4 + 1
     ]
     out = split_oversized_clusters(src, max_passes=4)
     cids = [c["cluster_id"] for c in out]
@@ -242,6 +262,7 @@ def test_order_of_source_clusters_is_preserved():
 
 # --- Determinism -------------------------------------------------------------
 
+
 def test_same_input_same_output_repeated_calls():
     src = [_mk_cluster("d", 7)]
     out1 = split_oversized_clusters(src, max_passes=4)
@@ -250,6 +271,7 @@ def test_same_input_same_output_repeated_calls():
 
 
 # --- Negative input ----------------------------------------------------------
+
 
 def test_negative_max_passes_raises():
     """Negative N is a CLI input error; helper rejects it explicitly."""

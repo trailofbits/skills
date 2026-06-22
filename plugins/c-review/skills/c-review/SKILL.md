@@ -22,11 +22,11 @@ Native C/C++ application security review: memory safety, integer overflow, races
 
 | Subagent type | Purpose | Tool set |
 |---|---|---|
-| `c-review:c-review-worker` | Run assigned cluster, write findings | Read, Write, Edit, Grep, Glob, Bash |
+| `c-review:c-review-worker` | Run assigned cluster, write findings | Read, Write, Edit, Bash |
 | `c-review:c-review-dedup-judge` | Merge duplicates (runs **first**) | Read, Write, Edit, Glob |
-| `c-review:c-review-fp-judge` | FP + severity + final reports (runs **second**) | Read, Write, Edit, Grep, Glob, Bash |
+| `c-review:c-review-fp-judge` | FP + severity + final reports (runs **second**) | Read, Write, Edit, Bash |
 
-Tools come from each agent's frontmatter at spawn time. The orchestrator's `Task*`/`Agent`/`Bash`/etc. come from this skill's `allowed-tools`.
+Tools come from each agent's frontmatter at spawn time. The orchestrator's `Task*`/`Agent`/`Bash`/etc. come from this skill's `allowed-tools`. **Search-tool / `Bash` interaction:** in current Claude Code, an agent granted `Bash` is **not** also granted the dedicated `Glob` **or `Grep`** tools (the calls return `No such tool available`; the harness expects `find`/`grep`/`rg` via `Bash` instead). So only the dedup-judge — the one agent that holds **no** `Bash` — uses `Glob`; the worker, fp-judge, and the orchestrator resolve and search paths with `Read` / `Bash` `find` / `rg` / `grep` / `test -f` instead. Because the cluster/finder prompt seeds are written in ripgrep regex syntax (`\s`, `\d`, `\b`), `Bash`-holding agents must run them with **`rg`** — a plain `grep -E` may silently mishandle `\s` and return a false-empty (a bad `cleared`). If `rg` is not installed its call fails *loudly* (`command not found`) — fall back to `grep -E` with POSIX classes (`\s`→`[[:space:]]`, drop `\b`), never a raw-`\s` `grep`. Do **not** reintroduce `Glob`/`Grep` into a `Bash`-holding agent's protocol.
 
 ---
 
@@ -62,7 +62,7 @@ Set `C_REVIEW_PLUGIN_ROOT` to the resolved root. If all three fail, **abort** wi
 - **"I'll re-derive the cluster list / paths / pass prefixes inline instead of running `build_run_plan.py`."** The script is the only authority for selection and rendering. Paraphrasing it drops fields that the worker self-check requires, producing `worker-N abort: spawn prompt malformed`. Always run the script and `Read plan.json`.
 - **"The run partially succeeded — I'll just write `REPORT.md` from what completed."** Hiding partial runs behind a successful report is a correctness bug. If any Phase-5 cluster task is not `completed`, surface it prominently in `run-summary.md` and the final response.
 - **"Zero findings — skip Phase 8."** Always run both judges and Phase 8b: dedup-judge writes a minimal no-op `dedup-summary.md` on an empty index, fp-judge writes empty `REPORT.md`/`REPORT.sarif`, and Phase 8b's SARIF generator emits `results: []` for the empty case. SARIF consumers depend on a stable artifact set.
-- **"`Bash: ls README*` is fine for the preflight."** Under zsh, an unmatched glob aborts the whole compound command before `2>/dev/null` runs. Use `Glob` (preferred) or `find` (never fails on no-match).
+- **"`Bash: ls README*` is fine for the preflight."** Under zsh, an unmatched glob aborts the whole compound command before `2>/dev/null` runs. Use `find` (never fails on no-match) — and not `Glob`, which is unavailable to an agent that also holds `Bash`.
 
 ---
 
@@ -93,7 +93,7 @@ After resolving `scope_subpath`, set `finding_scope_root="${scope_subpath:-.}"`.
 
 **Entry:** Phase 0 complete. **Exit:** `is_cpp`, `is_posix`, `is_windows` flags determined.
 
-Probe within `${finding_scope_root:-.}`. Prefer `Glob`/`Grep` when available in the orchestrator's tool set; some sessions only expose `Bash`, so fall back to the equivalents below — both forms produce identical signals (non-empty output ⇒ flag true):
+Probe within `${finding_scope_root:-.}` with the `Bash` commands below (non-empty output ⇒ flag true). The dedicated `Grep`/`Glob` tools are unavailable to this orchestrator because it holds `Bash` — use `grep`/`rg`/`find` via `Bash`. (If a probe regex uses `\s`/`\b` and your `grep` lacks GNU `\s` support, run it with `rg -uu` — which honors `\s` and still searches ignored files — or replace `\s`→`[[:space:]]` and drop `\b`. Widening is safe: a false-positive flag only adds a harmless worker, a missed match would skip a pass.):
 
 ```bash
 # is_cpp
@@ -138,7 +138,7 @@ The `coverage/` subdirectory holds per-worker coverage-gate audit files (`covera
 
 **Entry:** `${output_dir}` exists. **Exit:** `${output_dir}/context.md` written.
 
-Skim `README.{md,rst,txt}` and any build file (`Makefile`, `CMakeLists.txt`, `meson.build`, `configure.ac`) — preflight with the `Glob` tool before any `Read` (a `Read` on a missing file aborts the turn). Do **not** use `Bash: ls README*` for the preflight: under zsh, an unmatched glob aborts the whole compound command before `2>/dev/null` runs (observed: a Phase-3 `ls src/X/README*` call failed with `no matches found` and dropped the entire preflight). If you must use `Bash`, use `find . -maxdepth 2 -name 'README*' -o -name 'Makefile' -o -name 'CMakeLists.txt' -o -name 'meson.build'`, which never fails on no-match.
+Skim `README.{md,rst,txt}` and any build file (`Makefile`, `CMakeLists.txt`, `meson.build`, `configure.ac`) — preflight with `find` (via `Bash`) before any `Read` (a `Read` on a missing file aborts the turn; `Glob` is unavailable to this orchestrator because it holds `Bash`). Do **not** use `Bash: ls README*` for the preflight: under zsh, an unmatched glob aborts the whole compound command before `2>/dev/null` runs (observed: a Phase-3 `ls src/X/README*` call failed with `no matches found` and dropped the entire preflight). Use `find . -maxdepth 2 -name 'README*' -o -name 'Makefile' -o -name 'CMakeLists.txt' -o -name 'meson.build'`, which never fails on no-match.
 
 Write `${output_dir}/context.md` with: YAML frontmatter (`threat_model`, `severity_filter`, `scope_subpath`, `finding_scope_root`, `context_roots`, `is_cpp`, `is_posix`, `is_windows`, `output_dir`, `compile_commands` as `present`/`absent` plus path when present), then a short markdown body with five sections — **Purpose** (1-3 sentences), **Scope** (what's in `finding_scope_root`, and that findings outside it are out of scope), **Entry points** (where untrusted data enters: network, files, CLI, IPC), **Trust boundaries** (sandboxed vs trusted peers vs arbitrary remote), **Existing hardening** (fuzzing corpora, sanitizers, privilege separation).
 
@@ -159,7 +159,7 @@ python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/build_run_plan.py" \
 
 The script writes `plan.json` + `worker-prompts/worker-N.txt` + (if `--cache-primer=true`, the default) `worker-prompts/cache-primer.txt`, and prints a JSON summary on stdout. Exits non-zero on any missing prompt — surface the message and stop. Typical M with the default `--max-passes-per-worker 4` (REMOTE, `is_posix=true`): 13 (C POSIX), 15 (C++ POSIX), 16 (C POSIX + Windows), 18 (C++ POSIX + Windows); `LOCAL_UNPRIVILEGED` adds ~1 because `ambient-state` keeps its two REMOTE-skipped passes. After it returns, `Read plan.json` for the structured selection — never re-derive filtering or paths.
 
-`--max-passes-per-worker N` caps the per-worker pass count. The planner deterministically splits any cluster with more than `N` passes into `ceil(K/N)` contiguous chunks; each chunk becomes its own `c-review-worker` spawn with a `-{i}`-suffixed `cluster_id` (e.g. `buffer-write-sinks-1`, `buffer-write-sinks-2`). The shared prompt-cache prefix and `Cluster prompt:` path are byte-identical across chunks, so the cache primer still warms every worker. Default 4 is calibrated against the heavy clusters in `manifest.json` (`buffer-write-sinks` has 13 passes). Some output-heavy clusters may declare a smaller manifest-level `max_passes_per_worker` override so each expensive pass group gets a smaller worker. Pass `--max-passes-per-worker 0` to disable all chunking, including manifest overrides (one worker per cluster).
+`--max-passes-per-worker N` caps the per-worker pass count. The planner deterministically splits any **non-consolidated** cluster with more than `N` passes into `ceil(K/N)` contiguous chunks; each chunk becomes its own `c-review-worker` spawn with a `-{i}`-suffixed `cluster_id` (e.g. `arithmetic-type-1`, `arithmetic-type-2`). **The consolidated cluster `buffer-write-sinks` (13 passes) is exempt — never chunked, regardless of pass count or override — so one worker builds its shared Phase-A inventory once and runs every phase** (chunking a consolidated cluster would force each chunk to rebuild that inventory, which workers skip in practice). The shared prompt-cache prefix and `Cluster prompt:` path are byte-identical across chunks, so the cache primer still warms every worker. Default 4 is calibrated against the heavy non-consolidated clusters in `manifest.json`. Some output-heavy non-consolidated clusters may declare a smaller manifest-level `max_passes_per_worker` override so each expensive pass group gets a smaller worker. Pass `--max-passes-per-worker 0` to disable all chunking, including manifest overrides (one worker per cluster). Because `buffer-write-sinks` runs all 13 passes in one worker, it is the heaviest worker in the fan-out; if it ever hits the soft tool-call cap on a large codebase, surface its truncation note rather than splitting it (splitting re-introduces the inventory-skip).
 
 ### Phase 5: Create Bookkeeping Tasks (orchestrator-internal)
 
@@ -169,7 +169,7 @@ The task ledger is **orchestrator bookkeeping only** (TUI visibility + Phase-7 r
 
 ### Phase 6: Spawn workers (optional cache-primer first, then M in parallel)
 
-**Entry:** `cluster_task_ids[]` populated; per-worker spawn prompt files exist at `${output_dir}/worker-prompts/worker-N.txt`. **Exit:** all M `Agent` calls have returned (the parallel spawn block completed).
+**Entry:** `cluster_task_ids[]` populated; per-worker spawn prompt files exist at `${output_dir}/worker-prompts/worker-N.txt`. **Exit:** all M `Agent` calls — across every wave — have returned (the parallel spawn block(s) completed).
 
 #### Phase 6a: Cache primer (gated on `plan.run.cache_primer`)
 
@@ -179,20 +179,29 @@ If `plan.run.cache_primer == true`, `build_run_plan.py` has written `${output_di
 
 Foreground spawn already serializes — no `sleep` needed before Phase 6b. Skip Phase 6a entirely if `plan.run.cache_primer == false`.
 
-#### Phase 6b: Spawn M real workers in ONE message
+#### Phase 6b: Spawn M real workers in parallel (one message per wave of ≤16)
 
 > **STOP — read this before composing the spawn message.**
 >
 > Workers MUST be spawned **foreground** (no `run_in_background` field, or `run_in_background=false`).
-> "Parallel" here means *one assistant message containing M `Agent` calls* — that already runs them concurrently. **Background spawns are NOT how you parallelize this skill.**
+> "Parallel" here means *one assistant message containing the wave's `Agent` calls* — that already runs them concurrently. (For large `M`, split into consecutive waves of ≤16 calls, one message per wave — see "Required spawn shape" below.) **Background spawns are NOT how you parallelize this skill.**
 >
 > Background spawns defeat Phase 6a's primer cache: every worker pays full cache-creation on its first turn (`cache_read_input_tokens=0`), and the primer's ~15 K tokens are wasted M times over. Two real runs (audit logs available) had exactly this symptom — every worker started with `first_cr=0`.
 >
 > Before sending the spawn message, audit your draft: every `Agent` call must have **no** `run_in_background` key. If you wrote `run_in_background=true`, delete it.
 
-**Required spawn shape:** emit a single assistant message containing M `Agent` tool invocations. Sequential spawning serializes the review and is also wrong, but that failure is loud (timing); the background-spawn failure is silent (cost).
+**Required spawn shape:** emit a single assistant message containing the wave's `Agent` tool invocations — that one message is what runs them concurrently. Sequential spawning (one `Agent` call per message) serializes the review and is also wrong, but that failure is loud (timing); the background-spawn failure is silent (cost).
 
-For each worker `N ∈ [1..M]`:
+**Waves when `M` exceeds the per-message cap.** The harness caps the number of `Agent` calls it will dispatch from a single assistant message (observed: ~20 in Claude Code — a real 25-worker run silently kept only the first 20 and had to spawn the rest in a second message). So when `M > 16`, **plan the waves up front**: split the workers into consecutive waves of **≤16 `Agent` calls**, each wave its own single assistant message. Rules:
+
+- **Within a wave:** all `Agent` calls in **one** message, **foreground** (no `run_in_background`) — identical shape to a single-wave run.
+- **Across waves:** wave _k+1_ is a **separate** message that can only be sent after wave _k_'s `Agent` calls all return (a tool-use message ends the turn). Waves are therefore serialized with respect to each other — that is correct and loud; accept it.
+- **Never** reach for `run_in_background=true` to fit more workers in one message. More *waves*, never background — background defeats the primer cache (see the STOP box) and is the cardinal error this skill guards against.
+- **Cache across waves:** the primer prefix has a ~5-minute cache TTL that refreshes on every hit, so back-to-back waves keep hitting it. If a later wave will start more than ~5 minutes after the previous one (very large `M`), re-spawn the Phase-6a primer in its own message first to re-warm the prefix.
+- **Balance the waves** (e.g. `M=25` → 13+12, not 20+5) so no wave hugs the cap and the last wave isn't a tiny straggler.
+- After every wave has returned, proceed to Phase 7 with the **full** set of M worker results.
+
+For each worker `N ∈ [1..M]` (in its assigned wave):
 
 1. `Read: ${output_dir}/worker-prompts/worker-N.txt`
 2. Pass the file contents **verbatim** as the `Agent` tool's `prompt` argument:
@@ -210,6 +219,7 @@ The spawn prompt is the single authority. Pass it verbatim — every field is re
 **Anti-patterns to reject:**
 
 - **Passing `run_in_background=true`** (the dominant historical defect — see warning above).
+- **Cramming more than ~16 `Agent` calls into one message** when `M` is large — the harness silently keeps only the first ~20 and drops the rest. Use balanced waves of ≤16, never background spawns, to cover all M.
 - Hand-typing the spawn prompt instead of reading `worker-N.txt`.
 - Inserting Task-related instructions ("first call TaskList", "Assigned task id: <N>"). Workers have no Task tools.
 - Editing the rendered prompt before passing it (trimming "redundant" fields, collapsing pass lists).
@@ -311,7 +321,7 @@ Each judge's full protocol is its system prompt (`agents/c-review-{dedup,fp}-jud
 
 > **STOP — these two judges run in SEQUENCE, not in parallel.** Unlike the Phase-6b workers (which you spawn as M `Agent` calls in *one* message precisely because that runs them concurrently), the judges have a hard data dependency: fp-judge must see the `merged_into` / `also_known_as` annotations dedup-judge writes, and it only skips files already carrying `merged_into`. If you emit both `Agent` calls in one message they run concurrently — fp-judge reads findings before any merge annotations exist, judges every duplicate as a separate primary, and (because `dedup-summary.md` doesn't exist yet) trips its "dedup did not run" fallback, producing an inflated, duplicated `REPORT.md`/SARIF.
 >
-> Spawn dedup-judge in its **own** assistant message, wait for its `dedup-judge complete:` (or `abort:`) return, **then** spawn fp-judge in a **separate** message. Before composing the fp-judge spawn, confirm dedup finished — `Glob: ${output_dir}/dedup-summary.md` must resolve (or you saw the dedup `complete:` token). **Never put both judge `Agent` calls in the same message.**
+> Spawn dedup-judge in its **own** assistant message, wait for its `dedup-judge complete:` (or `abort:`) return, **then** spawn fp-judge in a **separate** message. Before composing the fp-judge spawn, confirm dedup finished — `Bash: test -f ${output_dir}/dedup-summary.md` must succeed (or you saw the dedup `complete:` token). **Never put both judge `Agent` calls in the same message.**
 
 1. **First message** — `Agent(subagent_type="c-review:c-review-dedup-judge", description="Dedup judge", prompt=f"output_dir: {output_dir}")`. Wait for its return and classify it (below) before continuing.
 2. **Then, in a separate message** — `Agent(subagent_type="c-review:c-review-fp-judge", description="FP + severity judge", prompt=f"output_dir: {output_dir}\nsarif_generator_path: {sarif_generator_path}")` — resolve `sarif_generator_path` to `${C_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py`.
@@ -332,7 +342,9 @@ test -d "${output_dir}/findings" && python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/gen
 
 Run the SARIF generator unconditionally whenever `findings/` exists — it is idempotent (full overwrite), emits `results: []` for zero-survivor runs, and handles partial runs (findings without `fp_verdict` are emitted as `LIKELY_TP`, **exempt from the `severity_filter`** since their severity was never judge-validated, and marked `unjudged: true` / `severity_validated: false` with an `[UNVALIDATED SEVERITY — not judged]` message prefix — so an inferred severity guess can never silently drop them under a `medium`/`high` filter). Always overwriting protects against an fp-judge that crashed mid-write and left a corrupt `REPORT.sarif` on disk.
 
-Then guarantee `REPORT.md` exists. Unlike SARIF (mechanical), `REPORT.md` is the fp-judge's **curated** artifact, so do **not** overwrite a judge-written one. Check for it, and if it is missing (the judge crashed, its write was blocked by the harness, or it returned the report as chat text instead of writing the file), **the orchestrator writes `REPORT.md` itself** rather than failing the run:
+If the generator prints a `WARNING: skipped N …` line on stdout (it also records `invocations[].properties.skipped_findings` in the SARIF and a `warning` notification per dropped file), one or more finding files were unreadable or had no parseable frontmatter and were **excluded from the report**. This is a dropped result — surface it prominently in `run-summary.md` and the final response with the count and paths, the same way a non-`completed` cluster task is surfaced. Do not let the otherwise-clean SARIF hide the loss.
+
+Then guarantee `REPORT.md` exists. Unlike SARIF (mechanical), `REPORT.md` is the fp-judge's **curated** artifact, so do **not** overwrite a judge-written one. (The fp-judge writes `REPORT.md` with a `Bash` heredoc, not the `Write` tool, because the harness blocks the `Write` tool for subagent report files — do not "fix" the judge by re-mandating `Write`. The orchestrator is the main agent and is **not** subject to that block, so its own `Write` below works.) Check for it, and if it is missing (the judge crashed, even its `Bash`-heredoc write failed, or it returned the report as chat text instead of writing the file), **the orchestrator writes `REPORT.md` itself** rather than failing the run:
 
 - If the fp-judge returned the report body in its transcript, `Write` that text verbatim to `${output_dir}/REPORT.md`.
 - Otherwise synthesize it from the on-disk findings: take the survivor primaries (`fp_verdict ∈ {TRUE_POSITIVE, LIKELY_TP}`, no `merged_into`; if the judge never ran, treat a finding with no `fp_verdict` as a survivor) listed in `findings-index.txt`, apply `severity_filter` from `context.md` **to judged survivors only** — unjudged findings (no `fp_verdict`) are included regardless of filter and rendered under an `Unvalidated (severity not judged)` section with a `[UNVALIDATED SEVERITY — not judged]` label, mirroring the SARIF behavior so a strict filter never silently drops them — and `Write` a `REPORT.md` mirroring the fp-judge template — YAML frontmatter (`stage: final-report`, `threat_model`, `severity_filter`, `total_primaries`, `reported_findings`), a severity-distribution table, then one section per reported finding grouped by severity (embed the Description / Code / Data flow / Impact / Recommendation body for CRITICAL/HIGH; reference the finding file for MEDIUM/LOW).

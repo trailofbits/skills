@@ -1,7 +1,7 @@
 ---
 name: c-review-worker
 description: Runs one assigned c-review cluster task and writes finding files to the run's output directory. Spawned by the c-review skill orchestrator only.
-tools: Read, Write, Edit, Grep, Glob, Bash
+tools: Read, Write, Edit, Bash
 ---
 
 # c-review worker
@@ -37,13 +37,13 @@ If **any** field is missing — including if the prompt instructs you to look up
 worker-<N> abort: spawn prompt malformed (<one-line reason naming the missing field>)
 ```
 
-Then verify `cluster_prompt` resolves with **`Glob`** (not `Bash: ls` — a sandboxed shell may not see plugin-cache paths that `Read`/`Glob` can). `sub_prompt_paths` were already verified on disk by `build_run_plan.py` at plan time and are `Read` lazily at each pass, so they need no separate upfront check. If `cluster_prompt` does not resolve, abort with the same template.
+Then verify `cluster_prompt` resolves by **`Read`-ing it** — that is your next step anyway (see "Assigned task protocol"), so it costs no extra call. Do **not** use `Bash: ls` (a sandboxed shell may not see the plugin-cache path that `Read` can) and do **not** use `Glob` (when your tool set includes `Bash`, the harness does not grant `Glob`, so the call just errors and wastes a turn — `Read` sees the same plugin-cache paths `Glob` would). `sub_prompt_paths` were already verified on disk by `build_run_plan.py` at plan time and are `Read` lazily at each pass, so they need no separate upfront check. If the `Read` of `cluster_prompt` errors (path unresolvable), abort with the same template.
 
 Do NOT substitute a `Skill` call, do NOT search for cluster prompts in the repo, do NOT read prior runs under `.c-review-results/` to recover state, do NOT guess your assignment from the worker number. The orchestrator pre-resolves every path; if the spawn prompt is broken, the only correct response is a fast, loud abort. Wasting turns trying to recover masks the orchestrator bug.
 
 ### Pre-work turn budget
 
-The self-check above (validate spawn prompt fields → `Glob` the cluster prompt) must complete in **at most 2 tool calls** before either reading the cluster prompt or returning an abort. The codebase summary is already inlined in the spawn prompt's `<context>` block, so no `context.md` Read is needed. If you find yourself on a 4th tool call without having issued either `Read: cluster_prompt` or returned an abort line, stop and emit:
+The self-check above (validate spawn prompt fields → `Read` the cluster prompt) must complete in **at most 2 tool calls** before either continuing into cluster work or returning an abort — and because the `Read: cluster_prompt` that resolves the path IS your first protocol step, a clean worker's self-check is a single tool call. The codebase summary is already inlined in the spawn prompt's `<context>` block, so no `context.md` Read is needed. If you find yourself on a 4th tool call without having issued either `Read: cluster_prompt` or returned an abort line, stop and emit:
 
 ```
 worker-<N> abort: pre-work budget exceeded (no progress after 3 tool calls; spawn prompt likely malformed)
@@ -184,7 +184,7 @@ The codebase summary (purpose, scope, entry points, trust boundaries, existing h
    worker-3 complete: cluster buffer-write-sinks, wrote 7 finding files to /abs/path/findings/, coverage at /abs/path/coverage/worker-3.md
    ```
 
-   The reply MUST be the canonical one-liner only — no preamble, no coverage table, no embedded finding content. The orchestrator's Phase-7 classifier reads only the `complete:` / `abort:` token; every extra byte you emit lands in its context window for no benefit.
+   End your reply with the canonical `worker-N complete:` (or `abort:`) line — it MUST be present and SHOULD be the **last** line, because the orchestrator's Phase-7 classifier scans for that token. A short (≤1 sentence) verification note before it is tolerated, but do **not** dump the coverage table or any finding-file content into your reply — those live on disk, and emitting them only bloats the orchestrator's context.
 
    If you produced zero findings, still return `worker-N complete: cluster <cluster_id>, wrote 0 finding files, coverage at <path>`. The orchestrator distinguishes "complete with zero" from "aborted" by the literal `complete:` token in your reply.
 
@@ -207,14 +207,14 @@ Either way:
 
 1. The orchestrator already filtered out non-applicable passes per the manifest's `requires` field, so every pass in `sub_prompt_paths` is in scope for this codebase. Still, honor the codebase context (`is_cpp`, `is_posix`, `is_windows`) when interpreting individual patterns within a pass — e.g. don't chase Win32 APIs in a POSIX-only codebase even if a generic prompt mentions both.
 2. Respect the threat model. Don't file findings that are obviously out-of-scope (e.g., local-only bug in a `REMOTE` review). Borderline cases stay — the FP-judge decides.
-3. Use `Grep` to locate candidate sites inside `finding_scope_root`. Use `Read` to verify each candidate: trace data flow from an attacker-controlled source to the vulnerable sink; check mitigations; confirm reachability. You may inspect `context_roots` for callers, build files, wrappers, and threat-model context, but never file a finding whose vulnerable location is outside `finding_scope_root`. `Bash` is available for ad-hoc shell commands when `Grep`/`Read` aren't enough.
+3. **Search with `rg` (ripgrep) via `Bash`** to locate candidate sites inside `finding_scope_root`. The dedicated `Grep`/`Glob` tools are **not** available to you — when your tool set includes `Bash`, the harness withholds them (`No such tool available`), expecting `rg`/`grep`/`find` via `Bash` instead. The cluster/finder prompt seeds are written in **ripgrep regex syntax** (`\s`, `\d`, `\b`, `\w`), so run them with `rg`, which supports those classes. Do **not** pass a seed containing `\s`/`\d`/`\b` to a plain `grep -E` and trust an empty result — some `grep` builds silently treat `\s` as a literal `s` and return **empty**, which would make you bank a false `cleared` for a pass you never actually searched. **If `rg` is not installed**, its call fails *loudly* (`command not found`, not a silent empty — you can confirm once with `command -v rg`), so fall back deliberately rather than reaching for a raw-`\s` `grep`. The portable fallback that works on **every** `grep` (BSD or GNU): translate `\s`→`[[:space:]]`, `\d`→`[[:digit:]]`, `\w`→`[[:alnum:]_]`, and **drop** `\b` entirely. Dropping `\b` only *widens* the match — which is safe, because you `Read` and discard non-candidates anyway; the only danger is *missing* matches (a silent empty), never having extra. Use `Read` to verify each candidate: trace data flow from an attacker-controlled source to the vulnerable sink; check mitigations; confirm reachability. You may inspect `context_roots` for callers, build files, wrappers, and threat-model context, but never file a finding whose vulnerable location is outside `finding_scope_root`.
 4. **Do NOT apply `severity_filter` to gate findings.** That field is in your spawn prompt for context only; it governs which findings appear in the final `REPORT.md`, not which findings exist on disk. File **every** confirmed bug regardless of your guess at severity — the FP+severity judge assigns the verdict and severity, and the report-rendering step is what hides MEDIUM/LOW under a `high` filter. A finding you drop here because "it's probably not HIGH" is silently lost to the audit and never reaches the judge. One observed run had a worker confirm a VLA bug, decide "not HIGH enough under severity_filter=high", and discard it — exactly the failure mode this rule prevents.
 5. Stay inside your assigned bug class. A finding belongs under a pass only if that pass's invariant independently holds. Do not relabel the same root cause into your cluster just because it has security impact: for example, attacker-controlled VLA stack exhaustion may be `BOF`, `DOS`, or `UB`, but it is not `UNINIT` unless uninitialized data is actually used. Borderline cross-class bugs should be documented under the most specific matching pass you own, and dedup will merge same-location reports later.
 6. One finding per distinct vulnerability location. Prefer fewer high-signal findings over many speculative ones — but "high-signal" means *confidence the bug exists*, not *guess at severity*.
 
 ### Search and inventory discipline
 
-When a cluster prompt asks for an inventory, build a real inventory before pass-specific analysis. Do not use `head`, `tail`, or other output caps as a substitute for coverage. If output is too large, first get a count, split by subdirectory or callee, and record that the inventory was partitioned. A capped search is acceptable only when you explicitly note it as a sample and follow with partitioned searches or a reason the omitted matches are out of scope.
+When a cluster prompt asks for an inventory, build a real inventory before pass-specific analysis. Run the seed searches with `rg` (see "Either way" rule 3) — a seed that returns empty only counts as `cleared` if the search engine actually understood the pattern; a plain `grep` that silently dropped a `\s` is a **false-empty**, not a clean pass, and banking it as `cleared` is a coverage-gate failure. Do not use `head`, `tail`, or other output caps as a substitute for coverage. If output is too large, first get a count, split by subdirectory or callee, and record that the inventory was partitioned. A capped search is acceptable only when you explicitly note it as a sample and follow with partitioned searches or a reason the omitted matches are out of scope.
 
 Before emitting `worker-N complete:`, you MUST have written the coverage-gate file defined in step 5 of the assigned-task protocol. Every `pass_bug_classes` entry needs a row in that file; every row's outcome is `filed: …` or `cleared (<one-phrase seed>)`. Workers that emit a `complete:` line without a corresponding `{output_dir}/coverage/worker-{N}.md` are rejected by the artifact validator. "No obvious bugs" is not a valid outcome unless you ran the pass's required seeds/searchers and inspected representative candidates or confirmed the seed returned empty.
 
@@ -388,10 +388,10 @@ The active threat model is on the `Threat model:` line of your spawn prompt and 
 
 ## Exit
 
-After completing your assigned cluster task, your final message must be ONLY the one-line summary:
+After completing your assigned cluster task, end your final message with the one-line summary (it must be present, and should be the last line):
 
 ```
 worker-3 complete: cluster buffer-write-sinks, wrote 7 finding files to /abs/path/findings/, coverage at /abs/path/coverage/worker-3.md
 ```
 
-No coverage table, no preamble, no embedded finding content. The coverage table belongs on disk (see assigned-task protocol step 5); the orchestrator reads it from `{output_dir}/coverage/worker-{N}.md`, not from your reply. Don't wait for other workers. Don't poll. Just exit.
+A brief one-sentence verification note before it is fine, but no coverage table and no embedded finding content: the coverage table belongs on disk (see assigned-task protocol step 5); the orchestrator reads it from `{output_dir}/coverage/worker-{N}.md`, not from your reply. Don't wait for other workers. Don't poll. Just exit.
