@@ -37,7 +37,6 @@
       "cluster_id": "concurrency-locking",
       "prompt": "prompts/clusters/concurrency-locking.md",
       "consolidated": true,
-      "max_passes_per_worker": 1,
       "gate": "has_concurrency",
       "passes": [
         { "bug_class": "double-lock-deadlock", "prefix": "DLOCK" },

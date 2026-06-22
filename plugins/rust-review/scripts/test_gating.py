@@ -173,9 +173,11 @@ def test_rendered_prefix_lists_every_capability_flag():
 def test_full_run_all_flags_end_to_end_snapshot():
     """Golden snapshot of the production fan-out: real manifest, every capability
     flag on, default --max-passes-per-worker 4. Locks the selection->split seam
-    (29 workers with these exact chunk ids/sizes), so a manifest edit that grows a
+    (23 workers with these exact chunk ids/sizes), so a manifest edit that grows a
     cluster, or a regression in the selection->split pipeline, cannot silently
-    change worker count or chunk ids without failing a test."""
+    change worker count or chunk ids without failing a test. The two consolidated
+    clusters (unsafe-boundary, concurrency-locking) are never chunked — one worker
+    each, full pass list."""
     flags = make_flags(
         has_unsafe=True,
         has_ffi=True,
@@ -190,16 +192,10 @@ def test_full_run_all_flags_end_to_end_snapshot():
     split = build_run_plan.split_oversized_clusters(selected, max_passes=4)
 
     expected_ids = [
-        "unsafe-boundary-1",
-        "unsafe-boundary-2",
+        "unsafe-boundary",  # consolidated → not chunked (8 passes, one worker)
         "memory-safety-1",
         "memory-safety-2",
-        "concurrency-locking-1",
-        "concurrency-locking-2",
-        "concurrency-locking-3",
-        "concurrency-locking-4",
-        "concurrency-locking-5",
-        "concurrency-locking-6",
+        "concurrency-locking",  # consolidated → not chunked (6 passes, one worker)
         "concurrency-data-race-1",
         "concurrency-data-race-2",
         "panic-dos-1",
@@ -221,16 +217,10 @@ def test_full_run_all_flags_end_to_end_snapshot():
         "info-disclosure",
     ]
     expected_sizes = [
+        8,  # unsafe-boundary (consolidated, full pass list)
         4,
         4,
-        4,
-        4,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
+        6,  # concurrency-locking (consolidated, full pass list)
         4,
         1,
         4,
@@ -254,7 +244,8 @@ def test_full_run_all_flags_end_to_end_snapshot():
 
     assert [c["cluster_id"] for c in split] == expected_ids
     assert [len(c["passes"]) for c in split] == expected_sizes
-    assert len(split) == 29
+    assert len(split) == 23
+    assert sum(len(c["passes"]) for c in split) == 69  # total bug-class passes unchanged
 
 
 def test_non_remote_threat_models_select():
