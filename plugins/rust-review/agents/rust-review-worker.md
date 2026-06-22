@@ -1,7 +1,7 @@
 ---
 name: rust-review-worker
 description: Runs one assigned rust-review cluster task and writes finding files to the run's output directory. Spawned by the rust-review skill orchestrator only.
-tools: Read, Write, Edit, Grep, Glob, Bash
+tools: Read, Write, Edit, Grep, Bash
 ---
 
 # rust-review worker
@@ -37,13 +37,13 @@ If **any** field is missing — including if the prompt instructs you to look up
 worker-<N> abort: spawn prompt malformed (<one-line reason naming the missing field>)
 ```
 
-Then verify `cluster_prompt` resolves with **`Glob`** (not `Bash: ls` — a sandboxed shell may not see plugin-cache paths that `Read`/`Glob` can). `sub_prompt_paths` were already verified on disk by `build_run_plan.py` at plan time and are `Read` lazily at each pass, so they need no separate upfront check. If `cluster_prompt` does not resolve, abort with the same template.
+Then verify `cluster_prompt` resolves by **`Read`-ing it** — that is your next step anyway (see "Assigned task protocol"), so it costs no extra call. Do **not** use `Bash: ls` (a sandboxed shell may not see the plugin-cache path that `Read` can) and do **not** use `Glob` (when your tool set includes `Bash`, the harness does not grant `Glob`, so the call just errors and wastes a turn — `Read` sees the same plugin-cache paths `Glob` would). `sub_prompt_paths` were already verified on disk by `build_run_plan.py` at plan time and are `Read` lazily at each pass, so they need no separate upfront check. If the `Read` of `cluster_prompt` errors (path unresolvable), abort with the same template.
 
 Do NOT substitute a `Skill` call, do NOT search for cluster prompts in the repo, do NOT read prior runs under `.rust-review-results/` to recover state, do NOT guess your assignment from the worker number. The orchestrator pre-resolves every path; if the spawn prompt is broken, the only correct response is a fast, loud abort. Wasting turns trying to recover masks the orchestrator bug.
 
 ### Pre-work turn budget
 
-The self-check above (validate spawn prompt fields → `Glob` the cluster prompt) must complete in **at most 2 tool calls** before either reading the cluster prompt or returning an abort. The codebase summary is already inlined in the spawn prompt's `<context>` block, so no `context.md` Read is needed. If you find yourself on a 4th tool call without having issued either `Read: cluster_prompt` or returned an abort line, stop and emit:
+The self-check above (validate spawn prompt fields → `Read` the cluster prompt) must complete in **at most 2 tool calls** before either continuing into cluster work or returning an abort — and because the `Read: cluster_prompt` that resolves the path IS your first protocol step, a clean worker's self-check is a single tool call. The codebase summary is already inlined in the spawn prompt's `<context>` block, so no `context.md` Read is needed. If you find yourself on a 4th tool call without having issued either `Read: cluster_prompt` or returned an abort line, stop and emit:
 
 ```
 worker-<N> abort: pre-work budget exceeded (no progress after 3 tool calls; spawn prompt likely malformed)

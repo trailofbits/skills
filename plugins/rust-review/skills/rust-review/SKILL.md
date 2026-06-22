@@ -23,11 +23,11 @@ Rust application/library security review: safe/unsafe boundary auditing, memory 
 
 | Subagent type | Purpose | Tool set |
 |---|---|---|
-| `rust-review:rust-review-worker` | Run assigned cluster, write findings | Read, Write, Edit, Grep, Glob, Bash |
+| `rust-review:rust-review-worker` | Run assigned cluster, write findings | Read, Write, Edit, Grep, Bash |
 | `rust-review:rust-review-dedup-judge` | Merge duplicates (runs **first**) | Read, Write, Edit, Glob |
-| `rust-review:rust-review-fp-judge` | FP + severity + final reports (runs **second**) | Read, Write, Edit, Grep, Glob, Bash |
+| `rust-review:rust-review-fp-judge` | FP + severity + final reports (runs **second**) | Read, Write, Edit, Grep, Bash |
 
-Tools come from each agent's frontmatter at spawn time. The orchestrator's `Task*`/`Agent`/`Bash`/etc. come from this skill's `allowed-tools`.
+Tools come from each agent's frontmatter at spawn time. The orchestrator's `Task*`/`Agent`/`Bash`/etc. come from this skill's `allowed-tools`. **Glob/Bash interaction:** in current Claude Code, an agent granted `Bash` is **not** also granted `Glob` (a `Glob` call returns `No such tool available: Glob`; the harness expects `find`/`ls` via `Bash` instead). So only the dedup-judge — the one agent that holds **no** `Bash` — uses `Glob`; the worker, fp-judge, and the orchestrator resolve and probe paths with `Read` / `Bash find` / `test -f` instead. Do **not** reintroduce `Glob` into a `Bash`-holding agent's protocol.
 
 ---
 
@@ -67,7 +67,7 @@ Set `RUST_REVIEW_PLUGIN_ROOT` to the resolved root. If all three fail, **abort**
 - **"I'll re-derive the cluster list / paths / pass prefixes inline instead of running `build_run_plan.py`."** The script is the only authority for selection and rendering. Paraphrasing it drops fields that the worker self-check requires, producing `worker-N abort: spawn prompt malformed`. Always run the script and `Read plan.json`.
 - **"The run partially succeeded — I'll just write `REPORT.md` from what completed."** Hiding partial runs behind a successful report is a correctness bug. If any Phase-5 cluster task is not `completed`, surface it prominently in `run-summary.md` and the final response.
 - **"Zero findings — skip Phase 8."** Always run both judges and Phase 8b: dedup-judge writes a minimal no-op `dedup-summary.md` on an empty index, fp-judge writes empty `REPORT.md`/`REPORT.sarif`, and Phase 8b's SARIF generator emits `results: []` for the empty case. SARIF consumers depend on a stable artifact set.
-- **"`Bash: ls README*` is fine for the preflight."** Under zsh, an unmatched glob aborts the whole compound command before `2>/dev/null` runs. Use `Glob` (preferred) or `find` (never fails on no-match).
+- **"`Bash: ls README*` is fine for the preflight."** Under zsh, an unmatched glob aborts the whole compound command before `2>/dev/null` runs. Use `find` (never fails on no-match) — and not `Glob`, which is unavailable to an agent that also holds `Bash`.
 
 ---
 
@@ -98,7 +98,7 @@ After resolving `scope_subpath`, set `finding_scope_root="${scope_subpath:-.}"`.
 
 **Entry:** Phase 0 complete. **Exit:** `has_unsafe`, `has_ffi`, `has_concurrency`, `has_async`, `has_packed_repr`, `has_fs_io` flags determined. Abort with a clear message if no `*.rs` files exist under `${finding_scope_root}`.
 
-Probe within `${finding_scope_root:-.}`. Prefer `Glob`/`Grep`; fall back to `Bash` equivalents below (non-empty output ⇒ flag true).
+Probe within `${finding_scope_root:-.}` with `Grep` and the `Bash` equivalents below (non-empty output ⇒ flag true). Don't reach for `Glob` for file-listing probes — it is unavailable to this orchestrator because it holds `Bash`; use `find`/`grep` via `Bash`.
 
 ```bash
 # Rust source presence (precondition)
@@ -156,7 +156,7 @@ The `coverage/` subdirectory holds per-worker coverage-gate audit files (`covera
 
 **Entry:** `${output_dir}` exists. **Exit:** `${output_dir}/context.md` written.
 
-Skim `README.{md,rst,txt}` and any build/manifest file (`Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `build.rs`) — preflight with the `Glob` tool before any `Read` (a `Read` on a missing file aborts the turn). Do **not** use `Bash: ls README*` for the preflight: under zsh, an unmatched glob aborts the whole compound command before `2>/dev/null` runs. If you must use `Bash`, use `find . -maxdepth 2 -name 'README*' -o -name 'Cargo.toml' -o -name 'rust-toolchain.toml' -o -name 'build.rs'`, which never fails on no-match.
+Skim `README.{md,rst,txt}` and any build/manifest file (`Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml`, `build.rs`) — preflight with `find` (via `Bash`) before any `Read` (a `Read` on a missing file aborts the turn; `Glob` is unavailable to this orchestrator because it holds `Bash`). Do **not** use `Bash: ls README*` for the preflight: under zsh, an unmatched glob aborts the whole compound command before `2>/dev/null` runs. Use `find . -maxdepth 2 -name 'README*' -o -name 'Cargo.toml' -o -name 'rust-toolchain.toml' -o -name 'build.rs'`, which never fails on no-match.
 
 Write `${output_dir}/context.md` with: YAML frontmatter (`threat_model`, `severity_filter`, `scope_subpath`, `finding_scope_root`, `context_roots`, `has_unsafe`, `has_ffi`, `has_concurrency`, `has_async`, `has_packed_repr`, `has_fs_io`, `output_dir`, `cargo_manifest` as `workspace`/`single-crate`/`absent` plus path when present), then a short markdown body with five sections — **Purpose** (1-3 sentences), **Scope** (what's in `finding_scope_root`, and that findings outside it are out of scope), **Entry points** (where untrusted data enters: network, files, CLI, IPC, `serde` deserialization, FFI inputs), **Trust boundaries** (sandboxed vs trusted peers vs arbitrary remote), **Existing hardening** (fuzzing harnesses, MIRI runs, `clippy::pedantic`, `cargo-deny`, `cargo-audit`).
 
@@ -337,7 +337,7 @@ Each judge's full protocol is its system prompt (`agents/rust-review-{dedup,fp}-
 
 > **STOP — these two judges run in SEQUENCE, not in parallel.** Unlike the Phase-6b workers (which you spawn as M `Agent` calls in *one* message precisely because that runs them concurrently), the judges have a hard data dependency: fp-judge must see the `merged_into` / `also_known_as` annotations dedup-judge writes, and it only skips files already carrying `merged_into`. If you emit both `Agent` calls in one message they run concurrently — fp-judge reads findings before any merge annotations exist, judges every duplicate as a separate primary, and (because `dedup-summary.md` doesn't exist yet) trips its "dedup did not run" fallback, producing an inflated, duplicated `REPORT.md`/SARIF.
 >
-> Spawn dedup-judge in its **own** assistant message, wait for its `dedup-judge complete:` (or `abort:`) return, **then** spawn fp-judge in a **separate** message. Before composing the fp-judge spawn, confirm dedup finished — `Glob: ${output_dir}/dedup-summary.md` must resolve (or you saw the dedup `complete:` token). **Never put both judge `Agent` calls in the same message.**
+> Spawn dedup-judge in its **own** assistant message, wait for its `dedup-judge complete:` (or `abort:`) return, **then** spawn fp-judge in a **separate** message. Before composing the fp-judge spawn, confirm dedup finished — `Bash: test -f ${output_dir}/dedup-summary.md` must succeed (or you saw the dedup `complete:` token). **Never put both judge `Agent` calls in the same message.**
 
 1. **First message** — `Agent(subagent_type="rust-review:rust-review-dedup-judge", description="Dedup judge", prompt=f"output_dir: {output_dir}")`. Wait for its return and classify it (below) before continuing.
 2. **Then, in a separate message** — `Agent(subagent_type="rust-review:rust-review-fp-judge", description="FP + severity judge", prompt=f"output_dir: {output_dir}\nsarif_generator_path: {sarif_generator_path}")` — resolve `sarif_generator_path` to `${RUST_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py`.
