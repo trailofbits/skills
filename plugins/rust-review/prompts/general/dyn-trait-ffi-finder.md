@@ -26,7 +26,7 @@ The same applies to `&[T]` / `&mut [T]` / `&str` (also fat pointers — `(data, 
 ```
 extern\s+"C"\s*\{
 \bextern\s+"C"\s*fn\b[^{]*\bdyn\b
-#\[repr\(C\)\]
+#\[repr\([^]]*\bC\b
 \bBox<\s*dyn\s+\w
 \bdyn\s+\w
 ```
