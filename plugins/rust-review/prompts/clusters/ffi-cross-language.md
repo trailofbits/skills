@@ -19,15 +19,15 @@ ID prefixes: `CSTRDANGLE`, `ABIMISMATCH`, `REPRCPAD`, `OPAQUEPTR`, `FOREIGNDROP`
 ## Phase A
 
 ```
-Grep: pattern="extern\s+\"(C|system|stdcall|cdecl|win64|sysv64|aapcs|fastcall|thiscall|vectorcall|efiapi)(-unwind)?\"|extern\s+\{|\bextern\s+fn\b"
-Grep: pattern="CString::|CStr::|CString::new"
-Grep: pattern="#\[repr\((C|transparent)"
-Grep: pattern="bindgen|cbindgen"
-Grep: pattern="\bimpl\b[^{]*?\bDrop\s+for\s+\w+"
-Grep: pattern="libc::(malloc|free)|CoTaskMem|g_malloc|CFAllocator|LocalAlloc"
-Grep: pattern="\bdyn\s+Fn(Once|Mut)?\b|\bextern\s+\"(C|C-unwind|system)\"\s*fn\b|catch_unwind"
-Grep: pattern="\bdyn\s+\w|\bBox<\s*dyn\s+\w"
-Grep: pattern="\bc_void\b"                                                                  # OPAQUEPTR seed: *mut/*const c_void opaque handles
+rg seed: "extern\s+\"(C|system|stdcall|cdecl|win64|sysv64|aapcs|fastcall|thiscall|vectorcall|efiapi)(-unwind)?\"|extern\s+\{|\bextern\s+fn\b"
+rg seed: "CString::|CStr::|CString::new"
+rg seed: "#\[repr\((C|transparent)"
+rg seed: "bindgen|cbindgen"
+rg seed: "\bimpl\b[^{]*?\bDrop\s+for\s+\w+"
+rg seed: "libc::(malloc|free)|CoTaskMem|g_malloc|CFAllocator|LocalAlloc"
+rg seed: "\bdyn\s+Fn(Once|Mut)?\b|\bextern\s+\"(C|C-unwind|system)\"\s*fn\b|catch_unwind"
+rg seed: "\bdyn\s+\w|\bBox<\s*dyn\s+\w"
+rg seed: "\bc_void\b"                                                                  # OPAQUEPTR seed: *mut/*const c_void opaque handles
 ```
 
 ## Phase B — Run finders in order

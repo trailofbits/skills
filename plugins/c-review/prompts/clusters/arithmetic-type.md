@@ -14,7 +14,7 @@ covers:
 
 # Cluster: Arithmetic & type
 
-Seven bug classes that share a common investigative task: resolve widths, signedness, and type identities with `Grep`, `Read`, and nearby typedef/macro/struct definitions. The shared work is the type/width inventory at each expression of interest.
+Seven bug classes that share a common investigative task: resolve widths, signedness, and type identities with `rg`, `Read`, and nearby typedef/macro/struct definitions. The shared work is the type/width inventory at each expression of interest.
 
 ID prefixes: `INT`, `TYPE`, `PREC`, `OOBCMP`, `NULLZERO`, `UB`, `COMP`.
 
@@ -25,14 +25,14 @@ ID prefixes: `INT`, `TYPE`, `PREC`, `OOBCMP`, `NULLZERO`, `UB`, `COMP`.
 Run once:
 
 ```
-Grep: pattern="\\*\\s*\\w+\\s*[+\\-]|\\w+\\s*\\+\\s*\\w+\\s*\\*"  # multiplication near addition (classic overflow)
-Grep: pattern="sizeof\\s*\\(\\s*\\w+\\s*\\)\\s*\\*|\\*\\s*sizeof"  # size*count allocations
-Grep: pattern="\\b(int|long|short|ssize_t|off_t|int[0-9]+_t)\\b.*=.*[-+*]"  # signed arithmetic producing sizes
-Grep: pattern="\\b(uint|ulong|ushort|size_t|uint[0-9]+_t)\\b.*=.*-"         # unsigned subtraction (wrap candidates)
-Grep: pattern="\\((void\\s*\\*|char\\s*\\*|unsigned\\s+char\\s*\\*)\\)\\s*\\w"   # pointer casts
-Grep: pattern="\\b(union)\\b"                                # tag-less unions
-Grep: pattern="==\\s*NULL|!=\\s*NULL|==\\s*0|!=\\s*0"        # NULL-vs-zero comparison sites
-Grep: pattern="!=\\s*-1|==\\s*-1|<\\s*0"                     # error-return comparisons
+rg seed: "\\*\\s*\\w+\\s*[+\\-]|\\w+\\s*\\+\\s*\\w+\\s*\\*"  # multiplication near addition (classic overflow)
+rg seed: "sizeof\\s*\\(\\s*\\w+\\s*\\)\\s*\\*|\\*\\s*sizeof"  # size*count allocations
+rg seed: "\\b(int|long|short|ssize_t|off_t|int[0-9]+_t)\\b.*=.*[-+*]"  # signed arithmetic producing sizes
+rg seed: "\\b(uint|ulong|ushort|size_t|uint[0-9]+_t)\\b.*=.*-"         # unsigned subtraction (wrap candidates)
+rg seed: "\\((void\\s*\\*|char\\s*\\*|unsigned\\s+char\\s*\\*)\\)\\s*\\w"   # pointer casts
+rg seed: "\\b(union)\\b"                                # tag-less unions
+rg seed: "==\\s*NULL|!=\\s*NULL|==\\s*0|!=\\s*0"        # NULL-vs-zero comparison sites
+rg seed: "!=\\s*-1|==\\s*-1|<\\s*0"                     # error-return comparisons
 ```
 
 Keep results as `expr_sites`. For each site, note `path:line` and the surrounding expression text; resolve type details by reading definitions only when a pass demands them.
@@ -41,7 +41,7 @@ Keep results as `expr_sites`. For each site, note `path:line` and the surroundin
 
 ## Phase B — Passes in order (reuse `expr_sites`)
 
-Read and apply each sub-prompt in turn. Use focused `Read`/`Grep` follow-ups only on expressions already in `expr_sites`.
+Read and apply each sub-prompt in turn. Use focused `Read`/`rg` follow-ups only on expressions already in `expr_sites`.
 
 1. **`PREC` — Operator precedence**
    Cheap, syntactic; run first to filter "this expression parses as you thought."

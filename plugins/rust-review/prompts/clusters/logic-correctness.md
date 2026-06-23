@@ -20,17 +20,17 @@ ID prefixes: `ORDEQHASH`, `TRAITADV`, `CLOSUREPANIC`, `FLOATEDGE`, `STRCMP`, `SE
 ## Phase A
 
 ```
-Grep: pattern="impl\b[^{]*?\b(Ord|PartialOrd|Eq|PartialEq|Hash)\b[^{]*\bfor\b"  # hand impls incl. generic `impl<T> Ord for W<T>` and `impl PartialOrd<Other> for Foo`
-Grep: pattern="#\[derive\([^)]*\b(Ord|PartialOrd|Eq|PartialEq|Hash)\b"          # derived — a hand/derive split across these traits is a common inconsistency source
-Grep: pattern="\b(f32|f64)\b"
-Grep: pattern="<\s*\w+\s*:\s*[A-Z]"  # generic trait bounds
-Grep: pattern="\bcatch_unwind\b"
-Grep: pattern="\bFn(Once|Mut)?\b|\bptr::(read|write)\b|\bdrop_in_place\b"  # closure-accepting bounds + pointer ops → CLOSUREPANIC unsafe windows
-Grep: pattern="\b(starts_with|ends_with|contains)\b"
-Grep: pattern="eq_ignore_ascii_case|to_lowercase|to_uppercase|to_ascii_lowercase|to_ascii_uppercase"  # case-folding → STRCMP case-mixing
-Grep: pattern="serialize_(struct|tuple|seq|map)\("
-Grep: pattern="\bHashMap\b|\bHashSet\b"
-Grep: pattern="peek_mut|RefCell\b|Cell\b"
+rg seed: "impl\b[^{]*?\b(Ord|PartialOrd|Eq|PartialEq|Hash)\b[^{]*\bfor\b"  # hand impls incl. generic `impl<T> Ord for W<T>` and `impl PartialOrd<Other> for Foo`
+rg seed: "#\[derive\([^)]*\b(Ord|PartialOrd|Eq|PartialEq|Hash)\b"          # derived — a hand/derive split across these traits is a common inconsistency source
+rg seed: "\b(f32|f64)\b"
+rg seed: "<\s*\w+\s*:\s*[A-Z]"  # generic trait bounds
+rg seed: "\bcatch_unwind\b"
+rg seed: "\bFn(Once|Mut)?\b|\bptr::(read|write)\b|\bdrop_in_place\b"  # closure-accepting bounds + pointer ops → CLOSUREPANIC unsafe windows
+rg seed: "\b(starts_with|ends_with|contains)\b"
+rg seed: "eq_ignore_ascii_case|to_lowercase|to_uppercase|to_ascii_lowercase|to_ascii_uppercase"  # case-folding → STRCMP case-mixing
+rg seed: "serialize_(struct|tuple|seq|map)\("
+rg seed: "\bHashMap\b|\bHashSet\b"
+rg seed: "peek_mut|RefCell\b|Cell\b"
 ```
 
 ## Phase B — Run finders in order

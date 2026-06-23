@@ -24,14 +24,14 @@ ID prefixes: `INIT`, `ITER`, `EXCEPT`, `MOVE`, `SPTR`, `VIRT`, `LAMBDA`.
 ## Phase A — Seed targets
 
 ```
-Grep: pattern="\\b(class|struct)\\s+\\w+\\s*(?:final\\s*)?(?::\\s*[^{]+)?\\s*\\{"
-Grep: pattern="\\b(virtual|override|final)\\b"
-Grep: pattern="\\b(unique_ptr|shared_ptr|weak_ptr|auto_ptr|make_unique|make_shared)\\b"
-Grep: pattern="\\bstd::(move|forward)\\s*\\("
-Grep: pattern="\\[(=|&|[^]]*)\\]\\s*(?:\\(|mutable|->|\\{)"   # lambda captures
-Grep: pattern="\\b(push_back|emplace_back|insert|erase|clear|resize|reserve|begin|end)\\s*\\("
-Grep: pattern="\\b(throw|try|catch|noexcept)\\b"
-Grep: pattern="static\\s+(?:const\\s+)?[A-Z]\\w+\\s+\\w+"       # potential static init
+rg seed: "\\b(class|struct)\\s+\\w+\\s*(?:final\\s*)?(?::\\s*[^{]+)?\\s*\\{"
+rg seed: "\\b(virtual|override|final)\\b"
+rg seed: "\\b(unique_ptr|shared_ptr|weak_ptr|auto_ptr|make_unique|make_shared)\\b"
+rg seed: "\\bstd::(move|forward)\\s*\\("
+rg seed: "\\[(=|&|[^]]*)\\]\\s*(?:\\(|mutable|->|\\{)"   # lambda captures
+rg seed: "\\b(push_back|emplace_back|insert|erase|clear|resize|reserve|begin|end)\\s*\\("
+rg seed: "\\b(throw|try|catch|noexcept)\\b"
+rg seed: "static\\s+(?:const\\s+)?[A-Z]\\w+\\s+\\w+"       # potential static init
 ```
 
 Keep as `cpp_sites`.

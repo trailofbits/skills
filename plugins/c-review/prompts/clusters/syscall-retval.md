@@ -23,14 +23,14 @@ ID prefixes: `ERRNO`, `NEGRET`, `ERR`, `EINTR`, `SOCKDISCON`, `HALFCLOSE`, `FILE
 ## Phase A — Build the syscall inventory (ONCE per run)
 
 ```
-Grep: pattern="\\b(read|write|pread|pwrite|readv|writev|recv|recvfrom|recvmsg|send|sendto|sendmsg)\\s*\\("
-Grep: pattern="\\b(open|openat|creat|close|fopen|fclose|dup|dup2|dup3|pipe|pipe2|socketpair|socket|accept|accept4|connect|bind|listen|shutdown)\\s*\\("
-Grep: pattern="\\b(stat|fstat|lstat|access|faccessat|readlink|realpath)\\s*\\("
-Grep: pattern="\\b(malloc|calloc|realloc|reallocarray|mmap|mprotect|munmap)\\s*\\("
-Grep: pattern="\\b(ioctl|fcntl|select|poll|epoll_wait|kqueue|kevent)\\s*\\("
-Grep: pattern="\\b(fork|execve|execv|execl|waitpid|wait|kill|sigaction|signal)\\s*\\("
-Grep: pattern="\\berrno\\b"                                  # errno reads
-Grep: pattern="\\b(setsockopt|getsockopt|getaddrinfo|freeaddrinfo)\\s*\\("
+rg seed: "\\b(read|write|pread|pwrite|readv|writev|recv|recvfrom|recvmsg|send|sendto|sendmsg)\\s*\\("
+rg seed: "\\b(open|openat|creat|close|fopen|fclose|dup|dup2|dup3|pipe|pipe2|socketpair|socket|accept|accept4|connect|bind|listen|shutdown)\\s*\\("
+rg seed: "\\b(stat|fstat|lstat|access|faccessat|readlink|realpath)\\s*\\("
+rg seed: "\\b(malloc|calloc|realloc|reallocarray|mmap|mprotect|munmap)\\s*\\("
+rg seed: "\\b(ioctl|fcntl|select|poll|epoll_wait|kqueue|kevent)\\s*\\("
+rg seed: "\\b(fork|execve|execv|execl|waitpid|wait|kill|sigaction|signal)\\s*\\("
+rg seed: "\\berrno\\b"                                  # errno reads
+rg seed: "\\b(setsockopt|getsockopt|getaddrinfo|freeaddrinfo)\\s*\\("
 ```
 
 Keep the result as `syscall_sites` (callee, `path:line`, enclosing function). For each, note whether the return is assigned, whether it's checked, and whether `errno` is read on failure.

@@ -22,12 +22,12 @@ ID prefixes: `DLOCK`, `ABBA`, `CONDVAR`, `CHANSTARVE`, `ONCEREENTRY`, `REENTRANT
 ## Phase A — Build the lock map (ONCE)
 
 ```
-Grep: pattern="\b(Mutex|RwLock|parking_lot::(Mutex|RwLock))::new\b"
-Grep: pattern="\.(lock|read|write|try_lock|try_read|try_write)\s*\("
-Grep: pattern="\bCondvar\b"
-Grep: pattern="\b(mpsc::(channel|sync_channel)|crossbeam_channel::(bounded|unbounded)|tokio::sync::(mpsc|oneshot|broadcast))\b"
-Grep: pattern="\.(call_once|get_or_init)\s*\(|\b(Once::call_once|OnceCell::get_or_init|OnceLock::get_or_init|LazyLock::(new|force)|Lazy::(new|force))\b"  # dominant method form `INIT.call_once(`/`CELL.get_or_init(` + type-qualified forms
-Grep: pattern="\bsigaction\b|\bsignal_hook\b|\blibc::signal\b|nix::sys::signal"
+rg seed: "\b(Mutex|RwLock|parking_lot::(Mutex|RwLock))::new\b"
+rg seed: "\.(lock|read|write|try_lock|try_read|try_write)\s*\("
+rg seed: "\bCondvar\b"
+rg seed: "\b(mpsc::(channel|sync_channel)|crossbeam_channel::(bounded|unbounded)|tokio::sync::(mpsc|oneshot|broadcast))\b"
+rg seed: "\.(call_once|get_or_init)\s*\(|\b(Once::call_once|OnceCell::get_or_init|OnceLock::get_or_init|LazyLock::(new|force)|Lazy::(new|force))\b"  # dominant method form `INIT.call_once(`/`CELL.get_or_init(` + type-qualified forms
+rg seed: "\bsigaction\b|\bsignal_hook\b|\blibc::signal\b|nix::sys::signal"
 ```
 
 For each lock acquisition, record `lock_map[site] = { mutex_var, guard_name_if_bound, lexical_scope_end }`. If the lock result is unbound and used as a temporary in a `match` / `if let` / `while let` **scrutinee** (e.g. `if let Some(v) = m.lock().unwrap().get(k) { … }`), the guard lives until the **end of that whole expression's block** — the classic footgun. Note this explicitly. (A plain `if m.lock().unwrap().is_empty() { … }` whose condition is a bare `bool` is different: that temporary drops at the end of the *condition*, before the body — so the prolonged-hold concern applies to scrutinee temporaries, not every unbound lock.)
@@ -38,7 +38,7 @@ For each lock acquisition, record `lock_map[site] = { mutex_var, guard_name_if_b
 
 ### 1. `DLOCK` — Double-lock via guard lexical scope
 
-For each lock acquisition `g = m.lock()`: find every subsequent lock on the same `m` (via Grep + flow analysis) within `g`'s lexical scope. If any exists on a reachable path, file `DLOCK`.
+For each lock acquisition `g = m.lock()`: find every subsequent lock on the same `m` (via `rg` + flow analysis) within `g`'s lexical scope. If any exists on a reachable path, file `DLOCK`.
 
 Especially scrutinize:
 - `if let Some(x) = m.lock().unwrap().get(k) { /* temporary holds m */ }`

@@ -1,7 +1,7 @@
 ---
 name: rust-review
 description: Performs comprehensive Rust security review for safe/unsafe boundary issues, memory safety in unsafe blocks, concurrency hazards, panic-induced DoS, FFI safety, and async runtime mistakes. Use when auditing Rust crates, services, or libraries — particularly those with `unsafe`, FFI, or concurrent code.
-allowed-tools: Agent AskUserQuestion SendMessage TaskCreate TaskUpdate TaskList TaskGet Grep Glob Read Write Bash
+allowed-tools: Agent AskUserQuestion SendMessage TaskCreate TaskUpdate TaskList Read Write Bash
 ---
 
 # Rust Security Review

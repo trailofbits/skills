@@ -21,11 +21,11 @@ ID prefixes: `CREATEPROC`, `CROSSPROC`, `TOKPRIV`, `WINSVC`.
 ## Phase A — Seed targets
 
 ```
-Grep: pattern="\\b(CreateProcess[AW]?|ShellExecute[AW]?|CreateProcessAsUser[AW]?|WinExec)\\s*\\("
-Grep: pattern="\\b(OpenProcess|DuplicateHandle|ReadProcessMemory|WriteProcessMemory|VirtualAllocEx|CreateRemoteThread)\\s*\\("
-Grep: pattern="\\b(OpenProcessToken|OpenThreadToken|AdjustTokenPrivileges|LookupPrivilegeValue|ImpersonateLoggedOnUser|SetTokenInformation)\\s*\\("
-Grep: pattern="\\b(StartServiceCtrlDispatcher|RegisterServiceCtrlHandler|CreateService|OpenSCManager|StartService)\\s*\\("
-Grep: pattern="\\bSECURITY_ATTRIBUTES\\b|\\bSECURITY_DESCRIPTOR\\b"
+rg seed: "\\b(CreateProcess[AW]?|ShellExecute[AW]?|CreateProcessAsUser[AW]?|WinExec)\\s*\\("
+rg seed: "\\b(OpenProcess|DuplicateHandle|ReadProcessMemory|WriteProcessMemory|VirtualAllocEx|CreateRemoteThread)\\s*\\("
+rg seed: "\\b(OpenProcessToken|OpenThreadToken|AdjustTokenPrivileges|LookupPrivilegeValue|ImpersonateLoggedOnUser|SetTokenInformation)\\s*\\("
+rg seed: "\\b(StartServiceCtrlDispatcher|RegisterServiceCtrlHandler|CreateService|OpenSCManager|StartService)\\s*\\("
+rg seed: "\\bSECURITY_ATTRIBUTES\\b|\\bSECURITY_DESCRIPTOR\\b"
 ```
 
 Keep as `win_proc_sites`.

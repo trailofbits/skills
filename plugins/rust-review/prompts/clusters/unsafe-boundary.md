@@ -26,24 +26,24 @@ ID prefixes: `URAPI`, `TRANS`, `RAWPTR`, `PTRCAST`, `REPRC`, `ENUMUB`, `SAFETYDO
 Run these scans and keep results as `unsafe_map` for all eight passes:
 
 ```
-Grep: pattern="\bunsafe\s*\{"                          # Unsafe blocks (UB)
-Grep: pattern="\bunsafe\s+fn\s"                        # Unsafe functions (UF)
-Grep: pattern="\bunsafe\s+impl\s"                      # Unsafe trait impls
-Grep: pattern="\bextern\s+\"(C|system|stdcall|cdecl|win64|sysv64|aapcs|fastcall|thiscall|vectorcall|efiapi)(-unwind)?\""  # FFI entry points (any non-Rust ABI)
-Grep: pattern="#\[repr\([^]]*\bC\b"                    # FFI-safe layouts: C, C+packed, C+u32
-Grep: pattern="\btransmute(_copy)?\s*[:<(]"             # mem::transmute usage
-Grep: pattern="(\*mut|\*const)\s+\w"                  # Raw pointer types
-Grep: pattern="(\.|::)(as_ptr|as_mut_ptr|into_raw|from_raw(_parts)?)\(" # Raw pointer extraction — method `.into_raw()` AND assoc-fn `Box::from_raw(`/`Rc::into_raw(`/`Vec::from_raw_parts(`/`CString::from_raw(`
-Grep: pattern="\b(get_unchecked(_mut)?|copy_nonoverlapping|ptr::(write|read|offset|add|sub))\s*\("
-Grep: pattern="\.(add|sub|offset|read|write|copy_to|copy_from|copy_to_nonoverlapping|copy_from_nonoverlapping)(_unaligned|_volatile)?\s*\("  # raw-pointer METHOD form (p.add(i), p.offset(n), p.read()) — the path-qualified ptr:: line above does NOT match these, yet the RAWPTR pass audits them
-Grep: pattern="\bas\s+\*(const|mut)\s+\w"              # ptr-type reinterpretation via `as`
-Grep: pattern="\bas\s+(usize|isize)\b"                 # ptr↔int candidates (Read confirms ptr side)
-Grep: pattern="\btransmute(_copy)?\s*::\s*<\s*u8\s*,\s*bool"   # transmute<u8, bool>
-Grep: pattern="\benum\s+\w+\s*\{"                              # candidate enums (cross with #[repr(...)])
-Grep: pattern="Option<\s*(NonZero|&|Box<|NonNull|fn\()"        # niche-optimized fields
+rg seed: "\bunsafe\s*\{"                          # Unsafe blocks (UB)
+rg seed: "\bunsafe\s+fn\s"                        # Unsafe functions (UF)
+rg seed: "\bunsafe\s+impl\s"                      # Unsafe trait impls
+rg seed: "\bextern\s+\"(C|system|stdcall|cdecl|win64|sysv64|aapcs|fastcall|thiscall|vectorcall|efiapi)(-unwind)?\""  # FFI entry points (any non-Rust ABI)
+rg seed: "#\[repr\([^]]*\bC\b"                    # FFI-safe layouts: C, C+packed, C+u32
+rg seed: "\btransmute(_copy)?\s*[:<(]"             # mem::transmute usage
+rg seed: "(\*mut|\*const)\s+\w"                  # Raw pointer types
+rg seed: "(\.|::)(as_ptr|as_mut_ptr|into_raw|from_raw(_parts)?)\(" # Raw pointer extraction — method `.into_raw()` AND assoc-fn `Box::from_raw(`/`Rc::into_raw(`/`Vec::from_raw_parts(`/`CString::from_raw(`
+rg seed: "\b(get_unchecked(_mut)?|copy_nonoverlapping|ptr::(write|read|offset|add|sub))\s*\("
+rg seed: "\.(add|sub|offset|read|write|copy_to|copy_from|copy_to_nonoverlapping|copy_from_nonoverlapping)(_unaligned|_volatile)?\s*\("  # raw-pointer METHOD form (p.add(i), p.offset(n), p.read()) — the path-qualified ptr:: line above does NOT match these, yet the RAWPTR pass audits them
+rg seed: "\bas\s+\*(const|mut)\s+\w"              # ptr-type reinterpretation via `as`
+rg seed: "\bas\s+(usize|isize)\b"                 # ptr↔int candidates (Read confirms ptr side)
+rg seed: "\btransmute(_copy)?\s*::\s*<\s*u8\s*,\s*bool"   # transmute<u8, bool>
+rg seed: "\benum\s+\w+\s*\{"                              # candidate enums (cross with #[repr(...)])
+rg seed: "Option<\s*(NonZero|&|Box<|NonNull|fn\()"        # niche-optimized fields
 ```
 
-For each unsafe block, identify its **Unsafe Encapsulating Function (UEF)** — the smallest `fn` (safe or unsafe) lexically containing it. Then walk callers via `Grep` for the UEF name to find every **Unsafe Reaching API (URAPI)** — a `pub fn` whose body, directly or transitively, dispatches into the UEF. Record `unsafe_map[UB] = { uef, urapis[], inputs_flowing_in }`.
+For each unsafe block, identify its **Unsafe Encapsulating Function (UEF)** — the smallest `fn` (safe or unsafe) lexically containing it. Then walk callers via `rg` for the UEF name to find every **Unsafe Reaching API (URAPI)** — a `pub fn` whose body, directly or transitively, dispatches into the UEF. Record `unsafe_map[UB] = { uef, urapis[], inputs_flowing_in }`.
 
 Do NOT file findings during Phase A.
 
@@ -154,4 +154,4 @@ Report only one finding per `(path, line)`. Priority (higher wins):
 
 ## Token-economy reminder
 
-All eight passes operate on the same `unsafe_map`. Build it ONCE; do not re-`Grep` raw-pointer, transmute, `as`-cast, or enum patterns per pass. Reuse the URAPI set across UAF, double-free, invalid-free, and BOF in the **memory-safety** cluster too — those finders may `Read` `unsafe_map` notes via the worker's scratch findings, but the **memory-safety** cluster runs in a different worker, so it must rebuild its own map (cluster isolation is intentional).
+All eight passes operate on the same `unsafe_map`. Build it ONCE; do not re-search raw-pointer, transmute, `as`-cast, or enum patterns per pass. Reuse the URAPI set across UAF, double-free, invalid-free, and BOF in the **memory-safety** cluster too — those finders may `Read` `unsafe_map` notes via the worker's scratch findings, but the **memory-safety** cluster runs in a different worker, so it must rebuild its own map (cluster isolation is intentional).

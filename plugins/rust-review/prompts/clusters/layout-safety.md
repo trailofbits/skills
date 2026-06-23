@@ -15,8 +15,8 @@ ID prefixes: `PACKEDREF`.
 ## Phase A
 
 ```
-Grep: pattern="#\[repr\([^\]]*packed"
-Grep: pattern="&(?:mut\s+)?[\w.]+\.(?:\w+|\d+)"
+rg seed: "#\[repr\([^\]]*packed"
+rg seed: "&(?:mut\s+)?[\w.]+\.(?:\w+|\d+)"
 ```
 
 Run finders in declared order.

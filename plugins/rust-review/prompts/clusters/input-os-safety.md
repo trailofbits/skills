@@ -16,9 +16,9 @@ ID prefixes: `PATHJOIN`, `TOCTOU`.
 ## Phase A
 
 ```
-Grep: pattern="\.join\(|\.push\(|PathBuf"
-Grep: pattern="\.exists\(\)|\.metadata\(|symlink_metadata"
-Grep: pattern="File::(open|create)"
+rg seed: "\.join\(|\.push\(|PathBuf"
+rg seed: "\.exists\(\)|\.metadata\(|symlink_metadata"
+rg seed: "File::(open|create)"
 ```
 
 Run finders in declared order.

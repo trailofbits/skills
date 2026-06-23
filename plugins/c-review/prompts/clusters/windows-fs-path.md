@@ -20,10 +20,10 @@ ID prefixes: `DLLPLANT`, `WINPATH`, `INSTRACE`.
 ## Phase A — Seed targets
 
 ```
-Grep: pattern="\\b(LoadLibrary[AW]?|LoadLibraryEx[AW]?|GetProcAddress|SetDllDirectory[AW]?|SetDefaultDllDirectories|AddDllDirectory)\\s*\\("
-Grep: pattern="\\b(GetCurrentDirectory[AW]?|SetCurrentDirectory[AW]?|GetTempPath[AW]?|GetTempFileName[AW]?|PathCombine[AW]?|PathAppend[AW]?)\\s*\\("
-Grep: pattern="\\b(CreateFile[AW]?|CreateDirectory[AW]?|DeleteFile[AW]?|MoveFile[AW]?|CopyFile[AW]?)\\s*\\("
-Grep: pattern="\\bMAX_PATH\\b"                         # MAX_PATH usage (truncation candidates)
+rg seed: "\\b(LoadLibrary[AW]?|LoadLibraryEx[AW]?|GetProcAddress|SetDllDirectory[AW]?|SetDefaultDllDirectories|AddDllDirectory)\\s*\\("
+rg seed: "\\b(GetCurrentDirectory[AW]?|SetCurrentDirectory[AW]?|GetTempPath[AW]?|GetTempFileName[AW]?|PathCombine[AW]?|PathAppend[AW]?)\\s*\\("
+rg seed: "\\b(CreateFile[AW]?|CreateDirectory[AW]?|DeleteFile[AW]?|MoveFile[AW]?|CopyFile[AW]?)\\s*\\("
+rg seed: "\\bMAX_PATH\\b"                         # MAX_PATH usage (truncation candidates)
 ```
 
 Keep as `win_fs_sites`.

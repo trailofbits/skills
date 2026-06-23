@@ -29,11 +29,11 @@ ID prefixes: `RECURSEFMT`, `RECURSEDROP`, `RECURSEDES`.
 A type is *recursive* if it (transitively) contains itself behind an indirection. Find them:
 
 ```
-Grep: pattern="Box<\s*Self\s*>|Vec<\s*Self\s*>|Option<\s*Box<\s*Self"
-Grep: pattern="(Rc|Arc)<\s*(Self|RefCell<\s*Self|Mutex<\s*Self|RwLock<\s*Self|Box<\s*Self)"
-Grep: pattern="HashMap<[^,>]+,\s*(Self|Box<\s*Self)"
-Grep: pattern="enum\s+\w+\b"   # candidates for recursive enum (AST/JSON-value shapes)
-Grep: pattern="struct\s+\w+\b" # candidates for recursive struct (tree/linked-list shapes)
+rg seed: "Box<\s*Self\s*>|Vec<\s*Self\s*>|Option<\s*Box<\s*Self"
+rg seed: "(Rc|Arc)<\s*(Self|RefCell<\s*Self|Mutex<\s*Self|RwLock<\s*Self|Box<\s*Self)"
+rg seed: "HashMap<[^,>]+,\s*(Self|Box<\s*Self)"
+rg seed: "enum\s+\w+\b"   # candidates for recursive enum (AST/JSON-value shapes)
+rg seed: "struct\s+\w+\b" # candidates for recursive struct (tree/linked-list shapes)
 ```
 
 For each candidate, confirm recursion by inspection: a field, variant payload, or alias whose type names the parent (directly or via `Box`/`Vec`/`Rc`/`Arc`/`HashMap`/`BTreeMap`/`IndexMap`).
@@ -56,11 +56,11 @@ Record `rec_map[type_name] = { kind: enum|struct|alias, indirection: Box|Vec|Rc|
 Recursion DoS requires an attacker-controlled depth source. Identify entry points and trace data flow into types from `rec_map`:
 
 ```
-Grep: pattern="(serde_json|serde_yaml|toml|ron|ciborium|bincode|postcard)::from_(str|slice|reader|value)"
-Grep: pattern="\.deserialize\s*\(|#\[derive\(.*Deserialize"
-Grep: pattern="(reqwest|hyper|axum|actix|warp|rocket|tonic)::"
-Grep: pattern="tokio::(net|io)::|std::net::"
-Grep: pattern="std::io::(stdin|BufReader)"
+rg seed: "(serde_json|serde_yaml|toml|ron|ciborium|bincode|postcard)::from_(str|slice|reader|value)"
+rg seed: "\.deserialize\s*\(|#\[derive\(.*Deserialize"
+rg seed: "(reqwest|hyper|axum|actix|warp|rocket|tonic)::"
+rg seed: "tokio::(net|io)::|std::net::"
+rg seed: "std::io::(stdin|BufReader)"
 ```
 
 A site only matters if (a) the input crosses a trust boundary and (b) it lands in a type from `rec_map`.

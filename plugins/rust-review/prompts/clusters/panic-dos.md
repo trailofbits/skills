@@ -23,7 +23,7 @@ ID prefixes: `RESEXHAUST`, `UNWRAP`, `ARITHOFL`, `ASSERTREACH`, `OOBIDX`, `STRSL
 Arithmetic-overflow panics (`a + b`, `a - b`, `a * b`, `-a`, `a << b`) are conditional on `overflow-checks`. Default: `true` in debug, `false` in release. Check the target profile before scoring `ARITHOFL` findings:
 
 ```
-Grep: pattern="overflow-checks\s*=" path="**/Cargo.toml"
+rg seed: "overflow-checks\s*=" path="**/Cargo.toml"
 ```
 
 - If `overflow-checks = true` on the relevant profile (often `[profile.release]` in security-sensitive crates — Solana programs, Substrate runtimes, etc.): plain `+ - * << >>` and unary `-` are panic candidates.
@@ -36,10 +36,10 @@ Grep: pattern="overflow-checks\s*=" path="**/Cargo.toml"
 ## Phase B — Resource exhaustion inventory (RESEXHAUST)
 
 ```
-Grep: pattern="(Vec|String|BytesMut|VecDeque)::(with_capacity|reserve)\s*\(|\.(reserve|reserve_exact|try_reserve|with_capacity)\s*\("  # assoc-fn `Vec::with_capacity(` + dominant method `buf.reserve(`/`v.reserve_exact(`
-Grep: pattern="\.resize\s*\(|vec!\[[^;]+;\s*\w+\]|repeat\s*\("
-Grep: pattern="unbounded(_channel)?|async_channel::unbounded|crossbeam.*unbounded"
-Grep: pattern="for\s+\w+\s+in\s+0\.\.|while\s+.*\.len\(\)|loop\s*\{"
+rg seed: "(Vec|String|BytesMut|VecDeque)::(with_capacity|reserve)\s*\(|\.(reserve|reserve_exact|try_reserve|with_capacity)\s*\("  # assoc-fn `Vec::with_capacity(` + dominant method `buf.reserve(`/`v.reserve_exact(`
+rg seed: "\.resize\s*\(|vec!\[[^;]+;\s*\w+\]|repeat\s*\("
+rg seed: "unbounded(_channel)?|async_channel::unbounded|crossbeam.*unbounded"
+rg seed: "for\s+\w+\s+in\s+0\.\.|while\s+.*\.len\(\)|loop\s*\{"
 ```
 
 Trace whether capacity/index/count is tainted from decode/parse of external input.
@@ -47,20 +47,20 @@ Trace whether capacity/index/count is tainted from decode/parse of external inpu
 ## Phase C — Panic inventory
 
 ```
-Grep: pattern="\.unwrap(_err)?\s*\(\s*\)|\.expect\s*\("
-Grep: pattern="(panic!|todo!|unimplemented!|unreachable!|assert(_eq|_ne)?!)\s*\("
-Grep: pattern="\bas\s+(u\d+|i\d+|usize|isize)\b"
-Grep: pattern="\[\s*\w+\s*\]"  # bracket indexing
-Grep: pattern="[\w)\]]\s*[/%]\s*[\w(]"  # division / modulo — unconditional panic on divide-by-zero (matches tight `a/b`, `len%n`, `(x)/y`; over-matches `/` `%` inside strings — FP-triage those)
-Grep: pattern="\[[^\]]*\.\.[^\]]*\]|\.split_at(_mut)?\s*\(|\.truncate\s*\("  # str range-slice / split_at / truncate — char-boundary panic
-Grep: pattern="RefCell|\.borrow_mut\s*\("
-Grep: pattern="\.try_borrow_mut\s*\(\s*\)\s*\.(unwrap(_err)?|expect)\s*\("  # try_borrow_mut().unwrap()/expect() re-introduces the panic
+rg seed: "\.unwrap(_err)?\s*\(\s*\)|\.expect\s*\("
+rg seed: "(panic!|todo!|unimplemented!|unreachable!|assert(_eq|_ne)?!)\s*\("
+rg seed: "\bas\s+(u\d+|i\d+|usize|isize)\b"
+rg seed: "\[\s*\w+\s*\]"  # bracket indexing
+rg seed: "[\w)\]]\s*[/%]\s*[\w(]"  # division / modulo — unconditional panic on divide-by-zero (matches tight `a/b`, `len%n`, `(x)/y`; over-matches `/` `%` inside strings — FP-triage those)
+rg seed: "\[[^\]]*\.\.[^\]]*\]|\.split_at(_mut)?\s*\(|\.truncate\s*\("  # str range-slice / split_at / truncate — char-boundary panic
+rg seed: "RefCell|\.borrow_mut\s*\("
+rg seed: "\.try_borrow_mut\s*\(\s*\)\s*\.(unwrap(_err)?|expect)\s*\("  # try_borrow_mut().unwrap()/expect() re-introduces the panic
 ```
 
 **Negative-signal grep (sites already hardened, skip for `ARITHOFL`):**
 
 ```
-Grep: pattern="\b(checked|saturating|wrapping|overflowing)_(add|sub|mul|shl|shr|neg|pow)\b"
+rg seed: "\b(checked|saturating|wrapping|overflowing)_(add|sub|mul|shl|shr|neg|pow)\b"
 ```
 
 These methods never panic on overflow — they're the explicit non-panicking alternatives. Use this grep to *exclude* hardened sites from the arithmetic inventory, not to find panic candidates. **Do not exclude `div`/`rem` this way:** only `checked_div`/`checked_rem` are divide-by-zero-safe — `wrapping_div`/`saturating_div`/`overflowing_div` (and the `_rem` forms) **still panic on divide-by-zero**, so they stay in the div-by-zero inventory. (One exception to the exclusion: `checked_*().unwrap()` chains re-introduce a panic and should fall out of the `unwrap` grep above.)

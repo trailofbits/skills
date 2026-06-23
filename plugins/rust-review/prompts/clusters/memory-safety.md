@@ -28,17 +28,17 @@ Cluster gate `has_unsafe` — when `has_unsafe=false`, the orchestrator drops th
 Run these scans:
 
 ```
-Grep: pattern="\bunsafe\s*\{"
-Grep: pattern="(\.|::)(as_ptr|as_mut_ptr|into_raw|from_raw(_parts)?)\("  # method `.into_raw()` AND assoc-fn `Box::from_raw(`/`Rc::into_raw(`/`Vec::from_raw_parts(`/`CString::from_raw(`
-Grep: pattern="\bptr::(read|write|copy(_nonoverlapping)?|drop_in_place|offset|add|sub)\b"
-Grep: pattern="\.(add|sub|offset|read|write|copy_to|copy_from|copy_to_nonoverlapping|copy_from_nonoverlapping)(_unaligned|_volatile)?\s*\("  # raw-pointer METHOD form (p.read(), p.add(i)) — complements the ptr:: free-fn line above
-Grep: pattern="\b(get_unchecked(_mut)?)\s*\("
-Grep: pattern="\bMaybeUninit::|\.assume_init(_read|_mut|_ref)?\s*\("  # broad MaybeUninit seed catches turbofish forms with nested generics; method form catches value.assume_init*
-Grep: pattern="\b(mem::uninitialized|mem::zeroed|mem::transmute|mem::forget|ManuallyDrop::)"
-Grep: pattern="\b(alloc|dealloc|realloc)\s*\(|\balloc::(alloc|dealloc|realloc)\b"  # allocator calls: bare/imported `dealloc(p, layout)`, method `.dealloc(`, and fully-qualified `std::alloc::dealloc`
-Grep: pattern="\bunion\s+\w+\b"
-Grep: pattern="\bset_len\s*\(|\bfrom_raw_parts\s*\(|\bspare_capacity_mut\s*\("
-Grep: pattern="drop_in_place|catch_unwind"
+rg seed: "\bunsafe\s*\{"
+rg seed: "(\.|::)(as_ptr|as_mut_ptr|into_raw|from_raw(_parts)?)\("  # method `.into_raw()` AND assoc-fn `Box::from_raw(`/`Rc::into_raw(`/`Vec::from_raw_parts(`/`CString::from_raw(`
+rg seed: "\bptr::(read|write|copy(_nonoverlapping)?|drop_in_place|offset|add|sub)\b"
+rg seed: "\.(add|sub|offset|read|write|copy_to|copy_from|copy_to_nonoverlapping|copy_from_nonoverlapping)(_unaligned|_volatile)?\s*\("  # raw-pointer METHOD form (p.read(), p.add(i)) — complements the ptr:: free-fn line above
+rg seed: "\b(get_unchecked(_mut)?)\s*\("
+rg seed: "\bMaybeUninit::|\.assume_init(_read|_mut|_ref)?\s*\("  # broad MaybeUninit seed catches turbofish forms with nested generics; method form catches value.assume_init*
+rg seed: "\b(mem::uninitialized|mem::zeroed|mem::transmute|mem::forget|ManuallyDrop::)"
+rg seed: "\b(alloc|dealloc|realloc)\s*\(|\balloc::(alloc|dealloc|realloc)\b"  # allocator calls: bare/imported `dealloc(p, layout)`, method `.dealloc(`, and fully-qualified `std::alloc::dealloc`
+rg seed: "\bunion\s+\w+\b"
+rg seed: "\bset_len\s*\(|\bfrom_raw_parts\s*\(|\bspare_capacity_mut\s*\("
+rg seed: "drop_in_place|catch_unwind"
 ```
 
 Record `mem_map[site] = { kind, type, owner_var, lifetime_scope, drop_site }`.

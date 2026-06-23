@@ -17,12 +17,12 @@ ID prefixes: `RESDISC`, `DROPPANIC`, `LOSSYFROM`, `LOSSYSTR`, `BUFFLUSH`.
 ## Phase A
 
 ```
-Grep: pattern="let\s+_\s*=\s"
-Grep: pattern="impl\b[^\n]*\bDrop\s+for"  # incl. generic/lifetime `impl<'a> Drop for` / `impl<T> Drop for`
-Grep: pattern="impl\b[^\n]*\bFrom<[^\n]*>\s+for|impl\b[^\n]*\bInto<"  # incl. generic `impl<T> From<...> for` (the `\bFrom` boundary still excludes `TryFrom`)
-Grep: pattern="\bas\s+\w"
-Grep: pattern="from_utf8_lossy|to_string_lossy|to_str\(\)\s*\.unwrap_or"
-Grep: pattern="BufWriter"
+rg seed: "let\s+_\s*=\s"
+rg seed: "impl\b[^\n]*\bDrop\s+for"  # incl. generic/lifetime `impl<'a> Drop for` / `impl<T> Drop for`
+rg seed: "impl\b[^\n]*\bFrom<[^\n]*>\s+for|impl\b[^\n]*\bInto<"  # incl. generic `impl<T> From<...> for` (the `\bFrom` boundary still excludes `TryFrom`)
+rg seed: "\bas\s+\w"
+rg seed: "from_utf8_lossy|to_string_lossy|to_str\(\)\s*\.unwrap_or"
+rg seed: "BufWriter"
 ```
 
 Run finders in declared order.

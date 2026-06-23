@@ -16,12 +16,12 @@ ID prefixes: `RAWFD`, `DROPSKIP`.
 ## Phase A
 
 ```
-Grep: pattern="\b(from_raw_fd|into_raw_fd|as_raw_fd)\b"
-Grep: pattern="\b(RawFd|OwnedFd|BorrowedFd)\b"
-Grep: pattern="libc::(close|dup|dup2|open|pipe|socket)\b"
-Grep: pattern="\b(RawHandle|RawSocket|from_raw_handle|into_raw_handle)\b"
-Grep: pattern="\bmem::forget\b|\bManuallyDrop\b"
-Grep: pattern="process::exit|libc::exit"
+rg seed: "\b(from_raw_fd|into_raw_fd|as_raw_fd)\b"
+rg seed: "\b(RawFd|OwnedFd|BorrowedFd)\b"
+rg seed: "libc::(close|dup|dup2|open|pipe|socket)\b"
+rg seed: "\b(RawHandle|RawSocket|from_raw_handle|into_raw_handle)\b"
+rg seed: "\bmem::forget\b|\bManuallyDrop\b"
+rg seed: "process::exit|libc::exit"
 ```
 
 Run finders in declared order.

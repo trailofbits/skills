@@ -1,7 +1,7 @@
 ---
 name: c-review
 description: Performs comprehensive C/C++ security review for memory corruption, integer overflows, race conditions, and platform-specific vulnerabilities. Use when auditing native C/C++ applications, reviewing daemons or services for memory safety, or hunting integer overflow / use-after-free / race conditions in userspace code.
-allowed-tools: Agent AskUserQuestion SendMessage TaskCreate TaskUpdate TaskList TaskGet Grep Glob Read Write Bash
+allowed-tools: Agent AskUserQuestion SendMessage TaskCreate TaskUpdate TaskList Read Write Bash
 ---
 
 # C/C++ Security Review
