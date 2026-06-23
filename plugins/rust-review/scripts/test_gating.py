@@ -10,6 +10,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 import build_run_plan
 from build_run_plan import build_selection
 
@@ -371,3 +373,9 @@ def test_spawn_prompt_codebase_line_is_comma_separated():
     codebase = next(line for line in prompt.splitlines() if line.startswith("Codebase: "))
     assert ", " in codebase
     assert codebase.startswith("Codebase: has_unsafe=true, has_ffi=")
+
+
+if __name__ == "__main__":
+    import sys
+
+    raise SystemExit(pytest.main([__file__, *sys.argv[1:]]))

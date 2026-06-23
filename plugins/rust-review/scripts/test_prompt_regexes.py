@@ -11,6 +11,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 CLUSTERS = PLUGIN_ROOT / "prompts" / "clusters"
 SKILL = PLUGIN_ROOT / "skills" / "rust-review" / "SKILL.md"
@@ -102,3 +104,9 @@ def test_has_fs_io_module_probe_matches_fs_and_file_apis() -> None:
     assert matches(pattern, "use std::fs; fs::read(p);")
     assert matches(pattern, 'File::open("x");')
     assert not matches(pattern, "let x = 1;")
+
+
+if __name__ == "__main__":
+    import sys
+
+    raise SystemExit(pytest.main([__file__, *sys.argv[1:]]))

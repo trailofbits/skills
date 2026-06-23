@@ -530,3 +530,9 @@ def test_finding_with_no_location_is_marked(tmp_path: Path) -> None:
     loc = result["locations"][0]["physicalLocation"]
     assert loc["artifactLocation"]["uri"] == ""
     assert loc["region"]["startLine"] == 1
+
+
+if __name__ == "__main__":
+    import sys
+
+    raise SystemExit(pytest.main([__file__, *sys.argv[1:]]))

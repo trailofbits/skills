@@ -278,3 +278,9 @@ def test_negative_max_passes_raises():
     src = [_mk_cluster("x", 4)]
     with pytest.raises(ValueError):
         split_oversized_clusters(src, max_passes=-1)
+
+
+if __name__ == "__main__":
+    import sys
+
+    raise SystemExit(pytest.main([__file__, *sys.argv[1:]]))

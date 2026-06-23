@@ -292,3 +292,9 @@ def test_shard_path_outside_findings_fails(tmp_path: Path) -> None:
     errors = validate_plan(plan_path, workers=["worker-1"])
 
     assert any("outside findings/" in error for error in errors)
+
+
+if __name__ == "__main__":
+    import sys
+
+    raise SystemExit(pytest.main([__file__, *sys.argv[1:]]))
