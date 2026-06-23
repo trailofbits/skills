@@ -177,6 +177,8 @@ def test_consolidated_override_ignored_passes_still_filtered(tmp_path):
             "has_ffi": False,
             "has_concurrency": False,
             "has_async": False,
+            "has_packed_repr": False,
+            "has_fs_io": False,
         },
         threat_model="REMOTE",
     )
@@ -216,6 +218,8 @@ def test_build_selection_rejects_invalid_manifest_override(tmp_path, override):
                 "has_ffi": False,
                 "has_concurrency": False,
                 "has_async": False,
+                "has_packed_repr": False,
+                "has_fs_io": False,
             },
             threat_model="REMOTE",
         )

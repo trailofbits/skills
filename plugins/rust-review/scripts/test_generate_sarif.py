@@ -334,8 +334,12 @@ def test_malformed_frontmatter_finding_is_skipped_not_crash(tmp_path: Path) -> N
         encoding="utf-8",
     )
 
-    results = build_sarif(tmp_path)["runs"][0]["results"]
-    assert [r["properties"]["finding_id"] for r in results] == ["BOF-001"]
+    run = build_sarif(tmp_path)["runs"][0]
+    assert [r["properties"]["finding_id"] for r in run["results"]] == ["BOF-001"]
+    # The malformed file is surfaced in the invocation, not only on stderr.
+    invocation = run["invocations"][0]
+    assert invocation["properties"]["skipped_findings"] == 1
+    assert any("MALFORMED" in p for p in invocation["properties"]["skipped_paths"])
 
 
 def test_frontmatterless_finding_is_skipped_not_phantom(tmp_path: Path) -> None:
@@ -430,7 +434,9 @@ def test_merged_finding_whose_target_was_fp_rejected_is_emitted(tmp_path: Path) 
         fp_verdict="FALSE_POSITIVE",
     )
 
-    result_ids = [r["properties"]["finding_id"] for r in build_sarif(tmp_path)["runs"][0]["results"]]
+    result_ids = [
+        r["properties"]["finding_id"] for r in build_sarif(tmp_path)["runs"][0]["results"]
+    ]
     assert result_ids == ["DUP-A"]
 
 
@@ -459,7 +465,9 @@ def test_merged_finding_with_surviving_target_is_skipped(tmp_path: Path) -> None
         fp_verdict="TRUE_POSITIVE",
     )
 
-    result_ids = [r["properties"]["finding_id"] for r in build_sarif(tmp_path)["runs"][0]["results"]]
+    result_ids = [
+        r["properties"]["finding_id"] for r in build_sarif(tmp_path)["runs"][0]["results"]
+    ]
     assert result_ids == ["DUP-B"]
 
 
@@ -480,7 +488,9 @@ def test_merged_finding_whose_target_is_missing_is_emitted(tmp_path: Path) -> No
         merged_into="DUP-GHOST",
     )
 
-    result_ids = [r["properties"]["finding_id"] for r in build_sarif(tmp_path)["runs"][0]["results"]]
+    result_ids = [
+        r["properties"]["finding_id"] for r in build_sarif(tmp_path)["runs"][0]["results"]
+    ]
     assert result_ids == ["DUP-A"]
 
 
@@ -496,3 +506,27 @@ def test_location_parts_branch_coverage() -> None:
     assert location_parts("a.rs:1, b.rs:2") == ("a.rs:1, b.rs:2", 1)
     assert location_parts("src/lib.rs:0") == ("src/lib.rs", 1)
     assert location_parts(None) == ("", 1)
+
+
+def test_finding_with_no_location_is_marked(tmp_path: Path) -> None:
+    """A survivor with no `location` must be emitted (not dropped) but flagged:
+    empty URI, `location_missing: True`, and a `LOCATION MISSING` title marker so
+    the phantom `:1` location is never read as a real one."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    findings.mkdir()
+    (findings / "BOF-001.md").write_text(
+        "---\nid: BOF-001\nbug_class: buffer-overflow-unsafe\n"
+        "title: no location recorded\nseverity: HIGH\n"
+        "fp_verdict: TRUE_POSITIVE\nconfidence: High\n---\n\nBody.\n",
+        encoding="utf-8",
+    )
+
+    result = build_sarif(tmp_path)["runs"][0]["results"][0]
+    assert result["properties"]["location_missing"] is True
+    assert "LOCATION MISSING" in result["message"]["text"]
+    loc = result["locations"][0]["physicalLocation"]
+    assert loc["artifactLocation"]["uri"] == ""
+    assert loc["region"]["startLine"] == 1

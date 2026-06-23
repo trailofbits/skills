@@ -18,16 +18,18 @@ def _write_finding(
     location: str,
     severity: str = "HIGH",
     fp_verdict: str | None = "TRUE_POSITIVE",
+    merged_into: str | None = None,
 ) -> None:
     findings_dir.mkdir(parents=True, exist_ok=True)
     fp_line = f"fp_verdict: {fp_verdict}\n" if fp_verdict is not None else ""
+    merged_line = f"merged_into: {merged_into}\n" if merged_into else ""
     content = f"""---
 id: {fid}
 bug_class: {bug_class}
 title: {title}
 location: {location}
 severity: {severity}
-{fp_line}\
+{fp_line}{merged_line}\
 confidence: High
 attack_vector: Remote
 exploitability: Reliable
@@ -384,3 +386,143 @@ def test_location_parts_branch_coverage() -> None:
     assert location_parts("a.c:1, b.c:2") == ("a.c:1, b.c:2", 1)
     assert location_parts("src/lib.c:0") == ("src/lib.c", 1)
     assert location_parts(None) == ("", 1)
+
+
+def test_malformed_frontmatter_finding_is_skipped_not_crash(tmp_path: Path) -> None:
+    """Regression for malformed frontmatter: a scalar key then an indented list
+    item used to raise AttributeError and abort the whole run, so no REPORT.sarif
+    was emitted. The bad file must be skipped (and surfaced) so survivors emit."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="BOF-001",
+        bug_class="buffer-overflow",
+        title="real",
+        location="src/a.c:1",
+    )
+    # Scalar then list item on one key: parse_frontmatter appends to the scalar.
+    (findings / "MALFORMED.md").write_text(
+        "---\nid: MALFORMED\nbug_class: use-after-free\n"
+        "title: bad frontmatter\nlocation: src/a.c:42\n"
+        "  - src/b.c:88\nseverity: HIGH\n---\n\nBody.\n",
+        encoding="utf-8",
+    )
+
+    run = build_sarif(tmp_path)["runs"][0]
+    assert [r["properties"]["finding_id"] for r in run["results"]] == ["BOF-001"]
+    # The malformed file is surfaced in the invocation, not only on stderr.
+    invocation = run["invocations"][0]
+    assert invocation["properties"]["skipped_findings"] == 1
+    assert any("MALFORMED" in p for p in invocation["properties"]["skipped_paths"])
+
+
+def test_merged_finding_whose_target_was_fp_rejected_is_emitted(tmp_path: Path) -> None:
+    """A finding merged into an FP-rejected primary must not inherit the rejection;
+    its own TRUE_POSITIVE verdict must still surface."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="DUP-A",
+        bug_class="buffer-overflow",
+        title="real bug, folded into DUP-B",
+        location="src/a.c:10",
+        fp_verdict="TRUE_POSITIVE",
+        merged_into="DUP-B",
+    )
+    _write_finding(
+        findings,
+        fid="DUP-B",
+        bug_class="buffer-overflow",
+        title="the duplicate, later judged FP",
+        location="src/a.c:10",
+        fp_verdict="FALSE_POSITIVE",
+    )
+
+    result_ids = [
+        r["properties"]["finding_id"] for r in build_sarif(tmp_path)["runs"][0]["results"]
+    ]
+    assert result_ids == ["DUP-A"]
+
+
+def test_merged_finding_with_surviving_target_is_skipped(tmp_path: Path) -> None:
+    """When the merge target survives, the merged finding is still skipped — no
+    false duplicate."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="DUP-A",
+        bug_class="buffer-overflow",
+        title="folded duplicate",
+        location="src/a.c:10",
+        fp_verdict="TRUE_POSITIVE",
+        merged_into="DUP-B",
+    )
+    _write_finding(
+        findings,
+        fid="DUP-B",
+        bug_class="buffer-overflow",
+        title="surviving primary",
+        location="src/a.c:10",
+        fp_verdict="TRUE_POSITIVE",
+    )
+
+    result_ids = [
+        r["properties"]["finding_id"] for r in build_sarif(tmp_path)["runs"][0]["results"]
+    ]
+    assert result_ids == ["DUP-B"]
+
+
+def test_merged_finding_whose_target_is_missing_is_emitted(tmp_path: Path) -> None:
+    """A finding merged into a missing target id (aborted dedup / stale field)
+    must survive."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    _write_finding(
+        findings,
+        fid="DUP-A",
+        bug_class="buffer-overflow",
+        title="orphaned by missing target",
+        location="src/a.c:10",
+        fp_verdict="TRUE_POSITIVE",
+        merged_into="DUP-GHOST",
+    )
+
+    result_ids = [
+        r["properties"]["finding_id"] for r in build_sarif(tmp_path)["runs"][0]["results"]
+    ]
+    assert result_ids == ["DUP-A"]
+
+
+def test_finding_with_no_location_is_marked(tmp_path: Path) -> None:
+    """A survivor with no `location` must be emitted (not dropped) but flagged:
+    empty URI, `location_missing: True`, and a `LOCATION MISSING` title marker so
+    the phantom `:1` location is never read as a real one."""
+    (tmp_path / "context.md").write_text(
+        "---\nthreat_model: REMOTE\nseverity_filter: all\n---\n", encoding="utf-8"
+    )
+    findings = tmp_path / "findings"
+    findings.mkdir()
+    (findings / "BOF-001.md").write_text(
+        "---\nid: BOF-001\nbug_class: buffer-overflow\n"
+        "title: no location recorded\nseverity: HIGH\n"
+        "fp_verdict: TRUE_POSITIVE\nconfidence: High\n---\n\nBody.\n",
+        encoding="utf-8",
+    )
+
+    result = build_sarif(tmp_path)["runs"][0]["results"][0]
+    assert result["properties"]["location_missing"] is True
+    assert "LOCATION MISSING" in result["message"]["text"]
+    loc = result["locations"][0]["physicalLocation"]
+    assert loc["artifactLocation"]["uri"] == ""
+    assert loc["region"]["startLine"] == 1

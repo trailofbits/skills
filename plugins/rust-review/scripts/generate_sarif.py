@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.13"
+# requires-python = ">=3.11"
 # dependencies = []
 # ///
 """Generate rust-review SARIF from finding frontmatter.
@@ -242,6 +242,7 @@ def iter_findings(output_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str
             frontmatter, _ = split_frontmatter(text)
         except Exception as exc:
             print(f"warning: skipping unparseable finding file {path}: {exc}", file=sys.stderr)
+            skipped.append({"path": str(path), "reason": f"unparseable ({exc.__class__.__name__})"})
             continue
         frontmatter["_path"] = str(path)
         findings.append(frontmatter)
@@ -322,7 +323,9 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
         verdict = str(f.get("fp_verdict", "")).upper()
         if verdict and verdict not in SURVIVOR_VERDICTS:
             continue
-        survivor_ids.add(str(f.get("id")))
+        fid = f.get("id")
+        if fid:
+            survivor_ids.add(str(fid))
 
     findings = []
     for finding in all_findings:
@@ -396,6 +399,10 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
     results = []
     for finding in findings:
         location, line = location_parts(finding.get("location"))
+        # A finding with no recorded location yields an empty URI; surface that
+        # loudly (mirroring severity_missing) instead of emitting a phantom `:1`
+        # location a reviewer cannot act on.
+        location_missing = not location
         severity = str(finding.get("severity", "MEDIUM")).upper()
         also_known_as = finding.get("also_known_as", [])
         if not isinstance(also_known_as, list):
@@ -404,10 +411,16 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
         severity_missing = bool(finding.get("severity_missing", False))
         severity_validated = not (unjudged or severity_missing)
         title = str(finding.get("title") or finding.get("id") or "rust-review finding")
+        markers: list[str] = []
         if not severity_validated:
             # No judge validated this severity — mark it loudly so a SARIF
             # consumer never reads the inferred/defaulted severity as confirmed.
-            title = f"[UNVALIDATED SEVERITY — not judged] {title}"
+            markers.append("UNVALIDATED SEVERITY — not judged")
+        if location_missing:
+            # Empty URI — flag it so it is not read as "applies to the whole tree".
+            markers.append("LOCATION MISSING")
+        if markers:
+            title = f"[{'; '.join(markers)}] {title}"
         results.append(
             {
                 "ruleId": str(finding.get("bug_class", "unknown")),
@@ -433,6 +446,7 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
                     "fp_verdict": str(finding.get("fp_verdict", "")),
                     "unjudged": unjudged,
                     "severity_validated": severity_validated,
+                    "location_missing": location_missing,
                     "also_known_as": also_known_as,
                 },
             }

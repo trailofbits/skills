@@ -305,18 +305,26 @@ def split_oversized_clusters(
         if k <= effective_max_passes:
             out.append(cluster)
             continue
-        # Greedy left-to-right contiguous partition.
+        # Greedy left-to-right contiguous partition. Chunk entries intentionally
+        # omit `max_passes_per_worker`: each chunk is already <= the effective max
+        # and chunks are never re-chunked, so the key would never be read again.
         n_chunks = (k + effective_max_passes - 1) // effective_max_passes
-        for i in range(n_chunks):
-            chunk_passes = passes[i * effective_max_passes : (i + 1) * effective_max_passes]
-            out.append(
-                {
-                    "cluster_id": f"{cluster['cluster_id']}-{i + 1}",
-                    "consolidated": cluster["consolidated"],
-                    "cluster_prompt": cluster["cluster_prompt"],
-                    "passes": chunk_passes,
-                }
-            )
+        chunks = [
+            {
+                "cluster_id": f"{cluster['cluster_id']}-{i + 1}",
+                "consolidated": cluster["consolidated"],
+                "cluster_prompt": cluster["cluster_prompt"],
+                "passes": passes[i * effective_max_passes : (i + 1) * effective_max_passes],
+            }
+            for i in range(n_chunks)
+        ]
+        # Post-condition: chunking must neither drop nor duplicate a pass (a lost
+        # pass = a whole bug class silently un-analyzed), so the concatenated chunk
+        # passes must equal the source passes in order.
+        assert [p for c in chunks for p in c["passes"]] == passes, (
+            f"cluster {cluster['cluster_id']!r}: chunking changed the pass set"
+        )
+        out.extend(chunks)
     return out
 
 

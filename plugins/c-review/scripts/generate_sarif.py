@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.13"
+# requires-python = ">=3.11"
 # dependencies = []
 # ///
 """Generate c-review SARIF from finding frontmatter.
@@ -214,7 +214,15 @@ def iter_findings(output_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str
             print(f"warning: skipping unreadable finding file {path}: {exc}", file=sys.stderr)
             skipped.append({"path": str(path), "reason": f"unreadable ({exc.__class__.__name__})"})
             continue
-        frontmatter, _ = split_frontmatter(text)
+        # parse_frontmatter raises on malformed YAML (e.g. a scalar then a list
+        # item on one key). One bad file must not sink the Phase-8b net, so catch
+        # broadly; narrowing to AttributeError would only patch this one shape.
+        try:
+            frontmatter, _ = split_frontmatter(text)
+        except Exception as exc:
+            print(f"warning: skipping unparseable finding file {path}: {exc}", file=sys.stderr)
+            skipped.append({"path": str(path), "reason": f"unparseable ({exc.__class__.__name__})"})
+            continue
         frontmatter["_path"] = str(path)
         findings.append(frontmatter)
     return findings, skipped
@@ -269,11 +277,47 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
     context = parse_context(output_dir)
     severity_filter = str(context.get("severity_filter", "all")).lower()
     threat_model = str(context.get("threat_model", "UNKNOWN"))
-    raw_findings, skipped = iter_findings(output_dir)
-    findings = []
-    for finding in raw_findings:
-        if "merged_into" in finding:
+    all_findings, skipped = iter_findings(output_dir)
+
+    # Skip a merged finding only when its merge target survives; otherwise the
+    # old blind skip dropped real bugs whose target was FP-rejected or missing.
+    by_id = {str(f.get("id")): f for f in all_findings if f.get("id")}
+
+    def terminal_primary(fid: str) -> str | None:
+        seen: set[str] = set()
+        while fid in by_id and fid not in seen:
+            seen.add(fid)
+            nxt = by_id[fid].get("merged_into")
+            if not nxt:
+                return fid
+            fid = str(nxt)
+        return None
+
+    survivor_ids: set[str] = set()
+    for f in all_findings:
+        if "merged_into" in f:
             continue
+        if not (f.get("id") or f.get("bug_class") or f.get("title")):
+            continue
+        verdict = str(f.get("fp_verdict", "")).upper()
+        if verdict and verdict not in SURVIVOR_VERDICTS:
+            continue
+        fid = f.get("id")
+        if fid:
+            survivor_ids.add(str(fid))
+
+    findings = []
+    for finding in all_findings:
+        merged_target = finding.get("merged_into")
+        if merged_target:
+            if terminal_primary(str(merged_target)) in survivor_ids:
+                continue
+            print(
+                "generate_sarif: merge target did not survive -- emitting "
+                f"{finding.get('id', '?')} (merged_into: {merged_target}): "
+                f"{finding.get('_path', '?')}",
+                file=sys.stderr,
+            )
         if not (finding.get("id") or finding.get("bug_class") or finding.get("title")):
             # No parseable frontmatter (e.g. a worker crashed mid-write before
             # emitting the `---` block). Skip rather than fabricate a phantom
@@ -334,6 +378,10 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
     results = []
     for finding in findings:
         location, line = location_parts(finding.get("location"))
+        # A finding with no recorded location yields an empty URI; surface that
+        # loudly (mirroring severity_missing) instead of emitting a phantom `:1`
+        # location a reviewer cannot act on.
+        location_missing = not location
         severity = str(finding.get("severity", "MEDIUM")).upper()
         also_known_as = finding.get("also_known_as", [])
         if not isinstance(also_known_as, list):
@@ -342,10 +390,16 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
         severity_missing = bool(finding.get("severity_missing", False))
         severity_validated = not (unjudged or severity_missing)
         title = str(finding.get("title") or finding.get("id") or "c-review finding")
+        markers: list[str] = []
         if not severity_validated:
             # No judge validated this severity — mark it loudly so a SARIF
             # consumer never reads the inferred/defaulted severity as confirmed.
-            title = f"[UNVALIDATED SEVERITY — not judged] {title}"
+            markers.append("UNVALIDATED SEVERITY — not judged")
+        if location_missing:
+            # Empty URI — flag it so it is not read as "applies to the whole tree".
+            markers.append("LOCATION MISSING")
+        if markers:
+            title = f"[{'; '.join(markers)}] {title}"
         results.append(
             {
                 "ruleId": str(finding.get("bug_class", "unknown")),
@@ -371,6 +425,7 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
                     "fp_verdict": str(finding.get("fp_verdict", "")),
                     "unjudged": unjudged,
                     "severity_validated": severity_validated,
+                    "location_missing": location_missing,
                     "also_known_as": also_known_as,
                 },
             }

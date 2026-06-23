@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """Validate Phase 7 worker artifacts against plan.json."""
 
 from __future__ import annotations
@@ -82,6 +86,8 @@ def _output_dir(plan: dict[str, Any], plan_path: Path) -> Path:
 def _worker_map(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
     workers: dict[str, dict[str, Any]] = {}
     for worker in plan.get("workers", []):
+        if "worker_n" not in worker:
+            raise ValueError(f"plan worker entry missing 'worker_n': {worker!r}")
         worker_id = normalize_worker_id(str(worker["worker_n"]))
         workers[worker_id] = worker
     return workers
