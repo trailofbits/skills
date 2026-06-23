@@ -1,6 +1,6 @@
 # Standard Verification
 
-Linear single-pass checklist for straightforward bugs. No task creation — work through each step sequentially and document findings inline.
+Linear single-pass checklist for straightforward bugs. No task tracking — work through each step sequentially and document findings inline.
 
 ## Escalation Checkpoints
 
