@@ -7,6 +7,24 @@ tools:
   - Read
   - Grep
   - Glob
+hooks:
+  Stop:
+    - matcher: "*"
+      hooks:
+        - type: prompt
+          timeout: 30
+          prompt: |
+            You are an output completeness checker for the fp-check data-flow-analyzer subagent, which is about to stop. Verify it produced complete structured output for its assigned Phase 1 work.
+
+            Required sections:
+            - Phase 1.1: Trust boundary map with source, path, sink, and validation points (each with file:line references)
+            - Phase 1.2: API contract analysis (built-in protections identified or absence noted)
+            - Phase 1.3: Environment protection analysis (each classified as 'prevents entirely' or 'raises bar')
+            - Phase 1.4: Cross-reference analysis (similar patterns, test coverage, history)
+            - Phase 1 Conclusion with evidence
+
+            If required sections are missing, respond with JSON: {"ok": false, "reason": "<specific gaps>"}
+            If all required sections are present with evidence, respond with JSON: {"ok": true}
 ---
 
 # Data Flow Analyzer
