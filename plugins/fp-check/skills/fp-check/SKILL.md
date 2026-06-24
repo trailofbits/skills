@@ -2,6 +2,35 @@
 name: fp-check
 description: "Systematically verifies suspected security bugs to eliminate false positives, producing a TRUE POSITIVE or FALSE POSITIVE verdict with documented evidence for each. Use when asked whether a specific finding is real, exploitable, or a false positive, or to verify or validate a suspected vulnerability — not for hunting or discovering new bugs."
 allowed-tools: Read Grep Glob LSP Bash Task Write Edit AskUserQuestion TaskCreate TaskUpdate TaskList TaskGet
+hooks:
+  Stop:
+    - matcher: "*"
+      hooks:
+        - type: prompt
+          timeout: 30
+          prompt: |
+            You are a verification completeness checker for the fp-check false positive analysis skill. The agent is about to stop. Decide whether to allow the stop by applying these rules IN ORDER:
+
+            1. If the conversation is not about fp-check verification at all, respond with JSON: {"ok": true}.
+
+            2. If the fp-check verification was delegated to subagents or a workflow (the transcript shows the Task tool was used to spawn verification workers such as data-flow-analyzer, exploitability-verifier, or poc-builder, or general verification subagents), respond with JSON: {"ok": true}. The orchestrator is not the verifier; completeness is enforced by the worker agents' own instructions, not by this hook.
+
+            3. Otherwise the main agent performed the verification inline. Determine which path it used by inference: DEEP shows Phase 1-5 work and spawned analysis agents; STANDARD is a linear inline Steps 1-6 checklist. Then verify the requirements for THAT path.
+
+            COMMON to both paths (always required):
+            - Data flow traced: source to sink, trust boundaries, validation points
+            - Exploitability assessed: attacker control; mathematical bounds and race feasibility where applicable (or N/A)
+            - Impact assessed: real security impact vs operational robustness
+            - A pseudocode PoC is present
+            - Devil's advocate review performed
+            - All 6 gates (Process, Reachability, Real Impact, PoC Validation, Math Bounds, Environment) evaluated with pass/fail
+            - A TRUE POSITIVE or FALSE POSITIVE verdict with evidence
+
+            STANDARD path only (Steps 1-6): devil's advocate = the 7 spot-check questions (5 against + 2 for); PoC = pseudocode sketch only (executable, unit test, and negative PoCs are NOT required).
+
+            DEEP path only (Phases 1-5): devil's advocate = all 13 challenge questions (11 against + 2 for); PoC = pseudocode (4.1) + executable/unit-test PoCs created or explicitly skipped with justification (4.2/4.3) + negative PoC (4.4) + PoC verification (4.5).
+
+            Block ONLY on a concrete, actionable gap the agent can fill from its own context. If a defensible verdict with evidence already exists for the path used, respond {"ok": true}. Otherwise respond {"ok": false, "reason": "<specific gaps, naming the bug and its path>"}.
 ---
 
 # False Positive Check
