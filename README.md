@@ -1,6 +1,6 @@
 # Trail of Bits Skills Marketplace
 
-A Claude Code plugin marketplace from Trail of Bits providing skills to enhance AI-assisted security analysis, testing, and development workflows. Codex can load this marketplace through its Claude marketplace compatibility.
+A Claude Code plugin marketplace from Trail of Bits providing skills to enhance AI-assisted security analysis, testing, and development workflows. Codex can load this marketplace through its Claude marketplace compatibility. OpenCode loads the skills natively via a bundled JS plugin.
 
 > Also see: [claude-code-config](https://github.com/trailofbits/claude-code-config) · [skills-curated](https://github.com/trailofbits/skills-curated) · [claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) · [dropkit](https://github.com/trailofbits/dropkit)
 
@@ -29,6 +29,18 @@ codex plugin marketplace add trailofbits/skills
 codex plugin list
 codex plugin add <plugin-name>@trailofbits
 ```
+
+### OpenCode
+
+OpenCode discovers skills natively via the bundled `.opencode/plugins/` JS plugin.
+
+- Tell OpenCode:
+
+  ```
+  Fetch and follow instructions from https://raw.githubusercontent.com/trailofbits/skills/main/.opencode/INSTALL.md
+  ```
+
+- Or read the install guide directly: [.opencode/INSTALL.md](.opencode/INSTALL.md)
 
 ### Local Development
 
