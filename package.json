@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Trail of Bits skills marketplace for OpenCode",
   "type": "module",
+  "files": [
+    ".opencode",
+    "plugins"
+  ],
   "exports": {
     "./server": "./.opencode/plugins/trailofbits-skills.js"
   }
