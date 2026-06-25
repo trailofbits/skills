@@ -1,37 +1,41 @@
 ---
 name: github-triage
-description: "Triages open GitHub issues for the current repository using the gh CLI: closes already-resolved issues with explanatory comments that cite the resolving PR or commit, ensures issues and their pending fix PRs reference each other, and assigns local-only priority and change-size estimates for everything still outstanding. Use when triaging, grooming, or reviewing a repository's open GitHub issues."
+description: "Triages a repository's open GitHub issues and pull requests via the gh CLI. Optionally reviews and merges ready PRs — incrementally merging passing automated/bot PRs and maintainer-approved ones, and spawning review subagents for never-reviewed ones — then closes already-resolved issues with comments citing the resolving PR or commit, cross-links issues with their pending fix PRs, and assigns local-only priority and change-size estimates for everything outstanding. Use when triaging, grooming, or reviewing a repository's open issues and PRs."
 disable-model-invocation: true
-allowed-tools: Bash Read Grep AskUserQuestion Write
+allowed-tools: Bash Read Grep Agent AskUserQuestion Write
 ---
 
 # GitHub Triage
 
-Triage the open GitHub issues for a repository: close issues that are already
-resolved (with a comment citing the PR or commit that resolved them), make sure
-issues and the pending PRs that fix them reference each other, and assign a
-**local-only** priority and change-size estimate to every issue that is still
-outstanding.
+Triage a repository's open GitHub issues and pull requests. Optionally clear ready
+PRs first (merge passing bot PRs and maintainer-approved PRs, review never-reviewed
+ones), then close issues that are already resolved (with a comment citing the PR or
+commit that resolved them), make sure issues and the pending PRs that fix them
+reference each other, and assign a **local-only** priority and change-size estimate
+to every issue that is still outstanding.
 
 ## When to Use
 
-- When the user runs `/github-triage` to groom or review a repository's open issues.
+- When the user runs `/github-triage` to groom or review a repository's open issues
+  and pull requests.
 - When an issue backlog has drifted: resolved work left open, fixes landed without
   closing their issues, or PRs in flight that never linked their issue.
+- When ready PRs have piled up (passing dependency bumps, approved-and-green PRs) or
+  PRs are sitting unreviewed.
 
 ## When NOT to Use
 
 - Do not invoke automatically. This skill performs irreversible GitHub writes
-  (closing issues, posting comments, editing PR bodies) and runs only on explicit
-  invocation.
-- Do not use for triaging pull requests themselves — this skill triages *issues*.
+  (merging PRs, closing issues, posting comments) and runs only on explicit invocation.
 - Do not use to apply priority/effort *labels* on GitHub. Priority and size are
   presented locally only and are never posted (see Safety Rules).
+- Do not use as a substitute for a human's final merge decision — every merge is
+  proposed for explicit approval, never performed autonomously.
 
 ## Core Principles
 
 1. **Writes are gated.** Compute the full triage first, present every proposed
-   write for review, and execute nothing until the user approves.
+   write — merges included — for review, and execute nothing until the user approves.
 2. **Evidence before closing.** Never close an issue without a concrete, cited
    reason (a merged PR or a commit on the default branch). When evidence is weak
    or ambiguous, leave the issue outstanding and flag it for review.
@@ -72,6 +76,8 @@ Selection rule:
 > configured host. Confirm the resolved repo back to the user before continuing.
 
 Store the result as `REPO="OWNER/REPO"` and pass `-R "$REPO"` to every `gh` call.
+Validate it against `^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$` before use, so a malformed or
+hostile remote URL never flows into a command.
 
 ### Phase 1: Gather issues and context
 
@@ -80,9 +86,10 @@ Store the result as `REPO="OWNER/REPO"` and pass `-R "$REPO"` to every `gh` call
 gh issue list -R "$REPO" --state open --limit 1000 \
   --json number,title,body,labels,assignees,comments,reactionGroups,createdAt,updatedAt,url
 
-# Open PRs — candidates for "pending fix"
+# Open PRs — candidates for "pending fix" (issue phase) and PR triage (Phase 2)
 gh pr list -R "$REPO" --state open --limit 1000 \
-  --json number,title,body,headRefName,url,closingIssuesReferences
+  --json number,title,body,author,isDraft,reviewDecision,latestReviews,\
+mergeable,mergeStateStatus,statusCheckRollup,labels,createdAt,headRefName,url,closingIssuesReferences
 
 # Recently merged PRs — candidates for "already resolved"
 gh pr list -R "$REPO" --state merged --limit 300 \
@@ -103,7 +110,88 @@ git log --oneline "origin/$default_branch" \
   | grep -iE "(close|fix|resolve)[sd]? +#<N>([^0-9]|$)"
 ```
 
-### Phase 2: Classify each open issue
+### Phase 2: Triage open pull requests (optional)
+
+Handle PRs **before** issues: merging ready PRs here means the "already resolved"
+check in the issue phase sees the work those merges just landed.
+
+If there are no open PRs, skip this phase. Otherwise summarize the open PRs and **ask
+the user whether to handle PRs now** (AskUserQuestion: handle PRs / skip to issues).
+If they skip, go straight to issue classification.
+
+Classify each open PR from its review, CI, and merge state. The field shapes below are
+what `gh pr ... --json` actually returns — rely on them, not on intuition:
+
+- **Ready to merge** = `mergeable == "MERGEABLE"` **and** `mergeStateStatus == "CLEAN"`.
+  `CLEAN` is GitHub's server-side "no conflicts, not behind, not draft, required checks
+  green" verdict — require it and do not second-guess it. Any other `mergeStateStatus`
+  (`BEHIND`, `UNSTABLE`, `BLOCKED`, `DIRTY`, `DRAFT`, …) is **not ready**. Treat
+  `mergeable == "UNKNOWN"` (GitHub recomputes mergeability lazily, especially right
+  after another merge) as **not ready** — re-poll briefly or skip; never merge on it.
+- **CI passed** — for every entry in `statusCheckRollup`, keyed on `__typename`: a
+  `CheckRun` must have `status == "COMPLETED"` and `conclusion == "SUCCESS"`; a
+  `StatusContext` must have `state == "SUCCESS"`. Anything else — `IN_PROGRESS`/
+  `QUEUED`/`PENDING`, `FAILURE`/`ERROR`, `NEUTRAL`/`SKIPPED`/`CANCELLED`/null — is
+  **not passed**. An **empty** rollup means *no CI*, a distinct state, never "passed".
+  (`CLEAN` already folds in *required* checks; use the rollup to explain *why* a PR is
+  not ready and to catch failing non-required checks.)
+- **Bot/automated** = `author.is_bot == true` (GitHub appends the reserved `[bot]`
+  suffix to App identities). Only offer to **merge** bots on a **trusted allowlist** —
+  `dependabot[bot]`, `renovate[bot]`, plus any the user names. An unrecognized bot's PR
+  is reported, never offered for merge.
+- **Maintainer-approved** = `latestReviews` has an entry with `state == "APPROVED"`
+  whose `authorAssociation` is `OWNER`/`MEMBER`/`COLLABORATOR` and whose `author.login`
+  is not the PR author. Do **not** use `reviewDecision == "APPROVED"` alone: it is
+  branch-protection-driven and is `null` on repos with no required-review rule, so it
+  both over-trusts (cannot confirm write access) and misses genuine approvals.
+- **Never reviewed** = `latestReviews` has no `APPROVED`/`CHANGES_REQUESTED` entry from
+  anyone other than the PR author (a fork "review disabled" bot comment is not review).
+
+| Category | Condition | Offered action |
+|----------|-----------|----------------|
+| Mergeable bot PR | allowlisted bot + CI passed + ready + not draft | Offer **incremental, in-order merge** |
+| Approved & ready | maintainer-approved + CI passed + ready + not draft | Prompt to merge |
+| Never reviewed | only the author has reviewed (or no reviews) + not draft | Offer to **spawn a review subagent** |
+| Needs work | draft, CI failing/pending, conflicts, behind, or changes requested | Report only — no action offered |
+
+Present the categorized PRs and offer the applicable actions via AskUserQuestion.
+
+**Incremental, in-order merge** (bot PRs and approved-ready PRs): confirm the merge set
+and the merge method first (merging is irreversible), then merge **one at a time,
+oldest first**. Choose a method the repo allows and fail closed if it does not:
+
+```bash
+gh repo view -R "$REPO" --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed
+```
+
+For each PR in order, **re-verify immediately before merging** (state drifts after each
+merge — a landed PR can leave the next `BEHIND`, conflicting, or recomputing), merge
+**synchronously**, then **confirm it landed** before advancing:
+
+```bash
+gh pr view <N> -R "$REPO" --json isDraft,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup
+# proceed only if still: not draft, mergeable == MERGEABLE, mergeStateStatus == CLEAN, CI passed
+gh pr merge <N> -R "$REPO" --<method>     # never --auto, never --admin
+gh pr view <N> -R "$REPO" --json state    # expect "MERGED" before moving to the next PR
+```
+
+Stop and report if a PR is no longer ready (including `mergeable == "UNKNOWN"`), if the
+merge did not land, or if any required check is not green — never force, `--admin`,
+`--auto`, or skip a check. For bot PRs, surface the dependency and version jump (e.g.
+major bumps) in the gate so the user can decide with context.
+
+**Review subagents** (never-reviewed PRs): when the user opts in, spawn one **Agent**
+per PR — all in a single assistant message so they run in parallel. Each subagent
+reviews one PR's diff and returns a structured review; write each to
+`github-pr-<number>-review.md` in the working directory (overwriting any prior file
+for that PR). Reviews are **read-only and never posted to GitHub**. See
+[references/reviewing-prs.md](references/reviewing-prs.md) for the subagent prompt,
+review rubric, and file format.
+
+After any merges, **re-fetch** the merged-PR list (the Phase 1 `--state merged` query)
+so the issue phase can detect issues those merges resolved.
+
+### Phase 3: Classify each open issue
 
 Sort every open issue into exactly one bucket.
 
@@ -155,7 +243,7 @@ Do not duplicate links that already exist.
 **Bucket C — Outstanding (no resolution, no pending PR).**
 Assign, **locally only**, a priority and a change-size estimate (next section).
 
-### Phase 3: Score outstanding issues (LOCAL ONLY)
+### Phase 4: Score outstanding issues (LOCAL ONLY)
 
 **Priority** — `Critical` / `High` / `Medium` / `Low`. Weigh:
 
@@ -233,7 +321,7 @@ specific closes, downgrade weak evidence to "leave open / needs review", edit an
 draft comment, or adjust a cross-link. Re-present the revised write set and ask
 again. **Loop until the user approves the final set.** Execute nothing until then.
 
-### Phase 4: Execute approved writes
+### Phase 5: Execute approved issue writes
 
 Run each approved write as a **separate command** so one failure does not block the
 rest. Report the outcome of each, and continue past failures.
@@ -246,7 +334,7 @@ body=$(gh pr view 145 -R "$REPO" --json body --jq .body)
 printf '%s\n\nCloses #140\n' "$body" | gh pr edit 145 -R "$REPO" --body-file -
 ```
 
-### Phase 5: Deliver the outstanding triage
+### Phase 6: Deliver the outstanding triage
 
 Let `K` be the number of outstanding (Bucket C) issues.
 
@@ -271,7 +359,7 @@ Let `K` be the number of outstanding (Bucket C) issues.
 
 1. **Explicit invocation only.** Never triage proactively (`disable-model-invocation`).
 2. **All writes gated.** Present the complete write set and get approval before any
-   `gh issue close`, `gh issue comment`, or `gh pr edit`.
+   `gh pr merge`, `gh issue close`, `gh issue comment`, or `gh pr edit`.
 3. **Cite every close.** The closing comment must name the specific PR or commit.
 4. **Priority and size are local-only.** Never post them to GitHub as labels,
    comments, or anything else.
@@ -286,6 +374,12 @@ Let `K` be the number of outstanding (Bucket C) issues.
    must embed an existing issue/PR body, pass it via `--body-file -` (stdin) or `-F`,
    never inline in `--body "…"`, so backticks or `$(…)` in third-party text cannot
    execute.
+9. **Merge one at a time, re-checking each.** Never merge a batch blind. Re-verify CI
+   and mergeability immediately before each merge, stop on the first failure, and
+   never force-merge or bypass a required check.
+10. **PR reviews are read-only and local.** Review subagents only read the diff; their
+   reviews are saved to `github-pr-<number>-review.md` and never posted to GitHub. The
+   subagent recommendation is advisory — it never triggers a merge on its own.
 
 ## Rationalizations to Reject
 
@@ -299,3 +393,9 @@ Let `K` be the number of outstanding (Bucket C) issues.
 | "They obviously reference each other already, skip checking." | Verify the bidirectional reference actually exists before claiming it; only skip the write when a link is genuinely present. |
 | "There are too many issues, I'll just sample the first 32." | The 32 threshold governs *display*, not *coverage*. Triage every open issue; save to disk when the table is large. |
 | "This issue is hard to size, I'll guess size/M." | Mark it `unsized — needs investigation`. A fabricated estimate is worse than an honest unknown. |
+| "All the bot PRs are green, so merge them all at once." | Merge in order, one at a time. Each merge can stale or conflict the next; re-check before every merge. |
+| "The author approved their own PR, so it's been reviewed." | An author approving their own PR is not review. "Maintainer-approved" requires an approval from someone else with write access. |
+| "CI passed, so the PR is safe to merge." | CI passing is necessary, not sufficient. A never-reviewed PR still gets a review (or stays unmerged); surface major dependency bumps before merging bot PRs. |
+| "The subagent recommended approve, so merge it." | The review is advisory and local. Merging is a separate, explicitly-approved action — never chained off a review verdict. |
+| "An unrecognized bot opened a green PR, so merge it." | Only merge bots on a trusted allowlist (Dependabot/Renovate/user-named). An unknown App could be hostile or misconfigured. |
+| "`mergeable` is true, so it's safe to merge." | Require `mergeStateStatus == CLEAN`. `MERGEABLE` can still be `BEHIND`/`BLOCKED`/`UNSTABLE`, and `UNKNOWN` means GitHub has not recomputed yet — never merge on it. |

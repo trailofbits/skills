@@ -396,7 +396,7 @@
     {
       "name": "github-triage",
       "version": "0.1.0",
-      "description": "Triages open GitHub issues for the current repository using the gh CLI: closes already-resolved issues with referenced explanations, cross-links issues with pending fix PRs, and assigns local-only priority and change-size estimates.",
+      "description": "Triages a repository's open GitHub issues and pull requests via the gh CLI: optionally merges ready bot and maintainer-approved PRs and spawns review subagents for unreviewed ones, closes already-resolved issues with referenced explanations, cross-links issues with pending fix PRs, and assigns local-only priority and change-size estimates.",
       "author": {
         "name": "Evan Sultanik",
         "email": "opensource@trailofbits.com",
