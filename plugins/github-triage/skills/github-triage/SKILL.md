@@ -104,7 +104,7 @@ on the default branch. Resolve the default branch authoritatively from the selec
 repo (not from local `origin/HEAD`, which may be unset or point at the wrong remote):
 
 ```bash
-default_branch=$(gh repo view -R "$REPO" --json defaultBranchRef --jq .defaultBranchRef.name)
+default_branch=$(gh repo view "$REPO" --json defaultBranchRef --jq .defaultBranchRef.name)
 # Anchor the issue number so #12 does not match #120, #123, …
 git log --oneline "origin/$default_branch" \
   | grep -iE "(close|fix|resolve)[sd]? +#<N>([^0-9]|$)"
@@ -122,23 +122,29 @@ If they skip, go straight to issue classification.
 Classify each open PR from its review, CI, and merge state. The field shapes below are
 what `gh pr ... --json` actually returns — rely on them, not on intuition:
 
-- **Ready to merge** = `mergeable == "MERGEABLE"` **and** `mergeStateStatus == "CLEAN"`.
-  `CLEAN` is GitHub's server-side "no conflicts, not behind, not draft, required checks
-  green" verdict — require it and do not second-guess it. Any other `mergeStateStatus`
+- **Ready to merge** = `mergeable == "MERGEABLE"` **and** `mergeStateStatus == "CLEAN"`
+  **and** CI is not blocking (below). `CLEAN` is GitHub's server-side "no conflicts,
+  not behind, not draft, required checks green" verdict — any other `mergeStateStatus`
   (`BEHIND`, `UNSTABLE`, `BLOCKED`, `DIRTY`, `DRAFT`, …) is **not ready**. Treat
   `mergeable == "UNKNOWN"` (GitHub recomputes mergeability lazily, especially right
   after another merge) as **not ready** — re-poll briefly or skip; never merge on it.
-- **CI passed** — for every entry in `statusCheckRollup`, keyed on `__typename`: a
-  `CheckRun` must have `status == "COMPLETED"` and `conclusion == "SUCCESS"`; a
-  `StatusContext` must have `state == "SUCCESS"`. Anything else — `IN_PROGRESS`/
-  `QUEUED`/`PENDING`, `FAILURE`/`ERROR`, `NEUTRAL`/`SKIPPED`/`CANCELLED`/null — is
-  **not passed**. An **empty** rollup means *no CI*, a distinct state, never "passed".
-  (`CLEAN` already folds in *required* checks; use the rollup to explain *why* a PR is
-  not ready and to catch failing non-required checks.)
-- **Bot/automated** = `author.is_bot == true` (GitHub appends the reserved `[bot]`
-  suffix to App identities). Only offer to **merge** bots on a **trusted allowlist** —
-  `dependabot[bot]`, `renovate[bot]`, plus any the user names. An unrecognized bot's PR
-  is reported, never offered for merge.
+- **CI not blocking** — scan `statusCheckRollup` (keyed on `__typename`) and reject the
+  PR only on a real problem: a **hard failure** (a `CheckRun` whose `conclusion` is
+  `FAILURE`/`CANCELLED`/`TIMED_OUT`/`ACTION_REQUIRED`/`STARTUP_FAILURE`/`STALE`, or a
+  `StatusContext` whose `state` is `FAILURE`/`ERROR`), or anything **still running** (a
+  `CheckRun` `status` of `QUEUED`/`IN_PROGRESS`/`WAITING`/`PENDING`, or a
+  `StatusContext` `state` of `PENDING`/`EXPECTED` — wait, do not merge yet). `SUCCESS`,
+  `NEUTRAL`, and `SKIPPED` are **fine** and must not block (e.g. a CodeQL run that
+  reports `NEUTRAL` on a dependency bump — a green Dependabot PR is `CLEAN` with a
+  `NEUTRAL` CodeQL check). An **empty** rollup is *no CI* — a distinct state, never
+  treated as ready. `mergeStateStatus == "CLEAN"` already reflects *required*-check
+  status; use the rollup to catch failing/pending *non-required* checks.
+- **Bot/automated** = `author.is_bot == true`. Match the auto-merge **allowlist**
+  against `author.login` after normalizing away `gh`'s rendering — strip a leading
+  `app/` and a trailing `[bot]` (gh returns Dependabot as `app/dependabot` in some
+  versions and `dependabot[bot]` in others; normalize both to `dependabot`).
+  Allowlisted by default: `dependabot`, `renovate`, plus any the user names. A passing
+  PR from a non-allowlisted bot is reported, never offered for merge.
 - **Maintainer-approved** = `latestReviews` has an entry with `state == "APPROVED"`
   whose `authorAssociation` is `OWNER`/`MEMBER`/`COLLABORATOR` and whose `author.login`
   is not the PR author. Do **not** use `reviewDecision == "APPROVED"` alone: it is
@@ -149,10 +155,13 @@ what `gh pr ... --json` actually returns — rely on them, not on intuition:
 
 | Category | Condition | Offered action |
 |----------|-----------|----------------|
-| Mergeable bot PR | allowlisted bot + CI passed + ready + not draft | Offer **incremental, in-order merge** |
-| Approved & ready | maintainer-approved + CI passed + ready + not draft | Prompt to merge |
-| Never reviewed | only the author has reviewed (or no reviews) + not draft | Offer to **spawn a review subagent** |
-| Needs work | draft, CI failing/pending, conflicts, behind, or changes requested | Report only — no action offered |
+| Mergeable bot PR | allowlisted bot + ready + not draft | Offer **incremental, in-order merge** |
+| Approved & ready | maintainer-approved + ready + not draft | Prompt to merge |
+| Never reviewed | **non-bot** + only the author has reviewed (or no reviews) + not draft | Offer to **spawn a review subagent** |
+| Needs work | draft, hard CI failure, pending CI, conflicts, behind, changes requested, or a bot PR that is not ready | Report only — no action offered |
+
+("ready" already subsumes CI-not-blocking. Review subagents are for human-authored
+PRs — a bot's dependency bump that is not ready is reported as Needs work, not reviewed.)
 
 Present the categorized PRs and offer the applicable actions via AskUserQuestion.
 
@@ -161,7 +170,7 @@ and the merge method first (merging is irreversible), then merge **one at a time
 oldest first**. Choose a method the repo allows and fail closed if it does not:
 
 ```bash
-gh repo view -R "$REPO" --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed
+gh repo view "$REPO" --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed   # positional repo, not -R
 ```
 
 For each PR in order, **re-verify immediately before merging** (state drifts after each
@@ -170,7 +179,7 @@ merge — a landed PR can leave the next `BEHIND`, conflicting, or recomputing),
 
 ```bash
 gh pr view <N> -R "$REPO" --json isDraft,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup
-# proceed only if still: not draft, mergeable == MERGEABLE, mergeStateStatus == CLEAN, CI passed
+# proceed only if still ready: not draft, mergeable == MERGEABLE, mergeStateStatus == CLEAN, CI not blocking
 gh pr merge <N> -R "$REPO" --<method>     # never --auto, never --admin
 gh pr view <N> -R "$REPO" --json state    # expect "MERGED" before moving to the next PR
 ```
