@@ -1,0 +1,10 @@
+{
+  "name": "github-triage",
+  "version": "0.1.0",
+  "description": "Triages open GitHub issues for the current repository using the gh CLI: closes already-resolved issues with referenced explanations, cross-links issues with pending fix PRs, and assigns local-only priority and change-size estimates.",
+  "author": {
+    "name": "Evan Sultanik",
+    "email": "opensource@trailofbits.com",
+    "url": "https://github.com/trailofbits"
+  }
+}
