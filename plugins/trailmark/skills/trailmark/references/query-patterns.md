@@ -2,6 +2,29 @@
 
 Common patterns for using Trailmark in security reviews.
 
+## Version-Gated Queries
+
+Use v0.2-safe APIs unless the installed build is Trailmark 0.4.0 or newer, or
+the method exists when probed with `hasattr()`.
+
+```python
+from trailmark.query.api import QueryEngine
+
+engine = QueryEngine.from_directory("{targetDir}", language="auto")
+
+if hasattr(engine, "subgraph_edges"):
+    edges = engine.subgraph_edges("tainted")  # v0.4+
+else:
+    # v0.2 fallback: filter exported edges by subgraph membership
+    import json
+    graph = json.loads(engine.to_json())
+    member_ids = {node["id"] for node in engine.subgraph("tainted")}
+    edges = [
+        e for e in graph.get("edges", [])
+        if e["source"] in member_ids and e["target"] in member_ids
+    ]
+```
+
 ## 1. Mapping Attack Surface
 
 Find all entrypoints and trace what they can reach:
@@ -63,7 +86,50 @@ else:
     print("Not reachable from any entrypoint")
 ```
 
-## 6. Full Graph Export
+## 6. Transitive Slices
+
+Upward and downward transitive slices (v0.2-safe):
+
+```python
+callers_to_sink = engine.ancestors_of("execute_query")
+downstream = engine.reachable_from("handle_request")
+```
+
+Use `ancestors_of()` for "who could eventually reach this sink?" and
+`reachable_from()` for "what could this entrypoint or helper eventually call?"
+
+## 7. Subgraph Connections
+
+After `engine.preanalysis()`, Trailmark 0.4.0+ can connect named subgraphs and
+return induced edges:
+
+```python
+engine.preanalysis()
+
+if hasattr(engine, "connect_subgraphs"):
+    paths = engine.connect_subgraphs("tainted", "privilege_boundary")
+if hasattr(engine, "subgraph_edges"):
+    tainted_edges = engine.subgraph_edges("tainted")
+```
+
+Use this when prioritizing tainted paths that cross trust boundaries.
+
+## 8. Type and Generic Queries
+
+Trailmark 0.4.0+ records type references and generic parameters where parsers
+can extract them:
+
+```python
+if hasattr(engine, "type_references"):
+    refs = engine.type_references("deserialize_request")
+if hasattr(engine, "generic_parameters"):
+    params = engine.generic_parameters("Container")
+```
+
+Use these to find parser, deserializer, FFI, or generic-bound hotspots where
+declared types are narrower than the effective input domain.
+
+## 9. Full Graph Export
 
 Export for use with other tools:
 
@@ -79,12 +145,17 @@ with open("graph.json", "w") as f:
 # metadata and per-node annotations.
 ```
 
-## 7. Multi-Language Analysis
+Trailmark 0.4.0+ exports proxy nodes for unresolved calls and may include
+`origin` on non-source nodes. Do not treat `origin=proxy` or `origin=binary`
+nodes as source locations during manual review.
+
+## 10. Multi-Language Analysis
 
 Ask Trailmark which languages it supports, detect what exists under the
 target tree, then choose `auto` or an explicit list:
 
 ```python
+# trailmark.parse is a 0.3+ module; on 0.2.x pass language="auto" instead
 from trailmark.parse import detect_languages, supported_languages
 from trailmark.query.api import QueryEngine
 
@@ -95,9 +166,19 @@ engine = QueryEngine.from_directory("{targetDir}", language="auto")
 engine = QueryEngine.from_directory("{targetDir}", language="python,rust")
 ```
 
-## 8. CLI Patterns
+As of Trailmark 0.4.0, supported parser names include `python`, `javascript`,
+`typescript`, `php`, `ruby`, `c`, `cpp`, `c_sharp`, `java`, `go`, `rust`,
+`solidity`, `cairo`, `circom`, `haskell`, `erlang`, `masm`, `swift`, `objc`,
+`kotlin`, `dart`, `move`, `tact`, `func`, `sway`, `rego`, `proto`, `thrift`,
+and `graphql`. Treat this list as documentation, not a source of truth; on
+0.3+ builds call `supported_languages()` before relying on it.
+
+## 11. CLI Patterns
 
 ```bash
+# Version check before v0.4-only commands (version CLI itself is 0.2.2+)
+uv run trailmark --version
+
 # Quick summary with auto-detection
 uv run trailmark analyze --language auto --summary {targetDir}
 
@@ -108,11 +189,17 @@ uv run trailmark analyze --language python,rust --complexity 8 {targetDir}
 # Entrypoint inventory
 uv run trailmark entrypoints --language auto {targetDir}
 
+# Structural diff between two refs or directories
+uv run trailmark diff --repo {repoDir} main HEAD --json
+
+# v0.4+: native diagram
+uv run trailmark diagram -t {targetDir} -T call-graph -f main --depth 2
+
 # Full JSON output for piping to other tools
 uv run trailmark analyze {targetDir} | jq '.nodes | to_entries[] | select(.value.cyclomatic_complexity > 10)'
 ```
 
-## 9. Annotation Workflow
+## 12. Annotation Workflow
 
 Add semantic annotations after analyzing code with an LLM. Annotations
 persist on the in-memory graph and can be queried later:
@@ -134,6 +221,9 @@ assumptions = engine.annotations_of("handle_request", kind=AnnotationKind.ASSUMP
 # Clear annotations (all, or by kind)
 engine.clear_annotations("handle_request", kind=AnnotationKind.ASSUMPTION)
 engine.clear_annotations("handle_request")
+
+# Nodes with a given annotation
+finding_nodes = engine.nodes_with_annotation(AnnotationKind.FINDING)
 ```
 
 **Annotation kinds:** `ASSUMPTION`, `PRECONDITION`, `POSTCONDITION`, `INVARIANT`.
