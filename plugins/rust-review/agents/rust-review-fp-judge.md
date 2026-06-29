@@ -202,7 +202,7 @@ out_of_scope: 1
 ## Per-primary verdicts
 | ID | Bug class | Verdict | Severity | Rationale |
 |----|-----------|---------|----------|-----------|
-| ATOMRACE-001 | atomic-race | LIKELY_TP | HIGH | Non-atomic load/store sequence reachable from concurrent network callers |
+| ATOMICRACE-001 | atomic-race | LIKELY_TP | HIGH | Non-atomic load/store sequence reachable from concurrent network callers |
 | BOF-003 | buffer-overflow-unsafe | FALSE_POSITIVE | — | `len` bounded by `usize::try_from(payload_sz)?` upstream of `copy_nonoverlapping` |
 | … |
 
@@ -264,7 +264,7 @@ reported_findings: 2
 
 ## HIGH (1)
 
-### ATOMRACE-001 — Non-atomic load/store sequence in shared cache update
+### ATOMICRACE-001 — Non-atomic load/store sequence in shared cache update
 - **Location:** `src/runtime/cache.rs:526` (`cache_insert`)
 - **Attack vector:** Remote (concurrent network callers)
 - **Exploitability:** Difficult (narrow race window)

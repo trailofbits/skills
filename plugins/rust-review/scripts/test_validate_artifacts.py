@@ -294,6 +294,28 @@ def test_shard_path_outside_findings_fails(tmp_path: Path) -> None:
     assert any("outside findings/" in error for error in errors)
 
 
+def test_malformed_frontmatter_fails(tmp_path: Path) -> None:
+    """A finding whose frontmatter generate_sarif's parser rejects (a scalar key
+    followed by a `  - ` list item) must be a hard validation error — otherwise the
+    validator passes a file generate_sarif silently drops from results, so a real
+    finding never reaches the report."""
+    plan_path = _write_plan(tmp_path)
+    finding = tmp_path / "findings" / "BOF-001.md"
+    finding.write_text("---\nid: BOF-001\nseverity: HIGH\n  - bogus\n---\n", encoding="utf-8")
+    _touch_shard(tmp_path, [str(finding)])
+    _write_coverage(
+        tmp_path,
+        [
+            ("BOF", "buffer-overflow", "filed: BOF-001"),
+            ("UAF", "use-after-free", "cleared"),
+        ],
+    )
+
+    errors = validate_plan(plan_path, workers=["worker-1"])
+
+    assert any("unparseable frontmatter" in error for error in errors)
+
+
 if __name__ == "__main__":
     import sys
 

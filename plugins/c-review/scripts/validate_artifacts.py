@@ -14,17 +14,21 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Match only a top-level (non-indented) `id:` key. generate_sarif's frontmatter
-# parser treats indented lines as non-top-level and skips them; anchoring with a
-# leading `\s*` here would instead pick up an indented `id:` nested under another
-# mapping key, making the two scripts disagree on the value this check exists to
-# police. Keep them in lockstep: no leading whitespace.
+from generate_sarif import split_frontmatter
+
+# Finding IDs embedded in coverage `filed:` outcomes (e.g. "filed: BOF-001").
 FINDING_ID_RE = re.compile(r"\b[A-Z][A-Z0-9_]*-\d{3,}\b")
-FRONTMATTER_ID_RE = re.compile(r"^id:\s*(.+?)\s*$")
 
 
 def frontmatter_id(path: Path) -> str | None:
     """Return the `id:` value from a finding file's YAML frontmatter, or None.
+
+    Parses with generate_sarif's own `split_frontmatter` — the exact code the
+    report generator runs — so a file this check accepts is one generate_sarif
+    will also accept. A malformed frontmatter (e.g. a scalar key followed by a
+    `  - ` list item) raises here exactly as it does in generate_sarif; the
+    caller turns that into a hard validation error rather than passing a file the
+    report stage would silently drop from results.
 
     Phase 7 otherwise keys everything on the filename stem; without this the
     frontmatter `id` (which dedup/fp-judge and generate_sarif trust) can silently
@@ -34,15 +38,9 @@ def frontmatter_id(path: Path) -> str | None:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return None
-    if not text.startswith("---"):
-        return None
-    end = text.find("\n---", 3)
-    block = text[: end if end != -1 else len(text)]
-    for line in block.splitlines():
-        match = FRONTMATTER_ID_RE.match(line)
-        if match:
-            return match.group(1).strip().strip('"').strip("'")
-    return None
+    frontmatter, _ = split_frontmatter(text)
+    value = frontmatter.get("id")
+    return None if value is None else str(value)
 
 
 def normalize_worker_id(value: str) -> str:
@@ -168,7 +166,18 @@ def _validate_worker(
                 errors.append(
                     f"{worker_id}: shard references finding file outside findings/: {path}"
                 )
-            declared = frontmatter_id(path)
+            try:
+                declared = frontmatter_id(path)
+            except Exception as exc:
+                # generate_sarif's frontmatter parser raises on a malformed block
+                # (e.g. a scalar key then a `  - ` list item), so the report
+                # generator would skip this file and drop the finding from results.
+                # Surface it as a hard error instead of passing a file that vanishes.
+                errors.append(
+                    f"{worker_id}: finding {path.name} has unparseable frontmatter "
+                    f"(generate_sarif would drop it): {exc}"
+                )
+                continue
             if declared is None:
                 errors.append(f"{worker_id}: finding {path.name} has no parseable frontmatter id")
             elif declared != path.stem:
