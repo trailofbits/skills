@@ -1,10 +1,10 @@
 # fp-check
 
-A Claude Code plugin that enforces systematic false positive verification when verifying suspected security bugs.
+A plugin that enforces systematic false positive verification when verifying suspected security bugs.
 
 ## Overview
 
-When Claude is asked to verify suspected security bugs, this plugin activates a rigorous per-bug verification process. Bugs are routed through one of two paths:
+When asked to verify suspected security bugs, this plugin activates a rigorous per-bug verification process. Bugs are routed through one of two paths:
 
 - **Standard verification** — a linear single-pass checklist for straightforward bugs (clear claim, single component, well-understood bug class). No task creation overhead.
 - **Deep verification** — full task-based orchestration with parallel sub-phases for complex bugs (cross-component, race conditions, ambiguous claims, logic bugs without spec).

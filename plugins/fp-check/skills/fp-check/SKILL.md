@@ -1,6 +1,6 @@
 ---
 name: fp-check
-description: "Systematically verifies suspected security bugs to eliminate false positives. Produces TRUE POSITIVE or FALSE POSITIVE verdicts with documented evidence for each bug."
+description: "Systematically verifies suspected security bugs to eliminate false positives, producing a TRUE POSITIVE or FALSE POSITIVE verdict with documented evidence for each. Use when asked whether a specific finding is real, exploitable, or a false positive, or to verify or validate a suspected vulnerability — not for hunting or discovering new bugs."
 allowed-tools: Read Grep Glob LSP Bash Task Write Edit AskUserQuestion TaskCreate TaskUpdate TaskList TaskGet
 ---
 
@@ -37,7 +37,7 @@ If you catch yourself thinking any of these, STOP.
 
 ## Step 0: Understand the Claim and Context
 
-Before any analysis, restate the bug in your own words. If you cannot do this clearly, ask the user for clarification using AskUserQuestion. Half of false positives collapse at this step — the claim doesn't make coherent sense when restated precisely.
+Before any analysis, restate the bug in your own words. If you cannot do this clearly, ask the user for clarification. Half of false positives collapse at this step — the claim doesn't make coherent sense when restated precisely.
 
 Document:
 
@@ -66,7 +66,7 @@ Use when ALL of these hold:
 - No concurrency or async involved in the trigger
 - Straightforward data flow from source to sink
 
-Follow [standard-verification.md]({baseDir}/references/standard-verification.md). No task creation — work through the linear checklist, documenting findings inline.
+Follow [standard-verification.md]({baseDir}/references/standard-verification.md). No task tracking — work through the linear checklist sequentially, documenting findings inline.
 
 ### Deep Verification
 
@@ -79,7 +79,7 @@ Use when ANY of these hold:
 - Standard verification was inconclusive or escalated
 - User explicitly requests full verification
 
-Follow [deep-verification.md]({baseDir}/references/deep-verification.md). Create the full task dependency graph and execute phases with the plugin's agents.
+Follow [deep-verification.md]({baseDir}/references/deep-verification.md). Track each phase as a task with explicit dependencies, and execute the phases using the plugin's analysis agents.
 
 ### Default
 

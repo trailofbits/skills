@@ -1,6 +1,6 @@
 # Three of Pentacles
 
-**Suit**: Pentacles | **Rank**: Three
+**Suit**: Pentacles | **Rank**: 3
 
 ## Upright
 Teamwork, collaboration, and craftsmanship. Skilled people working together

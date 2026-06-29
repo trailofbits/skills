@@ -13,7 +13,7 @@ When a bug escalates from standard verification:
 
 ## Verification Task List
 
-For each bug (Bug #N), create tasks with the dependency structure below. After creating all tasks, use the task IDs returned by TaskCreate to wire dependencies with `addBlockedBy` in TaskUpdate.
+For each bug (Bug #N), create one task per phase with the dependency structure below. Wire the dependencies so each phase stays blocked until every task it depends on is complete.
 
 ```
 ── Phase 1: Data Flow Analysis ──────────────────────────────────
@@ -61,7 +61,7 @@ For each bug (Bug #N), create tasks with the dependency structure below. After c
 
 ## Agents
 
-Spawn these agents via `Task` for their respective phases. Pass the bug description and any prior phase results as context.
+Delegate these agents to their respective phases. Pass the bug description and any prior phase results as context.
 
 | Agent | Phases | Purpose |
 |-------|--------|---------|
