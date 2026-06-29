@@ -3,7 +3,11 @@
 These extract the actual patterns from the prompt cluster files and SKILL.md so
 the tests stay in sync with what workers run, then exercise them against curated
 Rust snippets. Python's `re` is the oracle: the boundary/class semantics relied
-on here (`\\b`, `[^]]`, `(?:...)`) match ripgrep / `grep -E` for these patterns.
+on here (`\\b`, `[^]]`, `(?:...)`) match ripgrep — the Rust regex engine the
+`rg seed` cluster patterns run under. The SKILL.md `grep -rlE` probes lean on
+`\\b`/`\\s`, which are GNU-grep extensions, not POSIX ERE (`(?:...)` is not POSIX
+either); on non-GNU grep, SKILL.md documents the POSIX-class fallbacks
+(`\\s`->`[[:space:]]`, drop `\\b`). This oracle does not validate that grep path.
 """
 
 from __future__ import annotations
