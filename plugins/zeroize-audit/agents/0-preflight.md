@@ -2,12 +2,7 @@
 name: 0-preflight
 description: "Performs preflight validation, config merging, TU enumeration, and work directory setup for zeroize-audit. Produces merged-config.yaml, preflight.json, and orchestrator-state.json."
 model: inherit
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Write
-  - Bash
+tools: Read, Grep, Glob, Write, Bash
 ---
 
 # 0-preflight

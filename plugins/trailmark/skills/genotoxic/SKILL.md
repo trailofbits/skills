@@ -71,7 +71,7 @@ false positives, missing unit tests, and fuzzing targets.
 
 ```bash
 # 1. Build the code graph
-uv run trailmark analyze --summary {targetDir}
+uv run trailmark analyze --language auto --summary {targetDir}
 
 # 2. Run mutation testing (language-dependent)
 # Python:
@@ -132,13 +132,16 @@ mutation testing. Pre-analysis computes blast radius, entry points, privilege
 boundaries, and taint propagation, which Phase 3 uses for triage.
 
 ```bash
-uv run trailmark analyze --summary {targetDir}
+uv run trailmark analyze --language auto --summary {targetDir}
 ```
 
 Use the `QueryEngine` API to build the graph and run pre-analysis:
-1. `QueryEngine.from_directory("{targetDir}", language="{lang}")`
+1. `QueryEngine.from_directory("{targetDir}", language="auto")`
 2. Call `engine.preanalysis()` — **mandatory** before triage
 3. Export with `engine.to_json()` for cross-referencing with mutation results
+
+If auto-detection is wrong for the target, rerun with an explicit language or
+comma-separated list such as `python,rust`.
 
 See [references/graph-analysis.md](references/graph-analysis.md) for the
 full API: node mapping, reachability queries, blast radius, and

@@ -2,11 +2,7 @@
 name: trailofbits:scan-apk
 description: Scans Android APKs for Firebase security misconfigurations
 argument-hint: "<apk-file-or-directory>"
-allowed-tools:
-  - Bash
-  - Read
-  - Grep
-  - Glob
+allowed-tools: Bash Read Grep Glob
 ---
 
 # Scan APK for Firebase Misconfigurations

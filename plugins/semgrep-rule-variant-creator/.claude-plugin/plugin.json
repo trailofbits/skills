@@ -1,6 +1,6 @@
 {
   "name": "semgrep-rule-variant-creator",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Creates language variants of existing Semgrep rules with proper applicability analysis and test-driven validation",
   "author": {
     "name": "Maciej Domanski",

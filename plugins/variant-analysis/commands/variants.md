@@ -2,12 +2,7 @@
 name: trailofbits:variants
 description: Finds similar vulnerabilities using pattern-based analysis
 argument-hint: "(uses conversation context for bug pattern)"
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
-  - Task
+allowed-tools: Read Grep Glob Bash Task
 ---
 
 # Find Vulnerability Variants

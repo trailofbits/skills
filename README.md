@@ -1,6 +1,6 @@
 # Trail of Bits Skills Marketplace
 
-A Claude Code plugin marketplace from Trail of Bits providing skills to enhance AI-assisted security analysis, testing, and development workflows.
+A Claude Code plugin marketplace from Trail of Bits providing skills to enhance AI-assisted security analysis, testing, and development workflows. Codex can load this marketplace through its Claude marketplace compatibility.
 
 > Also see: [claude-code-config](https://github.com/trailofbits/claude-code-config) · [skills-curated](https://github.com/trailofbits/skills-curated) · [claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) · [dropkit](https://github.com/trailofbits/dropkit)
 
@@ -20,16 +20,15 @@ A Claude Code plugin marketplace from Trail of Bits providing skills to enhance 
 
 ### Codex
 
-Codex-native skill discovery is supported via the sidecar `.codex/skills/` tree in this repository.
+Codex supports Claude plugin marketplaces directly, so this repository does not need Codex-specific sidecar metadata.
 
-Install with:
+Install the marketplace with:
 
 ```sh
-git clone https://github.com/trailofbits/skills.git ~/.codex/trailofbits-skills
-~/.codex/trailofbits-skills/.codex/scripts/install-for-codex.sh
+codex plugin marketplace add trailofbits/skills
+codex plugin list
+codex plugin add <plugin-name>@trailofbits
 ```
-
-See [`.codex/INSTALL.md`](.codex/INSTALL.md) for additional details.
 
 ### Local Development
 
@@ -56,6 +55,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [agentic-actions-auditor](plugins/agentic-actions-auditor/) | Audit GitHub Actions workflows for AI agent security vulnerabilities |
 | [audit-context-building](plugins/audit-context-building/) | Build deep architectural context through ultra-granular code analysis |
 | [burpsuite-project-parser](plugins/burpsuite-project-parser/) | Search and extract data from Burp Suite project files |
+| [c-review](plugins/c-review/) | Comprehensive C/C++ security review with clustered parallel workers and SARIF output |
 | [differential-review](plugins/differential-review/) | Security-focused differential review of code changes with git history analysis |
 | [dimensional-analysis](plugins/dimensional-analysis/) | Annotate codebases with dimensional analysis comments to detect unit mismatches and formula bugs |
 | [fp-check](plugins/fp-check/) | Systematic false positive verification for security bug analysis with mandatory gate reviews |

@@ -2,6 +2,18 @@
 
 Different bug classes require different verification approaches. After classifying the bug in Step 0, apply the class-specific requirements below **in addition to** the generic verification phases.
 
+Jump to the relevant class:
+
+- [Memory Corruption](#memory-corruption) — overflows, UAF, double-free, type confusion
+- [Logic Bugs](#logic-bugs) — auth bypass, access control, state transitions, privilege escalation
+- [Race Conditions](#race-conditions) — TOCTOU, data races, signal handling
+- [Integer Issues](#integer-issues) — overflow, underflow, truncation, signedness
+- [Crypto Weaknesses](#crypto-weaknesses) — weak algorithms, nonce reuse, timing channels
+- [Injection](#injection) — SQL, XSS, command, template, path traversal
+- [Information Disclosure](#information-disclosure) — uninitialized memory, leaks, side channels
+- [Denial of Service](#denial-of-service) — algorithmic complexity, resource exhaustion, crashes
+- [Deserialization](#deserialization) — object injection, gadget chains
+
 ## Memory Corruption
 
 Buffer overflow, heap overflow, stack overflow, out-of-bounds read/write, use-after-free, double-free, type confusion.

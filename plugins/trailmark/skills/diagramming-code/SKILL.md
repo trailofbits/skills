@@ -48,7 +48,7 @@ report the error to the user.
 
 ```bash
 uv run {baseDir}/scripts/diagram.py \
-    --target {targetDir} --type call-graph \
+    --target {targetDir} --language auto --type call-graph \
     --focus main --depth 2
 ```
 
@@ -91,18 +91,21 @@ Diagram Progress:
 - [ ] Step 6: Embed diagram in response
 ```
 
-**Step 1:** Run `uv run trailmark analyze --summary {targetDir}`. Install
+**Step 1:** Run `uv run trailmark analyze --language auto --summary {targetDir}`. Install
 if it fails. Then run pre-analysis via the programmatic API:
 
 ```python
 from trailmark.query.api import QueryEngine
 
-engine = QueryEngine.from_directory("{targetDir}", language="{lang}")
+engine = QueryEngine.from_directory("{targetDir}", language="auto")
 engine.preanalysis()
 ```
 
 Pre-analysis enriches the graph with blast radius, taint propagation,
 and privilege boundary data used by `data-flow` diagrams.
+
+If auto-detection is wrong for the target, rerun with an explicit language or
+comma-separated list such as `python,rust`.
 
 **Step 2:** Match the user's request to a `--type` using the decision tree
 above.
@@ -170,6 +173,10 @@ reduce clutter. The script warns if the diagram exceeds 100 nodes.
 
 **Focus:** Always use `--focus` for `call-graph` on non-trivial codebases.
 For `data-flow`, omitting focus auto-targets the top 10 complexity hotspots.
+
+**Language:** Prefer `--language auto` for polyglot or unfamiliar repos.
+Use an explicit language only when you know the target is single-language or
+you need to exclude unrelated components.
 
 ---
 

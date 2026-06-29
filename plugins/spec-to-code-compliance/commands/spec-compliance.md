@@ -2,13 +2,7 @@
 name: trailofbits:spec-compliance
 description: Verifies code implements specification requirements
 argument-hint: "<spec-document> <codebase-path>"
-allowed-tools:
-  - Read
-  - Write
-  - Grep
-  - Glob
-  - Bash
-  - WebFetch
+allowed-tools: Read Write Grep Glob Bash WebFetch
 ---
 
 # Verify Spec-to-Code Compliance

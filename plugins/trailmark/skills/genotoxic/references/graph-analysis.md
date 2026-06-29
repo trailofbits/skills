@@ -61,11 +61,7 @@ Determine whether a mutated function is reachable from untrusted input.
 ```python
 def is_entrypoint_reachable(engine, node_id: str) -> bool:
     """Check if any entrypoint can reach this node."""
-    for ep in engine.attack_surface():
-        paths = engine.paths_between(ep["node_id"], node_id)
-        if paths:
-            return True
-    return False
+    return bool(engine.entrypoint_paths_to(node_id))
 ```
 
 ### Entrypoint Path Details
@@ -75,17 +71,19 @@ For fuzzing targets, include the specific entrypoint paths in the report:
 ```python
 def entrypoint_paths(engine, node_id: str) -> list[dict]:
     """Get all entrypoint paths to this node with metadata."""
+    surface_by_id = {
+        ep["node_id"]: ep for ep in engine.attack_surface()
+    }
     results = []
-    for ep in engine.attack_surface():
-        paths = engine.paths_between(ep["node_id"], node_id)
-        for path in paths:
-            results.append({
-                "entrypoint": ep["node_id"],
-                "trust_level": ep["trust_level"],
-                "kind": ep["kind"],
-                "path": path,
-                "hops": len(path),
-            })
+    for path in engine.entrypoint_paths_to(node_id):
+        ep = surface_by_id.get(path[0], {})
+        results.append({
+            "entrypoint": path[0],
+            "trust_level": ep.get("trust_level"),
+            "kind": ep.get("kind"),
+            "path": path,
+            "hops": len(path),
+        })
     return results
 ```
 
@@ -129,17 +127,18 @@ For critical functions, calculate transitive callers (all functions
 that eventually call this one):
 
 ```python
-from trailmark.storage.graph_store import GraphStore
-
-# Build the store from the graph
-store = GraphStore(graph)
-
-# All nodes that can reach this function
-# (predecessors in the call graph)
-transitive = store.entrypoint_paths_to(node_id)
-transitive_count = len(set(
-    node for path in transitive for node in path
-))
+def transitive_context(engine, node_id: str) -> dict:
+    """Calculate transitive caller and entrypoint context."""
+    ancestors = [
+        node for node in engine.ancestors_of(node_id)
+        if node["kind"] in {"function", "method"}
+    ]
+    paths = engine.entrypoint_paths_to(node_id)
+    return {
+        "transitive_callers": len(ancestors),
+        "entrypoint_paths": len(paths),
+        "entrypoint_reachable": bool(paths),
+    }
 ```
 
 ### Blast Radius Classification

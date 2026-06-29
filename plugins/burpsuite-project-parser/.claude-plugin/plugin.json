@@ -1,6 +1,6 @@
 {
   "name": "burpsuite-project-parser",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Search and extract data from Burp Suite project files (.burp) for security analysis",
   "author": {
     "name": "Will Vandevanter",
