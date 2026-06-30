@@ -107,3 +107,12 @@ jobs:
 
       - name: Check Codex loadability
         run: python3 .github/scripts/check_codex_loadability.py
+
+      - name: Install OpenCode CLI
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/opencode-cli" opencode-ai@latest
+          echo "$RUNNER_TEMP/opencode-cli/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/opencode-cli/bin/opencode" --version
+
+      - name: Check OpenCode loadability
+        run: python3 .github/scripts/check_opencode_loadability.py
