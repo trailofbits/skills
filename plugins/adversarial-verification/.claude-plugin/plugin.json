@@ -1,0 +1,10 @@
+{
+  "name": "adversarial-verification",
+  "version": "1.0.0",
+  "description": "Verify claims, designs, and bug findings by dispatching isolated advocate/skeptic sub-agents and synthesizing their arguments into a structured verdict. Counters sycophancy and single-agent agreement bias.",
+  "author": {
+    "name": "Julius Alexandre",
+    "email": "opensource@trailofbits.com",
+    "url": "https://github.com/trailofbits"
+  }
+}
