@@ -106,6 +106,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [devcontainer-setup](plugins/devcontainer-setup/) | Create pre-configured devcontainers with Claude Code and language-specific tooling |
 | [gh-cli](plugins/gh-cli/) | Intercept GitHub URL fetches and redirect to the authenticated `gh` CLI |
 | [git-cleanup](plugins/git-cleanup/) | Safely clean up git worktrees and local branches with gated confirmation workflow |
+| [github-triage](plugins/github-triage/) | Triage open GitHub issues and PRs: merge ready bot/approved PRs, review unreviewed ones via subagents, close resolved issues with cited comments, cross-link pending fixes, and score the rest with local-only priority and change-size estimates |
 | [let-fate-decide](plugins/let-fate-decide/) | Draw Tarot cards using cryptographic randomness to add entropy to vague planning |
 | [modern-python](plugins/modern-python/) | Modern Python tooling and best practices with uv, ruff, and pytest |
 | [seatbelt-sandboxer](plugins/seatbelt-sandboxer/) | Generate minimal macOS Seatbelt sandbox configurations |
