@@ -37,7 +37,7 @@ Modern Python tooling and best practices using uv, ruff, ty, and pytest. Based o
 
 ## Hook: Legacy Command Interception
 
-This plugin includes a `SessionStart` hook that prepends PATH shims for `python`, `pip`, `pipx`, and `uv`. When Claude runs a bare `python`, `pip`, or `pipx` command, the shell resolves to the shim, which prints an error with the correct `uv` alternative and exits non-zero. `uv run` is unaffected because it prepends its managed virtualenv's `bin/` to PATH, shadowing the shims.
+This plugin includes a `SessionStart` hook that prepends PATH shims for `python`, `pip`, `pipx`, and `uv`. When Claude runs a bare `python`, `pip`, or `pipx` command, the shell resolves to the shim, which prints an error with the correct `uv` alternative and exits non-zero. `uv run` is unaffected: inside a project it prepends its managed virtualenv's `bin/` to PATH, shadowing the shims; outside a project (where no venv `bin/` exists and `uv run python` resolves via PATH) the python shim detects the `uv run` context via the `UV` environment variable that uv (>= 0.6.0) sets for its subprocesses and passes through to the real interpreter. `python -m pip` stays blocked everywhere.
 
 | Intercepted Command | Suggested Alternative |
 |---------------------|----------------------|

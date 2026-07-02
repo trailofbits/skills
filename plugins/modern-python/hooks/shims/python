@@ -5,18 +5,44 @@ set -euo pipefail
 # suggests the uv equivalent.  Works for both names via $0.
 cmd="$(basename "$0")"
 
+# pip via -m is blocked even under `uv run` (canonical `-m pip` spelling
+# only — best-effort interception, not an enforcement boundary).
+if [[ "${1:-}" == "-m" && "${2:-}" == "pip" ]]; then
+  echo "ERROR: \`$cmd -m pip\` is not supported. Use:" >&2
+  echo "  uv add <package>       # add a dependency" >&2
+  echo "  uv remove <package>    # remove a dependency" >&2
+  exit 1
+fi
+
+# Under `uv run`, pass through to the real interpreter.  uv >= 0.6.0 sets
+# UV= in the environment of every subprocess it spawns.  Inside a project,
+# uv's venv bin/ shadows this shim, but OUTSIDE a project `uv run python`
+# resolves the interpreter via PATH — there is no venv bin/ in the way —
+# so without this passthrough the very command this shim suggests resolves
+# right back to the shim and can never succeed.
+if [[ -n "${UV:-}" ]]; then
+  # exec() preserves the PID, so finding our own PID here means this shim
+  # exec'd another copy of itself (two shim installs on PATH) — error out
+  # instead of exec-looping.
+  if [[ "${MODERN_PYTHON_SHIM_PID:-}" != "$$" ]]; then
+    export MODERN_PYTHON_SHIM_PID="$$"
+    IFS=: read -ra path_entries <<<"${PATH:-}"
+    for dir in "${path_entries[@]}"; do
+      [[ -z "$dir" ]] && dir=.               # empty PATH entry means cwd in execvp semantics
+      [[ "$dir/$cmd" -ef "$0" ]] && continue # skip this shim itself (any spelling/symlink)
+      if [[ -x "$dir/$cmd" ]]; then
+        exec "$dir/$cmd" "$@"
+      fi
+    done
+  fi
+  echo "ERROR: running under \`uv run\` but no real $cmd was found on PATH." >&2
+  echo "Try \`uv run <script>.py\` or install one with \`uv python install\`." >&2
+  exit 127
+fi
+
 case "${1:-}" in
   -m)
-    case "${2:-}" in
-      pip)
-        echo "ERROR: \`$cmd -m pip\` is not supported. Use:" >&2
-        echo "  uv add <package>       # add a dependency" >&2
-        echo "  uv remove <package>    # remove a dependency" >&2
-        ;;
-      *)
-        echo "ERROR: Use \`uv run $cmd -m ${2:-<module>}\` instead of \`$cmd -m ${2:-<module>}\`" >&2
-        ;;
-    esac
+    echo "ERROR: Use \`uv run $cmd -m ${2:-<module>}\` instead of \`$cmd -m ${2:-<module>}\`" >&2
     ;;
   *)
     echo "ERROR: Use \`uv run $cmd ${*:-}\` instead of \`$cmd ${*:-}\`" >&2
