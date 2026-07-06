@@ -4,8 +4,11 @@ set -euo pipefail
 # SessionStart hook: prepend shims directory to PATH so that bare
 # python/pip/pipx/uv-pip invocations are intercepted with uv suggestions.
 #
-# `uv run` is unaffected because it prepends its managed virtualenv's
-# bin/ to PATH, shadowing the shims.
+# The suggested `uv run python ...` commands are unaffected by the shims:
+# uv special-cases the `python` command and executes its resolved
+# interpreter directly instead of a PATH lookup, so the suggestion works
+# even outside a project (where `uv run python3` would resolve back to
+# the shim).
 
 # Guard: only activate when uv is available
 command -v uv &>/dev/null || exit 0

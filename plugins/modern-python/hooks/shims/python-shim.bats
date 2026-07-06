@@ -43,7 +43,24 @@ SHIM="${BATS_TEST_DIRNAME}/python"
 @test "works when invoked as python3 via symlink" {
   run "${BATS_TEST_DIRNAME}/python3"
   [[ $status -ne 0 ]]
-  [[ "$output" == *"uv run python3"* ]]
+  [[ "$output" == *'instead of `python3'* ]]
+}
+
+# `uv run python3` resolves the command via PATH and hits this shim again
+# outside a project, so the suggestion must use the exact name `python`,
+# which uv executes directly via its resolved interpreter.
+@test "suggests exact 'uv run python', not python3, when invoked as python3" {
+  run "${BATS_TEST_DIRNAME}/python3" script.py
+  [[ $status -ne 0 ]]
+  [[ "$output" == *'Use `uv run python script.py`'* ]]
+  [[ "$output" != *"uv run python3"* ]]
+}
+
+@test "suggests exact 'uv run python -m', not python3, for modules" {
+  run "${BATS_TEST_DIRNAME}/python3" -m http.server
+  [[ $status -ne 0 ]]
+  [[ "$output" == *'Use `uv run python -m http.server`'* ]]
+  [[ "$output" != *"uv run python3"* ]]
 }
 
 @test "python3 -m pip suggests uv add" {
