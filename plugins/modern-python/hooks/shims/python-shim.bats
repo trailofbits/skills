@@ -52,14 +52,14 @@ SHIM="${BATS_TEST_DIRNAME}/python"
 @test "suggests exact 'uv run python', not python3, when invoked as python3" {
   run "${BATS_TEST_DIRNAME}/python3" script.py
   [[ $status -ne 0 ]]
-  [[ "$output" == *'Use `uv run python script.py`'* ]]
+  [[ "$output" == *"Use \`uv run python script.py\`"* ]]
   [[ "$output" != *"uv run python3"* ]]
 }
 
 @test "suggests exact 'uv run python -m', not python3, for modules" {
   run "${BATS_TEST_DIRNAME}/python3" -m http.server
   [[ $status -ne 0 ]]
-  [[ "$output" == *'Use `uv run python -m http.server`'* ]]
+  [[ "$output" == *"Use \`uv run python -m http.server\`"* ]]
   [[ "$output" != *"uv run python3"* ]]
 }
 
