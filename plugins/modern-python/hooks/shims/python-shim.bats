@@ -46,9 +46,8 @@ SHIM="${BATS_TEST_DIRNAME}/python"
   [[ "$output" == *'instead of `python3'* ]]
 }
 
-# `uv run python3` resolves the command via PATH and hits this shim again
-# outside a project, so the suggestion must use the exact name `python`,
-# which uv executes directly via its resolved interpreter.
+# The suggestion must use the exact name `python`, never `python3`; see
+# the header comment in ./python for the full rationale.
 @test "suggests exact 'uv run python', not python3, when invoked as python3" {
   run "${BATS_TEST_DIRNAME}/python3" script.py
   [[ $status -ne 0 ]]
@@ -61,6 +60,28 @@ SHIM="${BATS_TEST_DIRNAME}/python"
   [[ $status -ne 0 ]]
   [[ "$output" == *"Use \`uv run python -m http.server\`"* ]]
   [[ "$output" != *"uv run python3"* ]]
+}
+
+@test "-m suggestion preserves arguments after the module" {
+  run "${BATS_TEST_DIRNAME}/python3" -m http.server 8000
+  [[ $status -ne 0 ]]
+  [[ "$output" == *"Use \`uv run python -m http.server 8000\` instead of \`python3 -m http.server 8000\`"* ]]
+}
+
+# %q output can differ across bash versions, so build the expectation with
+# the same requoting the shim uses, after checking it actually escapes.
+@test "suggestion requotes -c code so it stays copy-paste runnable" {
+  run "$SHIM" -c 'print(1+1)'
+  [[ $status -ne 0 ]]
+  quoted="$(printf '%q' 'print(1+1)')"
+  [[ "$quoted" != 'print(1+1)' ]]
+  [[ "$output" == *"Use \`uv run python -c $quoted\`"* ]]
+}
+
+@test "bare invocation suggests uv run python without trailing space" {
+  run "$SHIM"
+  [[ $status -ne 0 ]]
+  [[ "$output" == *"Use \`uv run python\` instead of \`python\`"* ]]
 }
 
 @test "python3 -m pip suggests uv add" {
