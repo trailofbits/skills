@@ -47,8 +47,11 @@ uv pip install trailmark
 | `genotoxic` | Triage mutation testing results using graph analysis — classify survived mutants as false positives, missing tests, or fuzzing targets |
 | `vector-forge` | Mutation-driven test vector generation — find coverage gaps via mutation testing, then generate Wycheproof-style vectors that close them |
 | `graph-evolution` | Compare code graphs at two snapshots to surface security-relevant structural changes text diffs miss |
+| `trailmark-review-gate` | Apply PASS/WARN/FAIL/UNKNOWN structural gate rules to branch, PR, fix, or release diffs |
 | `mermaid-to-proverif` | Convert Mermaid sequence diagrams into ProVerif formal verification models |
 | `audit-augmentation` | Project SARIF, weAudit, and v0.4 binary-analysis graph findings onto code graphs as annotations and subgraphs |
+| `trailmark-finding-triage` | Triage one finding, SARIF result, weAudit annotation, suspicious function, or report excerpt with reachability, taint, privilege-boundary, and blast-radius evidence |
+| `trailmark-variant-neighborhood` | Expand one seed issue into graph-derived variant candidates for variant-analysis, Semgrep, CodeQL, or manual review |
 | `trailmark-summary` | Quick structural overview (auto-detected languages, entry points, dependencies) for vivisect/galvanize |
 | `trailmark-structural` | Full structural analysis with all pre-analysis passes (blast radius, taint, privilege boundaries, complexity) |
 
@@ -70,9 +73,12 @@ trailmark/
     │   └── references/
     ├── graph-evolution/              # Structural diff
     │   └── scripts/graph_diff.py
+    ├── trailmark-review-gate/         # Structural review gates
     ├── mermaid-to-proverif/          # Sequence diagram → ProVerif
     │   └── examples/
     ├── audit-augmentation/           # SARIF/weAudit integration
+    ├── trailmark-finding-triage/      # Single-finding evidence packets
+    ├── trailmark-variant-neighborhood/ # Variant candidate neighborhoods
     ├── trailmark-summary/            # Quick overview for vivisect/galvanize
     └── trailmark-structural/         # Full structural analysis
 ```
@@ -84,3 +90,4 @@ trailmark/
 | `mutation-testing` | Guidance for running mutation frameworks (mewt, muton) — use before genotoxic for triage |
 | `differential-review` | Text-level security diff review — complements graph-evolution's structural analysis |
 | `audit-context-building` | Deep architectural context before vulnerability hunting |
+| `variant-analysis` | Search for related candidates after trailmark-finding-triage identifies a repeatable root cause |
