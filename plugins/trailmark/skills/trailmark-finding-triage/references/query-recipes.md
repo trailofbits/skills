@@ -27,13 +27,7 @@ smallest span as primary.
 ```python
 node_id = "{bound_node}"
 
-if hasattr(engine, "entrypoint_paths_to"):
-    entry_paths = engine.entrypoint_paths_to(node_id)
-else:
-    entry_paths = []
-    for entry in engine.attack_surface():
-        for path in engine.paths_between(entry["name"], node_id):
-            entry_paths.append(path)
+entry_paths = engine.entrypoint_paths_to(node_id)
 ```
 
 Classify paths as:
@@ -65,10 +59,7 @@ callers = engine.callers_of(node_id)
 callees = engine.callees_of(node_id)
 high_blast = node_id in set(engine.subgraph("high_blast_radius"))
 
-if hasattr(engine, "reachable_from"):
-    downstream = engine.reachable_from(node_id)
-else:
-    downstream = []
+downstream = engine.reachable_from(node_id)
 ```
 
 Flag downstream sinks involving:

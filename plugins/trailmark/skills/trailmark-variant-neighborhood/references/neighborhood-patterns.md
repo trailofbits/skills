@@ -29,8 +29,7 @@ for callee in callees:
     if is_sensitive_sink(callee):
         same_sink_candidates.extend(engine.callers_of(callee))
 
-if hasattr(engine, "entrypoint_paths_to"):
-    paths = engine.entrypoint_paths_to(seed)
+paths = engine.entrypoint_paths_to(seed)
 
 if hasattr(engine, "type_references"):
     type_neighbors = engine.type_references(seed)
