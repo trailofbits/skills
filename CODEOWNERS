@@ -26,6 +26,7 @@
 /plugins/modern-python/ @Ninja3047 @dguido
 /plugins/mutation-testing/ @bohendo @dguido
 /plugins/property-based-testing/ @hbrodin @dguido
+/plugins/rust-review/ @zi0Black @GrosQuildu @dguido
 /plugins/seatbelt-sandboxer/ @smichaels-tob @dguido
 /plugins/skill-improver/ @GrosQuildu @dguido
 /plugins/second-opinion/ @dguido

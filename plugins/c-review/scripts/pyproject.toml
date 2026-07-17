@@ -2,7 +2,7 @@
 name = "c-review-scripts"
 version = "0.1.0"
 description = "Build-plan + SARIF helpers for the c-review plugin"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = []
 
 [tool.ruff]

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.13"
+# requires-python = ">=3.11"
 # dependencies = []
 # ///
 """Build a deterministic c-review run plan.
@@ -100,7 +100,28 @@ def parse_args() -> argparse.Namespace:
             "false to skip and pay full cache-creation on every worker (useful for A/B testing)."
         ),
     )
-    return p.parse_args()
+    p.add_argument(
+        "--max-passes-per-worker",
+        type=int,
+        default=4,
+        help=(
+            "Cap the number of passes assigned to a single worker. Any cluster with more "
+            "passes than this is partitioned deterministically into contiguous chunks, each "
+            "spawned as its own c-review-worker with a -{i}-suffixed cluster_id. Clusters "
+            "may declare a smaller manifest-level max_passes_per_worker for output-heavy "
+            "coverage. Default 4 splits the heavy non-consolidated clusters "
+            "(arithmetic-type/syscall-retval/cpp-semantics 7, ambient-state/static-hygiene 6 "
+            "pre-filter; fewer once gate/threat-model filtering applies) and leaves the rest "
+            "unchanged. Consolidated clusters (e.g. buffer-write-sinks, 13 passes) are exempt "
+            "from chunking regardless of pass count — see split_oversized_clusters. Pass 0 to "
+            "disable all chunking, including manifest overrides. Negative values are "
+            "rejected."
+        ),
+    )
+    args = p.parse_args()
+    if args.max_passes_per_worker < 0:
+        raise SystemExit(f"--max-passes-per-worker must be >= 0, got {args.max_passes_per_worker}")
+    return args
 
 
 def fail(msg: str) -> NoReturn:
@@ -130,6 +151,15 @@ def pass_filtered_out(p: dict[str, Any], *, flags: dict[str, bool], threat_model
     return threat_model in skip_threat_models
 
 
+def cluster_max_passes_per_worker(cluster: dict[str, Any], *, cid: str) -> int | None:
+    value = cluster.get("max_passes_per_worker")
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"cluster {cid!r}: max_passes_per_worker must be a positive integer")
+    return value
+
+
 def build_selection(
     manifest: dict[str, Any], *, plugin_root: Path, flags: dict[str, bool], threat_model: str
 ) -> list[dict[str, Any]]:
@@ -148,6 +178,10 @@ def build_selection(
             fail(f"cluster {cid!r}: invalid gate {gate!r}")
         if not gate_passes(gate, is_cpp=flags["is_cpp"], is_windows=flags["is_windows"]):
             continue
+        try:
+            cluster_max_passes = cluster_max_passes_per_worker(cluster, cid=cid)
+        except ValueError as exc:
+            fail(str(exc))
 
         consolidated = bool(cluster.get("consolidated", False))
         cluster_prompt_rel = cluster.get("prompt")
@@ -201,12 +235,90 @@ def build_selection(
                 "consolidated": consolidated,
                 "cluster_prompt": str(cluster_prompt_abs),
                 "passes": kept_passes,
+                "max_passes_per_worker": cluster_max_passes,
             }
         )
 
     if not selected:
         fail("no clusters selected after filtering — refusing to start an empty review")
     return selected
+
+
+def split_oversized_clusters(
+    selected: list[dict[str, Any]], *, max_passes: int
+) -> list[dict[str, Any]]:
+    """Partition clusters whose `passes` exceed their effective chunk size.
+
+    Each oversized cluster is replaced by pseudo-cluster entries in manifest
+    pass order. Each chunk shares the source cluster's `cluster_prompt` and
+    `consolidated` flag; its `cluster_id` is the source id with a `-{i}` suffix
+    (1-indexed). Clusters whose pass count is already within its effective max
+    pass count pass through with bare `cluster_id` and an identical `passes`
+    list.
+
+    **Consolidated clusters (`consolidated: true`) are never chunked**, regardless
+    of pass count or any `max_passes_per_worker` override: one worker owns the whole
+    cluster so its shared Phase-A inventory grounds every phase (chunking would force
+    each chunk to rebuild that inventory, which workers skip in practice). Only
+    non-consolidated clusters are partitioned.
+
+    `max_passes == 0` is the explicit "disable chunking" sentinel: the input
+    list is returned unchanged, including any manifest-level overrides.
+    `max_passes < 0` is rejected as a programmer error — the CLI layer must
+    enforce `>= 0` before calling.
+
+    Clusters may carry `max_passes_per_worker` from the manifest. When global
+    chunking is enabled, that positive integer overrides the global max for
+    only that cluster.
+
+    The transformation is pure and deterministic: same input + same
+    `max_passes` always yields an identical list. No randomization, no I/O.
+    """
+    if max_passes < 0:
+        raise ValueError(f"max_passes must be >= 0, got {max_passes}")
+    if max_passes == 0:
+        return selected
+
+    out: list[dict[str, Any]] = []
+    for cluster in selected:
+        passes = cluster["passes"]
+        # Validate any manifest override regardless of `consolidated` (keeps the
+        # invalid-override guard live) — but consolidated clusters are not chunked.
+        cluster_max_passes = cluster_max_passes_per_worker(cluster, cid=str(cluster["cluster_id"]))
+        # Consolidated clusters are NEVER chunked: their shared Phase-A inventory
+        # grounds every phase, and splitting forces each chunk to rebuild it (which
+        # workers skip in practice — see c-review-worker.md's chunked-subset rule).
+        # One worker owns the whole consolidated cluster, builds the inventory once,
+        # and runs all its phases. Pass through with a bare cluster_id.
+        if cluster.get("consolidated"):
+            out.append(cluster)
+            continue
+        effective_max_passes = cluster_max_passes if cluster_max_passes is not None else max_passes
+        k = len(passes)
+        if k <= effective_max_passes:
+            out.append(cluster)
+            continue
+        # Greedy left-to-right contiguous partition. Chunk entries intentionally
+        # omit `max_passes_per_worker`: each chunk is already <= the effective max
+        # and chunks are never re-chunked, so the key would never be read again.
+        n_chunks = (k + effective_max_passes - 1) // effective_max_passes
+        chunks = [
+            {
+                "cluster_id": f"{cluster['cluster_id']}-{i + 1}",
+                "consolidated": cluster["consolidated"],
+                "cluster_prompt": cluster["cluster_prompt"],
+                "passes": passes[i * effective_max_passes : (i + 1) * effective_max_passes],
+            }
+            for i in range(n_chunks)
+        ]
+        # Post-condition: chunking must neither drop nor duplicate a pass (a lost
+        # pass = a whole bug class silently un-analyzed), so the concatenated chunk
+        # passes must equal the source passes in order.
+        assert [p for c in chunks for p in c["passes"]] == passes, (
+            f"cluster {cluster['cluster_id']!r}: chunking changed the pass set"
+        )
+        out.extend(chunks)
+    return out
 
 
 def _render_shared_prefix_lines(
@@ -443,6 +555,7 @@ def main() -> int:
     selected = build_selection(
         manifest, plugin_root=plugin_root, flags=flags, threat_model=args.threat_model
     )
+    selected = split_oversized_clusters(selected, max_passes=args.max_passes_per_worker)
 
     context_md_path = output_dir / "context.md"
     if not context_md_path.is_file():

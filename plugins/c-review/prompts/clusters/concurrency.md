@@ -22,11 +22,11 @@ ID prefixes: `RACE`, `THREAD`, `SPINLOCK`, `SIGNAL`.
 Identify, in this order:
 
 ```
-Grep: pattern="(?i)\\b(pthread_mutex|pthread_rwlock|pthread_spin|pthread_cond|pthread_create|pthread_join|pthread_once)"
-Grep: pattern="\\b(atomic_|__atomic_|__sync_|FD_ATOMIC|fd_rwlock)"
-Grep: pattern="\\b(sigaction|signal|sigprocmask|pthread_sigmask|sigwait)\\s*\\("
-Grep: pattern="\\b(volatile)\\b.*\\*"
-Grep: pattern="\\b(tls|thread_local|__thread|_Thread_local)\\b"
+rg seed: "(?i)\\b(pthread_mutex|pthread_rwlock|pthread_spin|pthread_cond|pthread_create|pthread_join|pthread_once)"
+rg seed: "\\b(atomic_|__atomic_|__sync_|FD_ATOMIC|fd_rwlock)"
+rg seed: "\\b(sigaction|signal|sigprocmask|pthread_sigmask|sigwait)\\s*\\("
+rg seed: "\\b(volatile)\\b.*\\*"
+rg seed: "\\b(tls|thread_local|__thread|_Thread_local)\\b"
 ```
 
 For each mutex/rwlock/spinlock/atomic primitive you find, record:

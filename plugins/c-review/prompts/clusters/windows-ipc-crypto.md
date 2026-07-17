@@ -20,10 +20,10 @@ ID prefixes: `NAMEDPIPE`, `WINCRYPTO`, `WINALLOC`.
 ## Phase A — Seed targets
 
 ```
-Grep: pattern="\\b(CreateNamedPipe[AW]?|ConnectNamedPipe|ImpersonateNamedPipeClient|SetNamedPipeHandleState)\\s*\\("
-Grep: pattern="\\b(CryptAcquireContext[AW]?|CryptGenKey|CryptGenRandom|CryptEncrypt|CryptDecrypt|CryptHashData|CryptSignHash|CryptVerifySignature|BCrypt\\w+|NCrypt\\w+)\\s*\\("
-Grep: pattern="\\b(HeapAlloc|HeapFree|HeapReAlloc|HeapCreate|HeapDestroy|VirtualAlloc|VirtualFree|VirtualProtect|LocalAlloc|LocalFree|GlobalAlloc|GlobalFree)\\s*\\("
-Grep: pattern="\\bSECURITY_DESCRIPTOR\\b|\\bSetSecurityDescriptor\\w+\\s*\\("
+rg seed: "\\b(CreateNamedPipe[AW]?|ConnectNamedPipe|ImpersonateNamedPipeClient|SetNamedPipeHandleState)\\s*\\("
+rg seed: "\\b(CryptAcquireContext[AW]?|CryptGenKey|CryptGenRandom|CryptEncrypt|CryptDecrypt|CryptHashData|CryptSignHash|CryptVerifySignature|BCrypt\\w+|NCrypt\\w+)\\s*\\("
+rg seed: "\\b(HeapAlloc|HeapFree|HeapReAlloc|HeapCreate|HeapDestroy|VirtualAlloc|VirtualFree|VirtualProtect|LocalAlloc|LocalFree|GlobalAlloc|GlobalFree)\\s*\\("
+rg seed: "\\bSECURITY_DESCRIPTOR\\b|\\bSetSecurityDescriptor\\w+\\s*\\("
 ```
 
 Keep as `win_ipc_sites`.
