@@ -725,6 +725,49 @@ Disassembly of <code object vulnerable_div at 0x1234>:
         self.assertIn("BINARY_TRUE_DIVIDE", mnemonics)
         self.assertIn("BINARY_MODULO", mnemonics)
 
+    def test_get_dis_output_includes_offsets_on_py313_plus(self):
+        """
+        Regression test for a silent false negative on Python 3.13+.
+
+        Python 3.13's `python -m dis` stopped printing the instruction
+        byte-offset column by default and added `-O`/`--show-offsets` to
+        opt back in. `_parse_dis_output`'s regex requires that column to
+        be present; without it every instruction line silently fails to
+        match, `functions[*]["instructions"]` stays 0, and no violations
+        are ever reported -- the analyzer reports "PASSED" on vulnerable
+        code instead of erroring or warning.
+
+        `_get_dis_output` must detect `--show-offsets` support at runtime
+        and pass it when available, while still working unmodified on
+        Python < 3.13 where the flag doesn't exist.
+        """
+        import tempfile
+
+        from script_analyzers import PythonAnalyzer
+
+        analyzer = PythonAnalyzer()
+        if not analyzer._supports_show_offsets():
+            self.skipTest("This Python's dis module predates --show-offsets (< 3.13)")
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write("def divide(a, b):\n    return a / b\n")
+            temp_path = f.name
+
+        try:
+            success, output = analyzer._get_dis_output(temp_path)
+            self.assertTrue(success, f"dis invocation failed: {output}")
+
+            functions, _violations = analyzer._parse_dis_output(output, temp_path)
+            total_instructions = sum(f["instructions"] for f in functions)
+            self.assertGreater(
+                total_instructions,
+                0,
+                "dis output is missing the offset column the parser depends on -- "
+                "every instruction line silently failed to parse",
+            )
+        finally:
+            os.unlink(temp_path)
+
     def test_detect_random_in_source(self):
         """Should detect random.random() calls in source."""
         import tempfile
