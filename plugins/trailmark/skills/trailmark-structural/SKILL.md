@@ -1,6 +1,6 @@
 ---
 name: trailmark-structural
-description: "Runs full Trailmark structural analysis by building a graph, running `preanalysis()`, and reporting hotspots, taint, blast radius, privilege boundaries, attack surface, and version-gated Trailmark 0.4.x data such as proxy counts, subgraph edges, and type/reference summaries. Use when vivisect needs detailed structural data for a target. Triggers: structural analysis, blast radius, taint analysis, complexity hotspots, proxy nodes, type references."
+description: "Runs full Trailmark structural analysis by building a graph, running `preanalysis()`, and reporting hotspots, taint, blast radius, privilege boundaries, attack surface, and version-gated Trailmark 0.4+/0.5+ data such as proxy counts, subgraph edges, type/reference summaries, and entrypoint attributes. Use when vivisect needs detailed structural data for a target. Triggers: structural analysis, blast radius, taint analysis, complexity hotspots, proxy nodes, type references."
 allowed-tools: Bash Read Grep Glob
 ---
 
@@ -8,7 +8,10 @@ allowed-tools: Bash Read Grep Glob
 
 Builds a Trailmark graph and runs `engine.preanalysis()` to compute all
 four pre-analysis passes. The core workflow is v0.2-safe; v0.4-only details
-are included only after checking method availability.
+are included only after checking method availability, and newer builds
+enrich the same output (0.5.0+ adds an `attributes` key to attack-surface
+entries and `proxy.external:*` nodes from `.trailmark/links.toml`) without
+any workflow change.
 
 ## When to Use
 
@@ -151,8 +154,14 @@ The output should include:
 - `summary`
 - `preanalysis`
 - `hotspots` (possibly empty)
-- `proxy_nodes` (empty on v0.2.x or when there are no unresolved calls)
+- `proxy_nodes` (empty on v0.2.x or when there are no unresolved calls; on
+  0.5.0+ may include `proxy.external:*` entries declared in
+  `.trailmark/links.toml`)
 - `subgraphs` with counts and sample IDs
+
+On Trailmark 0.5.0+, `attack_surface` entries may carry an `attributes`
+object (e.g. `solidity_visibility`, `solidity_overridden_by`). Pass it
+through unchanged — downstream consumers use it to rank entrypoints.
 
 Some subgraphs may have zero nodes for some codebases (this is
 normal). Return the full JSON payload regardless.

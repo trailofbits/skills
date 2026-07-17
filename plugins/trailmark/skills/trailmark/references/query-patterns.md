@@ -37,7 +37,16 @@ engine = QueryEngine.from_directory("{targetDir}", language="auto")
 # All entrypoints
 for ep in engine.attack_surface():
     print(f"{ep['node_id']}: {ep['trust_level']} ({ep['kind']})")
+    # Trailmark 0.5.0+ includes node attributes when present, e.g. Solidity
+    # visibility/mutability and overridden-by metadata
+    for key, value in ep.get("attributes", {}).items():
+        print(f"  {key} = {value}")
 ```
+
+On 0.5.0+, Solidity entrypoints come from parser metadata: interface members
+are excluded, and a base implementation shadowed by a derived contract carries
+`solidity_overridden_by` naming the overriding method(s). Check that attribute
+before attributing reachability to the base implementation.
 
 ## 2. Complexity Hotspots
 
@@ -146,8 +155,12 @@ with open("graph.json", "w") as f:
 ```
 
 Trailmark 0.4.0+ exports proxy nodes for unresolved calls and may include
-`origin` on non-source nodes. Do not treat `origin=proxy` or `origin=binary`
-nodes as source locations during manual review.
+`origin` on non-source nodes. Trailmark 0.5.0+ also exports
+`proxy.external:<symbol>` nodes for endpoints declared external in
+`.trailmark/links.toml`, and materializes proxies and `type_uses` edges for
+single-language parses (0.4 emitted them only for polyglot parses). Do not
+treat `origin=proxy` or `origin=binary` nodes as source locations during
+manual review.
 
 ## 10. Multi-Language Analysis
 
@@ -167,12 +180,28 @@ engine = QueryEngine.from_directory("{targetDir}", language="auto")
 engine = QueryEngine.from_directory("{targetDir}", language="python,rust")
 ```
 
-As of Trailmark 0.4.0, supported parser names include `python`, `javascript`,
+As of Trailmark 0.5.0, supported parser names include `python`, `javascript`,
 `typescript`, `php`, `ruby`, `c`, `cpp`, `c_sharp`, `java`, `go`, `rust`,
 `solidity`, `cairo`, `circom`, `haskell`, `erlang`, `masm`, `swift`, `objc`,
 `kotlin`, `dart`, `move`, `tact`, `func`, `sway`, `rego`, `proto`, `thrift`,
-and `graphql`. Treat this list as documentation, not a source of truth; on
-0.3+ builds call `supported_languages()` before relying on it.
+`graphql`, and `sql` (0.5.0+). Treat this list as documentation, not a source
+of truth; on 0.3+ builds call `supported_languages()` before relying on it.
+
+## 10a. Cross-Boundary Links (v0.5+)
+
+When the parser cannot see a call across an FFI/RPC/contract boundary,
+declare it in `.trailmark/links.toml` at the analysis root (see the SKILL.md
+Repository Links section for the format). The declared edges materialize on
+every parse, so path and reachability queries cross the boundary directly:
+
+```python
+# .trailmark/links.toml declares backend:submit -> contract:Verifier.verify
+paths = engine.paths_between("submit", "verify")
+```
+
+Configured edges carry a `configured_by` attribute naming the file. When a
+declared endpoint is external (`target_external = true`), it appears as a
+`proxy.external:<symbol>` node — treat it as a system boundary, not source.
 
 ## 11. CLI Patterns
 

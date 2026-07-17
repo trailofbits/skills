@@ -1,6 +1,6 @@
 ---
 name: trailmark
-description: "Builds and queries multi-language source and binary code graphs for security analysis. Includes pre-analysis passes for blast radius, taint propagation, privilege boundaries, entry point enumeration, proxy/unresolved-call tracking, type/reference queries, structural traversal, graph diffs, and audit augmentation. Use when analyzing call paths, mapping attack surface, finding complexity hotspots, enumerating entry points, tracing taint propagation, measuring blast radius, importing SARIF/weAudit/binary findings, or building a code graph for audit prioritization. Feature-gate Trailmark 0.4.x APIs before using them; prefer `trailmark.parse.detect_languages()` or `--language auto` when the target language is unknown or polyglot."
+description: "Builds and queries multi-language source and binary code graphs for security analysis. Includes pre-analysis passes for blast radius, taint propagation, privilege boundaries, entry point enumeration, proxy/unresolved-call tracking, type/reference queries, structural traversal, graph diffs, audit augmentation, declared cross-language/FFI/external links via `.trailmark/links.toml`, and SQL schema graphs. Use when analyzing call paths, mapping attack surface, finding complexity hotspots, enumerating entry points, tracing taint propagation, measuring blast radius, importing SARIF/weAudit/binary findings, linking source graphs across language or RPC boundaries, or building a code graph for audit prioritization. Feature-gate version-specific Trailmark APIs before using them; prefer `trailmark.parse.detect_languages()` or `--language auto` when the target language is unknown or polyglot."
 ---
 
 # Trailmark
@@ -38,7 +38,7 @@ semantic metadata for security analysis.
 | "Uncertain edges don't matter" | Dynamic dispatch is where type confusion bugs hide | Account for `uncertain` edges in security claims |
 | "Single-language analysis is enough" | Polyglot repos have FFI boundaries where bugs cluster | Use the correct `--language` flag per component |
 | "Complexity hotspots are the only thing worth checking" | Low-complexity functions on tainted paths are high-value targets | Combine complexity with taint and blast radius data |
-| "The docs mention a v0.4 method, so I can call it anywhere" | Many environments still have Trailmark 0.2.x installed | Check the installed version or probe method availability before using v0.4-only features |
+| "The docs mention a version-gated method, so I can call it anywhere" | Many environments still have Trailmark 0.2.x installed | Check the installed version or probe feature availability before using v0.4+/v0.5+ features |
 
 ---
 
@@ -58,8 +58,10 @@ to the user instead of silently switching to manual code reading.
 
 ## Version Gate
 
-Trailmark 0.4.0 expands the graph model and query surface. Before using a
-feature listed as **v0.4+**, check the installed version:
+Trailmark 0.4.0 expands the graph model and query surface, and 0.5.0 adds a
+SQL parser, repository-link configuration, and richer entrypoint metadata.
+Before using a feature listed as **v0.4+** or **v0.5+**, check the installed
+version:
 
 ```bash
 trailmark --version 2>/dev/null || uv run trailmark --version 2>/dev/null
@@ -101,6 +103,28 @@ deprecated alias in 0.3+); `supported_languages()` has no 0.2.x equivalent.
 proxy nodes for unresolved calls; node origins; binary graph augmentation via
 `augment_binary()`; `connect_subgraphs()`; `subgraph_edges()`;
 `generic_parameters()`; and `type_references()`.
+
+**v0.5+ features:** `sql` parser (PostgreSQL-oriented schemas, tables, views,
+functions, procedures, dependencies); node kinds `schema`, `table`, `view`,
+`procedure`; `.trailmark/links.toml` repository-link configuration (see
+Repository Links below), including `proxy.external:<symbol>` nodes for
+declared external endpoints; repository links, unresolved-call proxies, and
+`type_uses` edges now materialize for single-language directory parses (0.4
+emitted them only for polyglot parses); Solidity entrypoints detected from
+parser metadata (interfaces excluded; `solidity_visibility`,
+`solidity_mutability`, `solidity_override`, `solidity_container_kind`, and
+`solidity_overridden_by` node attributes); `attack_surface()` entries carry an
+`attributes` key when the node has attributes; TypeScript resolves receivers
+assigned with `new ConcreteClass()`; C# file-scoped namespaces.
+
+v0.5.0 adds no new `QueryEngine` methods, so `hasattr(engine, ...)` cannot
+detect it. Gate v0.5 features on the reported version, or probe structurally:
+
+```python
+from trailmark.models.nodes import NodeKind
+
+has_v05 = "SCHEMA" in NodeKind.__members__  # sql kinds are 0.5+
+```
 
 ## Quick Start
 
@@ -237,19 +261,54 @@ uv run trailmark analyze --language auto {targetDir}
 uv run trailmark analyze --language python,rust {targetDir}
 ```
 
-As of Trailmark 0.4.0, parser names include: `python`, `javascript`,
+As of Trailmark 0.5.0, parser names include: `python`, `javascript`,
 `typescript`, `php`, `ruby`, `c`, `cpp`, `c_sharp`, `java`, `go`, `rust`,
 `solidity`, `cairo`, `circom`, `haskell`, `erlang`, `masm`, `swift`, `objc`,
 `kotlin`, `dart`, `move`, `tact`, `func`, `sway`, `rego`, `proto`, `thrift`,
-and `graphql`. Treat this list as documentation, not a source of truth; call
+`graphql`, and `sql` (added in 0.5.0; PostgreSQL-oriented, `.sql` files).
+Treat this list as documentation, not a source of truth; call
 `supported_languages()` on the installed build before relying on a parser.
+
+## Repository Links (v0.5+)
+
+Parsers cannot see cross-language calls (FFI, RPC, IPC, contract invocation)
+or edges into external systems. Declare them in `.trailmark/links.toml` at the
+analysis root and Trailmark materializes the edges on every parse — this is a
+stable public configuration interface:
+
+```toml
+[[link]]
+source = "backend:submit"
+target = "contract:Verifier.verify"
+kind = "calls"                 # any EdgeKind; defaults to calls
+confidence = "certain"         # certain | inferred | uncertain; defaults to inferred
+description = "JSON-RPC eth_call"
+
+[[link]]
+source = "backend:notify"
+target = "payments-webhook"
+target_external = true         # required because target is unresolved
+```
+
+Endpoint references may be exact node IDs or unique names/suffixes. Validation
+fails closed: ambiguous references, unknown internal endpoints, invalid enum
+values, and malformed TOML raise `ValueError` rather than silently weakening
+the graph. `source_external = true` / `target_external = true` permit an
+unresolved endpoint by creating a `proxy.external:<symbol>` node. Configured
+edges carry a `configured_by = .trailmark/links.toml` attribute so they are
+distinguishable from parser-derived edges.
+
+Use this when the audit spans an FFI/RPC boundary the rationalization table
+warns about: declare the boundary edges first, then path and taint queries
+cross them like any other call edge.
 
 ## Graph Model
 
 **Node kinds:** `function`, `method`, `class`, `module`, `struct`,
 `interface`, `trait`, `enum`, `namespace`, `contract`, `library`,
 `template`; **v0.4+** also materializes unresolved references as `proxy`
-nodes.
+nodes; **v0.5+** adds `schema`, `table`, `view`, and `procedure` for SQL
+graphs.
 
 **Node origins:** **v0.4+** nodes may carry origin `source`, `proxy`,
 `binary`, or `synthetic`. v0.2 exports may omit origin.
@@ -291,7 +350,14 @@ confidence when making security claims.
 **Proxy nodes (v0.4+):** Unresolved calls are preserved as nodes such as
 `proxy.unresolved:<symbol>`. Do not treat these as source code functions; use
 them to identify resolution gaps, dynamic dispatch, external APIs, or binary
-linkage candidates.
+linkage candidates. **v0.5+** also emits `proxy.external:<symbol>` nodes for
+endpoints declared external in `.trailmark/links.toml`.
+
+**Reachability is not taint:** `entrypoint_paths_to()` and the taint subgraph
+answer different questions. Path queries report call-graph reachability;
+preanalysis taint marks nodes reachable from untrusted entrypoints as a coarse
+signal. Trailmark does not perform interprocedural taint analysis — do not
+present either as proof that attacker-controlled data reaches a sink.
 
 **Binary augmentation (v0.4+):** `engine.augment_binary()` imports an external
 binary-analysis graph JSON file. Trailmark connects it to source nodes when

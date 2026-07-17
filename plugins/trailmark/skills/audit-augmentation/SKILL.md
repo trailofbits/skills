@@ -66,6 +66,12 @@ if not hasattr(engine, "augment_binary"):
     raise RuntimeError("Binary augmentation requires Trailmark >= 0.4.0")
 ```
 
+On Trailmark 0.5.0+, known links between source functions and imported binary
+or external endpoints can also be declared once in `.trailmark/links.toml`
+(see the main `trailmark` skill's Repository Links section) instead of being
+re-derived per session. Declared external endpoints materialize as
+`proxy.external:<symbol>` nodes on every parse.
+
 ## Quick Start
 
 ### CLI

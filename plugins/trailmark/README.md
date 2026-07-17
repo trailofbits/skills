@@ -2,32 +2,43 @@
 
 **Source code graph analysis for security auditing.** Parses code into queryable graphs of functions, classes, and calls, then uses that structure for diagram generation, mutation testing triage, protocol verification, and differential review.
 
-These skills support Trailmark 0.2.x through the 0.4.0 release line. Prefer
+These skills support Trailmark 0.2.x through the 0.5.0 release line. Prefer
 `--language auto`, `trailmark.parse.detect_languages()` (0.3+), and
 `QueryEngine.preanalysis()` for the core workflow. Before using features added
-for v0.4.0, check the installed Trailmark version or probe for the method/CLI
-command first.
+in v0.4.0 or v0.5.0, check the installed Trailmark version or probe for the
+method/CLI command first.
 
 ## Compatibility
 
-Use this guard before relying on v0.4-only features:
+Use this guard before relying on version-gated features:
 
 ```bash
 trailmark --version 2>/dev/null || uv run trailmark --version 2>/dev/null
 ```
 
 Compare the reported version numerically. If it is `0.4.0` or newer, the
-expanded v0.4 feature set is available. If the command is missing or reports
-an older version, stay on the v0.2-safe baseline — the `trailmark` skill's
-Version Gate section has the authoritative list. (The version CLI itself was
-added in 0.2.2, so a missing command can also mean trailmark is not installed
-at all.)
+expanded v0.4 feature set is available; `0.5.0` or newer adds the v0.5 set.
+If the command is missing or reports an older version, stay on the v0.2-safe
+baseline — the `trailmark` skill's Version Gate section has the authoritative
+list. (The version CLI itself was added in 0.2.2, so a missing command can
+also mean trailmark is not installed at all.)
 
 v0.4.0 adds expanded parser coverage, explicit proxy nodes for unresolved
 calls, node origins (`source`, `proxy`, `binary`, `synthetic`), new edge kinds
 (`resolves_to`, `type_uses`, `specializes`, `corresponds_to`), subgraph edge
 and connection queries, generic/type-reference queries, the native
 `trailmark diagram` CLI, and binary graph augmentation via `augment_binary()`.
+
+v0.5.0 adds a PostgreSQL-oriented `sql` parser (with node kinds `schema`,
+`table`, `view`, `procedure`), the stable `.trailmark/links.toml`
+configuration for declaring cross-language/FFI/RPC/external links
+(external endpoints become `proxy.external:<symbol>` nodes), repository
+links/proxies/`type_uses` edges for single-language parses, Solidity
+entrypoints from parser metadata (visibility/mutability/overridden-by
+attributes, interfaces excluded), node attributes in `attack_surface()`
+entries, TypeScript constructed-receiver resolution, and C# file-scoped
+namespace support. It adds no new `QueryEngine` methods or CLI commands, so
+gate v0.5 features on the version number, not `hasattr()`.
 
 ## Prerequisites
 
@@ -41,7 +52,7 @@ uv pip install trailmark
 
 | Skill | Description |
 |-------|-------------|
-| `trailmark` | Build and query multi-language source/binary code graphs with pre-analysis passes, v0.4 feature gates, proxy nodes, type/reference queries, and structural traversal helpers |
+| `trailmark` | Build and query multi-language source/binary code graphs with pre-analysis passes, version feature gates, proxy nodes, type/reference queries, cross-language link configuration, and structural traversal helpers |
 | `diagramming-code` | Generate Mermaid diagrams from code graphs (call graphs, class hierarchies, complexity heatmaps, data flow); v0.4 native diagram support is feature-gated |
 | `crypto-protocol-diagram` | Extract protocol message flow from source code or specs (RFC, ProVerif, Tamarin) into sequence diagrams |
 | `genotoxic` | Triage mutation testing results using graph analysis — classify survived mutants as false positives, missing tests, or fuzzing targets |
