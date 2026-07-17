@@ -93,7 +93,9 @@ else:
 **Added in 0.2.2:** CLI `--version` flag and `version` subcommand.
 
 **Added in 0.3.x:** the `trailmark.parse` module with module-level
-`detect_languages()` and `supported_languages()`.
+`detect_languages()` and `supported_languages()`. `detect_languages()` itself
+is v0.2-safe via `from trailmark.query.api import detect_languages` (kept as a
+deprecated alias in 0.3+); `supported_languages()` has no 0.2.x equivalent.
 
 **v0.4+ features:** native `diagram` subcommand; expanded parser coverage;
 proxy nodes for unresolved calls; node origins; binary graph augmentation via
@@ -127,7 +129,8 @@ uv run trailmark diagram -t {targetDir} -T call-graph -f main --depth 2
 ### Programmatic API
 
 ```python
-# trailmark.parse is a 0.3+ module; on 0.2.x pass language="auto" instead
+# trailmark.parse is a 0.3+ module; on 0.2.x import detect_languages from
+# trailmark.query.api instead (supported_languages has no 0.2.x equivalent)
 from trailmark.parse import detect_languages, supported_languages
 from trailmark.query.api import QueryEngine
 

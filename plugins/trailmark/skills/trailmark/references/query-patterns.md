@@ -155,7 +155,8 @@ Ask Trailmark which languages it supports, detect what exists under the
 target tree, then choose `auto` or an explicit list:
 
 ```python
-# trailmark.parse is a 0.3+ module; on 0.2.x pass language="auto" instead
+# trailmark.parse is a 0.3+ module; on 0.2.x import detect_languages from
+# trailmark.query.api instead (supported_languages has no 0.2.x equivalent)
 from trailmark.parse import detect_languages, supported_languages
 from trailmark.query.api import QueryEngine
 

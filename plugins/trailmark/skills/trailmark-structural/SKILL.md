@@ -67,7 +67,11 @@ python3 - "{args}" <<'PY'
 import json
 import sys
 
-from trailmark.parse import detect_languages
+try:
+    from trailmark.parse import detect_languages  # canonical location since 0.3.x
+except ModuleNotFoundError:
+    # v0.2.x predates trailmark.parse; the same function lives in query.api
+    from trailmark.query.api import detect_languages
 
 print(json.dumps(detect_languages(sys.argv[1])))
 PY
@@ -87,7 +91,12 @@ python3 - "{args}" <<'PY'
 import json
 import sys
 
-from trailmark.parse import detect_languages
+try:
+    from trailmark.parse import detect_languages  # canonical location since 0.3.x
+except ModuleNotFoundError:
+    # v0.2.x predates trailmark.parse; the same function lives in query.api
+    from trailmark.query.api import detect_languages
+
 from trailmark.query.api import QueryEngine
 
 target = sys.argv[1]
