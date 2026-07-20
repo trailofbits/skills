@@ -69,6 +69,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [testing-handbook-skills](plugins/testing-handbook-skills/) | Skills from the [Testing Handbook](https://appsec.guide): fuzzers, static analysis, sanitizers, coverage |
 | [trailmark](plugins/trailmark/) | Code graph analysis, Mermaid diagrams, mutation testing triage, and protocol verification |
 | [variant-analysis](plugins/variant-analysis/) | Find similar vulnerabilities across codebases using pattern-based analysis |
+| [vulnerability-triage-brocards](plugins/vulnerability-triage-brocards/) | Triage vulnerability reports using 7 brocards to accept, dismiss, or request more info before deeper analysis |
 
 ### Malware Analysis
 
