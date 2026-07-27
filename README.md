@@ -107,6 +107,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [git-cleanup](plugins/git-cleanup/) | Safely clean up git worktrees and local branches with gated confirmation workflow |
 | [let-fate-decide](plugins/let-fate-decide/) | Draw Tarot cards using cryptographic randomness to add entropy to vague planning |
 | [modern-python](plugins/modern-python/) | Modern Python tooling and best practices with uv, ruff, and pytest |
+| [open-sourcing](plugins/open-sourcing/) | Prepare a repository for public release: secrets hygiene, licensing, CI readiness, and release automation |
 | [seatbelt-sandboxer](plugins/seatbelt-sandboxer/) | Generate minimal macOS Seatbelt sandbox configurations |
 | [second-opinion](plugins/second-opinion/) | Run code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on changes, diffs, or commits. Bundles Codex's built-in MCP server. |
 | [skill-improver](plugins/skill-improver/) | Iterative skill refinement loop using automated fix-review cycles |
