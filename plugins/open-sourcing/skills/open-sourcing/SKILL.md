@@ -127,6 +127,11 @@ mechanics. The short version:
   language-version and platform matrix.
 - Enforce formatting and linting in CI (per-language tooling in the
   references below), so style debates never reach review.
+- **Respect existing tooling.** Do not replace a working formatter, linter,
+  or type checker as part of open-sourcing. If it lags the current
+  generation (the language references name the current tools), warn the
+  maintainer and let them decide; only when a category is missing entirely —
+  no type checker, no formatter — add the current default.
 - Consider a coverage gate that fails CI when coverage drops.
 - Harden the workflows themselves before they become public attack surface:
   - Pin third-party actions to full commit SHAs; enable Dependabot for
@@ -136,11 +141,15 @@ mechanics. The short version:
 
 ### Step 7: Repository settings
 
-- **Branch protection** (or the newer rulesets) on the default branch: no
-  force pushes, PRs required.
+- **Branch protection** on the default branch: no force pushes, PRs
+  required. Prefer rulesets for new repositories; classic branch protection
+  remains supported.
 - **Merge protection**: required status checks so PRs cannot merge with
   failing tests.
-- **Dependabot or Renovate** for dependency and Actions updates.
+- **Dependabot or Renovate** for dependency and Actions updates. Group
+  updates to cut PR noise, and set a cooldown window (e.g., 7 days) so
+  freshly published — and occasionally hijacked — versions age before
+  adoption.
 - **`.editorconfig`** so contributors' editors agree on whitespace basics.
 - **Labels**: create them as soon as more than one issue or PR needs one;
   prefixes for facets scale well (`C:` component, `P:` platform). See
@@ -169,6 +178,7 @@ reference for packaging, publishing, and quality tooling:
 | `CMakeLists.txt`, `Makefile` (C/C++) | [references/c-cpp.md](references/c-cpp.md) |
 | `Cargo.toml` | [references/rust.md](references/rust.md) |
 | `go.mod` | [references/go.md](references/go.md) |
+| `package.json` | [references/javascript.md](references/javascript.md) |
 | `Gemfile`, `*.gemspec` | [references/ruby.md](references/ruby.md) |
 
 For other ecosystems, apply the cross-cutting principles: reproducible
@@ -202,6 +212,7 @@ release with an announcement where the organization has a process for one.
   **[references/c-cpp.md](references/c-cpp.md)**,
   **[references/rust.md](references/rust.md)**,
   **[references/go.md](references/go.md)**,
+  **[references/javascript.md](references/javascript.md)**,
   **[references/ruby.md](references/ruby.md)** — per-language packaging,
   publishing, and quality tooling
 

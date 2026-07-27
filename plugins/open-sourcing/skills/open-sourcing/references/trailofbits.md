@@ -59,9 +59,11 @@ rather than creating parallel accounts.
 
 - **Python:** generate new projects with
   [cookiecutter-python](https://github.com/trailofbits/cookiecutter-python),
-  which encodes current company practices (uv, ruff, ty, CI, trusted
-  publishing). The `modern-python` skill in this marketplace covers the same
-  toolchain.
+  which encodes current company practices: uv, ruff, ty, prek, pdoc,
+  SHA-pinned CI audited by zizmor, trusted publishing with SLSA provenance,
+  and 100% coverage and docstring-coverage gates. Generated projects also
+  ship `AGENTS.md` agent instructions. The `modern-python` skill in this
+  marketplace covers the same toolchain.
 - Example repositories for release automation:
   [pe-parse](https://github.com/trailofbits/pe-parse/blob/master/.github/workflows/release.yml)
   (C++/CI-managed packaging) and

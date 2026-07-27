@@ -5,7 +5,15 @@ For project scaffolding, dependency management (uv), formatting/linting
 marketplace — do not duplicate its guidance. If that skill is not installed,
 apply the toolchain directly with standard configurations: uv for
 dependencies and builds, `ruff format`/`ruff check` for style, ty for type
-checking, pytest for tests. This file covers only what that skill does not:
+checking (note: ty is pre-1.0 with breaking changes between releases — pin
+a version rather than an open floor), pytest for tests.
+
+Per the tooling principle in SKILL.md Step 6: leave an existing working
+toolchain in place, warning the maintainer about the current equivalents
+(black → `ruff format`, mypy → ty, pre-commit → prek); adopt the modern
+tools only for categories the project lacks entirely.
+
+This file covers only what the modern-python skill does not:
 supported-version policy, documentation, and publishing.
 
 ## Supported Python versions
@@ -74,10 +82,27 @@ jobs:
           name: distributions
           path: dist/
 
+  provenance:
+    name: Generate SLSA provenance
+    runs-on: ubuntu-latest
+    needs: [build]
+    permissions:
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: distributions
+          path: dist/
+
+      - uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: dist/*
+
   publish:
     name: Publish to PyPI
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [build, provenance]
     environment:
       name: pypi
     permissions:
@@ -94,8 +119,10 @@ jobs:
 ```
 
 `attestations: true` generates [PEP 740](https://peps.python.org/pep-0740/)
-publish attestations, giving users cryptographic provenance for the uploaded
-distributions.
+publish attestations — the default since gh-action-pypi-publish v1.11, kept
+explicit here for clarity — and the provenance job attaches
+[SLSA build provenance](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations)
+to the built distributions.
 
 ## Quality extras worth adding before release
 
@@ -103,5 +130,8 @@ distributions.
   [Hypothesis](https://hypothesis.readthedocs.io/) for parsing- or
   algorithm-heavy code (see the property-based-testing skill in this
   marketplace).
-- Docstring coverage enforcement (e.g., ruff's `D` rules) so public APIs stay
-  documented as the project grows.
+- Docstring coverage enforcement with
+  [interrogate](https://interrogate.readthedocs.io/) or ruff's `D` rules so
+  public APIs stay documented as the project grows.
+- Dependency auditing in CI with `uv audit` (currently in preview) or
+  [pip-audit](https://github.com/pypa/pip-audit).

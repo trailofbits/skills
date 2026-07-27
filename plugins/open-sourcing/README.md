@@ -17,8 +17,8 @@ project. Covers the full path from private repository to public release:
   permissions, zizmor)
 - **Release automation**: semver tagging, CI-driven releases, trusted
   publishing
-- **Language-specific packaging** references for Python, C/C++, Rust, Go, and
-  Ruby
+- **Language-specific packaging** references for Python, C/C++, Rust, Go,
+  JavaScript/TypeScript, and Ruby
 
 ## Organization detection
 
@@ -52,6 +52,7 @@ skills/open-sourcing/
 │   ├── c-cpp.md                # CMake, sanitizers, clang tooling, vcpkg
 │   ├── rust.md                 # cargo, crate lints, crates.io
 │   ├── go.md                   # Module layout, golangci-lint, goreleaser
+│   ├── javascript.md           # package.json metadata, npm trusted publishing
 │   └── ruby.md                 # Bundler, RuboCop, RubyGems
 └── scripts/
     ├── detect_org.sh           # Organization profile detection
