@@ -53,6 +53,7 @@ uv pip install trailmark
 | Skill | Description |
 |-------|-------------|
 | `trailmark` | Build and query multi-language source/binary code graphs with pre-analysis passes, version feature gates, proxy nodes, type/reference queries, cross-language link configuration, and structural traversal helpers |
+| `slicing-code-context` | Build bounded graph-informed source packets and delegate focused work to constrained subagents |
 | `diagramming-code` | Generate Mermaid diagrams from code graphs (call graphs, class hierarchies, complexity heatmaps, data flow); v0.4 native diagram support is feature-gated |
 | `crypto-protocol-diagram` | Extract protocol message flow from source code or specs (RFC, ProVerif, Tamarin) into sequence diagrams |
 | `genotoxic` | Triage mutation testing results using graph analysis — classify survived mutants as false positives, missing tests, or fuzzing targets |
@@ -72,9 +73,12 @@ uv pip install trailmark
 trailmark/
 ├── .claude-plugin/
 │   └── plugin.json
+├── agents/
+│   └── code-slice-worker.md          # Repository-tool-free bounded worker
 ├── README.md
 └── skills/
     ├── trailmark/                    # Core graph querying
+    ├── slicing-code-context/         # Bounded source slicing and worker delegation
     ├── diagramming-code/             # Mermaid diagram generation
     │   └── scripts/diagram.py
     ├── crypto-protocol-diagram/      # Protocol flow extraction
