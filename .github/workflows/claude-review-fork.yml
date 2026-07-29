@@ -1,0 +1,100 @@
+# Automated review for FORK pull requests, behind a maintainer-applied label.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# READ THIS BEFORE ENABLING. This file is separate from claude-review.yml so it
+# can be deleted on its own. Deleting it costs you nothing except automated review
+# on fork PRs; claude-review.yml keeps working for same-repo PRs.
+#
+# It uses `pull_request_target`, which zizmor flags as a high-severity dangerous
+# trigger, and it does so deliberately. The reason it is unavoidable: under the
+# ordinary `pull_request` trigger a fork PR receives a **read-only** GITHUB_TOKEN,
+# so the job cannot post its review comment — it would run, find issues, and have
+# nowhere to put them. Fork review therefore requires `pull_request_target` or it
+# requires not existing.
+#
+# Four things keep that trigger from being the classic pwn-request:
+#
+#   1. It only fires on a maintainer applying `safe-to-review`. A contributor
+#      cannot self-serve; someone has to read the diff first.
+#   2. The checkout is pinned to `github.event.pull_request.head.sha` — the exact
+#      commit as of the labeling event — not a branch ref. A force-push after the
+#      label lands does not change what gets reviewed, which closes the
+#      time-of-check/time-of-use gap that makes most pull_request_target workflows
+#      exploitable.
+#   3. `persist-credentials: false`, so the checked-out tree carries no token.
+#   4. The review runs the `fast` tier, whose tool allowlist is `gh pr
+#      comment/diff/view`, `Read`, `Grep`, `Glob` — no general Bash. Fork code is
+#      read, never executed.
+#
+# The residual risk, stated plainly: fork content is untrusted text fed to a model
+# that holds an API key and can call `gh pr comment`. A sufficiently effective
+# prompt injection could get it to post attacker-chosen text as a review, or to
+# include something it should not in that comment. It cannot execute fork code and
+# cannot write to the repository. If that residual is not acceptable to you, delete
+# this file — that is a reasonable call, and it is why this is a separate file.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# INERT until ANTHROPIC_API_KEY exists as a repository secret; see claude-review.yml.
+name: Claude Review (fork)
+
+on: # zizmor: ignore[dangerous-triggers]
+  # Suppressed deliberately, with the reasoning in the header above: fork review is
+  # impossible under `pull_request` (read-only token cannot post a comment), and the
+  # usual pull_request_target exploit path is closed by the maintainer-label gate,
+  # the SHA-pinned checkout, and a tool allowlist that cannot execute fork code.
+  # If you are reading this because you are unsure the tradeoff is still worth it,
+  # delete this file — nothing else depends on it.
+  pull_request_target:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  fork:
+    name: Claude review (fork, maintainer-approved)
+    if: >-
+      github.event.label.name == 'safe-to-review' &&
+      github.event.pull_request.head.repo.fork == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      # read: check out the pinned fork commit for reading only.
+      contents: read
+      # write: post the review as a PR comment. Under pull_request_target this is a
+      # real write token, which is exactly why the trigger is gated on a maintainer
+      # label and the checkout is pinned to a specific SHA.
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # The SHA as of the labeling event, NOT a ref. This is the load-bearing
+          # mitigation: a ref would re-resolve at checkout time and hand the job
+          # whatever the contributor pushed after the maintainer approved.
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Confirm the reviewed commit
+        env:
+          LABELED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$LABELED_SHA" ]; then
+            echo "ERROR: checked out $actual but the label approved $LABELED_SHA" >&2
+            exit 1
+          fi
+          echo "Reviewing $actual, the commit the maintainer approved."
+
+      - name: Review
+        if: env.ANTHROPIC_API_KEY != ''
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: .github/scripts/claude_review.sh fast
