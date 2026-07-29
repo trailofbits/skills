@@ -36,9 +36,16 @@ concurrency:
   # Keyed per tier, not per PR. Sharing one slot lets a routine push cancel an
   # in-flight deep review — and GitHub will not re-fire `labeled` for a label that is
   # already present, so the PR would sit labeled with no review, looking reviewed.
+  #
+  # Every `labeled` event gets its own key, including labels neither job cares about.
+  # Otherwise adding `dependencies` mid-review resolves to the `fast` key, cancels the
+  # running review, and then skips both jobs — leaving a cancelled check, no review,
+  # and no event that would re-trigger one until the next push.
   group: >-
     ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{
-    github.event.label.name == 'deep-review' && 'deep' || 'fast' }}
+    github.event.action == 'labeled'
+      && format('label-{0}', github.event.label.name)
+      || 'push' }}
   cancel-in-progress: true
 
 jobs:
@@ -88,7 +95,14 @@ jobs:
 
   deep:
     name: Claude review (deep)
-    if: github.event.action == 'labeled' && github.event.label.name == 'deep-review'
+    # The fork exclusion is explicit rather than relying on secrets being
+    # unavailable to fork `pull_request` events, so changing the gating later cannot
+    # silently start running this against a fork with a read-only token.
+    if: >-
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'deep-review' &&
+      github.event.pull_request.user.type != 'Bot' &&
+      github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

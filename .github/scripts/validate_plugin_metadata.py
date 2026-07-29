@@ -21,6 +21,7 @@ import contextlib
 import io
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -69,7 +70,7 @@ REFERENCE_PATTERN = re.compile(
 FORBIDDEN_SIDECAR_PATHS = (
     ".codex",
     ".opencode",
-    ".agents/plugins/marketplace.json",
+    ".agents",
 )
 FORBIDDEN_PLUGIN_SIDECARS = (".codex-plugin", ".opencode-plugin")
 
@@ -390,13 +391,27 @@ def _git_show(repo_root: Path, ref: str, rel_path: str) -> str | None:
     return result.stdout if result.returncode == 0 else None
 
 
+def _merge_base(repo_root: Path, base_ref: str) -> str:
+    """The commit this branch forked from, falling back to base_ref itself."""
+    result = subprocess.run(
+        ["git", "merge-base", base_ref, "HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else base_ref
+
+
 def _semver_tuple(value: str) -> tuple[int, int, int] | None:
     match = SEMVER_PATTERN.match(str(value))
     return tuple(int(g) for g in match.groups()) if match else None  # type: ignore[return-value]
 
 
 def changed_plugins(repo_root: Path, base_ref: str) -> set[str]:
-    """Plugins with file changes between `base_ref` and the working tree.
+    """Plugins with file changes between the merge base and HEAD.
+
+    Compares commits, so uncommitted local changes are invisible to a local run.
 
     The version-increment check applies only to these. Running it over every plugin
     would demand a bump from all 40+ on every PR, including PRs that touch no plugin
@@ -441,7 +456,11 @@ def validate_version_increment(
         return []
 
     rel = f"plugins/{plugin_name}/.claude-plugin/plugin.json"
-    base_raw = _git_show(repo_root, base_ref, rel)
+    # Merge base, not the base branch head. `changed_plugins` diffs `base...HEAD`, so
+    # reading the old version at `base_ref` directly would compare against whatever
+    # landed on main after this branch forked — failing a PR for not out-bumping a
+    # sibling it never saw.
+    base_raw = _git_show(repo_root, _merge_base(repo_root, base_ref), rel)
     if base_raw is None:
         return []  # new plugin on this branch
 
@@ -456,9 +475,10 @@ def validate_version_increment(
         return []
 
     return [
-        f"version {plugin_data['version']} is not greater than {base_version} on "
-        f"{base_ref}; clients only pull an update when the number increases "
-        f"(label the PR 'no-version-bump' for typo-only changes)"
+        f"version {plugin_data['version']} is not greater than {base_version} at "
+        f"the merge base; clients only pull an update when the number increases. "
+        f"Bump it, or apply the 'no-version-bump' label for a typo-only change. "
+        f"If another PR bumped this plugin after you branched, rebase first"
     ]
 
 
@@ -933,13 +953,31 @@ def _self_test_guards(ran: list[str]) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         _build_demo(root)
-        # An empty plugins/ must not read as success.
-        for child in (root / "plugins" / "demo").rglob("*"):
-            if child.is_file():
-                child.unlink()
+        # Remove the plugin directory itself, not just its files: leaving the
+        # directory means scan_plugins_directory still returns {"demo"} and main()
+        # exits non-zero for a missing README, so the guard this names would go
+        # untested while the assertion passed.
+        shutil.rmtree(root / "plugins" / "demo")
+        assert not scan_plugins_directory(root / "plugins"), "fixture did not empty plugins/"
         with contextlib.redirect_stdout(io.StringIO()):
             exit_code = main([str(root)])
-        _check(ran, "empty scan returns non-zero", exit_code != 0)
+        _check(ran, "scan finding no plugins returns non-zero", exit_code != 0)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        (plugin / ".codex-plugin").mkdir()
+        _check(
+            ran,
+            "per-plugin .codex-plugin sidecar",
+            any(".codex-plugin" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _build_demo(root)
+        _write(root / ".agents" / "skills" / "demo.md", "sidecar\n")
+        _check(ran, "forbidden .agents tree", any(".agents" in e for e in _errors_for(root)))
 
     _check(ran, "makefile and CI pin the same ruff", _check_ruff_parity() is None)
 

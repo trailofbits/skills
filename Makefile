@@ -33,12 +33,15 @@ lint:
 	@echo "→ ruff format --check"
 	@uvx ruff@$(RUFF_VERSION) format --check
 
-## shell: shellcheck + shfmt over every plugin script
+## shell: shellcheck + shfmt over every shell script
+# plugins/ AND .github/scripts/ — globbing only plugins/ left the repo's own scripts
+# unchecked locally, which is where they are most likely to be edited.
 shell:
 	@echo "→ shellcheck"
-	@find plugins -name '*.sh' -type f -exec shellcheck --severity=warning -x {} +
+	@find plugins .github/scripts -name '*.sh' -type f \
+		-exec shellcheck --severity=warning -x {} +
 	@echo "→ shfmt"
-	@find plugins -name '*.sh' -type f -exec shfmt -i 2 -ci -d {} +
+	@find plugins .github/scripts -name '*.sh' -type f -exec shfmt -i 2 -ci -d {} +
 
 ## bats: run plugin bats suites
 # Fails when the glob matches nothing: this repo has bats suites, so finding none means
