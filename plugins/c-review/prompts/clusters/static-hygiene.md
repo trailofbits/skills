@@ -24,20 +24,18 @@ ID prefixes: `MITIGATION`, `PRINTFATTR`, `VAARG`, `REGEX`, `INETATON`, `QSORT`.
 Run each seed below exactly once. The seed's hit-set is the **complete inventory** for the matching Phase B pass — when you reach Pass 3 (VAARG), do NOT re-grep for `va_start`; reuse the Phase A matches. Sub-prompts under `prompts/linux-userspace/*-finder.md` may list the same regexes in their own "Search Patterns" section; those are **redundant with Phase A** in this cluster — read the sub-prompt for FP guidance and bug-pattern detail, not for searcher commands.
 
 ```
-# Build-system files (one Grep per glob shape — Grep accepts only one glob per call):
-Grep: pattern="CFLAGS|CXXFLAGS|-fstack-protector|-D_FORTIFY_SOURCE|-fPIE|-fPIC|-Wformat|-Wl,-z,"  glob="Makefile*"
-Grep: pattern="CFLAGS|CXXFLAGS|-fstack-protector|-D_FORTIFY_SOURCE|-fPIE|-fPIC|-Wformat|-Wl,-z,"  glob="*.mk"
-Grep: pattern="CFLAGS|CXXFLAGS|-fstack-protector|-D_FORTIFY_SOURCE|-fPIE|-fPIC|-Wformat|-Wl,-z,"  glob="CMakeLists.txt"
-Grep: pattern="CFLAGS|CXXFLAGS|-fstack-protector|-D_FORTIFY_SOURCE|-fPIE|-fPIC|-Wformat|-Wl,-z,"  glob="meson.build"
-Grep: pattern="CFLAGS|CXXFLAGS|-fstack-protector|-D_FORTIFY_SOURCE|-fPIE|-fPIC|-Wformat|-Wl,-z,"  glob="configure*"
+# Build-system files — one rg run covers all build-file shapes (rg -g is repeatable):
+rg seed: "CFLAGS|CXXFLAGS|-fstack-protector|-D_FORTIFY_SOURCE|-fPIE|-fPIC|-Wformat|-Wl,-z," -g 'Makefile*' -g '*.mk' -g 'CMakeLists.txt' -g 'meson.build' -g 'configure*'
+#   no rg? each -g 'GLOB' maps to grep's --include='GLOB' (this seed has no \s/\b, so no class translation needed):
+#   grep -rE "CFLAGS|CXXFLAGS|-fstack-protector|-D_FORTIFY_SOURCE|-fPIE|-fPIC|-Wformat|-Wl,-z," --include='Makefile*' --include='*.mk' --include='CMakeLists.txt' --include='meson.build' --include='configure*' .
 
-# Source-code seeds — one Grep per pass; reuse the hit-set in Phase B:
-Grep: pattern="va_start\\s*\\(|va_end\\s*\\(|va_copy\\s*\\("              # → Pass 3 VAARG inventory
-Grep: pattern="\\b(regcomp|regexec|regfree)\\s*\\("                       # → Pass 4 REGEX inventory (POSIX regex)
-Grep: pattern="\\b(pcre_compile|pcre2_compile|pcre_exec|pcre2_match)\\s*\\(" # → Pass 4 REGEX inventory (PCRE)
-Grep: pattern="\\b(inet_aton|inet_addr|inet_network|inet_pton|inet_ntop)\\s*\\("  # → Pass 5 INETATON inventory
-Grep: pattern="\\bqsort\\s*\\(|\\bqsort_r\\s*\\(|\\bbsearch\\s*\\("       # → Pass 6 QSORT inventory
-Grep: pattern="__attribute__\\s*\\(\\s*\\(\\s*format\\s*\\(\\s*printf"     # → Pass 2 PRINTFATTR inventory (functions WITH the attribute)
+# Source-code seeds — one rg run per pass; reuse the hit-set in Phase B:
+rg seed: "va_start\\s*\\(|va_end\\s*\\(|va_copy\\s*\\("              # → Pass 3 VAARG inventory
+rg seed: "\\b(regcomp|regexec|regfree)\\s*\\("                       # → Pass 4 REGEX inventory (POSIX regex)
+rg seed: "\\b(pcre_compile|pcre2_compile|pcre_exec|pcre2_match)\\s*\\(" # → Pass 4 REGEX inventory (PCRE)
+rg seed: "\\b(inet_aton|inet_addr|inet_network|inet_pton|inet_ntop)\\s*\\("  # → Pass 5 INETATON inventory
+rg seed: "\\bqsort\\s*\\(|\\bqsort_r\\s*\\(|\\bbsearch\\s*\\("       # → Pass 6 QSORT inventory
+rg seed: "__attribute__\\s*\\(\\s*\\(\\s*format\\s*\\(\\s*printf"     # → Pass 2 PRINTFATTR inventory (functions WITH the attribute)
 ```
 
 Each seed's hit-set is then the inventory for exactly one pass below. **An empty hit-set is a valid `cleared` outcome** for the matching pass — record it that way in the coverage-gate table; do not re-grep with a slightly different regex hoping for something to appear.

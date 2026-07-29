@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.13"
+# requires-python = ">=3.11"
 # dependencies = []
 # ///
 """Generate c-review SARIF from finding frontmatter.
@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -90,6 +91,7 @@ RULE_DESCRIPTIONS = {
     "token-privilege": "Windows token or privilege misuse",
     "type-confusion": "Type confusion or unsafe cast",
     "undefined-behavior": "Undefined behavior",
+    "uninitialized-data": "Use of uninitialized memory",
     "unsafe-stdlib": "Unsafe standard library use",
     "use-after-free": "Use-after-free or double free",
     "va-start-end": "va_list lifecycle misuse",
@@ -184,25 +186,61 @@ def parse_context(output_dir: Path) -> dict[str, Any]:
     return frontmatter
 
 
-def iter_findings(output_dir: Path) -> list[dict[str, Any]]:
-    findings = []
-    for path in sorted((output_dir / "findings").glob("*.md")):
-        frontmatter, _ = split_frontmatter(path.read_text(encoding="utf-8"))
+def iter_findings(output_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Return (parsed findings, skipped records). Each skipped record is
+    `{"path": ..., "reason": ...}` for a finding file that could not be read —
+    the caller surfaces these in the SARIF so the loss is not stderr-only."""
+    findings: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
+    index_path = output_dir / "findings-index.txt"
+    if index_path.exists():
+        paths = [
+            Path(line.strip())
+            for line in index_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    else:
+        paths = sorted((output_dir / "findings").glob("*.md"))
+    for path in paths:
+        if not path.is_absolute():
+            path = output_dir / path
+        # A stale/missing index entry (e.g. a finding moved or deleted after the
+        # Phase-7 index was written) must NOT crash the Phase-8b safety net, whose
+        # whole job is to guarantee REPORT.sarif exists. Skip-and-record instead of
+        # letting read_text raise FileNotFoundError.
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"warning: skipping unreadable finding file {path}: {exc}", file=sys.stderr)
+            skipped.append({"path": str(path), "reason": f"unreadable ({exc.__class__.__name__})"})
+            continue
+        # parse_frontmatter raises on malformed YAML (e.g. a scalar then a list
+        # item on one key). One bad file must not sink the Phase-8b net, so catch
+        # broadly; narrowing to AttributeError would only patch this one shape.
+        try:
+            frontmatter, _ = split_frontmatter(text)
+        except Exception as exc:
+            print(f"warning: skipping unparseable finding file {path}: {exc}", file=sys.stderr)
+            skipped.append({"path": str(path), "reason": f"unparseable ({exc.__class__.__name__})"})
+            continue
         frontmatter["_path"] = str(path)
         findings.append(frontmatter)
-    return findings
+    return findings, skipped
 
 
 def location_parts(location: Any) -> tuple[str, int]:
     value = str(location or "")
     if "," in value or "\n" in value:
         return value, 1
+    # SARIF region.startLine has a schema minimum of 1; a `:0` line (or any
+    # non-positive value) would make the whole REPORT.sarif fail strict
+    # validation / GitHub code-scanning ingestion, so clamp to >= 1.
     match = re.match(r"^\[([^\]]+)\]\([^)]+\):(\d+)$", value)
     if match:
-        return normalize_path(match.group(1)), int(match.group(2))
+        return normalize_path(match.group(1)), max(1, int(match.group(2)))
     path, sep, line = value.rpartition(":")
     if sep and line.isdecimal():
-        return normalize_path(path), int(line)
+        return normalize_path(path), max(1, int(line))
     if sep and not line:
         return normalize_path(path), 1
     return normalize_path(value), 1
@@ -239,12 +277,62 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
     context = parse_context(output_dir)
     severity_filter = str(context.get("severity_filter", "all")).lower()
     threat_model = str(context.get("threat_model", "UNKNOWN"))
+    all_findings, skipped = iter_findings(output_dir)
+
+    # Skip a merged finding only when its merge target survives; otherwise the
+    # old blind skip dropped real bugs whose target was FP-rejected or missing.
+    by_id = {str(f.get("id")): f for f in all_findings if f.get("id")}
+
+    def terminal_primary(fid: str) -> str | None:
+        seen: set[str] = set()
+        while fid in by_id and fid not in seen:
+            seen.add(fid)
+            nxt = by_id[fid].get("merged_into")
+            if not nxt:
+                return fid
+            fid = str(nxt)
+        return None
+
+    survivor_ids: set[str] = set()
+    for f in all_findings:
+        if "merged_into" in f:
+            continue
+        if not (f.get("id") or f.get("bug_class") or f.get("title")):
+            continue
+        verdict = str(f.get("fp_verdict", "")).upper()
+        if verdict and verdict not in SURVIVOR_VERDICTS:
+            continue
+        fid = f.get("id")
+        if fid:
+            survivor_ids.add(str(fid))
+
     findings = []
-    for finding in iter_findings(output_dir):
-        if "merged_into" in finding:
+    for finding in all_findings:
+        merged_target = finding.get("merged_into")
+        if merged_target:
+            if terminal_primary(str(merged_target)) in survivor_ids:
+                continue
+            print(
+                "generate_sarif: merge target did not survive -- emitting "
+                f"{finding.get('id', '?')} (merged_into: {merged_target}): "
+                f"{finding.get('_path', '?')}",
+                file=sys.stderr,
+            )
+        if not (finding.get("id") or finding.get("bug_class") or finding.get("title")):
+            # No parseable frontmatter (e.g. a worker crashed mid-write before
+            # emitting the `---` block). Skip rather than fabricate a phantom
+            # result with ruleId "unknown" and an empty id/uri. Phase-7
+            # validate_artifacts.py is the primary guard; this is defense in depth.
+            path = str(finding.get("_path", "?"))
+            print(
+                f"generate_sarif: skipping finding with no parseable frontmatter: {path}",
+                file=sys.stderr,
+            )
+            skipped.append({"path": path, "reason": "no parseable frontmatter"})
             continue
         verdict = str(finding.get("fp_verdict", "")).upper()
-        if not verdict:
+        unjudged = not verdict
+        if unjudged:
             # Unjudged finding — fp-judge was skipped (partial run). Treat as
             # LIKELY_TP and infer severity from worker-assigned confidence.
             finding["fp_verdict"] = UNJUDGED_FALLBACK_VERDICT
@@ -255,7 +343,23 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
             finding["unjudged"] = True
         elif verdict not in SURVIVOR_VERDICTS:
             continue
-        if not severity_allowed(str(finding.get("severity", "")).upper(), severity_filter):
+
+        # A judged survivor whose `severity` the fp-judge never wrote (it crashed
+        # or half-wrote the frontmatter) must NOT be silently dropped — this
+        # generator is the safety net against exactly that. Surface it with a
+        # defaulted severity, marked unvalidated, and exempt from the filter.
+        sev = str(finding.get("severity", "")).upper()
+        severity_unvalidated = (not unjudged) and (sev not in SEVERITY_ORDER)
+        if severity_unvalidated:
+            finding["severity"] = "MEDIUM"
+            finding["severity_missing"] = True
+
+        # Judged survivors are filtered by their validated severity. Unjudged
+        # findings (no fp_verdict) and judged survivors missing a severity carry
+        # only an *inferred* severity that no judge confirmed, so filtering them
+        # on that guess would silently drop them (SKILL.md Phase 8b). Always
+        # surface those — marked unvalidated below — regardless of filter.
+        if not unjudged and not severity_unvalidated and not severity_allowed(sev, severity_filter):
             continue
         findings.append(finding)
 
@@ -274,17 +378,33 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
     results = []
     for finding in findings:
         location, line = location_parts(finding.get("location"))
+        # A finding with no recorded location yields an empty URI; surface that
+        # loudly (mirroring severity_missing) instead of emitting a phantom `:1`
+        # location a reviewer cannot act on.
+        location_missing = not location
         severity = str(finding.get("severity", "MEDIUM")).upper()
         also_known_as = finding.get("also_known_as", [])
         if not isinstance(also_known_as, list):
             also_known_as = [str(also_known_as)]
+        unjudged = bool(finding.get("unjudged", False))
+        severity_missing = bool(finding.get("severity_missing", False))
+        severity_validated = not (unjudged or severity_missing)
+        title = str(finding.get("title") or finding.get("id") or "c-review finding")
+        markers: list[str] = []
+        if not severity_validated:
+            # No judge validated this severity — mark it loudly so a SARIF
+            # consumer never reads the inferred/defaulted severity as confirmed.
+            markers.append("UNVALIDATED SEVERITY — not judged")
+        if location_missing:
+            # Empty URI — flag it so it is not read as "applies to the whole tree".
+            markers.append("LOCATION MISSING")
+        if markers:
+            title = f"[{'; '.join(markers)}] {title}"
         results.append(
             {
                 "ruleId": str(finding.get("bug_class", "unknown")),
                 "level": sarif_level(severity),
-                "message": {
-                    "text": str(finding.get("title") or finding.get("id") or "c-review finding")
-                },
+                "message": {"text": title},
                 "locations": [
                     {
                         "physicalLocation": {
@@ -303,11 +423,40 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
                     "attack_vector": str(finding.get("attack_vector", "")),
                     "exploitability": str(finding.get("exploitability", "")),
                     "fp_verdict": str(finding.get("fp_verdict", "")),
-                    "unjudged": bool(finding.get("unjudged", False)),
+                    "unjudged": unjudged,
+                    "severity_validated": severity_validated,
+                    "location_missing": location_missing,
                     "also_known_as": also_known_as,
                 },
             }
         )
+
+    # Surface any finding files that were dropped (unreadable / no frontmatter)
+    # in the artifact itself — stderr is ephemeral, but a code-scanning consumer
+    # reads only REPORT.sarif. We keep executionSuccessful=True on purpose: the
+    # run DID complete and the vast majority of findings are present; flipping it
+    # false can make platforms discard the entire run (losing the good findings
+    # too). The skip count + per-file warning notifications are the proportionate
+    # signal.
+    invocation: dict[str, Any] = {
+        "executionSuccessful": True,
+        "properties": {
+            "threat_model": threat_model,
+            "severity_filter": severity_filter,
+            "skipped_findings": len(skipped),
+        },
+    }
+    if skipped:
+        invocation["properties"]["skipped_paths"] = [s["path"] for s in skipped]
+        invocation["toolExecutionNotifications"] = [
+            {
+                "level": "warning",
+                "message": {
+                    "text": f"Skipped finding file (excluded from results): {s['path']} — {s['reason']}"
+                },
+            }
+            for s in skipped
+        ]
 
     return {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
@@ -321,15 +470,18 @@ def build_sarif(output_dir: Path) -> dict[str, Any]:
                         "rules": rules,
                     }
                 },
-                "invocations": [
-                    {
-                        "executionSuccessful": True,
-                        "properties": {
-                            "threat_model": threat_model,
-                            "severity_filter": severity_filter,
-                        },
+                # Declares the %SRCROOT% symbol each result's artifactLocation
+                # references (finding URIs are repo-relative). Optional per SARIF
+                # 2.1.0 but consumers expect a matching originalUriBaseIds entry.
+                "originalUriBaseIds": {
+                    "%SRCROOT%": {
+                        "description": {
+                            "text": "Root of the audited C/C++ project; "
+                            "finding URIs are relative to this."
+                        }
                     }
-                ],
+                },
+                "invocations": [invocation],
                 "results": results,
             }
         ],
@@ -347,6 +499,14 @@ def main() -> int:
     sarif = build_sarif(output_dir)
     output_path.write_text(json.dumps(sarif, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {output_path}")
+    skipped_count = sarif["runs"][0]["invocations"][0]["properties"]["skipped_findings"]
+    if skipped_count:
+        # Stdout (not just stderr) so the orchestrator's Bash capture sees it and
+        # Phase 8b can note the loss in run-summary.md.
+        print(
+            f"WARNING: skipped {skipped_count} unreadable/frontmatterless finding "
+            "file(s) — see REPORT.sarif invocations[].properties.skipped_findings"
+        )
     return 0
 
 
