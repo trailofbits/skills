@@ -243,9 +243,10 @@ is strong evidence and not a guarantee:
   machine with the `modern-python` plugin installed, because its shim intercepts the
   `python3 -` that zeroize-audit's suite uses (#207).
 
-Where the two overlap, local is deliberately the stricter side: CI scopes the
-validator to the plugins a PR touches while `make check` scans everything. Do not
-narrow it to match — the zero-reference guard only arms on a full scan.
+Both scan every plugin; the validator is not scoped down in CI. Only the
+version-increment check is limited to the plugins a branch touched, and it is the one
+check CI runs that local cannot. Do not add a scoping flag to the local run — the
+zero-reference guard only arms on a full scan.
 
 `make fix` applies the formatting CI would otherwise reject. `make help` lists the rest.
 

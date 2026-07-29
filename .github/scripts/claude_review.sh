@@ -155,8 +155,29 @@ PROMPT_FILE="$(mktemp)"
 trap 'rm -f "$PROMPT_FILE"' EXIT
 printf '%s\n' "$PROMPT" >"$PROMPT_FILE"
 
+# Timestamp before the run so we can tell a review that was posted from one that
+# was not. Without this the script has the exact defect its own prompt hunts: if the
+# model finishes without calling `gh pr comment` — a denied tool, a hit timeout, or
+# it simply summarises instead of posting — `claude` exits 0, the job goes green, and
+# a reader sees a passing "Claude review" check and infers the diff was reviewed.
+STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
 echo "Running $TIER review (effort=$EFFORT) on $REPO#$PR_NUMBER"
 claude --print \
   --effort "$EFFORT" \
   --allowedTools "$ALLOWED_TOOLS" \
   <"$PROMPT_FILE"
+
+posted="$(
+  gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+    --jq "[.[] | select(.created_at >= \"${STARTED_AT}\" or .updated_at >= \"${STARTED_AT}\")] | length"
+)"
+
+if [ "${posted:-0}" -eq 0 ]; then
+  echo "ERROR: the review run finished without posting a comment." >&2
+  echo "A green check with no review attached reads as 'reviewed and clean'," >&2
+  echo "which is worse than no check at all. Failing instead." >&2
+  exit 1
+fi
+
+echo "Review posted ($posted comment(s) created or updated since $STARTED_AT)."

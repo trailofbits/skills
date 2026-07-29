@@ -51,8 +51,9 @@ repos:
 
   - repo: local
     hooks:
-      # These three were CI-only, so the first signal a contributor got was a red
-      # check after pushing. AGENTS.md asked people to remember to run them.
+      # These were CI-only, so the first signal a contributor got was a red check
+      # after pushing. AGENTS.md asked people to remember to run them. The two
+      # loadability checks stay CI-only — they need the Claude Code and Codex CLIs.
       - id: validate-plugin-metadata
         name: validate plugin metadata
         entry: python3 .github/scripts/validate_plugin_metadata.py

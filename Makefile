@@ -13,10 +13,11 @@ RUFF_VERSION := 0.14.13
 .NOTPARALLEL:
 .PHONY: check self-test lint shell bats shell-suites python-tests validate fix help
 
-## check: everything CI runs (this is the one you want)
+## check: most of what CI runs (this is the one you want)
 check: self-test lint shell bats python-tests validate
 	@echo ""
-	@echo "✓ check passed — this is what CI will run"
+	@echo "✓ check passed — most of CI, but not the loadability checks, the"
+	@echo "  version-increment check, or the non-ruff pre-commit hooks."
 
 ## self-test: prove the validators still detect what they exist to detect
 # Runs before validate, deliberately. A checker that has silently stopped matching

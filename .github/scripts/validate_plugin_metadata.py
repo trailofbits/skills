@@ -1017,8 +1017,10 @@ def _check_ruff_parity() -> str | None:
     repo_root = Path(__file__).parent.parent.parent
     makefile = repo_root / "Makefile"
     precommit = repo_root / ".pre-commit-config.yaml"
-    if not makefile.exists() or not precommit.exists():
-        return None
+    if not makefile.exists():
+        return "Makefile is missing, so ruff parity cannot be checked"
+    if not precommit.exists():
+        return ".pre-commit-config.yaml is missing, so ruff parity cannot be checked"
 
     mk = re.search(r"^RUFF_VERSION\s*:?=\s*(\S+)", makefile.read_text(), re.MULTILINE)
     if not mk:
