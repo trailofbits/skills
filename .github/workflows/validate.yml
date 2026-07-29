@@ -21,6 +21,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
+          # The version-increment check diffs plugin.json against the base branch.
+          fetch-depth: 0
+
+      # Runs first, deliberately: a checker that has stopped detecting its target
+      # would otherwise report a clean build forever. That has shipped here before.
+      - name: Self-test the validators
+        run: python3 .github/scripts/validate_plugin_metadata.py --self-test
 
       - name: Validate SKILL.md frontmatter
         run: |
@@ -65,14 +72,25 @@ jobs:
                   print(f'ERROR: {e}', file=sys.stderr)
               sys.exit(1)
 
+          # Finding no skills means the walk broke, not that every skill is valid.
+          if skill_count == 0:
+              print('ERROR: no SKILL.md files found — discovery is broken', file=sys.stderr)
+              sys.exit(1)
+
           print(f'All {skill_count} SKILL.md files have valid frontmatter')
           "
 
       - name: Check for hardcoded paths
         run: |
           echo "Checking for hardcoded user paths..."
-          # Exclude /path/to (example paths) and /home/vscode (standard devcontainer user)
-          if grep -rPn '(?<![a-zA-Z])(/home/[a-z]|/Users/[A-Z])' plugins/ --include='*.md' --include='*.py' --include='*.json' | grep -v '/path/to' | grep -v '/home/vscode'; then
+          # Shell, bats, yaml and toml were previously unscanned; test fixtures and
+          # install scripts are exactly where absolute paths tend to hide.
+          # Excludes /path/to (example paths), /home/vscode (devcontainer user), and
+          # /home/user (gh-shim bats fixtures).
+          if grep -rPn '(?<![a-zA-Z])(/home/[a-z]|/Users/[A-Z])' plugins/ \
+              --include='*.md' --include='*.py' --include='*.json' \
+              --include='*.sh' --include='*.bats' --include='*.yml' --include='*.toml' \
+              | grep -v '/path/to' | grep -v '/home/vscode' | grep -v '/home/user/'; then
             echo "ERROR: Found hardcoded user paths (see above)"
             exit 1
           fi
@@ -81,18 +99,38 @@ jobs:
       - name: Check for personal emails
         run: |
           echo "Checking for personal emails..."
-          if grep -r '@trailofbits.com' . --include='*.json' --include='*.toml' | grep -v 'opensource@trailofbits.com' | grep -v '.git'; then
+          # The exclusion is anchored: an unanchored '.git' also drops any line
+          # containing "/github", which would mask a personal email beside a URL.
+          if grep -rn '@trailofbits\.com' . --include='*.json' --include='*.toml' \
+              --exclude-dir=.git \
+              | grep -v 'opensource@trailofbits\.com'; then
             echo "ERROR: Found personal emails (should use opensource@trailofbits.com)"
             exit 1
           fi
           echo "No personal emails found"
 
       - name: Validate plugin metadata
-        run: python3 .github/scripts/validate_plugin_metadata.py
-
-      - name: Install Claude Code CLI
+        # On a PR, --base-ref turns on the version-increment check: a substantive
+        # change to a plugin must raise its version, or installed clients never
+        # receive it. Skipped on push-to-main, where there is nothing to diff against.
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
         run: |
-          npm install --global --prefix "$RUNNER_TEMP/claude-cli" @anthropic-ai/claude-code@latest
+          if [ -n "$BASE_REF" ]; then
+            python3 .github/scripts/validate_plugin_metadata.py --base-ref "$BASE_REF"
+          else
+            python3 .github/scripts/validate_plugin_metadata.py
+          fi
+
+      # Pinned rather than @latest: an unpinned install makes CI able to break with
+      # no commit, and zizmor flags it as adhoc-packages. Dependabot does not track
+      # these, so bump them by hand when a new CLI feature is needed.
+      - name: Install Claude Code CLI
+        env:
+          CLAUDE_CLI_VERSION: "2.1.220"
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
+            "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
           echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/claude-cli/bin/claude" --version
 
@@ -100,8 +138,11 @@ jobs:
         run: python3 .github/scripts/check_claude_loadability.py
 
       - name: Install Codex CLI
+        env:
+          CODEX_CLI_VERSION: "0.146.0"
         run: |
-          npm install --global --prefix "$RUNNER_TEMP/codex-cli" @openai/codex@latest
+          npm install --global --prefix "$RUNNER_TEMP/codex-cli" \
+            "@openai/codex@${CODEX_CLI_VERSION}"
           echo "$RUNNER_TEMP/codex-cli/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/codex-cli/bin/codex" --version
 
