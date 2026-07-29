@@ -7,7 +7,7 @@ dependencies = [
     "opencv-python-headless>=4.10.0,<6.0",
     "numpy>=2.0.0,<3.0",
     "pdf2image>=1.17.0,<2.0",
-    "pytesseract>=0.3.10,<1.0",
+    "pytesseract>=0.3.13,<1.0",
 ]
 
 [tool.ruff]
