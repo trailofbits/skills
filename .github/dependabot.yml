@@ -12,6 +12,13 @@
 # rust-review/scripts and let-fate-decide's scripts have manifests but no runtime
 # deps, so there is nothing for Dependabot to resolve. Add them if that changes.
 #
+# EVERY directory here must carry a committed uv.lock. Without one, Dependabot has
+# nothing to pin and its only available action is raising the lower bound of an
+# already-open range — which changes nothing about what installs and only drops
+# support for older versions. That produced five no-op PRs (#208-#212, all closed)
+# the first time this config ran; the one directory that had a lockfile produced
+# none, because there was genuinely nothing to update.
+#
 # Python deps declared with PEP 723 inline metadata (the common pattern in this
 # repo, including .github/scripts/) have no Dependabot ecosystem at all and stay
 # manual. So do the pinned npm CLI versions in .github/workflows/validate.yml.

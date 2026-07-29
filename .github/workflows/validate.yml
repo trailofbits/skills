@@ -138,7 +138,14 @@ jobs:
         # receive it. Skipped on push-to-main, where there is nothing to diff against.
         env:
           BASE_REF: ${{ github.event.pull_request.base.sha }}
-          NO_BUMP: ${{ contains(github.event.pull_request.labels.*.name, 'no-version-bump') }}
+          # Dependabot cannot satisfy the version-increment check: it cannot bump a
+          # plugin's version and cannot label its own PR, so without this exemption
+          # every dependency PR is permanently red. A dependency change arguably
+          # *should* bump the plugin version — do that in a follow-up commit on the
+          # PR when it matters, rather than leaving the whole class blocked.
+          NO_BUMP: >-
+            ${{ contains(github.event.pull_request.labels.*.name, 'no-version-bump')
+                || github.actor == 'dependabot[bot]' }}
         run: |
           if [ -z "$BASE_REF" ]; then
             python3 .github/scripts/validate_plugin_metadata.py
