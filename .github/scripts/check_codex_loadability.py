@@ -115,7 +115,12 @@ def main() -> int:
     loaded_skill_count = 0
     loaded_mcp_count = 0
     request_id = 0
-    tmp = tempfile.TemporaryDirectory(prefix="codex-load-check-")
+    # ignore_cleanup_errors: the codex app-server can still be releasing handles under
+    # the temp dir when cleanup runs, which raised
+    # `OSError: [Errno 39] Directory not empty: '.git'` and failed the whole job after
+    # every loadability check had already passed. A teardown race must not be reported
+    # as a validation failure.
+    tmp = tempfile.TemporaryDirectory(prefix="codex-load-check-", ignore_cleanup_errors=True)
     temp_root = Path(tmp.name)
     home = temp_root / "home"
     codex_home = temp_root / "codex-home"

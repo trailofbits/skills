@@ -28,7 +28,10 @@
 - [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) - Production plugin structure
 - [getsentry/skills](https://github.com/getsentry/skills) — Production Sentry skills; `security-review` is a standout routing + progressive disclosure example
 
-**For Claude:** Use the `claude-code-guide` subagent for plugin/skill questions - it has access to official documentation.
+**For Claude:** Use the `claude-code-guide` subagent for questions about official Claude
+Code behaviour that you cannot answer from this repository — it has access to the
+official documentation. For anything answerable by reading the files here, read them;
+delegating a lookup you could do directly costs a round trip and buys nothing.
 
 ## Technical Reference
 
@@ -38,17 +41,23 @@ This repository uses Claude plugin marketplace metadata as the canonical source 
 
 Rules:
 
-- Do not add `.agents/plugins/marketplace.json`, `.codex/`, or `plugins/<name>/.codex-plugin/`.
+- Do not add `.agents/plugins/marketplace.json`, `.codex/`, `.opencode/`, or
+  `plugins/<name>/.codex-plugin/`. The validator enforces this — sidecars drift out of
+  sync with the canonical metadata, which is why the last set was removed in #173.
 - Keep plugin components at the plugin root using Codex-compatible default paths: `skills/`, `hooks/hooks.json`, `.mcp.json`, and `.app.json`.
 - If a plugin needs MCP configuration, put it in `.mcp.json` at the plugin root rather than embedding an object in `.claude-plugin/plugin.json`.
-- Before submitting, run:
+- Both loadability checks run in CI, not in `make check` — they need the Claude Code
+  and Codex CLIs installed, which is not a reasonable local prerequisite. Run them by
+  hand if you are changing plugin metadata:
 
-```sh
-python3 .github/scripts/check_claude_loadability.py
-python3 .github/scripts/check_codex_loadability.py
-```
+  ```sh
+  python3 .github/scripts/check_claude_loadability.py
+  python3 .github/scripts/check_codex_loadability.py
+  ```
 
-- If this check fails in CI, update the canonical Claude marketplace or plugin root components so Codex can load them through Claude marketplace compatibility.
+  If one fails, update the canonical Claude marketplace or the plugin root components
+  so Codex can load them through Claude marketplace compatibility — do not add a
+  sidecar to work around it.
 
 ### Plugin Structure
 
@@ -73,15 +82,31 @@ plugins/
 
 ### Frontmatter
 
+Skills and commands declare tools with `allowed-tools`, space-delimited:
+
 ```yaml
 ---
 name: skill-name              # kebab-case, max 64 chars
 description: "Third-person description of what it does and when to use it"
-allowed-tools:                # Optional: restrict to needed tools only
+allowed-tools: Read Grep      # Optional: restrict to needed tools only
+---
+```
+
+Agent files under `agents/` use a different key — `tools`, as a YAML list:
+
+```yaml
+---
+name: agent-name
+description: "What this agent does and when the coordinator should dispatch it"
+tools:
   - Read
   - Grep
 ---
 ```
+
+The keys are inverted between the two file types, and the loader silently ignores
+the wrong one — the frontmatter still parses, the restriction simply does not apply
+and the agent inherits everything. The validator checks this.
 
 ### Naming Conventions
 
@@ -196,31 +221,122 @@ See [ADVANCED.md](references/ADVANCED.md) for detailed patterns.
 See [API.md](references/API.md) for complete method documentation.
 ```
 
-## PR Checklist
+## Before committing
 
-Before submitting:
+```sh
+make check
+```
 
-**Technical (CI validates these):**
-- [ ] Valid YAML frontmatter with `name` and `description`
-- [ ] Name is kebab-case, ≤64 characters
-- [ ] All referenced files exist
-- [ ] No hardcoded paths (`/Users/...`, `/home/...`)
-- [ ] `python3 .github/scripts/check_claude_loadability.py` passes
-- [ ] `python3 .github/scripts/check_codex_loadability.py` passes
+That runs the validator self-test, ruff, shellcheck, shfmt, bats, the plugin
+Python suites, and the plugin validator.
 
-**Quality (reviewers check these):**
-- [ ] Description triggers correctly (third-person, specific)
-- [ ] "When to use" and "When NOT to use" sections present
-- [ ] Examples are concrete (input → output)
-- [ ] Explains WHY, not just WHAT
+It is most of CI, not all of it. Three things run only in CI, so a green `make check`
+is strong evidence and not a guarantee:
 
-**Documentation:**
-- [ ] Plugin has README.md
-- [ ] Added to root README.md table
-- [ ] Registered in root `.claude-plugin/marketplace.json` (repo-level, not the plugin's own `.claude-plugin/`)
-- [ ] Added to CODEOWNERS with plugin-specific ownership (`/plugins/<name>/ @gh-username @dguido`)
-  - To find the GitHub username: run `gh api user --jq .login` (most reliable — uses authenticated GitHub identity)
+- **the two loadability checks**, which need the Claude Code and Codex CLIs installed
+- **the rest of pre-commit** — actionlint, zizmor, check-yaml/json/toml,
+  detect-private-key, end-of-file-fixer, trailing-whitespace. Run `prek run -a` (or
+  `pre-commit run -a`) to cover those locally.
+- **the version-increment check**, which needs a base ref to diff against and so has
+  no meaning outside a PR.
+- **`make shell-suites`**, which is a target but not part of `check`: it fails on any
+  machine with the `modern-python` plugin installed, because its shim intercepts the
+  `python3 -` that zeroize-audit's suite uses (#207).
 
-**Version updates (for existing plugins):**
-- [ ] Increment version in both `plugins/<name>/.claude-plugin/plugin.json` and the root `.claude-plugin/marketplace.json` when making substantive changes (clients only update plugins when the version number increases)
-- [ ] Ensure version numbers match between the plugin's `plugin.json` and its entry in the root `.claude-plugin/marketplace.json`
+Both scan every plugin; the validator is not scoped down in CI. Only the
+version-increment check is limited to the plugins a branch touched, and it is the one
+check CI runs that local cannot. Do not add a scoping flag to the local run — the
+zero-reference guard only arms on a full scan.
+
+`make fix` applies the formatting CI would otherwise reject. `make help` lists the rest.
+
+### What the validator enforces, so you do not have to
+
+Each of these fails the build. There is no value in checking any of it by hand:
+
+- `plugin.json` exists, parses, and has `name`, `description`, and a semver `version`
+- Plugin directory name is kebab-case and ≤64 characters
+- Plugin has a `README.md` (exact case — `Readme.md` passes on macOS and fails on CI)
+- Registered in `.claude-plugin/marketplace.json`, the root `README.md`, and `CODEOWNERS`
+- `version` matches between `plugin.json` and `marketplace.json`, **and** increases when
+  you change a plugin — clients only pull an update when the number goes up, so a fix
+  shipped without a bump reaches nobody. Apply the `no-version-bump` label for
+  typo-only changes and CI skips the check.
+- `SKILL.md` frontmatter parses and has `name` and `description`
+- Agent files use `tools:`; skills and commands use `allowed-tools:`
+- `subagent_type` values are namespaced `<plugin>:<agent>` — a bare name is
+  unregistered and the dispatch fails at runtime
+- No hardcoded `/Users/…` or `/home/…` paths
+- No `.codex/`, `.opencode/`, `.agents/`, or `plugins/*/.codex-plugin/` sidecars
+- Both loadability checks pass under the real Claude Code and Codex CLIs
+
+Three more are reported as **warnings**, so they will not stop a merge and do still
+need your eye: missing `## When to Use` / `## When NOT to Use`, `SKILL.md` over 500
+lines, and references that do not resolve. A dangling `references/setup.md` link 404s
+for every user of the skill, and CI will not stop you shipping it.
+
+### What no tool can check — this is the part that needs you
+
+- **The description actually triggers.** Third person, names the situation, uses the
+  words a user would actually type. This is the single highest-leverage line in a skill:
+  a skill that never triggers may as well not exist.
+- **Examples are concrete** — real input, real output, not a shape.
+- **It explains why**, including the trade-off and when not to do the thing.
+- **The version bump is the right size.** The validator confirms the number went up;
+  only you know whether the change was substantive. `MAJOR.MINOR.PATCH`, MINOR for
+  features, PATCH for fixes.
+- **CODEOWNERS lists the right people**: `/plugins/<name>/ @you @dguido`. Find your
+  username with `gh api user --jq .login`.
+- **The entry is in the right section** of the root `README.md`. The validator only
+  checks that the plugin appears *somewhere* in that file, so a row appended to
+  whichever table you scrolled to first passes CI and stays filed under the wrong
+  category indefinitely.
+
+## Scripts a plugin ships
+
+**A checker that inspects zero items must fail, not pass.** This is the single most
+expensive class of bug in a repo like this one, because it is invisible on every read
+and in every review. Real examples, all of which were green for months:
+
+- a validator using `grep -oP` (rejected by BSD grep) with stderr sent to `/dev/null`,
+  so it printed "all valid" on every run without ever matching anything
+- an eval grader that judged the response text rather than the artifact, so a run that
+  skipped the actual work still scored a pass
+- a citation gate that validated only the citations that were present, so a document
+  with zero citations passed
+
+If your script counts, filters, or matches, make it exit non-zero when the count is
+zero, and give it a fixture proving it still detects its target. The validator's
+`--self-test` is the worked example: it builds a known-bad plugin in a tempdir and
+asserts each checker rejects it, and it fails if it runs fewer assertions than it
+should — because the self-test is itself a checker.
+
+Otherwise: `set -euo pipefail`, POSIX ERE rather than PCRE (`grep -oP` is not portable
+to macOS), and never send a tool's stderr to `/dev/null` unless you have handled the
+failure it would have reported.
+
+## Working effectively in this repo
+
+- **Effort.** Start at `xhigh` for coding and agentic work and `high` elsewhere, then
+  sweep downward on your own evals — `low` and `medium` are unusually strong on current
+  models and often match what an older model needed `xhigh` to do. Defaults carried over
+  from a previous model are rarely the right setting.
+- **Subagents.** Delegate work that is large and genuinely independent — a wide
+  multi-file investigation, several unrelated tracks. Do not spawn subagents to verify
+  or double-check your own work, and do not split one modest job across several: each
+  one re-establishes context, re-explores, and reports back, and then you re-read the
+  report. One well-briefed agent beats three vague ones.
+- **Do not add verification scaffolding to prompts.** "Double-check your answer", "add a
+  final verification step", and similar make output worse on current models rather than
+  better — they cause over-verification, and removing them costs no capability. This
+  inverts older advice, so it is worth stating explicitly. Put the check in `make check`
+  or the validator, where it runs deterministically and cannot be talked out of firing.
+  This applies to skills you write or edit; existing skills carrying the pattern are not
+  a cleanup backlog, so strip it when you are already in the file rather than as its own
+  sweep.
+- **Do not tell a reviewer to pre-filter.** "Only report high-severity issues" is
+  followed literally: the model investigates just as thoroughly, finds the bugs, and
+  then declines to report what it judges below the bar. Precision rises, recall appears
+  to collapse, and the regression looks like a capability problem when it is a prompt
+  problem. Ask for everything with a severity attached and filter in a separate pass —
+  `c-review` and `rust-review` do this correctly if you want a model to copy.

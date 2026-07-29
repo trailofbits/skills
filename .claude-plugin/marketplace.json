@@ -34,7 +34,7 @@
       "version": "1.1.2",
       "description": "Comprehensive smart contract security toolkit based on Trail of Bits' Building Secure Contracts framework. Includes vulnerability scanners for 6 blockchains and 5 development guideline assistants.",
       "author": {
-        "name": "Omar Inuwa && Paweł Płatek"
+        "name": "Omar Inuwa && Pawe\u0142 P\u0142atek"
       },
       "source": "./plugins/building-secure-contracts"
     },
@@ -148,7 +148,7 @@
     {
       "name": "mutation-testing",
       "version": "1.0.1",
-      "description": "Configures mewt or muton mutation testing campaigns — scopes targets, tunes timeouts, and optimizes long-running runs. Use when the user mentions mewt, muton, mutation testing, or wants to configure or optimize a mutation testing campaign.",
+      "description": "Configures mewt or muton mutation testing campaigns \u2014 scopes targets, tunes timeouts, and optimizes long-running runs. Use when the user mentions mewt, muton, mutation testing, or wants to configure or optimize a mutation testing campaign.",
       "author": {
         "name": "Trail of Bits",
         "email": "opensource@trailofbits.com",
@@ -201,7 +201,7 @@
       "version": "1.2.2",
       "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
       "author": {
-        "name": "Axel Mierczuk & Paweł Płatek"
+        "name": "Axel Mierczuk & Pawe\u0142 P\u0142atek"
       },
       "source": "./plugins/static-analysis"
     },
@@ -219,14 +219,14 @@
       "version": "1.0.2",
       "description": "Skills from the Trail of Bits Application Security Testing Handbook (appsec.guide)",
       "author": {
-        "name": "Paweł Płatek"
+        "name": "Pawe\u0142 P\u0142atek"
       },
       "source": "./plugins/testing-handbook-skills"
     },
     {
       "name": "trailmark",
-      "version": "0.8.2",
-      "description": "Builds multi-language source code graphs for security analysis: call graphs, attack surface mapping, blast radius, taint propagation, complexity hotspots, and entry point enumeration. Generates Mermaid diagrams (call graphs, class hierarchies, dependency maps, heatmaps). Compares code graph snapshots for structural diff and evolution analysis. Runs graph-informed mutation testing triage (genotoxic). Generates mutation-driven test vectors (vector-forge). Extracts crypto protocol message flows and converts Mermaid diagrams to ProVerif models. Projects SARIF and weAudit findings onto code graphs. Use when analyzing call paths, mapping attack surface, visualizing code architecture, triaging survived mutants, generating cryptographic test vectors, diagramming crypto protocols, formally verifying protocols, or augmenting audits with static analysis findings.",
+      "version": "0.10.0",
+      "description": "Builds multi-language source and binary code graphs for security analysis: call graphs, attack surface mapping, blast radius, taint propagation, complexity hotspots, entry point enumeration, proxy/unresolved-call tracking, type/reference analysis, and structural diffs. Creates bounded, graph-informed source packets for delegating focused work to constrained subagents. Generates Mermaid diagrams, runs graph-informed mutation testing triage (genotoxic), generates mutation-driven test vectors (vector-forge), extracts crypto protocol message flows, converts Mermaid diagrams to ProVerif models, projects SARIF/weAudit/binary findings onto code graphs, triages single findings with graph evidence, gates branch diffs for structural review regressions, and expands seed findings into variant-neighborhood candidates. Use when analyzing call paths, slicing source context for smaller models, mapping attack surface, visualizing code architecture, triaging survived mutants, generating cryptographic test vectors, diagramming crypto protocols, formally verifying protocols, augmenting audits with static analysis findings, deciding whether one candidate issue is reachable, reviewing graph-level PR risk, or seeding variant analysis.",
       "author": {
         "name": "Scott Arciszewski",
         "url": "https://github.com/tob-scott-a"
@@ -247,7 +247,7 @@
       "version": "1.2.0",
       "description": "Comprehensive C/C++ security code review with specialized bug-finding agents covering memory safety, type safety, concurrency, and Linux/Windows userspace-specific issues",
       "author": {
-        "name": "Paweł Płatek"
+        "name": "Pawe\u0142 P\u0142atek"
       },
       "source": "./plugins/c-review"
     },
@@ -256,13 +256,13 @@
       "version": "1.0.0",
       "description": "Comprehensive Rust security code review with specialized bug-finding agents covering the safe/unsafe boundary, memory safety in unsafe blocks, concurrency, panic-induced DoS, recursion-induced stack overflow, FFI, and async runtime hazards",
       "author": {
-        "name": "Andrea Cappa (Aptos Labs) & Paweł Płatek (Trail of Bits)"
+        "name": "Andrea Cappa (Aptos Labs) & Pawe\u0142 P\u0142atek (Trail of Bits)"
       },
       "source": "./plugins/rust-review"
     },
     {
       "name": "modern-python",
-      "version": "1.5.2",
+      "version": "1.5.3",
       "description": "Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools.",
       "author": {
         "name": "William Tan",
@@ -368,7 +368,7 @@
       "version": "1.2.1",
       "description": "Audits GitHub Actions workflows for security vulnerabilities in AI agent integrations (Claude Code Action, Gemini CLI, OpenAI Codex, GitHub AI Inference)",
       "author": {
-        "name": "Emilio López & Will Vandevanter"
+        "name": "Emilio L\u00f3pez & Will Vandevanter"
       },
       "source": "./plugins/agentic-actions-auditor"
     },
@@ -377,7 +377,7 @@
       "version": "1.0.4",
       "description": "Automatically reviews and fixes Claude Code skills through iterative refinement until they meet quality standards. Requires plugin-dev plugin.",
       "author": {
-        "name": "Paweł Płatek",
+        "name": "Pawe\u0142 P\u0142atek",
         "url": "https://github.com/GrosQuildu"
       },
       "source": "./plugins/skill-improver"
@@ -401,6 +401,39 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/dimensional-analysis"
+    },
+    {
+      "name": "vulnerability-triage-brocards",
+      "version": "0.1.0",
+      "description": "Principled framework for triaging vulnerability reports using 7 brocards (rules of thumb). Evaluates incoming CVEs, bug bounty submissions, and security findings against structured dismissal/acceptance criteria before escalating to deeper analysis.",
+      "author": {
+        "name": "Alexis Challande",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/vulnerability-triage-brocards"
+    },
+    {
+      "name": "github-triage",
+      "version": "0.1.0",
+      "description": "Triages a repository's open GitHub issues and pull requests via the gh CLI: optionally merges ready bot and maintainer-approved PRs and spawns review subagents for unreviewed ones, closes already-resolved issues with referenced explanations, cross-links issues with pending fix PRs, and assigns local-only priority and change-size estimates.",
+      "author": {
+        "name": "Evan Sultanik",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/github-triage"
+    },
+    {
+      "name": "open-sourcing",
+      "version": "0.1.0",
+      "description": "Prepares a repository for public open-source release: secrets-history hygiene, license selection, documentation and CI readiness checks, and language-specific packaging and release guidance.",
+      "author": {
+        "name": "Evan Sultanik",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/open-sourcing"
     }
   ]
 }

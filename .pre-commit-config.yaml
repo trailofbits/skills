@@ -27,5 +27,45 @@ repos:
       - id: check-yaml
         args: [--unsafe]
       - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: detect-private-key
       - id: end-of-file-fixer
       - id: trailing-whitespace
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/woodruffw/zizmor-pre-commit
+    rev: v1.28.0
+    hooks:
+      - id: zizmor
+
+  # Markdown linting is deliberately absent. markdownlint over this repo reports
+  # ~12,400 violations (7,282 of them MD013 line-length, 1,740 MD032, 1,260 MD031),
+  # so it would land either permanently red or with so many rules disabled that it
+  # checks nothing. Both outcomes teach people to ignore the output. Revisit if the
+  # backlog is ever paid down; the measurement is in the PR that added this comment.
+
+  - repo: local
+    hooks:
+      # These were CI-only, so the first signal a contributor got was a red check
+      # after pushing. AGENTS.md asked people to remember to run them. The two
+      # loadability checks stay CI-only — they need the Claude Code and Codex CLIs.
+      - id: validate-plugin-metadata
+        name: validate plugin metadata
+        entry: python3 .github/scripts/validate_plugin_metadata.py
+        language: system
+        pass_filenames: false
+        files: ^(plugins/|\.claude-plugin/|CODEOWNERS|README\.md)
+
+      # Scoped to the validator itself: a checker that has silently stopped matching
+      # reports a clean repo forever, so the fixtures must run whenever it is edited.
+      - id: validator-self-test
+        name: validator self-test
+        entry: python3 .github/scripts/validate_plugin_metadata.py --self-test
+        language: system
+        pass_filenames: false
+        files: ^(\.github/scripts/validate_plugin_metadata\.py|Makefile|\.pre-commit-config\.yaml)$

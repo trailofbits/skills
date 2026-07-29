@@ -18,10 +18,10 @@ jobs:
     name: Pre-commit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.13"
       - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd  # v3.0.1
@@ -30,7 +30,7 @@ jobs:
     name: Shell (bats)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
       - name: Install bats and uv
@@ -40,16 +40,47 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Run bats tests
-        run: find plugins -name "*.bats" -type f -print0 | xargs -0 --no-run-if-empty bats
+        # --no-run-if-empty would turn "discovery broke" into a silent pass. This repo
+        # ships bats suites, so finding none is a failure, not a clean run.
+        run: |
+          set -euo pipefail
+          mapfile -d '' files < <(find plugins -name '*.bats' -type f -print0)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "ERROR: no .bats files found — discovery is broken"
+            exit 1
+          fi
+          echo "Running ${#files[@]} bats file(s)"
+          bats "${files[@]}"
+
+      - name: Run shell regression suites
+        # Matched by no glob in the previous discovery, so these never ran in CI.
+        run: |
+          # find, not a glob: `**` needs globstar and silently degrades to `*`
+          # without it, so a suite one directory deeper stops running with no signal.
+          # And an empty result is a failure, not a pass — this repo ships suites.
+          set -euo pipefail
+          mapfile -d '' suites < <(
+            find plugins -type f -path '*/tests/*' -name 'run_*.sh' -print0
+          )
+          if [ "${#suites[@]}" -eq 0 ]; then
+            echo "ERROR: no shell regression suites found — discovery is broken"
+            exit 1
+          fi
+          echo "Running ${#suites[@]} shell regression suite(s)"
+          for s in "${suites[@]}"; do
+            echo "::group::$s"
+            bash "$s"
+            echo "::endgroup::"
+          done
 
   python-tests:
     name: Python tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.13"
       - name: Install pytest
@@ -73,20 +104,32 @@ jobs:
       - name: Discover and run plugin Python tests
         shell: bash
         run: |
-          # Intentionally omit -e: we want every test file to run even if
-          # one fails, then exit with a combined failure code via `failed`.
+          # Intentionally omit -e: we want every directory to run even if one
+          # fails, then exit with a combined failure code via `failed`.
+          #
+          # pytest per directory, not `python3 <file>` per file. A test file with no
+          # `if __name__ == "__main__"` block exits 0 under the old loop having run
+          # nothing at all, which is indistinguishable from a pass. Running pytest
+          # from inside each directory (via `python3 -m`, which puts the CWD on
+          # sys.path) preserves the sibling imports these suites rely on, and
+          # --import-mode=importlib keeps c-review and rust-review from colliding on
+          # their identically-named test_split.py.
           set -uo pipefail
-          mapfile -d '' files < <(find plugins -type f \( -name 'test_*.py' -o -name '*_test.py' \) -print0)
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "No Python test files found under plugins/."
-            exit 0
+          mapfile -t dirs < <(
+            find plugins -type f \( -name 'test_*.py' -o -name '*_test.py' \) \
+              -exec dirname {} \; | sort -u
+          )
+          if [ "${#dirs[@]}" -eq 0 ]; then
+            echo "ERROR: no Python test files found — discovery is broken"
+            exit 1
           fi
           failed=0
-          for f in "${files[@]}"; do
-            echo "::group::$f"
-            if ! python3 "$f"; then
+          for d in "${dirs[@]}"; do
+            echo "::group::$d"
+            if ! ( cd "$d" && python3 -m pytest -q --import-mode=importlib . ); then
               failed=1
             fi
             echo "::endgroup::"
           done
+          echo "Ran ${#dirs[@]} test directory/ies"
           exit "$failed"

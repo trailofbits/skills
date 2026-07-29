@@ -18,9 +18,16 @@ jobs:
     name: Validate plugins and skills
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
+          # The version-increment check diffs plugin.json against the base branch.
+          fetch-depth: 0
+
+      # Runs first, deliberately: a checker that has stopped detecting its target
+      # would otherwise report a clean build forever. That has shipped here before.
+      - name: Self-test the validators
+        run: python3 .github/scripts/validate_plugin_metadata.py --self-test
 
       - name: Validate SKILL.md frontmatter
         run: |
@@ -65,14 +72,48 @@ jobs:
                   print(f'ERROR: {e}', file=sys.stderr)
               sys.exit(1)
 
+          # Finding no skills means the walk broke, not that every skill is valid.
+          if skill_count == 0:
+              print('ERROR: no SKILL.md files found — discovery is broken', file=sys.stderr)
+              sys.exit(1)
+
           print(f'All {skill_count} SKILL.md files have valid frontmatter')
           "
 
       - name: Check for hardcoded paths
+        shell: bash
         run: |
+          set -uo pipefail
           echo "Checking for hardcoded user paths..."
-          # Exclude /path/to (example paths) and /home/vscode (standard devcontainer user)
-          if grep -rPn '(?<![a-zA-Z])(/home/[a-z]|/Users/[A-Z])' plugins/ --include='*.md' --include='*.py' --include='*.json' | grep -v '/path/to' | grep -v '/home/vscode'; then
+          # Shell, bats, yaml and toml were previously unscanned; test fixtures and
+          # install scripts are exactly where absolute paths tend to hide. The
+          # *-shim.bats exclusion covers gh-shim's /home/user/... fixtures.
+          INCLUDES=(--include='*.md' --include='*.py' --include='*.json'
+                    --include='*.sh' --include='*.bats' --include='*.yml'
+                    --include='*.toml')
+
+          # Prove the scan saw files before trusting a clean result. `if grep A |
+          # grep -v B` takes its status from the LAST command in the pipe, so a
+          # first-stage failure (renamed directory, a grep without -P) produced no
+          # output, exited 2, and printed "No hardcoded user paths found" while
+          # inspecting nothing — the same defect this PR exists to remove.
+          scanned=$(grep -rl '' plugins/ "${INCLUDES[@]}" | wc -l)
+          if [ "$scanned" -eq 0 ]; then
+            echo "ERROR: path scan matched no files at all — discovery is broken"
+            exit 1
+          fi
+          echo "Scanning $scanned file(s)"
+
+          hits=$(grep -rPn '(?<![a-zA-Z])(/home/[a-z]|/Users/[A-Z])' plugins/ \
+              "${INCLUDES[@]}" --exclude='*-shim.bats' || true)
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -gt 1 ]; then
+            echo "ERROR: grep failed with status $rc — the scan did not run"
+            exit 1
+          fi
+          hits=$(printf '%s\n' "$hits" | grep -v '/path/to' | grep -v '/home/vscode' || true)
+          if [ -n "$hits" ]; then
+            printf '%s\n' "$hits"
             echo "ERROR: Found hardcoded user paths (see above)"
             exit 1
           fi
@@ -81,27 +122,54 @@ jobs:
       - name: Check for personal emails
         run: |
           echo "Checking for personal emails..."
-          if grep -r '@trailofbits.com' . --include='*.json' --include='*.toml' | grep -v 'opensource@trailofbits.com' | grep -v '.git'; then
+          # The exclusion is anchored: an unanchored '.git' also drops any line
+          # containing "/github", which would mask a personal email beside a URL.
+          if grep -rn '@trailofbits\.com' . --include='*.json' --include='*.toml' \
+              --exclude-dir=.git \
+              | grep -v 'opensource@trailofbits\.com'; then
             echo "ERROR: Found personal emails (should use opensource@trailofbits.com)"
             exit 1
           fi
           echo "No personal emails found"
 
       - name: Validate plugin metadata
-        run: python3 .github/scripts/validate_plugin_metadata.py
-
-      - name: Install Claude Code CLI
+        # On a PR, --base-ref turns on the version-increment check: a substantive
+        # change to a plugin must raise its version, or installed clients never
+        # receive it. Skipped on push-to-main, where there is nothing to diff against.
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
+          NO_BUMP: ${{ contains(github.event.pull_request.labels.*.name, 'no-version-bump') }}
         run: |
-          npm install --global --prefix "$RUNNER_TEMP/claude-cli" @anthropic-ai/claude-code@latest
+          if [ -z "$BASE_REF" ]; then
+            python3 .github/scripts/validate_plugin_metadata.py
+          elif [ "$NO_BUMP" = "true" ]; then
+            python3 .github/scripts/validate_plugin_metadata.py \
+              --base-ref "$BASE_REF" --allow-no-bump
+          else
+            python3 .github/scripts/validate_plugin_metadata.py --base-ref "$BASE_REF"
+          fi
+
+      # Pinned rather than @latest: an unpinned install makes CI able to break with
+      # no commit, and zizmor flags it as adhoc-packages. Dependabot does not track
+      # these, so bump them by hand when a new CLI feature is needed.
+      - name: Install Claude Code CLI  # zizmor: ignore[adhoc-packages]
+        env:
+          CLAUDE_CLI_VERSION: "2.1.220"
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
+            "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
           echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/claude-cli/bin/claude" --version
 
       - name: Check Claude loadability
         run: python3 .github/scripts/check_claude_loadability.py
 
-      - name: Install Codex CLI
+      - name: Install Codex CLI  # zizmor: ignore[adhoc-packages]
+        env:
+          CODEX_CLI_VERSION: "0.146.0"
         run: |
-          npm install --global --prefix "$RUNNER_TEMP/codex-cli" @openai/codex@latest
+          npm install --global --prefix "$RUNNER_TEMP/codex-cli" \
+            "@openai/codex@${CODEX_CLI_VERSION}"
           echo "$RUNNER_TEMP/codex-cli/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/codex-cli/bin/codex" --version
 
