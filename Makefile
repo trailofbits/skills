@@ -11,7 +11,7 @@ RUFF_VERSION := 0.14.13
 
 .DEFAULT_GOAL := check
 .NOTPARALLEL:
-.PHONY: check self-test lint shell bats python-tests validate fix help
+.PHONY: check self-test lint shell bats shell-suites python-tests validate fix help
 
 ## check: everything CI runs (this is the one you want)
 check: self-test lint shell bats python-tests validate
@@ -50,6 +50,24 @@ bats:
 		exit 1; \
 	fi; \
 	echo "$$files" | xargs bats
+
+## shell-suites: run plugin shell regression suites (CI only, see note)
+# Deliberately NOT in `check`. zeroize-audit's suite pipes a script to `python3 -`,
+# which the modern-python plugin's shim intercepts and rejects, so this target fails
+# on any machine with that plugin installed — for reasons that have nothing to do
+# with the code under test. CI has no shims and runs it there. See the tracking
+# issue: #207.
+#
+# find, not a glob: `**` needs globstar and degrades to `*` without it, so a suite
+# one directory deeper would stop running with no signal.
+shell-suites:
+	@echo "→ shell regression suites"
+	@suites=$$(find plugins -type f -path '*/tests/*' -name 'run_*.sh'); \
+	if [ -z "$$suites" ]; then \
+		echo "  ✗ no shell regression suites found — discovery is broken"; \
+		exit 1; \
+	fi; \
+	for s in $$suites; do echo "  → $$s"; bash "$$s" || exit 1; done
 
 ## python-tests: run plugin Python test files
 # pytest, not `python3 <file>` in a loop: a file with no `if __name__ == "__main__"`

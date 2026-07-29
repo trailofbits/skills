@@ -12,8 +12,14 @@
 # The deep tier needs a label that does not exist yet:
 #   gh label create deep-review -d "Run the xhigh adversarial review pass" -c B60205
 #
-# Fork PRs are handled by claude-review-fork.yml, which is a separate file with a
-# separate security decision attached — read its header before enabling it.
+# Fork PRs get NO automated review. A `pull_request_target` variant was written and
+# then deleted: it checked out the fork tree and ran this repo's review script from
+# it, so the script itself — and any CLAUDE.md or .claude/hooks beside it — was
+# fork-authored and executed with the org API key in the environment. The SHA pin
+# and the tool allowlist did not touch that path. Doing it safely means checking
+# out base into the workspace and the fork commit into a subdirectory, running
+# everything from base; that is a deliberate piece of work, not a footnote to this
+# change.
 name: Claude Review
 
 on:
@@ -39,8 +45,8 @@ jobs:
   fast:
     name: Claude review (fast)
     # Skips: label events (that is the deep job's trigger), drafts, bots, and forks.
-    # Forks are excluded here because under `pull_request` they get a read-only
-    # token and could not post a comment anyway; see claude-review-fork.yml.
+    # Forks are excluded: under `pull_request` they get a read-only token and could
+    # not post a comment anyway, and the privileged alternative is unsafe (above).
     if: >-
       github.event.action != 'labeled' &&
       github.event.pull_request.draft == false &&
@@ -60,7 +66,7 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Install Claude Code CLI
+      - name: Install Claude Code CLI  # zizmor: ignore[adhoc-packages]
         if: env.ANTHROPIC_API_KEY != ''
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -68,7 +74,6 @@ jobs:
         run: |
           npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
             "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
-          echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
 
       - name: Review
         if: env.ANTHROPIC_API_KEY != ''
@@ -77,7 +82,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
-        run: .github/scripts/claude_review.sh fast
+        run: |
+          export PATH="$RUNNER_TEMP/claude-cli/bin:$PATH"
+          .github/scripts/claude_review.sh fast
 
   deep:
     name: Claude review (deep)
@@ -98,7 +105,7 @@ jobs:
           # empty, which is indistinguishable from "nothing to find".
           fetch-depth: 0
           persist-credentials: false
-      - name: Install Claude Code CLI
+      - name: Install Claude Code CLI  # zizmor: ignore[adhoc-packages]
         if: env.ANTHROPIC_API_KEY != ''
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -106,7 +113,6 @@ jobs:
         run: |
           npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
             "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
-          echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
 
       - name: Review
         if: env.ANTHROPIC_API_KEY != ''
@@ -115,4 +121,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
-        run: .github/scripts/claude_review.sh deep
+        run: |
+          export PATH="$RUNNER_TEMP/claude-cli/bin:$PATH"
+          .github/scripts/claude_review.sh deep

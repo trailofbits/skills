@@ -46,9 +46,18 @@ Rules:
   sync with the canonical metadata, which is why the last set was removed in #173.
 - Keep plugin components at the plugin root using Codex-compatible default paths: `skills/`, `hooks/hooks.json`, `.mcp.json`, and `.app.json`.
 - If a plugin needs MCP configuration, put it in `.mcp.json` at the plugin root rather than embedding an object in `.claude-plugin/plugin.json`.
-- Both loadability checks run as part of `make check`. If one fails, update the
-  canonical Claude marketplace or the plugin root components so Codex can load them
-  through Claude marketplace compatibility — do not add a sidecar to work around it.
+- Both loadability checks run in CI, not in `make check` — they need the Claude Code
+  and Codex CLIs installed, which is not a reasonable local prerequisite. Run them by
+  hand if you are changing plugin metadata:
+
+  ```sh
+  python3 .github/scripts/check_claude_loadability.py
+  python3 .github/scripts/check_codex_loadability.py
+  ```
+
+  If one fails, update the canonical Claude marketplace or the plugin root components
+  so Codex can load them through Claude marketplace compatibility — do not add a
+  sidecar to work around it.
 
 ### Plugin Structure
 
@@ -218,14 +227,25 @@ See [API.md](references/API.md) for complete method documentation.
 make check
 ```
 
-That runs what CI runs: the validator self-test, ruff, shellcheck, shfmt, bats, the
-plugin Python suites, and the plugin validator. Work through `make check` rather than
-the individual commands — if it passes and CI does not, the Makefile is wrong and
-should be fixed there, or the local signal stops being worth trusting.
+That runs the validator self-test, ruff, shellcheck, shfmt, bats, the plugin
+Python suites, and the plugin validator.
 
-One deliberate difference: CI scopes the validator to the plugins a PR touches, while
-`make check` scans everything. Local is a strict superset, so it cannot pass where CI
-fails. Do not narrow it to match — the zero-reference guard only arms on a full scan.
+It is most of CI, not all of it. Three things run only in CI, so a green `make check`
+is strong evidence and not a guarantee:
+
+- **the two loadability checks**, which need the Claude Code and Codex CLIs installed
+- **the rest of pre-commit** — actionlint, zizmor, check-yaml/json/toml,
+  detect-private-key, end-of-file-fixer, trailing-whitespace. Run `prek run -a` (or
+  `pre-commit run -a`) to cover those locally.
+- **the version-increment check**, which needs a base ref to diff against and so has
+  no meaning outside a PR.
+- **`make shell-suites`**, which is a target but not part of `check`: it fails on any
+  machine with the `modern-python` plugin installed, because its shim intercepts the
+  `python3 -` that zeroize-audit's suite uses (#207).
+
+Where the two overlap, local is deliberately the stricter side: CI scopes the
+validator to the plugins a PR touches while `make check` scans everything. Do not
+narrow it to match — the zero-reference guard only arms on a full scan.
 
 `make fix` applies the formatting CI would otherwise reject. `make help` lists the rest.
 
@@ -239,8 +259,8 @@ Each of these fails the build. There is no value in checking any of it by hand:
 - Registered in `.claude-plugin/marketplace.json`, the root `README.md`, and `CODEOWNERS`
 - `version` matches between `plugin.json` and `marketplace.json`, **and** increases when
   you change a plugin — clients only pull an update when the number goes up, so a fix
-  shipped without a bump reaches nobody. Label the PR `no-version-bump` for typo-only
-  changes.
+  shipped without a bump reaches nobody. Apply the `no-version-bump` label for
+  typo-only changes and CI skips the check.
 - `SKILL.md` frontmatter parses and has `name` and `description`
 - Agent files use `tools:`; skills and commands use `allowed-tools:`
 - `subagent_type` values are namespaced `<plugin>:<agent>` — a bare name is

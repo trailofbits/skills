@@ -83,49 +83,59 @@ PROMPT
 
 if [ "$TIER" = "fast" ]; then
   PROMPT=$(
-    cat <<PROMPT
-Review pull request #${PR_NUMBER} in ${REPO} against the diff with the base branch.
+    cat <<'PROMPT'
+Review pull request #__PR__ in __REPO__ against the diff with the base branch.
 
 When you are done you MUST post your review with:
 
-    gh pr comment ${PR_NUMBER} --body-file <file> --edit-last --create-if-none
+    gh pr comment __PR__ --body-file - --edit-last --create-if-none <<'EOF'
+    ...your review...
+    EOF
 
 Nothing you write outside that comment is visible to anyone. A run that finishes
 without posting shows up as a green check with no review attached, which reads as
 "reviewed and clean" — the worst possible outcome. Post even when you found nothing,
 and say so.
 
-\`--edit-last --create-if-none\` replaces your previous review rather than appending.
+Read from stdin, not a temp file: you have no Write tool and no general Bash, so
+there is nowhere to put one.
+
+`--edit-last --create-if-none` replaces your previous review rather than appending.
 This job runs on every push, so appending would leave a reader scrolling past stale
 findings from commits that were fixed several pushes ago.
 
-${COMMON_PROMPT}
+__COMMON__
 PROMPT
   )
   ALLOWED_TOOLS='Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob'
 else
   PROMPT=$(
-    cat <<PROMPT
-Perform a deep adversarial review of pull request #${PR_NUMBER} in ${REPO}.
+    cat <<'PROMPT'
+Perform a deep adversarial review of pull request #__PR__ in __REPO__.
 
 When you are done you MUST post your review with:
 
-    gh pr comment ${PR_NUMBER} --body-file <file>
+    gh pr comment __PR__ --body-file - <<'EOF'
+    ...your review...
+    EOF
 
 Nothing you write outside that comment reaches anyone.
 
-Go beyond the diff where the diff depends on it: read the files it touches, run the
-scripts it adds if they are safe to run, and check its claims against the repository
-rather than taking them at face value. When the PR states a number, a limit, or a
-cost, verify it. When it adds a check, construct an input the check should reject and
-confirm that it does.
+Go beyond the diff where the diff depends on it: read the files it touches, read the
+scripts it adds, and check its claims against the repository rather than taking them
+at face value. When the PR states a number, a limit, or a cost, verify it against the
+files — count the things it claims to count. When it adds a check, work out by reading
+it what input would slip past, and say so.
+
+You cannot execute anything: your tools are `gh pr` reads, `git log`, `git diff`,
+`Read`, `Grep`, and `Glob`. Do not plan around running code.
 
 Prioritise, in order: anything that makes the plugin fail to run at all; anything
 that produces a wrong result while reporting success; anything that puts untrusted
 content into an artifact shared outside the company; and anything whose documented
 usage does not work as written.
 
-${COMMON_PROMPT}
+__COMMON__
 
 Finish with an explicit list of what you checked and found clean, so a reader can
 tell the difference between a dimension you cleared and one you never looked at.
@@ -133,6 +143,13 @@ PROMPT
   )
   ALLOWED_TOOLS='Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git log:*),Bash(git diff:*),Read,Grep,Glob'
 fi
+
+# Substituted here rather than interpolated inside the heredocs. Both tier
+# heredocs are quoted so that backticks and $(...) in the prompt text are literal
+# rather than commands the shell runs while building the prompt.
+PROMPT="${PROMPT//__COMMON__/$COMMON_PROMPT}"
+PROMPT="${PROMPT//__PR__/$PR_NUMBER}"
+PROMPT="${PROMPT//__REPO__/$REPO}"
 
 PROMPT_FILE="$(mktemp)"
 trap 'rm -f "$PROMPT_FILE"' EXIT

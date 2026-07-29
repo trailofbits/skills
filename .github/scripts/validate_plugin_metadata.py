@@ -410,7 +410,13 @@ def changed_plugins(repo_root: Path, base_ref: str) -> set[str]:
         check=False,
     )
     if result.returncode != 0:
-        return set()
+        # Returning an empty set here would disarm the version check for every plugin
+        # with no message — a force-pushed base, a gc'd commit or a shallow clone would
+        # read as "everything is fine".
+        raise RuntimeError(
+            f"git diff against {base_ref} failed, so changed plugins cannot be "
+            f"determined: {result.stderr.strip()}"
+        )
 
     changed = set()
     for line in result.stdout.splitlines():
@@ -634,6 +640,11 @@ def main(argv: list[str] | None = None) -> int:
         help="git ref to compare versions against (enables the version-increment check)",
     )
     parser.add_argument(
+        "--allow-no-bump",
+        action="store_true",
+        help="skip the version-increment check (set by CI from the no-version-bump label)",
+    )
+    parser.add_argument(
         "--self-test",
         action="store_true",
         help="prove each checker still detects what it exists to detect, then exit",
@@ -652,7 +663,10 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Checking {len(plugins_to_check)} plugin(s)")
 
-    result = validate_plugins(plugins_to_check, repo_root, args.base_ref)
+    base_ref = None if args.allow_no_bump else args.base_ref
+    if args.allow_no_bump and args.base_ref:
+        print("version-increment check skipped: no-version-bump label is applied")
+    result = validate_plugins(plugins_to_check, repo_root, base_ref)
     report(result)
 
     # A full scan that resolved zero references means the extractor broke, not that
