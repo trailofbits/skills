@@ -1,0 +1,10 @@
+{
+  "name": "open-sourcing",
+  "version": "0.1.0",
+  "description": "Prepares a repository for public open-source release: secrets-history hygiene, license selection, documentation and CI readiness checks, and language-specific packaging and release guidance.",
+  "author": {
+    "name": "Evan Sultanik",
+    "email": "opensource@trailofbits.com",
+    "url": "https://github.com/trailofbits"
+  }
+}
