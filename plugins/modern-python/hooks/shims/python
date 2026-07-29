@@ -5,6 +5,22 @@ set -euo pipefail
 # suggests the uv equivalent.  Works for both names via $0.
 cmd="$(basename "$0")"
 
+# Canonical rationale for the suggestion's shape (the README,
+# setup-shims.sh, and python-shim.bats point here):
+#
+# Suggestions always use the exact name `python`, never `python3`: uv
+# special-cases the `python` command (uv >= 0.4.0) and executes its resolved
+# interpreter directly instead of a PATH lookup, so the suggested command
+# works even outside a project, where `uv run python3` would resolve back
+# to this shim.
+#
+# Arguments are requoted with %q so the suggestion stays runnable when they
+# contain spaces or shell metacharacters (e.g. -c 'print(1+1)').
+args=""
+if (($#)); then
+  args="$(printf ' %q' "$@")"
+fi
+
 case "${1:-}" in
   -m)
     case "${2:-}" in
@@ -14,12 +30,15 @@ case "${1:-}" in
         echo "  uv remove <package>    # remove a dependency" >&2
         ;;
       *)
-        echo "ERROR: Use \`uv run $cmd -m ${2:-<module>}\` instead of \`$cmd -m ${2:-<module>}\`" >&2
+        if (($# < 2)); then
+          args=" -m <module>"
+        fi
+        echo "ERROR: Use \`uv run python$args\` instead of \`$cmd$args\`" >&2
         ;;
     esac
     ;;
   *)
-    echo "ERROR: Use \`uv run $cmd ${*:-}\` instead of \`$cmd ${*:-}\`" >&2
+    echo "ERROR: Use \`uv run python$args\` instead of \`$cmd$args\`" >&2
     ;;
 esac
 

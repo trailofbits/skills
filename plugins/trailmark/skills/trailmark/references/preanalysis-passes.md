@@ -71,6 +71,13 @@ all_ids = set(graph["nodes"])
 dead_ids = sorted(all_ids - reachable_ids)
 ```
 
+On Trailmark 0.5.0+, Solidity entrypoints come from parser metadata rather
+than signature-line regexes: interface members are excluded,
+`external`/`public` visibility is read from `solidity_visibility`, and base
+implementations shadowed by a derived contract carry a
+`solidity_overridden_by` attribute. `engine.attack_surface()` surfaces these
+via each entry's optional `attributes` key (0.5.0+).
+
 ---
 
 ## 3. Privilege Boundary Detection
@@ -114,6 +121,11 @@ is annotated with the entrypoint(s) that reach it.
 
 **Subgraph:** `tainted` — all nodes reachable from any non-trusted entrypoint.
 
+This is call-graph reachability used as a coarse taint signal, not
+interprocedural data-flow analysis. Membership in `tainted` means an
+untrusted entrypoint can *reach* the node, not that attacker-controlled data
+demonstrably flows into it — verify data flow manually before claiming it.
+
 ```python
 engine.preanalysis()
 
@@ -144,7 +156,15 @@ Query any subgraph:
 ```python
 nodes = engine.subgraph("tainted")
 names = engine.subgraph_names()
+
+# Trailmark 0.4.0+
+if hasattr(engine, "subgraph_edges"):
+    tainted_call_edges = engine.subgraph_edges("tainted", edge_kinds=("calls",))
 ```
+
+Use `subgraph_edges()` only after checking for Trailmark 0.4.0+ or probing the
+method. On v0.2.x, export `engine.to_json()` and filter edges whose endpoints
+are both in `engine.subgraph(name)`.
 
 ---
 

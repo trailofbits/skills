@@ -1,0 +1,98 @@
+# rust-review
+
+Rust security code review plugin. Bug-class coverage comes from empirical bug-shape research across 245 memory-corruption, 177 unsound safe-API, 150 denial-of-service, and 60 thread-safety advisories in the [RustSec Advisory Database](https://rustsec.org/advisories/) (1,078 entries) and audits. Orchestration matches `c-review`.
+
+## Usage
+
+Invoke with `/rust-review:rust-review`. The skill will prompt for:
+
+- **Threat model** (`REMOTE` / `LOCAL_UNPRIVILEGED` / `BOTH`)
+- **Worker model** (`haiku` / `sonnet` / `opus`)
+- **Severity filter** (`all` / `medium` / `high`)
+- **Scope subpath** (optional — defaults to whole repo)
+
+Findings + SARIF are written to `$(pwd)/.rust-review-results/<iso-timestamp>/`.
+
+## Overview
+
+Inputs (`AskUserQuestion`): threat model, scope subpath (optional), worker model, severity filter.
+
+From these inputs the orchestrator detects Rust capability flags (`has_unsafe`, `has_ffi`, `has_concurrency`, `has_async`, `has_packed_repr`, `has_fs_io`) over the scope and selects clusters from `prompts/clusters/manifest.json`. Each cluster groups related bug classes anchored on a shared mental model and runs as one parallel worker.
+
+The planner caps each **non-consolidated** worker at four passes, splitting larger
+clusters into `-1`/`-2`/… chunks; output-heavy clusters can declare a smaller
+`max_passes_per_worker` in the manifest (today `recursion-dos` runs one pass per
+worker). **Consolidated clusters (`unsafe-boundary`, `concurrency-locking`) are
+never chunked** — one worker owns the whole cluster so its shared Phase-A inventory
+is built once and grounds every phase.
+
+Always-on clusters:
+
+- **unsafe-boundary** (consolidated) — Unsafe Reachability Analysis (URAPI), `transmute` misuse, pointer-cast hazards via `as` (PTRCAST), raw-pointer arithmetic, `#[repr(C)]` layout, enum discriminant and niche validity (ENUMUB), `// SAFETY:` documentation rules, `debug_assert!`-guarded safety invariants.
+- **panic-dos** — resource exhaustion DoS (RESEXHAUST, P0), `unwrap`/`expect` on untrusted input, arithmetic overflow, reachable `unreachable!`/`assert!`, vector OOB indexing, non-char-boundary `str` slicing panics (STRSLICE), reachable `RefCell` double-borrow panics (REFCELLPANIC).
+- **recursion-dos** — stack-overflow aborts (uncatchable, distinct from panics) on recursive types: unbounded deserialization depth (`serde_yaml`/`toml`/`ron`/custom `Deserialize`), recursive `Display`/`Debug`/`Serialize` on attacker-shaped values, implicit `Drop` of `Box<Self>`-style chains.
+- **error-handling** — discarded `Result`s, panics inside `Drop`, lossy `From`/`Into` and `as` casts, lossy UTF-8 / OS-string / path conversions (LOSSYSTR), unflushed `BufWriter` swallowing write errors (BUFFLUSH).
+- **logic-correctness** — `Ord`/`Eq`/`Hash` invariant violations, hostile generic trait impls, closure-panic across unsafe scaffolding, NaN/Inf edge cases, partial-match/case string comparisons (STRCMP), `serialize_struct` field-count mismatches (SERFIELDS), nondeterminism in replicated state (NONDET), in-collection key mutation (KEYMUT). The hostile-trait (TRAITADV) and closure-panic (CLOSUREPANIC) passes require `has_unsafe`.
+- **static-hygiene** — Cargo lint config, MSRV, deprecated APIs (`mem::uninitialized`).
+- **resource-handling** — raw file-descriptor double-close and leak (RAWFD), `Drop`-skipping cleanup via `process::exit`/`mem::forget` (DROPSKIP).
+- **info-disclosure** — pointer/address exposure that defeats ASLR (PTREXPOSE).
+
+Conditional clusters:
+
+- **memory-safety** (`has_unsafe`) — UAF via dangled raw pointer, double-free via `ptr::read`, invalid-free via assignment-to-uninit, uninitialized-read via premature `assume_init`, `Vec::set_len` without slot init (SETLEN), buffer overflow via safe→unsafe index propagation, union variant misread, panic-unsafe custom container drop (PANICUNWIND). The whole cluster is gated on `has_unsafe` (every memory-safety bug class requires `unsafe`), so it is omitted entirely for pure safe-Rust crates.
+- **concurrency-locking** (`has_concurrency`, consolidated) — `MutexGuard` double-lock from lexical scope, ABBA ordering, `Condvar` wait without notifier, channel starvation, `Once::call_once` reentrancy, signal-handler / callback reentrancy.
+- **concurrency-data-race** (`has_concurrency`) — non-atomic atomic sequences, `unsafe impl Sync` over interior mutability, missing `Send`/`Sync` bounds, cross-process shared-memory races, unsynchronized `static mut` (STATICMUT). The unsafe-sync-impl (UNSAFESYNC) and static-mut (STATICMUT) passes require `has_unsafe`.
+- **ffi-cross-language** (`has_ffi`) — `CString::as_ptr` dangling, ABI mismatch, `#[repr(C)]` padding leak, opaque-pointer ownership confusion, FFI-owned-memory drop mismatches, Rust closures across `extern "C"` without `catch_unwind`, `dyn Trait` fat pointers crossing FFI.
+- **layout-safety** (`has_packed_repr`) — unaligned references to `#[repr(packed)]` / wire-format struct fields (PACKEDREF).
+- **input-os-safety** (`has_fs_io`) — `PathBuf::join` path traversal (PATHJOIN), filesystem TOCTOU (TOCTOU).
+- **async-runtime** (`has_async`) — blocking calls in async, cancellation-unsafe `.await` sequences, `tokio::select!` branch bias.
+
+Same orchestration as `c-review`: workers spawn foreground (one message per wave of ≤16 workers, after an optional cache primer), write markdown-with-YAML-frontmatter finding files, then a dedup-judge merges duplicates, then an fp-judge assigns `fp_verdict` / `severity` / `attack_vector` / `exploitability`. A report safety net then runs: SARIF is regenerated unconditionally, and the orchestrator writes `REPORT.md` itself if the fp-judge failed to.
+
+## Architecture
+
+```
+coordinator: write context.md → build_run_plan.py → TaskCreate × M
+          → spawn primer (foreground) → spawn M workers (parallel)
+          → classify Phase-7 outcomes + write findings-index.txt
+          → dedup-judge → fp-judge → report safety net (SARIF + REPORT.md) → return REPORT.md
+```
+
+| Subagent type | Purpose | Tool set |
+|---|---|---|
+| `rust-review:rust-review-worker` | Run assigned cluster, write findings | Read, Write, Edit, Bash |
+| `rust-review:rust-review-dedup-judge` | Merge duplicates (runs **first**) | Read, Write, Edit, Glob |
+| `rust-review:rust-review-fp-judge` | FP + severity + final reports (runs **second**) | Read, Write, Edit, Bash |
+
+In current Claude Code an agent granted `Bash` is not also granted the dedicated `Glob`/`Grep` tools (the harness expects `find`/`grep`/`rg` via `Bash`). So the worker and fp-judge search and resolve paths with `Read`/`Bash`, running the ripgrep-syntax prompt seeds through `rg`; only the dedup-judge — which holds no `Bash` — uses `Glob`.
+
+## Output directory layout
+
+Default: `$(pwd)/.rust-review-results/<iso-timestamp>/`. Contains:
+
+- `context.md` — resolved threat model, severity filter, scope, capability flags, Cargo manifest status
+- `plan.json` — selected clusters + rendered worker spawn prompts (one per parallel worker)
+- `worker-prompts/` — verbatim spawn prompts, one per worker (+ optional `cache-primer.txt`)
+- `findings/` — one markdown file per finding (`<PREFIX>-NNN.md` with YAML frontmatter)
+- `findings-index.d/` — per-worker shards listing finding paths (survive an orchestrator crash)
+- `findings-index.txt` — canonical sorted list of every finding file on disk (reconciled against the shards)
+- `run-summary.md` — worker outcome table, retry/abort state, judge status
+- `dedup-summary.md` — Tier 1–3 merge + Tier 4 related summary
+- `fp-summary.md` — verdict counts and per-primary verdict table
+- `REPORT.md` — human-readable final report grouped by severity, filtered per `severity_filter`
+- `REPORT.sarif` — SARIF 2.1.0 export, idempotent (full overwrite), always written
+
+## Not for
+
+- Pure C / C++ codebases — use `c-review` instead.
+- Smart contracts (Solana, NEAR, Ink!) — use `solana-vulnerability-scanner` or the contract-specific skill.
+- Kernel-mode Rust without userspace allocator — coverage is incomplete; flag as advisory only.
+
+## References
+
+- [Rustonomicon](https://doc.rust-lang.org/nomicon/) — unsafe invariants
+- [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)
+
+## Authors
+- [Andrea Cappa](https://github.com/zi0Black) @ Aptos Labs
+- [Paweł Płatek](https://github.com/GrosQuildu) @ Trail of Bits

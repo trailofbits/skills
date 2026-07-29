@@ -32,18 +32,18 @@ Run these greps, merging matches into a single working set `sink_sites`. Record 
 
 ```
 # Unified sink grep — one pass per target (do not repeat in later phases)
-Grep: pattern="\\b(memcpy|memmove|memset|bcopy|bzero)\\s*\\("
-Grep: pattern="\\b(strcpy|strncpy|stpcpy|stpncpy|strlcpy|strcat|strncat|strlcat|strdup|strndup)\\s*\\("
-Grep: pattern="\\b(sprintf|vsprintf|snprintf|vsnprintf|asprintf|vasprintf|fprintf|dprintf|printf|vprintf|syslog|vsyslog)\\s*\\("
-Grep: pattern="\\b(scanf|sscanf|fscanf|vscanf|vsscanf|vfscanf)\\s*\\("
-Grep: pattern="\\b(gets|gets_s|fgets|read|pread|recv|recvfrom)\\s*\\("
-Grep: pattern="\\b(malloc|calloc|realloc|reallocarray|alloca|aligned_alloc|posix_memalign)\\s*\\("
-Grep: pattern="\\b(strtok|strtok_r|mbstowcs|wcstombs|wcsncpy|wcsncat|wcslen|tmpnam|tempnam|mktemp|putenv)\\s*\\("
-Grep: pattern="\\[\\s*0\\s*\\]\\s*;|\\[\\s*1\\s*\\]\\s*;"   # FAM-style struct hacks
-Grep: pattern="__attribute__\\s*\\(\\s*\\(\\s*format"        # existing printf-attr annotations
+rg seed: "\\b(memcpy|memmove|memset|bcopy|bzero)\\s*\\("
+rg seed: "\\b(strcpy|strncpy|stpcpy|stpncpy|strlcpy|strcat|strncat|strlcat|strdup|strndup)\\s*\\("
+rg seed: "\\b(sprintf|vsprintf|snprintf|vsnprintf|asprintf|vasprintf|fprintf|dprintf|printf|vprintf|syslog|vsyslog)\\s*\\("
+rg seed: "\\b(scanf|sscanf|fscanf|vscanf|vsscanf|vfscanf)\\s*\\("
+rg seed: "\\b(gets|gets_s|fgets|read|pread|recv|recvfrom)\\s*\\("
+rg seed: "\\b(malloc|calloc|realloc|reallocarray|alloca|aligned_alloc|posix_memalign)\\s*\\("
+rg seed: "\\b(strtok|strtok_r|mbstowcs|wcstombs|wcsncpy|wcsncat|wcslen|tmpnam|tempnam|mktemp|putenv)\\s*\\("
+rg seed: "\\[\\s*0\\s*\\]\\s*;|\\[\\s*1\\s*\\]\\s*;"   # FAM-style struct hacks
+rg seed: "__attribute__\\s*\\(\\s*\\(\\s*format"        # existing printf-attr annotations
 ```
 
-Optional source supplement: for each unique callee in `sink_sites`, run focused callee-name `Grep` searches and read local macro/wrapper definitions to confirm the call-site count and catch macro-wrapped calls.
+Optional source supplement: for each unique callee in `sink_sites`, run focused callee-name `rg` searches and read local macro/wrapper definitions to confirm the call-site count and catch macro-wrapped calls.
 
 **Do not file findings during Phase A.** Just build the inventory.
 
@@ -180,7 +180,7 @@ The passes are ordered so earlier passes "consume" the obvious cases, leaving la
 
 ### Pass 11 — `FLEX` Flexible-array / zero-one array misuse
 
-**Grep seed:** `[\\s*[01]\\s*]\\s*;` inside a `struct` definition, plus nearby `malloc(sizeof(struct …) + …)`.
+**rg seed:** `[\\s*[01]\\s*]\\s*;` inside a `struct` definition, plus nearby `malloc(sizeof(struct …) + …)`.
 
 **Bug patterns:**
 - `char data[0]` (GNU extension) or `char data[1]` (pre-C99 hack) as last member of a variable-size struct.
@@ -265,4 +265,4 @@ Everything else ties: `BOF` is the fallback.
 
 ## Inventory reuse reminder
 
-If the cluster task is huge and your context is filling up, you may re-summarize `sink_sites` into a compact table (callee → list of `path:line`) and drop the raw `Grep` output from active attention. Do **not** re-run Phase A — the inventory is deterministic and re-grepping wastes tokens without changing what you see.
+If the cluster task is huge and your context is filling up, you may re-summarize `sink_sites` into a compact table (callee → list of `path:line`) and drop the raw `rg` output from active attention. Do **not** re-run Phase A — the inventory is deterministic and re-grepping wastes tokens without changing what you see.

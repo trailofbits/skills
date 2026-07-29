@@ -22,19 +22,19 @@ ID prefixes: `UAF`, `LEAK`, `UNINIT`, `NULL`.
 Run these scans and keep the results as `obj_map` for all four passes:
 
 ```
-Grep: pattern="\\b(malloc|calloc|realloc|reallocarray|strdup|strndup|asprintf)\\s*\\("
-Grep: pattern="\\b(free|realloc)\\s*\\("
-Grep: pattern="\\bnew\\s+\\w"            # C++ allocations
-Grep: pattern="\\bdelete\\s+\\w|\\bdelete\\[\\]"
+rg seed: "\\b(malloc|calloc|realloc|reallocarray|strdup|strndup|asprintf)\\s*\\("
+rg seed: "\\b(free|realloc)\\s*\\("
+rg seed: "\\bnew\\s+\\w"            # C++ allocations
+rg seed: "\\bdelete\\s+\\w|\\bdelete\\[\\]"
 ```
 
 Project-specific allocator wrappers matter at least as much as libc ones. Detect them:
 
 ```
-Grep: pattern="(?i)^\\s*\\w*(new|alloc|create|init|join|leave|delete|destroy|fini|release)\\b"
+rg seed: "(?i)^\\s*\\w*(new|alloc|create|init|join|leave|delete|destroy|fini|release)\\b"
 ```
 
-For each project-typed object (`fd_foo_t`, etc.), run focused `Grep` searches for its `_new`/`_delete`/`_join`/`_leave`/`_init`/`_fini` pair to locate every constructor, destructor, and attach/detach call site. Track these as the object's lifecycle boundary — NOT just libc `malloc`/`free`.
+For each project-typed object (`fd_foo_t`, etc.), run focused `rg` searches for its `_new`/`_delete`/`_join`/`_leave`/`_init`/`_fini` pair to locate every constructor, destructor, and attach/detach call site. Track these as the object's lifecycle boundary — NOT just libc `malloc`/`free`.
 
 Also record (for UNINIT and NULL passes): for every declaration of pointer/struct variables, whether the declaration has an initializer.
 

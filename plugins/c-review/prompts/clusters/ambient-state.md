@@ -24,13 +24,13 @@ If the active threat model is `REMOTE`, the run-plan builder hard-drops `privile
 ## Phase A — Build the ambient-state map (ONCE per run)
 
 ```
-Grep: pattern="\\b(getenv|secure_getenv|setenv|unsetenv|putenv|environ)\\b"
-Grep: pattern="\\b(setuid|setgid|seteuid|setegid|setresuid|setresgid|setfsuid|setfsgid|initgroups|setgroups|capset|prctl|chroot)\\s*\\("
-Grep: pattern="\\b(access|faccessat|stat|lstat|fstat|readlink|realpath|chmod|fchmod|chown|fchown|umask)\\s*\\("
-Grep: pattern="\\b(open|openat|creat|mkdir|mkdirat|symlink|symlinkat|link|linkat|rename|renameat|unlink|unlinkat)\\s*\\("
-Grep: pattern="\\b(time|clock_gettime|gettimeofday|mktime|strftime|strptime|difftime)\\s*\\("
-Grep: pattern="\\b(sleep|usleep|nanosleep|select|poll|epoll_wait)\\s*\\("
-Grep: pattern="\\b(getpwuid|getpwnam|getgrgid|getgrnam|getlogin|geteuid|getuid|getgid|getegid)\\s*\\("
+rg seed: "\\b(getenv|secure_getenv|setenv|unsetenv|putenv|environ)\\b"
+rg seed: "\\b(setuid|setgid|seteuid|setegid|setresuid|setresgid|setfsuid|setfsgid|initgroups|setgroups|capset|prctl|chroot)\\s*\\("
+rg seed: "\\b(access|faccessat|stat|lstat|fstat|readlink|realpath|chmod|fchmod|chown|fchown|umask)\\s*\\("
+rg seed: "\\b(open|openat|creat|mkdir|mkdirat|symlink|symlinkat|link|linkat|rename|renameat|unlink|unlinkat)\\s*\\("
+rg seed: "\\b(time|clock_gettime|gettimeofday|mktime|strftime|strptime|difftime)\\s*\\("
+rg seed: "\\b(sleep|usleep|nanosleep|select|poll|epoll_wait)\\s*\\("
+rg seed: "\\b(getpwuid|getpwnam|getgrgid|getgrnam|getlogin|geteuid|getuid|getgid|getegid)\\s*\\("
 ```
 
 Keep as `ambient_sites`. Do not file findings during Phase A.
