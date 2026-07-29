@@ -1,16 +1,19 @@
-# INERT until ANTHROPIC_API_KEY is added as a repository secret.
+# Automated review on pull requests, in two tiers.
 #
-# Every review step is gated on the secret being present, so until someone adds it
-# this workflow checks out the code and does nothing else. It does not fail; it
-# simply does not review. That is deliberate — a review workflow that goes red on
+# An organization-level ANTHROPIC_API_KEY is visible to this repository, so this
+# workflow is LIVE the moment it merges — it will start reviewing PRs immediately.
+# (It is not listed by `gh secret list` at the repo level, which is what made this
+# easy to get wrong.)
+#
+# Every review step is still gated on the key being present, so if the org secret is
+# ever removed these jobs go quiet rather than red. A review workflow that fails on
 # every PR for want of a credential teaches people to ignore red checks.
 #
-# To turn it on:
-#   gh secret set ANTHROPIC_API_KEY --repo trailofbits/skills
-#   gh label create deep-review    -d "Run the xhigh adversarial review pass" -c B60205
+# The deep tier needs a label that does not exist yet:
+#   gh label create deep-review -d "Run the xhigh adversarial review pass" -c B60205
 #
 # Fork PRs are handled by claude-review-fork.yml, which is a separate file with a
-# separate decision attached — read its header before enabling it.
+# separate security decision attached — read its header before enabling it.
 name: Claude Review
 
 on:
@@ -57,6 +60,16 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+      - name: Install Claude Code CLI
+        if: env.ANTHROPIC_API_KEY != ''
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CLI_VERSION: "2.1.220"
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
+            "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+          echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
+
       - name: Review
         if: env.ANTHROPIC_API_KEY != ''
         env:
@@ -85,6 +98,16 @@ jobs:
           # empty, which is indistinguishable from "nothing to find".
           fetch-depth: 0
           persist-credentials: false
+      - name: Install Claude Code CLI
+        if: env.ANTHROPIC_API_KEY != ''
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CLI_VERSION: "2.1.220"
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
+            "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+          echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
+
       - name: Review
         if: env.ANTHROPIC_API_KEY != ''
         env:

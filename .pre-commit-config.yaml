@@ -55,7 +55,7 @@ repos:
       # check after pushing. AGENTS.md asked people to remember to run them.
       - id: validate-plugin-metadata
         name: validate plugin metadata
-        entry: uv run --no-project python3 .github/scripts/validate_plugin_metadata.py
+        entry: python3 .github/scripts/validate_plugin_metadata.py
         language: system
         pass_filenames: false
         files: ^(plugins/|\.claude-plugin/|CODEOWNERS|README\.md)
@@ -64,7 +64,7 @@ repos:
       # reports a clean repo forever, so the fixtures must run whenever it is edited.
       - id: validator-self-test
         name: validator self-test
-        entry: uv run --no-project python3 .github/scripts/validate_plugin_metadata.py --self-test
+        entry: python3 .github/scripts/validate_plugin_metadata.py --self-test
         language: system
         pass_filenames: false
         files: ^(\.github/scripts/validate_plugin_metadata\.py|Makefile|\.pre-commit-config\.yaml)$

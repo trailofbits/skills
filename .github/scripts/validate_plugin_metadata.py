@@ -395,6 +395,31 @@ def _semver_tuple(value: str) -> tuple[int, int, int] | None:
     return tuple(int(g) for g in match.groups()) if match else None  # type: ignore[return-value]
 
 
+def changed_plugins(repo_root: Path, base_ref: str) -> set[str]:
+    """Plugins with file changes between `base_ref` and the working tree.
+
+    The version-increment check applies only to these. Running it over every plugin
+    would demand a bump from all 40+ on every PR, including PRs that touch no plugin
+    at all — which is exactly what it did the first time it ran in CI.
+    """
+    result = subprocess.run(
+        ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return set()
+
+    changed = set()
+    for line in result.stdout.splitlines():
+        parts = line.strip().split("/")
+        if len(parts) >= 2 and parts[0] == "plugins":
+            changed.add(parts[1])
+    return changed
+
+
 def validate_version_increment(
     repo_root: Path,
     plugin_name: str,
@@ -534,6 +559,10 @@ def validate_plugins(
     for msg in find_forbidden_sidecars(repo_root):
         result.add("<repo>", msg)
 
+    # Scoped to plugins this branch actually touched. Empty when there is no base ref
+    # (a push to main, or a local run), which switches the version check off entirely.
+    version_check_scope = changed_plugins(repo_root, base_ref) if base_ref else set()
+
     for plugin_name in sorted(plugins_to_check):
         plugin_path = plugins_dir / plugin_name
 
@@ -557,7 +586,7 @@ def validate_plugins(
         for msg in validate_subagent_dispatch(plugin_path, plugin_name):
             result.add(plugin_name, msg)
 
-        if base_ref:
+        if base_ref and plugin_name in version_check_scope:
             for msg in validate_version_increment(repo_root, plugin_name, plugin_data, base_ref):
                 result.add(plugin_name, msg)
 
@@ -899,6 +928,68 @@ def _self_test_guards(ran: list[str]) -> None:
         _check(ran, "empty scan returns non-zero", exit_code != 0)
 
     _check(ran, "makefile and CI pin the same ruff", _check_ruff_parity() is None)
+
+    # The version check must apply only to plugins the branch touched. Without this
+    # scoping it demanded a bump from every plugin in the repo on every PR — which is
+    # how it behaved the first time it ran in CI, before this assertion existed.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _build_demo(root, "touched")
+        _build_demo(root, "untouched")
+        _write(
+            root / ".claude-plugin" / "marketplace.json",
+            json.dumps(
+                {
+                    "plugins": [
+                        {
+                            "name": n,
+                            "version": "1.0.0",
+                            "description": "A demo plugin.",
+                            "source": f"./plugins/{n}",
+                        }
+                        for n in ("touched", "untouched")
+                    ]
+                }
+            ),
+        )
+        _write(
+            root / "README.md",
+            "| [touched](plugins/touched/) | x |\n| [untouched](plugins/untouched/) | x |\n",
+        )
+        _write(
+            root / "CODEOWNERS",
+            "/plugins/touched/ @a @dguido\n/plugins/untouched/ @a @dguido\n",
+        )
+        for cmd in (
+            ["git", "init", "-q"],
+            ["git", "config", "user.email", "t@example.com"],
+            ["git", "config", "user.name", "t"],
+            ["git", "add", "-A"],
+            ["git", "commit", "-q", "-m", "base"],
+        ):
+            subprocess.run(cmd, cwd=root, check=True, capture_output=True)
+        base = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+        skill = root / "plugins" / "touched" / "skills" / "touched" / "SKILL.md"
+        skill.write_text(skill.read_text() + "\nA substantive change.\n")
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "change"], cwd=root, check=True, capture_output=True
+        )
+
+        scope = changed_plugins(root, base)
+        _check(ran, "changed-plugin scope finds the touched plugin", scope == {"touched"})
+
+        res = validate_plugins({"touched", "untouched"}, root, base)
+        msgs = [str(f) for f in res.findings if f.severity == ERROR]
+        _check(ran, "unbumped touched plugin errors", any("not greater than" in m for m in msgs))
+        _check(
+            ran,
+            "untouched plugin is not asked to bump",
+            not any(m.startswith("untouched") and "not greater" in m for m in msgs),
+        )
 
 
 def _check_ruff_parity() -> str | None:

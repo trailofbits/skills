@@ -34,7 +34,11 @@
 # this file — that is a reasonable call, and it is why this is a separate file.
 # ─────────────────────────────────────────────────────────────────────────────
 #
-# INERT until ANTHROPIC_API_KEY exists as a repository secret; see claude-review.yml.
+# An org-level ANTHROPIC_API_KEY is visible to this repo, so this is LIVE on merge —
+# but only for fork PRs a maintainer has labelled `safe-to-review`, which does not
+# exist yet:
+#   gh label create safe-to-review -d "Maintainer-reviewed fork PR" -c 0E8A16
+# Until that label exists, nothing here can trigger.
 name: Claude Review (fork)
 
 on: # zizmor: ignore[dangerous-triggers]
@@ -89,6 +93,16 @@ jobs:
             exit 1
           fi
           echo "Reviewing $actual, the commit the maintainer approved."
+
+      - name: Install Claude Code CLI
+        if: env.ANTHROPIC_API_KEY != ''
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CLI_VERSION: "2.1.220"
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
+            "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+          echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
 
       - name: Review
         if: env.ANTHROPIC_API_KEY != ''
