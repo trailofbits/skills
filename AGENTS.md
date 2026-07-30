@@ -258,10 +258,10 @@ Each of these fails the build. There is no value in checking any of it by hand:
 - No `.codex/`, `.opencode/`, `.agents/`, or `plugins/*/.codex-plugin/` sidecars
 - Both loadability checks pass under the real Claude Code and Codex CLIs
 
-Three more are reported as **warnings**, so they will not stop a merge and do still
-need your eye: missing `## When to Use` / `## When NOT to Use`, `SKILL.md` over 500
-lines, and references that do not resolve. A dangling `references/setup.md` link 404s
-for every user of the skill, and CI will not stop you shipping it.
+Two more are reported as **warnings**, so they will not stop a merge and do still
+need your eye: `SKILL.md` over 500 lines, and references that do not resolve. A dangling
+`references/setup.md` link 404s for every user of the skill, and CI will not stop you
+shipping it.
 
 ### What no tool can check — this is the part that needs you
 
