@@ -143,9 +143,15 @@ jobs:
           # every dependency PR is permanently red. A dependency change arguably
           # *should* bump the plugin version — do that in a follow-up commit on the
           # PR when it matters, rather than leaving the whole class blocked.
+          #
+          # Keyed on PR authorship, not `github.actor`. On a `synchronize` event
+          # `github.actor` is whoever pushed, so a human adding one commit to a
+          # Dependabot branch would re-arm the check and turn the PR red — making
+          # the follow-up bump mandatory exactly when the comment above says it is
+          # discretionary.
           NO_BUMP: >-
             ${{ contains(github.event.pull_request.labels.*.name, 'no-version-bump')
-                || github.actor == 'dependabot[bot]' }}
+                || github.event.pull_request.user.login == 'dependabot[bot]' }}
         run: |
           if [ -z "$BASE_REF" ]; then
             python3 .github/scripts/validate_plugin_metadata.py

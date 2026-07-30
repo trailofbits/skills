@@ -379,6 +379,53 @@ def find_forbidden_sidecars(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_dependabot_lockfiles(repo_root: Path) -> list[str]:
+    """Every uv directory in dependabot.yml must carry a committed uv.lock.
+
+    Without one there is nothing to pin, so Dependabot's only available action is
+    raising the lower bound of an already-open range — which changes nothing about
+    what installs and only drops support for older versions. That produced five
+    no-op PRs the first time this config ran. Documenting the rule in a comment
+    left it unenforced; this makes it real.
+    """
+    config = repo_root / ".github" / "dependabot.yml"
+    if not config.exists():
+        return []
+
+    text = config.read_text()
+    # Read the `directories:` list belonging to the uv ecosystem block only. A bare
+    # search for `- /plugins/...` would also pick up any future ecosystem's paths.
+    uv_block = re.search(
+        r"^\s*-\s*package-ecosystem:\s*uv\s*$(.*?)(?=^\s*-\s*package-ecosystem:|\Z)",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    if not uv_block:
+        return []
+
+    listed = re.findall(r"^\s+-\s+(/plugins/\S+)\s*$", uv_block.group(1), re.MULTILINE)
+    if not listed:
+        # The block exists but no directories parsed out — the regex broke, or the
+        # block was emptied. Either way this checker just inspected zero items.
+        return [
+            "dependabot.yml has a uv ecosystem block but no directories parsed from it "
+            "— the lockfile check inspected nothing"
+        ]
+
+    errors = []
+    for rel in listed:
+        directory = repo_root / rel.lstrip("/")
+        if not directory.is_dir():
+            errors.append(f"dependabot.yml lists {rel}, which does not exist")
+        elif not (directory / "uv.lock").is_file():
+            errors.append(
+                f"dependabot.yml lists {rel} but it has no committed uv.lock; "
+                f"without one Dependabot can only raise version floors (run "
+                f"`cd {rel.lstrip('/')} && uv lock`)"
+            )
+    return errors
+
+
 def _git_show(repo_root: Path, ref: str, rel_path: str) -> str | None:
     """Contents of `rel_path` at `ref`, or None when it did not exist there."""
     result = subprocess.run(
@@ -583,6 +630,8 @@ def validate_plugins(
     readme_plugins = parse_readme(repo_root / "README.md")
 
     for msg in find_forbidden_sidecars(repo_root):
+        result.add("<repo>", msg)
+    for msg in check_dependabot_lockfiles(repo_root):
         result.add("<repo>", msg)
 
     # Scoped to plugins this branch actually touched. Empty when there is no base ref
@@ -980,6 +1029,32 @@ def _self_test_guards(ran: list[str]) -> None:
         _check(ran, "forbidden .agents tree", any(".agents" in e for e in _errors_for(root)))
 
     _check(ran, "makefile and CI pin the same ruff", _check_ruff_parity() is None)
+
+    # The dependabot lockfile rule, including the case where the checker itself
+    # parses nothing — the failure mode the rule exists to prevent, one level up.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        cfg = root / ".github" / "dependabot.yml"
+        body = (
+            "version: 2\nupdates:\n  - package-ecosystem: uv\n    directories:\n"
+            "      - /plugins/locked\n      - /plugins/unlocked\n"
+            "    schedule:\n      interval: weekly\n"
+            "  - package-ecosystem: github-actions\n    directory: /\n"
+            "    schedule:\n      interval: weekly\n"
+        )
+        _write(cfg, body)
+        _write(root / "plugins" / "locked" / "uv.lock", "version = 1\n")
+        (root / "plugins" / "unlocked").mkdir(parents=True)
+        errs = check_dependabot_lockfiles(root)
+        _check(ran, "missing uv.lock is reported", any("unlocked" in e for e in errs))
+        _check(ran, "present uv.lock is accepted", not any("/plugins/locked" in e for e in errs))
+
+        _write(cfg, body.replace("      - /plugins/locked\n      - /plugins/unlocked\n", ""))
+        _check(
+            ran,
+            "uv block parsing nothing is an error",
+            any("inspected nothing" in e for e in check_dependabot_lockfiles(root)),
+        )
 
     # The version check must apply only to plugins the branch touched. Without this
     # scoping it demanded a bump from every plugin in the repo on every PR — which is
