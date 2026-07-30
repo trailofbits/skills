@@ -32,6 +32,7 @@ Examples:
 import argparse
 import json
 import os
+import platform
 import re
 import subprocess
 import sys
@@ -65,6 +66,19 @@ class ParsedFunction(TypedDict):
     instructions: int
 
 
+def is_error(violation: "Violation") -> bool:
+    """True when `violation` is error severity, compared by value.
+
+    `analyzer.py` is documented to be run as a script, which makes this module
+    `__main__` while `script_analyzers` imports it again as `analyzer`. Each copy
+    defines its own `Severity` enum, so `severity is Severity.ERROR` is False for
+    every finding produced by a scripting-language backend. That printed all six
+    PHP errors as `[WARN]` while the summary line counted them as errors —
+    downgrading real findings in the output a reviewer actually reads.
+    """
+    return violation.severity.value == Severity.ERROR.value
+
+
 @dataclass
 class Violation:
     """A detected constant-time violation."""
@@ -93,11 +107,11 @@ class AnalysisReport:
 
     @property
     def error_count(self) -> int:
-        return sum(1 for v in self.violations if v.severity == Severity.ERROR)
+        return sum(1 for v in self.violations if is_error(v))
 
     @property
     def warning_count(self) -> int:
-        return sum(1 for v in self.violations if v.severity == Severity.WARNING)
+        return sum(1 for v in self.violations if not is_error(v))
 
     @property
     def passed(self) -> bool:
@@ -172,10 +186,20 @@ DANGEROUS_INSTRUCTIONS = {
             # Note: Even with DIT (Data Independent Timing) enabled, division is NOT constant-time
             "udiv": "UDIV has early termination optimization; execution time depends on operand values",
             "sdiv": "SDIV has early termination optimization; execution time depends on operand values",
+            # Go's assembler writes arm64 in Plan 9 syntax, which puts the operand
+            # width in the mnemonic instead of the register name: a 32-bit divide
+            # is SDIVW, not `sdiv w0, w0, w1`. Without these, `int32 / int32` — the
+            # shape of every polynomial coefficient divide — read as clean on Go.
+            "udivw": "UDIVW has early termination optimization; execution time depends on operand values",
+            "sdivw": "SDIVW has early termination optimization; execution time depends on operand values",
             # Floating-point division
             "fdiv": "FDIV (FP division) has variable latency based on operand values",
+            "fdivs": "FDIVS (FP division) has variable latency based on operand values",
+            "fdivd": "FDIVD (FP division) has variable latency based on operand values",
             # Square root
             "fsqrt": "FSQRT has variable latency based on operand values",
+            "fsqrts": "FSQRTS has variable latency based on operand values",
+            "fsqrtd": "FSQRTD has variable latency based on operand values",
         },
         "warnings": {
             # Conditional branches
@@ -384,8 +408,6 @@ def normalize_arch(arch: str) -> str:
 
 def get_native_arch() -> str:
     """Get the native architecture of the current system."""
-    import platform
-
     machine = platform.machine().lower()
     return normalize_arch(machine)
 
@@ -645,12 +667,52 @@ class GoCompiler(Compiler):
                 if result.returncode != 0:
                     return False, result.stderr
 
+                disassembly, kept = self._keep_only_source_symbols(result.stdout, source_file)
+                if not kept:
+                    return False, (
+                        f"Disassembly contained no symbols from {source_file}. Go links the "
+                        "whole runtime into the binary, so reporting the unfiltered listing "
+                        "would attribute the runtime's divisions to your code."
+                    )
+
                 with open(output_file, "w") as f:
-                    f.write(result.stdout)
+                    f.write(disassembly)
 
                 return True, ""
             except FileNotFoundError:
                 return False, f"Go not found: {self.path}"
+
+    @staticmethod
+    def _keep_only_source_symbols(disassembly: str, source_file: str) -> tuple[str, int]:
+        """Drop objdump blocks that did not come from `source_file`.
+
+        `go build` links the runtime into every binary, so an unfiltered objdump
+        of a 30-line file yields ~900 functions and reports the allocator's and
+        garbage collector's divisions — all on public data — while the caller's
+        own code is a rounding error in the output. Each block starts with
+        `TEXT main.fn(SB) /path/to/file.go`, so the originating file is known
+        exactly and no heuristic is needed.
+
+        Returns the filtered listing and the number of blocks kept.
+        """
+        wanted = os.path.realpath(source_file)
+        kept_lines: list[str] = []
+        kept = 0
+        in_wanted_block = False
+
+        for line in disassembly.splitlines(keepends=True):
+            header = re.match(r"^TEXT\s+[^\s(]+\(SB\)\s+(.*)$", line.strip())
+            if header:
+                block_file = header.group(1).strip()
+                in_wanted_block = os.path.realpath(block_file) == wanted or os.path.basename(
+                    block_file
+                ) == os.path.basename(wanted)
+                if in_wanted_block:
+                    kept += 1
+            if in_wanted_block:
+                kept_lines.append(line)
+
+        return "".join(kept_lines), kept
 
 
 class RustCompiler(Compiler):
@@ -668,6 +730,18 @@ class RustCompiler(Compiler):
 
     def __init__(self, path: str | None = None):
         super().__init__("rustc", path or "rustc")
+
+    @staticmethod
+    def _declares_main(source_file: str) -> bool:
+        """True when the file defines a top-level `fn main`."""
+        try:
+            with open(source_file, encoding="utf-8", errors="replace") as handle:
+                return (
+                    re.search(r"^\s*(pub\s+)?fn\s+main\s*\(", handle.read(), re.MULTILINE)
+                    is not None
+                )
+        except OSError:
+            return False
 
     def compile_to_assembly(
         self,
@@ -689,9 +763,15 @@ class RustCompiler(Compiler):
             "Oz": "z",
         }.get(optimization, "2")
 
+        # rustc defaults to a bin crate, which rejects any file without `fn main`
+        # (E0601). Crypto code lives in libraries, so a bare module was previously
+        # unanalyzable. Compile as a lib unless the file really is a binary.
+        crate_type = "bin" if self._declares_main(source_file) else "lib"
+
         cmd = [
             self.path,
             "--emit=asm",
+            f"--crate-type={crate_type}",
             "-C",
             f"opt-level={opt_level}",
             *(["--target", target] if target else []),
@@ -722,8 +802,23 @@ class SwiftCompiler(Compiler):
         "x86_64-ios-sim": "x86_64-apple-ios13.0-simulator",
     }
 
+    # The Apple triples above need Xcode's SDK. On Linux swiftc rejects them with
+    # "unable to load standard library for target 'arm64-apple-macosx11.0'", which
+    # made every Swift analysis fail on Linux and in CI.
+    LINUX_ARCH_TARGETS = {
+        "x86_64": "x86_64-unknown-linux-gnu",
+        "arm64": "aarch64-unknown-linux-gnu",
+    }
+
     def __init__(self, path: str | None = None):
         super().__init__("swiftc", path or "swiftc")
+
+    @classmethod
+    def target_for(cls, arch: str) -> str | None:
+        """Return the triple for `arch` on the host platform, or None if unmapped."""
+        if platform.system() == "Darwin":
+            return cls.ARCH_TARGETS.get(arch)
+        return cls.LINUX_ARCH_TARGETS.get(arch)
 
     def compile_to_assembly(
         self,
@@ -734,7 +829,7 @@ class SwiftCompiler(Compiler):
         extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
-        target = self.ARCH_TARGETS.get(arch)
+        target = self.target_for(arch)
 
         opt_level = {
             "O0": "-Onone",
@@ -1137,7 +1232,7 @@ def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
     elif format_type == OutputFormat.GITHUB:
         lines = []
         for v in report.violations:
-            level = "error" if v.severity == Severity.ERROR else "warning"
+            level = "error" if is_error(v) else "warning"
             file_ref = f"file={v.file}" if v.file else ""
             line_ref = f",line={v.line}" if v.line else ""
             lines.append(
@@ -1162,7 +1257,7 @@ def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
             lines.append("VIOLATIONS FOUND:")
             lines.append("-" * 40)
             for v in report.violations:
-                severity_marker = "ERROR" if v.severity == Severity.ERROR else "WARN"
+                severity_marker = "ERROR" if is_error(v) else "WARN"
                 lines.append(f"[{severity_marker}] {v.mnemonic}")
                 lines.append(f"  Function: {v.function}")
                 if v.file:

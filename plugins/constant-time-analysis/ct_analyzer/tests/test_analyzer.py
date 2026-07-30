@@ -7,8 +7,10 @@ vulnerabilities in compiled cryptographic code.
 """
 
 import os
+import platform
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -1391,6 +1393,387 @@ console.log(vulnerableRandom());
                 pass
             else:
                 raise
+
+
+def _have(*commands):
+    """True when every command is runnable, for skipping toolchain-bound tests."""
+    for command in commands:
+        try:
+            subprocess.run([command, "--version"], capture_output=True, check=False)
+        except (OSError, FileNotFoundError):
+            return False
+    return True
+
+
+class TestBackendRegressions(unittest.TestCase):
+    """One test per backend defect found by auditing real toolchain output.
+
+    Each of these backends reported PASSED on vulnerable code before the fix,
+    because unparseable output was skipped silently. They are end-to-end on
+    purpose: the pre-existing per-backend tests all feed hand-written listings,
+    which is exactly why the drift went unnoticed.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.samples = Path(__file__).parent / "triage_samples"
+
+    def _analyze(self, fixture, **kwargs):
+        path = self.samples / fixture
+        self.assertTrue(path.exists(), f"missing fixture: {path}")
+        return analyze_source(str(path), **kwargs)
+
+    def test_rust_library_without_main_compiles(self):
+        """rustc defaults to a bin crate; crypto lives in libs, which lack `fn main`."""
+        if not _have("rustc"):
+            self.skipTest("rustc not available")
+        report = self._analyze("triage_rust.rs")
+        functions = {v.function for v in report.violations}
+        self.assertIn("ct_high_bits", functions, f"got {functions}")
+
+    def test_go_reports_only_the_analyzed_source(self):
+        """`go build` links the runtime in; its divisions are not the caller's bug."""
+        if not _have("go"):
+            self.skipTest("go not available")
+        report = self._analyze("triage_go.go")
+        runtime_hits = [v.function for v in report.violations if v.function.startswith("runtime.")]
+        self.assertEqual(runtime_hits, [], "runtime symbols must be filtered out")
+        self.assertIn("main.ctHighBits", {v.function for v in report.violations})
+
+    def test_go_detects_plan9_width_suffixed_division(self):
+        """Go writes a 32-bit divide as SDIVW, which the arm64 table used to miss."""
+        if not _have("go"):
+            self.skipTest("go not available")
+        report = self._analyze("triage_go.go")
+        high_bits = [v for v in report.violations if v.function == "main.ctHighBits"]
+        self.assertTrue(high_bits, "int32 division in ctHighBits not detected")
+
+    def test_javascript_v8_bytecode_is_parsed(self):
+        """The V8 line format made every JS file parse as zero instructions."""
+        if not _have("node"):
+            self.skipTest("node not available")
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as handle:
+            handle.write(
+                "function ctHighBits(keyCoef, gamma2) {\n"
+                "  return Math.trunc(keyCoef / (2 * gamma2));\n"
+                "}\n"
+                "console.log(ctHighBits(523776, 261888));\n"
+            )
+            path = handle.name
+        try:
+            report = analyze_source(path)
+        finally:
+            os.unlink(path)
+        self.assertGreater(report.total_instructions, 0, "no V8 bytecode parsed")
+        self.assertIn("DIV", {v.mnemonic for v in report.violations})
+
+    def test_php_opcache_backend_parses_without_vld(self):
+        """VLD is an unbundled PECL build, so opcache is the path most users hit."""
+        if not _have("php"):
+            self.skipTest("php not available")
+        report = self._analyze("triage_php.php")
+        by_function = {v.function: v.mnemonic for v in report.violations}
+        self.assertIn("ct_block_count", by_function, f"got {by_function}")
+        self.assertIn("ct_nonce_seed", by_function, f"got {by_function}")
+        self.assertFalse(report.passed)
+
+    def test_php_refuses_to_pass_when_nothing_parsed(self):
+        """An empty parse is 'we understood nothing', not 'the code is fine'."""
+        from script_analyzers import PHPAnalyzer
+
+        analyzer = PHPAnalyzer()
+        functions, violations = analyzer._parse_opcache_output("nothing resembling opcodes\n")
+        self.assertEqual(functions, [])
+        self.assertEqual(violations, [])
+
+    def test_swift_targets_the_host_platform(self):
+        """Apple triples need Xcode's SDK; on Linux swiftc rejects them outright."""
+        from analyzer import SwiftCompiler
+
+        target = SwiftCompiler.target_for("arm64")
+        if target is None:
+            self.fail("arm64 must map to a target triple on every supported platform")
+        if platform.system() == "Darwin":
+            self.assertIn("apple", target)
+        else:
+            self.assertIn("linux", target)
+
+    def test_java_detects_fully_qualified_random(self):
+        """`new java.util.Random()` needs no import, so single files use it."""
+        if not _have("javac"):
+            self.skipTest("javac not available")
+        report = self._analyze("TriageJava.java")
+        self.assertIn("JAVA_UTIL_RANDOM", {v.mnemonic for v in report.violations})
+
+
+class TestV8Coverage(unittest.TestCase):
+    """V8 compiles lazily and dumps every function in the process, node's included."""
+
+    def _analyze_js(self, source, suffix=".js"):
+        if not _have("node"):
+            self.skipTest("node not available")
+        with tempfile.NamedTemporaryFile("w", suffix=suffix, delete=False) as handle:
+            handle.write(source)
+            path = handle.name
+        try:
+            return analyze_source(path), path
+        finally:
+            os.unlink(path)
+
+    def test_exported_but_never_called_functions_are_covered(self):
+        """A library that defines and exports helpers used to analyse as empty."""
+        report, _ = self._analyze_js(
+            "function ctHighBits(keyCoef, gamma2) {\n"
+            "  return Math.trunc(keyCoef / (2 * gamma2));\n"
+            "}\n"
+            "module.exports = { ctHighBits };\n"
+        )
+        divisions = [v for v in report.violations if v.mnemonic == "DIV"]
+        self.assertTrue(divisions, "never-called function produced no bytecode finding")
+        self.assertEqual(divisions[0].function, "ctHighBits")
+
+    def test_findings_carry_the_source_line(self):
+        """V8 reports a byte offset; an unconverted offset points at the wrong code."""
+        source = (
+            "const label = 'padding';\n"
+            "function ctHighBits(keyCoef, gamma2) {\n"
+            "  return Math.trunc(keyCoef / (2 * gamma2));\n"
+            "}\n"
+            "module.exports = { ctHighBits, label };\n"
+        )
+        report, _ = self._analyze_js(source)
+        divisions = [v for v in report.violations if v.mnemonic == "DIV"]
+        self.assertTrue(divisions)
+        self.assertEqual(divisions[0].line, 3, "division is on line 3")
+
+    def test_node_internal_functions_are_not_reported(self):
+        """Executing anything pulls in node's streams; their divisions are not ours."""
+        report, _ = self._analyze_js(
+            "function ctHighBits(keyCoef, gamma2) {\n"
+            "  return Math.trunc(keyCoef / (2 * gamma2));\n"
+            "}\n"
+            "console.log(ctHighBits(523776, 261888));\n"
+        )
+        reported = {v.function for v in report.violations if v.function != "<source>"}
+        self.assertTrue(reported)
+        self.assertEqual(reported, {"ctHighBits"}, f"internals leaked: {reported}")
+
+    def test_one_finding_per_division(self):
+        """The bytecode and source passes both see the operator; report it once."""
+        report, _ = self._analyze_js(
+            "function f(a, b) {\n  return a / b;\n}\nmodule.exports = { f };\n"
+        )
+        lines = [v.line for v in report.violations]
+        self.assertEqual(sorted(lines), [2], f"expected a single finding, got {report.violations}")
+
+    def test_typescript_positions_are_not_reported_as_source_lines(self):
+        """TS is transpiled first, so V8's offsets index the generated JS."""
+        if not _have("node", "tsc"):
+            self.skipTest("node or tsc not available")
+        path = Path(__file__).parent / "triage_samples" / "triage_ts.ts"
+        report = analyze_source(str(path))
+        for violation in report.violations:
+            if violation.mnemonic in {"DIV", "DIVSMI", "MOD", "MODSMI"}:
+                self.assertIsNone(
+                    violation.line,
+                    "a transpiled offset must not be presented as a .ts line",
+                )
+
+    def test_declared_names_finds_declarations_and_skips_keywords(self):
+        from script_analyzers import JavaScriptAnalyzer
+
+        names = JavaScriptAnalyzer._declared_function_names(
+            "function alpha() {}\n"
+            "const beta = (x) => x;\n"
+            "class Gamma { delta(a) { if (a) { return 1; } } }\n"
+            "const obj = { epsilon: function () {} };\n"
+            "// function commented\n"
+        )
+        for expected in ("alpha", "beta", "Gamma", "delta", "epsilon"):
+            self.assertIn(expected, names)
+        self.assertNotIn("if", names)
+        self.assertNotIn("commented", names, "a name in a comment is not a declaration")
+
+    def test_offset_conversion_bounds(self):
+        from script_analyzers import JavaScriptAnalyzer
+
+        source = "a\nbb\nccc\n"
+        self.assertEqual(JavaScriptAnalyzer._line_of_offset(source, 0), 1)
+        self.assertEqual(JavaScriptAnalyzer._line_of_offset(source, 2), 2)
+        self.assertEqual(JavaScriptAnalyzer._line_of_offset(source, 5), 3)
+        self.assertIsNone(JavaScriptAnalyzer._line_of_offset(source, len(source) + 1))
+        self.assertIsNone(JavaScriptAnalyzer._line_of_offset(source, -1))
+
+
+class TestSeverityLabelling(unittest.TestCase):
+    """The text report is what reviewers read; it must not downgrade errors.
+
+    `analyzer.py` is documented as `uv run .../analyzer.py`, which makes it
+    `__main__` while `script_analyzers` imports it again as `analyzer`. Two
+    `Severity` enums result, so identity comparison labelled every
+    scripting-language error as `[WARN]` while the summary counted it as an error.
+    """
+
+    def test_error_label_survives_a_duplicate_severity_enum(self):
+        import importlib.util
+
+        from analyzer import AnalysisReport, Violation, format_report
+
+        # Load a second copy of the module, mimicking the __main__/import split.
+        spec = importlib.util.spec_from_file_location(
+            "analyzer_duplicate", Path(__file__).parent.parent / "analyzer.py"
+        )
+        if spec is None or spec.loader is None:
+            self.fail("could not load a second copy of analyzer.py")
+        duplicate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(duplicate)
+        self.assertIsNot(duplicate.Severity, Severity, "expected two distinct enums")
+
+        report = AnalysisReport(
+            architecture="zend",
+            compiler="php/opcache",
+            optimization="default",
+            source_file="crypto.php",
+            total_functions=1,
+            total_instructions=1,
+            violations=[
+                Violation(
+                    function="high_bits",
+                    file="crypto.php",
+                    line=7,
+                    address="0002",
+                    instruction="INTDIV",
+                    mnemonic="INTDIV",
+                    reason="intdiv() performs hardware division",
+                    # severity from the *other* copy of the module
+                    severity=duplicate.Severity.ERROR,
+                )
+            ],
+        )
+        text = format_report(report, OutputFormat.TEXT)
+        self.assertIn("[ERROR]", text)
+        self.assertNotIn("[WARN]", text)
+        self.assertEqual(report.error_count, 1)
+        self.assertFalse(report.passed)
+
+
+class TestCommentBlanking(unittest.TestCase):
+    """Source-level detectors are regex scans, so comments used to count as code."""
+
+    def test_c_style_comments_are_blanked_without_moving_offsets(self):
+        from script_analyzers import blank_comments
+
+        source = "/** a / b */\nx = c / d;\n"
+        blanked = blank_comments(source, "c")
+        self.assertEqual(len(blanked), len(source))
+        self.assertEqual(blanked.count("\n"), source.count("\n"))
+        self.assertNotIn("a / b", blanked)
+        self.assertIn("c / d", blanked)
+
+    def test_hash_comments_are_blanked(self):
+        from script_analyzers import blank_comments
+
+        blanked = blank_comments("# uses random.random()\nv = random.random()\n", "hash")
+        self.assertEqual(blanked.count("random.random()"), 1)
+
+    def test_doc_comment_is_not_reported_as_division(self):
+        if not _have("node"):
+            self.skipTest("node not available")
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as handle:
+            handle.write("/** Divides a / b and never calls Math.random(). */\nconst k = 1;\n")
+            path = handle.name
+        try:
+            report = analyze_source(path)
+        finally:
+            os.unlink(path)
+        self.assertEqual(
+            [v.mnemonic for v in report.violations],
+            [],
+            "comment text must not produce findings",
+        )
+
+
+class TestPythonBytecodeEndToEnd(unittest.TestCase):
+    """Runs the real `python3` toolchain rather than replaying canned dis text.
+
+    Every other Python test in this file feeds hand-written disassembly to the
+    parser. That is why two defects survived: the BINARY_OP oparg map read 12 as
+    `//` when 12 is `^`, and the instruction regex required a byte offset that
+    Python 3.13 no longer prints. Canned input in the old format exercised
+    neither. These tests go through the actual interpreter, so a future dis
+    format change fails here instead of silently returning PASSED.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            subprocess.run(["python3", "--version"], capture_output=True, check=True)
+            cls.available = True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            cls.available = False
+
+    def _analyze(self, source):
+        if not self.available:
+            self.skipTest("python3 not available")
+        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as handle:
+            handle.write(source)
+            path = handle.name
+        try:
+            return analyze_source(path, include_warnings=False)
+        finally:
+            os.unlink(path)
+
+    def test_floor_division_on_a_secret_is_detected(self):
+        """`//` is the idiomatic Python integer divide; missing it is a false negative."""
+        report = self._analyze(
+            "def high_bits(key_coef, gamma2):\n    return key_coef // (2 * gamma2)\n"
+        )
+        mnemonics = [v.mnemonic for v in report.violations]
+        self.assertIn(
+            "BINARY_OP_FLOORDIV",
+            mnemonics,
+            f"floor division not detected; got {mnemonics}",
+        )
+        self.assertFalse(report.passed)
+
+    def test_true_division_and_modulo_are_detected(self):
+        report = self._analyze("def f(a, b):\n    return (a / b, a % b)\n")
+        mnemonics = {v.mnemonic for v in report.violations}
+        self.assertIn("BINARY_OP_TRUEDIV", mnemonics)
+        self.assertIn("BINARY_OP_MODULO", mnemonics)
+
+    def test_xor_and_shift_are_not_reported_as_division(self):
+        """Bit tricks are how constant-time code is written — flagging them is noise."""
+        report = self._analyze(
+            "def ct_select(mask, a, b):\n"
+            "    return b ^ (mask & (a ^ b))\n"
+            "def ct_shift(x):\n"
+            "    return (x >> 3) | (x << 2)\n"
+        )
+        self.assertEqual(
+            [v.mnemonic for v in report.violations],
+            [],
+            "constant-time bit operations must not be reported as violations",
+        )
+
+    def test_violations_carry_a_source_line(self):
+        """A finding without a line number is a finding the reviewer cannot check."""
+        report = self._analyze(
+            "def a(x, y):\n    return x / y\n\n\ndef b(x, y):\n    return x % y\n"
+        )
+        self.assertTrue(report.violations, "expected violations to attribute")
+        for violation in report.violations:
+            self.assertIsNotNone(
+                violation.line, f"{violation.mnemonic} in {violation.function} has no line"
+            )
+        self.assertEqual({v.line for v in report.violations}, {2, 6})
+
+    def test_function_attribution(self):
+        report = self._analyze(
+            "def secret_div(k, g):\n    return k // g\n\ndef public_div(n, w):\n    return n // w\n"
+        )
+        by_function = {v.function for v in report.violations}
+        self.assertEqual(by_function, {"secret_div", "public_div"})
 
 
 if __name__ == "__main__":
