@@ -12,7 +12,9 @@ The run-all suite explicitly imports both `security-and-quality` and `security-e
 
 ## Suite Template
 
-Generate this file as `run-all.qls` in the results directory before running analysis:
+What the generation script writes, shown so the imports and filters are readable. Do not
+hand-write this file — the script adds the installed third-party packs and verifies the
+result, and `test_generation_scripts.py` fails if this block and the script disagree:
 
 ```yaml
 - description: Run-all — all security, experimental, and quality queries from all installed packs
@@ -44,51 +46,48 @@ Generate this file as `run-all.qls` in the results directory before running anal
 ## Generation Script
 
 ```bash
-RAW_DIR="$OUTPUT_DIR/raw"
-SUITE_FILE="$RAW_DIR/run-all.qls"
-
-# NOTE: CODEQL_LANG must be set before running this script (e.g., CODEQL_LANG=cpp)
-# NOTE: INSTALLED_THIRD_PARTY_PACKS must be a space-separated list of pack names
-
-cat > "$SUITE_FILE" << HEADER
-- description: Run-all — all security, experimental, and quality queries from all installed packs
-- import: codeql-suites/${CODEQL_LANG}-security-and-quality.qls
-  from: codeql/${CODEQL_LANG}-queries
-- import: codeql-suites/${CODEQL_LANG}-security-experimental.qls
-  from: codeql/${CODEQL_LANG}-queries
-HEADER
-
-# Add each installed third-party pack
-for PACK in $INSTALLED_THIRD_PARTY_PACKS; do
-  cat >> "$SUITE_FILE" << PACK_ENTRY
-- queries: .
-  from: ${PACK}
-PACK_ENTRY
-done
-
-# Append minimal filtering rules (quoted heredoc — no expansion needed)
-cat >> "$SUITE_FILE" << 'FILTERS'
-- include:
-    kind:
-      - problem
-      - path-problem
-- exclude:
-    deprecated: //
-- exclude:
-    tags contain:
-      - modeleditor
-      - modelgenerator
-FILTERS
-
-# Verify the suite resolves correctly
-: "${CODEQL_LANG:?ERROR: CODEQL_LANG must be set before generating suite}"
-: "${SUITE_FILE:?ERROR: SUITE_FILE must be set}"
-
-if ! codeql resolve queries "$SUITE_FILE" | wc -l; then
-  echo "ERROR: Suite file failed to resolve. Check CODEQL_LANG=$CODEQL_LANG and installed packs."
-fi
-echo "Suite generated: $SUITE_FILE"
+# `set -e` and the trailing script call are both load-bearing: an assignment placed last
+# would overwrite the script's exit status, and the run would proceed to analysis with no
+# suite — or with a stale one from an earlier run.
+set -euo pipefail
+SUITE_FILE="$OUTPUT_DIR/raw/run-all.qls"
+CODEQL_LANG="${CODEQL_LANG:-}" OUTPUT_DIR="${OUTPUT_DIR:-}" \
+  INSTALLED_THIRD_PARTY_PACKS="${INSTALLED_THIRD_PARTY_PACKS:-}" \
+  {baseDir}/scripts/generate_suite.sh run-all
 ```
+
+Run-all imports whole upstream suites. A typo in `$CODEQL_LANG` gives a suite that resolves
+to nothing instead of one that errors, so without the script's `verify_query_suite.py` call
+the run would continue and report no findings.
+
+## What "run all" does and does not cover
+
+Measured against `codeql/cpp-queries` 1.8.0 with CodeQL 2.25.6:
+
+| | cpp queries |
+|---|---|
+| `cpp-security-and-quality.qls` | 182 |
+| `cpp-security-experimental.qls` | 135 |
+| This template (both imported) | **219** — the exact union |
+| Alert queries in the whole pack | 515 |
+
+Two consequences the mode name hides:
+
+- **"Run all" is not every query in the pack.** Of its 219, only 208 raise alerts; the
+  other 11 are `Diagnostics/`, `Summary/`, and `Telemetry/` queries about the extraction
+  itself. So 307 of the pack's 515 alert queries never run. Most are the coding-standard
+  packs the official suites deliberately exclude (`jsf` 137, `JPL_C` 42, `Power of 10`
+  23), but 13 are `Security/CWE/` queries — `ArithmeticTainted`, `IntegerOverflowTainted`,
+  and `ImproperArrayIndexValidation` among them — and 20 are `Critical/` resource-leak and
+  initialization queries. Skipping the standards packs in a security scan is reasonable;
+  it is still a choice, not total coverage.
+- **important-only is not a subset of run-all.** The modes select differently: run-all
+  `import:`s two official suites, while important-only takes `queries: .` (the whole pack)
+  and filters on precision. So important-only selects a few queries run-all does not —
+  three for cpp, including `SuspiciousCallToMemset.ql`.
+
+Confirm on your own packs with `test_suite_resolution.py`, which resolves both templates
+against the real CLI. Re-check after a pack upgrade; these counts move.
 
 ## How This Differs From Important-Only
 

@@ -2,19 +2,7 @@
 
 Generate data extension YAML files to improve CodeQL's data flow coverage for project-specific APIs. Runs after database build and before analysis.
 
-## Task System
-
-Create these tasks on workflow start:
-
-```
-TaskCreate: "Check for existing data extensions" (Step 1)
-TaskCreate: "Query known sources and sinks" (Step 2) - blockedBy: Step 1
-TaskCreate: "Identify missing sources and sinks" (Step 3) - blockedBy: Step 2
-TaskCreate: "Create data extension files" (Step 4) - blockedBy: Step 3
-TaskCreate: "Validate with re-analysis" (Step 5) - blockedBy: Step 4
-```
-
-### Early Exit Points
+## Early Exit Points
 
 | After Step | Condition | Action |
 |------------|-----------|--------|
@@ -76,8 +64,10 @@ if [ -z "$DB_NAME" ]; then
   elif [ ${#FOUND_DBS[@]} -eq 1 ]; then
     DB_NAME="${FOUND_DBS[0]}"
   else
-    # Multiple databases — use AskUserQuestion to select
-    # SKIP if user already specified which database in their prompt
+    # Multiple databases. Use AskUserQuestion to select, or skip the prompt if the user
+    # already named one. The `:` is required: an else branch containing only comments is
+    # a bash syntax error and the block will not parse.
+    :
   fi
 fi
 

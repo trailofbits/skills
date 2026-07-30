@@ -27,48 +27,50 @@ log_result "Cleaned: $CLEANED"
 
 > **Note:** The commands below install the *target project's* dependencies so CodeQL can trace the build. Use whatever package manager the target project expects (`pip`, `npm`, `go mod`, etc.) — these are not the skill's own tooling preferences.
 
+Uses `run_logged`. Source it first: `. "{baseDir}/scripts/build_log.sh"`.
+
 ```bash
 log_step "Applying fix: install dependencies"
+FAILED_INSTALLS=()
 
 # Python — use target project's package manager (pip/uv/poetry)
 if [ -f requirements.txt ]; then
-  log_cmd "pip install -r requirements.txt"
-  pip install -r requirements.txt 2>&1 | tee -a "$LOG_FILE"
+  run_logged pip install -r requirements.txt || FAILED_INSTALLS+=("pip install -r requirements.txt")
 fi
 if [ -f setup.py ] || [ -f pyproject.toml ]; then
-  log_cmd "pip install -e ."
-  pip install -e . 2>&1 | tee -a "$LOG_FILE"
+  run_logged pip install -e . || FAILED_INSTALLS+=("pip install -e .")
 fi
 
-# Node - log installed packages
+# Node
 if [ -f package.json ]; then
-  log_cmd "npm install"
-  npm install 2>&1 | tee -a "$LOG_FILE"
+  run_logged npm install || FAILED_INSTALLS+=("npm install")
 fi
 
 # Go
 if [ -f go.mod ]; then
-  log_cmd "go mod download"
-  go mod download 2>&1 | tee -a "$LOG_FILE"
+  run_logged go mod download || FAILED_INSTALLS+=("go mod download")
 fi
 
-# Java - log downloaded dependencies
+# Java
 if [ -f build.gradle ] || [ -f build.gradle.kts ]; then
-  log_cmd "./gradlew dependencies --refresh-dependencies"
-  ./gradlew dependencies --refresh-dependencies 2>&1 | tee -a "$LOG_FILE"
+  run_logged ./gradlew dependencies --refresh-dependencies || FAILED_INSTALLS+=("gradlew dependencies")
 fi
 if [ -f pom.xml ]; then
-  log_cmd "mvn dependency:resolve"
-  mvn dependency:resolve 2>&1 | tee -a "$LOG_FILE"
+  run_logged mvn dependency:resolve || FAILED_INSTALLS+=("mvn dependency:resolve")
 fi
 
 # Rust
 if [ -f Cargo.toml ]; then
-  log_cmd "cargo fetch"
-  cargo fetch 2>&1 | tee -a "$LOG_FILE"
+  run_logged cargo fetch || FAILED_INSTALLS+=("cargo fetch")
 fi
 
-log_result "Dependencies installed - see above for details"
+if [ ${#FAILED_INSTALLS[@]} -gt 0 ]; then
+  log_result "Dependency installation FAILED: ${FAILED_INSTALLS[*]}"
+  echo "WARNING: ${#FAILED_INSTALLS[@]} dependency step(s) failed — a retry will likely" \
+       "fail the same way. Report which, rather than retrying blind." >&2
+else
+  log_result "Dependencies installed"
+fi
 ```
 
 ## 4. Handle private registries
