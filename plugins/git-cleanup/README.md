@@ -1,31 +1,45 @@
 # git-cleanup
 
-A Claude Code skill for safely cleaning up accumulated git worktrees and local branches.
+A Claude Code slash command for safely cleaning up accumulated git worktrees and local branches.
 
 ## What It Does
 
-Analyzes your local git repository and categorizes branches/worktrees into:
+Analyzes your local git repository and sorts branches and worktrees into:
 
-- **Safe to delete**: Branches fully merged into the default branch
-- **Needs review**: Branches with deleted remotes (`[gone]`) that may have local-only work
-- **Theme-related**: Groups of branches working on similar functionality
-- **Keep**: Active work with unpushed commits or untracked local branches
+- **Delete candidates**: merged into the default branch (`-d`), or squash-merged or superseded with a named PR or commit as evidence (`-D`)
+- **Needs review**: work that could not be located in the default branch, including `[gone]` remotes and any candidate a skeptic managed to refute
+- **Keep**: unpushed commits, untracked local work, or level with a live remote
+- **Unanalyzed**: branches no verdict came back for, listed explicitly so a partial run never reads as a complete one
 
-The skill uses a gated workflow requiring explicit user confirmation before any deletions.
+The command is gated: it requires explicit user confirmation before any deletion.
+
+## How It Works
+
+Analysis runs as a [dynamic workflow](workflows/analyze-branches.js) — a JavaScript orchestration script that coordinates subagents:
+
+1. **Survey** — one agent inventories branches, worktrees, tracking state, and recent merge history.
+2. **Triage** — the script decides, in plain JavaScript, everything git can already prove: merged branches, branches with unpushed commits, branches level with a live remote. No agent is spawned for a question `git branch --merged` already answers.
+3. **Investigate** — batched agents hunt for merge evidence on the branches that remain ambiguous, mostly `[gone]` remotes and groups of similarly-named branches. Related branches go to one agent so supersession is visible.
+4. **Refute** — every delete candidate goes to a skeptic whose job is to find a commit that is *not* in the default branch. A refuted candidate is downgraded to "needs review", never deleted.
+
+The fleet is bounded at eleven agents — one survey, at most five investigators, at most five skeptics. Past five batches the batches grow rather than the agent count, so the number of agents stops rising even as the repository gets messier. Tokens still scale with the number of ambiguous branches; it is the coordination cost that is capped, not the reading.
+
+The workflow is strictly read-only. Both confirmation gates and every `git branch -d/-D` and `git worktree remove` run in the main session, because subagents have no way to ask the user anything.
 
 ## When to Use
 
 Invoke with `/git-cleanup` when you have accumulated many local branches and worktrees that need cleanup.
 
-**Important**: This skill only runs when explicitly invoked. It will never suggest cleanup proactively or run automatically.
+**Important**: the command sets `disable-model-invocation: true`, so Claude cannot invoke it on its own — it runs only when you type it. That flag is what closes autonomous invocation; the `description` in the frontmatter is matchable text and would otherwise let a cleanup-shaped request trigger a plugin whose job is `git branch -D`.
 
 ## Safety Features
 
-- Two confirmation gates (analysis review, then deletion confirmation)
-- Uses safe delete (`git branch -d`) for merged branches; force delete (`git branch -D`) only for squash-merged branches where git cannot detect the merge
+- Two confirmation gates (analysis review, then deletion confirmation), both in the main session
+- Safe delete (`git branch -d`) for branches git itself reports as merged; force delete (`git branch -D`) only for squash-merged and superseded branches, where git compares shas and cannot see that a squash carried the work across
+- Every squash-merged or superseded candidate must survive a skeptic tasked with finding a commit that is *not* in the default branch. Refuted, unverified, missing a verdict, and lost-to-a-failed-agent all fall back to needs-review. `SAFE_TO_DELETE` is the one category that skips this: it rests on the survey's report of `git branch --merged`, and on `git branch -d` re-deriving the merge and refusing at execution time — which is why that category is pinned to `-d` and never `-D`
+- A `[gone]` remote is treated as a question, not an answer: the branch is investigated, and it only becomes a delete candidate once a specific PR or commit is named and that claim survives refutation
 - Blocks removal of worktrees with uncommitted changes
-- Never touches protected branches (main, master, develop, release/*)
-- Flags `[gone]` branches for review instead of auto-deleting
+- Never touches protected branches (main, master, develop, release/*) or the current branch — filtered by a regex in the script, not by instructions to a model
 
 ## Installation
 
@@ -33,24 +47,71 @@ Invoke with `/git-cleanup` when you have accumulated many local branches and wor
 claude plugins:add trailofbits/skills/git-cleanup
 ```
 
+## Layout
+
+| Path | Role |
+|------|------|
+| `commands/git-cleanup.md` | The `/git-cleanup` entry point: gates, confirmations, and the deletions |
+| `workflows/analyze-branches.js` | The dynamic workflow. Read-only — it never deletes |
+| `references/merge-evidence.md` | What counts as proof a branch is merged, read by the agents and the fallback path |
+| `tests/analyze-branches.test.mjs` | Stubs every agent and asserts the triage, clustering, and failure handling |
+
+The suite runs in CI and under `make check` via the `js-tests` target, which fails if it discovers no `*.test.mjs` files. To run just this one:
+
+```bash
+node plugins/git-cleanup/tests/analyze-branches.test.mjs
+```
+
 ## Example
 
 ```
 User: /git-cleanup
 
-Claude: [Analyzes branches and worktrees]
-        [Presents categorized tables]
-        "I found 5 branches safe to delete, 2 needing review.
-         Which would you like to clean up?"
+Claude: [Runs the workflow: survey, then investigates 4 ambiguous branches,
+         then refutes 3 delete candidates]
 
-User: "Delete the merged branches"
+        GATE 1 — analysis
 
-Claude: "I will delete these branches:
-         - feature/auth
-         - bugfix/login
-         Confirm? (yes/no)"
+        Safe to delete (merged, -d)
+        | fix/typo      | merged into main                                |
+
+        Safe to delete (squash-merged / superseded, -D)
+        | feature/auth  | PR #42, no unaccounted commits                  |
+        | feature/api   | PR #29, no unaccounted commits                  |
+
+        Needs review
+        | bugfix/login  | claimed PR #51, refuted: commit 9ab2c1e missing  |
+        | experiment/x  | remote gone, work not found in main             |
+
+        Keep
+        | wip/parser    | 5 unpushed commits                              |
+
+        Worktrees
+        | ../proj-auth  | feature/auth | STALE (merged)                   |
+
+        Which would you like to clean up?
+        [Delete all recommended] [Pick categories] [Pick individual branches]
+
+User: [Delete all recommended]
+
+Claude: GATE 2 — I will execute:
+
+        # Merged (safe delete)
+        git branch -d fix/typo
+
+        # Squash-merged and superseded (force delete)
+        git branch -D feature/auth
+        git branch -D feature/api
+
+        # Worktrees
+        git worktree remove ../proj-auth
+
+        Confirm? (yes/no)
 
 User: "yes"
 
-Claude: [Executes and reports results]
+Claude: Deleted fix/typo, feature/auth, feature/api, worktree ../proj-auth.
+        Kept wip/parser. bugfix/login and experiment/x still need review.
 ```
+
+Three things in that transcript are load-bearing: every delete candidate arrives with its evidence attached so you can audit it, `bugfix/login` was demoted because a skeptic found a commit its merge claim could not account for, and gate 2 lists exact commands with the flag each branch actually needs rather than a list of names.

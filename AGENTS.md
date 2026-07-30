@@ -228,7 +228,7 @@ make check
 ```
 
 That runs the validator self-test, ruff, shellcheck, shfmt, bats, the plugin
-Python suites, and the plugin validator.
+Python suites, the plugin `*.test.mjs` suites, and the plugin validator.
 
 It is most of CI, not all of it. Three things run only in CI, so a green `make check`
 is strong evidence and not a guarantee:

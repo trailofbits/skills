@@ -1,0 +1,245 @@
+---
+description: "Safely analyzes and cleans up local git branches and worktrees, categorizing them as merged, squash-merged, superseded, or active work before deleting anything."
+argument-hint: "[repo-path]"
+disable-model-invocation: true
+allowed-tools: Bash Read AskUserQuestion Workflow
+---
+
+# Git Cleanup
+
+Clean up accumulated git worktrees and local branches. A dynamic workflow gathers the evidence in parallel and tries to disprove its own delete recommendations; you keep the two safety gates and run the deletions yourself.
+
+Repository: `$ARGUMENTS` — when empty, use the current working directory.
+
+## Core Principle: SAFETY FIRST
+
+**Never delete anything without explicit user confirmation.**
+
+The split between the workflow and this session is the safety property, not an implementation detail:
+
+| Runs in the workflow (subagents) | Runs here (main session) |
+|----------------------------------|--------------------------|
+| Read-only inspection of git state | Both user gates |
+| Merge-evidence investigation | Every `git branch -d/-D` |
+| Refutation of delete candidates | Every `git worktree remove` |
+
+Workflow agents run in the background with no way to reach the user. Nothing destructive may move into the script — if it did, deletions would happen while the user was still being asked about them.
+
+## Phase 1: Run the Analysis Workflow
+
+Call the `Workflow` tool with `scriptPath` set to `${CLAUDE_PLUGIN_ROOT}/workflows/analyze-branches.js` and this as `args`:
+
+```json
+{ "repoPath": "<absolute path to the repo>", "pluginDir": "${CLAUDE_PLUGIN_ROOT}" }
+```
+
+This command being invoked is the opt-in that workflow needs.
+
+It runs three phases — survey, investigate, refute — and returns:
+
+| Field | Meaning |
+|-------|---------|
+| `deleteCandidates` | Recommended deletions. Each carries `evidence` and the exact `command` (`-d` or `-D`). |
+| `needsReview` | Remote gone, work not found in the default branch. Never recommend these. |
+| `keep` | Unpushed, local-only, or synced with a live remote. |
+| `worktrees` | Path, branch, `dirty`, `dirtyFiles`, and whether the branch is stale. |
+| `unanalyzed` | Branches no verdict came back for. **Must be shown to the user.** |
+
+**Exit criteria:** you hold a result object, or the workflow threw.
+
+If it throws with "survey returned zero local branches", the inventory failed — say so and stop. Do not report a clean repository.
+
+**Fallback.** If the `Workflow` tool is unavailable, do the same analysis inline: read [merge-evidence.md](../references/merge-evidence.md), gather the state below, and apply the decision table in [Phase 2](#phase-2-check-the-workflows-work). It is slower and the refutation pass is on you, but the categories and the gates are identical.
+
+```bash
+# `|| echo main` must hang off the whole substitution, not off the pipeline: the
+# pipeline's status is sed's, and sed succeeds on empty input, so a repo with no
+# origin/HEAD would otherwise leave default_branch empty and every command below
+# would silently operate on "".
+default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)
+default_branch="${default_branch#origin/}"
+default_branch="${default_branch:-main}"
+git fetch --prune
+git branch -vv                        # tracking info and [gone] markers
+git branch --merged "$default_branch"
+git worktree list --porcelain
+git log --oneline "$default_branch" | grep -iE "#[0-9]+" | head -40
+```
+
+## Phase 2: Check the Workflow's Work
+
+The workflow reports evidence so you can audit it, not so you can forward it unread. Before building the gate-1 table:
+
+1. **Every `deleteCandidate` names specific evidence** — a PR number, a commit sha, or a superseding branch. "Similar name", "looks stale", or an empty evidence string is not a delete recommendation. Move it to needs-review.
+2. **No protected branch appears anywhere.** The script filters `main|master|develop|release/*` and the current branch programmatically. If one surfaces regardless, drop it and say so.
+3. **`unanalyzed` is empty, or you list it.** A partial run must not read as a complete one.
+4. **Dirty worktrees are flagged**, whatever their branch's category.
+
+The categories, and what has to be true for each:
+
+| Category | Meaning | Delete Command |
+|----------|---------|----------------|
+| SAFE_TO_DELETE | Merged into default branch — git proved it | `git branch -d` |
+| SQUASH_MERGED | Work incorporated via squash merge, PR or commit named | `git branch -D` |
+| SUPERSEDED | Work verified in main via PR, or contained in a named newer branch | `git branch -D` |
+| REMOTE_GONE | Remote deleted, work NOT found in main | Review needed |
+| UNPUSHED_WORK | Has commits not pushed to remote | Keep |
+| LOCAL_WORK | Untracked branch with unique commits | Keep |
+| SYNCED_WITH_REMOTE | Up to date with a live remote | Keep |
+
+`git branch -d` will ALWAYS fail for a squash-merged branch, because git compares shas and the squash produced a new one. Plan `-D` from the start for SQUASH_MERGED and SUPERSEDED; never try `-d` first and then return to the user for a second confirmation.
+
+**Exit criteria:** every candidate has evidence you have read, and the review and keep lists are populated.
+
+## GATE 1: Present Complete Analysis
+
+Present everything in ONE view, related branches together:
+
+```markdown
+## Git Cleanup Analysis
+
+### Related Branch Group: feature/api-*
+| Branch | Status | Evidence |
+|--------|--------|----------|
+| feature/api | Superseded | Work merged in PR #29, no unaccounted commits |
+| feature/api-v2 | Superseded | Work merged in PR #45, no unaccounted commits |
+
+### Safe to Delete (merged, `-d`)
+| Branch | Merged Into |
+|--------|-------------|
+| fix/typo | main |
+
+### Safe to Delete (squash-merged, `-D`)
+| Branch | Merged As |
+|--------|-----------|
+| feature/login | PR #42 |
+
+### Needs Review (remote gone, work not found)
+| Branch | Last Commit | Why |
+|--------|-------------|-----|
+| experiment/old | abc1234 "WIP something" | 3 commits not found in main |
+
+### Keep (active work)
+| Branch | Status |
+|--------|--------|
+| wip/new-feature | 5 unpushed commits |
+
+### Worktrees
+| Path | Branch | Status |
+|------|--------|--------|
+| ../proj-auth | feature/auth | STALE (merged) |
+
+**Summary:** 2 superseded, 1 merged, 1 squash-merged, 1 needs review, 1 to keep.
+```
+
+Warn prominently and separately about any dirty worktree:
+
+```markdown
+WARNING: ../proj-auth has uncommitted changes:
+  M  src/auth.js
+  ?? new-file.txt
+
+These changes will be LOST if you remove this worktree.
+```
+
+Then use AskUserQuestion with options along the lines of:
+
+- Delete all recommended (groups + merged + squash-merged)
+- Delete specific groups or categories
+- Let me pick individual branches
+
+**Exit criteria:** the user answered. Do not proceed on silence, and do not treat "clean it up" as an answer to which branches.
+
+## GATE 2: Final Confirmation with Exact Commands
+
+Show the exact commands, with the flags you will actually use:
+
+```markdown
+I will execute:
+
+# Merged branches (safe delete)
+git branch -d 'fix/typo'
+
+# Squash-merged and superseded (force delete — work is in main via PRs)
+git branch -D 'feature/login'
+git branch -D 'feature/api'
+git branch -D 'feature/api-v2'
+
+# Worktrees
+git worktree remove '../proj-auth'
+
+Confirm? (yes/no)
+```
+
+This is the ONLY confirmation needed for deletion. Do not add a third gate because `-D` is involved — that was decided at gate 1.
+
+A worktree with uncommitted changes is refused here, not confirmed. Removing it requires the user to explicitly acknowledge the data loss for that specific worktree.
+
+**Exit criteria:** an explicit yes.
+
+## Phase 3: Execute and Report
+
+Run each deletion as a **separate** Bash command so one failure does not block the rest. Report each result; on failure, report the error and continue.
+
+**Single-quote every branch name and worktree path.** Git's refname rules forbid spaces but permit `$`, backticks, `;`, `|`, and `&`, so `$(id)` and `` `id` `` are legal branch names. These names arrive from the workflow's JSON and go straight into a shell: unquoted, `git branch -D $(id)` runs the substitution before git ever sees the argument. Single quotes, not double — `"$(id)"` still substitutes.
+
+```bash
+git branch -d 'fix/typo'
+git branch -D 'feature/login'
+git worktree remove '../proj-auth'
+```
+
+If a branch name itself contains a single quote, end the quoting around it: `'wip/it'\''s'`.
+
+Then report what happened:
+
+```markdown
+## Cleanup Complete
+
+### Deleted
+- fix/typo, feature/login
+- Worktree: ../proj-auth
+
+### Failed
+- feature/api — worktree ../api still checked out
+
+### Remaining
+| Branch | Status |
+|--------|--------|
+| main | current |
+| wip/new-feature | active work |
+| experiment/old | needs review |
+```
+
+**Exit criteria:** every command from gate 2 is accounted for as deleted or failed.
+
+## Safety Rules
+
+1. **Two confirmation gates only** — analysis review, then deletion confirmation
+2. **Deletions run here, never in the workflow** — subagents cannot ask the user anything
+3. **Use the right flag** — `-d` for merged, `-D` for squash-merged and superseded
+4. **Never touch protected branches** — main, master, develop, release/*, the repository's actual default branch whatever it is named, and the current branch (all filtered programmatically)
+5. **Single-quote every branch name and path** in a shell command — branch names may legally contain `$`, backticks, and `;`
+6. **Block dirty worktree removal** — refuse without explicit data-loss acknowledgment
+7. **Surface `unanalyzed`** — a partial analysis must never be presented as a complete one
+
+## Rationalizations to Reject
+
+| Rationalization | Why It's Wrong |
+|-----------------|----------------|
+| "The workflow said delete, so it's verified" | The workflow reports evidence for you to check. A verdict with no PR, sha, or superseding branch named is a guess wearing a category label. |
+| "The branch is old, it's probably safe to delete" | Age doesn't indicate merge status. Old branches may contain unmerged work. |
+| "I can recover from reflog if needed" | Reflog entries expire, and worktree removal takes uncommitted changes with it. Don't rely on it as a safety net. |
+| "It's just a local branch, nothing important" | Local branches may contain the only copy of work not pushed anywhere. |
+| "The PR was merged, so the branch is safe" | Squash merges don't preserve branch history. Verify the *specific* commits were incorporated. |
+| "I'll just delete all the `[gone]` branches" | `[gone]` only means the remote was deleted. The local branch may have unpushed commits. |
+| "The user seems to want everything deleted" | Always present analysis first. Let the user choose what to delete. |
+| "The branch has commits not in main, so it has unpushed work" | "Not in main" is not "not pushed". A branch can be synced with its remote but not merged to main. Check `git log origin/<branch>..<branch>`. |
+| "A few branches failed to analyze, the rest is the answer" | An unanalyzed branch is an unknown, and the user reads an unqualified list as complete. |
+
+## Reference Index
+
+| File | Content |
+|------|---------|
+| [analyze-branches.js](../workflows/analyze-branches.js) | The dynamic workflow: survey, investigate, refute. Read-only. |
+| [merge-evidence.md](../references/merge-evidence.md) | What counts as proof a branch is merged, and what doesn't |
