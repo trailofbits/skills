@@ -3,7 +3,6 @@
 
 # Plugin-specific owners (alphabetical)
 /plugins/agentic-actions-auditor/ @BuffaloWill @elopez @dguido
-/plugins/ask-questions-if-underspecified/ @kevin-valerio @dguido
 /plugins/audit-context-building/ @omarinuwa @dguido
 /plugins/building-secure-contracts/ @omarinuwa @dguido
 /plugins/burpsuite-project-parser/ @BuffaloWill @dguido
