@@ -148,6 +148,11 @@ jobs:
           # reason: an empty result is a failure, not a pass. These suites assert
           # that a branch-deleting workflow fails closed, so a discovery glob that
           # silently matches nothing is worse than having no suite at all.
+          #
+          # The second guard covers execution rather than discovery. `node <file>`
+          # exits 0 on a file that asserted nothing — the shape the Python job's
+          # comment above describes — so each suite must print a
+          # `<n> assertions passed` line with n > 0 to count as having run.
           set -uo pipefail
           mapfile -d '' suites < <(find plugins -type f -name '*.test.mjs' -print0)
           if [ "${#suites[@]}" -eq 0 ]; then
@@ -157,7 +162,10 @@ jobs:
           failed=0
           for s in "${suites[@]}"; do
             echo "::group::$s"
-            if ! node "$s"; then
+            if out=$(node "$s" 2>&1); then :; else failed=1; fi
+            echo "$out"
+            if ! grep -qE '^[1-9][0-9]* assertions passed$' <<<"$out"; then
+              echo "ERROR: $s reported no passing assertions — it ran nothing"
               failed=1
             fi
             echo "::endgroup::"

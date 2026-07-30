@@ -52,10 +52,10 @@ If it throws with "survey returned zero local branches", the inventory failed �
 **Fallback.** If the `Workflow` tool is unavailable, do the same analysis inline: read [merge-evidence.md](../references/merge-evidence.md), gather the state below, and apply the decision table in [Phase 2](#phase-2-check-the-workflows-work). It is slower and the refutation pass is on you, but the categories and the gates are identical.
 
 ```bash
-# `|| echo main` must hang off the whole substitution, not off the pipeline: the
-# pipeline's status is sed's, and sed succeeds on empty input, so a repo with no
-# origin/HEAD would otherwise leave default_branch empty and every command below
-# would silently operate on "".
+# Assign, then default with ${:-}. Do not fall back with `... | sed ... || echo main`:
+# a pipeline's status is the last command's, sed succeeds on empty input, so the ||
+# never fires and default_branch ends up empty — every command below then silently
+# operates on "".
 default_branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)
 default_branch="${default_branch#origin/}"
 default_branch="${default_branch:-main}"
@@ -154,19 +154,21 @@ Then use AskUserQuestion with options along the lines of:
 
 Show the exact commands, with the flags you will actually use:
 
+**Worktrees come first.** A branch that is checked out in a worktree cannot be deleted — git refuses with "used by worktree at …" — so removing the worktree has to precede deleting its branch, or the branch delete fails for exactly the case the analysis flagged. Each `deleteCandidate` carries `worktreePath`; order the commands from that.
+
 ```markdown
 I will execute:
+
+# Worktrees holding branches being deleted (must precede the branch delete)
+git worktree remove '../proj-auth'
 
 # Merged branches (safe delete)
 git branch -d 'fix/typo'
 
 # Squash-merged and superseded (force delete — work is in main via PRs)
+git branch -D 'feature/auth'
 git branch -D 'feature/login'
 git branch -D 'feature/api'
-git branch -D 'feature/api-v2'
-
-# Worktrees
-git worktree remove '../proj-auth'
 
 Confirm? (yes/no)
 ```
@@ -183,13 +185,17 @@ Run each deletion as a **separate** Bash command so one failure does not block t
 
 **Single-quote every branch name and worktree path.** Git's refname rules forbid spaces but permit `$`, backticks, `;`, `|`, and `&`, so `$(id)` and `` `id` `` are legal branch names. These names arrive from the workflow's JSON and go straight into a shell: unquoted, `git branch -D $(id)` runs the substitution before git ever sees the argument. Single quotes, not double — `"$(id)"` still substitutes.
 
+Keep the gate-2 order: every `git worktree remove` runs before the `git branch` delete for the branch that worktree holds.
+
 ```bash
-git branch -d 'fix/typo'
-git branch -D 'feature/login'
 git worktree remove '../proj-auth'
+git branch -d 'fix/typo'
+git branch -D 'feature/auth'
 ```
 
 If a branch name itself contains a single quote, end the quoting around it: `'wip/it'\''s'`.
+
+If a branch delete still fails with "used by worktree at …", the branch is checked out somewhere the analysis did not report. Report it and move on — do not remove that worktree without taking it back to the user, since it was never covered by the gate-2 confirmation.
 
 Then report what happened:
 

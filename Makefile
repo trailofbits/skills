@@ -97,8 +97,11 @@ python-tests:
 	exit $$failed
 
 ## js-tests: node suites a plugin ships as *.test.mjs
-# Same zero-discovery guard as python-tests: an empty glob here would report a pass
-# on a suite nothing runs, which is the failure this target was added to end.
+# Two guards, because discovery and execution fail independently. An empty glob is a
+# failure, as in python-tests. And `node <file>` runs a file that asserts nothing just
+# as happily as one that asserts everything — the same shape python-tests moved away
+# from — so each suite must also print a `<n> assertions passed` line, and n must be
+# greater than zero. A suite that stops running its own body stops emitting that line.
 js-tests:
 	@echo "→ js tests"
 	@files=$$(find plugins -type f -name '*.test.mjs' | sort); \
@@ -109,7 +112,12 @@ js-tests:
 	failed=0; ran=0; \
 	for f in $$files; do \
 		echo "  → $$f"; \
-		node "$$f" || failed=1; \
+		out=$$(node "$$f" 2>&1) || failed=1; \
+		echo "$$out"; \
+		if ! echo "$$out" | grep -qE '^[1-9][0-9]* assertions passed$$'; then \
+			echo "  ✗ $$f reported no passing assertions — it ran nothing"; \
+			failed=1; \
+		fi; \
 		ran=$$((ran + 1)); \
 	done; \
 	echo "  ran $$ran js suite(s)"; \
