@@ -179,18 +179,6 @@ Prescriptiveness should match task risk:
 - **Strict for fragile tasks** - Security audits, crypto implementations, compliance checks need rigid step-by-step enforcement
 - **Flexible for variable tasks** - Code exploration, documentation, refactoring can offer options and judgment calls
 
-### Required Sections
-
-Every SKILL.md must include:
-
-```markdown
-## When to Use
-[Specific scenarios where this skill applies]
-
-## When NOT to Use
-[Scenarios where another approach is better]
-```
-
 ### Security Skills
 
 For audit/security skills, also include:
