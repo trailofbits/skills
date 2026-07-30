@@ -6,6 +6,7 @@ These tests verify that the analyzer correctly detects timing side-channel
 vulnerabilities in compiled cryptographic code.
 """
 
+import json
 import os
 import platform
 import subprocess
@@ -1691,6 +1692,141 @@ class TestCommentBlanking(unittest.TestCase):
             [],
             "comment text must not produce findings",
         )
+
+
+# One extension per supported language, so the matrix test cannot drift from the
+# languages detect_language() actually recognises.
+EVERY_SUPPORTED_EXTENSION = (
+    ".c",
+    ".cpp",
+    ".go",
+    ".rs",
+    ".swift",
+    ".java",
+    ".kt",
+    ".cs",
+    ".php",
+    ".js",
+    ".ts",
+    ".py",
+    ".rb",
+)
+
+TRIAGE_TOOLCHAINS = {
+    "C": ["gcc"],
+    "C++": ["gcc"],
+    "Go": ["go"],
+    "Rust": ["rustc"],
+    "Swift": ["swiftc"],
+    "Java": ["javac", "javap"],
+    "Kotlin": ["kotlinc", "javap"],
+    "C#": ["dotnet", "ilspycmd"],
+    "PHP": ["php"],
+    "JavaScript": ["node"],
+    "TypeScript": ["node", "tsc"],
+    "Python": ["python3"],
+    "Ruby": ["ruby"],
+}
+
+
+class TestTriageMatrix(unittest.TestCase):
+    """Drives triage_samples/expectations.json — the (language, family) matrix.
+
+    Each case names a violation the analyzer must still report. Both members of
+    every true-positive/false-positive pair have to be reported, because the whole
+    premise of the skill's triage step is that the tool cannot tell them apart.
+    If a pair stops being reported, the guidance that sends reviewers to these
+    fixtures is describing behaviour that no longer exists.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.samples = Path(__file__).parent / "triage_samples"
+        with open(cls.samples / "expectations.json", encoding="utf-8") as handle:
+            cls.manifest = json.load(handle)
+        cls.fixtures = cls.manifest["fixtures"]
+
+    def test_every_supported_language_has_a_fixture(self):
+        """Runs with no toolchain, so the matrix itself is guarded everywhere."""
+        languages = {entry["language"] for entry in self.fixtures.values()}
+        supported = {detect_language(f"x{ext}") for ext in EVERY_SUPPORTED_EXTENSION}
+        self.assertEqual(len(languages), len(supported), f"languages={sorted(languages)}")
+        self.assertEqual(len(self.fixtures), 13)
+
+    def test_every_fixture_pairs_a_true_and_false_positive(self):
+        for name, entry in self.fixtures.items():
+            with self.subTest(fixture=name):
+                verdicts = [case["verdict"] for case in entry["cases"]]
+                self.assertIn("true-positive", verdicts, "a fixture with no true positive")
+                self.assertIn("false-positive", verdicts, "a fixture with no false positive")
+
+    def test_every_locator_resolves_in_its_fixture(self):
+        """A renamed function or edited line silently voids a case; catch it here."""
+        for name, entry in self.fixtures.items():
+            source = (self.samples / name).read_text(encoding="utf-8")
+            for case in entry["cases"]:
+                locator = case["locator"]
+                if locator["kind"] != "line-of":
+                    continue
+                with self.subTest(fixture=name, locator=locator["value"]):
+                    self.assertEqual(
+                        source.count(locator["value"]),
+                        1,
+                        f"{locator['value']!r} must appear exactly once in {name}",
+                    )
+
+    def test_no_fixture_carries_its_verdict_in_a_comment(self):
+        """These double as eval input; a labelled answer is not an answer."""
+        for name in self.fixtures:
+            source = (self.samples / name).read_text(encoding="utf-8").lower()
+            with self.subTest(fixture=name):
+                for leak in ("true-positive", "false-positive", "true positive", "false positive"):
+                    self.assertNotIn(leak, source, f"{name} leaks its verdict")
+
+    def test_analyzer_still_reports_every_case(self):
+        exercised, skipped = [], []
+
+        for name, entry in self.fixtures.items():
+            language = entry["language"]
+            if not _have(*TRIAGE_TOOLCHAINS[language]):
+                skipped.append(language)
+                continue
+            exercised.append(language)
+            source = (self.samples / name).read_text(encoding="utf-8")
+            config = entry.get("config", {})
+
+            for case in entry["cases"]:
+                kwargs = dict(config.get(case["family"], {}))
+                with self.subTest(fixture=name, family=case["family"], verdict=case["verdict"]):
+                    report = analyze_source(str(self.samples / name), **kwargs)
+                    wanted = Severity(case["severity"])
+                    locator = case["locator"]
+                    if locator["kind"] == "function":
+                        found = [
+                            v
+                            for v in report.violations
+                            if v.severity == wanted and v.function == locator["value"]
+                        ]
+                    else:
+                        line = source[: source.index(locator["value"])].count("\n") + 1
+                        found = [
+                            v for v in report.violations if v.severity == wanted and v.line == line
+                        ]
+                    reported = {
+                        (v.severity.value, v.mnemonic, v.function, v.line)
+                        for v in report.violations
+                    }
+                    self.assertTrue(
+                        found,
+                        f"{name}: no {case['severity']} for {locator} "
+                        f"({case['family']}, {case['verdict']}); "
+                        f"reported {sorted(reported)}",
+                    )
+
+        # A matrix that exercised nothing must fail rather than report success.
+        self.assertTrue(exercised, f"no triage fixture ran; missing toolchains for {skipped}")
+        if skipped:
+            print(f"\nTriageMatrix: exercised {sorted(exercised)}; skipped {sorted(skipped)}")
 
 
 class TestPythonBytecodeEndToEnd(unittest.TestCase):
