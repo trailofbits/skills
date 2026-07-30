@@ -3,7 +3,7 @@ export const meta = {
   description:
     'Read-only triage of local git branches and worktrees: survey state, investigate ambiguous branches, then try to refute every delete candidate.',
   whenToUse:
-    'Invoked by the git-cleanup skill before its first safety gate. Analysis only — it never deletes a branch or removes a worktree.',
+    'Invoked by the /git-cleanup command before its first safety gate. Analysis only — it never deletes a branch or removes a worktree.',
   phases: [
     { title: 'Survey', detail: 'one agent inventories branches, worktrees, and merge history' },
     { title: 'Investigate', detail: 'batched agents hunt merge evidence for the ambiguous branches' },
@@ -25,16 +25,37 @@ const DELETE_CATEGORIES = new Set(['SAFE_TO_DELETE', 'SQUASH_MERGED', 'SUPERSEDE
 const MIN_UNITS_PER_BATCH = 3
 const MAX_INVESTIGATORS = 5
 
+// Clustering is transitive on a two-segment match, so a bot convention collapses without
+// limit: 150 dependabot/npm_and_yarn/* branches all share two segments and form ONE
+// cluster. Unit count would then be 1, MAX_INVESTIGATORS would provide no relief, and a
+// single agent would be handed all 150 branches in one prompt. Past this size the
+// supersession-visibility argument for keeping a cluster whole has run out anyway.
+const MAX_BRANCHES_PER_UNIT = 10
+
 const repoPath = (args && args.repoPath) || '.'
 const pluginDir = (args && args.pluginDir) || ''
 
-const evidenceRef = pluginDir
-  ? `Read ${pluginDir}/references/merge-evidence.md first — it defines the evidence standard for every category, and the commands that produce that evidence.`
-  : 'Evidence standard: a branch counts as merged only when you can name the commit or PR in the default branch that carries its work.'
+// The inline standard is unconditional. `pluginDir` is substituted by the calling model,
+// so it can arrive wrong rather than merely empty — an unexpanded `${CLAUDE_PLUGIN_ROOT}`
+// reads as non-empty, the Read fails, and the agent would otherwise proceed with no
+// evidence standard at all. A failed Read must cost detail, never the whole standard.
+const evidenceRef = [
+  'Evidence standard: a branch counts as merged only when you can NAME the commit, the PR,',
+  'or the superseding branch that carries its work. A shared name prefix, the branch being',
+  'old, and a `[gone]` upstream are all non-evidence.',
+  pluginDir
+    ? `The full standard, with the commands that produce each kind of evidence, is in ${pluginDir}/references/merge-evidence.md — read it. If that path does not resolve, say so in your evidence field and apply the standard above.`
+    : '',
+]
+  .filter(Boolean)
+  .join('\n')
 
 const READ_ONLY = [
   'HARD CONSTRAINT: you are read-only. Run only git commands that inspect state',
-  '(log, branch --list, rev-list, show, status, merge-base, cherry, worktree list).',
+  '(log, branch --list, rev-list, show, status, merge-base, cherry, worktree list),',
+  'plus `fetch --prune`, which is permitted and required: it only updates',
+  'remote-tracking refs to match the server, and without it a branch whose remote was',
+  'deleted still looks live, so squash-merged work is misread as active.',
   'Never run branch -d/-D, worktree remove, push, reset, checkout, rebase, or gc.',
   'A deletion decision belongs to the user, who has not been asked yet.',
 ].join(' ')
@@ -67,7 +88,11 @@ const SURVEY_SCHEMA = {
           remoteGone: { type: 'boolean', description: 'git branch -vv marks it [gone]' },
           unpushedCommits: {
             type: 'integer',
-            description: 'count of git log <upstream>..<branch>; -1 when untracked',
+            description:
+              'count of git log <upstream>..<branch>. Use -1 when the branch has no upstream ' +
+              'configured. Use -1 ALSO when the upstream is configured but gone from the ' +
+              'remote, since that ref cannot be compared against — do not report 0, which ' +
+              'would assert the branch holds nothing unpushed when you did not measure it.',
           },
           uniqueCommits: { type: 'integer', description: 'count of git log <default>..<branch>' },
           lastCommit: { type: 'string', description: 'short sha and subject' },
@@ -91,7 +116,9 @@ const SURVEY_SCHEMA = {
     },
     mergeLog: {
       type: 'array',
-      description: 'recent default-branch subjects carrying a PR number, newest first',
+      description:
+        'recent default-branch subjects carrying a PR number, newest first, capped at 40 — ' +
+        'consumers must treat this as a window, not the full history',
       items: { type: 'string' },
     },
   },
@@ -141,7 +168,10 @@ const REFUTE_SCHEMA = {
           branch: { type: 'string' },
           refuted: {
             type: 'boolean',
-            description: 'true when the branch still holds work you cannot find in the default branch',
+            description:
+              'true when the branch still holds work you cannot account for against the target ' +
+              'the claim named — the default branch for a PR or commit claim, the superseding ' +
+              'branch for a supersession claim',
           },
           reason: { type: 'string', description: 'the commit you could not account for, or why the claim holds' },
         },
@@ -159,7 +189,7 @@ const survey = await agent(
     `Inventory the local git state of the repository at ${repoPath}. ${READ_ONLY}`,
     '',
     'Run, in order:',
-    '  git -C REPO fetch --prune            # sync remote-deleted state (network only, no writes to refs you own)',
+    '  git -C REPO fetch --prune            # required — see the allowance in the constraint above',
     '  git -C REPO symbolic-ref refs/remotes/origin/HEAD   # default branch; fall back to main',
     '  git -C REPO branch -vv               # tracking info, [gone] markers',
     '  git -C REPO branch --merged DEFAULT  # branches git can already prove are merged',
@@ -280,12 +310,22 @@ if (ambiguous.length === 0) {
 // would ask the agent to name the superseding branch while hiding it. They are shown to
 // the agent but no verdict is accepted for them.
 const pending = new Set(ambiguous.map((b) => b.name))
-const units = clusters
-  .map((c) => ({
-    decide: c.filter((b) => pending.has(b.name)),
-    context: c.filter((b) => !pending.has(b.name)),
-  }))
-  .filter((u) => u.decide.length > 0)
+const units = clusters.flatMap((c) => {
+  const decide = c.filter((b) => pending.has(b.name))
+  const context = c.filter((b) => !pending.has(b.name))
+  if (decide.length === 0) return []
+  // Split an oversized cluster rather than hand one agent an unbounded prompt. Each
+  // slice keeps the full context list, so the superseding sibling stays visible to
+  // every slice even though the branches to decide are divided.
+  const slices = []
+  for (let i = 0; i < decide.length; i += MAX_BRANCHES_PER_UNIT) {
+    slices.push({ decide: decide.slice(i, i + MAX_BRANCHES_PER_UNIT), context })
+  }
+  if (slices.length > 1) {
+    log(`cluster of ${decide.length} branches split across ${slices.length} units`)
+  }
+  return slices
+})
 
 const batchCount = Math.min(MAX_INVESTIGATORS, Math.max(1, Math.ceil(units.length / MIN_UNITS_PER_BATCH)))
 const sized = Array.from({ length: batchCount }, () => [])
@@ -349,10 +389,18 @@ const results = await pipeline(
         '',
         evidenceRef,
         '',
-        'Each claim says a branch can be deleted because its work is already in',
-        `${survey.defaultBranch}. Your job is to find the counterexample: a commit on the branch`,
-        'whose content you cannot locate in the default branch. `git cherry -v` and',
-        '`git log --cherry-pick --right-only` find work that survived a squash or rebase.',
+        'Each claim says a branch can be deleted because its work already lives somewhere',
+        'else. Your job is to find the counterexample: a commit on the branch whose content',
+        'you cannot account for. `git cherry -v` and `git log --cherry-pick --right-only`',
+        'find work that survived a squash or rebase.',
+        '',
+        '**Test each claim against what it actually asserts, not against a fixed target.**',
+        `A claim citing a PR or commit means the work should be in ${survey.defaultBranch}.`,
+        'A claim citing a superseding BRANCH means the work should be in THAT branch —',
+        'check `git cherry -v "<that branch>" "<the branch under test>"`, not the default',
+        'branch. Refuting a supersession claim because the work is absent from',
+        `${survey.defaultBranch} tests something the claim never said; the superseding branch`,
+        'is frequently unmerged, and that is not a counterexample.',
         '',
         ...candidates.map((v) => `  - ${v.branch}: claimed ${v.category} because "${v.evidence}"`),
         '',

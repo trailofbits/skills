@@ -84,11 +84,15 @@ const survey = {
   ],
 }
 
+// Bump when you add an assertion. The check at the bottom is what makes a suite that
+// silently stopped running most of itself fail instead of reporting a pass.
 const EXPECTED_ASSERTIONS = 37
 let ran = 0
+let failures = 0
 
 const assert = (label, cond, extra = '') => {
   ran++
+  if (!cond) failures++
   console.log(`${cond ? 'PASS' : 'FAIL'}  ${label}${cond ? '' : '  <<< ' + extra}`)
   if (!cond) process.exitCode = 1
 }
@@ -435,10 +439,17 @@ const assert = (label, cond, extra = '') => {
   )
 }
 
-// A checker that checks nothing must fail, not pass.
+// A checker that checks nothing must fail, not pass — and a run with failures must never
+// sign off with a line that reads like a pass, since the summary is the last thing visible
+// in a collapsed CI group.
 if (ran !== EXPECTED_ASSERTIONS) {
-  console.log(`FAIL  ran ${ran} assertions, expected ${EXPECTED_ASSERTIONS}`)
+  console.log(`\nFAIL  ran ${ran} assertions, expected ${EXPECTED_ASSERTIONS}`)
+  process.exitCode = 1
+} else if (failures > 0) {
+  console.log(`\nFAIL  ${failures} of ${ran} assertions failed`)
   process.exitCode = 1
 } else {
+  // The js-tests runner greps for this line: a suite that exits 0 having run nothing
+  // would otherwise be indistinguishable from a pass.
   console.log(`\n${ran} assertions passed`)
 }

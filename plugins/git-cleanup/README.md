@@ -36,7 +36,7 @@ Invoke with `/git-cleanup` when you have accumulated many local branches and wor
 
 - Two confirmation gates (analysis review, then deletion confirmation), both in the main session
 - Safe delete (`git branch -d`) for branches git itself reports as merged; force delete (`git branch -D`) only for squash-merged and superseded branches, where git compares shas and cannot see that a squash carried the work across
-- Every squash-merged or superseded candidate must survive a skeptic tasked with finding a commit that is *not* in the default branch. Refuted, unverified, missing a verdict, and lost-to-a-failed-agent all fall back to needs-review. `SAFE_TO_DELETE` is the one category that skips this: it rests on the survey's report of `git branch --merged`, and on `git branch -d` re-deriving the merge and refusing at execution time — which is why that category is pinned to `-d` and never `-D`
+- Every squash-merged or superseded candidate must survive a skeptic tasked with finding a commit the claim cannot account for — tested against whatever the claim named, the default branch for a PR or commit and the superseding branch for a supersession. Refuted, unverified, missing a verdict, and lost-to-a-failed-agent all fall back to needs-review. `SAFE_TO_DELETE` is the one category that skips this: it rests on the survey's report of `git branch --merged`, and on `git branch -d` re-deriving the merge and refusing at execution time — which is why that category is pinned to `-d` and never `-D`
 - A `[gone]` remote is treated as a question, not an answer: the branch is investigated, and it only becomes a delete candidate once a specific PR or commit is named and that claim survives refutation
 - Blocks removal of worktrees with uncommitted changes
 - Never touches protected branches (main, master, develop, release/*) or the current branch — filtered by a regex in the script, not by instructions to a model
@@ -96,15 +96,15 @@ User: [Delete all recommended]
 
 Claude: GATE 2 — I will execute:
 
+        # Worktrees holding branches being deleted (must come first)
+        git worktree remove '../proj-auth'
+
         # Merged (safe delete)
-        git branch -d fix/typo
+        git branch -d 'fix/typo'
 
         # Squash-merged and superseded (force delete)
-        git branch -D feature/auth
-        git branch -D feature/api
-
-        # Worktrees
-        git worktree remove ../proj-auth
+        git branch -D 'feature/auth'
+        git branch -D 'feature/api'
 
         Confirm? (yes/no)
 
