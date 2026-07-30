@@ -133,3 +133,32 @@ jobs:
           done
           echo "Ran ${#dirs[@]} test directory/ies"
           exit "$failed"
+
+  js-tests:
+    name: JS tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Discover and run plugin JS test suites
+        shell: bash
+        run: |
+          # Same shape as the Python and shell discovery above, and for the same
+          # reason: an empty result is a failure, not a pass. These suites assert
+          # that a branch-deleting workflow fails closed, so a discovery glob that
+          # silently matches nothing is worse than having no suite at all.
+          set -uo pipefail
+          mapfile -d '' suites < <(find plugins -type f -name '*.test.mjs' -print0)
+          if [ "${#suites[@]}" -eq 0 ]; then
+            echo "ERROR: no .test.mjs suites found — discovery is broken"
+            exit 1
+          fi
+          failed=0
+          for s in "${suites[@]}"; do
+            echo "::group::$s"
+            if ! node "$s"; then
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          echo "Ran ${#suites[@]} JS suite(s)"
+          exit "$failed"
