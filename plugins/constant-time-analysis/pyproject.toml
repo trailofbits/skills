@@ -40,6 +40,12 @@ Homepage = "https://github.com/trailofbits/skills"
 Documentation = "https://github.com/trailofbits/skills/tree/main/plugins/constant-time-analysis#readme"
 Repository = "https://github.com/trailofbits/skills.git"
 
+[tool.ty.environment]
+# The tests run as scripts and reach the modules via `sys.path.insert`, importing
+# `analyzer` rather than `ct_analyzer.analyzer`. Without this, ty reports every one
+# of those imports as unresolved, which buries the diagnostics that matter.
+extra-paths = ["ct_analyzer"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["ct_analyzer"]
 

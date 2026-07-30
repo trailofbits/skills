@@ -5,7 +5,7 @@ A tool for detecting timing side-channel vulnerabilities in compiled
 cryptographic code by analyzing assembly output for variable-time instructions.
 """
 
-from .analyzer import (
+from .analyzer import (  # ty: ignore[unresolved-import]
     DANGEROUS_INSTRUCTIONS,
     AnalysisReport,
     AssemblyParser,

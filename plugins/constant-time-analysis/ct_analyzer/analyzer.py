@@ -39,6 +39,7 @@ import tempfile
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import TypedDict
 
 
 class Severity(Enum):
@@ -50,6 +51,18 @@ class OutputFormat(Enum):
     TEXT = "text"
     JSON = "json"
     GITHUB = "github"
+
+
+class ParsedFunction(TypedDict):
+    """A function or method seen while parsing, with its instruction count.
+
+    Previously a bare `dict`, which typed the values as `str | int` and made the
+    `functions[-1]["instructions"] += 1` counter in every parser look like string
+    addition to a type checker.
+    """
+
+    name: str
+    instructions: int
 
 
 @dataclass
@@ -444,7 +457,7 @@ class Compiler:
         output_file: str,
         arch: str,
         optimization: str,
-        extra_flags: list[str] = None,
+        extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         """Compile source to assembly. Returns (success, error_message)."""
         raise NotImplementedError
@@ -484,7 +497,7 @@ class GCCCompiler(Compiler):
         output_file: str,
         arch: str,
         optimization: str,
-        extra_flags: list[str] = None,
+        extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
         arch_flags = self.ARCH_FLAGS.get(arch, [])
@@ -533,7 +546,7 @@ class ClangCompiler(Compiler):
         output_file: str,
         arch: str,
         optimization: str,
-        extra_flags: list[str] = None,
+        extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
         target = self.ARCH_TARGETS.get(arch)
@@ -592,7 +605,7 @@ class GoCompiler(Compiler):
         output_file: str,
         arch: str,
         optimization: str,
-        extra_flags: list[str] = None,
+        extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
         goarch = self.ARCH_MAP.get(arch, arch)
@@ -662,7 +675,7 @@ class RustCompiler(Compiler):
         output_file: str,
         arch: str,
         optimization: str,
-        extra_flags: list[str] = None,
+        extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
         target = self.ARCH_TARGETS.get(arch)
@@ -718,7 +731,7 @@ class SwiftCompiler(Compiler):
         output_file: str,
         arch: str,
         optimization: str,
-        extra_flags: list[str] = None,
+        extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
         target = self.ARCH_TARGETS.get(arch)
@@ -752,8 +765,12 @@ class SwiftCompiler(Compiler):
             return False, f"Swift compiler not found: {self.path}"
 
 
-def get_compiler(name: str, language: str) -> Compiler:
-    """Get a compiler instance by name or detect from language."""
+def get_compiler(name: str | None, language: str) -> Compiler:
+    """Get a compiler instance by name, or detect one from the language.
+
+    `name` is optional: callers pass the `--compiler` value through unchanged, and
+    the auto-detection below is what runs when it was not supplied.
+    """
     compilers = {
         "gcc": GCCCompiler,
         "clang": ClangCompiler,
@@ -804,12 +821,12 @@ class AssemblyParser:
 
     def parse(
         self, assembly_text: str, include_warnings: bool = False
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse assembly text and detect violations.
         Returns (functions, violations).
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_function = None
@@ -931,12 +948,12 @@ class AssemblyParser:
 
 def analyze_source(
     source_file: str,
-    arch: str = None,
-    compiler: str = None,
+    arch: str | None = None,
+    compiler: str | None = None,
     optimization: str = "O2",
     include_warnings: bool = False,
-    function_filter: str = None,
-    extra_flags: list[str] = None,
+    function_filter: str | None = None,
+    extra_flags: list[str] | None = None,
 ) -> AnalysisReport:
     """
     Analyze a source file for constant-time violations.
@@ -962,7 +979,7 @@ def analyze_source(
     # Route scripting/bytecode languages to specialized analyzers
     if is_bytecode_language(language):
         try:
-            from .script_analyzers import get_script_analyzer
+            from .script_analyzers import get_script_analyzer  # ty: ignore[unresolved-import]
         except ImportError:
             from script_analyzers import get_script_analyzer
 
@@ -1047,7 +1064,7 @@ def analyze_assembly(
     assembly_file: str,
     arch: str,
     include_warnings: bool = False,
-    function_filter: str = None,
+    function_filter: str | None = None,
 ) -> AnalysisReport:
     """
     Analyze pre-compiled assembly for constant-time violations.

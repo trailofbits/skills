@@ -18,11 +18,20 @@ import xml.sax.saxutils as _saxutils
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-# Import shared types from main analyzer
+# Import shared types from the main analyzer. Both spellings are needed because
+# analyzer.py is documented to run as a script (`uv run .../analyzer.py`) as well as
+# import as a package. ty resolves the top-level spelling via `tool.ty.environment
+# extra-paths`, so the package-relative branch is unresolvable for it by
+# construction; the ignore covers that branch only.
 try:
-    from .analyzer import AnalysisReport, Severity, Violation
+    from .analyzer import (  # ty: ignore[unresolved-import]
+        AnalysisReport,
+        ParsedFunction,
+        Severity,
+        Violation,
+    )
 except ImportError:
-    from analyzer import AnalysisReport, Severity, Violation
+    from analyzer import AnalysisReport, ParsedFunction, Severity, Violation
 
 
 # =============================================================================
@@ -637,7 +646,7 @@ class PHPAnalyzer(ScriptAnalyzer):
         output: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse VLD output for dangerous opcodes and function calls.
 
@@ -654,7 +663,7 @@ class PHPAnalyzer(ScriptAnalyzer):
            6     1        ASSIGN                                                   !1, 3
            7     2        DIV                                              ~4      !0, !1
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_function = None
@@ -800,7 +809,7 @@ class PHPAnalyzer(ScriptAnalyzer):
         output: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse OPcache debug output for dangerous opcodes.
 
@@ -980,7 +989,7 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
         source_file: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse V8 bytecode output for dangerous operations.
 
@@ -998,7 +1007,7 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
                 8 : Div r1
                10 : Return
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_function = None
@@ -1372,7 +1381,7 @@ class PythonAnalyzer(ScriptAnalyzer):
         source_file: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse Python dis output for dangerous bytecodes.
 
@@ -1393,7 +1402,7 @@ class PythonAnalyzer(ScriptAnalyzer):
                       6 BINARY_OP               11 (/)
                       8 STORE_FAST               2 (result)
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_function = None
@@ -1652,7 +1661,7 @@ class RubyAnalyzer(ScriptAnalyzer):
         source_file: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse Ruby YARV instruction sequence output.
 
@@ -1671,7 +1680,7 @@ class RubyAnalyzer(ScriptAnalyzer):
         0004 opt_div                                <calldata!mid:/, argc:1, ARGS_SIMPLE>
         0006 leave
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_function = None
@@ -1940,7 +1949,7 @@ class JavaAnalyzer(ScriptAnalyzer):
         source_file: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse javap bytecode output for dangerous operations.
 
@@ -1955,7 +1964,7 @@ class JavaAnalyzer(ScriptAnalyzer):
             LineNumberTable:
               line 5: 0
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_method = None
@@ -2173,7 +2182,7 @@ class JavaAnalyzer(ScriptAnalyzer):
             if not class_files:
                 raise RuntimeError("No class files generated from compilation")
 
-            all_functions = []
+            all_functions: list[ParsedFunction] = []
             all_violations = []
 
             # Analyze each class file
@@ -2293,9 +2302,9 @@ class KotlinAnalyzer(ScriptAnalyzer):
         source_file: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """Parse javap bytecode output for dangerous operations (same as Java)."""
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_method = None
@@ -2521,7 +2530,7 @@ class KotlinAnalyzer(ScriptAnalyzer):
             if not class_files:
                 raise RuntimeError("No class files generated from compilation")
 
-            all_functions = []
+            all_functions: list[ParsedFunction] = []
             all_violations = []
 
             # Analyze each class file
@@ -2715,7 +2724,7 @@ class CSharpAnalyzer(ScriptAnalyzer):
         source_file: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse CIL/IL output for dangerous operations.
 
@@ -2733,7 +2742,7 @@ class CSharpAnalyzer(ScriptAnalyzer):
           IL_0003: ret
         }
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_method = None
