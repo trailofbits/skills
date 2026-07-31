@@ -376,8 +376,11 @@ Find the code responsible for this requirement and read it. Read the functions i
 when the value came back from a function whose name implies a check, and the check turns out to sit on a branch
 this path does not take. Where a requirement is enforced across several functions, follow it across them.
 
-Write the full analysis to ${outDir}/requirements/${String(index + 1).padStart(2, '0')}-${slug(requirement.id)}.md
-using the Write tool, then return the record.
+Write the analysis to ${outDir}/requirements/${String(index + 1).padStart(2, '0')}-${slug(requirement.id)}.md
+using the Write tool, in the format your instructions define, then return the record.
+
+Check DOMAIN_NOTES before concluding an absence — what counts as enforcement, and where it hides, differs by
+target, and the places worth searching are listed there per domain.
 
 Choosing a verdict:
 - 'implemented' means you found the enforcement and read it. Not that you found a function with a promising name.

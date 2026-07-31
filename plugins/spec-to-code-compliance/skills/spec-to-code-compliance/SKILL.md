@@ -93,3 +93,21 @@ documentation drift with no behavioral consequence is a docs ticket.
 The verdict is not the finding. `absent` on a mandatory requirement is a finding; `absent` on a sentence
 describing a roadmap item is not. Deciding which is which is what this skill is for, and the workflow hands you
 the evidence to decide it with.
+
+## The target does not have to be a contract
+
+The question is the same everywhere — what does this requirement demand, where would it be enforced, is it
+enforced on every path — but what counts as a specification and where enforcement hides both change.
+[DOMAIN_NOTES.md](resources/DOMAIN_NOTES.md) maps that across contracts, C and C++, services, and decompiled
+firmware, and covers the case where the specification is an RFC or a standard rather than a project document.
+Read it when the target is not a contract, and when scoping a check against a large standard.
+
+## Reference
+
+- [ANALYSIS_FORMAT.md](resources/ANALYSIS_FORMAT.md) — the on-disk format for a per-requirement analysis. Read
+  when extending this plugin or judging whether a record is trustworthy.
+- [WORKED_EXAMPLE.md](resources/WORKED_EXAMPLE.md) — three requirements chased to a verdict, one per verdict
+  that is easy to get wrong: arithmetic that satisfies a requirement it does not resemble, an absence whose
+  searches are the finding, and enforcement present on every path but the one nobody tested.
+- [DOMAIN_NOTES.md](resources/DOMAIN_NOTES.md) — per-domain mapping of specifications and enforcement.
+- [DIVERGENCE_RUBRIC.md](resources/DIVERGENCE_RUBRIC.md) — severity, and the two directions of a gap.

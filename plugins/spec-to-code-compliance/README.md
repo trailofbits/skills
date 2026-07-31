@@ -54,7 +54,24 @@ name reads exactly like one resting on having read the function.
 
 - `workflows/spec-compliance.js` — the orchestration
 - `agents/spec-compliance-checker.md` — the per-requirement worker; dispatch it directly for a single requirement
-- `skills/spec-to-code-compliance/resources/DIVERGENCE_RUBRIC.md` — severity, and the two directions of a gap
+- `resources/ANALYSIS_FORMAT.md` — the on-disk format for a per-requirement analysis
+- `resources/DOMAIN_NOTES.md` — what counts as a specification and where enforcement hides, across contracts,
+  C and C++, services, and firmware, plus scoping a check against an RFC or standard
+- `resources/WORKED_EXAMPLE.md` — three requirements chased to a verdict, for calibration
+- `resources/DIVERGENCE_RUBRIC.md` — severity, and the two directions of a gap
+
+Resources live under `skills/spec-to-code-compliance/`.
+
+## Migrating from 1.x
+
+`/trailofbits:spec-compliance <spec> <codebase>` is removed. The entry point is
+`/spec-to-code-compliance:spec-compliance <path>`, and the arguments inverted: the path comes first and the
+specification is discovered rather than named. Pass `{path, spec}` when you want to point at it directly.
+
+PDF whitepapers work. DOCX and Notion exports do not — 1.x claimed to normalize them and had no converter; the
+discovery step now names an unreadable document instead of guessing at its contents.
+
+The report is no longer a fixed 16 sections. Sections with nothing in them are left out rather than filled.
 
 ## Related
 

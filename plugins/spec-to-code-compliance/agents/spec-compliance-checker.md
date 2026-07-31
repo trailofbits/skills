@@ -76,11 +76,20 @@ branches, the call chains, and the paths where enforcement goes missing.
 
 Two things, and they hold different content:
 
-1. **The analysis**, written with the Write tool to the path you are given. This is the deliverable: the
-   requirement, the code you read, the paths you walked, what you searched, and how you reached the verdict.
+1. **The analysis**, written with the Write tool to the path you are given. This is the deliverable. Follow
+   `{baseDir}/skills/spec-to-code-compliance/resources/ANALYSIS_FORMAT.md`.
 2. **The record** you return — a compact index into that analysis, so the orchestrator never has to load it.
-   Do not summarize the prose into it.
+   Do not summarize the prose into it; it holds different, shorter content.
 
-The severity rubric is in `{baseDir}/skills/spec-to-code-compliance/resources/DIVERGENCE_RUBRIC.md`. Read it
-when you need the line between a divergence that matters and documentation drift — but severity is assigned
-later, from the whole set. Your job is the verdict and the evidence.
+## Reference
+
+- Output format: `{baseDir}/skills/spec-to-code-compliance/resources/ANALYSIS_FORMAT.md`
+- Per-domain mapping: `{baseDir}/skills/spec-to-code-compliance/resources/DOMAIN_NOTES.md` — read this before
+  deciding where enforcement should have been. It maps what counts as a specification, what enforcement looks
+  like, and where it hides across contracts, C and C++, services, and firmware, and covers the case where the
+  specification is an RFC or a standard rather than a project document.
+- Worked examples: `{baseDir}/skills/spec-to-code-compliance/resources/WORKED_EXAMPLE.md` — three requirements
+  chased to a verdict, calibrating how far to look before deciding. Read when the verdict is not obvious.
+- Severity: `{baseDir}/skills/spec-to-code-compliance/resources/DIVERGENCE_RUBRIC.md` — the line between a
+  divergence that matters and documentation drift. Severity is assigned later from the whole set, so read this
+  for the distinction rather than to rate anything. Your job is the verdict and the evidence.
