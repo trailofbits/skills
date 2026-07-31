@@ -22,21 +22,21 @@ nothing checks it, record that plainly and move on — whether it matters is dec
 
 Not worth the tokens on code you already understand.
 
-## Hand the reading off; do not do it here
+## Do not analyze in this context
 
-A proper write-up is long, and this conversation needs the room to use it. So pass the work to something else:
+The analysis is long, and this context needs to survive to use it. Dispatch it:
 
-- **A codebase, or more than one function** — run `/audit-context-building:audit-context <path>`. It gets
-  oriented, reads each function in its own helper, and saves `audit-context/DOSSIER.md` plus one file per
-  function under `audit-context/functions/`. Only short records come back here.
-- **A single function** — hand it to the `audit-context-building:function-analyzer` helper. It saves its
-  notes to a file and returns a record.
+- **A codebase, or more than one function** — run `/audit-context-building:audit-context <path>`. It orients,
+  analyzes each function in its own subagent, and writes `audit-context/DOSSIER.md` plus one file per
+  function under `audit-context/functions/`. Only compact records return here.
+- **A single function** — dispatch the `audit-context-building:function-analyzer` agent at it. It writes its
+  prose to disk and returns a record.
 
-Then work from what comes back: the summary, the unchecked assumptions, the open questions. Open a function's
-file when you need the detail.
+Then work from what comes back: the index, the unenforced assumptions, the open questions. Read a function's
+file when you need its detail.
 
-The workflow is what makes this stick, not these words — a helper that can only fill in fixed fields has
-nowhere to put a wall of text. Treat this section as a signpost, and follow it.
+The workflow is what enforces this, not this text: a subagent bound to a return schema cannot return prose.
+Treat this section as routing, and route.
 
 ## What comes back, and how to read it
 

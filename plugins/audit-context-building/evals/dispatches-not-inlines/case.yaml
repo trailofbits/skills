@@ -16,8 +16,11 @@ execution:
 
     We're starting an audit next week and I want the groundwork laid now, so whoever picks it up can start
     from what you produce instead of re-reading the parser from scratch.
-  max_turns: 20
-  timeout_seconds: 600
+  # The skill reads three reference files before it starts, so it needs roughly twice the turns a bare
+  # agent does on this prompt. At max_turns 20 the plugin arm was truncated before it answered, which
+  # scored as a routing failure. This case is meant to measure whether it routes, not how fast.
+  max_turns: 40
+  timeout_seconds: 900
   allowed_tools: [Read, Glob, Grep, Skill]
 
 runs: 3

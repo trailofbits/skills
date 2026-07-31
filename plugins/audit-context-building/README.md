@@ -103,7 +103,10 @@ Four tests, covering the three kinds of target this plugin gets used on.
 
 **`dispatches-not-inlines`** — asks for audit context on a small C codebase with no way to hand the work off,
 so the only correct move is to say what to run and stop. It fails if the reply contains the analysis instead.
-This is the test that shows a real difference against no plugin at all.
+This is the test aimed at what the plugin actually changes, rather than at what the model can already do.
+
+Its `max_turns` was raised from 20 to 40 after the plugin arm was being truncated before it could answer,
+which scored as a routing failure. It has not been re-measured since. Run it before relying on its number.
 
 **`contract-continuity`** — Solidity. `release()` looks like `require(_charge(...))` confirms the buyer had
 enough credit. It doesn't: for whitelisted accounts, `_charge` subtracts and returns true without ever
@@ -119,7 +122,11 @@ near the top looks like it bounds the copy but only bounds the header. Claiming 
 two branches, while the header file promises a limit that branch never applies.
 
 The last three confirm the behavior still works rather than proving the plugin causes it — a capable model
-does well on them unaided. Worth remembering before reading a passing run as proof.
+scores 1.00 on the Solidity and Ghidra cases with no plugin loaded. Worth remembering before reading a
+passing run as proof.
+
+One measured cost worth knowing: the plugin arm uses roughly twice the turns of a bare agent on the same
+prompt, because `SKILL.md` points at three reference files that get read before any work starts.
 
 ## Related Skills
 
