@@ -312,7 +312,7 @@ if (corpusFailures.length > 0) {
   return {
     status: "corpus-unreadable",
     note:
-      `${corpusFailures.length}/${sweeps.length} sweeps could not load their category definition from ${examplesDir}: ` +
+      `${corpusFailures.length}/${CATEGORIES.length} sweeps could not load their category definition from ${examplesDir}: ` +
       `${corpusFailures.join(", ")}. Nothing was audited; check the plugin installed completely, since every ` +
       `category needs its own <category>.json and <category>.md.`,
     examples_dir: examplesDir,
@@ -382,7 +382,7 @@ const seedOnlySweeps = sweeps
 
 if (seedOnlySweeps.length > 0) {
   log(
-    `Note: ${seedOnlySweeps.length}/${sweeps.length} sweeps ran only the generic seed patterns and derived ` +
+    `Note: ${seedOnlySweeps.length}/${CATEGORIES.length} sweeps ran only the generic seed patterns and derived ` +
       `nothing for this stack: ${seedOnlySweeps.join(", ")}. Their coverage is weaker than the rest.`,
   );
 }
