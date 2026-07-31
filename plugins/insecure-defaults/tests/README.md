@@ -47,7 +47,7 @@ The workflow runtime hands a script its globals (`agent`, `parallel`, `pipeline`
 
 It deliberately does **not** inject a `workflow` global. All four phases are inlined in `audit.js`, so a reintroduced `await workflow(...)` throws `ReferenceError` rather than quietly resolving, and one scenario asserts none remain.
 
-That makes the parts of the workflow that aren't prompt text directly testable: argument parsing, cross-category dedup, directory-aware batching, which corpus each agent is handed, and every abort status. 90 assertions across 17 scenarios.
+That makes the parts of the workflow that aren't prompt text directly testable: argument parsing, cross-category dedup, directory-aware batching, which corpus each agent is handed, and every abort status.
 
 A few scenarios do assert on prompt *content*, where a wording change would quietly narrow scope, notably that the verifier still carries the "unconditional candidates cannot be refuted at step 2" branch. Half the target set has no config fallback, so losing that sentence would silently discard it.
 
@@ -55,9 +55,7 @@ What it does **not** test: whether the prompts elicit good behaviour from a real
 
 ## The `--self-test` mode, and why it exists
 
-A test suite that has silently stopped checking anything reports success forever. So `--self-test` mutates the workflow source in memory and asserts the scenarios **fail** for each mutation:
-
-32 mutations. A sample:
+A test suite that has silently stopped checking anything reports success forever. So `--self-test` mutates the workflow source in memory and asserts the scenarios **fail** for each mutation. A sample:
 
 | Mutation | Should break |
 |---|---|
@@ -65,6 +63,8 @@ A test suite that has silently stopped checking anything reports success forever
 | Adjudication and candidates both keyed on `file:line` | one category's verdict masking another's omission |
 | Verdict sets filtered before their batch is attached | the category stamp that keying depends on |
 | `batches_verified` counts dead batches too | a partial run reading as complete |
+| Per-category scan accounting dropped | a category that searched 0 files reading as covered |
+| Unsearched categories counted only over sweeps that returned | a dead sweep being absent rather than at 0 |
 | Total verify failure no longer aborts | `verify-failed` status, so a dead verify phase cannot read as clean |
 | `verify-failed` widened to any unadjudicated candidate | a partial verify still producing its report |
 | Oversized directory no longer split on its own | the over-cap branch of the packer |
@@ -87,5 +87,7 @@ Every mutation is caught, and a mutation that matches nothing is itself a failur
 ## Adding a scenario
 
 Append to `SCENARIOS` in `harness.js`. Each entry is `{ name, run(src) }` returning an array of `[label, boolean, detail?]`. Then add a mutation to `MUTATIONS` that your scenario is the one to catch. A scenario with no corresponding mutation isn't proven to check anything.
+
+A sweep fixture of `null` is a sweep that returned nothing and an `Error` is one that died; a category the fixture omits returns a default that scanned 0 files.
 
 Fixtures derive category ids from `CATEGORIES` in `audit.js` and seeds from `references/<id>.json` rather than hardcoding either, so editing a category doesn't quietly make the fixtures vacuous. The suite fails if it parses zero categories, or if fewer than 30 assertions run.

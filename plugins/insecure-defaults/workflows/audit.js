@@ -335,6 +335,27 @@ if (sweeps.length === 0 || totalScanned === 0) {
   };
 }
 
+// The guard above is on the sum, so five failed searches beside one that worked clear
+// it. Per category, then: 0 files (or a sweep that never returned) is a search that did
+// not happen, and `categories_run` lists a category because its sweep returned, not
+// because it searched.
+const scannedByCategory = Object.fromEntries(
+  CATEGORIES.map((c) => [
+    c.id,
+    sweeps.find((s) => s.category === c.id)?.files_scanned || 0,
+  ]),
+);
+const unsearchedCategories = CATEGORIES.filter((c) => !scannedByCategory[c.id]).map(
+  (c) => c.id,
+);
+
+if (unsearchedCategories.length > 0) {
+  log(
+    `Note: ${unsearchedCategories.length}/${CATEGORIES.length} sweeps scanned no files at all: ` +
+      `${unsearchedCategories.join(", ")}. Those categories are NOT covered by this run.`,
+  );
+}
+
 // Dedup keyed on `<category>:<file>:<line>`, so two patterns in one category hitting
 // a line collapse, but a line flagged by *different* categories stays one candidate
 // per category, each judged against its own discriminator and corpus. It also gives
@@ -374,8 +395,16 @@ log(
 if (candidates.length === 0) {
   return {
     status: "no-candidates",
-    note: `All ${CATEGORIES.length} sweeps ran and scanned ${totalScanned} files without flagging a candidate. Searches executed, so this is a genuine negative result rather than a failure, but it is an absence of pattern matches, not proof of absence.`,
+    note:
+      `${CATEGORIES.length - unsearchedCategories.length}/${CATEGORIES.length} sweeps scanned ${totalScanned} files ` +
+      `without flagging a candidate. Those searches executed, so this is a genuine negative result for them rather ` +
+      `than a failure, but it is an absence of pattern matches, not proof of absence.` +
+      (unsearchedCategories.length > 0
+        ? ` It says nothing about ${unsearchedCategories.join(", ")}: those sweeps scanned no files, so those categories were not audited.`
+        : ""),
     scanned: totalScanned,
+    files_scanned_by_category: scannedByCategory,
+    unsearched_categories: unsearchedCategories,
   };
 }
 
@@ -567,6 +596,8 @@ const coverage = {
   scope,
   files_scanned: totalScanned,
   categories_run: sweeps.map((s) => s.category),
+  files_scanned_by_category: scannedByCategory,
+  unsearched_categories: unsearchedCategories,
   patterns_run: sweeps.reduce(
     (n, s) => n + (s.seed_patterns_run || []).length + (s.derived_patterns || []).length,
     0,
@@ -645,8 +676,9 @@ Structure:
 
    Where several findings share one root cause (one config module, one wrapper function), group them under that cause and list the locations rather than repeating the analysis.
 3. **Remediation**: grouped by fix, not by finding. \`env['X']\` over \`env.get('X', default)\`, a startup validator, a secrets backend. Name the specific files to change.
-4. **Coverage and limits**: mandatory, and blunt. State the \`scope\`, files scanned, categories run, how many distinct patterns actually ran (\`patterns_run\`; a number close to the seed count means the sweeps barely adapted to this stack), and candidates found versus refuted. Every file holding a candidate was verified, so these three are the gaps, each stated explicitly when non-empty:
+4. **Coverage and limits**: mandatory, and blunt. State the \`scope\`, files scanned, categories run, how many distinct patterns actually ran (\`patterns_run\`; a number close to the seed count means the sweeps barely adapted to this stack), and candidates found versus refuted. Every file holding a candidate was verified, so these four are the gaps, each stated explicitly when non-empty:
 
+   - \`unsearched_categories\`: those categories scanned 0 files (see \`files_scanned_by_category\`), so their search did not run. They appear in \`categories_run\` because the sweep returned, not because it searched. Name them under a "**Not searched**" heading and say the audit covers nothing in those categories. Never present them as clean or as having found nothing.
    - \`unadjudicated\`: candidates handed to a verifier that came back without a verdict, listed as \`category:file:line\` so the rule is named alongside the location. Put them under a "**Not verified**" heading and say they may contain real findings.
    - \`batches_verified\` below \`batches_run\`: a verify batch died, taking up to 16 candidates with it. Name the shortfall; the affected candidates appear in \`unadjudicated\`.
    - \`seed_only_sweeps\`: those categories ran only the generic seed patterns and derived nothing for this stack, so their coverage is thinner. Name them.

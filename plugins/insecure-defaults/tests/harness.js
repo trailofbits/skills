@@ -71,7 +71,12 @@ function runWorkflow(src, { args, recon, sweeps, verdicts, report = "# Report" }
     if (label === "recon") return recon;
     if (label.startsWith("sweep:")) {
       const id = label.slice("sweep:".length);
-      return sweeps[id] ?? { corpus_read: true, patterns_loaded: true, files_scanned: 0, seed_patterns_run: [], derived_patterns: ["d"], candidates: [] };
+      // `in`, not `??`: a fixture of null is a sweep that returned nothing and an Error
+      // is one that died, both distinct from a category the fixture left unmentioned.
+      if (!(id in sweeps))
+        return { corpus_read: true, patterns_loaded: true, files_scanned: 0, seed_patterns_run: [], derived_patterns: ["d"], candidates: [] };
+      if (sweeps[id] instanceof Error) throw sweeps[id];
+      return sweeps[id];
     }
     if (label.startsWith("verify:")) return verdicts(label.slice("verify:".length));
     if (label === "report") return report;
@@ -829,6 +834,71 @@ const SCENARIOS = [
     },
   },
   {
+    name: "a category that searched nothing is not reported as covered",
+    // The zero-scanned guard is on the sum, so one working sweep beside five failed
+    // searches clears it. `categories_run` then lists all six, because a category is in
+    // it when its sweep returned, not when it searched.
+    async run(src) {
+      const { result, prompts, logs } = await runWorkflow(src, {
+        args: ENTRY(),
+        recon: RECON_OK,
+        sweeps: {
+          "fallback-secrets": SWEEPS_OVERLAP["fallback-secrets"],
+          // Returned, searched nothing. Every unlisted category does the same.
+          "weak-crypto": {
+            corpus_read: true,
+            patterns_loaded: true,
+            files_scanned: 0,
+            seed_patterns_run: ["s"],
+            derived_patterns: ["d"],
+            candidates: [],
+          },
+          // Died outright, so it never lands in `sweeps` at all.
+          "default-credentials": new Error("agent died"),
+        },
+        verdicts: ALL_REFUTED,
+      });
+      const cov = result.coverage || {};
+      const unsearched = cov.unsearched_categories || [];
+      return [
+        ["run completes", result.status === "no-findings-confirmed", result.status],
+        [
+          "per-category scan counts in coverage",
+          cov.files_scanned_by_category?.["fallback-secrets"] === 40 &&
+            cov.files_scanned_by_category?.["weak-crypto"] === 0,
+          JSON.stringify(cov.files_scanned_by_category),
+        ],
+        [
+          "the sweep that searched is not listed as unsearched",
+          !unsearched.includes("fallback-secrets"),
+          JSON.stringify(unsearched),
+        ],
+        [
+          "the zero-file sweep is listed",
+          unsearched.includes("weak-crypto"),
+          JSON.stringify(unsearched),
+        ],
+        [
+          "the dead sweep is listed too",
+          unsearched.includes("default-credentials"),
+          JSON.stringify(unsearched),
+        ],
+        [
+          "every category but the one that searched is listed",
+          unsearched.length === CATEGORY_IDS.length - 1,
+          `${unsearched.length} of ${CATEGORY_IDS.length - 1}`,
+        ],
+        [
+          // Not just /unsearched_categories/: that key is in the coverage JSON the prompt
+          // embeds, so it matches whether or not the instruction survives.
+          "report told to name them as not searched",
+          /\*\*Not searched\*\*/.test(prompts["report"] || ""),
+        ],
+        ["logged for the operator", logs.some((l) => /scanned no files/.test(l))],
+      ];
+    },
+  },
+  {
     name: "zero-item guard: verification adjudicated nothing",
     // The dangerous case is not one dead verifier but all of them: with no verdicts,
     // `confirmed` is empty and the run used to return `no-findings-confirmed`, which the
@@ -1055,6 +1125,28 @@ const MUTATIONS = [
     // no findings, and "no-candidates" carries the "not proof of absence" note.
     name: "genuine-negative status collapsed into the generic one",
     apply: (s) => s.replace("if (candidates.length === 0) {", "if (false) {"),
+  },
+  {
+    name: "per-category scan accounting dropped",
+    apply: (s) =>
+      s.replace(
+        "const unsearchedCategories = CATEGORIES.filter((c) => !scannedByCategory[c.id]).map(",
+        "const unsearchedCategories = [].filter((c) => !scannedByCategory[c.id]).map(",
+      ),
+  },
+  {
+    // Counted over the sweeps that returned rather than the full category list, a sweep
+    // that died is not at 0 files, it is absent, and absent reads as covered.
+    name: "unsearched categories counted only over sweeps that returned",
+    apply: (s) =>
+      s.replace(
+        "const unsearchedCategories = CATEGORIES.filter((c) => !scannedByCategory[c.id]).map(\n  (c) => c.id,\n);",
+        "const unsearchedCategories = sweeps.filter((s) => !s.files_scanned).map(\n  (s) => s.category,\n);",
+      ),
+  },
+  {
+    name: "report no longer told which categories went unsearched",
+    apply: (s) => s.replace(/^ {3}- \\`unsearched_categories\\`.*$/m, ""),
   },
   {
     // A partial verify is reported through coverage; a total one has to abort, or the
