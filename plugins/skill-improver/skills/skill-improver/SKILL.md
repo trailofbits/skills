@@ -54,7 +54,6 @@ These significantly degrade skill effectiveness:
 - Weak or vague trigger descriptions — Claude may not recognize when to use the skill
 - Wrong writing voice (second person "you" instead of imperative) — Inconsistent with Claude's execution model
 - SKILL.md exceeds 500 lines without using references/ — Overloads context, reduces comprehension
-- Missing "When to Use" or "When NOT to Use" sections — Required by project quality standards
 - Description doesn't specify when to trigger — Skill may never be selected
 
 ### Minor Issues (Evaluate before fixing)
@@ -90,14 +89,12 @@ Replace `[SKILL_PATH]` with the absolute path to the skill directory (e.g., `/pa
 ```text
 Critical: SKILL.md:1 - Missing required 'name' field in frontmatter
 Major: SKILL.md:3 - Description uses second person ("you should use")
-Major: Missing "When NOT to Use" section
 Minor: Line 45 is verbose
 ```
 
 **Fixes applied:**
 - Added name field to frontmatter
 - Rewrote description in third person
-- Added "When NOT to Use" section
 
 **Iteration 2 — run skill-reviewer again to verify fixes:**
 ```text
