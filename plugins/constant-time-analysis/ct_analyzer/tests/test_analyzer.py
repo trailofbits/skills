@@ -1518,6 +1518,39 @@ class TestBackendRegressions(unittest.TestCase):
         report = self._analyze("TriageJava.java")
         self.assertIn("JAVA_UTIL_RANDOM", {v.mnemonic for v in report.violations})
 
+    def test_go_filter_does_not_readmit_runtime_by_basename(self):
+        """The runtime ships map.go, slice.go, string.go, time.go and select.go."""
+        if not _have("go"):
+            self.skipTest("go not available")
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "map.go"
+            target.write_text((self.samples / "triage_go.go").read_text(), encoding="utf-8")
+            report = analyze_source(str(target))
+        leaked = sorted(
+            {v.function for v in report.violations if v.function.startswith("runtime.")}
+        )
+        self.assertEqual(leaked, [], f"runtime symbols readmitted by basename: {leaked}")
+        self.assertIn("main.ctHighBits", {v.function for v in report.violations})
+
+    def test_swift_targets_the_host_platform(self):
+        """Apple triples need Xcode's SDK; on Linux swiftc rejects them outright."""
+        from analyzer import SwiftCompiler
+
+        target = SwiftCompiler.target_for("arm64")
+        if target is None:
+            self.fail("arm64 must map to a target triple on every supported platform")
+        if platform.system() == "Darwin":
+            self.assertIn("apple", target)
+        else:
+            self.assertIn("linux", target)
+
+    def test_java_detects_fully_qualified_random(self):
+        """`new java.util.Random()` needs no import, so single files use it."""
+        if not _have("javac"):
+            self.skipTest("javac not available")
+        report = self._analyze("TriageJava.java")
+        self.assertIn("JAVA_UTIL_RANDOM", {v.mnemonic for v in report.violations})
+
 
 class TestV8Coverage(unittest.TestCase):
     """V8 compiles lazily and dumps every function in the process, node's included."""

@@ -723,9 +723,16 @@ class GoCompiler(Compiler):
             header = re.match(r"^TEXT\s+[^\s(]+\(SB\)\s+(.*)$", line.strip())
             if header:
                 block_file = header.group(1).strip()
-                in_wanted_block = os.path.realpath(block_file) == wanted or os.path.basename(
-                    block_file
-                ) == os.path.basename(wanted)
+                if os.path.isabs(block_file):
+                    # objdump printed a full path, so compare exactly. Falling back
+                    # to basenames here readmitted the runtime: it ships map.go,
+                    # slice.go, string.go, time.go and select.go, so analyzing a
+                    # user file with any of those names matched
+                    # `/usr/lib/go/src/runtime/map.go` and reported the
+                    # allocator's divisions as the caller's.
+                    in_wanted_block = os.path.realpath(block_file) == wanted
+                else:
+                    in_wanted_block = os.path.basename(block_file) == os.path.basename(wanted)
                 if in_wanted_block:
                     kept += 1
             if in_wanted_block:
