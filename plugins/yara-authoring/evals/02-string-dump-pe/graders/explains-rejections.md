@@ -1,7 +1,7 @@
 ---
 type: llm
 focus: last_message
-weight: 1
+weight: 2
 ---
 The prompt supplied twelve extracted strings, most of which are unusable as detection
 indicators. Score PASS only if BOTH hold:

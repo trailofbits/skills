@@ -3,7 +3,7 @@ type: llm
 focus:
   source: file
   path: tinhorn_loader.yar
-weight: 1
+weight: 2
 ---
 Read the rule's `condition:` and decide whether any generic string could cause a match
 without a family-unique indicator also matching.

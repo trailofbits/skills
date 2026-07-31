@@ -4,6 +4,7 @@ target:
   source: file
   path: tinhorn_loader.yar
 match: contains
-flags: i
+flags: im
+weight: 1
 ---
-uint16\(0\)\s*==\s*0x5A4D
+^(?:[^/\n]|/(?!/))*uint16\(0\)\s*==\s*0x5A4D

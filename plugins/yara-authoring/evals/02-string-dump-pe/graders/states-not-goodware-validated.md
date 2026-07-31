@@ -1,7 +1,7 @@
 ---
 type: llm
 focus: last_message
-weight: 1
+weight: 2
 ---
 The question is whether the response treats false positives on legitimate software as an
 unresolved risk rather than ignoring it. Score PASS if EITHER path is satisfied.

@@ -1,7 +1,7 @@
 ---
 type: llm
 focus: last_message
-weight: 1
+weight: 2
 ---
 All four indicators the user supplied (VirtualAlloc, CreateRemoteThread,
 C:\Windows\Temp\, Mozilla/5.0) are common in legitimate Windows software. The user asked

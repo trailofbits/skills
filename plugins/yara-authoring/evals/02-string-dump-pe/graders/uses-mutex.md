@@ -4,5 +4,7 @@ target:
   source: file
   path: tinhorn_loader.yar
 match: contains
+flags: m
+weight: 1
 ---
-LarkMtx_7742
+^(?:[^/\n]|/(?!/))*LarkMtx_7742

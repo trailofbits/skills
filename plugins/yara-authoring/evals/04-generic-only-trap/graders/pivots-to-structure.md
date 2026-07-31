@@ -1,7 +1,7 @@
 ---
 type: llm
 focus: last_message
-weight: 1
+weight: 2
 ---
 Score PASS only if the response proposes at least one concrete alternative to
 string-based detection, drawn from this list:
