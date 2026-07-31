@@ -38,6 +38,16 @@ style guide states the rule.
 lines as documentation of the goal state; a goal-changing one is
 documentation that lies. Caught by: `show` linter. Fix: `change`.
 
+### `native_decide` in library code
+
+Proves a proposition by compiling it to native code and trusting the
+result (the `Lean.ofReduceBool` axiom). Harmful because it silently widens
+the trust base from the kernel to the entire compiler and runtime;
+Mathlib disallows it. Caught by: `#print axioms` (reports
+`Lean.ofReduceBool`); Mathlib CI. Fix: `decide` where the kernel can
+afford the computation, a certificate-based `norm_num` proof, or an
+explicitly documented decision to accept the axiom.
+
 ### Leftover debugging scaffolding
 
 `set_option pp.all true`, `trace`/`profiler`/`debug` options, unscoped

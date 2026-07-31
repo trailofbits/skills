@@ -28,11 +28,11 @@ asked for a review, so the fixture files must be byte-identical afterwards.
 
 | Case | Planted flaws | Non-flaws (must not flag) |
 |------|---------------|---------------------------|
-| 01-definitions-review | global `Fact` instance; Prop/Bool dual spelling of `IsU32`; copy-pasted doc comment | scoped `set_option ... in`; junk-value `toU32` |
+| 01-definitions-review | global `Fact` instance; `native_decide` in library code; Prop/Bool dual spelling of `IsU32`; copy-pasted doc comment | scoped `set_option ... in`; junk-value `toU32` |
 | 02-missing-api | downstream `unfold GOLDILOCKS_PRIME` while `u32_lt_prime` sits unused above | `@[simp] ... := rfl` projection lemmas (they ARE the API) |
 | 03-normal-form | statements in `>` form; `gt_iff_lt` tax visible in a proof | unsqueezed terminal `simp` |
 | 04-structural | unscoped `set_option`s; dishonest `show`; unfocused goals; squeezed *terminal* simp **and** bare *non-terminal* simp (direction test) | — |
-| 05-clean-restraint | none — the file is deliberately good | terminal simp, redundant `show` lines, `:= rfl` def lemma; no invented rules |
+| 05-clean-restraint | none — the file is deliberately good (an engagement criterion requires the review to name specific declarations, so an empty "looks fine" cannot score by omission) | terminal simp, redundant `show` lines, `:= rfl` def lemma; no invented rules |
 
 Cases 03/05 and the non-flaw columns carry the uplift signal: the skill
 contradicts popular folk advice there (squeeze everything, delete redundant
@@ -57,7 +57,9 @@ EVAL_MODEL=claude-sonnet-4-6 ./run.sh   # pin a model
   would. The **baseline arm** runs bare. Comparing arms measures uplift.
 - Both arms run with `--setting-sources project`, so user-level config is
   excluded: a globally installed copy of this skill (or the marketplace
-  plugin) cannot silently contaminate the baseline arm.
+  plugin) cannot silently contaminate the baseline arm. As a runtime check
+  on that guard, a baseline transcript that mentions `writing-lean-proofs`
+  fails the case as contaminated.
 - Each reviewer runs headless (`claude -p`) in a throwaway copy of the
   fixture with `--permission-mode acceptEdits`: edits are *possible*, so
   the no-rewrite check is meaningful.
@@ -74,13 +76,21 @@ EVAL_MODEL=claude-sonnet-4-6 ./run.sh   # pin a model
 ./run.sh --self-test
 ```
 
-Feeds `selftest/bad-review.md` — a canned review that misses every planted
-flaw in case 01 and commits every forbidden move (invents "one tactic per
-line" and a 20-line threshold, flags the scoped `set_option`, demands
-squeezing terminal simp, wants `Option` instead of junk values) — through
-the real grader and asserts it fails **every** criterion. If the grader
-passes it on anything, the self-test exits non-zero. Run this after editing
-rubrics or the grader prompt.
+Two-sided, both against case 01's rubric:
+
+- `selftest/bad-review.md` — misses every planted flaw and commits every
+  forbidden move (invents "one tactic per line" and a 20-line threshold,
+  flags the scoped `set_option`, demands squeezing terminal simp, wants
+  `Option` instead of junk values) — must **fail every** criterion. This
+  catches a grader that has become too permissive.
+- `selftest/good-review.md` — flags all four planted flaws with location,
+  rationale, and fix, and commits none of the forbidden moves — must
+  **pass every** criterion. This catches a grader that has become too
+  strict (which would otherwise read as "the skill provides no uplift").
+
+Run this after editing rubric 01, `grade-prompt.md`, or when changing
+`EVAL_MODEL`. Rubrics 02–05 have no canned coverage; after editing those,
+spot-check a live run's `grades.json` evidence fields instead.
 
 ## Interpreting results
 

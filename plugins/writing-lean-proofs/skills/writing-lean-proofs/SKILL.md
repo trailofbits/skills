@@ -105,11 +105,16 @@ naming lemmas so their names are guessable from their statements.
 Do not eyeball-check style — run the checkers:
 
 ```sh
-lake build                      # everything compiles
-grep -rn "sorry" MyProject/     # no sorries left — `sorry` is only a
-                                # warning, so `lake build` alone exits 0
-                                # with sorries still present
+lake build                                    # everything compiles
+! grep -rn --include='*.lean' sorry MyProject # fails if any sorry remains
 ```
+
+`sorry` is only a *warning*, so `lake build` alone exits 0 with sorries
+still present — hence the grep, with `!` inverting its exit status so a
+match fails the check. The grep also matches `sorry` inside comments and
+docstrings; inspect the hits rather than trusting the exit code blindly
+(or check the target theorem with `#print axioms`, which reports
+`sorryAx`).
 
 The style linters (`multiGoal`, `show`, `setOption`, ...) run as part of
 Mathlib's own build but are **off by default elsewhere** — in a

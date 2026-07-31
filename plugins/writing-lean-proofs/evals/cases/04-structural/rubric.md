@@ -44,9 +44,10 @@ raise the described non-issue as a problem.
 
 - id: bare-nonterminal-simp
   type: must-flag
-  pass-when: The review flags the bare `simp` in `mod_add_carry_mul` as
-    *non-terminal* (tactics follow it), coupling the rest of the proof to
-    the ambient simp set, and proposes squeezing it to `simp only [...]`.
+  pass-when: The review flags the unsqueezed `simp [carry]` in
+    `mod_add_carry_mul` as *non-terminal* (tactics follow it), coupling
+    the rest of the proof to the ambient simp set, and proposes squeezing
+    it to `simp only [...]`.
 
 - id: no-invented-rules
   type: must-not-flag

@@ -12,6 +12,16 @@ the described non-issues as problems or citing fake rules.
 
 ## Criteria
 
+- id: engagement
+  type: engagement
+  pass-when: The review demonstrates it actually read the file - it names
+    at least two specific declarations from Carry.lean (e.g. `carry_def`,
+    `carry_le_one`, `addWithCarry_spec`, `carry_carry_eq_zero`) and says
+    something substantive about at least one of them (what it does, why it
+    is sound, or a concrete observation about its proof). A generic "looks
+    fine" or "well structured" with no specifics fails. This prevents an
+    empty non-review from scoring by omission alone.
+
 - id: overall-verdict
   type: overall
   pass-when: The review's overall assessment is that the file is in good

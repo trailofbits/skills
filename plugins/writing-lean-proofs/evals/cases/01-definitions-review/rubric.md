@@ -1,7 +1,7 @@
 # Rubric: 01 definitions review
 
 The reviewed file defines field elements over the Goldilocks prime. It
-contains three planted flaws and two pieces of correct code that naive
+contains four planted flaws and two pieces of correct code that naive
 reviewers commonly flag by mistake.
 
 A `must-flag` criterion passes only if the review (a) names the specific
@@ -27,6 +27,14 @@ described non-issue as a problem (mentioning it approvingly is fine).
     stating the API against it. Pointing at the recurring
     `decide_eq_true_eq` conversion boilerplate in the proofs counts as
     supporting evidence but is not required.
+
+- id: native-decide
+  type: must-flag
+  pass-when: The review flags the `by native_decide` proof in the `Fact`
+    instance as widening the trust base (it trusts the compiler and
+    runtime via the `Lean.ofReduceBool` axiom, and Mathlib disallows it),
+    and proposes an alternative or at least an explicit, documented
+    decision to accept the axiom.
 
 - id: wrong-doc-comment
   type: must-flag

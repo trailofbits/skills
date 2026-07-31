@@ -51,8 +51,8 @@ up the proof later.
 
 ## Sorry skeletons are the multi-agent protocol
 
-The spec-driven decomposition from
-[library-design.md](library-design.md) is directly an LLM
+The spec-driven decomposition described in the library-design reference is
+directly an LLM
 workflow: one agent (or one pass) states the target, its lemmas, and their
 API as compiling `sorry` stubs; independent agents then discharge
 individual sorries with no shared context beyond the file. This is exactly
@@ -69,8 +69,8 @@ understand the whole. Rules:
 
 ## Name-guessing over search
 
-Because Mathlib names are computable from statements
-([naming-conventions.md](naming-conventions.md)), the fastest way to find a
+Because Mathlib names are computable from statements (see the
+naming-conventions reference), the fastest way to find a
 lemma is often to guess
 the name (`add_le_add_left`, `Finset.sum_comm`) and check with
 `exact?`/`apply?` or a direct reference. When a guessed name fails,

@@ -38,8 +38,7 @@ theorem carry_le_one (a b : Nat) (h : U32Pair a b) : carry a b ≤ 1 := by
 
 theorem mod_add_carry_mul (a b : Nat) :
     (a + b) % 2 ^ 32 + 2 ^ 32 * carry a b = a + b := by
-  simp
-  unfold carry
+  simp [carry]
   omega
 
 end Vm

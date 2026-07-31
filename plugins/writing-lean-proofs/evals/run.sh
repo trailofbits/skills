@@ -48,6 +48,7 @@ fi
 # criteria, or a verdict count that does not match the rubric.
 grade_review() {
   local rubric="$1" fixdir="$2" transcript="$3" outdir="$4"
+  mkdir -p "$outdir"
   local n_criteria
   n_criteria=$(grep -c '^- id:' "$rubric" || true)
   if [ "$n_criteria" -eq 0 ]; then
@@ -100,17 +101,19 @@ print(f"{passed}/{expected} criteria passed")
 PY
 }
 
-# checksum_tree <dir> — stable fingerprint of the .lean files in a tree.
+# checksum_tree <dir> — stable fingerprint of the fixture .lean files in a
+# tree. Excludes .claude/ so the skill-arm's copied skill never enters the
+# fingerprint and both arms fingerprint the same file set.
 # Fails when it finds zero files: an empty fingerprint would make the
 # no-rewrite check pass vacuously.
 checksum_tree() {
   local n
-  n=$(find "$1" -name '*.lean' -type f | wc -l | tr -d ' ')
+  n=$(cd "$1" && find . -path ./.claude -prune -o -name '*.lean' -type f -print | wc -l | tr -d ' ')
   if [ "$n" -eq 0 ]; then
     echo "error: no .lean files under $1 — no-rewrite check would inspect nothing" >&2
     return 1
   fi
-  (cd "$1" && find . -name '*.lean' -type f -exec cksum {} \; | sort)
+  (cd "$1" && find . -path ./.claude -prune -o -name '*.lean' -type f -exec cksum {} \; | sort)
 }
 
 # run_case <case-dir> <arm> <outdir>
@@ -141,6 +144,14 @@ run_case() {
     --permission-mode "$PERMISSION_MODE") >"$outdir/transcript.md" || return 1
 
   checksum_tree "$work" >"$outdir/cksum.after" || return 1
+
+  # Runtime check on the isolation guard: if the baseline reviewer talks
+  # about this skill, --setting-sources isolation has failed and the
+  # control arm is contaminated.
+  if [ "$arm" = "baseline" ] && grep -qi "writing-lean-proofs" "$outdir/transcript.md"; then
+    echo "error: baseline transcript mentions writing-lean-proofs — control arm contaminated" >&2
+    return 1
+  fi
   if diff -q "$outdir/cksum.before" "$outdir/cksum.after" >/dev/null; then
     echo "pass" >"$outdir/no-rewrite.txt"
   else
@@ -158,15 +169,21 @@ run_case() {
   echo "[$arm/$case_name] no-rewrite: $(head -n 1 "$outdir/no-rewrite.txt")"
 }
 
+# Two-sided grader self-test against case 01's rubric: the canned bad
+# review must fail every criterion (catches a permissive judge) and the
+# canned good review must pass every criterion (catches an over-strict
+# judge). A judge that answers unconditionally in either direction fails
+# exactly one of the two.
 self_test() {
   local outdir
   outdir=$(mktemp -d)
-  echo "[self-test] grading canned bad review against case 01 rubric..."
   echo "[self-test] artifacts: $outdir (kept on failure for debugging)"
+
+  echo "[self-test] grading canned bad review against case 01 rubric..."
   grade_review "$EVALS_DIR/cases/01-definitions-review/rubric.md" \
     "$EVALS_DIR/cases/01-definitions-review/input" \
-    "$EVALS_DIR/selftest/bad-review.md" "$outdir"
-  python3 - "$outdir/grades.json" <<'PY'
+    "$EVALS_DIR/selftest/bad-review.md" "$outdir/bad"
+  python3 - "$outdir/bad/grades.json" <<'PY'
 import json, sys
 
 grades = json.load(open(sys.argv[1]))
@@ -180,6 +197,26 @@ if passes:
     )
 print(f"self-test OK: grader failed the bad review on all {len(grades)} criteria")
 PY
+
+  echo "[self-test] grading canned good review against case 01 rubric..."
+  grade_review "$EVALS_DIR/cases/01-definitions-review/rubric.md" \
+    "$EVALS_DIR/cases/01-definitions-review/input" \
+    "$EVALS_DIR/selftest/good-review.md" "$outdir/good"
+  python3 - "$outdir/good/grades.json" <<'PY'
+import json, sys
+
+grades = json.load(open(sys.argv[1]))
+if not grades:
+    sys.exit("error: self-test graded zero criteria")
+fails = [g["id"] for g in grades if g["verdict"] == "fail"]
+if fails:
+    sys.exit(
+        "error: self-test FAILED — the canned good review hits every planted "
+        f"flaw and commits no forbidden move, yet the grader failed it on: {fails}"
+    )
+print(f"self-test OK: grader passed the good review on all {len(grades)} criteria")
+PY
+
   rm -rf "$outdir"
 }
 
@@ -238,7 +275,7 @@ fi
 ARMS=()
 if [ "$ARM" = "both" ]; then ARMS=(baseline skill); else ARMS=("$ARM"); fi
 
-STAMP=$(date +%Y%m%d-%H%M%S)
+STAMP=$(date +%Y%m%d-%H%M%S)-$$
 RESULTS="$EVALS_DIR/results/$STAMP"
 RAN=0
 
