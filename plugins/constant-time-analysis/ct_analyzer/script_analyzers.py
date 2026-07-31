@@ -136,9 +136,13 @@ DANGEROUS_JS_BYTECODES = {
         "testequal": "Equality test may early-terminate on secret data",
         "testequalstrict": "Strict equality test may early-terminate on secret data",
         # Table lookups (cache timing via secret-indexed array access)
+        # Keyed access only: `obj[secret]` can be indexed by a secret, while a
+        # named access has a constant property name and never can, so flagging
+        # named access reports every `Math.trunc` call as a finding.
+        "getkeyedproperty": "Array/property access may leak timing via cache if index depends on secrets",
+        "setkeyedproperty": "Array/property access may leak timing via cache if index depends on secrets",
         "ldakeyedproperty": "Array/property access may leak timing via cache if index depends on secrets",
         "stakeyedproperty": "Array/property access may leak timing via cache if index depends on secrets",
-        "ldanamedproperty": "Property access may leak timing via cache if key depends on secrets",
         "getkeyed": "Array access may leak timing via cache if index depends on secrets",
         "setkeyed": "Array access may leak timing via cache if index depends on secrets",
         # Bit shift operations (may leak via timing if shift amount is secret)
@@ -527,6 +531,32 @@ DANGEROUS_CSHARP_FUNCTIONS = {
 # =============================================================================
 # ScriptAnalyzer Base Class
 # =============================================================================
+
+
+def qualified_call_pattern(func_name: str) -> str:
+    """Regex matching `func_name` as written in source, case-insensitively.
+
+    Table keys mix two shapes and they cannot be treated alike:
+
+    - `string.equals` names a method on any receiver, so it must match
+      `.equals(` regardless of what precedes the dot.
+    - `arrays.equals`, `base64.getencoder` and `convert.tobase64string` name a
+      member of a specific type, so they must match the qualified form only.
+      Matching these as bare methods would report every `.equals(` call as
+      `Arrays.equals`.
+
+    The per-backend if/elif chains spelled out only a few keys and skipped the
+    rest, which left the base64 and convert entries unreachable: the tables
+    listed them and no source could ever match. Case-insensitivity is embedded
+    with `(?i)` so callers that compile without flags still get it — the keys are
+    lowercase while the source spells them `Base64.getEncoder` and `.Equals`.
+    """
+    if "." in func_name:
+        qualifier, method = func_name.rsplit(".", 1)
+        if qualifier == "string":
+            return rf"(?i)\.{re.escape(method)}\s*\("
+        return rf"(?i)\b{re.escape(func_name)}\s*\("
+    return rf"(?i)\.{re.escape(func_name)}\s*\("
 
 
 def blank_comments(source: str, style: str = "c") -> str:
@@ -1469,7 +1499,10 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
 
         if include_warnings:
             for func_name, reason in DANGEROUS_JS_FUNCTIONS["warnings"].items():
-                pattern = rf"\.{re.escape(func_name)}\s*\("
+                # `(?:\.|\b)` so both method calls and globals match: requiring the
+                # leading dot made `btoa(`, `atob(`, `JSON.parse(` and the other
+                # non-method entries unreachable.
+                pattern = rf"(?:\.|\b){re.escape(func_name)}\s*\("
                 for match in re.finditer(pattern, source, re.IGNORECASE):
                     line_num = source[: match.start()].count("\n") + 1
                     violations.append(
@@ -2105,9 +2138,16 @@ class RubyAnalyzer(ScriptAnalyzer):
                 # Match method calls like .include?(), .start_with?()
                 if func_name == "=~":
                     pattern = r"\s=~\s"
+                elif "." in func_name:
+                    # Module-qualified names such as `base64.encode64` are written
+                    # `Base64.encode64(...)`, so the leading dot used for method
+                    # calls must not be required — prefixing it produced
+                    # `\.base64\.encode64`, which no Ruby source can match. That
+                    # made five of these warning entries unreachable.
+                    pattern = rf"\b{re.escape(func_name)}\s*[(\[]?"
                 else:
                     pattern = rf"\.{re.escape(func_name)}\s*[(\[]?"
-                for match in re.finditer(pattern, source):
+                for match in re.finditer(pattern, source, re.IGNORECASE):
                     line_num = source[: match.start()].count("\n") + 1
                     violations.append(
                         Violation(
@@ -2116,7 +2156,7 @@ class RubyAnalyzer(ScriptAnalyzer):
                             line=line_num,
                             address="",
                             instruction=match.group(0),
-                            mnemonic=func_name.upper().replace("?", ""),
+                            mnemonic=func_name.upper().replace(".", "_").replace("?", ""),
                             reason=reason,
                             severity=Severity.WARNING,
                         )
@@ -2437,14 +2477,7 @@ class JavaAnalyzer(ScriptAnalyzer):
 
         if include_warnings:
             for func_name, reason in DANGEROUS_JAVA_FUNCTIONS["warnings"].items():
-                if func_name == "arrays.equals":
-                    pattern = r"\bArrays\.equals\s*\("
-                elif func_name == "string.equals":
-                    pattern = r"\.equals\s*\("
-                elif func_name == "string.compareto":
-                    pattern = r"\.compareTo\s*\("
-                else:
-                    continue
+                pattern = qualified_call_pattern(func_name)
                 for match in re.finditer(pattern, source):
                     line_num = source[: match.start()].count("\n") + 1
                     violations.append(
@@ -2782,15 +2815,7 @@ class KotlinAnalyzer(ScriptAnalyzer):
 
         if include_warnings:
             for func_name, reason in DANGEROUS_KOTLIN_FUNCTIONS["warnings"].items():
-                pattern = None
-                if func_name == "contentequals":
-                    pattern = r"\.contentEquals\s*\("
-                elif func_name == "equals":
-                    pattern = r"\.equals\s*\("
-                elif func_name == "compareto":
-                    pattern = r"\.compareTo\s*\("
-                elif func_name == "arrays.equals":
-                    pattern = r"\bArrays\.equals\s*\("
+                pattern = qualified_call_pattern(func_name)
 
                 if pattern:
                     for match in re.finditer(pattern, source):
@@ -3187,14 +3212,7 @@ class CSharpAnalyzer(ScriptAnalyzer):
 
         if include_warnings:
             for func_name, reason in DANGEROUS_CSHARP_FUNCTIONS["warnings"].items():
-                if func_name == "sequenceequal":
-                    pattern = r"\.SequenceEqual\s*\("
-                elif func_name == "string.equals":
-                    pattern = r"\.Equals\s*\("
-                elif func_name == "string.compare":
-                    pattern = r"String\.Compare\s*\("
-                else:
-                    continue
+                pattern = qualified_call_pattern(func_name)
                 for match in re.finditer(pattern, source):
                     line_num = source[: match.start()].count("\n") + 1
                     violations.append(
