@@ -1,0 +1,439 @@
+// Ships as /variant-analysis:variants. Plugin workflows are namespaced by the plugin's
+// `name` field, which cannot be overridden per component, so the prefix is always
+// `variant-analysis:`. meta.name below supplies the rest, not the filename.
+export const meta = {
+  name: 'variants',
+  description: 'Hunt for variants of a known bug: root cause, baseline gate, parallel sweep across expansion axes, adversarial triage, report',
+  whenToUse:
+    'After a specific vulnerability has been found and you want systematic coverage of its variants across a whole codebase. Not for initial discovery. Fill args from the conversation: bug (required, the vulnerability including file:line if known), root (codebase root, defaults to cwd), lang (primary language), out (report path). Do not ask the user for a plugin path; the run locates its own strategy references.',
+  phases: [
+    { title: 'Root cause', detail: 'Extract root cause statement, exact-match pattern, and expansion axes' },
+    { title: 'Baseline', detail: 'Verify the exact pattern actually matches the known bug' },
+    { title: 'Sweep', detail: 'One agent per expansion axis, climbing the abstraction ladder' },
+    { title: 'Triage', detail: 'Adversarial verification of each candidate, severity attached' },
+    { title: 'Report', detail: 'Synthesize into the variant report template' },
+  ],
+}
+
+// ---------------------------------------------------------------------------
+// Inputs
+// ---------------------------------------------------------------------------
+// args = {
+//   bug:   string  (required) description of the original vulnerability, ideally with file:line
+//   root:  string  (optional) codebase root to search; defaults to cwd
+//   lang:  string  (optional) primary language, steers tool choice
+//   out:   string  (optional) report path
+//   skill: string  (rarely needed) override for the strategy-reference directory. The run
+//                  finds this itself; supply it only if the log reports resolution failed.
+// }
+const A = args || {}
+if (!A.bug) throw new Error('args.bug is required: describe the original vulnerability (ideally with file:line)')
+
+const ROOT = A.root || '.'
+const LANG = A.lang || 'auto-detect from the codebase'
+const OUT = A.out || 'variant-analysis-report.md'
+
+// Each stage only reads its own strategy reference.
+//
+// Resolving where those references live has to be automatic: ${CLAUDE_PLUGIN_ROOT} is
+// exported to hook, MCP, and LSP subprocesses and substituted in skill/agent content, but
+// a workflow script is none of those, so it cannot be relied on here. The search below
+// covers every layout the plugin can be loaded from and costs one cheap agent turn.
+//
+// Every candidate ends in `references/` rather than the skill directory. That is what makes
+// a stale install self-excluding: versions before the reference split have no such
+// directory, so the search can never silently bind to one.
+const RESOLVE_SKILL_DIR = A.skill
+  ? `The skill directory is \`${A.skill}\`. Confirm it contains \`references/\` and report it as skill_dir.`
+  : `Locate this plugin's strategy references and report their parent as skill_dir. Run these
+in order and stop at the first that prints a path:
+
+  ls -d "$CLAUDE_PLUGIN_ROOT/skills/variant-analysis/references" 2>/dev/null
+  ls -d ~/.claude/plugins/cache/*/variant-analysis/*/skills/variant-analysis/references 2>/dev/null | sort -V | tail -1
+  find . -maxdepth 6 -type d -path '*variant-analysis/skills/variant-analysis/references' 2>/dev/null | head -1
+  find "$HOME" -maxdepth 7 -type d -path '*variant-analysis/skills/variant-analysis/references' 2>/dev/null | head -1
+
+The last one takes ~15s; it is the fallback for a plugin loaded with --plugin-dir from
+outside the current tree, so run it only if the earlier three print nothing.
+
+Report the PARENT of the matched path (the directory containing \`references/\`). If all
+four print nothing, report skill_dir as an empty string rather than guessing.`
+
+const ref = (skillDir, file) =>
+  skillDir
+    ? `Read \`${skillDir}/references/${file}\` before you start. It is the strategy for this stage; follow it.`
+    : `(Strategy reference \`references/${file}\` could not be located on this machine — proceed on the instructions below alone.)`
+
+const template = (skillDir) =>
+  skillDir ? `${skillDir}/resources/variant-report-template.md` : 'the standard variant report template'
+
+// Coverage bounds.
+const MAX_AXES_PER_ROUND = 6
+const TRIAGE_BATCH = 4
+const MAX_ROUNDS = budget.total ? 4 : 2
+const DRY_ROUNDS_TO_STOP = 2
+
+// ---------------------------------------------------------------------------
+// Schemas
+// ---------------------------------------------------------------------------
+const ROOT_CAUSE_SCHEMA = {
+  type: 'object',
+  required: ['skill_dir', 'statement', 'origin', 'exact_pattern', 'axes'],
+  properties: {
+    skill_dir: {
+      type: 'string',
+      description: 'Absolute path to the variant-analysis skill directory (the parent of references/), or empty string if it could not be found.',
+    },
+    statement: {
+      type: 'string',
+      description: 'Root cause in the form: [UNTRUSTED DATA] reaches [DANGEROUS OPERATION] without [REQUIRED PROTECTION]. For logic bugs, state the invariant that is violated instead.',
+    },
+    origin: {
+      type: 'object',
+      required: ['file', 'line', 'snippet'],
+      properties: {
+        file: { type: 'string' },
+        line: { type: 'integer' },
+        snippet: { type: 'string' },
+      },
+    },
+    exact_pattern: {
+      type: 'string',
+      description: 'A ripgrep ERE that matches the original vulnerable line and, ideally, nothing else. Level 0 of the abstraction ladder.',
+    },
+    axes: {
+      type: 'array',
+      minItems: 3,
+      maxItems: 12,
+      description:
+        'Independent search axes. Cover all three kinds: semantically related identifiers, alternative manifestations of the same root cause, and data-type edge cases.',
+      items: {
+        type: 'object',
+        required: ['id', 'kind', 'description', 'hints'],
+        properties: {
+          id: { type: 'string' },
+          kind: { type: 'string', enum: ['identifier', 'manifestation', 'edge-case'] },
+          description: { type: 'string' },
+          hints: { type: 'array', items: { type: 'string' }, description: 'Concrete identifiers, call shapes, or code constructs to search for on this axis.' },
+        },
+      },
+    },
+  },
+}
+
+const BASELINE_SCHEMA = {
+  type: 'object',
+  required: ['match_count', 'locations', 'matches_origin'],
+  properties: {
+    match_count: { type: 'integer' },
+    locations: { type: 'array', items: { type: 'string' } },
+    matches_origin: { type: 'boolean', description: 'True if one of the matches is the known vulnerable line named in the root cause.' },
+    notes: { type: 'string' },
+  },
+}
+
+const CANDIDATES_SCHEMA = {
+  type: 'object',
+  required: ['candidates', 'patterns_tried'],
+  properties: {
+    candidates: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['file', 'line', 'snippet', 'why'],
+        properties: {
+          file: { type: 'string' },
+          line: { type: 'integer' },
+          snippet: { type: 'string' },
+          why: { type: 'string', description: 'How this instance realizes the same root cause.' },
+        },
+      },
+    },
+    patterns_tried: {
+      type: 'array',
+      description: 'The abstraction ladder followed, for the report methodology table.',
+      items: {
+        type: 'object',
+        required: ['pattern', 'level', 'tool', 'matches'],
+        properties: {
+          pattern: { type: 'string' },
+          level: { type: 'integer' },
+          tool: { type: 'string' },
+          matches: { type: 'integer' },
+          note: { type: 'string' },
+        },
+      },
+    },
+  },
+}
+
+const VERDICT_SCHEMA = {
+  type: 'object',
+  required: ['verdicts'],
+  properties: {
+    verdicts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['file', 'line', 'is_variant', 'severity', 'confidence', 'reasoning'],
+        properties: {
+          file: { type: 'string' },
+          line: { type: 'integer' },
+          is_variant: { type: 'boolean' },
+          severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low', 'informational'] },
+          confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+          reasoning: { type: 'string' },
+          exploitability: { type: 'string', description: 'Reachability, input control, and what protection is missing.' },
+          fp_reason: { type: 'string', description: 'If not a variant, why it is safe. This feeds the false-positive table.' },
+        },
+      },
+    },
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Phase 1 - Root cause and expansion axes
+// ---------------------------------------------------------------------------
+phase('Root cause')
+
+const rc = await agent(
+  `You are performing the first step of a variant analysis (i.e., searching the codebase looking for vulnerabilities that are similar to an originally discovered vulnerability) on the codebase at \`${ROOT}\` (language: ${LANG}).
+
+FIRST, resolve the strategy reference so the rest of this run can use it:
+${RESOLVE_SKILL_DIR}
+
+Then read \`<skill_dir>/references/root-cause.md\` and follow it.
+
+The known bug:
+${A.bug}
+
+Read the actual vulnerable code, then produce the root cause statement, an exact-match
+ripgrep ERE (POSIX extended, not PCRE) for the original vulnerable line, and the expansion
+axes.`,
+  { schema: ROOT_CAUSE_SCHEMA, label: 'root-cause' },
+)
+
+if (!rc) throw new Error('Root cause analysis failed; nothing downstream is meaningful without it.')
+
+const SKILL_DIR = rc.skill_dir || ''
+if (SKILL_DIR) {
+  log(`Strategy references: ${SKILL_DIR}/references/`)
+} else {
+  log('WARNING: could not locate the skill directory. Stages will run without their strategy references, which degrades sweep and triage quality. Pass args.skill to fix.')
+}
+log(`Root cause: ${rc.statement}`)
+log(`${rc.axes.length} expansion axes: ${rc.axes.map((x) => x.id).join(', ')}`)
+
+// ---------------------------------------------------------------------------
+// Phase 2 - Baseline gate
+// ---------------------------------------------------------------------------
+// A sweep calibrated against a pattern that matches nothing is a sweep that finds
+// nothing and reports success. Fail loudly here instead.
+//
+// This stage deliberately gets no strategy reference. It runs one command and reports
+// what came back
+phase('Baseline')
+
+const baseline = await agent(
+  `Run this ripgrep pattern against the codebase at \`${ROOT}\` and report exactly what it matches:
+
+    rg -n --no-heading ${JSON.stringify(rc.exact_pattern)} ${ROOT}
+
+The pattern is supposed to match this known vulnerable line:
+  ${rc.origin.file}:${rc.origin.line}
+  ${rc.origin.snippet}
+
+Report the true match count and locations. Set matches_origin only if one of the matches
+really is that line. Do not adjust the pattern to make it work, just report what it does.`,
+  { schema: BASELINE_SCHEMA, label: 'baseline', effort: 'low' },
+)
+
+if (!baseline || baseline.match_count === 0) {
+  throw new Error(
+    `Baseline gate failed: exact pattern matched 0 locations. The root cause pattern is wrong or the codebase root is wrong. Pattern: ${rc.exact_pattern}`,
+  )
+}
+if (!baseline.matches_origin) {
+  throw new Error(
+    `Baseline gate failed: pattern matched ${baseline.match_count} location(s) but none is the known bug at ${rc.origin.file}:${rc.origin.line}. Everything downstream would be calibrated against the wrong code.`,
+  )
+}
+log(`Baseline OK: ${baseline.match_count} match(es), origin confirmed.`)
+
+// ---------------------------------------------------------------------------
+// Phases 3+4 - Sweep and triage, pipelined per axis
+// ---------------------------------------------------------------------------
+// Each axis triages as soon as its own sweep lands; a slow axis does not hold up
+// verification of a fast one. Rounds repeat until the sweep goes dry.
+const seen = new Set()
+const confirmed = []
+const rejected = []
+const ladder = []
+const key = (c) => `${c.file}:${c.line}`
+
+let dry = 0
+let round = 0
+
+while (round < MAX_ROUNDS && dry < DRY_ROUNDS_TO_STOP) {
+  round++
+  if (budget.total && budget.remaining() < 60_000) {
+    log(`Stopping after round ${round - 1}: ~${Math.round(budget.remaining() / 1000)}k tokens left, below the floor for another round.`)
+    break
+  }
+
+  // Rotate through the axes across rounds rather than re-running the same slice, so
+  // a long axis list gets swept rather than truncated.
+  const offset = ((round - 1) * MAX_AXES_PER_ROUND) % rc.axes.length
+  const axes = [...rc.axes, ...rc.axes].slice(offset, offset + MAX_AXES_PER_ROUND).slice(0, rc.axes.length)
+  if (rc.axes.length > MAX_AXES_PER_ROUND) {
+    log(`Round ${round} sweeps ${axes.length}/${rc.axes.length} axes: ${axes.map((x) => x.id).join(', ')}`)
+  }
+
+  const known = [...seen].join(', ') || '(none yet)'
+
+  const results = await pipeline(
+    axes,
+
+    // Sweep: climb the abstraction ladder on this axis alone.
+    (axis) =>
+      agent(
+        `Variant analysis sweep, round ${round}, axis "${axis.id}" (${axis.kind}).
+
+${ref(SKILL_DIR, 'searching.md')}
+
+Codebase root: \`${ROOT}\`
+
+Root cause being hunted:
+  ${rc.statement}
+
+Original instance:
+  ${rc.origin.file}:${rc.origin.line}
+  ${rc.origin.snippet}
+
+Level 0 calibration pattern: ${rc.exact_pattern}
+
+Your axis, and only this axis:
+  ${axis.description}
+  Concrete leads: ${axis.hints.join(', ')}
+
+Already-known locations, do not re-report these: ${known}
+
+Return every candidate this axis surfaces with the reason it realizes the same root cause,
+and the ladder you climbed. Whether a candidate is exploitable is the next stage's call.
+Report what you find rather than filtering on it.`,
+        { schema: CANDIDATES_SCHEMA, label: `sweep:${axis.id}`, phase: 'Sweep' },
+      ),
+
+    // Dedup against everything seen so far, then batch for triage.
+    (found, axis) => {
+      if (!found) return []
+      ladder.push(...(found.patterns_tried || []).map((p) => ({ ...p, axis: axis.id })))
+      const fresh = (found.candidates || []).filter((c) => !seen.has(key(c)))
+      fresh.forEach((c) => seen.add(key(c)))
+      if (!fresh.length) return []
+      const batches = []
+      for (let i = 0; i < fresh.length; i += TRIAGE_BATCH) batches.push(fresh.slice(i, i + TRIAGE_BATCH))
+      return batches.map((b) => ({ axis, batch: b }))
+    },
+
+    // Triage: adversarial, severity attached to everything.
+    (batches) =>
+      parallel(
+        batches.map(({ axis, batch }) => () =>
+          agent(
+            `Triage ${batch.length} candidate variant(s) found on axis "${axis.id}" of a variant hunt.
+
+${ref(SKILL_DIR, 'triage.md')}
+
+Root cause being hunted:
+  ${rc.statement}
+
+Confirmed instance for comparison:
+  ${rc.origin.file}:${rc.origin.line}
+  ${rc.origin.snippet}
+
+Candidates:
+${batch.map((c, i) => `${i + 1}. ${c.file}:${c.line}\n   ${c.snippet}\n   claimed: ${c.why}`).join('\n')}
+
+Return a verdict for every candidate, including the ones you judge minor.`,
+            { schema: VERDICT_SCHEMA, label: `triage:${axis.id}`, phase: 'Triage' },
+          ),
+        ),
+      ),
+  )
+
+  const verdicts = results
+    .filter(Boolean)
+    .flat()
+    .filter(Boolean)
+    .flatMap((r) => r.verdicts || [])
+
+  const hits = verdicts.filter((v) => v.is_variant)
+  confirmed.push(...hits)
+  rejected.push(...verdicts.filter((v) => !v.is_variant))
+
+  if (hits.length === 0) {
+    dry++
+    log(`Round ${round}: no new confirmed variants (${dry}/${DRY_ROUNDS_TO_STOP} dry rounds).`)
+  } else {
+    dry = 0
+    log(`Round ${round}: +${hits.length} confirmed, ${confirmed.length} total.`)
+  }
+}
+
+if (round >= MAX_ROUNDS && dry < DRY_ROUNDS_TO_STOP) {
+  log(`COVERAGE BOUND: stopped at the ${MAX_ROUNDS}-round cap while still finding new variants. The sweep is not exhausted.`)
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5 - Report
+// ---------------------------------------------------------------------------
+phase('Report')
+
+const order = { critical: 0, high: 1, medium: 2, low: 3, informational: 4 }
+confirmed.sort((a, b) => order[a.severity] - order[b.severity])
+
+if (confirmed.length === 0) {
+  log('No variants confirmed. Writing a report documenting the search anyway. Negative coverage is a result.')
+}
+
+await agent(
+  `Write the variant analysis report to \`${OUT}\`.
+
+${ref(SKILL_DIR, 'reporting.md')}
+Follow the template at \`${template(SKILL_DIR)}\` - read it first. Use \`date -I\` for the date.
+
+Match the report's length to what the findings need: cover the substance, but do not pad
+with filler sections, redundant summaries, or boilerplate.
+
+Codebase: ${ROOT}
+Original bug: ${A.bug}
+Root cause: ${rc.statement}
+Origin: ${rc.origin.file}:${rc.origin.line}
+Baseline: exact pattern \`${rc.exact_pattern}\` matched ${baseline.match_count} location(s)
+Rounds run: ${round}${dry >= DRY_ROUNDS_TO_STOP ? ' (swept to dry)' : ' (hit the round cap - sweep not exhausted, say so in the report)'}
+
+Abstraction ladder climbed, for the Search Methodology table:
+${JSON.stringify(ladder, null, 2)}
+
+Confirmed variants (${confirmed.length}), severity-ordered:
+${JSON.stringify(confirmed, null, 2)}
+
+Ruled out (${rejected.length}). These populate the False Positive Patterns table; group
+them by the reason they were safe rather than listing each one:
+${JSON.stringify(rejected, null, 2)}
+
+Read the code at each confirmed location so the report quotes it accurately.`,
+  { label: 'report', phase: 'Report' },
+)
+
+return {
+  root_cause: rc.statement,
+  origin: `${rc.origin.file}:${rc.origin.line}`,
+  rounds: round,
+  swept_to_dry: dry >= DRY_ROUNDS_TO_STOP,
+  confirmed: confirmed.length,
+  rejected: rejected.length,
+  variants: confirmed.map((v) => ({ at: `${v.file}:${v.line}`, severity: v.severity, confidence: v.confidence })),
+  report: OUT,
+}
