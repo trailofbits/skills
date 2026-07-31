@@ -1,7 +1,7 @@
 ---
 name: spec-to-code-compliance
 description: Check code against the documentation that specifies it - which requirements hold, which the code contradicts, which are absent, and what the code does that no document mentions. Use when comparing an implementation against a whitepaper, protocol spec, or design document.
-allowed-tools: Task Read Grep Glob
+allowed-tools: Workflow Task Read Grep Glob
 ---
 
 # Spec-to-Code Compliance
@@ -31,8 +31,10 @@ Not for writing or improving documentation, though it produces the list of what 
 
 ## Do not check requirements in this context
 
-Run `/spec-to-code-compliance:spec-compliance <path>` — optionally `{path, spec, limit}` to name the
-specification or widen the fan-out.
+Run `/spec-to-code-compliance:spec-compliance <path>`. The slash command takes a path; to name the
+specification directly or widen the fan-out, ask for the run with those values — "run spec-compliance on
+./contracts against SPEC.md, checking 20 requirements" — and they reach the script as `{path, spec, limit}`.
+Typing the object literally after the slash command does not work; it arrives as a string and becomes the path.
 
 It finds the documents, splits them into individually checkable requirements, gives each requirement its own
 agent to hunt the code with, has independent agents try to refute every divergence before it is reported, and

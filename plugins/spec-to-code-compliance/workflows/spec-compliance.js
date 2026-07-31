@@ -97,10 +97,12 @@ const REQUIREMENTS_SCHEMA = {
 
 const ALIGNMENT_SCHEMA = {
   type: 'object',
-  required: ['requirementId', 'verdict', 'confidence', 'searched', 'reasoning'],
+  // analysisFile is required so that not writing the analysis is a schema failure rather than a silent omission
+  // the report then tells a reader to go and read.
+  required: ['requirementId', 'verdict', 'confidence', 'searched', 'reasoning', 'analysisFile'],
   properties: {
     requirementId: { type: 'string' },
-    analysisFile: { type: 'string', description: 'path the full analysis was written to' },
+    analysisFile: { type: 'string', description: 'path the analysis was actually written to' },
     verdict: {
       type: 'string',
       enum: ['implemented', 'partial', 'contradicted', 'absent', 'stronger-than-spec', 'undecidable'],
@@ -308,7 +310,8 @@ if (requirements.length === 0) {
 const DEFAULT_LIMIT = 10
 const MAX_LIMIT = 30
 const budgeted = budget.total ? Math.max(4, Math.floor(budget.remaining() / 70_000)) : DEFAULT_LIMIT
-const limit = Math.min(target.limit ?? budgeted, MAX_LIMIT)
+// Clamped below as well as above: `limit: 0` otherwise selects nothing and reports it as every check failing.
+const limit = Math.max(1, Math.min(target.limit ?? budgeted, MAX_LIMIT))
 
 // Mandatory requirements first: a MUST the code ignores is the thing this workflow exists to find.
 const forceRank = { mandatory: 0, recommended: 1, optional: 2, descriptive: 3 }
@@ -381,11 +384,20 @@ needs it. Where you cannot cite a line, do not assert it.`
 const checkRequirement = (prompt, options) => {
   if (!checkerAvailable) return agent(`${prompt}\n${FALLBACK_RULES}`, options)
 
+  // Fall back on any failure of the typed dispatch rather than on a matched error string. The fallback is
+  // strictly more available than the typed path, so making recovery conditional on a phrasing would reproduce
+  // the outage this exists to prevent the moment the runtime words it differently. The message is only used to
+  // decide whether to latch: a resolution failure will not fix itself, while a transient error should not
+  // downgrade every remaining requirement.
   return agent(prompt, { ...options, agentType: CHECKER }).catch(error => {
-    if (!/agent type .* not found/i.test(error.message ?? '')) throw error
-    if (checkerAvailable) {
-      checkerAvailable = false
-      log(`${CHECKER} did not resolve, so requirement checks run on the default agent with its rules inlined.`)
+    const message = error.message ?? String(error)
+    if (/agent type|unknown agent|not found|not registered/i.test(message)) {
+      if (checkerAvailable) {
+        checkerAvailable = false
+        log(`${CHECKER} did not resolve (${message}), so requirement checks run on the default agent with its rules inlined.`)
+      }
+    } else {
+      log(`${CHECKER} failed on ${options.label} (${message}); retrying that requirement on the default agent.`)
     }
     return agent(`${prompt}\n${FALLBACK_RULES}`, options)
   })
@@ -474,6 +486,9 @@ ${EVIDENCE_RULE}`,
   },
 )
 
+// pipeline() preserves input order and drops a failed item to null, so the nulls name which requirements were
+// never checked. Unrecorded, they are indistinguishable in the report from requirements that were never selected.
+const failed = selected.filter((_, index) => !checked[index])
 const results = checked.filter(Boolean)
 if (results.length === 0) {
   return {
@@ -493,9 +508,12 @@ const dropped = results.filter(r => r.alignment.verdict !== 'implemented' && r.r
 const unverified = results.filter(r => r.alignment.verdict !== 'implemented' && r.refutations.length === 0)
 
 log(
-  `Checked ${results.length}. ${survived.length} divergence(s) survived verification, ${dropped.length} refuted, ` +
-    `${undocumented?.behaviors.length ?? 0} undocumented behavior(s).`,
+  `Checked ${results.length}/${selected.length}. ${survived.length} divergence(s) survived verification, ` +
+    `${dropped.length} refuted, ${undocumented?.behaviors.length ?? 0} undocumented behavior(s).`,
 )
+if (failed.length > 0) {
+  log(`Check failed outright, so no verdict exists for these: ${failed.map(r => r.id).join(', ')}`)
+}
 if (unverified.length > 0) {
   log(`Unverified (both refutation agents failed): ${unverified.map(r => r.requirement.id).join(', ')}`)
 }
@@ -514,8 +532,13 @@ ${JSON.stringify(results.filter(r => r.alignment.verdict === 'implemented').map(
 Divergences that survived refutation:
 ${JSON.stringify(survived.map(r => ({ requirement: r.requirement, alignment: r.alignment, corrections: r.refutations.map(v => v.correction).filter(Boolean), revisedVerdicts: r.refutations.map(v => v.revisedVerdict).filter(Boolean) })))}
 
-Divergences a refutation agent knocked down (do not report these as findings):
-${JSON.stringify(dropped.map(r => ({ id: r.requirement.id, verdict: r.alignment.verdict, whyRefuted: r.refutations.filter(v => v.refuted).map(v => v.reasoning) })))}
+Divergences a refutation agent knocked down:
+${JSON.stringify(dropped.map(r => ({ id: r.requirement.id, verdict: r.alignment.verdict, quote: r.requirement.quote, whyRefuted: r.refutations.filter(v => v.refuted).map(v => v.reasoning) })))}
+
+These are not findings and must not appear among them. They do belong in the report, in a short "considered and
+dropped" list near the end: one line each for what was claimed and why it did not hold. A single refuter is
+enough to drop a divergence, so one over-confident refutation can lose a real one — a reader who can see what
+was dropped can catch that, and a reader who cannot has no way to know it happened.
 
 Undocumented behavior:
 ${JSON.stringify(undocumented?.behaviors ?? [])}
@@ -539,6 +562,8 @@ Carry these forward rather than smoothing them over:
 - requirements marked 'undecidable', and any 'documentProblem' recorded against a requirement — contradictions
   between two documents are a real finding, and the fix is to the documents
 - requirements not checked at all: ${deferred.length > 0 ? deferred.map(r => r.id).join(', ') : '(none)'}
+- requirements whose check failed outright, so no verdict exists and their status is unknown rather than
+  compliant: ${failed.length > 0 ? failed.map(r => r.id).join(', ') : '(none)'}
 - documents that could not be read: ${unreadable.length > 0 ? unreadable.map(d => d.path).join(', ') : '(none)'}
 - divergences whose refutation agents both failed, which are unverified rather than confirmed: ${unverified.length > 0 ? unverified.map(r => r.requirement.id).join(', ') : '(none)'}
 
@@ -551,10 +576,15 @@ ${EVIDENCE_RULE}`,
 
 return {
   root,
-  report: report?.reportFile ?? `${outDir}/REPORT.md`,
+  // Not defaulted to the expected path. The script cannot touch the filesystem, so a path returned here is only
+  // ever the reporting agent's word that it wrote the file; inventing one when the agent named none would report
+  // a document that does not exist.
+  report: report?.reportFile ?? null,
+  ...(report?.reportFile ? {} : { reportWarning: `No report path was returned; ${outDir}/REPORT.md may not have been written.` }),
   documents: readable.map(d => d.path),
   requirementsExtracted: requirements.length,
   requirementsChecked: results.length,
+  checksFailed: failed.map(r => r.id),
   holds: results.filter(r => r.alignment.verdict === 'implemented').map(r => r.requirement.id),
   divergences: report?.divergences ?? survived.map(r => ({ requirementId: r.requirement.id, verdict: r.alignment.verdict })),
   refuted: dropped.map(r => ({ requirementId: r.requirement.id, verdict: r.alignment.verdict })),

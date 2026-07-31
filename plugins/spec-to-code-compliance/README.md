@@ -17,7 +17,10 @@ which one it is is the finding.
 /spec-to-code-compliance:spec-compliance ./contracts
 ```
 
-Pass `{path, spec, limit}` to name the specification directly or widen the fan-out.
+The slash command takes a path. To name the specification directly or widen the fan-out, ask for the run in
+words — "run spec-compliance on ./contracts against SPEC.md, checking 20 requirements" — and the values reach
+the script as `{path, spec, limit}`. Typing that object after the slash command does not work: it arrives as a
+string and is treated as the path.
 
 Writes `spec-compliance/REPORT.md` and one analysis per requirement under `spec-compliance/requirements/`. The
 session gets the alignment matrix and the surviving divergences, not the analysis.
