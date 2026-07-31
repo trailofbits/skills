@@ -165,15 +165,28 @@ The `yara_lint.py` script produces these codes:
 
 | Code | Severity | Issue | Fix |
 |------|----------|-------|-----|
-| E001 | Error | Missing required metadata | Add description, author, date, reference |
-| E002 | Error | Invalid rule name format | Use CATEGORY_PLATFORM_FAMILY_DATE |
-| E003 | Error | String under 4 bytes | Use longer strings or hex patterns |
-| W001 | Warning | Name doesn't follow convention | Use standard prefix or justify custom |
-| W002 | Warning | Description doesn't start with "Detects" | Rewrite description |
-| W003 | Warning | Unbounded regex pattern | Add length bounds: `.{0,100}` not `.*` |
-| W004 | Warning | Condition doesn't start with cheap check | Add `filesize <` or magic bytes first |
-| I001 | Info | Unrecognized category prefix | Use standard prefix or document custom |
-| I002 | Info | `nocase` modifier used | Consider if case variation is needed |
+| E000 | Error | YARA-X compilation error | Read the compiler's source location; it points at the exact token |
+| E001 | Error | Missing required metadata field (description, author, date) | Add the missing field |
+| E002 | Error | Text string shorter than 4 bytes | Use a longer string, or a hex pattern with surrounding context |
+| E003 | Error | Hex string shorter than 4 bytes | Extend the pattern to 4+ fixed bytes |
+| E006 | Error | base64 modifier on a string shorter than 3 characters | YARA-X requires 3+ chars; lengthen or drop the modifier |
+| E008 | Error | Negative array indexing, unsupported in YARA-X | `@a[-1]` → `@a[#a - 1]` |
+| W001 | Warning | Rule name does not follow CATEGORY_PLATFORM_FAMILY_DATE | Rename using a standard prefix |
+| W002 | Warning | Description does not start with 'Detects' | Rewrite the description |
+| W003 | Warning | Description shorter than 60 characters | Explain what it catches and how |
+| W004 | Warning | Missing 'reference' metadata | Add a URL to the analysis or source |
+| W005 | Warning | String contains an FP-prone substring | Replace with a family-specific indicator |
+| W006 | Warning | Hex string starts with a wildcard | Move fixed bytes to the front for a better atom |
+| W007 | Warning | Deprecated feature used in condition | Replace `entrypoint` with `pe.entry_point`; drop PEiD patterns |
+| W008 | Warning | Unbounded regex quantifier (.* or .+) | Add length bounds: `.{0,100}` |
+| W009 | Warning | Condition reaches pattern or module state before any cheap pre-filter | Lead with `filesize <` or a `uintNN` magic-byte check |
+| I001 | Info | Unrecognized category prefix | Use a standard prefix or document the custom one |
+| I002 | Info | Description longer than 400 characters | Trim to the distinguishing detail |
+| I003 | Info | `nocase` on a string longer than 20 characters | Confirm case actually varies across samples |
+| I004 | Info | `xor` without an explicit key range | Use `xor(0xNN)` once you know the key |
+
+`scripts/test_yara_rules.py` asserts this table and the linter's code registry stay
+in sync, so a check cannot be added or removed without updating both.
 
 ## PR Review Checklist
 
