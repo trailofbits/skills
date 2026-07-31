@@ -1,10 +1,11 @@
 # Tests
 
-Offline tests for the `workflows/` scripts. **Not wired into `make check` or CI.** Run them by hand.
+Offline tests for the `workflows/` scripts. `run_seeds.sh` runs all three, and CI's shell-suite job discovers it by name (`run_*.sh`). Locally, `make shell-suites` — not `make check`, which excludes that target for unrelated reasons (see the Makefile note and #207).
 
 ```sh
-cd plugins/insecure-defaults
+bash plugins/insecure-defaults/tests/run_seeds.sh      # everything below
 
+cd plugins/insecure-defaults
 node tests/harness.js workflows/audit.js               # run the scenarios
 node tests/harness.js workflows/audit.js --self-test   # prove the scenarios bite
 node tests/seed-coverage.js .                          # documented == scanned
