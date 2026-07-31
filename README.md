@@ -114,7 +114,6 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [seatbelt-sandboxer](plugins/seatbelt-sandboxer/) | Generate minimal macOS Seatbelt sandbox configurations |
 | [second-opinion](plugins/second-opinion/) | Run code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on changes, diffs, or commits. Bundles Codex's built-in MCP server. |
 | [skill-improver](plugins/skill-improver/) | Iterative skill refinement loop using automated fix-review cycles |
-| [workflow-skill-design](plugins/workflow-skill-design/) | Design patterns for workflow-based Claude Code skills with review agent |
 
 ### Team Management
 
