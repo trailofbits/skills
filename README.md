@@ -65,7 +65,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [semgrep-rule-variant-creator](plugins/semgrep-rule-variant-creator/) | Port existing Semgrep rules to new target languages with test-driven validation |
 | [sharp-edges](plugins/sharp-edges/) | Identify error-prone APIs, dangerous configurations, and footgun designs |
 | [static-analysis](plugins/static-analysis/) | Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing |
-| [supply-chain-risk-auditor](plugins/supply-chain-risk-auditor/) | Audit supply-chain threat landscape of project dependencies |
+| [supply-chain-risk-auditor](plugins/supply-chain-risk-auditor/) | Audit npm, PyPI, and Go dependencies for version-matched advisories, abandoned upstreams, publisher concentration, and install scripts |
 | [testing-handbook-skills](plugins/testing-handbook-skills/) | Skills from the [Testing Handbook](https://appsec.guide): fuzzers, static analysis, sanitizers, coverage |
 | [trailmark](plugins/trailmark/) | Code graph analysis, bounded subagent context slicing, Mermaid diagrams, mutation testing triage, and protocol verification |
 | [variant-analysis](plugins/variant-analysis/) | Find similar vulnerabilities across codebases using pattern-based analysis |
