@@ -931,6 +931,19 @@ class SwiftCompiler(Compiler):
 # GNU cross-toolchain prefixes, for naming the binary to install or pass. The
 # analyzer's architecture names are not the triple prefixes: arm64 is aarch64,
 # i386 is i686, ppc64le is powerpc64le, and arm carries an ABI suffix.
+# Debian/Ubuntu cross libc packages are named by Debian architecture, which is
+# neither the analyzer's name nor the GNU triple: x86_64 is amd64, ppc64le is
+# ppc64el, arm is armhf.
+DEBIAN_CROSS_LIBC = {
+    "x86_64": "libc6-dev-amd64-cross",
+    "i386": "libc6-dev-i386-cross",
+    "arm64": "libc6-dev-arm64-cross",
+    "arm": "libc6-dev-armhf-cross",
+    "riscv64": "libc6-dev-riscv64-cross",
+    "ppc64le": "libc6-dev-ppc64el-cross",
+    "s390x": "libc6-dev-s390x-cross",
+}
+
 GNU_TRIPLES = {
     "x86_64": "x86_64-linux-gnu",
     "i386": "i686-linux-gnu",
@@ -1284,6 +1297,16 @@ def analyze_source(
         )
 
         if not success:
+            if arch != get_native_arch() and "file not found" in error:
+                package = DEBIAN_CROSS_LIBC.get(arch)
+                remedy = f"install {package}" if package else "install the target's libc headers"
+                error = (
+                    f"{error.rstrip()}\n"
+                    f"Cross-compiling for {arch} needs that target's C library headers, which "
+                    f"are separate from the compiler: {remedy}, or analyze a source file that "
+                    "includes no libc headers."
+                )
+
             already_cross = "-linux-gnu" in Path(compiler_obj.path).name
             if (
                 arch != get_native_arch()

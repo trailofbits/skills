@@ -1737,7 +1737,12 @@ class TestCrossCompilation(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.fixture = Path(__file__).parent / "triage_samples" / "triage_c.c"
+        # A freestanding sample: the triage fixtures include <stdint.h>, so
+        # cross-compiling them needs the target's libc headers, and a runner
+        # without a cross sysroot fails with "bits/libc-header-start.h file not
+        # found" — an environment gap reported as a regression. Verifying that a
+        # division instruction reaches the assembly needs no libc.
+        cls.fixture = Path(__file__).parent / "test_samples" / "cross_probe.c"
 
     def test_clang_targets_x86_64(self):
         if not _have("clang"):
@@ -1823,7 +1828,7 @@ class TestCrossCompilation(unittest.TestCase):
         if not _have(binary):
             self.skipTest(f"{binary} not installed")
         report = analyze_source(str(self.fixture), compiler=binary, arch="arm")
-        self.assertFalse(report.passed, "three divisions in the fixture, none reported")
+        self.assertFalse(report.passed, "the probe divides twice, and neither was reported")
         self.assertIn("AEABI_IDIV", {v.mnemonic for v in report.violations})
 
     def test_go_cross_builds_for_amd64(self):
