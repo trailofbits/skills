@@ -144,7 +144,7 @@ int32_t q = secret_coef / GAMMA2;
 
 State the verdict and the data flow that justifies it for every flagged item. A finding you cannot trace to a secret is not a finding; say so explicitly rather than dropping it silently.
 
-`ct_analyzer/tests/triage_samples/` holds a known-answer case per language: each fixture pairs a true positive with a false positive that the analyzer reports identically, and `expectations.json` records which is which and why. `triage_c.c` is the shortest example — the analyzer flags the division in both `ct_high_bits` and `ct_block_count`, and correct triage confirms the first and clears the second.
+`{baseDir}/ct_analyzer/tests/triage_samples/` holds a known-answer case per language: each fixture pairs a true positive with a false positive that the analyzer reports identically, and `expectations.json` records which is which and why. `triage_c.c` is the shortest example — the analyzer flags the division in both `ct_high_bits` and `ct_block_count`, and correct triage confirms the first and clears the second.
 
 **Weak-RNG and encoding findings ask a different question.** For `Math.random`, `mt_rand`, `random.randint`, `System.Random` and `base64_encode`, no operand is secret, so "does an operand depend on a secret?" does not resolve them. Ask instead what the result is used for: seeding a nonce or key is a true positive, jittering a retry delay is not. These are reported by a regex scan over the source rather than from bytecode, so they are attributed to `<source>` with a line number instead of to the enclosing function — except in PHP, where they carry the function.
 
