@@ -358,12 +358,45 @@ ${EVIDENCE_RULE}`,
   return null
 })
 
+const CHECKER = 'spec-to-code-compliance:spec-compliance-checker'
+
+// The checker agent carries the durable judgment — what counts as evidence, why a name is not enforcement, the
+// on-disk format. When it cannot be resolved, the phase has to keep working rather than take the run down with
+// it: an unresolvable agent type failed all six requirement checks in testing and returned nothing salvageable,
+// because the plugin had been installed after the session started and its agents were not in the registry.
+let checkerAvailable = true
+
+const FALLBACK_RULES = `
+Write the analysis with these sections: the requirement quoted verbatim with its source; the verdict and
+confidence; what the requirement demands of an implementation; where enforcement lives, with the code quoted and
+lines cited; the paths you walked and which ones enforce it; what you searched and what each search returned; how
+you reached this verdict rather than the adjacent one; and any open questions.
+
+Do not accept a name as evidence. \`require(_check(x))\` is enforcement only if you opened \`_check\` and it
+compares against the bound the document names, on the path taken. Vary the vocabulary before concluding something
+is absent — a document that says "slippage" meets code that says \`minOut\` or \`limitPrice\` — and check the
+modifiers, base classes, wrappers, and callers, because enforcement often does not live in the function that
+needs it. Where you cannot cite a line, do not assert it.`
+
+const checkRequirement = (prompt, options) => {
+  if (!checkerAvailable) return agent(`${prompt}\n${FALLBACK_RULES}`, options)
+
+  return agent(prompt, { ...options, agentType: CHECKER }).catch(error => {
+    if (!/agent type .* not found/i.test(error.message ?? '')) throw error
+    if (checkerAvailable) {
+      checkerAvailable = false
+      log(`${CHECKER} did not resolve, so requirement checks run on the default agent with its rules inlined.`)
+    }
+    return agent(`${prompt}\n${FALLBACK_RULES}`, options)
+  })
+}
+
 // Each requirement runs align -> verify independently, so a divergence found early is being refuted while other
 // requirements are still being hunted.
 const checked = await pipeline(
   selected,
   (requirement, _item, index) =>
-    agent(
+    checkRequirement(
       `Determine whether the code at ${root} implements this one requirement.
 
 Requirement ${requirement.id} (${requirement.kind}, ${requirement.force}), from ${requirement.document} ${requirement.location}:
@@ -377,10 +410,11 @@ when the value came back from a function whose name implies a check, and the che
 this path does not take. Where a requirement is enforced across several functions, follow it across them.
 
 Write the analysis to ${outDir}/requirements/${String(index + 1).padStart(2, '0')}-${slug(requirement.id)}.md
-using the Write tool, in the format your instructions define, then return the record.
+using the Write tool, then return the record. The record is a compact index into that file, not a summary of it.
 
-Check DOMAIN_NOTES before concluding an absence — what counts as enforcement, and where it hides, differs by
-target, and the places worth searching are listed there per domain.
+If you have an analysis format and per-domain notes in your instructions, follow them: what counts as
+enforcement, and where it hides, differs between contracts, C, services, and firmware, and the places worth
+searching before concluding an absence are listed there per domain.
 
 Choosing a verdict:
 - 'implemented' means you found the enforcement and read it. Not that you found a function with a promising name.
@@ -398,12 +432,7 @@ business. Use only the documentation and code in front of you — what a protoco
 evidence about what this one does.
 
 ${EVIDENCE_RULE}`,
-      {
-        agentType: 'spec-to-code-compliance:spec-compliance-checker',
-        schema: ALIGNMENT_SCHEMA,
-        label: requirement.id,
-        phase: 'Align',
-      },
+      { schema: ALIGNMENT_SCHEMA, label: requirement.id, phase: 'Align' },
     ),
   async (alignment, requirement) => {
     if (!alignment) return null
@@ -447,7 +476,12 @@ ${EVIDENCE_RULE}`,
 
 const results = checked.filter(Boolean)
 if (results.length === 0) {
-  return { error: 'Every requirement check failed.', root, selected: selected.map(r => r.id) }
+  return {
+    error: 'Every requirement check failed, so there is no compliance result. Check the per-agent journal.',
+    root,
+    checkerAgentResolved: checkerAvailable,
+    selected: selected.map(r => r.id),
+  }
 }
 
 const undocumented = await undocumentedPromise
