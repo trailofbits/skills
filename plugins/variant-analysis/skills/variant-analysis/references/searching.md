@@ -157,4 +157,3 @@ pattern-not-inside: |
 
 Analyze false positives as you go rather than deferring them. They tell you which
 abstraction was too aggressive, which is information you lose if you triage in a batch at the end.
-
