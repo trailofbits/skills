@@ -33,9 +33,11 @@ frontmatter contract (`name`, `description`, `effort`, space-delimited
 `allowed-tools`). It fails if the extraction comes back empty or no LLVM
 dwarfdump is on PATH — a checker that inspects zero items must not pass.
 
-Requires an LLVM dwarfdump, version 19 or newer — `--error-display` and
-`--verify-json` landed in LLVM 19 (macOS: included with current Xcode Command
-Line Tools; Debian/Ubuntu: `apt install llvm-19` or newer). Run with:
+Requires an LLVM dwarfdump that supports `--error-display` and `--verify-json`
+(upstream LLVM 19+; the test checks for the flags themselves rather than a
+version string, since Apple's LLVM numbering differs from upstream). macOS:
+current Xcode Command Line Tools qualify; Debian/Ubuntu: `apt install llvm-19`
+or newer. Run with:
 
 ```sh
 cd plugins/dwarf-expert/tests

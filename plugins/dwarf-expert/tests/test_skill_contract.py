@@ -9,14 +9,15 @@ Per the house rule for checkers, an empty extraction is a failure, not a pass:
 if the skill is restructured so that no flags (or no frontmatter) are found,
 these tests go red rather than silently checking nothing.
 
-Requires an LLVM dwarfdump on PATH, version 19 or newer: --error-display and
---verify-json landed in LLVM 19 (absent from release/18.x
-llvm-dwarfdump.cpp, present in release/19.x). macOS ships a new-enough one as
-/usr/bin/dwarfdump with the Xcode Command Line Tools; on Debian/Ubuntu,
-`apt install llvm-19` (or any newer llvm). CI installs it in the python-tests
-job. The resolver picks the newest LLVM on PATH and fails with the resolved
-version when it is below the floor, so toolchain age is distinguishable from
-a skill defect.
+Requires an LLVM dwarfdump on PATH new enough to accept the documented flags:
+--error-display and --verify-json landed in LLVM 19 (absent from release/18.x
+llvm-dwarfdump.cpp, present in release/19.x). Apple's LLVM numbering does not
+track upstream releases, so the resolver gates on capability (those flags
+appearing in --help) rather than a parsed version number. macOS: current
+Xcode Command Line Tools qualify; Debian/Ubuntu: `apt install llvm-19` or
+newer. CI installs it in the python-tests job. A missing or too-old toolchain
+fails with the rejected tools and their versions, so toolchain age is
+distinguishable from a skill defect.
 """
 
 import re
@@ -60,15 +61,18 @@ def frontmatter(text: str) -> dict[str, str]:
 def body_sections(text: str) -> dict[str, str]:
     """Split the post-frontmatter body into {top-level heading: section text}.
 
-    Fenced code blocks are stripped first so a `# comment` line inside an
-    example cannot masquerade as a heading and corrupt the section scoping.
+    Fence-aware: a `# comment` line inside a fenced code block is not a
+    heading, but fenced content stays in the section text so flags documented
+    only in examples are still extracted and verified.
     """
     body = re.sub(r"\A---\n.*?\n---\n", "", text, flags=re.DOTALL)
-    body = re.sub(r"^```.*?^```\s*?\n", "", body, flags=re.DOTALL | re.MULTILINE)
     sections = {}
     title = ""
+    in_fence = False
     for line in body.splitlines():
-        if line.startswith("# "):
+        if line.startswith("```"):
+            in_fence = not in_fence
+        if not in_fence and line.startswith("# "):
             title = line[2:].strip()
             sections[title] = ""
         else:
@@ -76,45 +80,44 @@ def body_sections(text: str) -> dict[str, str]:
     return sections
 
 
-# --error-display and --verify-json exist since LLVM 19.
-MIN_LLVM_MAJOR = 19
+# The newest flags the skill documents; both landed in LLVM 19. The resolver
+# gates on these appearing in --help because Apple's LLVM version numbering
+# does not track upstream, so a parsed major is not comparable across
+# toolchains.
+GATE_FLAGS = ("--error-display", "--verify-json")
 
 
 def resolve_llvm_dwarfdump() -> tuple[str, str]:
-    """Find the newest LLVM dwarfdump on PATH, rejecting libdwarf's tool.
+    """Find an LLVM dwarfdump that supports the newest documented flags.
 
-    Newest matters: machines often carry a distro default plus versioned
-    packages, and the skill documents flags added in LLVM 19. Returns the
-    tool path and its version line for failure messages.
+    Rejects libdwarf's same-named tool via the LLVM version banner, then
+    requires the version-gated flags in --help. Returns the tool path and
+    its version line for failure messages.
     """
     candidates = ["llvm-dwarfdump", "dwarfdump"]
-    candidates += [f"llvm-dwarfdump-{n}" for n in range(14, 31)]
-    best = None
+    candidates += [f"llvm-dwarfdump-{n}" for n in range(30, 13, -1)]
+    too_old = []
     for name in candidates:
         path = shutil.which(name)
         if path is None:
             continue
         proc = subprocess.run([path, "--version"], capture_output=True, text=True, check=False)
-        for line in (proc.stdout + proc.stderr).splitlines():
-            match = re.search(r"LLVM version (\d+)", line)
-            if match:
-                major = int(match.group(1))
-                if best is None or major > best[0]:
-                    best = (major, path, line.strip())
-                break
-    if best is None:
-        pytest.fail(
-            "no LLVM dwarfdump found on PATH - install one to run this suite "
-            "(macOS: Xcode Command Line Tools; Debian/Ubuntu: apt install llvm-19)"
+        version = next(
+            (line.strip() for line in (proc.stdout + proc.stderr).splitlines() if "LLVM" in line),
+            None,
         )
-    major, path, version = best
-    if major < MIN_LLVM_MAJOR:
-        pytest.fail(
-            f"LLVM >= {MIN_LLVM_MAJOR} required (the skill documents "
-            f"--error-display/--verify-json, added in LLVM 19); newest found: "
-            f"{path} ({version})"
-        )
-    return path, version
+        if version is None:
+            continue
+        help_proc = subprocess.run([path, "--help"], capture_output=True, text=True, check=False)
+        if all(flag in help_proc.stdout + help_proc.stderr for flag in GATE_FLAGS):
+            return path, version
+        too_old.append(f"{path} ({version})")
+    detail = f"; too old: {', '.join(too_old)}" if too_old else ""
+    pytest.fail(
+        f"no LLVM dwarfdump supporting {'/'.join(GATE_FLAGS)} (LLVM 19+) found "
+        f"on PATH{detail} - macOS: current Xcode Command Line Tools; "
+        "Debian/Ubuntu: apt install llvm-19 or newer"
+    )
 
 
 def test_documented_dwarfdump_flags_are_real():
@@ -132,7 +135,7 @@ def test_documented_dwarfdump_flags_are_real():
     )
     dwarfdump_text = "\n".join(text for title, text in sections.items() if title != "readelf")
     documented = sorted(set(FLAG_RE.findall(dwarfdump_text)))
-    assert len(documented) >= 10, (
+    assert len(documented) >= 15, (
         f"only {len(documented)} flags extracted from {SKILL_MD} - the skill "
         f"or this extractor is broken: {documented}"
     )
@@ -148,6 +151,24 @@ def test_documented_dwarfdump_flags_are_real():
         f"({tool_version}): {bogus} - if a flag is real but newer than this "
         "LLVM, upgrade the toolchain rather than editing the skill"
     )
+
+
+def test_body_sections_are_fence_aware():
+    """Fenced `#` lines are not headings; fenced flags are still extracted."""
+    doc = (
+        "---\nname: x\n---\n"
+        "# real heading\n"
+        "prose\n"
+        "```bash\n"
+        "# a comment, not a heading\n"
+        "llvm-dwarfdump --fenced-flag file\n"
+        "```\n"
+        "# second heading\n"
+        "tail\n"
+    )
+    sections = body_sections(doc)
+    assert set(sections) == {"real heading", "second heading"}
+    assert "--fenced-flag" in FLAG_RE.findall(sections["real heading"])
 
 
 def test_frontmatter_contract():
