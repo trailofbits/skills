@@ -47,7 +47,7 @@ The workflow runtime hands a script its globals (`agent`, `parallel`, `pipeline`
 
 It deliberately does **not** inject a `workflow` global. All four phases are inlined in `audit.js`, so a reintroduced `await workflow(...)` throws `ReferenceError` rather than quietly resolving, and one scenario asserts none remain.
 
-That makes the parts of the workflow that aren't prompt text directly testable: argument parsing, cross-category dedup, directory-aware batching, which corpus each agent is handed, and every abort status. 79 assertions across 16 scenarios.
+That makes the parts of the workflow that aren't prompt text directly testable: argument parsing, cross-category dedup, directory-aware batching, which corpus each agent is handed, and every abort status. 90 assertions across 17 scenarios.
 
 A few scenarios do assert on prompt *content*, where a wording change would quietly narrow scope, notably that the verifier still carries the "unconditional candidates cannot be refuted at step 2" branch. Half the target set has no config fallback, so losing that sentence would silently discard it.
 
@@ -57,7 +57,7 @@ What it does **not** test: whether the prompts elicit good behaviour from a real
 
 A test suite that has silently stopped checking anything reports success forever. So `--self-test` mutates the workflow source in memory and asserts the scenarios **fail** for each mutation:
 
-30 mutations. A sample:
+32 mutations. A sample:
 
 | Mutation | Should break |
 |---|---|
@@ -65,6 +65,8 @@ A test suite that has silently stopped checking anything reports success forever
 | Adjudication and candidates both keyed on `file:line` | one category's verdict masking another's omission |
 | Verdict sets filtered before their batch is attached | the category stamp that keying depends on |
 | `batches_verified` counts dead batches too | a partial run reading as complete |
+| Total verify failure no longer aborts | `verify-failed` status, so a dead verify phase cannot read as clean |
+| `verify-failed` widened to any unadjudicated candidate | a partial verify still producing its report |
 | Oversized directory no longer split on its own | the over-cap branch of the packer |
 | Genuine-negative status collapsed into the generic one | an honest negative staying distinguishable from a failure |
 | Directory packing replaced by blind sort-then-chunk | whole-directory batching |

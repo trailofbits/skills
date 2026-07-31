@@ -563,12 +563,6 @@ log(
     `${unadjudicated.length} unadjudicated across ${batchesVerified}/${batches.length} batches`,
 );
 
-// ===========================================================================
-// Phase 4 - Report
-// ===========================================================================
-
-phase("Report");
-
 const coverage = {
   scope,
   files_scanned: totalScanned,
@@ -586,6 +580,26 @@ const coverage = {
   // Keyed like the candidates, so a gap names the rule and not just a location.
   unadjudicated: unadjudicated.map((c) => `${c.category}:${c.file}:${c.line}`),
 };
+
+// Zero-item guard: nothing adjudicated is a verify failure, not a clean audit.
+if (unadjudicated.length === candidates.length) {
+  return {
+    status: "verify-failed",
+    note:
+      `${batchesVerified}/${batches.length} verify batches returned and not one of the ` +
+      `${candidates.length} candidates was adjudicated. This is a verification failure, NOT a clean ` +
+      `audit: every candidate is still unjudged, so the target has neither been cleared nor found ` +
+      `wanting. Re-run the audit.`,
+    coverage,
+    candidates: coverage.unadjudicated,
+  };
+}
+
+// ===========================================================================
+// Phase 4 - Report
+// ===========================================================================
+
+phase("Report");
 
 const report = await agent(
   `Assemble the final report for an insecure-defaults audit of \`${scope}\`.

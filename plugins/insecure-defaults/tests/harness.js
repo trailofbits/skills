@@ -181,6 +181,16 @@ const SWEEPS_OVERLAP = {
   },
 };
 
+// Refutes every SWEEPS_OVERLAP candidate, whichever category's batch is asking. For
+// scenarios that need the run to reach the report: a verify phase that adjudicates
+// nothing aborts, so `() => ({ verdicts: [] })` no longer gets there.
+const ALL_REFUTED = () => ({
+  verdicts: [
+    { file: "src/a.py", line: 10, refuted: true, refuted_at_step: 4, rationale: "no sink" },
+    { file: "src/b.py", line: 3, refuted: true, refuted_at_step: 4, rationale: "no sink" },
+  ],
+});
+
 const allSweptClean = () =>
   Object.fromEntries(
     CATEGORY_IDS.map((id) => [
@@ -403,7 +413,9 @@ const SCENARIOS = [
         args: { ...ENTRY(), scope: "tests/" },
         recon: { ...RECON_OK, exclude_paths: ["tests/"] },
         sweeps: SWEEPS_OVERLAP,
-        verdicts: () => ({ verdicts: [] }),
+        // Real refutations, not an empty set: an empty one is a verify failure now, and
+        // this scenario is asserting the run reaches the end.
+        verdicts: ALL_REFUTED,
       });
       const sweepPrompt = prompts["sweep:weak-crypto"] || "";
       const reconPrompt = prompts["recon"] || "";
@@ -796,7 +808,13 @@ const SCENARIOS = [
         },
       });
       return [
-        ["run still completes", typeof result.status === "string", result.status],
+        // Not `typeof status === "string"`: that cannot tell a completed run from the
+        // verify-failed abort, which only a *total* verify failure should reach.
+        [
+          "run still completes",
+          result.status === "no-findings-confirmed" || result.status === "findings",
+          result.status,
+        ],
         [
           "batch shortfall visible in coverage",
           result.coverage.batches_verified < result.coverage.batches_run,
@@ -808,6 +826,73 @@ const SCENARIOS = [
           JSON.stringify(result.coverage.unadjudicated),
         ],
       ];
+    },
+  },
+  {
+    name: "zero-item guard: verification adjudicated nothing",
+    // The dangerous case is not one dead verifier but all of them: with no verdicts,
+    // `confirmed` is empty and the run used to return `no-findings-confirmed`, which the
+    // command whitelists as a completed audit. A transient API failure on a repo full of
+    // real defaults would report clean. Both shapes of total failure must abort, and the
+    // coverage accounting has to survive so the caller sees what went unjudged.
+    async run(src) {
+      const cases = [
+        ["every verify agent dies", () => { throw new Error("agent died"); }, 0],
+        ["every batch returns an empty verdict list", () => ({ verdicts: [] }), 2],
+      ];
+      const out = [];
+      for (const [label, verdicts, expectVerified] of cases) {
+        const { result, prompts } = await runWorkflow(src, {
+          args: ENTRY(),
+          recon: RECON_OK,
+          sweeps: SWEEPS_OVERLAP,
+          verdicts,
+        });
+        out.push([
+          `${label}: status is verify-failed`,
+          result.status === "verify-failed",
+          "got " + result.status,
+        ]);
+        out.push([
+          "  ...not reported as a clean run",
+          result.status !== "no-findings-confirmed" && result.status !== "findings",
+          result.status,
+        ]);
+        out.push([
+          "  ...note forbids reading it as clean",
+          /NOT a clean audit/.test(result.note || ""),
+          result.note || "",
+        ]);
+        out.push([
+          "  ...coverage survives, naming every unjudged candidate",
+          (result.coverage?.unadjudicated || []).length === 3 &&
+            result.coverage.batches_verified === expectVerified,
+          JSON.stringify(result.coverage?.unadjudicated) +
+            ` verified=${result.coverage?.batches_verified}`,
+        ]);
+        out.push([
+          "  ...no report agent spawned for an audit with nothing to report",
+          !("report" in prompts),
+          Object.keys(prompts).join(", "),
+        ]);
+      }
+      // One live verdict is enough to make it a real result: the guard must fire on a
+      // dead phase, not on a thin one.
+      const { result: partial } = await runWorkflow(src, {
+        args: ENTRY(),
+        recon: RECON_OK,
+        sweeps: SWEEPS_OVERLAP,
+        verdicts: (cat) =>
+          cat === "fallback-secrets"
+            ? { verdicts: [{ file: "src/a.py", line: 10, refuted: true, rationale: "no sink" }] }
+            : { verdicts: [] },
+      });
+      out.push([
+        "one adjudicated candidate is still a completed run",
+        partial.status === "no-findings-confirmed",
+        "got " + partial.status,
+      ]);
+      return out;
     },
   },
   {
@@ -970,6 +1055,23 @@ const MUTATIONS = [
     // no findings, and "no-candidates" carries the "not proof of absence" note.
     name: "genuine-negative status collapsed into the generic one",
     apply: (s) => s.replace("if (candidates.length === 0) {", "if (false) {"),
+  },
+  {
+    // A partial verify is reported through coverage; a total one has to abort, or the
+    // empty `confirmed` list reads as `no-findings-confirmed` and the command treats it
+    // as a completed audit.
+    name: "total verify failure no longer aborts",
+    apply: (s) => s.replace("if (unadjudicated.length === candidates.length) {", "if (false) {"),
+  },
+  {
+    // The mirror image: a guard that also fires on a partial verify throws away the
+    // verdicts that did come back, which is worse than reporting the shortfall.
+    name: "verify-failed abort widened to any unadjudicated candidate",
+    apply: (s) =>
+      s.replace(
+        "if (unadjudicated.length === candidates.length) {",
+        "if (unadjudicated.length > 0) {",
+      ),
   },
   {
     // The batch-shortfall report is what stops a partial run reading as complete.
