@@ -893,11 +893,75 @@ class SwiftCompiler(Compiler):
             return False, f"Swift compiler not found: {self.path}"
 
 
+# GNU cross-toolchain prefixes, for naming the binary to install or pass. The
+# analyzer's architecture names are not the triple prefixes: arm64 is aarch64,
+# i386 is i686, ppc64le is powerpc64le, and arm carries an ABI suffix.
+GNU_TRIPLES = {
+    "x86_64": "x86_64-linux-gnu",
+    "i386": "i686-linux-gnu",
+    "arm64": "aarch64-linux-gnu",
+    "arm": "arm-linux-gnueabihf",
+    "riscv64": "riscv64-linux-gnu",
+    "ppc64le": "powerpc64le-linux-gnu",
+    "s390x": "s390x-linux-gnu",
+}
+
+
+def compiler_family(name: str) -> str | None:
+    """Identify which compiler `name` is, by filename then by `--version`.
+
+    A GNU cross toolchain *is* a separate binary — `x86_64-linux-gnu-gcc` — so
+    handing the analyzer an explicit compiler is how cross-compilation works for
+    gcc. Every unrecognized `--compiler` value used to be driven as clang, which
+    passed `--target=` to gcc and failed with "unrecognized command-line option",
+    making the one escape hatch that should have worked unusable.
+
+    Args:
+        name: The `--compiler` value: a bare name or a path.
+
+    Returns:
+        One of `clang`, `gcc`, `rustc`, `swiftc`, `go`, or None when neither the
+        filename nor the version banner identifies it.
+    """
+    stem = Path(name).name.lower()
+    # clang before gcc: "gcc" contains "cc", and a clang binary may be named
+    # anything, so the more specific token wins.
+    if "clang" in stem:
+        return "clang"
+    if "gcc" in stem or "g++" in stem:
+        return "gcc"
+    if "rustc" in stem:
+        return "rustc"
+    if "swiftc" in stem:
+        return "swiftc"
+    if stem == "go":
+        return "go"
+
+    try:
+        probe = subprocess.run([name, "--version"], capture_output=True, text=True)
+    except OSError:
+        return None
+    banner = f"{probe.stdout}\n{probe.stderr}".lower()
+    if "clang version" in banner:
+        return "clang"
+    if "free software foundation" in banner or "gcc" in banner:
+        return "gcc"
+    if "rustc" in banner:
+        return "rustc"
+    if "swift version" in banner:
+        return "swiftc"
+    return None
+
+
 def get_compiler(name: str | None, language: str) -> Compiler:
     """Get a compiler instance by name, or detect one from the language.
 
     `name` is optional: callers pass the `--compiler` value through unchanged, and
-    the auto-detection below is what runs when it was not supplied.
+    the auto-detection below is what runs when it was not supplied. An explicit
+    value is dispatched on which compiler it actually is, so a cross toolchain
+    such as `x86_64-linux-gnu-gcc` is driven with gcc's flags. Nothing is
+    substituted on the caller's behalf: the binary asked for is the binary run,
+    and the report names it.
     """
     compilers = {
         "gcc": GCCCompiler,
@@ -910,8 +974,15 @@ def get_compiler(name: str | None, language: str) -> Compiler:
     if name:
         if name in compilers:
             return compilers[name]()
-        # Assume it's a path to a compiler
-        return ClangCompiler(name)
+        family = compiler_family(name)
+        if family is None:
+            print(
+                f"Note: could not tell which compiler {name} is from its name or "
+                "version banner; driving it with clang's flags",
+                file=sys.stderr,
+            )
+            return ClangCompiler(name)
+        return compilers[family](name)
 
     # Auto-detect based on language
     if language == "go":
@@ -1158,6 +1229,15 @@ def analyze_source(
         )
 
         if not success:
+            if arch != get_native_arch() and compiler_family(compiler_obj.path) == "gcc":
+                triple = GNU_TRIPLES.get(arch)
+                suggestion = f"--compiler {triple}-gcc" if triple else "an explicit cross build"
+                error = (
+                    f"{error.rstrip()}\n"
+                    f"The gcc on PATH targets its own ISA family, so it cannot build for "
+                    f"{arch}. Pass a cross build explicitly ({suggestion}), or use "
+                    f"--compiler clang, which cross-compiles through --target."
+                )
             raise RuntimeError(f"Compilation failed: {error}")
 
         with open(asm_path) as f:
@@ -1175,7 +1255,11 @@ def analyze_source(
 
         return AnalysisReport(
             architecture=arch,
-            compiler=compiler_obj.name,
+            # The binary that ran, not the family: with an explicit cross toolchain
+            # `--compiler x86_64-linux-gnu-gcc`, reporting "gcc" would name a
+            # different compiler — often a different major version — than the one
+            # whose codegen is in this report.
+            compiler=compiler_obj.path,
             optimization=optimization,
             source_file=str(source_file),
             total_functions=len(functions),

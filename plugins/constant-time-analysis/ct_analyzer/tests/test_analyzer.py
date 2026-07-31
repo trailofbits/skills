@@ -1763,6 +1763,46 @@ class TestCrossCompilation(unittest.TestCase):
         )
         self.assertNotIn("SDIV", mnemonics)
 
+    def test_an_explicit_cross_toolchain_is_driven_with_its_own_flags(self):
+        """A GNU cross toolchain is a separate binary, and the report must name it."""
+        from analyzer import GNU_TRIPLES
+
+        binary = f"{GNU_TRIPLES['x86_64']}-gcc"
+        if not _have(binary):
+            self.skipTest(f"{binary} not installed")
+        report = analyze_source(str(self.fixture), compiler=binary, arch="x86_64")
+        mnemonics = {v.mnemonic for v in report.violations}
+        self.assertEqual(report.compiler, binary, "the report must name the binary that ran")
+        self.assertTrue(
+            mnemonics & {"DIVL", "DIVQ", "IDIVL", "IDIVQ"},
+            f"cross gcc produced no x86 division mnemonic: {mnemonics}",
+        )
+
+    def test_compiler_family_is_identified_by_name_then_by_version(self):
+        from analyzer import ClangCompiler, GCCCompiler, compiler_family, get_compiler
+
+        self.assertEqual(compiler_family("x86_64-linux-gnu-gcc"), "gcc")
+        self.assertEqual(compiler_family("/opt/x/bin/aarch64-none-elf-gcc"), "gcc")
+        self.assertEqual(compiler_family("clang-18"), "clang")
+        # "gcc" contains "cc", so the clang check has to win on a clang binary
+        self.assertEqual(compiler_family("clang++"), "clang")
+        self.assertIsInstance(get_compiler("x86_64-linux-gnu-gcc", "c"), GCCCompiler)
+        self.assertIsInstance(get_compiler("clang-18", "c"), ClangCompiler)
+        if _have("cc"):
+            # Identified from its version banner rather than its name
+            self.assertIn(compiler_family("cc"), {"gcc", "clang"})
+
+    def test_gcc_names_the_cross_binary_to_use_when_it_cannot_cross(self):
+        """A raw `unrecognized option '-m64'` does not tell the reader what to do."""
+        if not _have("gcc"):
+            self.skipTest("gcc not available")
+        foreign = "riscv64" if get_native_arch() != "riscv64" else "x86_64"
+        with self.assertRaises(RuntimeError) as caught:
+            analyze_source(str(self.fixture), compiler="gcc", arch=foreign)
+        message = str(caught.exception)
+        self.assertIn(f"{foreign}-linux-gnu-gcc", message)
+        self.assertIn("--compiler clang", message)
+
     def test_go_cross_builds_for_amd64(self):
         """Go cross-builds without a C toolchain, since CGO is disabled."""
         if not _have("go"):

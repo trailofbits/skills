@@ -62,6 +62,8 @@ Narrow a large file to the routines that handle secrets with a regex, for exampl
 
 **Run natively compiled code (C, C++, Go, Rust, Swift) at more than one `--arch` and `--opt-level`.** Division timing and branch lowering are architecture- and optimization-dependent: x86_64 `IDIV` and arm64 `SDIV` differ, and a `cmov` at `-O2` can become a branch at `-O0`. A single clean run proves one configuration safe, not the code.
 
+**How `--arch` crosses depends on the toolchain.** clang crosses with `--target` and needs nothing installed. Go cross-builds through `GOARCH`, though `go tool objdump` has no riscv64 disassembler. A GNU cross toolchain is a *separate binary*, so gcc needs it named explicitly — `--compiler x86_64-linux-gnu-gcc`, `--compiler riscv64-linux-gnu-gcc` — and nothing is substituted for you, so the report always names the binary that ran. rustc needs the target's standard library (`rustup target add`), and Swift on Linux targets only the host. Compare against the toolchain that builds your product, not whichever cross build a distribution packages.
+
 **Re-run the whole sweep on the fix, across compilers, targets and every level including `Os` and `Oz`.** Any fix that works by handing the compiler a constant divisor to strength-reduce is a fix only where the compiler chooses to cooperate, and that choice varies more than it looks. Replacing `key_coef / (2 * gamma2)` with a `#define`d divisor still emits a real divide here:
 
 | Toolchain | Levels that emit a division |
