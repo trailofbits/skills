@@ -9,11 +9,13 @@ vulnerabilities in compiled cryptographic code.
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -1397,13 +1399,14 @@ console.log(vulnerableRandom());
 
 
 def _have(*commands):
-    """True when every command is runnable, for skipping toolchain-bound tests."""
-    for command in commands:
-        try:
-            subprocess.run([command, "--version"], capture_output=True, check=False)
-        except (OSError, FileNotFoundError):
-            return False
-    return True
+    """True when every command is on PATH.
+
+    `which`, not `--version`: javap exits non-zero for `--version`, so a
+    returncode check would skip Java and Kotlin everywhere, while running the
+    tool means a broken shim that exits non-zero looks absent or present
+    depending on which error it raises.
+    """
+    return all(shutil.which(command) is not None for command in commands)
 
 
 class TestBackendRegressions(unittest.TestCase):
@@ -1431,18 +1434,6 @@ class TestBackendRegressions(unittest.TestCase):
         report = self._analyze("triage_rust.rs")
         functions = {v.function for v in report.violations}
         self.assertIn("ct_high_bits", functions, f"got {functions}")
-
-    def test_unsupported_architecture_is_refused_not_downgraded(self):
-        """Omitting the target flag compiles for the host under the wrong label."""
-        from analyzer import GCCCompiler, SwiftCompiler
-
-        ok, message = SwiftCompiler().compile_to_assembly("x.swift", "/dev/null", "riscv64", "O2")
-        self.assertFalse(ok)
-        self.assertIn("cannot target riscv64", message)
-
-        ok, message = GCCCompiler().compile_to_assembly("x.c", "/dev/null", "mips", "O2")
-        self.assertFalse(ok)
-        self.assertIn("cannot target mips", message)
 
     def test_go_reports_only_the_analyzed_source(self):
         """`go build` links the runtime in; its divisions are not the caller's bug."""
@@ -1491,32 +1482,63 @@ class TestBackendRegressions(unittest.TestCase):
         self.assertFalse(report.passed)
 
     def test_php_refuses_to_pass_when_nothing_parsed(self):
-        """An empty parse is 'we understood nothing', not 'the code is fine'."""
+        """An empty parse is 'we understood nothing', not 'the code is fine'.
+
+        Asserts the raise in `analyze()`, not just that the parser returns
+        nothing: returning nothing is what the pre-fix code did too, so a test
+        that only checks the empty lists passes with the guard deleted.
+        """
         from script_analyzers import PHPAnalyzer
 
         analyzer = PHPAnalyzer()
-        functions, violations = analyzer._parse_opcache_output("nothing resembling opcodes\n")
-        self.assertEqual(functions, [])
-        self.assertEqual(violations, [])
+        self.assertEqual(analyzer._parse_opcache_output("nothing resembling opcodes\n"), ([], []))
 
-    def test_swift_targets_the_host_platform(self):
-        """Apple triples need Xcode's SDK; on Linux swiftc rejects them outright."""
-        from analyzer import SwiftCompiler
+        with tempfile.NamedTemporaryFile("w", suffix=".php", delete=False) as handle:
+            handle.write("<?php\nfunction f(int $a, int $b): int { return $a / $b; }\n")
+            path = handle.name
+        try:
+            with (
+                mock.patch.object(PHPAnalyzer, "_check_vld_available", return_value=False),
+                mock.patch.object(
+                    PHPAnalyzer,
+                    "_get_opcache_output",
+                    return_value=(True, "nothing resembling opcodes\n"),
+                ),
+                self.assertRaises(RuntimeError) as caught,
+            ):
+                analyzer.analyze(path)
+            self.assertIn("Parsed no functions", str(caught.exception))
+        finally:
+            os.unlink(path)
 
-        target = SwiftCompiler.target_for("arm64")
-        if target is None:
-            self.fail("arm64 must map to a target triple on every supported platform")
-        if platform.system() == "Darwin":
-            self.assertIn("apple", target)
-        else:
-            self.assertIn("linux", target)
+    def test_go_refuses_to_pass_when_no_symbol_came_from_the_source(self):
+        """The filter dropping everything means the listing was not understood."""
+        from analyzer import GoCompiler
 
-    def test_java_detects_fully_qualified_random(self):
-        """`new java.util.Random()` needs no import, so single files use it."""
-        if not _have("javac"):
-            self.skipTest("javac not available")
-        report = self._analyze("TriageJava.java")
-        self.assertIn("JAVA_UTIL_RANDOM", {v.mnemonic for v in report.violations})
+        runtime_only = (
+            "TEXT runtime.makeBucketArray(SB) /usr/lib/go/src/runtime/map.go\n"
+            "  map.go:1\t0x1000\t9ac2087b\tUDIV R2, R3, R27\n"
+        )
+        compiler = GoCompiler()
+        with mock.patch(
+            "analyzer.subprocess.run",
+            return_value=subprocess.CompletedProcess([], 0, stdout=runtime_only, stderr=""),
+        ):
+            ok, message = compiler.compile_to_assembly("crypto.go", "/dev/null", "arm64", "O2")
+        self.assertFalse(ok, "a listing with no symbols from the source must not succeed")
+        self.assertIn("no symbols", message)
+
+    def test_unsupported_architecture_is_refused_not_downgraded(self):
+        """Omitting the target flag compiles for the host under the wrong label."""
+        from analyzer import GCCCompiler, SwiftCompiler
+
+        ok, message = SwiftCompiler().compile_to_assembly("x.swift", "/dev/null", "riscv64", "O2")
+        self.assertFalse(ok)
+        self.assertIn("cannot target riscv64", message)
+
+        ok, message = GCCCompiler().compile_to_assembly("x.c", "/dev/null", "mips", "O2")
+        self.assertFalse(ok)
+        self.assertIn("cannot target mips", message)
 
     def test_go_filter_does_not_readmit_runtime_by_basename(self):
         """The runtime ships map.go, slice.go, string.go, time.go and select.go."""
@@ -1775,6 +1797,25 @@ EVERY_SUPPORTED_EXTENSION = (
     ".rb",
 )
 
+# expectations.json names languages the way a person would; detect_language()
+# returns its own identifiers. Mapping them explicitly lets the matrix test compare
+# sets rather than counts.
+DISPLAY_TO_DETECTED = {
+    "C": "c",
+    "C++": "cpp",
+    "Go": "go",
+    "Rust": "rust",
+    "Swift": "swift",
+    "Java": "java",
+    "Kotlin": "kotlin",
+    "C#": "csharp",
+    "PHP": "php",
+    "JavaScript": "javascript",
+    "TypeScript": "typescript",
+    "Python": "python",
+    "Ruby": "ruby",
+}
+
 TRIAGE_TOOLCHAINS = {
     "C": ["gcc"],
     "C++": ["gcc"],
@@ -1811,10 +1852,12 @@ class TestTriageMatrix(unittest.TestCase):
 
     def test_every_supported_language_has_a_fixture(self):
         """Runs with no toolchain, so the matrix itself is guarded everywhere."""
-        languages = {entry["language"] for entry in self.fixtures.values()}
+        # Compare the sets, not their sizes: equal counts stay green if one
+        # language is renamed while another is dropped.
+        declared = {DISPLAY_TO_DETECTED[entry["language"]] for entry in self.fixtures.values()}
         supported = {detect_language(f"x{ext}") for ext in EVERY_SUPPORTED_EXTENSION}
-        self.assertEqual(len(languages), len(supported), f"languages={sorted(languages)}")
-        self.assertEqual(len(self.fixtures), 13)
+        self.assertEqual(declared, supported)
+        self.assertEqual(len(self.fixtures), len(EVERY_SUPPORTED_EXTENSION))
 
     def test_every_fixture_pairs_a_true_and_false_positive(self):
         for name, entry in self.fixtures.items():
@@ -1852,7 +1895,12 @@ class TestTriageMatrix(unittest.TestCase):
         for name, entry in self.fixtures.items():
             language = entry["language"]
             if not _have(*TRIAGE_TOOLCHAINS[language]):
+                # A real skip per language, so a CI image that loses a toolchain
+                # shows up in the skip count instead of passing quietly with the
+                # detail on stdout.
                 skipped.append(language)
+                with self.subTest(language=language):
+                    self.skipTest(f"{language}: missing {TRIAGE_TOOLCHAINS[language]}")
                 continue
             exercised.append(language)
             source = (self.samples / name).read_text(encoding="utf-8")

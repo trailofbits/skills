@@ -579,7 +579,8 @@ def blank_comments(source: str, style: str = "c") -> str:
     Args:
         source: The file contents to scrub.
         style: `"c"` for `//` and `/* */` (C, C++, Java, Kotlin, C#, JS, TS),
-            `"hash"` for `#` (Python, Ruby).
+            `"hash"` for `#` (Python, Ruby). PHP is absent deliberately: its
+            detection is opcode-based and never scans source text.
 
     Returns:
         The source with comment bodies replaced by spaces.
@@ -924,7 +925,11 @@ class PHPAnalyzer(ScriptAnalyzer):
         # `; /path/file.php:7-10` gives the block's source range.
         location_re = re.compile(r"^;\s*(.+?):(\d+)(?:-\d+)?\s*$")
         # `0004 T2 = MUL CV1($gamma2) int(2)` / `0000 RETURN int(1)`
-        opcode_re = re.compile(r"^(\d{4})\s+(?:\S+\s*=\s*)?([A-Z][A-Z0-9_]*)\s*(.*)$")
+        # `\d{4,}`, not `\d{4}`: op_arrays past 9999 opcodes exist in generated code,
+        # and a fixed width made `10000 T2 = MUL …` unparseable, silently dropping
+        # every opcode from that point on while `functions` stayed non-empty — so the
+        # "nothing parsed" guard would not fire and the report looked like a partial pass.
+        opcode_re = re.compile(r"^(\d{4,})\s+(?:\S+\s*=\s*)?([A-Z][A-Z0-9_]*)\s*(.*)$")
 
         def report(mnemonic: str, reason: str, severity: Severity, offset: str, text: str) -> None:
             if filter_pattern and current_function and not filter_pattern.search(current_function):
@@ -1291,7 +1296,19 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
         # names are the only discriminator available. Restrict to what the file
         # under analysis declares; `declared` is empty only when the source could
         # not be read, in which case nothing is filtered.
-        declared = self._declared_function_names(compiled_source) if compiled_source else set()
+        # None means "could not read the compiled file", which must not be
+        # confused with "no declarations found". Treating an empty set as
+        # "filtering off" let an unreadable file report hundreds of node-internal
+        # functions as findings, indistinguishable from a genuinely noisy file.
+        if compiled_source is None:
+            declared = None
+            print(
+                "Note: could not read the compiled JavaScript, so node-internal "
+                "functions cannot be filtered out of the bytecode findings",
+                file=sys.stderr,
+            )
+        else:
+            declared = self._declared_function_names(compiled_source)
 
         # Track function calls
         pending_call: str | None = None
@@ -1306,7 +1323,7 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
                 func_name = func_match.group(1).strip()
                 # Skip internal Node.js functions
                 if func_name and not func_name.startswith("__"):
-                    if declared and func_name not in declared:
+                    if declared is not None and func_name not in declared:
                         current_function = None
                         in_bytecode_section = False
                         continue
@@ -1755,12 +1772,16 @@ class PythonAnalyzer(ScriptAnalyzer):
             if func_match:
                 func_name = func_match.group(1).strip()
                 current_function = func_name
+                # Reset, or the first instructions of this code object inherit the
+                # previous function's line number when dis omits one.
+                last_line_num = None
                 functions.append({"name": current_function, "instructions": 0})
                 continue
 
             # Also detect module-level code
             if line_stripped.startswith("Disassembly of") and "<module>" in line_stripped:
                 current_function = "<module>"
+                last_line_num = None
                 functions.append({"name": current_function, "instructions": 0})
                 continue
 
