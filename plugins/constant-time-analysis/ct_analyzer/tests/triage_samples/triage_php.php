@@ -38,3 +38,27 @@ function ct_encode_alg_header(string $public_alg_id): string
 {
     return base64_encode($public_alg_id);
 }
+
+/** Check a received authentication tag against the one we computed. */
+function ct_tag_matches(string $received_tag, string $computed_tag): bool
+{
+    return strcmp($received_tag, $computed_tag) === 0;
+}
+
+/** Check the wire header against the algorithm identifier we advertise. */
+function ct_header_matches(string $received_header, string $expected_header): bool
+{
+    return strcmp($received_header, $expected_header) === 0;
+}
+
+/** Substitute one byte of the expanded private key through the S-box. */
+function ct_sbox_byte(string $sbox, int $key_byte): string
+{
+    return $sbox[$key_byte];
+}
+
+/** Read the length byte at a fixed offset in the public wire header. */
+function ct_length_byte(string $header, int $offset): string
+{
+    return $header[$offset];
+}

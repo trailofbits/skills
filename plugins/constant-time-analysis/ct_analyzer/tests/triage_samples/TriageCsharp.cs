@@ -29,4 +29,40 @@ public static class TriageCsharp
     {
         return (long)(new Random().NextDouble() * 100.0) + attempt * 50L;
     }
+
+    /** Check a received authentication tag against the one we computed. */
+    public static bool CtTagMatches(string receivedTag, string computedTag)
+    {
+        return receivedTag.Equals(computedTag);
+    }
+
+    /** Check the wire header against the algorithm identifier we advertise. */
+    public static bool CtHeaderMatches(string receivedHeader, string expectedHeader)
+    {
+        return receivedHeader.Equals(expectedHeader);
+    }
+
+    /** Substitute one byte of the expanded private key through the S-box. */
+    public static byte CtSboxByte(byte[] sbox, int keyByte)
+    {
+        return sbox[keyByte];
+    }
+
+    /** Read the length byte at a fixed offset in the public wire header. */
+    public static byte CtLengthByte(byte[] header, int offset)
+    {
+        return header[offset];
+    }
+
+    /** Wire encoding of a decrypted session key. */
+    public static string CtEncodeSessionKey(byte[] decryptedKey)
+    {
+        return Convert.ToBase64String(decryptedKey);
+    }
+
+    /** Wire encoding of the public algorithm identifier header. */
+    public static string CtEncodeAlgHeader(byte[] publicAlgId)
+    {
+        return Convert.ToBase64String(publicAlgId);
+    }
 }

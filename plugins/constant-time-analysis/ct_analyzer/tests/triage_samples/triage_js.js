@@ -22,4 +22,45 @@ function ctRetryBackoffMillis(attempt) {
   return Math.random() * 100 + attempt * 50;
 }
 
-module.exports = { ctHighBits, ctBlockCount, ctNonceSeed, ctRetryBackoffMillis };
+/** Check a received authentication tag against the one we computed. */
+function ctTagMatches(receivedTag, computedTag) {
+  return receivedTag.indexOf(computedTag) === 0;
+}
+
+/** Check the wire header against the algorithm identifier we advertise. */
+function ctHeaderMatches(receivedHeader, expectedHeader) {
+  return receivedHeader.indexOf(expectedHeader) === 0;
+}
+
+/** Substitute one byte of the expanded private key through the S-box. */
+function ctSboxByte(sbox, keyByte) {
+  return sbox[keyByte];
+}
+
+/** Read the length byte at a fixed offset in the public wire header. */
+function ctLengthByte(header, offset) {
+  return header[offset];
+}
+
+/** Wire encoding of a decrypted session key. */
+function ctEncodeSessionKey(decryptedKey) {
+  return btoa(decryptedKey);
+}
+
+/** Wire encoding of the public algorithm identifier header. */
+function ctEncodeAlgHeader(publicAlgId) {
+  return btoa(publicAlgId);
+}
+
+module.exports = {
+  ctHighBits,
+  ctBlockCount,
+  ctNonceSeed,
+  ctRetryBackoffMillis,
+  ctTagMatches,
+  ctHeaderMatches,
+  ctSboxByte,
+  ctLengthByte,
+  ctEncodeSessionKey,
+  ctEncodeAlgHeader,
+};

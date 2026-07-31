@@ -22,4 +22,34 @@ public class TriageJava {
     public static long ctRetryBackoffMillis(int attempt) {
         return (long) (Math.random() * 100.0) + (attempt * 50L);
     }
+
+    /** Check a received authentication tag against the one we computed. */
+    public static boolean ctTagMatches(byte[] receivedTag, byte[] computedTag) {
+        return java.util.Arrays.equals(receivedTag, computedTag);
+    }
+
+    /** Check the wire header against the algorithm identifier we advertise. */
+    public static boolean ctHeaderMatches(String receivedHeader, String expectedHeader) {
+        return receivedHeader.equals(expectedHeader);
+    }
+
+    /** Substitute one byte of the expanded private key through the S-box. */
+    public static byte ctSboxByte(byte[] sbox, int keyByte) {
+        return sbox[keyByte];
+    }
+
+    /** Read the length byte at a fixed offset in the public wire header. */
+    public static byte ctLengthByte(byte[] header, int offset) {
+        return header[offset];
+    }
+
+    /** Wire encoding of a decrypted session key. */
+    public static String ctEncodeSessionKey(byte[] decryptedKey) {
+        return java.util.Base64.getEncoder().encodeToString(decryptedKey);
+    }
+
+    /** Wire encoding of the public algorithm identifier header. */
+    public static String ctEncodeAlgHeader(byte[] publicAlgId) {
+        return java.util.Base64.getEncoder().encodeToString(publicAlgId);
+    }
 }
