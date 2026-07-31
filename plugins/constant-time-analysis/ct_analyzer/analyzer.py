@@ -118,6 +118,38 @@ class AnalysisReport:
         return self.error_count == 0
 
 
+# Compiler-provided division routines. A target without a hardware divider does
+# not emit a division instruction at all: gcc calls a libgcc helper, so the
+# mnemonic is an ordinary `bl`/`call` and the instruction tables never match.
+# armv7-a is the common case — `key_coef / (2 * gamma2)` becomes
+# `bl __aeabi_idiv` — and __divti3 appears on x86_64 for __int128 division, which
+# crypto code does use. These routines loop over the operands, so they are more
+# operand-dependent than the hardware instruction they replace, and reporting
+# PASSED for them is the worst kind of false negative.
+DIVISION_HELPERS = {
+    # Arm EABI
+    "__aeabi_idiv",
+    "__aeabi_uidiv",
+    "__aeabi_idivmod",
+    "__aeabi_uidivmod",
+    "__aeabi_ldivmod",
+    "__aeabi_uldivmod",
+    # libgcc / compiler-rt, by operand width
+    "__divsi3",
+    "__udivsi3",
+    "__modsi3",
+    "__umodsi3",
+    "__divdi3",
+    "__udivdi3",
+    "__moddi3",
+    "__umoddi3",
+    "__divti3",
+    "__udivti3",
+    "__modti3",
+    "__umodti3",
+}
+
+
 # Architecture-specific dangerous instructions
 # Based on research from Trail of Bits and the cryptocoding guidelines
 
@@ -517,7 +549,10 @@ class GCCCompiler(Compiler):
         "x86_64": ["-m64"],
         "i386": ["-m32"],
         "arm64": ["-march=armv8-a"],
-        "arm": ["-march=armv7-a", "-mfloat-abi=hard"],
+        # -mfpu is required: armv7-a alone has no FPU, so hard float was
+        # rejected with "selected architecture lacks an FPU". vfpv3-d16 is
+        # Debian's armhf baseline.
+        "arm": ["-march=armv7-a", "-mfpu=vfpv3-d16", "-mfloat-abi=hard"],
         "riscv64": ["-march=rv64gc", "-mabi=lp64d"],
         "ppc64le": ["-mcpu=power8", "-mlittle-endian"],
         "s390x": ["-march=z13"],
@@ -1105,8 +1140,28 @@ class AssemblyParser:
 
             instruction_count += 1
 
+            called_helper = next(
+                (helper for helper in DIVISION_HELPERS if helper in instruction), None
+            )
+
             # Check for violations
-            if mnemonic in self.errors:
+            if called_helper:
+                violations.append(
+                    Violation(
+                        function=current_function or "<unknown>",
+                        file=current_file or "",
+                        line=current_line,
+                        address=address,
+                        instruction=instruction,
+                        mnemonic=called_helper.upper().lstrip("_"),
+                        reason=(
+                            f"{called_helper} performs division in software; it loops over "
+                            "the operands, so its execution time depends on their values"
+                        ),
+                        severity=Severity.ERROR,
+                    )
+                )
+            elif mnemonic in self.errors:
                 violations.append(
                     Violation(
                         function=current_function or "<unknown>",
@@ -1229,7 +1284,12 @@ def analyze_source(
         )
 
         if not success:
-            if arch != get_native_arch() and compiler_family(compiler_obj.path) == "gcc":
+            already_cross = "-linux-gnu" in Path(compiler_obj.path).name
+            if (
+                arch != get_native_arch()
+                and compiler_family(compiler_obj.path) == "gcc"
+                and not already_cross
+            ):
                 triple = GNU_TRIPLES.get(arch)
                 suggestion = f"--compiler {triple}-gcc" if triple else "an explicit cross build"
                 error = (

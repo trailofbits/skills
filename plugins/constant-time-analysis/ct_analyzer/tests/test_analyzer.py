@@ -1803,6 +1803,29 @@ class TestCrossCompilation(unittest.TestCase):
         self.assertIn(f"{foreign}-linux-gnu-gcc", message)
         self.assertIn("--compiler clang", message)
 
+    def test_software_division_helpers_are_detected(self):
+        """A target with no hardware divider emits a call, not a divide."""
+        assembly = """
+        ct_high_bits:
+            push    {r4, lr}
+            bl      __aeabi_idiv(PLT)
+            pop     {r4, pc}
+        """
+        parser = AssemblyParser("arm", "gcc")
+        _functions, violations = parser.parse(assembly)
+        self.assertTrue(violations, "bl __aeabi_idiv must be reported")
+        self.assertEqual(violations[0].mnemonic, "AEABI_IDIV")
+        self.assertEqual(violations[0].severity, Severity.ERROR)
+
+    def test_armv7_division_is_not_reported_as_clean(self):
+        """`x / y` on armv7-a becomes `bl __aeabi_idiv`, which read as PASSED."""
+        binary = "arm-linux-gnueabihf-gcc"
+        if not _have(binary):
+            self.skipTest(f"{binary} not installed")
+        report = analyze_source(str(self.fixture), compiler=binary, arch="arm")
+        self.assertFalse(report.passed, "three divisions in the fixture, none reported")
+        self.assertIn("AEABI_IDIV", {v.mnemonic for v in report.violations})
+
     def test_go_cross_builds_for_amd64(self):
         """Go cross-builds without a C toolchain, since CGO is disabled."""
         if not _have("go"):
