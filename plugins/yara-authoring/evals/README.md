@@ -1,14 +1,23 @@
 # Eval suite for `yara-authoring`
 
-Two cases measuring whether the skill makes rules *tighter*, not just whether it produces
-a rule: tightening one built from noisy input, and refusing to dress up a loose one as a
-detection.
+Three cases. Two measure whether the skill makes rules *tighter* rather than just
+producing one; the third is the regression gate — it is the only case that fails when the
+skill's own content is removed.
 
 ## Running
 
 ```bash
-claude plugin eval . --ablation with-without --judge-model opus --allow-tools Bash Write
+CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval . --ablation with-without \
+  --judge-model opus --allow-tools Bash Write
 ```
+
+- **`CLAUDE_CODE_WALNUT_SPIRE=1`** is required while `plugin eval` is in early access.
+  Without it the command exits with `plugin eval is currently in early access` and runs
+  nothing.
+- **Install the `yr` CLI first** (`brew install yara-x`). The skill tells the agent to run
+  `yr check` and `yr fmt`; on a machine without it the agent falls back to eyeballing the
+  syntax, which is a different task and scores differently. Runs from machines that differ
+  on this are not comparable, which defeats keeping the case names stable across runs.
 
 The headline number is **Δ** — the with-plugin score minus the no-plugin baseline. A case
 that scores 1.0 in both arms measures nothing.
@@ -30,18 +39,41 @@ Results land in `results/<timestamp>/` (gitignored).
 
 ## Cases
 
-| Case | Input | What it is really testing |
+| Case | Input | What it tests | Δ vs baseline | Detects a gutted skill? |
+|---|---|---|---|---|
+| `02-string-dump-pe` | Twelve extracted strings, nine of them junk | Picking the three family-unique indicators and saying why the rest were dropped | +0.39 | **no** |
+| `05-legacy-endianness` | A legacy rule with two dead magic-byte branches | Fixing `uint32(0) == 0xCAFEBABE` and explaining why a little-endian read reverses the constant | +0.33 | **no** |
+| `06-review-with-linter` | A rule with five concrete defects, for review | Running the plugin's linter and reporting findings by issue code | +0.50 | **yes** |
+
+Case 02 is the only one that writes a rule file, so it carries the mechanical pre-filter
+checks alongside three `llm` rubrics.
+
+### Why case 06 is the gate
+
+Cases 02 and 05 both show real uplift over a no-plugin baseline, and neither detects the
+skill being broken. That was measured, not assumed:
+
+| Case | intact | guidance deleted |
 |---|---|---|
-| `02-string-dump-pe` | Twelve extracted strings, nine of them junk | Picking the three family-unique indicators and saying why the rest were dropped |
-| `04-generic-only-trap` | Four generic strings, nothing else | Refusing to hand over a loose rule as a detection; pivoting to structure |
+| 02 (−2,988 chars: string-rejection table, `all of`/`any of` table inverted, Grouping by Confidence, Core Principles 2 and 3) | 0.94 | **0.97** |
+| 05 (−727 chars: the little-endian callout, the Common Mistakes row, the corrected constants) | 1.00 | **1.00** |
+| 06 (−1,045 chars: the Scripts section and the review direction) | 1.00 | **0.60** |
 
-Case 02 is the only one that writes a rule file, so it carries the mechanical checks —
-filesize band, PE magic, mutex, PDB path — alongside three `llm` rubrics. Case 04 is
-judgement-only: nothing usable is supplied and a rule is asked for anyway, which is where
-a baseline model obliges and the skill should not.
+For 02 and 05 the uplift comes from a skill being *loaded*, not from what it says. Sonnet
+already knows that `any of` across generic strings is loose and that `uintNN()` reads
+little-endian; it just needs to be in a frame where it thinks about YARA carefully. Delete
+the guidance and it still answers correctly.
 
-The numbers are non-contiguous because the suite was cut down from eight cases; they are
-kept as-is so results from earlier runs still line up by name.
+Case 06 works because it tests something the base model cannot produce: the plugin's own
+linter and its issue codes (`E002`, `W009`, …). `reports-linter-codes` passes 3/3 with the
+skill intact, 0/3 with the Scripts section removed, and 0/2 with no plugin at all — a
+regex check with no judge variance. **When adding a case, prefer this shape**: something
+only this plugin's files can supply, checked mechanically.
+
+Case numbers are non-contiguous. The suite was cut from eight cases to two, then
+`04-generic-only-trap` was removed after measuring Δ 0.00 across four runs (both arms
+scored 50/100/100 and 50/50/100 — the same values in a different order). Names are kept
+stable so stored results still line up.
 
 ## Grader conventions
 
@@ -68,9 +100,26 @@ skips the comment guard below will score a false pass rather than fail loudly.
   neither numerator nor denominator. Adding `arm:` would start scoring a check the
   baseline can never pass and inflate measured uplift. The schema rejects `weight: 0`, so
   omitting `arm:` is the mechanism.
-- **`filesize` graders band-check the bound** rather than accepting any number, so a rule
-  overfit to the sample does not score the same as one reasoning from the stated size —
-  case 02's prompt says ~340KB, and a bound under 400KB fails.
-- **Case 04 grades `last_message` only**, and its prompt asks for a reply rather than a
-  file. Its rubric accepts either a low-confidence hunting rule or a refusal to write one;
-  what fails is a loose rule presented as a normal deployable detection.
+- **`filesize` and magic-byte graders check that the pre-filter exists, not that it is
+  well chosen.** They accept every notation the skill promotes — `500KB`, `2MB`,
+  `400_000` (SKILL.md:268), `0x80000`, a bare byte count — and both spellings of the PE
+  magic, `uint16(0) == 0x5A4D` and `uint16be(0) == 0x4D5A` (SKILL.md:63).
+
+  An earlier version tried to band-check the bound against the prompt's stated ~340KB and
+  fail anything under 400KB. That was dropped: it rejected the `_` and hex forms the skill
+  itself recommends, and it accepted `900MB`. It also would not have discriminated —
+  across seven recorded runs every rule chose 1MB, 2MB or 5MB, so a strict band fails both
+  arms equally, which measures as little as passing both. If you reinstate a band check,
+  confirm first that real runs land on either side of it.
+- **A `regex` grader against the reply takes no `target:` at all.** `focus: last_message`
+  is an `llm`-grader key; on a `regex` grader the harness rejects it with
+  `Unrecognized key(s) in object: 'focus'`, and `target: {source: last_message}` fails with
+  `target: Invalid input`. Omit the key. Only file-targeted regex graders take
+  `target: {source: file, path: …}`.
+- **A grader that no arm can fail is worth deleting, not reweighting.** `finds-the-real-
+  defects` in case 06 passes in both arms — base Sonnet finds the defects unaided — and is
+  kept only because it would catch a genuine regression into approving a bad rule. An
+  earlier `ran-the-linter` grader was dropped outright: it regex-matched the script name in
+  the reply, so it failed runs that had demonstrably run the linter but summarised without
+  naming the file. `reports-linter-codes` already proves execution, since the codes cannot
+  be guessed.

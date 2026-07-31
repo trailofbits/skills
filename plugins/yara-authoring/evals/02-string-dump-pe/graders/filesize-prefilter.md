@@ -4,7 +4,7 @@ target:
   source: file
   path: tinhorn_loader.yar
 match: contains
-flags: m
+flags: im
 weight: 1
 ---
-^(?:[^/\n]|/(?!/))*filesize\s*<\s*(?:\d+\s*MB|(?:[4-9]\d{2}|\d{4,})\s*KB|\d{6,})
+^(?:[^/\n]|/(?!/))*filesize\s*<\s*(?:0[xX][0-9A-Fa-f]+|\d[\d_]*\s*(?:KB|MB)?)
