@@ -18,7 +18,7 @@ Compile the code, inspect the emitted assembly or bytecode for variable-time ins
 
 ## When NOT to Use
 
-- **Measuring** timing variance on a running binary — use the `constant-time-testing` skill, which covers dudect and statistical approaches. This skill inspects compiler output statically and never executes the code under test.
+- **Measuring** timing variance on a running binary — use the `constant-time-testing` skill from the `testing-handbook-skills` plugin, which covers dudect and statistical approaches and may not be installed. This skill inspects compiler output statically and never executes the code under test.
 - Non-cryptographic code, or crypto code where every input is public
 - High-level API usage where a vetted library owns the constant-time guarantees
 - Cache and other microarchitectural side channels — the assembly view cannot see them
@@ -40,15 +40,17 @@ Read the guide for the target language before interpreting any findings; each on
 
 ## Running the Analyzer
 
-The analyzer takes one file and detects the language from its extension:
+The analyzer takes one file and detects the language from its extension. **Always pass `--warnings`:**
 
 ```bash
-uv run {baseDir}/ct_analyzer/analyzer.py <source_file>
+uv run {baseDir}/ct_analyzer/analyzer.py --warnings <source_file>
 ```
+
+Without it the analyzer reports only error-severity findings, which means division, modulo and weak RNG. Four detector families are warning severity and stay silent: secret-dependent branches, early-exit comparison (`memcmp`, `strcmp`, `.equals`, `==`), table lookups indexed by a secret, and variable-time encoding. Early-exit comparison of an authentication tag is the most common timing bug in real code — Lucky Thirteen was exactly that — so a default run is quiet about the finding you are most likely to have.
 
 | Flag | Effect |
 | ---- | ------ |
-| `--warnings` | Include conditional-branch warnings, not just errors |
+| `--warnings` | Add the four warning-severity families above. Pass it every time |
 | `--func <regex>` | Restrict output to function names matching the regex |
 | `--json` | Machine-readable output |
 | `--github` | GitHub Actions annotations |
@@ -89,7 +91,7 @@ Since findings and silence both depend on the configuration, say which compiler,
 To sweep a directory, loop in the shell — the analyzer is a deterministic script, one invocation per file:
 
 ```bash
-for f in src/crypto/*.c; do uv run {baseDir}/ct_analyzer/analyzer.py --json "$f"; done
+for f in src/crypto/*.c; do uv run {baseDir}/ct_analyzer/analyzer.py --warnings --json "$f"; done
 ```
 
 ### Prerequisites
@@ -109,7 +111,7 @@ On a "toolchain not found" error, see [references/vm-compiled.md](references/vm-
 
 ## Interpreting Results
 
-**PASSED** — no variable-time instruction was emitted for the configuration you ran.
+**PASSED** — no *error*-severity finding for the configuration you ran. Warnings do not affect it, so `Result: PASSED` alongside `Warnings: 6` is normal and is not a clean result. Read the warning list before concluding anything.
 
 **FAILED** — dangerous instructions found, reported per function:
 
@@ -145,6 +147,22 @@ State the verdict and the data flow that justifies it for every flagged item. A 
 `ct_analyzer/tests/triage_samples/` holds a known-answer case per language: each fixture pairs a true positive with a false positive that the analyzer reports identically, and `expectations.json` records which is which and why. `triage_c.c` is the shortest example — the analyzer flags the division in both `ct_high_bits` and `ct_block_count`, and correct triage confirms the first and clears the second.
 
 **Weak-RNG and encoding findings ask a different question.** For `Math.random`, `mt_rand`, `random.randint`, `System.Random` and `base64_encode`, no operand is secret, so "does an operand depend on a secret?" does not resolve them. Ask instead what the result is used for: seeding a nonce or key is a true positive, jittering a retry delay is not. These are reported by a regex scan over the source rather than from bytecode, so they are attributed to `<source>` with a line number instead of to the enclosing function — except in PHP, where they carry the function.
+
+**Comparison and lookup findings have their own question, and their own fix.** For an early-exit comparison, ask whether either side is secret: comparing an authentication tag, MAC, or password hash is a true positive, comparing a public protocol header is not. For a table lookup, ask whether the *index* is secret — the array's contents do not matter, only what selects the element. Both are exploitable as written, so a confirmed one needs the language's constant-time primitive rather than a rewrite of the loop:
+
+| Language | Constant-time comparison |
+| -------- | ------------------------ |
+| C, C++ | `CRYPTO_memcmp` (OpenSSL) or `sodium_memcmp` |
+| Go | `crypto/subtle.ConstantTimeCompare` |
+| Rust | the `subtle` crate's `ConstantTimeEq` |
+| Java, Kotlin | `MessageDigest.isEqual` |
+| C# | `CryptographicOperations.FixedTimeEquals` |
+| PHP | `hash_equals` |
+| Python | `hmac.compare_digest` |
+| Ruby | `OpenSSL.secure_compare` |
+| JavaScript, TypeScript | `crypto.timingSafeEqual` |
+
+A secret-indexed lookup has no drop-in replacement: it needs a bit-sliced or arithmetic formulation that touches every element, which is why AES S-box tables are the classic case. Encoding a secret through a table — `base64_encode`, `bin2hex`, `chr`/`ord` — is the same problem in a library, and `paragonie/constant_time_encoding` is the reference fix for PHP.
 
 ## Limitations
 
