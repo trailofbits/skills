@@ -18,7 +18,9 @@ SELFTEST_DIR="$(cd "$(dirname "$0")" && pwd)"
 EVALS_DIR="$(cd "$SELFTEST_DIR/.." && pwd)"
 MAKE_REPO="$EVALS_DIR/fixtures/make-repo.sh"
 
-# shellcheck source=../lib/graders.sh
+# See the note in run-evals.sh: source-path=SCRIPTDIR anchors the relative path to
+# this script's directory, so `shellcheck -x` works from any working directory.
+# shellcheck source-path=SCRIPTDIR source=../lib/graders.sh
 . "$EVALS_DIR/lib/graders.sh"
 
 EXPECTED_ASSERTIONS=38
