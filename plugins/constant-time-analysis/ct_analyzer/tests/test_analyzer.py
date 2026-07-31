@@ -1725,6 +1725,58 @@ class TestSeverityLabelling(unittest.TestCase):
         self.assertFalse(report.passed)
 
 
+class TestCrossCompilation(unittest.TestCase):
+    """Proves a requested architecture was really targeted, not silently the host.
+
+    Asserting instruction names unique to the target is the only way to tell
+    crossing apart from host output wearing the requested label — the failure
+    mode `reject_arch` exists to prevent. The pre-existing cross-architecture
+    test asks for arm64, which is the host on some machines and therefore proves
+    nothing there.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.fixture = Path(__file__).parent / "triage_samples" / "triage_c.c"
+
+    def test_clang_targets_x86_64(self):
+        if not _have("clang"):
+            self.skipTest("clang not available")
+        report = analyze_source(str(self.fixture), compiler="clang", arch="x86_64")
+        mnemonics = {v.mnemonic for v in report.violations}
+        self.assertEqual(report.architecture, "x86_64")
+        self.assertTrue(
+            mnemonics & {"DIVL", "DIVQ", "IDIVL", "IDIVQ"},
+            f"no x86 division mnemonic, so this was not an x86_64 build: {mnemonics}",
+        )
+        self.assertNotIn("SDIV", mnemonics, "SDIV is arm64; the host leaked through")
+
+    def test_clang_targets_riscv64(self):
+        if not _have("clang"):
+            self.skipTest("clang not available")
+        report = analyze_source(str(self.fixture), compiler="clang", arch="riscv64")
+        mnemonics = {v.mnemonic for v in report.violations}
+        self.assertEqual(report.architecture, "riscv64")
+        self.assertTrue(
+            mnemonics & {"DIV", "DIVU", "DIVW", "DIVUW", "REM", "REMU"},
+            f"no RISC-V division mnemonic: {mnemonics}",
+        )
+        self.assertNotIn("SDIV", mnemonics)
+
+    def test_go_cross_builds_for_amd64(self):
+        """Go cross-builds without a C toolchain, since CGO is disabled."""
+        if not _have("go"):
+            self.skipTest("go not available")
+        fixture = Path(__file__).parent / "triage_samples" / "triage_go.go"
+        report = analyze_source(str(fixture), arch="x86_64")
+        mnemonics = {v.mnemonic for v in report.violations}
+        self.assertTrue(
+            mnemonics & {"IDIVL", "IDIVQ", "DIVL", "DIVQ"},
+            f"no x86 division mnemonic in a Go amd64 build: {mnemonics}",
+        )
+        self.assertNotIn("SDIVW", mnemonics, "SDIVW is Plan 9 arm64; the host leaked through")
+
+
 class TestCommentBlanking(unittest.TestCase):
     """Source-level detectors are regex scans, so comments used to count as code."""
 
