@@ -26,5 +26,9 @@ Pass the `${CLAUDE_PLUGIN_ROOT}` value as printed above; it's already the real p
 
 **3. Print the returned `report`.**
 
-Print `note` too if `status` isn't `findings` or `no-findings-confirmed`: anything else
-means the audit **didn't complete**, so it isn't a clean result.
+On `report-failed` there is no `report`: the audit completed but the write-up died, so
+print `note` and then present `findings`, `refuted` and `coverage` yourself.
+
+Print `note` too if `status` isn't `findings`, `no-findings-confirmed`, or
+`report-failed`: anything else means the audit **didn't complete**, so it isn't a clean
+result.

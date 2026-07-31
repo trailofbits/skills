@@ -690,6 +690,20 @@ Return the markdown itself, nothing else.`,
   { label: "report", phase: "Report", model: MODELS.report },
 );
 
+// agent() returns null on terminal failure, and the caller prints `report`.
+if (!report) {
+  return {
+    status: "report-failed",
+    note:
+      `The audit ran to completion and ${confirmed.length} finding(s) survived verification, but the report agent ` +
+      `returned nothing. Present the findings from \`findings\`, \`refuted\` and \`coverage\` below. Do not re-run the ` +
+      `audit and do not report the target as clean.`,
+    coverage,
+    findings: confirmed,
+    refuted,
+  };
+}
+
 return {
   status: confirmed.length > 0 ? "findings" : "no-findings-confirmed",
   coverage,

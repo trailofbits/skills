@@ -966,6 +966,42 @@ const SCENARIOS = [
     },
   },
   {
+    name: "the report agent dies",
+    // Confirmed findings with no markdown to print: unguarded, the status is `findings`
+    // and the caller prints an empty answer while the findings sit in the return.
+    async run(src) {
+      const { result } = await runWorkflow(src, {
+        args: ENTRY(),
+        recon: RECON_OK,
+        sweeps: SWEEPS_OVERLAP,
+        verdicts: () => ({
+          verdicts: [
+            { file: "src/a.py", line: 10, refuted: false, severity: "HIGH", rationale: "signs tokens" },
+          ],
+        }),
+        report: null,
+      });
+      return [
+        ["status is report-failed", result.status === "report-failed", result.status],
+        [
+          "not reported as a rendered run",
+          result.status !== "findings",
+          result.status,
+        ],
+        [
+          "the findings survive for the caller to render",
+          (result.findings || []).length > 0 && !!result.coverage,
+          `${(result.findings || []).length} findings`,
+        ],
+        [
+          "note tells the caller to render them",
+          /Present the findings/.test(result.note || ""),
+          result.note || "",
+        ],
+      ];
+    },
+  },
+  {
     name: "abort: recon returned nothing",
     async run(src) {
       const { result, prompts } = await runWorkflow(src, {
@@ -1125,6 +1161,10 @@ const MUTATIONS = [
     // no findings, and "no-candidates" carries the "not proof of absence" note.
     name: "genuine-negative status collapsed into the generic one",
     apply: (s) => s.replace("if (candidates.length === 0) {", "if (false) {"),
+  },
+  {
+    name: "dead report agent no longer guarded",
+    apply: (s) => s.replace("if (!report) {", "if (false) {"),
   },
   {
     name: "per-category scan accounting dropped",
