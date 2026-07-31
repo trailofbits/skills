@@ -7,4 +7,4 @@ match: contains
 flags: m
 weight: 1
 ---
-^(?:[^/\n]|/(?!/))*ldr\.pdb
+^(?:[^/\n]|/(?![/*]))*ldr\.pdb

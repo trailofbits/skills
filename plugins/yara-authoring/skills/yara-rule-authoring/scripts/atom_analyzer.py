@@ -22,16 +22,22 @@ import yara_x
 
 from yara_rules import analyze_rule
 from yara_rules import collect_rule_files
+from yara_rules import coverage_error
 from yara_rules import extract_rule_names
+from yara_rules import rule_less_files
 
 
-def analyze_file(file_path: Path, *, verbose: bool = False) -> int:
-    """Analyze a YARA file and print results. Returns 1 if any issue was found."""
+def analyze_file(file_path: Path, *, verbose: bool = False) -> tuple[int, bool]:
+    """Analyze a YARA file and print results.
+
+    Returns `(rules_analysed, failed)`. Whether analysing zero rules is an error
+    is decided across the whole run in `main`, not here -- see `coverage_error`.
+    """
     try:
         content = file_path.read_text()
     except OSError as e:
         print(f"Error reading {file_path}: {e}", file=sys.stderr)
-        return 1
+        return 0, True
 
     compiled = True
     try:
@@ -73,22 +79,19 @@ def analyze_file(file_path: Path, *, verbose: bool = False) -> int:
                 if issue.suggestion:
                     print(f"           Suggestion: {issue.suggestion}")
 
-    if rules_seen == 0:
-        print(f"Error: no rules found in {file_path}; nothing was inspected", file=sys.stderr)
-        return 1
-
     if has_issues:
-        return 1
+        return rules_seen, True
 
     if not compiled:
         print(
             f"\n{file_path}: {rules_seen} rule(s) inspected, no atom issues, but the file "
             "does not compile -- fix the compilation error before trusting this result"
         )
-        return 1
+        return rules_seen, True
 
-    print(f"\n✓ All strings in {file_path} have good atom quality")
-    return 0
+    if rules_seen:
+        print(f"\n✓ All strings in {file_path} have good atom quality")
+    return rules_seen, False
 
 
 def main() -> int:
@@ -104,11 +107,22 @@ def main() -> int:
         print(f"Error: {error}", file=sys.stderr)
         return 1
 
-    exit_code = 0
+    failed = False
+    rule_counts: dict[str, int] = {}
     for yar_file in files:
-        if analyze_file(yar_file, verbose=args.verbose) != 0:
-            exit_code = 1
-    return exit_code
+        rules, file_failed = analyze_file(yar_file, verbose=args.verbose)
+        rule_counts[str(yar_file)] = rules
+        failed = failed or file_failed
+
+    coverage = coverage_error(rule_counts)
+    if coverage:
+        print(f"Error: {coverage}", file=sys.stderr)
+        return 1
+
+    for name in rule_less_files(rule_counts):
+        print(f"Note: {name} holds no rules; skipped", file=sys.stderr)
+
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

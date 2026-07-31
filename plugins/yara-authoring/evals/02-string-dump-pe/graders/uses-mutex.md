@@ -7,4 +7,4 @@ match: contains
 flags: m
 weight: 1
 ---
-^(?:[^/\n]|/(?!/))*LarkMtx_7742
+^(?:[^/\n]|/(?![/*]))*LarkMtx_7742

@@ -29,10 +29,11 @@ that scores 1.0 in both arms measures nothing.
   own output self-prefers. Any judge at sonnet tier or above works, as long as it differs
   from the case's `model:`.
 
-Pilot one run before spending on both cases:
+Pilot one run before spending on the whole suite:
 
 ```bash
-claude plugin eval . --runs 1 --ablation with-without --case '02-*'
+CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval . --runs 1 --ablation with-without \
+  --case '02-*' --allow-tools Bash Write
 ```
 
 Results land in `results/<timestamp>/` (gitignored).
@@ -43,7 +44,7 @@ Results land in `results/<timestamp>/` (gitignored).
 |---|---|---|---|---|
 | `02-string-dump-pe` | Twelve extracted strings, nine of them junk | Picking the three family-unique indicators and saying why the rest were dropped or demoted | +0.52 | **no** |
 | `05-legacy-endianness` | A legacy rule with two dead magic-byte branches | Fixing `uint32(0) == 0xCAFEBABE` and explaining why a little-endian read reverses the constant | +0.33 | **no** |
-| `06-review-with-linter` | A rule with five concrete defects, for review | Running the plugin's linter and reporting findings by issue code | +0.50 | **yes** |
+| `06-review-with-linter` | A rule with five concrete defects, for review | Running the plugin's linter and reporting findings by issue code | +0.67 | **yes** |
 
 Case 02 is the only one that writes a rule file, so it carries the mechanical pre-filter
 checks alongside three `llm` rubrics.
@@ -64,16 +65,35 @@ already knows that `any of` across generic strings is loose and that `uintNN()` 
 little-endian; it just needs to be in a frame where it thinks about YARA carefully. Delete
 the guidance and it still answers correctly.
 
-Case 06 works because it tests something the base model cannot produce: the plugin's own
-linter and its issue codes (`E002`, `W009`, …). `reports-linter-codes` passes 3/3 with the
-skill intact, 0/3 with the Scripts section removed, and 0/2 with no plugin at all — a
-regex check with no judge variance. **When adding a case, prefer this shape**: something
-only this plugin's files can supply, checked mechanically.
+Case 06 works because it tests something only this plugin's files supply: the linter's
+issue codes. `reports-linter-codes` passes 3/3 with the skill intact, 0/3 with the Scripts
+section removed, and 0/2 with no plugin at all — a regex, so no judge variance. **When
+adding a case, prefer this shape**: something only this plugin can supply, checked
+mechanically.
 
-Case numbers are non-contiguous. The suite was cut from eight cases to two, then
-`04-generic-only-trap` was removed after measuring Δ 0.00 across four runs (both arms
-scored 50/100/100 and 50/50/100 — the same values in a different order). Names are kept
-stable so stored results still line up.
+Be precise about what it proves, though. It is a *skill-content* gate, not proof the
+linter ran. The codes are not secret — `references/style-guide.md` tabulates all nineteen,
+and `SKILL.md` names `E002` and `W009` in prose — so an agent could in principle map the
+defects to codes by reading the reference and never invoke `yara_lint.py`. The 0/3 result
+when the Scripts section is removed is still real: with nothing pointing at the linter,
+runs did not go looking for the table either.
+
+The residual risk is a silent pass. If `uv` or the `yara-x` wheel fails in the sandbox,
+every script call errors, the agent falls back to the reference table, and
+`reports-linter-codes` still passes — worse than the `yr` non-hermeticity above, which
+merely scores differently. **This gap is open.** A `linter-output-format` grader matching
+the linter's own `SEVERITY [CODE] rule:` layout was tried and removed: it failed 0/3 in
+*both* arms, because agents paraphrase findings rather than pasting raw tool output, so it
+depressed the with-plugin score without separating anything. `tool_used: Bash` is no better
+— Bash gets used for other things in both arms. Until there is a check that distinguishes
+execution from lookup, treat a green case 06 on an unfamiliar machine as needing a
+confirming look at whether the scripts actually ran.
+
+Case numbers are non-contiguous. The suite was cut from eight cases to two
+(`02-string-dump-pe`, `04-generic-only-trap`), then `04-generic-only-trap` was removed
+after measuring Δ 0.00 across four runs — both arms scored 50/100/100 and 50/50/100, the
+same values in a different order — and `05-legacy-endianness` and `06-review-with-linter`
+were added. Names are kept stable so stored results still line up.
 
 ## Grader conventions
 
@@ -87,13 +107,23 @@ skips the comment guard below will score a false pass rather than fail loudly.
   `flags: m`:
 
   ```
-  ^(?:[^/\n]|/(?!/))*<pattern>
+  ^(?:[^/\n]|/(?![/*]))*<pattern>
   ```
 
   Without the prefix, a model satisfies the grader from a comment — writing
   `// rejected: Global\LarkMtx_7742 is version-specific` while leaving the indicator out
-  of the rule. The guard scopes to `//` line comments only; an indicator buried in a
-  `/* ... */` block still gets through.
+  of the rule. The `[/*]` character class blocks both `//` line comments and the opening
+  of a `/* ... */` block. It matters most on case 05, whose prompt asks the agent to say
+  what was wrong: quoting the original condition as `/* was: uint32(0) == 0xCAFEBABE */`
+  is likely behaviour, and with a `//`-only guard that comment both fails
+  `no-dead-branch-left` on a correct answer and satisfies `zip-magic-corrected` on a
+  broken one. A pattern spanning multiple lines inside a block comment can still slip
+  through; strip comments before matching if a future grader needs that.
+- **A file-targeted grader fails when its file is missing; it does not pass vacuously.**
+  Verified by pointing case 05's `not_contains` grader at a filename no agent writes: the
+  harness reports `grader threw: … path "…" does not exist` and scores it 0. So a run that
+  writes nothing cannot bank credit from a `not_contains` check, and `no-dead-branch-left`
+  needs no companion guard.
 - **`skill-fired.md` carries no `weight:` and no `arm:` on purpose.** A `tool_used`
   grader with `tool: Skill` and no `arm:` is display-only to the harness: dropped from
   the baseline arm, flagged `[with-only, not scored]` in the with-plugin arm, counted in
@@ -102,8 +132,13 @@ skips the comment guard below will score a false pass rather than fail loudly.
   omitting `arm:` is the mechanism.
 - **`filesize` and magic-byte graders check that the pre-filter exists, not that it is
   well chosen.** They accept every notation the skill promotes — `500KB`, `2MB`,
-  `400_000` (SKILL.md:268), `0x80000`, a bare byte count — and both spellings of the PE
-  magic, `uint16(0) == 0x5A4D` and `uint16be(0) == 0x4D5A` (SKILL.md:63).
+  `400_000`, `0x80000`, a bare byte count of three digits or more — and both spellings of
+  the PE magic, `uint16(0) == 0x5A4D` and `uint16be(0) == 0x4D5A` (SKILL.md:63). SKILL.md
+  lists numeric underscores as a v1.5.0+ feature rather than recommending them as style,
+  but agents emit the form, so the grader accepts it.
+
+  It does reject a bound with fewer than three digits, so `filesize < 0` and `filesize < 2`
+  — pre-filters that make the rule match nothing — do not score.
 
   An earlier version tried to band-check the bound against the prompt's stated ~340KB and
   fail anything under 400KB. That was dropped: it rejected the `_` and hex forms the skill

@@ -23,6 +23,7 @@ from yara_rules import analyze_hex_string
 from yara_rules import analyze_text_string
 from yara_rules import check_condition_order
 from yara_rules import collect_rule_files
+from yara_rules import coverage_error
 from yara_rules import extract_condition
 from yara_rules import extract_metadata
 from yara_rules import extract_rule_body
@@ -31,6 +32,7 @@ from yara_rules import extract_strings
 from yara_rules import find_best_atom
 from yara_rules import hex_string_runs
 from yara_rules import lint_source
+from yara_rules import rule_less_files
 from yara_rules import score_atom
 from yara_rules import select_exit_code
 from yara_rules import strip_comments
@@ -371,6 +373,9 @@ def test_unreadable_file_fails_even_without_issues():
     broken = LintResult(file="x.yar", parse_error="Cannot read file")
 
     assert select_exit_code([broken], strict=False) == 1
+    # lint_file returns early on a read error without setting `rules`, so the
+    # default has to be 0 -- otherwise coverage_error credits a rule nobody saw.
+    assert broken.rules == 0
 
 
 # --------------------------------------------------------------------------- #
@@ -557,3 +562,40 @@ def test_a_slash_inside_a_character_class_does_not_end_the_regex():
     strings = extract_strings(CHAR_CLASS_RULE, "MAL_Win_CharClass_Jan25")
 
     assert [s.value for s in strings] == ["a[/]bcdef"]
+
+
+# --------------------------------------------------------------------------- #
+# Rule coverage across a run
+# --------------------------------------------------------------------------- #
+
+
+def test_a_run_that_inspected_no_rules_is_an_error():
+    assert coverage_error({"a.yar": 0}) is not None
+    assert coverage_error({"a.yar": 0, "b.yar": 0}) is not None
+
+
+def test_inspecting_no_files_reports_that_rather_than_an_empty_file_list():
+    message = coverage_error({})
+
+    assert message is not None
+    assert "no files" in message
+
+
+def test_a_rule_less_file_alongside_real_rules_is_not_an_error():
+    """A shared `import "pe"` header holds no rules; the directory is still healthy."""
+    assert coverage_error({"imports.yar": 0, "rules.yar": 3}) is None
+
+
+def test_the_coverage_error_names_the_files_it_inspected():
+    message = coverage_error({"b.yar": 0, "a.yar": 0})
+
+    assert message is not None
+    assert "a.yar" in message
+    assert "b.yar" in message
+
+
+def test_rule_less_files_are_listed_for_reporting():
+    counts = {"imports.yar": 0, "rules.yar": 2, "empty.yar": 0}
+
+    assert rule_less_files(counts) == ["empty.yar", "imports.yar"]
+    assert rule_less_files({"rules.yar": 2}) == []
