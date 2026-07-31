@@ -100,7 +100,11 @@ trap cleanup EXIT
 # Graders live in lib/graders.sh so that this runner and the self-test exercise the
 # same code. GRADER_MODEL is read by g_llm from the environment.
 export GRADER_MODEL
-# shellcheck source=lib/graders.sh
+# source-path=SCRIPTDIR, not a bare source=: shellcheck resolves a relative `source=`
+# against its own working directory, so `shellcheck -x plugins/.../run-evals.sh` from
+# the repo root cannot find the file and emits SC1091. SCRIPTDIR anchors it to this
+# script's directory instead, which is where the path is actually relative to.
+# shellcheck source-path=SCRIPTDIR source=lib/graders.sh
 . "$SCRIPT_DIR/lib/graders.sh"
 
 # ---------------------------------------------------------------------------

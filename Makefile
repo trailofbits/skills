@@ -36,10 +36,15 @@ lint:
 ## shell: shellcheck + shfmt over every shell script
 # plugins/ AND .github/scripts/ — globbing only plugins/ left the repo's own scripts
 # unchecked locally, which is where they are most likely to be edited.
+#
+# No --severity filter, deliberately. The pre-commit hook CI runs is plain
+# `shellcheck -x`, so a --severity=warning here hides every info-level finding that
+# will still fail the Lint job — SC1091 (unresolvable `source`) most of all, which is
+# exactly the class a local run should catch. That gap shipped a red build once.
 shell:
 	@echo "→ shellcheck"
 	@find plugins .github/scripts -name '*.sh' -type f \
-		-exec shellcheck --severity=warning -x {} +
+		-exec shellcheck -x {} +
 	@echo "→ shfmt"
 	@find plugins .github/scripts -name '*.sh' -type f -exec shfmt -i 2 -ci -d {} +
 
