@@ -24,11 +24,12 @@ args: { scope: "$1" or ".", pluginRoot: "${CLAUDE_PLUGIN_ROOT}" }
 
 Pass the `${CLAUDE_PLUGIN_ROOT}` value as printed above; it's already the real path.
 
-**3. Print the returned `report`.**
+**3. Print the result**, by `status`:
 
-On `report-failed` there is no `report`: the audit completed but the write-up died, so
-print `note` and then present `findings`, `refuted` and `coverage` yourself.
-
-Print `note` too if `status` isn't `findings`, `no-findings-confirmed`, or
-`report-failed`: anything else means the audit **didn't complete**, so it isn't a clean
-result.
+- `findings`, `no-findings-confirmed`: print `report`.
+- `no-candidates`: the sweeps ran and matched nothing, which is a real result. There is
+  no `report`; print `note`, including its point that this is not proof of absence.
+- `report-failed`: the audit completed but the write-up died. Print `note`, then present
+  `findings`, `refuted` and `coverage` yourself.
+- anything else: the audit **didn't complete**, so it isn't a clean result. Print `note`
+  and say the run failed.
