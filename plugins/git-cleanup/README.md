@@ -55,11 +55,24 @@ claude plugins:add trailofbits/skills/git-cleanup
 | `workflows/analyze-branches.js` | The dynamic workflow. Read-only — it never deletes |
 | `references/merge-evidence.md` | What counts as proof a branch is merged, read by the agents and the fallback path |
 | `tests/analyze-branches.test.mjs` | Stubs every agent and asserts the triage, clustering, and failure handling |
+| `evals/` | End-to-end evals: does the model produce a correct gate-1 analysis on a real repository? |
 
 The suite runs in CI and under `make check` via the `js-tests` target, which fails if it discovers no `*.test.mjs` files. To run just this one:
 
 ```bash
 node plugins/git-cleanup/tests/analyze-branches.test.mjs
+```
+
+## Tests vs evals
+
+The two cover different halves, and neither substitutes for the other:
+
+- **`tests/`** stubs every agent and asserts the JavaScript in `analyze-branches.js` — triage, clustering, protected-branch filtering, failure handling. Deterministic, free, and blind to what the model actually does with the result.
+- **`evals/`** runs the real model against a real repository and grades the gate-1 analysis: does unpushed work stay in Keep, does every delete candidate name its evidence, does anything get deleted before the user answers. See [evals/README.md](evals/README.md).
+
+```bash
+make eval-selftest   # free; proves the graders still fire. Part of `make check`
+make evals           # the real suite — costs API calls, opt-in only
 ```
 
 ## Example

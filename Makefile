@@ -11,10 +11,10 @@ RUFF_VERSION := 0.14.13
 
 .DEFAULT_GOAL := check
 .NOTPARALLEL:
-.PHONY: check self-test lint shell bats shell-suites python-tests js-tests validate fix help
+.PHONY: check self-test lint shell bats shell-suites python-tests js-tests eval-selftest evals validate fix help
 
 ## check: most of what CI runs (this is the one you want)
-check: self-test lint shell bats python-tests js-tests validate
+check: self-test lint shell bats python-tests js-tests eval-selftest validate
 	@echo ""
 	@echo "✓ check passed — most of CI, but not the loadability checks, the"
 	@echo "  version-increment check, or the non-ruff pre-commit hooks."
@@ -122,6 +122,48 @@ js-tests:
 	done; \
 	echo "  ran $$ran js suite(s)"; \
 	exit $$failed
+
+## eval-selftest: prove the eval graders still detect what they exist to detect
+# Same reasoning as `self-test` above, applied to the eval suites. No API calls, so it
+# belongs in `check`: the paid suite (`make evals`) runs rarely, and a grader whose
+# pattern silently stopped matching would report a clean bill of health indefinitely.
+#
+# Each suite must print an `<n> assertions passed` line with n > 0, as in js-tests — a
+# self-test that stops running its own body would otherwise exit 0 having proved
+# nothing.
+eval-selftest:
+	@echo "→ eval grader self-tests"
+	@suites=$$(find plugins -type f -path '*/evals/selftest/run-selftest.sh' | sort); \
+	if [ -z "$$suites" ]; then \
+		echo "  ✗ no eval self-tests found — discovery is broken"; \
+		exit 1; \
+	fi; \
+	failed=0; ran=0; \
+	for s in $$suites; do \
+		echo "  → $$s"; \
+		out=$$(bash "$$s" 2>&1) || failed=1; \
+		echo "$$out"; \
+		if ! echo "$$out" | grep -qE '^[1-9][0-9]* assertions passed$$'; then \
+			echo "  ✗ $$s reported no passing assertions — it ran nothing"; \
+			failed=1; \
+		fi; \
+		ran=$$((ran + 1)); \
+	done; \
+	echo "  ran $$ran eval self-test(s)"; \
+	exit $$failed
+
+## evals: run a plugin's eval suite against the real model (COSTS API CALLS)
+# Deliberately NOT in `check` and not in CI. Pass PLUGIN=<name> to pick the suite, and
+# ARGS='--case 01-mixed-repo --arm with' to narrow a run while iterating.
+PLUGIN ?= git-cleanup
+ARGS ?=
+evals:
+	@if [ ! -x plugins/$(PLUGIN)/evals/run-evals.sh ]; then \
+		echo "✗ plugins/$(PLUGIN)/evals/run-evals.sh not found or not executable"; \
+		exit 1; \
+	fi
+	@echo "→ evals: $(PLUGIN) (this makes real API calls)"
+	@bash plugins/$(PLUGIN)/evals/run-evals.sh $(ARGS)
 
 ## validate: plugin metadata, structure, and cross-references
 # Scans every plugin. CI scopes to the plugins a PR touches, so local is a strict
