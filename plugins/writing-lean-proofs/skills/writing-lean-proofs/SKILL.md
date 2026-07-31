@@ -105,12 +105,17 @@ naming lemmas so their names are guessable from their statements.
 Do not eyeball-check style — run the checkers:
 
 ```sh
-lake build                      # everything compiles, no sorries left
+lake build                      # everything compiles
+grep -rn "sorry" MyProject/     # no sorries left — `sorry` is only a
+                                # warning, so `lake build` alone exits 0
+                                # with sorries still present
 ```
 
-In Mathlib or Mathlib-dependent projects, the style linters
-(`multiGoal`, `show`, `setOption`, `simpNF`, ...) run as part of the build;
-for standalone projects, run Batteries' `#lint` in a scratch file or CI.
+The style linters (`multiGoal`, `show`, `setOption`, ...) run as part of
+Mathlib's own build but are **off by default elsewhere** — in a
+Mathlib-dependent project, opt in per option (`set_option
+linter.style.multiGoal true`, ideally in the lakefile's `leanOptions`).
+Run Batteries' `#lint` (which includes `simpNF`) in a scratch file or CI.
 The evidence for tooling over review: the first simp-normal-form linter
 found 100+ redundant simp lemmas in Mathlib that had all passed expert
 maintainer review.

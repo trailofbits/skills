@@ -46,7 +46,7 @@ theorem lt_of_le_of_lt : a ≤ b → b < c → a < c
 
 When an `UpperCamelCase` name is embedded in a `snake_case` theorem name, it
 is referenced in `lowerCamelCase`: a lemma about `IsOpen` is
-`isOpen_compl_iff`, a lemma about `IsCompact` is `isCompact_union`.
+`isOpen_compl_iff`, a lemma about `IsCompact` is `isCompact_iUnion`.
 
 ## Practical guidance
 

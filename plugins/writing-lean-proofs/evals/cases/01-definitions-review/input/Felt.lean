@@ -42,15 +42,10 @@ def Felt.lo32 (a : Felt) : Felt := Felt.ofNat (a.val % 2 ^ 32)
 /-- The high 32 bits of a felt's canonical representative. -/
 def Felt.hi32 (a : Felt) : Felt := Felt.ofNat (a.val / 2 ^ 32)
 
-/-- The truncated u32 value is within u32 bounds. -/
-theorem Felt.toU32_isU32 (a : Felt) : Felt.isU32 (Felt.ofNat a.toU32) = true := by
-  simp only [Felt.isU32, Felt.toU32, Felt.ofNat, decide_eq_true_eq]
-  have h : a.val % 2 ^ 32 < 2 ^ 32 := Nat.mod_lt _ (by norm_num)
-  have hlt : a.val % 2 ^ 32 < GOLDILOCKS_PRIME := by
-    unfold GOLDILOCKS_PRIME
-    omega
-  rw [ZMod.val_natCast_of_lt hlt]
-  exact h
+/-- Zero is within u32 bounds. -/
+theorem Felt.zero_isU32 : (0 : Felt).isU32 = true := by
+  simp only [Felt.isU32, ZMod.val_zero, decide_eq_true_eq]
+  norm_num
 
 /-- A felt within u32 bounds satisfies the u32 predicate. -/
 theorem Felt.isU32_of_IsU32 (a : Felt) (h : a.IsU32) : a.isU32 = true := by

@@ -10,8 +10,11 @@ Naively prompting a model to write or optimize Lean proofs largely fails
 (ImProver: GPT-4o at 26% accuracy on length optimization, 19% on
 readability rewriting). The same system with symbolic Lean context,
 error-correction against compiler feedback, retrieval, and
-verification-gated output reached 100% accuracy — and the verification gate
-does much of that work. Practical rule: never emit a proof you have not
+verification-gated output scores 100% on the paper's accuracy metric — by
+construction: when no rewritten proof verifies, ImProver falls back to the
+unchanged input, so the gate guarantees a correct output rather than a
+successful rewrite. That is the lesson: the guarantee comes from the gate,
+not from better generation. Practical rule: never emit a proof you have not
 compiled (`lake build` / `lake env lean file.lean`). Treat compiler errors
 as the feedback channel, not as failure.
 

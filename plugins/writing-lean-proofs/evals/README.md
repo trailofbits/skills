@@ -55,6 +55,9 @@ EVAL_MODEL=claude-sonnet-4-6 ./run.sh   # pin a model
 - The **skill arm** copies `skills/writing-lean-proofs` into the work dir's
   `.claude/skills/`, so the reviewer discovers it the way a plugin user
   would. The **baseline arm** runs bare. Comparing arms measures uplift.
+- Both arms run with `--setting-sources project`, so user-level config is
+  excluded: a globally installed copy of this skill (or the marketplace
+  plugin) cannot silently contaminate the baseline arm.
 - Each reviewer runs headless (`claude -p`) in a throwaway copy of the
   fixture with `--permission-mode acceptEdits`: edits are *possible*, so
   the no-rewrite check is meaningful.

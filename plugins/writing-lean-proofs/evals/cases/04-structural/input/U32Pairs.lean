@@ -34,8 +34,7 @@ theorem carry_le_one (a b : Nat) (h : U32Pair a b) : carry a b ≤ 1 := by
   obtain ⟨ha, hb⟩ := h
   simp only [carry, Nat.div_le_iff_le_mul_add_pred, Nat.lt_iff_add_one_le,
     Nat.reducePow, Nat.mul_one, Nat.add_sub_cancel, Nat.pos_iff_ne_zero,
-    ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true]
-  omega
+    ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, Nat.lt_add_one_iff]
 
 theorem mod_add_carry_mul (a b : Nat) :
     (a + b) % 2 ^ 32 + 2 ^ 32 * carry a b = a + b := by

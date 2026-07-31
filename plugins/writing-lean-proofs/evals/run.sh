@@ -101,8 +101,16 @@ PY
 }
 
 # checksum_tree <dir> — stable fingerprint of the .lean files in a tree.
+# Fails when it finds zero files: an empty fingerprint would make the
+# no-rewrite check pass vacuously.
 checksum_tree() {
-  (cd "$1" && find . -name '*.lean' -exec cksum {} \; | sort)
+  local n
+  n=$(find "$1" -name '*.lean' -type f | wc -l | tr -d ' ')
+  if [ "$n" -eq 0 ]; then
+    echo "error: no .lean files under $1 — no-rewrite check would inspect nothing" >&2
+    return 1
+  fi
+  (cd "$1" && find . -name '*.lean' -type f -exec cksum {} \; | sort)
 }
 
 # run_case <case-dir> <arm> <outdir>
@@ -114,21 +122,25 @@ run_case() {
 
   local work
   work=$(mktemp -d)
-  cp -R "$case_dir/input/." "$work/"
+  cp -R "$case_dir/input/." "$work/" || return 1
   if [ "$arm" = "skill" ]; then
     mkdir -p "$work/.claude/skills"
-    cp -R "$SKILL_SRC" "$work/.claude/skills/writing-lean-proofs"
+    cp -R "$SKILL_SRC" "$work/.claude/skills/writing-lean-proofs" || return 1
   fi
 
-  checksum_tree "$work" >"$outdir/cksum.before"
+  checksum_tree "$work" >"$outdir/cksum.before" || return 1
 
+  # --setting-sources project isolates both arms from user-level config:
+  # without it, a globally installed writing-lean-proofs skill/plugin would
+  # silently contaminate the baseline arm.
   echo "[$arm/$case_name] running reviewer..."
   local prompt
   prompt=$(cat "$case_dir/prompt.md")
   (cd "$work" && claude -p "$prompt" ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} \
-    --permission-mode "$PERMISSION_MODE") >"$outdir/transcript.md"
+    --setting-sources project \
+    --permission-mode "$PERMISSION_MODE") >"$outdir/transcript.md" || return 1
 
-  checksum_tree "$work" >"$outdir/cksum.after"
+  checksum_tree "$work" >"$outdir/cksum.after" || return 1
   if diff -q "$outdir/cksum.before" "$outdir/cksum.after" >/dev/null; then
     echo "pass" >"$outdir/no-rewrite.txt"
   else
@@ -138,8 +150,11 @@ run_case() {
   rm -rf "$work"
 
   echo "[$arm/$case_name] grading..."
-  grade_review "$case_dir/rubric.md" "$case_dir/input" \
-    "$outdir/transcript.md" "$outdir"
+  if ! grade_review "$case_dir/rubric.md" "$case_dir/input" \
+    "$outdir/transcript.md" "$outdir"; then
+    echo "[$arm/$case_name] grading FAILED (artifacts in $outdir)" >&2
+    return 1
+  fi
   echo "[$arm/$case_name] no-rewrite: $(head -n 1 "$outdir/no-rewrite.txt")"
 }
 
@@ -147,6 +162,7 @@ self_test() {
   local outdir
   outdir=$(mktemp -d)
   echo "[self-test] grading canned bad review against case 01 rubric..."
+  echo "[self-test] artifacts: $outdir (kept on failure for debugging)"
   grade_review "$EVALS_DIR/cases/01-definitions-review/rubric.md" \
     "$EVALS_DIR/cases/01-definitions-review/input" \
     "$EVALS_DIR/selftest/bad-review.md" "$outdir"
@@ -226,6 +242,7 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 RESULTS="$EVALS_DIR/results/$STAMP"
 RAN=0
 
+CASE_FAILURES=0
 for arm in "${ARMS[@]}"; do
   for c in "${CASES[@]}"; do
     case_dir="$EVALS_DIR/cases/$c"
@@ -233,7 +250,13 @@ for arm in "${ARMS[@]}"; do
       echo "error: no such case: $c" >&2
       exit 1
     fi
-    run_case "$case_dir" "$arm" "$RESULTS/$arm/$c"
+    # A failed case (reviewer or grader error) is recorded and the run
+    # continues, so one malformed judge response cannot discard the
+    # results of every other case; we exit non-zero after the summary.
+    if ! run_case "$case_dir" "$arm" "$RESULTS/$arm/$c"; then
+      echo "[$arm/$c] case FAILED to run or grade" >&2
+      CASE_FAILURES=$((CASE_FAILURES + 1))
+    fi
     RAN=$((RAN + 1))
   done
 done
@@ -269,3 +292,8 @@ for arm in sorted(os.listdir(root)):
 if rows == 0:
     sys.exit("error: summary found zero graded cases")
 PY
+
+if [ "$CASE_FAILURES" -gt 0 ]; then
+  echo "error: $CASE_FAILURES case(s) failed to run or grade" >&2
+  exit 1
+fi

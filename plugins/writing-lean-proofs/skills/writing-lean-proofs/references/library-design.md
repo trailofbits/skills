@@ -68,7 +68,10 @@ module docstring.
 
 **The smell test**: needing `erw`, or a trailing `rfl` after `simp`/`rw`, is
 the style guide's official signal of *missing API*. The fix is a new lemma,
-never unfolding.
+never unfolding. Do not confuse this with the API lemmas themselves: an
+`@[simp]` projection lemma *proved by* `rfl` next to its definition is the
+boundary working as intended — the smell is a downstream proof *needing*
+`rfl` to see through the definition.
 
 ## Abstraction boundaries are explicit decisions
 

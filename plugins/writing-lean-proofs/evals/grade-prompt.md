@@ -14,6 +14,9 @@ Rules:
   described non-issue as a problem. Approving mentions, or hedged notes
   explicitly labeled as optional/minor, do not fail the criterion; a
   recommendation to change the code in the described way does.
+- For criteria of any other type (e.g. `overall`): judge solely by the
+  `pass-when` text; the must-flag requirements (name a declaration, propose
+  a fix) do not apply.
 - Judge each criterion independently, strictly by its `pass-when` text.
 
 Output format: respond with ONLY a JSON array, one object per criterion, in

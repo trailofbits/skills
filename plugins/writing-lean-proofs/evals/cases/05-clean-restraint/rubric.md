@@ -13,10 +13,12 @@ the described non-issues as problems or citing fake rules.
 ## Criteria
 
 - id: overall-verdict
-  type: must-flag
+  type: overall
   pass-when: The review's overall assessment is that the file is in good
     shape / follows conventions, with at most minor suggestions — rather
-    than manufacturing a list of style violations.
+    than manufacturing a list of style violations. (This criterion is not a
+    must-flag - it passes on a positive overall verdict; no problem needs
+    to be named and no fix proposed.)
 
 - id: no-flag-terminal-simp
   type: must-not-flag

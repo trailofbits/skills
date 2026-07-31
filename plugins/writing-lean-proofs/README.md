@@ -38,8 +38,9 @@ anti-patterns reference so they don't creep back in.
 
 ## Contents
 
-- `skills/writing-lean-proofs/SKILL.md` — workflow, extraction ladder,
-  quick-reference rules
+All paths below are relative to `skills/writing-lean-proofs/`:
+
+- `SKILL.md` — workflow, extraction ladder, quick-reference rules
 - `references/library-design.md` — definitions, APIs, abstraction
   boundaries, project decomposition
 - `references/proof-style.md` — tactic proof structure

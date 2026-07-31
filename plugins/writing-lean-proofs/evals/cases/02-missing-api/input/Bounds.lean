@@ -33,7 +33,7 @@ def State.withStack (s : State) (stk : List Felt) : State :=
 @[simp] theorem State.withStack_withStack (s : State) (stk1 stk2 : List Felt) :
     (s.withStack stk1).withStack stk2 = s.withStack stk2 := rfl
 
-instance : Fact (Nat.Prime GOLDILOCKS_PRIME) := ⟨by native_decide⟩
+instance : NeZero GOLDILOCKS_PRIME := ⟨by norm_num [GOLDILOCKS_PRIME]⟩
 
 /-- Every canonical representative is below the prime. -/
 theorem felt_val_lt_prime (a : Felt) : a.val < GOLDILOCKS_PRIME :=
