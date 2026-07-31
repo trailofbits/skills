@@ -41,7 +41,7 @@ Results land in `results/<timestamp>/` (gitignored).
 
 | Case | Input | What it tests | Δ vs baseline | Detects a gutted skill? |
 |---|---|---|---|---|
-| `02-string-dump-pe` | Twelve extracted strings, nine of them junk | Picking the three family-unique indicators and saying why the rest were dropped | +0.39 | **no** |
+| `02-string-dump-pe` | Twelve extracted strings, nine of them junk | Picking the three family-unique indicators and saying why the rest were dropped or demoted | +0.52 | **no** |
 | `05-legacy-endianness` | A legacy rule with two dead magic-byte branches | Fixing `uint32(0) == 0xCAFEBABE` and explaining why a little-endian read reverses the constant | +0.33 | **no** |
 | `06-review-with-linter` | A rule with five concrete defects, for review | Running the plugin's linter and reporting findings by issue code | +0.50 | **yes** |
 
@@ -116,6 +116,23 @@ skips the comment guard below will score a false pass rather than fail loudly.
   `Unrecognized key(s) in object: 'focus'`, and `target: {source: last_message}` fails with
   `target: Invalid input`. Omit the key. Only file-targeted regex graders take
   `target: {source: file, path: …}`.
+- **`explains-rejections` and `junk-cannot-fire-alone` must agree on what is allowed.**
+  They used to conflict: `junk-cannot-fire-alone` accepts generic strings as corroboration
+  gated behind a unique indicator, while `explains-rejections` demanded at least two
+  strings be left out of the rule entirely. A run that gated everything instead of dropping
+  it satisfied the first and failed the second, which is why the same skill scored PASS,
+  FAIL, FAIL on three identical runs. `explains-rejections` now accepts either disposition
+  — dropped, or present but unable to fire alone — provided the response says which it is
+  and why. Case 02 also runs 5 times rather than 3.
+
+  Replacing it with a regex was tried and rejected. Checking the reply for
+  rejection-language plus two of the nine junk strings passes all three recorded
+  with-plugin replies but also two of three baseline replies, because a baseline model
+  names the junk strings, calls them generic, and then uses them anyway in an N-of fallback
+  branch. The distinguishing property is the role each string plays in the condition, which
+  regex over prose cannot see. Checking the rule file instead does not work either: gated
+  corroboration is explicitly allowed, so a `not_contains VirtualAlloc` check would fail a
+  correct answer.
 - **A grader that no arm can fail is worth deleting, not reweighting.** `finds-the-real-
   defects` in case 06 passes in both arms — base Sonnet finds the defects unaided — and is
   kept only because it would catch a genuine regression into approving a bad rule. An
