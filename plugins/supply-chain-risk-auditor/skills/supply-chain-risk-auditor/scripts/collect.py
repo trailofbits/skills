@@ -31,7 +31,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import sources
-from model import TIER_SCORECARD, Dependency, ReconciliationError, Signal, to_json
+from model import (
+    CRITERIA,
+    TIER_SCORECARD,
+    Dependency,
+    ReconciliationError,
+    Signal,
+    to_json,
+)
 
 # Two years without a push is "stale". A one-year threshold flagged jinja2 and
 # itsdangerous at 14 months — maintained-but-finished libraries whose flags teach a
@@ -215,10 +222,10 @@ def _npm_dependency(
     else:
         note = None
     if kind == "non-registry":
+        reason = f"resolves from {spec}, not the npm registry"
         return (
-            Dependency(ecosystem="npm", name=name, dev=is_dev, exists=None),
-            f"`{name}` resolves from {spec}, not from the npm registry, so no registry or "
-            f"advisory data applies to it.",
+            Dependency(ecosystem="npm", name=name, dev=is_dev, non_registry_reason=reason),
+            f"`{name}` {reason}, so no registry or advisory data applies to it.",
         )
     # The lockfile keys the declared name (node_modules/<declared>), so an alias must
     # be looked up under it, not under the rewritten target.
@@ -235,6 +242,10 @@ def _npm_dependency(
 # ----------------------------------------------------------------- PyPI manifests
 
 _REQ_SPLIT = re.compile(r"[<>=!~\[;@]")
+# A permissive PEP 440 shape: enough to reject line-continuation and inline-option
+# debris ("2.19.0 \\", "2.19.0 --hash") that would otherwise be sent to OSV as a
+# version and printed in the report as a version-matched claim.
+_VALID_VERSION = re.compile(r"^[0-9][0-9A-Za-z.+!_-]*$")
 _PEP503 = re.compile(r"[-_.]+")
 _VALID_NAME = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$")
 
@@ -291,7 +302,7 @@ def _pypi_specs(project: Path) -> tuple[dict[str, tuple[str, bool]], list[str]]:
             (data.get("project") or {}).get("optional-dependencies") or {}
         ).items():
             groups.append((items, _is_dev_group(extra)))
-        for group_name, group in (data.get("dependency-groups") or {}).items():
+        for group in (data.get("dependency-groups") or {}).values():
             # PEP 735 groups exist for development dependencies by definition.
             groups.append(([g for g in group if isinstance(g, str)], True))
         poetry = ((data.get("tool") or {}).get("poetry") or {}).get("dependencies") or {}
@@ -326,7 +337,10 @@ def _absorb_specs(
         if not _VALID_NAME.match(name):
             notes.append(f"skipped an unparseable requirement: {raw.strip()!r}")
             continue
-        specs.setdefault(normalize_pypi_name(name), (raw, is_dev))
+        canonical = normalize_pypi_name(name)
+        existing = specs.get(canonical)
+        if existing is None or (existing[1] and not is_dev):
+            specs[canonical] = (raw, is_dev)
 
 
 def _pypi_version(raw: str, locked: dict[str, str], canonical: str) -> tuple[str | None, str]:
@@ -335,8 +349,9 @@ def _pypi_version(raw: str, locked: dict[str, str], canonical: str) -> tuple[str
     spec = _strip_marker(raw)
     if "==" in spec:
         candidate = _REQ_SPLIT.split(spec.split("==", 1)[1].strip().strip(","), 1)[0].strip()
-        # `1.0.*` is a range, not a pin.
-        if candidate and "*" not in candidate:
+        # `1.0.*` is a range, not a pin, and pip-compile hash lines leave debris
+        # (`2.19.0 \\`) that must not be reported as a version.
+        if candidate and "*" not in candidate and _VALID_VERSION.match(candidate):
             return candidate, "manifest-pin"
     return None, "unresolved"
 
@@ -351,6 +366,27 @@ def _uv_lock_versions(project: Path) -> dict[str, str]:
         for pkg in data.get("package") or []
         if pkg.get("name") and pkg.get("version")
     }
+
+
+def _uv_non_registry_sources(project: Path) -> dict[str, str]:
+    """Canonical name -> source kind for uv.lock entries that do not resolve from PyPI.
+
+    A direct dependency in this map must not be looked up on PyPI by name: the lock
+    says the project installs it from git, a directory, or a local path, so a
+    same-named public package's advisories and metadata do not apply to it.
+    """
+    lock = project / "uv.lock"
+    if not lock.exists():
+        return {}
+    out: dict[str, str] = {}
+    for pkg in _read_toml(lock).get("package") or []:
+        source = pkg.get("source") or {}
+        if not pkg.get("name") or source.get("registry"):
+            continue
+        if source.get("editable") or source.get("virtual"):
+            continue
+        out[normalize_pypi_name(pkg["name"])] = next(iter(source), "unknown")
+    return out
 
 
 def _uv_all_locked(
@@ -401,9 +437,14 @@ def parse_pypi(project: Path) -> tuple[list[Dependency], list[str]]:
     if not specs:
         return [], notes
     locked = _uv_lock_versions(project)
+    non_registry = _uv_non_registry_sources(project)
     deps = []
     for canonical, (raw, is_dev) in specs.items():
         version, source = _pypi_version(raw, locked, canonical)
+        reason = None
+        if canonical in non_registry:
+            reason = f"resolves from a {non_registry[canonical]} source, not PyPI"
+            notes.append(f"`{canonical}` {reason}, so no registry or advisory data applies to it.")
         deps.append(
             Dependency(
                 ecosystem="PyPI",
@@ -411,6 +452,7 @@ def parse_pypi(project: Path) -> tuple[list[Dependency], list[str]]:
                 version=version,
                 version_source=source,
                 dev=is_dev,
+                non_registry_reason=reason,
             )
         )
     return deps, notes
@@ -976,7 +1018,15 @@ def _locked_beyond_direct(
     """Lockfile-resolved (ecosystem, name, version) triples that are not direct deps.
 
     Returns the attested triples with their dev-only markers, the unverifiable entries
-    with reasons, the lockfiles read, and notes.
+    with reasons, the ledger (distinct lockfile triples, and how many were excluded as
+    direct-covered), the lockfiles read, and notes.
+
+    Exclusion is keyed on the full triple, never on the name: the direct sweep checks a
+    direct dependency only at its own resolved version, so a nested copy of the same
+    package pinned at another version by some other dependency is still this sweep's
+    responsibility. A name-keyed exclusion silently dropped exactly that copy — a
+    genuinely installed, possibly vulnerable version checked by neither sweep while the
+    counts still balanced.
     """
     notes: list[str] = []
     gathered: list[LockedPackage] = []
@@ -993,27 +1043,39 @@ def _locked_beyond_direct(
             lock_sources.append(source)
         if note:
             notes.append(note)
-    direct = {d.key for d in deps}
+    direct_triples = {(d.ecosystem, d.name, d.version) for d in deps if d.version}
+    # The ledger total is counted from the raw lockfile before any exclusion, so a
+    # triple dropped without landing in a named bucket breaks validation instead of
+    # vanishing while the remaining counts reconcile among themselves.
+    all_triples = {(e, n, v) for e, n, v, _ in gathered}
+    all_triples.update((e["ecosystem"], e["name"], e["version"]) for e in unverifiable)
     merged: dict[tuple[str, str, str], bool | None] = {}
     for eco, name, version, dev in gathered:
-        if f"{eco}:{name}" in direct:
-            continue
         key = (eco, name, version)
+        if key in direct_triples:
+            continue
         # npm hoists one package into several paths, dev-only in one and runtime in
         # another; runtime wins, matching discover()'s rule for duplicate declarations.
         if key not in merged or dev is False:
             merged[key] = dev
-    return merged, _dedup_unverifiable(unverifiable, direct, set(merged)), lock_sources, notes
+    deduped = _dedup_unverifiable(unverifiable, direct_triples, set(merged))
+    ledger = {
+        "lockfile_entries": len(all_triples),
+        "excluded_direct": len(all_triples & direct_triples),
+    }
+    return merged, deduped, ledger, lock_sources, notes
 
 
 def _dedup_unverifiable(
-    unverifiable: list[Unverifiable], direct: set[str], seen: set[tuple[str, str, str]]
+    unverifiable: list[Unverifiable],
+    direct_triples: set[tuple[str, str, str]],
+    seen: set[tuple[str, str, str]],
 ) -> list[Unverifiable]:
-    """Drop unverifiable entries that duplicate a direct dep or an attested triple."""
+    """Drop unverifiable entries that duplicate a direct triple or an attested triple."""
     out = []
     for entry in unverifiable:
         key = (entry["ecosystem"], entry["name"], entry["version"])
-        if f"{entry['ecosystem']}:{entry['name']}" in direct or key in seen:
+        if key in direct_triples or key in seen:
             continue
         seen.add(key)
         out.append(entry)
@@ -1061,13 +1123,15 @@ def sweep_transitive(
     Returns:
         The transitive accounting for the artifact, and notes for the report.
     """
-    merged, unverifiable, lock_sources, notes = _locked_beyond_direct(project, deps)
+    merged, unverifiable, ledger, lock_sources, notes = _locked_beyond_direct(project, deps)
     empty = {
         "examined": False,
         "reason": None,
         "sources": [],
         "total": 0,
         "checked": 0,
+        "lockfile_entries": 0,
+        "excluded_direct": 0,
         "unverifiable": [],
     }
     if not lock_sources:
@@ -1084,6 +1148,7 @@ def sweep_transitive(
         "examined": True,
         "sources": lock_sources,
         "total": len(triples) + len(unverifiable),
+        **ledger,
         "unverifiable": sorted(unverifiable, key=lambda e: (e["ecosystem"], e["name"])),
     }
     if not triples:
@@ -1119,7 +1184,7 @@ def _cross_check_pip_audit(deps: list[Dependency], found: dict[str, list[str]]) 
             handle.write(f"{dep.name}=={dep.version}\n")
         path = Path(handle.name)
     try:
-        flagged_by_tool = sources.pip_audit_vulnerable(path)
+        flagged_by_tool = {normalize_pypi_name(n) for n in sources.pip_audit_vulnerable(path)}
     except sources.Unavailable as exc:
         return f"pip-audit is installed but did not produce a cross-check ({exc})."
     finally:
@@ -1155,6 +1220,20 @@ def _tooling_notes(deps: list[Dependency], found: dict[str, list[str]]) -> list[
     return notes
 
 
+# Recognised but unread; each produces a note so the fallback to pins or
+# latest-release is disclosed where the reader will see it.
+UNREAD_LOCKFILES = ("yarn.lock", "pnpm-lock.yaml", "poetry.lock")
+
+
+def _unread_lockfile_notes(project: Path) -> list[str]:
+    return [
+        f"{name} is present but not read: direct-dependency versions fall back to "
+        f"manifest pins or the latest release, and its transitive tree was not examined."
+        for name in UNREAD_LOCKFILES
+        if (project / name).exists()
+    ]
+
+
 MANIFEST_NAMES = (
     "package.json",
     "package-lock.json",
@@ -1171,16 +1250,23 @@ def _git_commit(project: Path) -> str | None:
     Reads the target's git metadata, never a dependency's source. Returns None when the
     target is not a git checkout, which is the normal case for an extracted tarball.
     """
-    head = project / ".git" / "HEAD"
+    git_dir = project / ".git"
+    head = git_dir / "HEAD"
     if not head.exists():
         return None
+    # The target's .git contents are untrusted input: a crafted HEAD can point outside
+    # .git (`ref: ../../etc/passwd`) or hold bytes that are not UTF-8. Both degrade to
+    # None rather than leaking file content into the report or aborting the run —
+    # UnicodeDecodeError is a ValueError, which the original OSError guard missed.
     try:
         content = head.read_text().strip()
         if content.startswith("ref: "):
-            ref = project / ".git" / content.removeprefix("ref: ")
+            ref = (git_dir / content.removeprefix("ref: ")).resolve()
+            if not ref.is_relative_to(git_dir.resolve()):
+                return None
             content = ref.read_text().strip() if ref.exists() else ""
         return content[:12] or None
-    except OSError:
+    except (OSError, ValueError):
         return None
 
 
@@ -1273,24 +1359,35 @@ def collect(project: Path, cache: Path, offline: bool) -> dict:
             "gh is not authenticated. GitHub allows 60 requests/hour unauthenticated "
             "against 5000 authenticated, so repository signals may be unassessable."
         )
+    notes.extend(_unread_lockfile_notes(project))
 
-    resolve_from_registry(http, deps)
-    found = _advisory_map(http, deps, notes)
+    # The one choke point for registry identity: a dependency that resolves from
+    # somewhere other than its public registry is never looked up by name — a
+    # same-named public package's advisories, publishers, and deprecation belong to
+    # code this project does not install. Every criterion is unassessable, with the
+    # source as the reason, and the dependency stays in the report and its coverage.
+    registry_deps = [d for d in deps if not d.non_registry_reason]
+    for dep in deps:
+        if dep.non_registry_reason:
+            _fill(dep, CRITERIA, Signal.unassessable(dep.non_registry_reason))
+
+    resolve_from_registry(http, registry_deps)
+    found = _advisory_map(http, registry_deps, notes)
     transitive, transitive_notes = sweep_transitive(http, project, deps)
     notes.extend(transitive_notes)
-    resolve_repos(http, deps)
-    resolve_go_repos(http, deps)
+    resolve_repos(http, registry_deps)
+    resolve_go_repos(http, registry_deps)
 
-    for dep in deps:
+    for dep in registry_deps:
         dep.signals["advisories"] = _advisory_signal(dep, found)
         ENRICHERS[dep.ecosystem](http, dep, token)
         sources.polite_pause()
 
-    notes.extend(_version_notes(deps))
+    notes.extend(_version_notes(registry_deps))
     sharing = _repo_sharing_note(deps)
     if sharing:
         notes.append(sharing)
-    notes.extend(_tooling_notes(deps, found))
+    notes.extend(_tooling_notes(registry_deps, found))
     notes.append(_scope_note(transitive))
     notes.append(_cache_note(http))
     return to_json(deps, scan_metadata(project), notes, transitive)

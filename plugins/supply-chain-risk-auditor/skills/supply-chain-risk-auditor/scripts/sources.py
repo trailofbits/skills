@@ -38,6 +38,8 @@ from email.message import Message
 from pathlib import Path
 from shutil import which
 
+from model import SCORECARD_CHECKS
+
 UA = {"User-Agent": "trailofbits-supply-chain-risk-auditor/0.1"}
 TIMEOUT = 45
 OSV_BATCH_MAX = 500
@@ -558,26 +560,9 @@ def _security_policy(http: Http, owner_repo: str, headers: dict) -> bool | None:
 
 # -------------------------------------------------------------------- Scorecard
 
-# Individual checks only. Thresholds are judgement calls, so the raw score travels with
-# every signal for a reader who disagrees. A score of -1 means Scorecard could not run
-# the check — commonly because it needs repository-admin access the public API lacks —
-# and is a gap, not a finding.
-# A threshold of None means measured and reported but never flagged.
-#
-# Only the two that name a concrete mechanism flag. Measured against axios's 43
-# dependencies, `Token-Permissions` below 6 flagged 23 of 35 and `Code-Review` below 4
-# flagged 15 of 39 — two thirds and a third of the tree. Both describe CI configuration
-# maturity, which tracks project size rather than the likelihood of someone shipping
-# malicious code, and `Code-Review` largely restates publisher concentration. Flagging
-# them buries the archived repository and the ten-year-abandoned package that matter.
-SCORECARD_CHECKS = {
-    # Scorecard found an actual script-injection or untrusted-checkout pattern.
-    "Dangerous-Workflow": ("dangerous_workflow", 10),
-    # Binaries committed to the repository, which nobody can review.
-    "Binary-Artifacts": ("binary_artifacts", 10),
-    "Token-Permissions": ("token_permissions", None),
-    "Code-Review": ("code_review", None),
-}
+# Check names and flag thresholds live in model.SCORECARD_CHECKS, the single source of
+# truth shared with the renderer. A Scorecard score of -1 means the check could not run
+# — commonly for want of repository-admin access — and is a gap, not a finding.
 
 
 def scorecard_checks(http: Http, repo_id: str) -> dict[str, int]:
@@ -620,6 +605,15 @@ def pip_audit_vulnerable(requirements: Path) -> set[str]:
                 "pip-audit",
                 "--requirement",
                 str(requirements),
+                # Both flags are required. Without them pip-audit resolves the full
+                # tree through pip, downloading distributions and running setup.py for
+                # anything without a wheel — executing the untrusted code this tool
+                # promises never to run. Measured: `--no-deps` alone still audited the
+                # resolved transitive set, so pip was still involved; `--disable-pip`
+                # (valid only with `--no-deps`) removes pip entirely and audits exactly
+                # the listed pins from registry metadata.
+                "--no-deps",
+                "--disable-pip",
                 "--format",
                 "json",
                 "--progress-spinner",

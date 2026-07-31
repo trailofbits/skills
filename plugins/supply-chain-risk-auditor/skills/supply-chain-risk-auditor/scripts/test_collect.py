@@ -156,14 +156,23 @@ def test_pep508_marker_does_not_fabricate_a_version():
 
 def test_wildcard_pin_is_a_range():
     assert _pypi_version("foo==1.0.*", {}, "foo") == (None, "unresolved")
+    # pip-compile hash lines leave debris that must not read as a version-matched pin
+    assert _pypi_version("requests==2.19.0 \\", {}, "requests") == (None, "unresolved")
+    assert _pypi_version("requests==2.19.0 --hash=sha256:abc", {}, "requests") == (
+        None,
+        "unresolved",
+    )
+    assert _pypi_version("requests==2.19.0", {}, "requests") == ("2.19.0", "manifest-pin")
 
 
 def test_requirements_filename_hints_dev(tmp_path: Path):
     (tmp_path / "requirements.txt").write_text("flask==2.0.0\n")
-    (tmp_path / "requirements-dev.txt").write_text("pytest==8.0.0\n")
+    # sorts before requirements.txt; a package in both must stay runtime at the
+    # runtime pin, not collapse to the first-seen dev entry
+    (tmp_path / "requirements-dev.txt").write_text("pytest==8.0.0\nflask==1.0.2\n")
     deps, _ = parse_pypi(tmp_path)
     by_name = {d.name: d for d in deps}
-    assert by_name["flask"].dev is False
+    assert by_name["flask"].dev is False and by_name["flask"].version == "2.0.0"
     assert by_name["pytest"].dev is True
 
 
@@ -215,6 +224,16 @@ def test_uv_lock_non_registry_sources_are_unverifiable(tmp_path: Path):
     reasons = {e["name"]: e["reason"] for e in unverifiable}
     assert "git source" in reasons["internal-lib"]
     assert "directory source" in reasons["vendored-flask"]
+    # a DIRECT dependency with a non-registry lock source carries the marker, so the
+    # pipeline never looks it up on PyPI by name
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "demo"\nversion = "0"\ndependencies = ["internal-lib", "real"]\n'
+    )
+    deps, _ = parse_pypi(tmp_path)
+    by_name = {d.name: d for d in deps}
+    assert by_name["internal-lib"].non_registry_reason
+    assert "git source" in by_name["internal-lib"].non_registry_reason
+    assert by_name["real"].non_registry_reason is None
 
 
 # ----------------------------------------------------------------------- Go parsing
@@ -364,18 +383,29 @@ def test_sweep_excludes_direct_merges_dev_and_flags(tmp_path: Path):
                         "inner", "3.0.0", dev=True
                     ),
                     "node_modules/other/node_modules/inner": registry_entry("inner", "3.0.0"),
+                    # a nested copy of the direct dep at an OLDER version: covered by
+                    # neither the direct sweep (which checks 1.0.0) nor a name-keyed
+                    # exclusion — it must reach this sweep
+                    "node_modules/other/node_modules/direct": registry_entry("direct", "0.9.0"),
                 }
             }
         )
     )
-    triples = [("npm", "inner", "3.0.0"), ("npm", "leftover", "2.0.0")]
+    triples = [
+        ("npm", "direct", "0.9.0"),
+        ("npm", "inner", "3.0.0"),
+        ("npm", "leftover", "2.0.0"),
+    ]
     http = seeded_http(
         tmp_path / "cache",
-        {("POST", OSV, osv_body(triples)): {"results": [{"vulns": [{"id": "GHSA-1"}]}, {}]}},
+        {("POST", OSV, osv_body(triples)): {"results": [{}, {"vulns": [{"id": "GHSA-1"}]}, {}]}},
     )
     direct = [Dependency(ecosystem="npm", name="direct", version="1.0.0")]
     transitive, _ = sweep_transitive(http, tmp_path, direct)
-    assert transitive["total"] == transitive["checked"] == 2
+    # total==3 only holds if the nested direct@0.9.0 was queried: the seeded cache
+    # answers only the exact three-triple OSV payload built above
+    assert transitive["total"] == transitive["checked"] == 3
+    assert transitive["lockfile_entries"] == 4 and transitive["excluded_direct"] == 1
     assert transitive["unverifiable"] == []
     # inner appears on a dev-only path and a runtime path; runtime wins.
     assert transitive["flagged"] == [
@@ -532,3 +562,47 @@ def test_zero_dependencies_exits_nonzero(tmp_path: Path):
     project.mkdir()
     with pytest.raises(SystemExit, match="no direct dependencies"):
         collect(project, tmp_path / "cache", offline=True)
+
+
+def test_non_registry_direct_dep_is_never_queried(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A workspace/file/git direct dependency must never be looked up by bare name:
+    a same-named public package's advisories and publishers would be attributed to
+    code the project never installs."""
+    monkeypatch.setattr(sources, "gh_token", lambda: None)
+    project = tmp_path / "proj"
+    project.mkdir()
+    (project / "package.json").write_text(
+        json.dumps({"dependencies": {"utils": "workspace:*", "tiny-dep": "1.2.3"}})
+    )
+    pushed = (datetime.now(UTC) - timedelta(days=10)).isoformat()
+    gh = "https://api.github.com/repos"
+    seeded_http(
+        tmp_path / "cache",
+        {
+            # only tiny-dep is seeded; a lookup of "utils" would be an offline miss,
+            # which reads as unassessable-source-down rather than proving the choke —
+            # so the assertions below also require the non-registry *reason*
+            ("GET", "https://registry.npmjs.org/tiny-dep", ""): {
+                "dist-tags": {"latest": "1.2.3"},
+                "versions": {"1.2.3": {"dist": {}}},
+                "maintainers": [{"name": "alice"}, {"name": "bob"}],
+                "repository": {"url": "git+https://github.com/acme/tiny-dep.git"},
+            },
+            ("GET", "https://api.npmjs.org/downloads/point/last-week/tiny-dep", ""): {
+                "downloads": 5000
+            },
+            ("GET", f"{gh}/acme/tiny-dep", ""): {"pushed_at": pushed, "archived": False},
+            ("GET", f"{gh}/acme/tiny-dep/contents/SECURITY.md", ""): {},
+            ("GET", "https://api.scorecard.dev/projects/github.com/acme/tiny-dep", ""): {
+                "checks": [{"name": "Dangerous-Workflow", "score": 10}]
+            },
+            ("POST", OSV, osv_body([("npm", "tiny-dep", "1.2.3")])): {"results": [{}]},
+        },
+    )
+    artifact = collect(project, tmp_path / "cache", offline=True)
+    utils = next(d for d in artifact["dependencies"] if d["name"] == "utils")
+    assert utils["non_registry_reason"] and "not the npm registry" in utils["non_registry_reason"]
+    assert utils["flagged"] == []
+    for signal in utils["signals"].values():
+        assert signal["state"] == State.UNASSESSABLE.value
+        assert "not the npm registry" in signal["detail"]

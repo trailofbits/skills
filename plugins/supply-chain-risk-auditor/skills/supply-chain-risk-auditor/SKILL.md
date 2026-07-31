@@ -30,7 +30,11 @@ The scripts enforce two rules worth knowing before you read their output:
 
 1. Confirm the target directory has manifests: `package.json`, `pyproject.toml`,
    `requirements*.txt`, or `go.mod`. If none exist, say so and stop — do not audit an
-   ecosystem this collector does not parse by hand.
+   ecosystem this collector does not parse by hand. Lockfiles read for exact versions
+   and the transitive sweep: `package-lock.json`/`npm-shrinkwrap.json`, `uv.lock`, and
+   a go 1.17+ `go.mod`. `yarn.lock`, `pnpm-lock.yaml`, and `poetry.lock` are not read —
+   the report says so when they are present, and versions fall back to pins or the
+   latest release.
 2. Check `gh auth status`. Unauthenticated GitHub allows 60 requests/hour against 5,000,
    and the collector makes several per dependency; expect repository criteria to come
    back unassessable without it. Say so rather than fixing it silently.
@@ -42,9 +46,10 @@ The scripts enforce two rules worth knowing before you read their output:
    uv run {baseDir}/scripts/render.py <out-dir>/findings.json --out <out-dir>/report.md
    ```
 
-   Expect a minute or two for ~50 dependencies. If `collect.py` exits non-zero, it is
-   refusing to report — relay its message verbatim instead of retrying or working
-   around it.
+   Expect a few minutes for ~50 dependencies — several HTTP requests per dependency,
+   more with many Go modules, and slower without authenticated `gh`. If `collect.py`
+   exits non-zero, it is refusing to report — relay its message verbatim instead of
+   retrying or working around it.
 4. Read `report.md` and `findings.json`. The report is the deliverable; the JSON carries
    the datum behind every verdict when you need to cite one.
 5. Add what the collector cannot, clearly separated from what it measured:

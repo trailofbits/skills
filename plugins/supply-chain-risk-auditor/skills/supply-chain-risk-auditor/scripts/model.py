@@ -102,6 +102,27 @@ TIER_INFO = ("provenance", "security_policy", "downloads")
 
 CRITERIA = TIER_A + TIER_B + TIER_SCORECARD + TIER_INFO
 
+# OpenSSF Scorecard check -> (criterion, flag threshold). The single source of truth for
+# which Scorecard criteria can flag: the collector scores against the thresholds and the
+# renderer derives its never-flags set from `threshold is None`. Keeping this knowledge
+# in one place is what stops the renderer's prose from drifting against the collector's
+# behaviour — an earlier draft maintained the demoted set by hand in the renderer and
+# described the two checks that DO flag as "not flagged — poor precision".
+#
+# Only the two that name a concrete mechanism flag. Measured against axios's 43
+# dependencies, `Token-Permissions` below 6 flagged 23 of 35 and `Code-Review` below 4
+# flagged 15 of 39 — two thirds and a third of the tree. Both describe CI configuration
+# maturity, which tracks project size rather than the likelihood of someone shipping
+# malicious code, and `Code-Review` largely restates publisher concentration.
+SCORECARD_CHECKS = {
+    # Scorecard found an actual script-injection or untrusted-checkout pattern.
+    "Dangerous-Workflow": ("dangerous_workflow", 10),
+    # Binaries committed to the repository, which nobody can review.
+    "Binary-Artifacts": ("binary_artifacts", 10),
+    "Token-Permissions": ("token_permissions", None),
+    "Code-Review": ("code_review", None),
+}
+
 
 @dataclass
 class Dependency:
@@ -125,6 +146,12 @@ class Dependency:
     # True when the package is known to exist in its registry. An empty answer from a
     # vulnerability database only means "no advisories" if the package is real.
     exists: bool | None = None
+    # Set when the dependency resolves from somewhere other than its public registry
+    # (file:, workspace:, git, a vendored directory). Registry-keyed data must never be
+    # queried for such a dependency: a same-named public package's advisories,
+    # publishers, and deprecation would be attributed to code the project never
+    # installs. Every criterion becomes unassessable with this reason.
+    non_registry_reason: str | None = None
     signals: dict[str, Signal] = field(default_factory=dict)
 
     @property
@@ -271,11 +298,15 @@ def _reconcile_transitive_counts(transitive: dict) -> None:
             "transitive accounting lists no unverifiable collection; entries that "
             "cannot be verified must be named, not folded into the checked count"
         )
-    if checked and checked + len(unverifiable) != total:
+    # A sweep that checked nothing is only accountable with a stated reason (OSV
+    # unreachable); without one, zero must reconcile like any other number — the
+    # earlier `if checked and ...` guard could not fire on the value that matters most.
+    if checked + len(unverifiable) != total and not (checked == 0 and transitive.get("reason")):
         raise ReconciliationError(
             f"transitive sweep checked {checked} and lists {len(unverifiable)} "
             f"unverifiable of {total} resolved; the difference is unaccounted for"
         )
+    _reconcile_transitive_ledger(transitive, total)
     if checked > total:
         raise ReconciliationError(
             f"transitive sweep claims {checked} packages checked of {total} resolved"
@@ -285,6 +316,30 @@ def _reconcile_transitive_counts(transitive: dict) -> None:
             f"transitive sweep flags {len(flagged)} packages but checked only {checked}"
         )
     _reconcile_transitive_entries(flagged, unverifiable)
+
+
+def _reconcile_transitive_ledger(transitive: dict, total: int) -> None:
+    """Every lockfile triple must land in a named bucket.
+
+    `total` is derived from the buckets themselves, so it reconciles by construction
+    even when a triple is silently dropped before bucketing — which is how a nested
+    copy of a direct dependency once vanished from the sweep with the counts still
+    balancing. `lockfile_entries` is counted from the raw lockfile before any
+    exclusion, so a dropped triple breaks this equation instead of disappearing.
+    """
+    lockfile_entries = transitive.get("lockfile_entries")
+    excluded = transitive.get("excluded_direct")
+    if lockfile_entries is None or excluded is None:
+        raise ReconciliationError(
+            "transitive accounting carries no lockfile ledger (lockfile_entries and "
+            "excluded_direct); without it a dropped entry cannot be detected"
+        )
+    if total + excluded != lockfile_entries:
+        raise ReconciliationError(
+            f"the lockfile resolves {lockfile_entries} distinct packages but only "
+            f"{total} are accounted for after excluding {excluded} direct-covered "
+            f"entries; the difference vanished from the sweep"
+        )
 
 
 def _reconcile_transitive_entries(flagged: list, unverifiable: list) -> None:

@@ -39,6 +39,8 @@ TRANSITIVE_CLEAN = {
     "sources": ["package-lock.json"],
     "total": 5,
     "checked": 5,
+    "lockfile_entries": 5,
+    "excluded_direct": 0,
     "unverifiable": [],
     "flagged": [],
 }
@@ -86,6 +88,9 @@ def test_render_carries_every_section():
         "## Method and caveats",
     ):
         assert heading in text, heading
+    # the flagging Scorecard checks must not be described as demoted-for-imprecision
+    assert "poor precision" not in text
+    assert "Dangerous CI workflow**: median" not in text
 
 
 def test_flagged_production_dependency_reaches_the_findings_table():
@@ -149,6 +154,8 @@ def test_transitive_flags_require_a_rendered_section():
             "sources": ["package-lock.json"],
             "total": 3,
             "checked": 3,
+            "lockfile_entries": 3,
+            "excluded_direct": 0,
             "unverifiable": [],
             "flagged": [
                 {
@@ -178,6 +185,9 @@ def test_transitive_section_states_every_outcome():
                 "sources": ["uv.lock"],
                 "total": 4,
                 "checked": 0,
+                "lockfile_entries": 4,
+                "excluded_direct": 0,
+                "unverifiable": [],
                 "flagged": [],
             }
         }
@@ -224,6 +234,8 @@ def test_unverifiable_entries_are_named_never_clean():
             "sources": ["package-lock.json"],
             "total": 3,
             "checked": 2,
+            "lockfile_entries": 3,
+            "excluded_direct": 0,
             "unverifiable": [
                 {
                     "ecosystem": "npm",

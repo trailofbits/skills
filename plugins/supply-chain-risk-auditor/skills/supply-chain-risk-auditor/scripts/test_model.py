@@ -168,6 +168,8 @@ def test_transitive_checked_beyond_total_refused():
         "sources": ["package-lock.json"],
         "total": 1,
         "checked": 2,
+        "lockfile_entries": 1,
+        "excluded_direct": 0,
         "unverifiable": [],
         "flagged": [],
     }
@@ -178,10 +180,12 @@ def test_transitive_checked_beyond_total_refused():
 def test_transitive_flags_beyond_checked_refused():
     bad = {
         "examined": True,
-        "reason": None,
+        "reason": "OSV was unreachable",
         "sources": ["package-lock.json"],
         "total": 2,
         "checked": 0,
+        "lockfile_entries": 2,
+        "excluded_direct": 0,
         "unverifiable": [],
         "flagged": [{"ecosystem": "npm", "name": "x", "version": "1", "advisories": ["G-1"]}],
     }
@@ -196,6 +200,8 @@ def test_transitive_flag_without_advisory_ids_refused():
         "sources": ["package-lock.json"],
         "total": 1,
         "checked": 1,
+        "lockfile_entries": 1,
+        "excluded_direct": 0,
         "unverifiable": [],
         "flagged": [{"ecosystem": "npm", "name": "x", "version": "1", "advisories": []}],
     }
@@ -210,9 +216,45 @@ def test_transitive_without_unverifiable_accounting_refused():
         "sources": ["package-lock.json"],
         "total": 1,
         "checked": 1,
+        "lockfile_entries": 1,
+        "excluded_direct": 0,
         "flagged": [],
     }
     with pytest.raises(ReconciliationError, match="unverifiable"):
+        artifact(transitive=bad)
+
+
+def test_transitive_ledger_detects_a_dropped_entry():
+    """The lockfile count is independent of the buckets, so a triple dropped before
+    bucketing breaks this equation instead of vanishing while the counts balance."""
+    bad = {
+        "examined": True,
+        "reason": None,
+        "sources": ["package-lock.json"],
+        "total": 2,
+        "checked": 2,
+        "lockfile_entries": 4,
+        "excluded_direct": 1,
+        "unverifiable": [],
+        "flagged": [],
+    }
+    with pytest.raises(ReconciliationError, match="vanished"):
+        artifact(transitive=bad)
+
+
+def test_transitive_checked_zero_without_reason_refused():
+    bad = {
+        "examined": True,
+        "reason": None,
+        "sources": ["package-lock.json"],
+        "total": 4,
+        "checked": 0,
+        "lockfile_entries": 4,
+        "excluded_direct": 0,
+        "unverifiable": [],
+        "flagged": [],
+    }
+    with pytest.raises(ReconciliationError, match="unaccounted"):
         artifact(transitive=bad)
 
 
@@ -223,6 +265,8 @@ def test_transitive_unverifiable_must_reconcile():
         "sources": ["package-lock.json"],
         "total": 5,
         "checked": 2,
+        "lockfile_entries": 5,
+        "excluded_direct": 0,
         "unverifiable": [{"ecosystem": "npm", "name": "x", "version": "1", "reason": "git"}],
         "flagged": [],
     }

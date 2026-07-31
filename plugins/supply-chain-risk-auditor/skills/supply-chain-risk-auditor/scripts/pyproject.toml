@@ -18,5 +18,3 @@ extend-select = ["C901"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 8
-
-[tool.ty.rules]

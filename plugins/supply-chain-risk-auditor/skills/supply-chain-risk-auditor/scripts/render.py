@@ -36,6 +36,7 @@ import sys
 from pathlib import Path
 
 from model import (
+    SCORECARD_CHECKS,
     TIER_A,
     TIER_B,
     TIER_INFO,
@@ -84,6 +85,14 @@ INFO_PHRASING = {
     "security_policy": "publish a security policy",
 }
 
+# Derived from the single source of truth: criteria whose threshold is None are
+# measured and reported but can never flag. Only these belong in the Informational
+# section — an earlier draft kept this set by hand and described the two checks that DO
+# flag as "not flagged — poor precision" on every clean run.
+SCORECARD_NEVER_FLAGS = frozenset(
+    criterion for criterion, threshold in SCORECARD_CHECKS.values() if threshold is None
+)
+
 # Why each demoted Scorecard check is reported rather than flagged.
 SCORECARD_CAVEAT = {
     "token_permissions": (
@@ -107,7 +116,8 @@ def _cell(value: object) -> str:
     finding on another package. Injection is the same path: an unescaped `|` or a
     forged heading rides third-party text into the report.
     """
-    return re.sub(r"\s+", " ", str(value)).replace("|", "\\|").strip()
+    text = re.sub(r"\s+", " ", str(value)).strip()
+    return text.replace("|", "\\|").replace("[", "\\[")
 
 
 def plural(n: int, singular: str, many: str) -> str:
@@ -460,21 +470,23 @@ def scorecard_distribution(artifact: dict) -> list[str]:
     """
     out = []
     for criterion in TIER_SCORECARD:
+        if criterion not in SCORECARD_NEVER_FLAGS:
+            # The flagging checks report through the findings tables and coverage;
+            # describing them here as "not flagged" contradicted both.
+            continue
         scores = [
             s["value"]
             for dep in artifact["dependencies"]
             if isinstance((s := _signal(dep, criterion)).get("value"), int)
-            and s["state"] != State.FLAGGED.value
         ]
-        counts = artifact["coverage"]["criteria"].get(criterion, {})
-        if counts.get(State.FLAGGED.value) or not scores:
+        if not scores:
             continue
         low = sum(1 for s in scores if s < 6)
         out.append(
             f"- **{LABELS.get(criterion, criterion)}**: median "
             f"{sorted(scores)[len(scores) // 2]}/10 across {len(scores)} scored "
             f"dependencies; {low} score below 6. Not flagged — "
-            f"{SCORECARD_CAVEAT.get(criterion, 'poor precision as a risk signal')}."
+            f"{SCORECARD_CAVEAT[criterion]}."
         )
     return out
 

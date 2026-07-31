@@ -47,9 +47,12 @@ bound) under the system temp directory; `--offline` reruns from cache alone.
 
 Written for the reader who owns or is engaged on the audited project. Direct
 dependencies carry the full criteria set; the transitive tree is checked for advisories
-only, and only where a lockfile (`package-lock.json`, `uv.lock`, or a go 1.17+
-`go.mod`) resolves it. The report states what was not examined rather than leaving it
-to be inferred.
+only, and only where a lockfile (`package-lock.json`/`npm-shrinkwrap.json`, `uv.lock`,
+or a go 1.17+ `go.mod`) resolves it. `yarn.lock`, `pnpm-lock.yaml`, and `poetry.lock`
+are not read; the report notes their presence and versions fall back to manifest pins
+or the latest release. Dependencies that resolve from outside their public registry
+(workspace, git, vendored) are reported as unassessable rather than looked up by name.
+The report states what was not examined rather than leaving it to be inferred.
 
 The audit is designed to be useful given nothing more than a list of dependencies: it
 reads manifests and lockfiles, and never installs, builds, or executes the project or
