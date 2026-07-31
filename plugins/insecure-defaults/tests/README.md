@@ -90,4 +90,4 @@ Append to `SCENARIOS` in `harness.js`. Each entry is `{ name, run(src) }` return
 
 A sweep fixture of `null` is a sweep that returned nothing and an `Error` is one that died; a category the fixture omits returns a default that scanned 0 files.
 
-Fixtures derive category ids from `CATEGORIES` in `audit.js` and seeds from `references/<id>.json` rather than hardcoding either, so editing a category doesn't quietly make the fixtures vacuous. The suite fails if it parses zero categories, or if fewer than 30 assertions run.
+Fixtures derive category ids from `CATEGORIES` in `audit.js` and seeds from `references/<id>.json` rather than hardcoding either, so editing a category doesn't quietly make the fixtures vacuous. The suite fails if it parses zero categories.
