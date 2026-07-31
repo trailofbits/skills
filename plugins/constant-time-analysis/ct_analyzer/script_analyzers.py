@@ -563,27 +563,44 @@ def blank_comments(source: str, style: str = "c") -> str:
     """Replace comment bodies with spaces, preserving offsets and line breaks.
 
     The source-level detectors are regex scans, so without this a `/** ... */`
-    doc comment counted as a division and any prose mentioning `Math.random()`
-    counted as a call. Blanking rather than deleting keeps every subsequent
-    match offset and line number correct.
+    doc comment counted as a division and prose mentioning `Math.random()`
+    counted as a call. Blanking rather than deleting keeps every subsequent match
+    offset and line number correct.
+
+    String literals are matched first and left intact, because a comment marker
+    inside one is not a comment. Without that, `const u = "http://x"` blanked the
+    rest of the line — losing any real finding on it — and a lone `"/*"` blanked
+    every line up to the next `*/` anywhere in the file.
+
+    This is still a regex, not a lexer. Unterminated literals, JavaScript regex
+    literals like `/=/`, Ruby heredocs and `%w[]` literals are not modelled; the
+    failure mode is a blanked or unblanked span, never a crash.
 
     Args:
         source: The file contents to scrub.
         style: `"c"` for `//` and `/* */` (C, C++, Java, Kotlin, C#, JS, TS),
-            `"hash"` for `#` (Python, Ruby, PHP).
+            `"hash"` for `#` (Python, Ruby).
 
     Returns:
         The source with comment bodies replaced by spaces.
     """
+    literals = [
+        r'"""(?:\\.|[^\\])*?"""',  # Python triple-quoted, before the single form
+        r"'''(?:\\.|[^\\])*?'''",
+        r'"(?:\\.|[^"\\\n])*"',
+        r"'(?:\\.|[^'\\\n])*'",
+        r"`(?:\\.|[^`\\])*`",  # JS template literal
+    ]
+    comments = [r"#[^\n]*"] if style == "hash" else [r"//[^\n]*", r"/\*.*?\*/"]
+    pattern = "|".join(literals + comments)
 
-    def blank(match: re.Match) -> str:
-        return "".join("\n" if char == "\n" else " " for char in match.group(0))
+    def scrub(match: re.Match) -> str:
+        text = match.group(0)
+        if text[0] in "\"'`":
+            return text
+        return "".join("\n" if char == "\n" else " " for char in text)
 
-    if style == "hash":
-        pattern = r"#[^\n]*"
-    else:
-        pattern = r"//[^\n]*|/\*.*?\*/"
-    return re.sub(pattern, blank, source, flags=re.DOTALL)
+    return re.sub(pattern, scrub, source, flags=re.DOTALL)
 
 
 class ScriptAnalyzer(ABC):

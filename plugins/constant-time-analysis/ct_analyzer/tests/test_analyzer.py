@@ -1722,6 +1722,24 @@ class TestCommentBlanking(unittest.TestCase):
         blanked = blank_comments("# uses random.random()\nv = random.random()\n", "hash")
         self.assertEqual(blanked.count("random.random()"), 1)
 
+    def test_comment_marker_inside_a_string_does_not_blank_code(self):
+        """`"http://x"` used to blank the rest of the line, losing real findings."""
+        from script_analyzers import blank_comments
+
+        kept = blank_comments('const u = "http://example.com"; const k = a / b;', "c")
+        self.assertIn("a / b", kept)
+        kept = blank_comments('String u = "http://x"; Random r = new Random();', "c")
+        self.assertIn("new Random()", kept)
+        kept = blank_comments('puts "tag #{a / b}"', "hash")
+        self.assertIn("a / b", kept)
+
+    def test_a_lone_block_comment_marker_in_a_string_is_not_unbounded(self):
+        """`"/*"` then any later `*/` blanked every line in between."""
+        from script_analyzers import blank_comments
+
+        kept = blank_comments('const m = "/*";\nconst k = a / b;\nconst e = "*/";\n', "c")
+        self.assertIn("a / b", kept)
+
     def test_doc_comment_is_not_reported_as_division(self):
         if not _have("node"):
             self.skipTest("node not available")
