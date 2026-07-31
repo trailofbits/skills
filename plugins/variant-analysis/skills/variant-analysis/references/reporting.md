@@ -34,3 +34,4 @@ trust in every other finding in the document.
 ## Leave a Regression Guard
 
 End with a CI-ready rule derived from whichever pattern found the most variants.
+

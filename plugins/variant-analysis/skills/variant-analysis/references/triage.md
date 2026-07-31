@@ -73,7 +73,7 @@ correct. Verify the return semantics against the name before trusting any use of
 
 Attach a severity to **every** verdict, including informational ones. Do not suppress
 findings you judge minor: filtering happens downstream, where the full set is visible, and a
-finding you decline to mention is a finding nobody sees. 
+finding you decline to mention is a finding nobody sees.
 
 Separate the two axes:
 
