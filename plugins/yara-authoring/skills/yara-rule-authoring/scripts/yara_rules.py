@@ -148,6 +148,7 @@ class LintResult:
     file: str
     issues: list[Issue] = field(default_factory=list)
     parse_error: str | None = None
+    rules: int = 0
 
     @property
     def error_count(self) -> int:
@@ -915,6 +916,27 @@ def collect_rule_files(path: Path) -> tuple[list[Path], str | None]:
         suffixes = " or ".join(RULE_SUFFIXES)
         return [], f"no {suffixes} files found under {path}; nothing was inspected"
     return files, None
+
+
+def coverage_error(rule_counts: dict[str, int]) -> str | None:
+    """Return an error message when a run inspected no rules at all.
+
+    Judged over the whole run, not per file. A rule-less file inside a larger
+    run is normal -- rulesets commonly keep a shared `import "pe"` header in its
+    own file -- so failing per file would reject a healthy directory. Only a run
+    that found nothing anywhere is reporting a clean result over zero items.
+    """
+    if not rule_counts:
+        return "no files were inspected"
+    if sum(rule_counts.values()) == 0:
+        names = ", ".join(sorted(rule_counts))
+        return f"no rules found in {names}; nothing was inspected"
+    return None
+
+
+def rule_less_files(rule_counts: dict[str, int]) -> list[str]:
+    """Files that held no rules, for reporting as a note rather than a failure."""
+    return sorted(name for name, count in rule_counts.items() if count == 0)
 
 
 def select_exit_code(results: list[LintResult], *, strict: bool) -> int:

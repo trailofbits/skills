@@ -357,6 +357,15 @@ See [style-guide.md](references/style-guide.md) for full conventions.
 
 Quality signals along the way: a rule matching under 50% of known variants is too narrow; one matching goodware is too broad.
 
+**Reviewing a rule someone else wrote** — run both scripts before reading the rule by eye, and quote the codes they emit:
+
+```bash
+uv run {baseDir}/scripts/yara_lint.py suspect.yar      # style, metadata, YARA-X compatibility
+uv run {baseDir}/scripts/atom_analyzer.py suspect.yar  # atom quality per string
+```
+
+They catch the mechanical faults — short strings, FP-prone substrings, unbounded quantifiers, expensive terms ahead of cheap ones — so your attention goes to the judgement calls they cannot make: whether the strings identify *this* family, and whether the condition can fire on generic strings alone. Report findings by code (`E002`, `W009`) so the author can look each one up in [style-guide.md](references/style-guide.md).
+
 See [testing.md](references/testing.md) for the validation workflow and [rule-development.md](workflows/rule-development.md) for the full step-by-step guide.
 
 ## Common Mistakes

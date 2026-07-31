@@ -25,7 +25,10 @@ import yara_x
 from yara_rules import Issue
 from yara_rules import LintResult
 from yara_rules import collect_rule_files
+from yara_rules import coverage_error
+from yara_rules import extract_rule_names
 from yara_rules import lint_source
+from yara_rules import rule_less_files
 from yara_rules import select_exit_code
 
 
@@ -61,6 +64,7 @@ def lint_file(file_path: Path) -> LintResult:
     # usually has metadata and naming problems worth reporting in the same pass.
     result.issues.extend(compile_issues(content))
     result.issues.extend(lint_source(content))
+    result.rules = len(extract_rule_names(content))
     return result
 
 
@@ -132,6 +136,16 @@ def main() -> int:
             if formatted:
                 print(formatted)
                 print()
+
+        for name in rule_less_files({r.file: r.rules for r in results}):
+            print(f"Note: {name} holds no rules; skipped", file=sys.stderr)
+
+    # After the report, so a file that fails to compile still shows its E000 with
+    # the source location rather than only "no rules found".
+    coverage = coverage_error({r.file: r.rules for r in results})
+    if coverage:
+        print(f"Error: {coverage}", file=sys.stderr)
+        return 1
 
     return select_exit_code(results, strict=args.strict)
 

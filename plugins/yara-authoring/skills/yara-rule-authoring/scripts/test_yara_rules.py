@@ -17,9 +17,13 @@ from pathlib import Path
 import pytest
 
 from yara_rules import ISSUE_CODES
+from yara_rules import REPEATED_PATTERNS
 from yara_rules import LintResult
+from yara_rules import analyze_hex_string
+from yara_rules import analyze_text_string
 from yara_rules import check_condition_order
 from yara_rules import collect_rule_files
+from yara_rules import coverage_error
 from yara_rules import extract_condition
 from yara_rules import extract_metadata
 from yara_rules import extract_rule_body
@@ -28,7 +32,10 @@ from yara_rules import extract_strings
 from yara_rules import find_best_atom
 from yara_rules import hex_string_runs
 from yara_rules import lint_source
+from yara_rules import rule_less_files
+from yara_rules import score_atom
 from yara_rules import select_exit_code
+from yara_rules import strip_comments
 
 
 def codes(source: str) -> set[str]:
@@ -366,6 +373,9 @@ def test_unreadable_file_fails_even_without_issues():
     broken = LintResult(file="x.yar", parse_error="Cannot read file")
 
     assert select_exit_code([broken], strict=False) == 1
+    # lint_file returns early on a read error without setting `rules`, so the
+    # default has to be 0 -- otherwise coverage_error credits a rule nobody saw.
+    assert broken.rules == 0
 
 
 # --------------------------------------------------------------------------- #
@@ -430,3 +440,162 @@ def test_fixtures_exercise_every_check_except_compilation():
     emitted = {issue.code for fixture in CODE_FIXTURES for issue in lint_source(fixture)}
 
     assert set(ISSUE_CODES) - emitted == {"E000"}
+
+
+# --------------------------------------------------------------------------- #
+# Exit codes
+# --------------------------------------------------------------------------- #
+
+ERROR_RULE = """
+rule MAL_Win_Short_Jan25 {
+    meta:
+        description = "Detects a thing via a marker long enough to clear sixty characters easily"
+        author = "a@b.c"
+        reference = "https://example.com"
+        date = "2025-01-01"
+    strings:
+        $s = "ab"
+    condition:
+        filesize < 1MB and $s
+}
+"""
+
+
+def test_exit_code_fails_on_an_error_severity_issue():
+    """The linter's main contract: an error exits 1 even without --strict."""
+    result = LintResult(file="err.yar")
+    result.issues.extend(lint_source(ERROR_RULE))
+
+    assert result.error_count > 0
+    assert select_exit_code([result], strict=False) == 1
+
+
+# --------------------------------------------------------------------------- #
+# Atom scoring
+# --------------------------------------------------------------------------- #
+
+
+def test_null_bytes_lower_the_atom_score():
+    assert score_atom(b"\x01\x02\x00\x03") < score_atom(b"\x01\x02\x04\x03")
+
+
+def test_every_repeated_byte_pattern_scores_zero():
+    for pattern, _label in REPEATED_PATTERNS:
+        assert score_atom(pattern) == 0, f"{pattern!r} should be unusable as an atom"
+
+
+def test_a_common_sequence_lowers_the_atom_score():
+    assert score_atom(b"This") < score_atom(b"Thiz")
+
+
+def test_all_printable_atoms_score_below_binary_ones():
+    assert score_atom(b"abcd") < score_atom(b"\x01\x02\x03\x04")
+
+
+def test_a_low_scoring_atom_is_an_error_and_a_middling_one_a_warning():
+    repeated = analyze_text_string("$s", "aaaaaa", [])
+    middling = analyze_text_string("$s", "abab", [])
+
+    assert [i.severity for i in repeated.issues] == ["error"]
+    assert [i.severity for i in middling.issues] == ["warning"]
+
+
+def test_a_short_text_string_cannot_yield_an_atom():
+    analysis = analyze_text_string("$s", "ab", [])
+
+    assert analysis.byte_count == 2
+    assert [i.severity for i in analysis.issues] == ["error"]
+    assert analysis.best_atom is None
+    assert "only 2 bytes" in analysis.issues[0].message
+
+
+def test_a_short_hex_string_cannot_yield_an_atom():
+    """The diagnostic has to say "too short", not blame wildcards there are none of."""
+    analysis = analyze_hex_string("$h", "{ 4D 5A }")
+
+    assert analysis.byte_count == 2
+    assert [i.severity for i in analysis.issues] == ["error"]
+    assert analysis.best_atom is None
+    assert "only 2 bytes" in analysis.issues[0].message
+    assert "wildcard" not in analysis.issues[0].message
+
+
+def test_high_wildcard_density_is_flagged():
+    analysis = analyze_hex_string("$h", "{ 4D 5A 90 00 ?? ?? ?? ?? ?? }")
+
+    assert analysis.best_atom == "4D5A9000"
+    assert any("wildcard density" in i.message for i in analysis.issues)
+
+
+# --------------------------------------------------------------------------- #
+# Scanners
+# --------------------------------------------------------------------------- #
+
+BLOCK_COMMENT_SOURCE = """
+/* rule GHOST_Win_Commented_Jan25 { condition: true } */
+rule MAL_Win_Real_Jan25 { condition: true }
+"""
+
+
+def test_a_rule_inside_a_block_comment_is_not_a_rule():
+    assert extract_rule_names(BLOCK_COMMENT_SOURCE) == ["MAL_Win_Real_Jan25"]
+
+
+def test_block_comments_keep_their_line_breaks():
+    blanked = strip_comments(BLOCK_COMMENT_SOURCE)
+
+    assert blanked.count("\n") == BLOCK_COMMENT_SOURCE.count("\n")
+    assert "GHOST" not in blanked
+
+
+CHAR_CLASS_RULE = """
+rule MAL_Win_CharClass_Jan25 {
+    strings:
+        $r = /a[/]bcdef/
+    condition:
+        $r
+}
+"""
+
+
+def test_a_slash_inside_a_character_class_does_not_end_the_regex():
+    strings = extract_strings(CHAR_CLASS_RULE, "MAL_Win_CharClass_Jan25")
+
+    assert [s.value for s in strings] == ["a[/]bcdef"]
+
+
+# --------------------------------------------------------------------------- #
+# Rule coverage across a run
+# --------------------------------------------------------------------------- #
+
+
+def test_a_run_that_inspected_no_rules_is_an_error():
+    assert coverage_error({"a.yar": 0}) is not None
+    assert coverage_error({"a.yar": 0, "b.yar": 0}) is not None
+
+
+def test_inspecting_no_files_reports_that_rather_than_an_empty_file_list():
+    message = coverage_error({})
+
+    assert message is not None
+    assert "no files" in message
+
+
+def test_a_rule_less_file_alongside_real_rules_is_not_an_error():
+    """A shared `import "pe"` header holds no rules; the directory is still healthy."""
+    assert coverage_error({"imports.yar": 0, "rules.yar": 3}) is None
+
+
+def test_the_coverage_error_names_the_files_it_inspected():
+    message = coverage_error({"b.yar": 0, "a.yar": 0})
+
+    assert message is not None
+    assert "a.yar" in message
+    assert "b.yar" in message
+
+
+def test_rule_less_files_are_listed_for_reporting():
+    counts = {"imports.yar": 0, "rules.yar": 2, "empty.yar": 0}
+
+    assert rule_less_files(counts) == ["empty.yar", "imports.yar"]
+    assert rule_less_files({"rules.yar": 2}) == []

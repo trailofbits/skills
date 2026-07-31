@@ -3,7 +3,7 @@ max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Skill, Read, Grep, Glob, Bash, Write]
 model: sonnet
-runs: 3
+runs: 5
 ---
 I ran a string extraction over a Windows loader sample we pulled out of an incident last
 week. It's a 32-bit PE, about 340KB, unpacked. Here's everything the extractor gave me:
