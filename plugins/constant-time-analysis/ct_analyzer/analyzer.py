@@ -484,6 +484,19 @@ class Compiler:
         """Compile source to assembly. Returns (success, error_message)."""
         raise NotImplementedError
 
+    def reject_arch(self, arch: str, supported) -> tuple[bool, str]:
+        """Refuse an architecture this compiler cannot target.
+
+        Omitting the target flag instead would compile for the host while
+        `analyze_source` still labels the report with the architecture that was
+        asked for and applies that architecture's instruction table. A reviewer
+        then records "PASSED for riscv64" from a run that never targeted riscv64,
+        which is worse than an error.
+        """
+        return False, (
+            f"{self.name} cannot target {arch} here; supported: {', '.join(sorted(supported))}"
+        )
+
     def is_available(self) -> bool:
         """Check if the compiler is available on the system."""
         try:
@@ -522,7 +535,9 @@ class GCCCompiler(Compiler):
         extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
-        arch_flags = self.ARCH_FLAGS.get(arch, [])
+        if arch not in self.ARCH_FLAGS:
+            return self.reject_arch(arch, self.ARCH_FLAGS)
+        arch_flags = self.ARCH_FLAGS[arch]
 
         cmd = [
             self.path,
@@ -571,7 +586,9 @@ class ClangCompiler(Compiler):
         extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
-        target = self.ARCH_TARGETS.get(arch)
+        if arch not in self.ARCH_TARGETS:
+            return self.reject_arch(arch, self.ARCH_TARGETS)
+        target = self.ARCH_TARGETS[arch]
 
         cmd = [
             self.path,
@@ -630,7 +647,9 @@ class GoCompiler(Compiler):
         extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
-        goarch = self.ARCH_MAP.get(arch, arch)
+        if arch not in self.ARCH_MAP:
+            return self.reject_arch(arch, self.ARCH_MAP)
+        goarch = self.ARCH_MAP[arch]
 
         # For Go, we need to build a binary and then disassemble it
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -752,7 +771,9 @@ class RustCompiler(Compiler):
         extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
-        target = self.ARCH_TARGETS.get(arch)
+        if arch not in self.ARCH_TARGETS:
+            return self.reject_arch(arch, self.ARCH_TARGETS)
+        target = self.ARCH_TARGETS[arch]
 
         opt_level = {
             "O0": "0",
@@ -830,6 +851,11 @@ class SwiftCompiler(Compiler):
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
         target = self.target_for(arch)
+        if target is None:
+            supported = (
+                self.ARCH_TARGETS if platform.system() == "Darwin" else self.LINUX_ARCH_TARGETS
+            )
+            return self.reject_arch(arch, supported)
 
         opt_level = {
             "O0": "-Onone",

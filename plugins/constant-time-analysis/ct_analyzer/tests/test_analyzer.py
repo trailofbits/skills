@@ -1432,6 +1432,18 @@ class TestBackendRegressions(unittest.TestCase):
         functions = {v.function for v in report.violations}
         self.assertIn("ct_high_bits", functions, f"got {functions}")
 
+    def test_unsupported_architecture_is_refused_not_downgraded(self):
+        """Omitting the target flag compiles for the host under the wrong label."""
+        from analyzer import GCCCompiler, SwiftCompiler
+
+        ok, message = SwiftCompiler().compile_to_assembly("x.swift", "/dev/null", "riscv64", "O2")
+        self.assertFalse(ok)
+        self.assertIn("cannot target riscv64", message)
+
+        ok, message = GCCCompiler().compile_to_assembly("x.c", "/dev/null", "mips", "O2")
+        self.assertFalse(ok)
+        self.assertIn("cannot target mips", message)
+
     def test_go_reports_only_the_analyzed_source(self):
         """`go build` links the runtime in; its divisions are not the caller's bug."""
         if not _have("go"):
