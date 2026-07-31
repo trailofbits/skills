@@ -78,13 +78,19 @@ def find_section(sections, *keywords):
 
 
 def paths_in(text):
-    """Normalized file paths mentioned in a chunk of report text."""
+    """Normalized (path, line) pairs mentioned in a chunk of report text.
+
+    Line is None when the report named a file without one. Ranges like
+    "foo.py:279-285" keep the first number.
+    """
     if not text:
         return set()
     out = set()
     for m in PATH_RE.finditer(text):
         p = m.group(0).replace("\\", "/").lstrip("./")
-        out.add(p)
+        tail = text[m.end() : m.end() + 12]
+        lm = re.match(r"[:# ]L?(\d+)", tail)
+        out.add((p, int(lm.group(1)) if lm else None))
     return out
 
 
@@ -139,18 +145,37 @@ def reported_locations(findings_body):
     return loose, "permissive-lines"
 
 
-def matches(reported, truth_file):
-    """True if a reported path refers to the ground-truth file.
+# How far a reported line may sit from the ground-truth line and still be the same
+# construct. A report may cite the def, the sink inside it, or a range.
+LINE_WINDOW = 30
 
-    Compared by suffix so 'app/orders.py', './app/orders.py' and
-    'codebases/python-flask/app/orders.py' all match 'app/orders.py'.
-    Basename alone is not enough — two codebases could share a filename.
-    """
+
+def same_file(reported_path, truth_file):
     truth = truth_file.replace("\\", "/")
-    for r in reported:
-        if r == truth or r.endswith("/" + truth) or truth.endswith("/" + r):
+    r = reported_path.replace("\\", "/")
+    if r == truth or r.endswith("/" + truth) or truth.endswith("/" + r):
+        return True
+    return pathlib.PurePath(r).name == pathlib.PurePath(truth).name
+
+
+def matches(reported, truth_file, truth_line=None):
+    """True if a reported location refers to the ground-truth construct.
+
+    File match alone is NOT enough. A real codebase puts several unrelated
+    constructs in one file: gradio's screen_recording_utils.py holds this eval's
+    decoy at line 14 and a genuine upstream finding at line 279. Scoring on
+    filename alone counted that upstream finding as "the decoy reported as real"
+    — inverting the result on a run that had done nothing wrong.
+
+    A report that names a file with no line at all still matches, since refusing
+    to score it would be harsher than the evidence supports.
+    """
+    for r, line in reported:
+        if not same_file(r, truth_file):
+            continue
+        if truth_line is None or line is None:
             return True
-        if pathlib.PurePath(r).name == pathlib.PurePath(truth).name:
+        if abs(line - truth_line) <= LINE_WINDOW:
             return True
     return False
 
@@ -176,18 +201,29 @@ def grade(report_text, entry):
     vulns = entry["vulnerabilities"]
     decoy = entry["decoy"]
 
-    found = [v for v in vulns if matches(reported, v["file"])]
-    missed = [v for v in vulns if not matches(reported, v["file"])]
+    found = [v for v in vulns if matches(reported, v["file"], v["line"])]
+    missed = [v for v in vulns if not matches(reported, v["file"], v["line"])]
 
-    decoy_reported = matches(reported, decoy["file"])
-    decoy_examined = matches(examined, decoy["file"])
+    decoy_reported = matches(reported, decoy["file"], decoy["line"])
+    decoy_examined = matches(examined, decoy["file"], decoy["line"])
 
-    # Every file named in Findings that is not a known vulnerability.
-    truth_files = {v["file"] for v in vulns}
-    spurious = sorted(
-        p
-        for p in reported
-        if not any(matches({p}, t) for t in truth_files) and not matches({p}, decoy["file"])
+    # Findings that are none of the three injected sites.
+    #
+    # These are NOT false positives. The fixture is a real 772-file project that
+    # contains its own issues: a run found `create_subprocess_shell` with an
+    # interpolated path at screen_recording_utils.py:279, which is upstream
+    # gradio code and a genuine instance of the same root cause. Ground truth
+    # only knows what was injected, so it cannot judge these — calling them false
+    # positives punished the workflow for sweeping wider than the baseline, which
+    # is the exact behaviour the eval exists to reward.
+    #
+    # They are surfaced for a human to read and deliberately excluded from the
+    # verdict. Only the injected decoy is a definite false positive.
+    known = [(v["file"], v["line"]) for v in vulns] + [(decoy["file"], decoy["line"])]
+    unreviewed = sorted(
+        f"{p}:{ln}" if ln else p
+        for p, ln in reported
+        if not any(matches({(p, ln)}, kf, kl) for kf, kl in known)
     )
 
     non_seed = [v for v in vulns if not v.get("is_seed")]
@@ -204,8 +240,8 @@ def grade(report_text, entry):
         "non_seed_recall": f"{len(non_seed_found)}/{len(non_seed)}",
         "decoy_reported_as_real": decoy_reported,
         "decoy_examined_and_ruled_out": decoy_examined and not decoy_reported,
-        "spurious_files": spurious,
-        "false_positives": (1 if decoy_reported else 0) + len(spurious),
+        "unreviewed_findings": unreviewed,
+        "false_positives": 1 if decoy_reported else 0,
     }
 
 
@@ -227,8 +263,8 @@ def verdict(score, require_decoy_examined=False):
         )
     if score["decoy_reported_as_real"]:
         reasons.append("decoy reported as a real finding")
-    if score["spurious_files"]:
-        reasons.append(f"spurious findings: {', '.join(score['spurious_files'])}")
+    # unreviewed_findings deliberately does NOT fail the run: they are findings in
+    # real upstream code that ground truth cannot adjudicate. Read them by hand.
     if require_decoy_examined and not score["decoy_examined_and_ruled_out"]:
         reasons.append("decoy was never examined (not in the ruled-out section)")
     return (not reasons), reasons
@@ -379,8 +415,9 @@ def self_test():
 
     s = grade(SPURIOUS, SELF_TEST_ENTRY)
     ok, why = verdict(s)
-    assert not ok, "a spurious finding must fail"
-    assert s["spurious_files"] == ["src/unrelated.py"], s
+    assert ok, "an unreviewed finding must NOT fail the run"
+    assert s["unreviewed_findings"] == ["src/unrelated.py:9"], s
+    assert s["false_positives"] == 0, "an unreviewed finding is not a false positive"
     checks += 1
 
     try:
@@ -407,7 +444,7 @@ def self_test():
     checks += 1
 
     s = grade(FLOW_MENTION, SELF_TEST_ENTRY)
-    assert s["spurious_files"] == [], f"a data-flow mention is not a finding: {s}"
+    assert s["unreviewed_findings"] == [], f"a data-flow mention is not a finding: {s}"
     ok, _ = verdict(s)
     assert ok, f"should pass: {s}"
     checks += 1

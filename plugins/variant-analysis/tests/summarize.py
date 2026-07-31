@@ -53,6 +53,11 @@ def aggregate(rows):
             "mean_fp": (
                 sum(r["false_positives"] for r in gradeable) / len(gradeable) if gradeable else 0.0
             ),
+            "mean_unreviewed": (
+                sum(len(r.get("unreviewed_findings", [])) for r in gradeable) / len(gradeable)
+                if gradeable
+                else 0.0
+            ),
             "decoy_ruled_out": sum(1 for r in gradeable if r.get("decoy_examined_and_ruled_out")),
             "decoy_as_real": sum(1 for r in gradeable if r.get("decoy_reported_as_real")),
         }
@@ -65,7 +70,7 @@ def report(agg):
 
     header = (
         f"{'codebase':<14}{'mode':<11}{'gradeable':<11}{'new/run':<10}"
-        f"{'tp':<7}{'fp':<7}{'decoy':<12}"
+        f"{'tp':<7}{'fp':<7}{'unrev':<8}{'decoy':<12}"
     )
     print(header)
     print("-" * len(header))
@@ -79,7 +84,8 @@ def report(agg):
                 decoy += f" {s['decoy_as_real']} BAD"
             print(
                 f"{c:<14}{m:<11}{str(s['gradeable']) + '/' + str(s['runs']):<11}"
-                f"{s['mean_new']:<10.2f}{s['mean_tp']:<7.2f}{s['mean_fp']:<7.2f}{decoy:<12}"
+                f"{s['mean_new']:<10.2f}{s['mean_tp']:<7.2f}{s['mean_fp']:<7.2f}"
+                f"{s['mean_unreviewed']:<8.1f}{decoy:<12}"
             )
 
     failures = []
@@ -105,6 +111,9 @@ def report(agg):
                 f"baseline ({bl['mean_new']:.2f} new)"
             )
 
+    print()
+    print("  unrev = findings outside ground truth: real upstream code the eval cannot")
+    print("          adjudicate. Read them by hand; they do not affect pass/fail.")
     print()
     if failures:
         for f in failures:
