@@ -15,7 +15,7 @@ Statements are the stable interface; proofs are disposable and freely
 replaceable. Put design effort into definitions and statements, then fill in
 proofs against skeletons that already compile (modulo `sorry`).
 
-## When to use
+## When to Use
 
 - Proving theorems in Lean 4, from single lemmas to multi-file developments
 - Formalizing mathematics, protocols, or software specifications in Lean
@@ -25,7 +25,7 @@ proofs against skeletons that already compile (modulo `sorry`).
 - Setting up a formalization project that several people or agents will
   contribute to in parallel
 
-## When NOT to use
+## When NOT to Use
 
 - Lean 4 as a general-purpose programming language (no proofs involved) —
   most of this skill targets proof and API structure

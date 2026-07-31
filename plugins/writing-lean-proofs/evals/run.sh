@@ -89,6 +89,8 @@ expected = int(sys.argv[3])
 if len(grades) != expected:
     sys.exit(f"error: grader returned {len(grades)} verdicts, rubric has {expected} criteria")
 for g in grades:
+    if not isinstance(g.get("id"), str) or not g["id"]:
+        sys.exit(f"error: missing criterion id in {g!r}")
     if g.get("verdict") not in ("pass", "fail"):
         sys.exit(f"error: bad verdict in {g!r}")
 with open(sys.argv[2], "w") as f:
