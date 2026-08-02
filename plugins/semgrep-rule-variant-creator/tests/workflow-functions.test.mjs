@@ -61,6 +61,7 @@ const VALIDATION_DEPS = [
 ]
 
 const slug = load('slug')
+const canonicalLanguage = load('canonicalLanguage', extractTable('CANONICAL_BY_LANGUAGE'))
 const partition = load('partition')
 const validationFailure = load('validationFailure', ...VALIDATION_DEPS)
 const validationPassed = load('validationPassed', ...VALIDATION_DEPS, extract('validationFailure'))
@@ -102,6 +103,37 @@ test('testFileExtension derives from semgrep language key, ignoring what the age
 
   // The table wins. An agent's `.txt` would produce a file semgrep skips entirely.
   assert.equal(testFileExtension('Go', { semgrepLanguage: 'go', fileExtension: 'txt' }), 'go')
+})
+
+test('canonicalLanguage keeps aliases out of one directory', () => {
+  // slug() flattens punctuation, so `c#` and `c++` both reduce to `c` — which is also C. The
+  // extension table accepts all three as keys, so without canonicalising first, three targets
+  // name one directory and overwrite each other while all three report a pass.
+  assert.notEqual(slug(canonicalLanguage('c#')), slug(canonicalLanguage('c')))
+  assert.notEqual(slug(canonicalLanguage('c++')), slug(canonicalLanguage('c')))
+  assert.notEqual(slug(canonicalLanguage('c#')), slug(canonicalLanguage('c++')))
+  assert.equal(new Set(['c', 'c#', 'c++'].map((k) => slug(canonicalLanguage(k)))).size, 3)
+
+  // Aliases of one language collapse deliberately, so the collision guard can see them.
+  for (const [alias, canonical] of Object.entries({
+    golang: 'go',
+    py: 'python',
+    python3: 'python',
+    sol: 'solidity',
+    kt: 'kotlin',
+    ex: 'elixir',
+    tf: 'terraform',
+    hcl: 'terraform',
+    docker: 'dockerfile',
+    ' SOL ': 'solidity',
+  })) {
+    assert.equal(canonicalLanguage(alias), canonical, `alias ${alias}`)
+  }
+
+  // Anything not an alias passes through, so an unknown key still reaches the extension guard.
+  assert.equal(canonicalLanguage('rust'), 'rust')
+  assert.equal(canonicalLanguage('zig'), 'zig')
+  assert.equal(canonicalLanguage(''), '')
 })
 
 test('testFileExtension knows the aliases semgrep accepts, not just canonical names', () => {
@@ -189,12 +221,22 @@ test('validationPassed rejects a green from a rule semgrep skipped rather than r
     assert.equal(validationPassed({ testOutput, semgrepVersion: VERSION }, VERSION), false, testOutput)
   }
 
-  // A clean run that happens to report a zero skip count is still a pass. Matching a bare
-  // "rules skipped" would fail every one of them.
-  assert.equal(
-    validationPassed({ testOutput: `${GREEN}\nRules skipped: 0`, semgrepVersion: VERSION }, VERSION),
-    true,
-  )
+  // Noise that must NOT fail a green port. All of it can appear in the last 20 lines an agent
+  // reports verbatim, so a loose pattern here fails a good rule through all three retries —
+  // and unlike a missed phrasing, that has no fallback behind it.
+  const green = [
+    `${GREEN}\nRules skipped: 0`,
+    `${GREEN}\n2 files were skipped because they matched .semgrepignore`,
+    `${GREEN}\nUpgrade to Semgrep Pro for interfile analysis: try --pro`,
+    `${GREEN}\nPartially analyzed due to parsing or internal Semgrep errors: 1 file`,
+  ]
+  for (const testOutput of green) {
+    assert.equal(
+      validationPassed({ testOutput, semgrepVersion: VERSION }, VERSION),
+      true,
+      testOutput,
+    )
+  }
   assert.match(
     validationFailure({ testOutput: skipped[1], semgrepVersion: VERSION }, VERSION),
     /skipped the rule rather than running it/,

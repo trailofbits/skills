@@ -207,8 +207,97 @@ test('an unknown semgrep language stops that language instead of writing a skipp
 
   assert.equal(result.passed.length, 1, 'Go still finishes')
   assert.equal(result.passed[0].language, 'Go')
-  assert.equal(result.incomplete, 1, 'Zig is reported, not silently dropped')
   assert.ok(!calls.includes('test:Zig'), 'no test file is written for a language with no extension')
+
+  // Reported as a refusal carrying its reason, not as `incomplete`. The throw used to drop the
+  // item to null, which the caller saw only as "did not report back" — reading as an agent
+  // that died and is worth re-running, when it is deterministic and names what to change.
+  assert.equal(result.incomplete, 0)
+  assert.equal(result.stopped.length, 1)
+  assert.equal(result.stopped[0].language, 'Zig')
+  assert.match(result.stopped[0].reason, /not a Semgrep language key/)
+})
+
+test('a dead refuter stops the language instead of silently upholding the verdict', async () => {
+  // agent() returns null when a subagent dies on a terminal error after retries. Folding that
+  // into "the verdict stands" drops the language on a verdict nothing second-guessed, reported
+  // identically to one that was — the single thing the refuter phase exists to prevent.
+  const { result, calls } = await run({
+    args: BASE_ARGS,
+    stubs: {
+      assess: () => ({
+        verdict: 'NOT_APPLICABLE',
+        reasoning: 'no shell in this language',
+        semgrepLanguage: 'go',
+        semgrepCanAnalyze: true,
+      }),
+      refute: () => null,
+    },
+  })
+
+  assert.equal(result.notApplicable.length, 0, 'an unchecked verdict is not an upheld verdict')
+  assert.equal(result.stopped.length, 1)
+  assert.match(result.stopped[0].reason, /never second-guessed/)
+  assert.ok(!calls.includes('test:Go'))
+})
+
+test('two languages resolving to one directory stop rather than overwrite each other', async () => {
+  // pipeline() runs languages concurrently with no barrier, so a shared stem means both write
+  // the same rule and test file while each reports its own outcome.
+  const { result } = await run({
+    args: { ...BASE_ARGS, languages: ['Go', 'Golang'] },
+    stubs: {
+      assess: () => ({
+        verdict: 'APPLICABLE',
+        reasoning: 'ok',
+        semgrepLanguage: 'go',
+        semgrepCanAnalyze: true,
+      }),
+    },
+  })
+
+  assert.equal(result.passed.length, 1, 'the first claimant finishes')
+  assert.equal(result.stopped.length, 1, 'the second stops instead of clobbering it')
+  assert.match(result.stopped[0].reason, /same directory/)
+})
+
+test('C, C# and C++ get three directories rather than one', async () => {
+  // All three are keys semgrep accepts and all three slug to `c`. Accepting the aliases in the
+  // extension table reopened the collision the slug comment warns about.
+  const key = { C: 'c', 'C#': 'csharp', 'C++': 'cpp' }
+  const { result } = await run({
+    args: { ...BASE_ARGS, languages: ['C', 'C#', 'C++'] },
+    stubs: {
+      assess: (language) => ({
+        verdict: 'APPLICABLE',
+        reasoning: 'ok',
+        semgrepLanguage: language === 'C' ? 'c' : language === 'C#' ? 'c#' : 'c++',
+        semgrepCanAnalyze: true,
+      }),
+    },
+  })
+
+  assert.equal(result.passed.length, 3, 'no language is stopped as a collision')
+  assert.equal(new Set(result.passed.map((r) => r.directory)).size, 3, 'three distinct directories')
+  for (const entry of result.passed) {
+    assert.ok(entry.directory.endsWith(`-${key[entry.language]}`), entry.directory)
+  }
+})
+
+test('a whitespace-only language entry is dropped before it costs an agent', async () => {
+  const { result, calls } = await run({
+    args: { ...BASE_ARGS, languages: ['Go', '   '] },
+  })
+
+  assert.equal(result.passed.length, 1)
+  assert.deepEqual(calls, ['read-rule', 'assess:Go', 'test:Go', 'translate:Go', 'validate:Go'])
+})
+
+test('languages that are only whitespace fail the same way as none at all', async () => {
+  const { error, calls } = await run({ args: { ...BASE_ARGS, languages: ['   '] } })
+
+  assert.match(error.message, /needs args\.rulePath/)
+  assert.deepEqual(calls, [])
 })
 
 test('validation retries and reports the round it passed on', async () => {

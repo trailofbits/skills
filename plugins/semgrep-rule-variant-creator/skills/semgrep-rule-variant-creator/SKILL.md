@@ -1,7 +1,7 @@
 ---
 name: semgrep-rule-variant-creator
 description: Creates language variants of existing Semgrep rules. Use when porting a Semgrep rule to specified target languages. Takes an existing rule and target languages as input, produces independent rule+test directories for each language.
-allowed-tools: Bash Read Write Edit Glob Grep WebFetch
+allowed-tools: Bash Read Write Edit Glob Grep WebFetch Workflow
 ---
 
 # Semgrep Rule Variant Creator
@@ -44,8 +44,11 @@ one optional argument, defaulting to the working directory, which is rarely what
 inside a repository.
 
 It reads the rule once, then runs each language through the full cycle independently, and
-reports which languages passed, which failed validation, which it judged not applicable, and
-which Semgrep cannot analyze at all. The rule travels as a path, not as text: every phase
+reports which languages passed, which failed validation, which it judged not applicable, which
+Semgrep cannot analyze at all, and which it stopped on — a language key it does not recognize,
+two entries resolving to one directory, or a refuter that never reported back. A stop names
+what to change and will happen again on a re-run, which is what separates it from an agent that
+died. The rule travels as a path, not as text: every phase
 reads the file, because an agent asked to repeat a rule back verbatim does not — one
 HTML-escaped `<` and `>` and broke the `<... ...>` operator for every phase downstream.
 

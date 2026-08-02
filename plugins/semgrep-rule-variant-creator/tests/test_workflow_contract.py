@@ -230,12 +230,34 @@ def check_no_guessed_test_file_extension(script: str) -> list[str]:
     """
     if "EXTENSION_BY_LANGUAGE" not in script:
         return ["no extension table; the test file extension is being taken on trust"]
-    return [
+
+    errors = [
         f"the script falls back to a guessed extension ({pattern.search(script).group(0)!r}); "
         "an unknown language must stop, not produce a file semgrep will skip"
         for pattern in VACUOUS_EXTENSION_RES
         if pattern.search(script)
     ]
+
+    # The patterns above only know the words `fileExtension` and `txt`, so a fallback spelled
+    # any other way — `|| 'pl'`, or the `if (claimed) return claimed` shape this once had —
+    # passed them clean. The resolver has one legitimate return, and it is the table lookup;
+    # anything else it can hand back is a guess whatever it is named.
+    start = script.find("function testFileExtension(")
+    if start == -1:
+        return [*errors, "no testFileExtension(); the extension is not derived at all"]
+
+    body = brace_block(script, script.index("{", start))
+    returns = [found.strip() for found in re.findall(r"\breturn\b([^\n]*)", body)]
+    if not returns:
+        return [*errors, "testFileExtension returns nothing; it cannot be deriving an extension"]
+
+    errors += [
+        f"testFileExtension can return {found!r}, which is not the table lookup; an "
+        "unrecognised language key must stop the port, not name a file semgrep will skip"
+        for found in returns
+        if "EXTENSION_BY_LANGUAGE" not in found or "||" in found
+    ]
+    return errors
 
 
 def check_the_rule_is_read_rather_than_relayed(script: str) -> list[str]:
@@ -417,7 +439,29 @@ FAILURE_PATH_BREAKAGES = (
         id="porting to a language semgrep cannot parse",
     ),
     pytest.param(
-        ("const extension = testFileExtension(language, settled)", "const extension = 'txt'"),
+        # A dead refuter folded into "the verdict stands" drops the language on a verdict
+        # nothing second-guessed, reported identically to one that was.
+        ("if (!refutation) {\n    return null\n  }", "if (false) {\n    return null\n  }"),
+        id="treating a dead refuter as an upheld verdict",
+    ),
+    pytest.param(
+        # The call site only: replacing the definition too renames a function into `String`
+        # and the script stops compiling, which proves nothing about the guard.
+        ("stem = claimStem(", "stem = String("),
+        id="letting two languages share one output directory",
+    ),
+    pytest.param(
+        ("canonicalLanguage(settled.semgrepLanguage)", "(settled.semgrepLanguage)"),
+        id="slugging an alias without canonicalising it first",
+    ),
+    pytest.param(
+        # Without the catch the throw drops the item to null, and a deterministic refusal
+        # reaches the caller as "did not report back".
+        ("return stop(language, settled, error.message)", "throw error"),
+        id="losing the reason a guard stopped a language",
+    ),
+    pytest.param(
+        ("extension = testFileExtension(language, settled)", "extension = 'txt'"),
         id="guessing the test file extension",
     ),
     pytest.param(
@@ -502,8 +546,8 @@ BREAKAGES = (
     pytest.param(
         check_no_guessed_test_file_extension,
         (
-            "const extension = testFileExtension(language, settled)",
-            "const extension = settled.fileExtension || 'txt'",
+            "extension = testFileExtension(language, settled)",
+            "extension = settled.fileExtension || 'txt'",
         ),
         id="guessing the test file extension",
     ),

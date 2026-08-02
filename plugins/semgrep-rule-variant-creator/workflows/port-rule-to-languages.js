@@ -174,6 +174,54 @@ function slug(language) {
     .replace(/^-|-$/g, '')
 }
 
+// Semgrep's keys are not all flat identifiers, which is the hole in the reasoning above:
+// `c#` and `c++` are keys it accepts, and both slug to `c`, which is also C. Accepting the
+// aliases in the extension table reopened exactly the collision that comment warns about, so
+// every alias resolves to one canonical key before anything is named after it.
+const CANONICAL_BY_LANGUAGE = {
+  'c#': 'csharp',
+  'c++': 'cpp',
+  docker: 'dockerfile',
+  ex: 'elixir',
+  golang: 'go',
+  hcl: 'terraform',
+  js: 'javascript',
+  kt: 'kotlin',
+  proto: 'protobuf',
+  proto3: 'protobuf',
+  py: 'python',
+  python2: 'python',
+  python3: 'python',
+  sh: 'bash',
+  sol: 'solidity',
+  tf: 'terraform',
+  ts: 'typescript',
+}
+
+function canonicalLanguage(key) {
+  const normalized = (key || '').toLowerCase().trim()
+  return Object.hasOwn(CANONICAL_BY_LANGUAGE, normalized)
+    ? CANONICAL_BY_LANGUAGE[normalized]
+    : normalized
+}
+
+// Canonicalising is not enough on its own: ["Go", "golang"], or the same language twice, still
+// resolve to one stem. pipeline() runs languages concurrently with no barrier, so both would
+// write the same rule and test file while each reported its own outcome — two passes over one
+// clobbered directory. Claiming is synchronous, so the second claimant loses rather than races.
+const claimedStems = new Map()
+
+function claimStem(stem, language) {
+  const owner = claimedStems.get(stem)
+  if (owner) {
+    throw new Error(
+      `resolves to the same directory as ${owner} (${stem}), and both would write the same rule and test file. Pass one entry per Semgrep language.`,
+    )
+  }
+  claimedStems.set(stem, language)
+  return stem
+}
+
 // Semgrep decides which files a rule applies to by extension, and skips the rest. A test
 // file whose extension does not match the rule's language is therefore never graded, and
 // `semgrep --test` prints "All tests passed" for the zero tests it ran — a green that means
@@ -265,12 +313,17 @@ function testFileExtension(language, assessment) {
   )
 }
 
-// Semgrep says a rule it never ran passed: a Pro-gated parser, or a rule skipped for any other
-// reason, still ends in "All tests passed" over zero graded tests.
-// Phrases semgrep only prints when it declined to run the rule. Deliberately not a bare
-// "rules skipped": a summary line reading `Rules skipped: 0` says the opposite and would fail
-// every clean run.
-const SKIPPED_RATHER_THAN_RUN = /missing plugin|missing semgrep extension|requires? pro|--pro|were skipped/i
+// Semgrep says a rule it never ran passed: a Pro-gated parser leaves the run ending in "All
+// tests passed" over zero graded tests. These are the two phrasings observed from semgrep
+// 1.172.0 — `Missing plugin for rule <id>` / `Missing Semgrep extension needed for parsing
+// <lang> target` under --test, and `N rule(s) were skipped because they require Pro` on a scan.
+//
+// Deliberately narrow. A bare `--pro` matches Pro upsell hints, and a bare `were skipped`
+// matches file-level skip notices and partial-parse summaries, both of which appear in the
+// last 20 lines an agent reports verbatim — either would fail a genuinely green port through
+// all three retries. Missing an unseen phrasing only falls back to the version check; failing
+// a good port has no fallback.
+const SKIPPED_RATHER_THAN_RUN = /missing plugin|missing semgrep extension|skipped because they require/i
 
 function semgrepVersion(reported) {
   const found = /\d+\.\d+\.\d+/.exec(String(reported || ''))
@@ -296,7 +349,11 @@ function validationFailure(validation, expectedVersion) {
     return 'semgrep skipped the rule rather than running it, so nothing was graded'
   }
   if (!/All tests passed/.test(output)) {
-    return validation?.summary || 'semgrep did not report that all tests passed'
+    // Attributed, because the verdict is semgrep's and this sentence is not. Unlabelled, an
+    // agent's "the rule is correct, semgrep's Go parser is wrong" reads as a finding.
+    return validation?.summary
+      ? `semgrep did not report that all tests passed; the agent said: ${validation.summary}`
+      : 'semgrep did not report that all tests passed'
   }
 
   const want = semgrepVersion(expectedVersion)
@@ -317,14 +374,24 @@ function validationPassed(validation, expectedVersion) {
 // quietly forgotten.
 function partition(results, requested) {
   const done = results.filter(Boolean)
-  const ported = done.filter((r) => !r.skipped && !r.unsupported)
+  const ported = done.filter((r) => !r.skipped && !r.unsupported && !r.stopped)
   return {
     passed: ported.filter((r) => r.validation?.passed),
     failed: ported.filter((r) => !r.validation?.passed),
     skipped: done.filter((r) => r.skipped),
     unsupported: done.filter((r) => r.unsupported),
+    stopped: done.filter((r) => r.stopped),
     lost: requested - done.length,
   }
+}
+
+// Four ways a language ends without a variant, and they call for four different things: fix
+// the rule (failed), accept it (not applicable), reach for another tool (unsupported), fix the
+// invocation (stopped), re-run (lost). Collapsing any of them into `lost` tells the reader to
+// re-run something that will deterministically stop again.
+function stop(language, assessment, reason) {
+  log(`${language}: stopped — ${reason}`)
+  return { language, assessment, stopped: true, reason }
 }
 
 // The rule travels as a path, never as text an agent retyped into a prompt. See RULE_SCHEMA.
@@ -426,7 +493,15 @@ async function recheckApplicability(rule, language, assessment) {
     label: `refute:${language}`,
   })
 
-  if (!refutation?.refuted) {
+  // A dead refuter is not an upheld verdict. A spawn returns null when a subagent dies on a
+  // terminal error after retries, and folding that into "the verdict stands" drops the
+  // language on a verdict nothing ever second-guessed — reported identically to one that was,
+  // which is the single thing this phase exists to prevent.
+  if (!refutation) {
+    return null
+  }
+
+  if (!refutation.refuted) {
     return assessment
   }
 
@@ -443,8 +518,8 @@ async function recheckApplicability(rule, language, assessment) {
 }
 
 const languages = (Array.isArray(args?.languages) ? args.languages : [args?.languages])
+  .map((language) => String(language ?? '').trim())
   .filter(Boolean)
-  .map((language) => String(language).trim())
 
 if (!args?.rulePath || languages.length === 0) {
   throw new Error(
@@ -515,17 +590,29 @@ const results = await pipeline(
         ? await recheckApplicability(rule, language, assessment)
         : assessment
 
+    if (!settled) {
+      return stop(language, assessment, 'the refuter never reported, so the NOT_APPLICABLE verdict was never second-guessed')
+    }
+
     if (settled.verdict === 'NOT_APPLICABLE') {
       log(`${language}: NOT_APPLICABLE — ${settled.reasoning}`)
       return { language, assessment: settled, skipped: true }
     }
 
-    // Before the paths are built from it, so an unusable language key stops the port rather
-    // than naming a directory. An assessment once reported a whole sentence here, which would
-    // have become a 92-character directory name.
-    const extension = testFileExtension(language, settled)
-    const stem = `${rule.id}-${slug(settled.semgrepLanguage || language)}`
-    const dir = `${outputDir}/${stem}`
+    // Both guards run before the paths are built from them, so an unusable language key or a
+    // directory two languages would share stops the port rather than naming a directory. The
+    // throws are caught here rather than left to drop the item: an uncaught one reaches the
+    // caller only as "did not report back", which reads as an agent that died and is worth
+    // re-running, when it is a deterministic refusal with a message worth reading.
+    let extension, stem, dir
+    try {
+      extension = testFileExtension(language, settled)
+      stem = claimStem(`${rule.id}-${slug(canonicalLanguage(settled.semgrepLanguage) || language)}`, language)
+      dir = `${outputDir}/${stem}`
+    } catch (error) {
+      return stop(language, settled, error.message)
+    }
+
     const test = await agent(testPrompt(rule, language, settled, dir, stem, extension), {
       schema: ARTIFACT_SCHEMA,
       effort: 'high',
@@ -536,7 +623,7 @@ const results = await pipeline(
   },
 
   async (prev, language) => {
-    if (prev.skipped || prev.unsupported) return prev
+    if (prev.skipped || prev.unsupported || prev.stopped) return prev
     const artifact = await agent(
       translatePrompt(rule, language, prev.assessment, prev.test, prev.dir, prev.stem),
       {
@@ -550,7 +637,7 @@ const results = await pipeline(
   },
 
   async (prev, language) => {
-    if (prev.skipped || prev.unsupported) return prev
+    if (prev.skipped || prev.unsupported || prev.stopped) return prev
 
     let validation = null
     let rounds = 0
@@ -584,9 +671,9 @@ const results = await pipeline(
   },
 )
 
-const { passed, failed, skipped, unsupported, lost } = partition(results, languages.length)
+const { passed, failed, skipped, unsupported, stopped, lost } = partition(results, languages.length)
 
-log(`${passed.length} passed, ${failed.length} failed validation, ${skipped.length} not applicable, ${unsupported.length} unsupported by semgrep${lost > 0 ? `, ${lost} did not report back` : ''}`)
+log(`${passed.length} passed, ${failed.length} failed validation, ${skipped.length} not applicable, ${unsupported.length} unsupported by semgrep${stopped.length > 0 ? `, ${stopped.length} stopped` : ''}${lost > 0 ? `, ${lost} did not report back` : ''}`)
 
 return {
   rule: rule.id,
@@ -613,5 +700,9 @@ return {
     reasoning: r.assessment.reasoning,
     semgrepCheck: r.assessment.semgrepCheck,
   })),
+  // Deterministic refusals, kept out of `incomplete`. Both say no variant was produced, but
+  // this one will refuse again on a re-run and names what to change; `incomplete` is an agent
+  // that died and is worth retrying as-is.
+  stopped: stopped.map((r) => ({ language: r.language, reason: r.reason })),
   incomplete: lost,
 }
