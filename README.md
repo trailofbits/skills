@@ -91,7 +91,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 
 | Plugin | Description |
 |--------|-------------|
-| [dwarf-expert](plugins/dwarf-expert/) | Interact with and understand the DWARF debugging format |
+| [dwarf-expert](plugins/dwarf-expert/) | Analyze DWARF debug info: parse and search DIEs, verify integrity, write DWARF parsing code |
 
 ### Mobile Security
 
@@ -103,7 +103,6 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 
 | Plugin | Description |
 |--------|-------------|
-| [ask-questions-if-underspecified](plugins/ask-questions-if-underspecified/) | Clarify requirements before implementing |
 | [devcontainer-setup](plugins/devcontainer-setup/) | Create pre-configured devcontainers with Claude Code and language-specific tooling |
 | [gh-cli](plugins/gh-cli/) | Intercept GitHub URL fetches and redirect to the authenticated `gh` CLI |
 | [git-cleanup](plugins/git-cleanup/) | Safely clean up git worktrees and local branches with gated confirmation workflow |
@@ -111,7 +110,6 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [let-fate-decide](plugins/let-fate-decide/) | Draw Tarot cards using cryptographic randomness to add entropy to vague planning |
 | [modern-python](plugins/modern-python/) | Modern Python tooling and best practices with uv, ruff, and pytest |
 | [open-sourcing](plugins/open-sourcing/) | Prepare a repository for public release: secrets hygiene, licensing, CI readiness, and release automation |
-| [seatbelt-sandboxer](plugins/seatbelt-sandboxer/) | Generate minimal macOS Seatbelt sandbox configurations |
 | [second-opinion](plugins/second-opinion/) | Run code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on changes, diffs, or commits. Bundles Codex's built-in MCP server. |
 | [skill-improver](plugins/skill-improver/) | Iterative skill refinement loop using automated fix-review cycles |
 
@@ -126,12 +124,6 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | Plugin | Description |
 |--------|-------------|
 | [claude-in-chrome-troubleshooting](plugins/claude-in-chrome-troubleshooting/) | Diagnose and fix Claude in Chrome MCP extension connectivity issues |
-
-### Infrastructure
-
-| Plugin | Description |
-|--------|-------------|
-| [debug-buttercup](plugins/debug-buttercup/) | Debug [Buttercup](https://github.com/trailofbits/buttercup) Kubernetes deployments |
 
 ## Trophy Case
 
