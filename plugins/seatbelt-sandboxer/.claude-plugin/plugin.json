@@ -1,8 +1,0 @@
-{
-  "name": "seatbelt-sandboxer",
-  "version": "1.0.1",
-  "description": "Generate minimal macOS Seatbelt sandbox configurations for applications",
-  "author": {
-    "name": "Spencer Michaels"
-  }
-}
