@@ -10,17 +10,6 @@
   },
   "plugins": [
     {
-      "name": "ask-questions-if-underspecified",
-      "version": "1.0.2",
-      "description": "Clarify ambiguous requirements by asking questions before implementing. Only when invoked explicitly.",
-      "author": {
-        "name": "Kevin Valerio",
-        "email": "opensource@trailofbits.com",
-        "url": "https://github.com/trailofbits"
-      },
-      "source": "./plugins/ask-questions-if-underspecified"
-    },
-    {
       "name": "audit-context-building",
       "description": "Build deep architectural context through ultra-granular code analysis before vulnerability hunting",
       "version": "1.1.1",
@@ -346,7 +335,7 @@
     },
     {
       "name": "let-fate-decide",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "description": "Draws the 12 Houses of the Zodiac Tarot spread using cryptographic randomness to add 100+ bits of entropy to vague or underspecified planning. Interprets the spread to guide next steps. Use when feeling lucky, invoking heart-of-the-cards energy, or when prompts are ambiguous.",
       "author": {
         "name": "Scott Arciszewski",
