@@ -199,6 +199,17 @@ def self_test():
     assert report(aggregate(ungradeable)) == 1, "no gradeable workflow run must fail"
     checks += 1
 
+    # The loose column. Without this, renaming score.py's mode label leaves the column
+    # reading zero on every run forever — restoring the silence the column exists to break.
+    loose = json.loads(json.dumps(SELF_TEST_ROWS))
+    loose[0]["extraction_mode"] = "permissive-lines"
+    loose[1]["extraction_mode"] = "location-fields"
+    agg = aggregate(loose)
+    assert agg[("x", "workflow")]["permissive"] == 1, agg
+    assert agg[("x", "baseline")]["permissive"] == 0, agg
+    assert report(agg) == 0, "permissive extraction is reported, not a failure"
+    checks += 1
+
     baseline_only = [SELF_TEST_ROWS[1]]
     assert report(aggregate(baseline_only)) == 1, "a summary with no workflow rows must fail"
     assert report(aggregate(baseline_only), require_workflow=False) == 0, (
@@ -206,7 +217,7 @@ def self_test():
     )
     checks += 1
 
-    expected = 6
+    expected = 7
     if checks != expected:
         raise AssertionError(f"self-test ran {checks}, expected {expected}")
     print(f"\nsummarize.py self-test: {checks}/{expected} checks passed")

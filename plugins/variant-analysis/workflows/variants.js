@@ -59,7 +59,7 @@ const parseArgs = (raw) => {
     }
   }
   // A bare string with no recognizable key at all is the bug description.
-  if (!out.bug && !Object.keys(out).length) out.bug = text
+  if (!Object.keys(out).length) out.bug = text
   return out
 }
 
@@ -178,7 +178,7 @@ const BASELINE_SCHEMA = {
     matches_origin: { type: 'boolean', description: 'True if one of the matches is the known vulnerable line named in the root cause.' },
     source_file_count: {
       type: 'integer',
-      description: 'Number of source files in the codebase, from the second command. Sizes the sweep.',
+      description: 'Source files in the codebase, from the second command: the primary language\'s files, excluding vendored, generated, asset, and fixture directories. Sizes the sweep.',
     },
     notes: { type: 'string' },
   },
@@ -293,9 +293,12 @@ const baseline = await agent(
 
     rg -n --no-heading ${sh(rc.exact_pattern)} ${sh(ROOT)}
 
-2. The size of the tree, which decides how wide the sweep needs to be:
+2. The size of the tree, which decides how wide the sweep needs to be. Count SOURCE
+files only - restrict to the primary language's extensions when you can tell what it
+is, and exclude vendored, generated, asset, and test-fixture directories. A project of
+25 source files behind 300 fixtures is a small project:
 
-    rg --files ${sh(ROOT)} | wc -l
+    rg --files ${sh(ROOT)} | wc -l        # then narrow it, e.g. -g '*.py'
 
 The pattern is supposed to match this known vulnerable line:
   ${rc.origin.file}:${rc.origin.line}
@@ -348,6 +351,10 @@ const key = (c) => `${c.file}:${c.line}`
 let dry = 0
 let round = 0
 let stoppedForBudget = false
+// Which axes actually got swept. A single-round sweep on a small tree covers only the
+// first slice, and "we never looked" has to reach the report rather than only the live
+// progress log — an artifact that omits it is indistinguishable from an exhausted sweep.
+const sweptAxes = new Set()
 
 while (round < maxRounds && dry < DRY_ROUNDS_TO_STOP) {
   // Checked BEFORE the increment: a round that never ran is not a round that ran,
@@ -364,6 +371,7 @@ while (round < maxRounds && dry < DRY_ROUNDS_TO_STOP) {
   // a long axis list gets swept rather than truncated.
   const offset = ((round - 1) * axesPerRound) % rc.axes.length
   const axes = [...rc.axes, ...rc.axes].slice(offset, offset + axesPerRound).slice(0, rc.axes.length)
+  axes.forEach((a) => sweptAxes.add(a.id))
   if (rc.axes.length > axesPerRound) {
     log(`Round ${round} sweeps ${axes.length}/${rc.axes.length} axes: ${axes.map((x) => x.id).join(', ')}`)
   }
@@ -482,6 +490,20 @@ const stopReason = sweptToDry
       ? ` (single round, sized to a ${baseline.source_file_count}-file tree)`
       : ` (hit the ${maxRounds}-round cap - sweep not exhausted, say so in the report)`
 
+// Any axis the loop never reached is a generalization nobody attempted. That belongs in
+// the artifact, not just in the log the operator watched go by.
+const unsweptAxes = rc.axes.filter((a) => !sweptAxes.has(a.id))
+if (unsweptAxes.length) {
+  log(`COVERAGE BOUND: ${unsweptAxes.length}/${rc.axes.length} axes never swept: ${unsweptAxes.map((a) => a.id).join(', ')}`)
+}
+const axisCoverage =
+  `Axes swept: ${sweptAxes.size}/${rc.axes.length}` +
+  (unsweptAxes.length
+    ? `. NEVER SWEPT, and the report must say so under its own heading: ${unsweptAxes
+        .map((a) => `${a.id} (${a.kind}) - ${a.description}`)
+        .join('; ')}`
+    : ' (all of them).')
+
 // ---------------------------------------------------------------------------
 // Phase 5 - Report
 // ---------------------------------------------------------------------------
@@ -521,6 +543,7 @@ Root cause: ${rc.statement}
 Origin: ${rc.origin.file}:${rc.origin.line}
 Baseline: exact pattern \`${rc.exact_pattern}\` matched ${baseline.match_count} location(s)
 Rounds run: ${round}${stopReason}
+${axisCoverage}
 
 Abstraction ladder climbed, for the Search Methodology table:
 ${JSON.stringify(ladder, null, 2)}
@@ -540,6 +563,9 @@ return {
   root_cause: rc.statement,
   origin: `${rc.origin.file}:${rc.origin.line}`,
   rounds: round,
+  axes_total: rc.axes.length,
+  axes_swept: sweptAxes.size,
+  axes_unswept: unsweptAxes.map((a) => a.id),
   swept_to_dry: sweptToDry,
   stopped_for_budget: stoppedForBudget,
   confirmed: confirmed.length,

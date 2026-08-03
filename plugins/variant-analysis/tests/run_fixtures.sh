@@ -29,7 +29,14 @@ python3 "$TESTS_DIR/summarize.py" --self-test
 # a machine that has no reason to have it.
 echo "→ workflow syntax"
 if command -v node >/dev/null 2>&1; then
-  node --check "$TESTS_DIR/../workflows/variants.js"
+  # Copied to .mjs first. The file's first statement is `export const meta`, and
+  # `node --check` on a .js file only accepts that on a Node new enough to detect module
+  # syntax (~22.7+); older Nodes reject valid workflows with "Unexpected token 'export'".
+  # The extension removes the ambiguity, so this does not depend on the runner's Node.
+  MJS="$(mktemp -t variants.XXXXXX).mjs"
+  trap 'rm -f "$MJS"' EXIT
+  cp "$TESTS_DIR/../workflows/variants.js" "$MJS"
+  node --check "$MJS"
   echo "  ✓ workflows/variants.js parses"
 else
   echo "  - node not on PATH; skipping"

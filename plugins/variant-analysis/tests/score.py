@@ -158,7 +158,7 @@ def reported_locations(findings_body):
                 strict |= paths_in(line)
 
     if strict:
-        return strict, "location-fields"
+        return strict, STRICT_MODE
 
     # Location fields were declared but PATH_RE recognized nothing in *any* of
     # them: the report names files in a language the extension allowlist does not
@@ -179,7 +179,7 @@ def reported_locations(findings_body):
         if REFUTED_RE.search(line):
             continue
         loose |= paths_in(line)
-    return loose, "permissive-lines"
+    return loose, PERMISSIVE_MODE
 
 
 # How far a reported line may sit from the ground-truth line and still be the same
@@ -192,6 +192,18 @@ def reported_locations(findings_body):
 # apart, conflated. Prefer an explicit `span` in ground truth; this is the fallback for
 # entries that do not carry one.
 LINE_WINDOW = 12
+
+# Spans are exact (`def` line through the closing `return`), which leaves no room for a
+# report that cites a decorator or an overload stub sitting immediately above the def.
+# Pad the *recall* side only: crediting a variant a line or two early costs nothing,
+# whereas padding the safe site would walk straight back into the conflation this span
+# work exists to prevent.
+RECALL_PAD = 3
+
+# The extraction mode summarize.py counts in its `loose` column. Defined here, where it is
+# produced, so a rename cannot leave that column silently reading zero forever.
+PERMISSIVE_MODE = "permissive-lines"
+STRICT_MODE = "location-fields"
 
 
 def same_file(reported_path, truth_file):
@@ -211,7 +223,7 @@ def same_file(reported_path, truth_file):
     return r == truth or r.endswith("/" + truth) or truth.endswith("/" + r)
 
 
-def truth_span(truth):
+def truth_span(truth, pad=0):
     """The line range a reported location must fall in to be this construct.
 
     An explicit `span: [start, end]` in ground truth is the construct's real
@@ -221,14 +233,14 @@ def truth_span(truth):
     """
     span = truth.get("span")
     if span:
-        return int(span[0]), int(span[1])
+        return int(span[0]) - pad, int(span[1]) + pad
     line = truth.get("line")
     if line is None:
         return None
-    return line - LINE_WINDOW, line + LINE_WINDOW
+    return line - LINE_WINDOW - pad, line + LINE_WINDOW + pad
 
 
-def matches(reported, truth, require_line=False):
+def matches(reported, truth, require_line=False, pad=0):
     """True if a reported location refers to the ground-truth construct.
 
     File match alone is NOT enough. A real codebase puts several unrelated
@@ -251,7 +263,7 @@ def matches(reported, truth, require_line=False):
       upstream finding, so any run that reported the real one without a line
       number was marked as having flagged the decoy.
     """
-    lo_hi = truth_span(truth)
+    lo_hi = truth_span(truth, pad)
     for r, line in reported:
         if not same_file(r, truth["file"]):
             continue
@@ -287,12 +299,22 @@ def grade(report_text, entry):
     vulns = entry["vulnerabilities"]
     decoy = entry["decoy"]
 
-    found = [v for v in vulns if matches(reported, v)]
-    missed = [v for v in vulns if not matches(reported, v)]
+    found = [v for v in vulns if matches(reported, v, pad=RECALL_PAD)]
+    missed = [v for v in vulns if not matches(reported, v, pad=RECALL_PAD)]
 
     # Strict on the accusation, permissive on "did it look at it". See matches().
     decoy_reported = matches(reported, decoy, require_line=True)
     decoy_examined = matches(examined, decoy)
+
+    # A claim on the decoy's file with NO line is the gap between those two. Strictness
+    # keeps it out of decoy_reported, which is right — it is not evidence the decoy was
+    # named. But it must not then be laundered into "examined and correctly ruled out":
+    # that credited a run for triaging the very site it had just listed under Findings.
+    # Surfaced instead, and it blocks the ruled-out credit without counting as a
+    # false positive.
+    decoy_line_less_claim = sorted(
+        p for p, ln in reported if ln is None and same_file(p, decoy["file"])
+    )
 
     # Findings that are none of the three injected sites.
     #
@@ -312,6 +334,13 @@ def grade(report_text, entry):
         for p, ln in reported
         if not any(matches({(p, ln)}, k) for k in known)
     )
+    # A line-less claim on the decoy's file matches `known` permissively, so it would
+    # drop out of `unreviewed` too and leave no trace anywhere in the artifact. Put it
+    # back: a human reading the score needs to see the claim that was made.
+    for p in decoy_line_less_claim:
+        if p not in unreviewed:
+            unreviewed.append(p)
+    unreviewed.sort()
 
     non_seed = [v for v in vulns if not v.get("is_seed")]
     non_seed_found = [v for v in found if not v.get("is_seed")]
@@ -326,7 +355,10 @@ def grade(report_text, entry):
         "new_variants_total": len(non_seed),
         "non_seed_recall": f"{len(non_seed_found)}/{len(non_seed)}",
         "decoy_reported_as_real": decoy_reported,
-        "decoy_examined_and_ruled_out": decoy_examined and not decoy_reported,
+        "decoy_examined_and_ruled_out": (
+            decoy_examined and not decoy_reported and not decoy_line_less_claim
+        ),
+        "decoy_claimed_without_line": decoy_line_less_claim,
         "unreviewed_findings": unreviewed,
         "false_positives": 1 if decoy_reported else 0,
     }
@@ -648,8 +680,11 @@ def self_test():
     assert s["unreviewed_findings"] == ["vendor/pkg/b.py:2"], s
     checks += 1
 
-    # Cold-run regressions.
+    # Cold-run regressions. The decoy's span must contain its own anchor line, which is
+    # what verify_fixtures.py enforces on real ground truth — so move the line with it
+    # rather than writing a fixture the repo declares invalid.
     spanned = json.loads(json.dumps(SELF_TEST_ENTRY))
+    spanned["decoy"]["line"] = 22
     spanned["decoy"]["span"] = [20, 30]
     s = grade(NEIGHBOUR_CONSTRUCT, spanned)
     assert not s["decoy_reported_as_real"], (
@@ -660,13 +695,24 @@ def self_test():
     assert ok, f"a run that found both and flagged a neighbouring construct must pass: {why}"
     checks += 1
 
+    # A line-less claim on the safe site's file: not an accusation, but not a clean
+    # triage either. It must stay out of decoy_reported_as_real, stay visible in the
+    # artifact, and block the ruled-out credit.
     s = grade(SPANNED_FILE_NO_LINE, spanned)
     assert not s["decoy_reported_as_real"], (
         f"a line-less mention of the safe site's file is not a claim about it: {s}"
     )
-    assert s["decoy_examined_and_ruled_out"], f"but it does count as having examined it: {s}"
+    assert s["decoy_claimed_without_line"] == ["src/decoy.py"], s
+    assert "src/decoy.py" in s["unreviewed_findings"], (
+        f"the claim must remain visible somewhere in the artifact: {s}"
+    )
+    assert not s["decoy_examined_and_ruled_out"], (
+        f"a site claimed under Findings was not 'correctly ruled out': {s}"
+    )
     ok, why = verdict(s, require_decoy_examined=True)
-    assert ok, f"should pass: {why}"
+    assert not ok, "strict mode must not pass a run that claimed the safe site line-lessly"
+    ok, _ = verdict(s)
+    assert ok, "without --strict-decoy it is not a hard failure, since nothing was accused"
     checks += 1
 
     # Recall stays permissive in the same situation: a line-less mention of a real
@@ -675,7 +721,30 @@ def self_test():
     assert s["new_variants_found"] == 1, f"line-less recall must still be credited: {s}"
     checks += 1
 
-    expected = 16
+    # Spans are exact def..return, so a decorator directly above the def is outside them.
+    # RECALL_PAD covers that on the recall side only; the safe site gets no such slack.
+    padded = json.loads(json.dumps(SELF_TEST_ENTRY))
+    padded["vulnerabilities"][1]["line"] = 20
+    padded["vulnerabilities"][1]["span"] = [20, 28]
+    s = grade(PERFECT.replace("src/b.py:2", "src/b.py:18"), padded)
+    assert s["new_variants_found"] == 1, (
+        f"a decorator line just above the def must still credit the variant: {s}"
+    )
+    s = grade(PERFECT.replace("src/b.py:2", "src/b.py:14"), padded)
+    assert s["new_variants_found"] == 0, f"but not an unrelated line 6 above it: {s}"
+    checks += 1
+
+    # The label summarize.py's `loose` column counts. Pinned here so a rename cannot
+    # leave that column silently reading zero.
+    assert PERMISSIVE_MODE == "permissive-lines", PERMISSIVE_MODE
+    assert STRICT_MODE == "location-fields", STRICT_MODE
+    s = grade("## Findings\nA bug in `src/a.py:1` and `src/b.py:2`.\n", SELF_TEST_ENTRY)
+    assert s["extraction_mode"] == PERMISSIVE_MODE, (
+        f"a report with no Location fields must report the permissive mode: {s}"
+    )
+    checks += 1
+
+    expected = 18
     if checks != expected:
         raise AssertionError(f"self-test ran {checks} assertions, expected {expected}")
     print(f"score.py self-test: {checks}/{expected} checks passed")
