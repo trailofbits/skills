@@ -4,7 +4,9 @@ Advice for the final stage. The report is written for a security engineer that i
 
 ## Structure
 
-Fill `resources/variant-report-template.md`. Every section earns its place:
+Fill `../resources/variant-report-template.md` — the path is relative to this file, so
+from the skill root it is `resources/variant-report-template.md`. Every section earns its
+place:
 
 - **Summary** — original bug, date, codebase, count
 - **Original vulnerability** — the root cause statement, the origin location, the code

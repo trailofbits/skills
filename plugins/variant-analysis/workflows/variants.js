@@ -273,13 +273,18 @@ const key = (c) => `${c.file}:${c.line}`
 
 let dry = 0
 let round = 0
+let stoppedForBudget = false
 
 while (round < MAX_ROUNDS && dry < DRY_ROUNDS_TO_STOP) {
-  round++
+  // Checked BEFORE the increment: a round that never ran is not a round that ran,
+  // and counting it made the report say "swept N rounds" and "hit the round cap"
+  // for a sweep that actually stopped early on budget.
   if (budget.total && budget.remaining() < 60_000) {
-    log(`Stopping after round ${round - 1}: ~${Math.round(budget.remaining() / 1000)}k tokens left, below the floor for another round.`)
+    stoppedForBudget = true
+    log(`Stopping after round ${round}: ~${Math.round(budget.remaining() / 1000)}k tokens left, below the floor for another round.`)
     break
   }
+  round++
 
   // Rotate through the axes across rounds rather than re-running the same slice, so
   // a long axis list gets swept rather than truncated.
@@ -381,9 +386,21 @@ Return a verdict for every candidate, including the ones you judge minor.`,
   }
 }
 
-if (round >= MAX_ROUNDS && dry < DRY_ROUNDS_TO_STOP) {
+// Three ways out of that loop, and the report has to be told which. Only the dry
+// exit means the sweep is exhausted; the other two are coverage bounds a reader
+// needs to see, not just a line in the live log.
+const sweptToDry = dry >= DRY_ROUNDS_TO_STOP
+if (stoppedForBudget) {
+  log(`COVERAGE BOUND: stopped after ${round} round(s) with the token budget exhausted. The sweep is not exhausted.`)
+} else if (round >= MAX_ROUNDS && !sweptToDry) {
   log(`COVERAGE BOUND: stopped at the ${MAX_ROUNDS}-round cap while still finding new variants. The sweep is not exhausted.`)
 }
+
+const stopReason = sweptToDry
+  ? ' (swept to dry - no new variants in the last rounds)'
+  : stoppedForBudget
+    ? ' (STOPPED EARLY: token budget exhausted, not swept to dry - say so in the report)'
+    : ` (hit the ${MAX_ROUNDS}-round cap - sweep not exhausted, say so in the report)`
 
 // ---------------------------------------------------------------------------
 // Phase 5 - Report
@@ -411,7 +428,7 @@ Original bug: ${A.bug}
 Root cause: ${rc.statement}
 Origin: ${rc.origin.file}:${rc.origin.line}
 Baseline: exact pattern \`${rc.exact_pattern}\` matched ${baseline.match_count} location(s)
-Rounds run: ${round}${dry >= DRY_ROUNDS_TO_STOP ? ' (swept to dry)' : ' (hit the round cap - sweep not exhausted, say so in the report)'}
+Rounds run: ${round}${stopReason}
 
 Abstraction ladder climbed, for the Search Methodology table:
 ${JSON.stringify(ladder, null, 2)}
@@ -431,7 +448,8 @@ return {
   root_cause: rc.statement,
   origin: `${rc.origin.file}:${rc.origin.line}`,
   rounds: round,
-  swept_to_dry: dry >= DRY_ROUNDS_TO_STOP,
+  swept_to_dry: sweptToDry,
+  stopped_for_budget: stoppedForBudget,
   confirmed: confirmed.length,
   rejected: rejected.length,
   variants: confirmed.map((v) => ({ at: `${v.file}:${v.line}`, severity: v.severity, confidence: v.confidence })),

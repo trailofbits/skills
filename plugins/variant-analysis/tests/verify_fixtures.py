@@ -14,8 +14,9 @@ Checks, in order:
 Exits non-zero on any drift, and also if it verifies zero anchors — a checker that
 inspects nothing must fail rather than report success.
 
-Skips with exit 0 and a notice when the codebase has not been fetched yet, so
-run_fixtures.sh stays CI-safe on a machine that has never run setup-gradio.sh.
+Skips an individual codebase that has not been fetched yet and still verifies the
+rest; exits 0 with a notice only when *none* is fetched, so run_fixtures.sh stays
+CI-safe on a machine that has never run setup-gradio.sh.
 """
 
 import json
@@ -86,13 +87,19 @@ def main():
     total_checked = 0
     all_failures = []
     results = []
+    fetched = []
+    skipped = []
 
     for entry in truth["codebases"]:
         base = HERE / entry["path"]
         if not base.exists():
+            # `continue`, not `return`: with more than one codebase, returning here
+            # would skip verification of every codebase after the first unfetched
+            # one and report success having checked nothing.
             print(f"  - {entry['name']}: not fetched — run {entry['setup']}")
-            print("\nnothing to verify yet (this is not a failure)")
-            return 0
+            skipped.append(entry)
+            continue
+        fetched.append(entry)
 
         print(f"→ {entry['name']} @ {entry['pinned_sha'][:12]}")
         all_failures += check_pinned(entry, base)
@@ -104,9 +111,16 @@ def main():
 
         results.append(check_compiles(entry, base))
 
-    expected = sum(len(c["vulnerabilities"]) + 1 for c in truth["codebases"])
+    if not fetched:
+        print("\nnothing to verify yet (this is not a failure)")
+        return 0
+
+    # Only the fetched codebases are in scope. Counting the skipped ones here
+    # would turn "not fetched yet" into a hard failure, which is the case the
+    # skip above exists to allow.
+    expected = sum(len(c["vulnerabilities"]) + 1 for c in fetched)
     if total_checked == 0:
-        print("  ✗ zero anchors verified — discovery is broken")
+        print("  ✗ zero anchors verified across fetched codebases — discovery is broken")
         return 1
     if total_checked != expected and not all_failures:
         print(f"  ✗ verified {total_checked} anchors but ground truth defines {expected}")
@@ -126,7 +140,8 @@ def main():
     if all_failures or hard:
         return 1
 
-    print(f"\nfixture OK ({total_checked} anchors)")
+    note = f", {len(skipped)} codebase(s) not fetched" if skipped else ""
+    print(f"\nfixture OK ({total_checked} anchors{note})")
     return 0
 
 

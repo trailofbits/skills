@@ -17,9 +17,11 @@ import pathlib
 import re
 import sys
 
-# A finding must name a file with one of these extensions to be counted.
+# A finding must name a file with one of these extensions to be counted. Adding a
+# codebase in a language that is missing here does not score zero silently:
+# reported_locations() raises GradingError when Location fields parse to nothing.
 PATH_RE = re.compile(
-    r"[\w./\\-]+\.(?:c|h|cpp|hpp|go|js|mjs|ts|java|py)\b",
+    r"[\w./\\-]+\.(?:c|h|cpp|hpp|cc|go|js|mjs|ts|tsx|java|kt|py|rb|rs|php|cs|swift|scala)\b",
     re.IGNORECASE,
 )
 
@@ -121,14 +123,33 @@ def reported_locations(findings_body):
     and report which mode was used so a surprising score can be traced.
     """
     strict = set()
+    location_lines = 0
+    location_paths = 0
     for block in split_blocks(findings_body):
         lines = block.splitlines()
         if not any(line.strip() for line in lines):
             continue
+        # Counted before the refutation checks: this is about whether PATH_RE can
+        # read the report at all, which has nothing to do with the verdicts in it.
+        for ln in lines:
+            if LOCATION_RE.match(ln):
+                location_lines += 1
+                location_paths += len(paths_in(ln))
         # Header-only refutation check: "### Ruled out: foo.go" voids the block,
         # but a body sentence about the safe alternative does not.
         header = next((line for line in lines if line.startswith("### ")), "")
         if header and REFUTED_RE.search(header):
+            continue
+        # Status-row refutation. variant-report-template.md puts the verdict in its
+        # own `| Severity | Confidence | Status |` row, separated from both the
+        # header and the **Location:** line — so a decoy written up exactly per the
+        # template scored as reported-real, failing a run that triaged correctly.
+        # Only rows carrying no path of their own count as a verdict on the block:
+        # a triage row that names a file is a verdict on *that* file and is handled
+        # by the per-line check below, and treating it as block-wide would void the
+        # real findings listed beside it.
+        rows = [ln for ln in lines if ln.lstrip().startswith("|") and not paths_in(ln)]
+        if any(REFUTED_RE.search(ln) for ln in rows):
             continue
         for line in lines:
             if LOCATION_RE.match(line) and not REFUTED_RE.search(line):
@@ -136,6 +157,20 @@ def reported_locations(findings_body):
 
     if strict:
         return strict, "location-fields"
+
+    # Location fields were declared but PATH_RE recognized nothing in *any* of
+    # them: the report names files in a language the extension allowlist does not
+    # cover. Falling through to permissive scanning would score every such run as
+    # "found nothing", indistinguishable from a run that genuinely found nothing —
+    # so add the codebase's extensions to PATH_RE instead. Note this fires only
+    # when zero locations parsed; a report whose locations all parsed and were all
+    # refuted legitimately scores zero rather than raising.
+    if location_lines and not location_paths:
+        raise GradingError(
+            f"the report declares {location_lines} **Location:** field(s) but no "
+            "recognizable file path was extracted from any of them — the codebase's "
+            "language is probably missing from PATH_RE's extension allowlist"
+        )
 
     loose = set()
     for line in findings_body.splitlines():
@@ -151,11 +186,20 @@ LINE_WINDOW = 30
 
 
 def same_file(reported_path, truth_file):
+    """Directory-aware path comparison.
+
+    Suffix matching in both directions already covers every legitimate spelling:
+    an absolute path from the run's cwd, the repo-relative path, and a bare
+    basename (`flagging.py` is a suffix of `gradio/flagging.py`). A bare-basename
+    fallback on top of that would only ever fire for the case suffix matching
+    deliberately rejects — a same-named file in a *different* directory, such as
+    gradio's `client/python/gradio_client/flagging.py` against a ground truth of
+    `gradio/flagging.py` — handing out free true positives in any repo with
+    duplicated filenames.
+    """
     truth = truth_file.replace("\\", "/")
     r = reported_path.replace("\\", "/")
-    if r == truth or r.endswith("/" + truth) or truth.endswith("/" + r):
-        return True
-    return pathlib.PurePath(r).name == pathlib.PurePath(truth).name
+    return r == truth or r.endswith("/" + truth) or truth.endswith("/" + r)
 
 
 def matches(reported, truth_file, truth_line=None):
@@ -387,6 +431,59 @@ SEED_IN_OWN_SECTION = """
 """
 
 
+# The decoy written up exactly as variant-report-template.md prescribes: verdict in
+# its own Status row, **Location:** on a separate line. Distinct from
+# REFUTED_IN_TABLE, where the refuted row carries the path itself.
+REFUTED_STATUS_ROW = """
+## Findings
+### Variant #1
+**Location:** `src/a.py:1`
+### Variant #2
+**Location:** `src/b.py:2`
+### Variant #3: Decoy -- argv form
+
+| Severity | Confidence | Status |
+|----------|------------|--------|
+| N/A | High | Refuted |
+
+**Location:** `src/decoy.py:3`
+
+**Analysis:** uses argv form, not shell. Prefer argv separation everywhere.
+"""
+
+# A triage table inside a block must not void the block's own finding just because
+# one of its rows refutes a different file.
+REFUTED_ROW_BESIDE_REAL = """
+## Findings
+### Variant #1
+**Location:** `src/a.py:1`
+### Variant #2
+| # | Location | Verdict |
+|---|---|---|
+| a | `src/decoy.py:3` | REFUTED |
+
+**Location:** `src/b.py:2`
+"""
+
+# A language PATH_RE does not know. Must be ungradeable, not a silent zero.
+UNKNOWN_LANGUAGE = """
+## Findings
+### Variant #1
+**Location:** `src/a.erl:1`
+### Variant #2
+**Location:** `src/b.erl:2`
+"""
+
+# Same basename, different directory. Must NOT credit the ground-truth variant.
+SAME_BASENAME_ELSEWHERE = """
+## Findings
+### Variant #1
+**Location:** `src/a.py:1`
+### Variant #2
+**Location:** `vendor/pkg/b.py:2`
+"""
+
+
 def self_test():
     checks = 0
 
@@ -455,7 +552,31 @@ def self_test():
     assert ok, f"seed outside Findings is a convention, not a miss: {why}"
     checks += 1
 
-    expected = 9
+    s = grade(REFUTED_STATUS_ROW, SELF_TEST_ENTRY)
+    assert not s["decoy_reported_as_real"], f"a Refuted status row voids the block: {s}"
+    assert s["decoy_examined_and_ruled_out"], s
+    ok, why = verdict(s, require_decoy_examined=True)
+    assert ok, f"the shipped template's refutation shape must pass: {why}"
+    checks += 1
+
+    s = grade(REFUTED_ROW_BESIDE_REAL, SELF_TEST_ENTRY)
+    assert s["true_positives"] == 2, f"a refuted row about another file is not a block verdict: {s}"
+    assert not s["decoy_reported_as_real"], s
+    checks += 1
+
+    try:
+        grade(UNKNOWN_LANGUAGE, SELF_TEST_ENTRY)
+    except GradingError:
+        checks += 1
+    else:  # pragma: no cover
+        raise AssertionError("an unparseable language must be ungradeable, not zero")
+
+    s = grade(SAME_BASENAME_ELSEWHERE, SELF_TEST_ENTRY)
+    assert s["new_variants_found"] == 0, f"a same-named file elsewhere is not the variant: {s}"
+    assert s["unreviewed_findings"] == ["vendor/pkg/b.py:2"], s
+    checks += 1
+
+    expected = 13
     if checks != expected:
         raise AssertionError(f"self-test ran {checks} assertions, expected {expected}")
     print(f"score.py self-test: {checks}/{expected} checks passed")

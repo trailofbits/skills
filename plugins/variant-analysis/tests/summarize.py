@@ -5,7 +5,10 @@ Reads the JSONL summary eval.sh writes. Exits non-zero if the workflow mode
 missed its target on any codebase, or if it failed to beat the baseline where
 both modes ran.
 
-Usage: summarize.py SUMMARY.jsonl [--self-test]
+A summary containing no workflow rows is a failure, not a pass: it means nothing
+this script decides was measured. Pass --baseline-only when that is deliberate.
+
+Usage: summarize.py SUMMARY.jsonl [--baseline-only] [--self-test]
 """
 
 import argparse
@@ -64,7 +67,7 @@ def aggregate(rows):
     return out
 
 
-def report(agg):
+def report(agg, require_workflow=True):
     codebases = sorted({c for c, _ in agg})
     modes = sorted({m for _, m in agg}, reverse=True)
 
@@ -93,6 +96,15 @@ def report(agg):
         wf = agg.get((c, "workflow"))
         bl = agg.get((c, "baseline"))
         if wf is None:
+            # A summary with no workflow rows measures nothing this script is here
+            # to decide. Skipping it silently made `--mode baseline` — and any
+            # mistyped `--mode` value, which eval.sh used to treat as baseline —
+            # exit 0 with a green check no matter what the run found.
+            if require_workflow:
+                failures.append(
+                    f"{c}: no workflow runs in the summary — nothing was measured "
+                    f"(pass --baseline-only if that was intentional)"
+                )
             continue
         if wf["gradeable"] == 0:
             failures.append(f"{c}: workflow produced no gradeable report")
@@ -174,7 +186,14 @@ def self_test():
     assert report(aggregate(ungradeable)) == 1, "no gradeable workflow run must fail"
     checks += 1
 
-    expected = 5
+    baseline_only = [SELF_TEST_ROWS[1]]
+    assert report(aggregate(baseline_only)) == 1, "a summary with no workflow rows must fail"
+    assert report(aggregate(baseline_only), require_workflow=False) == 0, (
+        "--baseline-only makes a workflow-free summary legitimate"
+    )
+    checks += 1
+
+    expected = 6
     if checks != expected:
         raise AssertionError(f"self-test ran {checks}, expected {expected}")
     print(f"\nsummarize.py self-test: {checks}/{expected} checks passed")
@@ -184,6 +203,11 @@ def self_test():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("summary", nargs="?")
+    ap.add_argument(
+        "--baseline-only",
+        action="store_true",
+        help="the run deliberately had no workflow arm; do not fail on its absence",
+    )
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 
@@ -196,7 +220,7 @@ def main():
     if not rows:
         print("no results in summary — the eval ran nothing", file=sys.stderr)
         return 1
-    return report(aggregate(rows))
+    return report(aggregate(rows), require_workflow=not args.baseline_only)
 
 
 if __name__ == "__main__":

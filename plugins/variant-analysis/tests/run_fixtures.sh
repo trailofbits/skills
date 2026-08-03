@@ -19,3 +19,6 @@ python3 "$TESTS_DIR/verify_fixtures.py"
 
 echo "→ grader self-test"
 python3 "$TESTS_DIR/score.py" --self-test
+
+echo "→ aggregator self-test"
+python3 "$TESTS_DIR/summarize.py" --self-test

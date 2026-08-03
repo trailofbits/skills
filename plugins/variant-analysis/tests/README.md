@@ -29,8 +29,15 @@ the skill alone finds only the seed.
 ./eval.sh                      # calls Claude: both modes
 ./eval.sh --mode workflow      # skip the baseline
 ./eval.sh --runs 3             # variance estimate
+./eval.sh --keep               # keep the work dir even on a pass
 ./setup-gradio.sh --clean      # delete the checkout
 ```
+
+A passing `eval.sh` deletes its own work dir; a failing one keeps it, because that is when
+the transcripts are worth reading. `--keep` keeps it either way, and a dir passed with
+`--out` is never deleted. `--mode` accepts only `workflow` and `baseline`: a typo is an
+error rather than a silent fallback to the baseline prompt, and a run with no workflow arm
+is reported as measuring nothing instead of passing green.
 
 The codebase is **not vendored** — 772 Python files at 283 MB, which is the point. Only
 `gradio-vulns.patch` and `ground-truth.json` live in this repo; `work/` is gitignored.

@@ -13,7 +13,11 @@
 #   ./eval.sh --codebase go          # one codebase
 #   ./eval.sh --mode workflow        # skip the baseline
 #   ./eval.sh --runs 3               # repeat for a variance estimate
-#   ./eval.sh --keep                 # keep the work dirs for inspection
+#   ./eval.sh --keep                 # keep the work dir even when the eval passes
+#
+# The work dir is deleted on a passing run unless --keep is given. A failing run
+# always keeps it: that is when the transcripts are worth reading. A dir given
+# with --out is never deleted.
 
 set -euo pipefail
 
@@ -27,6 +31,14 @@ RUNS=1
 KEEP=0
 MODEL=""
 OUT_DIR="${TMPDIR:-/tmp}/variant-analysis-eval.$$"
+OUT_GIVEN=0
+
+# Print the leading comment block as usage. Walks to the first non-comment line
+# rather than a hardcoded range, which silently spilled `set -euo pipefail` and
+# the variable block into --help every time the header changed length.
+usage() {
+  awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -52,14 +64,31 @@ while [ $# -gt 0 ]; do
       ;;
     --out)
       OUT_DIR="$2"
+      OUT_GIVEN=1
       shift 2
       ;;
     -h | --help)
-      sed -n '2,20p' "$0"
+      usage
       exit 0
       ;;
     *)
       echo "unknown option: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+# Reject an unknown mode rather than falling through build_prompt's else branch.
+# `--mode wokflow` used to run the BASELINE prompt, tag the rows "wokflow", and
+# then pass summarize.py a summary with no workflow rows — a typo that scored a
+# green baseline-vs-nothing run as a success.
+HAS_WORKFLOW=0
+for mode in $MODES; do
+  case "$mode" in
+    workflow) HAS_WORKFLOW=1 ;;
+    baseline) ;;
+    *)
+      echo "unknown mode: $mode (expected 'workflow', 'baseline', or both)" >&2
       exit 2
       ;;
   esac
@@ -214,13 +243,22 @@ echo "=== summary ==="
 # set +e: a failing eval is a normal outcome here, not a reason to abort before
 # reporting where the artifacts landed.
 set +e
-python3 "$TESTS_DIR/summarize.py" "$SUMMARY"
+if [ "$HAS_WORKFLOW" -eq 1 ]; then
+  python3 "$TESTS_DIR/summarize.py" "$SUMMARY"
+else
+  python3 "$TESTS_DIR/summarize.py" --baseline-only "$SUMMARY"
+fi
 rc=$?
 set -e
 
-if [ "$KEEP" -eq 0 ]; then
-  echo
-  echo "work dirs kept at $OUT_DIR (pass --keep to silence this, or delete it)"
+echo
+if [ "$KEEP" -eq 1 ] || [ "$rc" -ne 0 ] || [ "$OUT_GIVEN" -eq 1 ]; then
+  echo "work dir kept at $OUT_DIR"
+else
+  # Only ever removes a directory this script created under $TMPDIR. A --out path
+  # belongs to the caller and is left alone.
+  rm -rf "$OUT_DIR"
+  echo "work dir removed (pass --keep to inspect it)"
 fi
 
 exit $rc

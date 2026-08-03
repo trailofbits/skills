@@ -13,9 +13,13 @@ of every value involved, then look specifically for the thing that makes it safe
 - A sanitizer, validator, or parameterized API between source and sink
 - A type constraint that makes the dangerous value unreachable
 - A caller set that never supplies attacker-controlled input
-- Dead or unreachable code
 
 A candidate survives only if you looked for these and did not find them.
+
+Note what is *not* on that list: having no callers. Code that nothing reaches today is
+still unprotected code, and a variant hunt is exactly the search that finds it before a
+caller arrives. Report it at lower severity — see Exploitability below — rather than
+refuting it as dead.
 
 ## Exploitability
 
@@ -27,7 +31,8 @@ For a surviving candidate, establish:
 
 A candidate that is reachable and controllable but has a different protection in place is a
 false positive worth recording, not a finding. A candidate that is unreachable *today* but
-unprotected is a real finding at lower severity.
+unprotected is a real finding at lower severity: say so explicitly, and say what would make
+it reachable.
 
 ## Edge Cases That Hide Real Bugs
 
