@@ -91,7 +91,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 
 | Plugin | Description |
 |--------|-------------|
-| [dwarf-expert](plugins/dwarf-expert/) | Interact with and understand the DWARF debugging format |
+| [dwarf-expert](plugins/dwarf-expert/) | Analyze DWARF debug info: parse and search DIEs, verify integrity, write DWARF parsing code |
 
 ### Mobile Security
 
