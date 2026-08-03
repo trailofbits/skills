@@ -25,10 +25,11 @@ the skill alone finds only the seed.
 
 ```sh
 ./setup-gradio.sh              # fetch + patch (~283 MB, one time)
-./run_fixtures.sh              # free, offline — verifies the fixture and the grader
+./run_fixtures.sh              # free, offline — verifies the fixture, grader, and workflow syntax
 ./eval.sh                      # calls Claude: both modes
 ./eval.sh --mode workflow      # skip the baseline
 ./eval.sh --runs 3             # variance estimate
+./eval.sh --strict-decoy       # also require the decoy in the ruled-out section
 ./eval.sh --keep               # keep the work dir even on a pass
 ./setup-gradio.sh --clean      # delete the checkout
 ```
@@ -79,6 +80,24 @@ those is how an eval starts reporting success for runs that did nothing.
 path in the Findings section over-counts badly — it picks up entry points named while
 tracing data flow, and rows in triage tables the report itself refuted. Both mistakes
 were observed against real reports before this was fixed.
+
+The workflow's report stage is instructed to emit those fields, because the fallback is
+what runs when it does not. `score.py` reports which path it used as `extraction_mode`, and
+`summarize.py` prints a `loose` column counting the runs that fell back — a score built on
+the permissive path is worth less than one built on location fields, and that used to be
+invisible.
+
+**Ground truth carries a `span`, not just a line.** A construct is a line *range* — the
+function it lives in. Matching on proximity to a single line conflates neighbours: a cold
+run reported a helper at lines 4 and 7 of a file whose safe site began at line 10, and a
+30-line window scored it as the safe site being reported as real. Spans are exact, and
+`verify_fixtures.py` fails if a span stops containing its own anchor line.
+
+**Line-less mentions lean opposite ways for recall and precision.** A report naming the
+right file without a line is credited for recall, but is *not* treated as claiming the
+decoy. Both directions favour not failing a run that did the work — and the strict half
+matters because the decoy's file also holds a genuine upstream finding, so any run that
+reported the real one without a line number used to be marked as having flagged the decoy.
 
 **`run_fixtures.sh` is CI-safe; `eval.sh` is not.** `make shell-suites` executes every
 `plugins/*/tests/*/run_*.sh` it finds, so the expensive half is deliberately named
