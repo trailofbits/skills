@@ -22,3 +22,15 @@ python3 "$TESTS_DIR/score.py" --self-test
 
 echo "→ aggregator self-test"
 python3 "$TESTS_DIR/summarize.py" --self-test
+
+# The workflow is the only JavaScript in this repo and nothing in CI parses it, so a
+# syntax error would surface only inside a paid eval.sh run. `node --check` is free and
+# offline. Skipped rather than failed where node is absent: this suite must stay green on
+# a machine that has no reason to have it.
+echo "→ workflow syntax"
+if command -v node >/dev/null 2>&1; then
+  node --check "$TESTS_DIR/../workflows/variants.js"
+  echo "  ✓ workflows/variants.js parses"
+else
+  echo "  - node not on PATH; skipping"
+fi

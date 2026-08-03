@@ -9,11 +9,13 @@
 # CI-safe half.
 #
 # Usage:
-#   ./eval.sh                        # all codebases, both modes, 1 run each
-#   ./eval.sh --codebase go          # one codebase
-#   ./eval.sh --mode workflow        # skip the baseline
-#   ./eval.sh --runs 3               # repeat for a variance estimate
-#   ./eval.sh --keep                 # keep the work dir even when the eval passes
+#   ./eval.sh                          # all codebases, both modes, 1 run each
+#   ./eval.sh --codebase gradio        # one codebase (see ground-truth.json for names)
+#   ./eval.sh --mode workflow          # skip the baseline
+#   ./eval.sh --mode "workflow baseline"  # both, explicitly (quote the pair)
+#   ./eval.sh --runs 3                 # repeat for a variance estimate
+#   ./eval.sh --strict-decoy           # also require the decoy in the ruled-out section
+#   ./eval.sh --keep                   # keep the work dir even when the eval passes
 #
 # The work dir is deleted on a passing run unless --keep is given. A failing run
 # always keeps it: that is when the transcripts are worth reading. A dir given
@@ -30,6 +32,7 @@ MODES="workflow baseline"
 RUNS=1
 KEEP=0
 MODEL=""
+STRICT_DECOY=0
 OUT_DIR="${TMPDIR:-/tmp}/variant-analysis-eval.$$"
 OUT_GIVEN=0
 
@@ -60,6 +63,10 @@ while [ $# -gt 0 ]; do
       ;;
     --keep)
       KEEP=1
+      shift
+      ;;
+    --strict-decoy)
+      STRICT_DECOY=1
       shift
       ;;
     --out)
@@ -105,6 +112,11 @@ command -v jq >/dev/null || {
 
 if [ -z "$CODEBASES" ]; then
   CODEBASES="$(jq -r '.codebases[].name' "$GROUND_TRUTH")"
+fi
+
+STRICT_FLAG=""
+if [ "$STRICT_DECOY" -eq 1 ]; then
+  STRICT_FLAG="--strict-decoy"
 fi
 
 mkdir -p "$OUT_DIR"
@@ -209,10 +221,12 @@ for name in $CODEBASES; do
       fi
 
       set +e
+      # shellcheck disable=SC2086  # $STRICT_FLAG is a bare flag or empty, by design
       python3 "$TESTS_DIR/score.py" \
         --report "$work/REPORT.md" \
         --codebase "$name" \
         --ground-truth "$GROUND_TRUTH" \
+        $STRICT_FLAG \
         >"$work/score.json" 2>"$work/score.err"
       score_rc=$?
       set -e
