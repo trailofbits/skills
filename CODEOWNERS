@@ -1,46 +1,43 @@
 # Default owner for everything
-* @dguido
+* @dguido @kz-tob
 
 # Plugin-specific owners (alphabetical)
-/plugins/agentic-actions-auditor/ @BuffaloWill @elopez @dguido
-/plugins/ask-questions-if-underspecified/ @kevin-valerio @dguido
-/plugins/audit-context-building/ @omarinuwa @dguido
-/plugins/building-secure-contracts/ @omarinuwa @dguido
-/plugins/burpsuite-project-parser/ @BuffaloWill @dguido
-/plugins/c-review/ @GrosQuildu @dguido
-/plugins/claude-in-chrome-troubleshooting/ @dguido
-/plugins/constant-time-analysis/ @tob-scott-a @dguido
-/plugins/culture-index/ @dguido
-/plugins/debug-buttercup/ @reytchison @dguido
-/plugins/devcontainer-setup/ @DarkaMaul @dguido
-/plugins/differential-review/ @omarinuwa @dguido
-/plugins/dimensional-analysis/ @bsamuels453 @dguido
-/plugins/dwarf-expert/ @xintenseapple @dguido
-/plugins/entry-point-analyzer/ @nisedo @dguido
-/plugins/firebase-apk-scanner/ @nicksellier @dguido
-/plugins/fp-check/ @ahpaleus @dguido
-/plugins/gh-cli/ @Ninja3047 @dguido
-/plugins/git-cleanup/ @hbrodin @dguido
-/plugins/github-triage/ @ESultanik @dguido
-/plugins/insecure-defaults/ @dariushoule @dguido
-/plugins/let-fate-decide/ @tob-scott-a @dguido
-/plugins/modern-python/ @Ninja3047 @dguido
-/plugins/mutation-testing/ @bohendo @dguido
-/plugins/open-sourcing/ @ESultanik @dguido
-/plugins/property-based-testing/ @hbrodin @dguido
-/plugins/rust-review/ @zi0Black @GrosQuildu @dguido
-/plugins/seatbelt-sandboxer/ @smichaels-tob @dguido
-/plugins/skill-improver/ @GrosQuildu @dguido
-/plugins/second-opinion/ @dguido
-/plugins/semgrep-rule-creator/ @ahpaleus @dguido
-/plugins/semgrep-rule-variant-creator/ @ahpaleus @dguido
-/plugins/sharp-edges/ @tob-scott-a @dguido
-/plugins/spec-to-code-compliance/ @omarinuwa @dguido
-/plugins/static-analysis/ @axelm-tob @dguido
-/plugins/supply-chain-risk-auditor/ @smichaels-tob @dguido
-/plugins/testing-handbook-skills/ @GrosQuildu @dguido
-/plugins/trailmark/ @tob-scott-a @pbottine @tob-joe @dguido
-/plugins/variant-analysis/ @axelm-tob @dguido
-/plugins/vulnerability-triage-brocards/ @DarkaMaul @dguido
-/plugins/yara-authoring/ @dguido
-/plugins/zeroize-audit/ @kumarak @dguido
+/plugins/agentic-actions-auditor/ @BuffaloWill @elopez @dguido @kz-tob
+/plugins/audit-context-building/ @omarinuwa @dguido @kz-tob
+/plugins/building-secure-contracts/ @omarinuwa @dguido @kz-tob
+/plugins/burpsuite-project-parser/ @BuffaloWill @dguido @kz-tob
+/plugins/c-review/ @GrosQuildu @dguido @kz-tob
+/plugins/claude-in-chrome-troubleshooting/ @dguido @kz-tob
+/plugins/constant-time-analysis/ @tob-scott-a @dguido @kz-tob
+/plugins/culture-index/ @dguido @kz-tob
+/plugins/devcontainer-setup/ @DarkaMaul @dguido @kz-tob
+/plugins/differential-review/ @omarinuwa @dguido @kz-tob
+/plugins/dimensional-analysis/ @bsamuels453 @dguido @kz-tob
+/plugins/dwarf-expert/ @xintenseapple @dguido @kz-tob
+/plugins/entry-point-analyzer/ @nisedo @dguido @kz-tob
+/plugins/firebase-apk-scanner/ @nicksellier @dguido @kz-tob
+/plugins/fp-check/ @ahpaleus @dguido @kz-tob
+/plugins/gh-cli/ @Ninja3047 @dguido @kz-tob
+/plugins/git-cleanup/ @hbrodin @dguido @kz-tob
+/plugins/github-triage/ @ESultanik @dguido @kz-tob
+/plugins/insecure-defaults/ @dariushoule @dguido @kz-tob
+/plugins/let-fate-decide/ @tob-scott-a @dguido @kz-tob
+/plugins/modern-python/ @Ninja3047 @dguido @kz-tob
+/plugins/mutation-testing/ @bohendo @dguido @kz-tob
+/plugins/open-sourcing/ @ESultanik @dguido @kz-tob
+/plugins/property-based-testing/ @hbrodin @dguido @kz-tob
+/plugins/rust-review/ @zi0Black @GrosQuildu @dguido @kz-tob
+/plugins/skill-improver/ @GrosQuildu @dguido @kz-tob
+/plugins/second-opinion/ @dguido @kz-tob
+/plugins/semgrep-rule-creator/ @ahpaleus @dguido @kz-tob
+/plugins/semgrep-rule-variant-creator/ @ahpaleus @dguido @kz-tob
+/plugins/sharp-edges/ @tob-scott-a @dguido @kz-tob
+/plugins/spec-to-code-compliance/ @omarinuwa @dguido @kz-tob
+/plugins/static-analysis/ @axelm-tob @dguido @kz-tob
+/plugins/supply-chain-risk-auditor/ @smichaels-tob @dguido @kz-tob
+/plugins/testing-handbook-skills/ @GrosQuildu @dguido @kz-tob
+/plugins/trailmark/ @tob-scott-a @pbottine @tob-joe @dguido @kz-tob
+/plugins/variant-analysis/ @axelm-tob @dguido @kz-tob
+/plugins/vulnerability-triage-brocards/ @DarkaMaul @dguido @kz-tob
+/plugins/yara-authoring/ @dguido @kz-tob
+/plugins/zeroize-audit/ @kumarak @dguido @kz-tob
