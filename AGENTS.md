@@ -14,7 +14,7 @@
 
 | Complexity | Skill | What It Demonstrates |
 |------------|-------|---------------------|
-| **Basic** | [ask-questions-if-underspecified](plugins/ask-questions-if-underspecified/) | Minimal frontmatter, simple guidance |
+| **Basic** | [git-cleanup](plugins/git-cleanup/) | Single self-contained SKILL.md, `allowed-tools` scoping |
 | **Intermediate** | [constant-time-analysis](plugins/constant-time-analysis/) | Python package, references/, language-specific docs |
 | **Advanced** | [culture-index](plugins/culture-index/) | Scripts, workflows/, templates/, PDF extraction, multiple entry points |
 
@@ -179,18 +179,6 @@ Prescriptiveness should match task risk:
 - **Strict for fragile tasks** - Security audits, crypto implementations, compliance checks need rigid step-by-step enforcement
 - **Flexible for variable tasks** - Code exploration, documentation, refactoring can offer options and judgment calls
 
-### Required Sections
-
-Every SKILL.md must include:
-
-```markdown
-## When to Use
-[Specific scenarios where this skill applies]
-
-## When NOT to Use
-[Scenarios where another approach is better]
-```
-
 ### Security Skills
 
 For audit/security skills, also include:
@@ -270,10 +258,10 @@ Each of these fails the build. There is no value in checking any of it by hand:
 - No `.codex/`, `.opencode/`, `.agents/`, or `plugins/*/.codex-plugin/` sidecars
 - Both loadability checks pass under the real Claude Code and Codex CLIs
 
-Three more are reported as **warnings**, so they will not stop a merge and do still
-need your eye: missing `## When to Use` / `## When NOT to Use`, `SKILL.md` over 500
-lines, and references that do not resolve. A dangling `references/setup.md` link 404s
-for every user of the skill, and CI will not stop you shipping it.
+Two more are reported as **warnings**, so they will not stop a merge and do still
+need your eye: `SKILL.md` over 500 lines, and references that do not resolve. A dangling
+`references/setup.md` link 404s for every user of the skill, and CI will not stop you
+shipping it.
 
 ### What no tool can check — this is the part that needs you
 
