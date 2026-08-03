@@ -1,6 +1,6 @@
 ---
 name: let-fate-decide
-description: "Draws the 12 Houses of the Zodiac Tarot spread to inject entropy into planning when prompts are vague, ambiguous, or casually delegated. Interprets the spread to guide next steps. Use when the user says 'let fate decide', 'YOLO', 'whatever', 'idk', or other nonchalant phrases, makes Yu-Gi-Oh references, or when you are about to arbitrarily pick between multiple reasonable approaches. Prefer over ask-questions-if-underspecified when the user's tone is casual or playful rather than precision-seeking."
+description: "Draws the 12 Houses of the Zodiac Tarot spread to inject entropy into planning when prompts are vague, ambiguous, or casually delegated. Interprets the spread to guide next steps. Use when the user says 'let fate decide', 'YOLO', 'whatever', 'idk', or other nonchalant phrases, makes Yu-Gi-Oh references, or when you are about to arbitrarily pick between multiple reasonable approaches. Prefer over asking clarifying questions when the user's tone is casual or playful rather than precision-seeking."
 allowed-tools: Bash Read Grep Glob
 ---
 
@@ -52,7 +52,7 @@ When the path forward is unclear, let the cards speak.
 - As the deciding authority for safety-critical work (security, data integrity,
   production deployments, release approval, incident response)
 - The user explicitly asks you NOT to use Tarot
-- The user's tone is precision-seeking rather than casual -- use `ask-questions-if-underspecified` instead to gather actual requirements
+- The user's tone is precision-seeking rather than casual -- ask clarifying questions instead to gather actual requirements
 
 ## Security and Correctness Use
 
