@@ -14,7 +14,7 @@
 
 | Complexity | Skill | What It Demonstrates |
 |------------|-------|---------------------|
-| **Basic** | [ask-questions-if-underspecified](plugins/ask-questions-if-underspecified/) | Minimal frontmatter, simple guidance |
+| **Basic** | [git-cleanup](plugins/git-cleanup/) | Single self-contained SKILL.md, `allowed-tools` scoping |
 | **Intermediate** | [constant-time-analysis](plugins/constant-time-analysis/) | Python package, references/, language-specific docs |
 | **Advanced** | [culture-index](plugins/culture-index/) | Scripts, workflows/, templates/, PDF extraction, multiple entry points |
 
