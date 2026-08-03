@@ -89,7 +89,9 @@ def paths_in(text):
         return set()
     out = set()
     for m in PATH_RE.finditer(text):
-        p = m.group(0).replace("\\", "/").lstrip("./")
+        # removeprefix, not lstrip("./"): lstrip takes a character SET, so it also ate
+        # the leading dot of `.github/scripts/x.py`.
+        p = m.group(0).replace("\\", "/").removeprefix("./")
         tail = text[m.end() : m.end() + 12]
         lm = re.match(r"[:# ]L?(\d+)", tail)
         out.add((p, int(lm.group(1)) if lm else None))
@@ -181,8 +183,15 @@ def reported_locations(findings_body):
 
 
 # How far a reported line may sit from the ground-truth line and still be the same
-# construct. A report may cite the def, the sink inside it, or a range.
-LINE_WINDOW = 30
+# construct, when ground truth gives no explicit span. A report may cite the def, the
+# sink inside it, or a range.
+#
+# Tightened from 30 after a cold run scored wrong: a report flagged `_concat_file` at
+# lines 4 and 7 of a fixture whose safe site began at line 10, and a 30-line window
+# credited it as "the safe site reported as real" — two different functions three lines
+# apart, conflated. Prefer an explicit `span` in ground truth; this is the fallback for
+# entries that do not carry one.
+LINE_WINDOW = 12
 
 
 def same_file(reported_path, truth_file):
@@ -202,7 +211,24 @@ def same_file(reported_path, truth_file):
     return r == truth or r.endswith("/" + truth) or truth.endswith("/" + r)
 
 
-def matches(reported, truth_file, truth_line=None):
+def truth_span(truth):
+    """The line range a reported location must fall in to be this construct.
+
+    An explicit `span: [start, end]` in ground truth is the construct's real
+    boundaries — the function it lives in. Without one, fall back to a window
+    around the recorded line. Returns None when ground truth records no line at
+    all, meaning any line in the right file counts.
+    """
+    span = truth.get("span")
+    if span:
+        return int(span[0]), int(span[1])
+    line = truth.get("line")
+    if line is None:
+        return None
+    return line - LINE_WINDOW, line + LINE_WINDOW
+
+
+def matches(reported, truth, require_line=False):
     """True if a reported location refers to the ground-truth construct.
 
     File match alone is NOT enough. A real codebase puts several unrelated
@@ -211,15 +237,31 @@ def matches(reported, truth_file, truth_line=None):
     filename alone counted that upstream finding as "the decoy reported as real"
     — inverting the result on a run that had done nothing wrong.
 
-    A report that names a file with no line at all still matches, since refusing
-    to score it would be harsher than the evidence supports.
+    `require_line` sets which way a line-less mention leans, and the two callers
+    lean opposite ways on purpose. Both directions favour not failing a correct
+    run:
+
+    - Recall (did it find the planted variant?) stays permissive. A report that
+      names the right file without a line is credited; refusing to would be
+      harsher than the evidence supports.
+    - The decoy-reported-as-real check is strict. A line-less mention of a file
+      that happens to hold the decoy is not evidence the decoy was claimed, and
+      treating it as such fails a run for a sentence about a different function.
+      This was a live false-failure path: the decoy's file also holds a genuine
+      upstream finding, so any run that reported the real one without a line
+      number was marked as having flagged the decoy.
     """
+    lo_hi = truth_span(truth)
     for r, line in reported:
-        if not same_file(r, truth_file):
+        if not same_file(r, truth["file"]):
             continue
-        if truth_line is None or line is None:
+        if lo_hi is None:
             return True
-        if abs(line - truth_line) <= LINE_WINDOW:
+        if line is None:
+            if require_line:
+                continue
+            return True
+        if lo_hi[0] <= line <= lo_hi[1]:
             return True
     return False
 
@@ -245,11 +287,12 @@ def grade(report_text, entry):
     vulns = entry["vulnerabilities"]
     decoy = entry["decoy"]
 
-    found = [v for v in vulns if matches(reported, v["file"], v["line"])]
-    missed = [v for v in vulns if not matches(reported, v["file"], v["line"])]
+    found = [v for v in vulns if matches(reported, v)]
+    missed = [v for v in vulns if not matches(reported, v)]
 
-    decoy_reported = matches(reported, decoy["file"], decoy["line"])
-    decoy_examined = matches(examined, decoy["file"], decoy["line"])
+    # Strict on the accusation, permissive on "did it look at it". See matches().
+    decoy_reported = matches(reported, decoy, require_line=True)
+    decoy_examined = matches(examined, decoy)
 
     # Findings that are none of the three injected sites.
     #
@@ -263,11 +306,11 @@ def grade(report_text, entry):
     #
     # They are surfaced for a human to read and deliberately excluded from the
     # verdict. Only the injected decoy is a definite false positive.
-    known = [(v["file"], v["line"]) for v in vulns] + [(decoy["file"], decoy["line"])]
+    known = list(vulns) + [decoy]
     unreviewed = sorted(
         f"{p}:{ln}" if ln else p
         for p, ln in reported
-        if not any(matches({(p, ln)}, kf, kl) for kf, kl in known)
+        if not any(matches({(p, ln)}, k) for k in known)
     )
 
     non_seed = [v for v in vulns if not v.get("is_seed")]
@@ -483,6 +526,35 @@ SAME_BASENAME_ELSEWHERE = """
 **Location:** `vendor/pkg/b.py:2`
 """
 
+# Both from a cold run of the workflow, and both scored wrong before this pass.
+
+# A real finding in a *neighbouring construct* of the file that holds the safe site.
+# The safe site spans lines 20-30; this finding is at line 7, in a different function.
+# A 30-line proximity window credited it as the safe site being reported as real, failing
+# a run whose only mistake was existing in the same file.
+NEIGHBOUR_CONSTRUCT = """
+## Findings
+### Variant #1
+**Location:** `src/a.py:1`
+### Variant #2
+**Location:** `src/b.py:2`
+### Variant #3 — helper that builds the argument list
+**Location:** `src/decoy.py:7`
+"""
+
+# The safe site's file named with NO line number, for a genuine issue elsewhere in it.
+# Must not count as claiming the safe site: that inverted the verdict on correct runs,
+# because the decoy's file in the real fixture also holds an upstream finding.
+SPANNED_FILE_NO_LINE = """
+## Findings
+### Variant #1
+**Location:** `src/a.py:1`
+### Variant #2
+**Location:** `src/b.py:2`
+### Variant #3 — unrelated issue, line not pinned
+**Location:** `src/decoy.py`
+"""
+
 
 def self_test():
     checks = 0
@@ -576,7 +648,34 @@ def self_test():
     assert s["unreviewed_findings"] == ["vendor/pkg/b.py:2"], s
     checks += 1
 
-    expected = 13
+    # Cold-run regressions.
+    spanned = json.loads(json.dumps(SELF_TEST_ENTRY))
+    spanned["decoy"]["span"] = [20, 30]
+    s = grade(NEIGHBOUR_CONSTRUCT, spanned)
+    assert not s["decoy_reported_as_real"], (
+        f"a finding outside the safe site's span is not that safe site: {s}"
+    )
+    assert s["unreviewed_findings"] == ["src/decoy.py:7"], s
+    ok, why = verdict(s)
+    assert ok, f"a run that found both and flagged a neighbouring construct must pass: {why}"
+    checks += 1
+
+    s = grade(SPANNED_FILE_NO_LINE, spanned)
+    assert not s["decoy_reported_as_real"], (
+        f"a line-less mention of the safe site's file is not a claim about it: {s}"
+    )
+    assert s["decoy_examined_and_ruled_out"], f"but it does count as having examined it: {s}"
+    ok, why = verdict(s, require_decoy_examined=True)
+    assert ok, f"should pass: {why}"
+    checks += 1
+
+    # Recall stays permissive in the same situation: a line-less mention of a real
+    # variant's file is still credited. The asymmetry is the point.
+    s = grade(SPANNED_FILE_NO_LINE.replace("src/b.py:2", "src/b.py"), spanned)
+    assert s["new_variants_found"] == 1, f"line-less recall must still be credited: {s}"
+    checks += 1
+
+    expected = 16
     if checks != expected:
         raise AssertionError(f"self-test ran {checks} assertions, expected {expected}")
     print(f"score.py self-test: {checks}/{expected} checks passed")

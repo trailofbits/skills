@@ -71,6 +71,22 @@ def check_anchors(entry, base):
                 f"    actual line:        {lines[idx].strip()}"
             )
             continue
+        # A span that no longer contains its own anchor line is a span the grader
+        # would score against the wrong construct — the failure mode span exists to
+        # prevent, reintroduced by a stale hand-edit.
+        span = t.get("span")
+        if span and not (int(span[0]) <= t["line"] <= int(span[1])):
+            failures.append(
+                f"{entry['name']}: {t['file']} span {span} does not contain its own "
+                f"anchor line {t['line']}"
+            )
+            continue
+        if span and int(span[1]) > len(lines):
+            failures.append(
+                f"{entry['name']}: {t['file']} span {span} runs past end of file "
+                f"({len(lines)} lines)"
+            )
+            continue
         checked += 1
     return checked, failures
 
