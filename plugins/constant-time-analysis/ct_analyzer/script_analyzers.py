@@ -18,11 +18,20 @@ import xml.sax.saxutils as _saxutils
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-# Import shared types from main analyzer
+# Import shared types from the main analyzer. Both spellings are needed because
+# analyzer.py is documented to run as a script (`uv run .../analyzer.py`) as well as
+# import as a package. ty resolves the top-level spelling via `tool.ty.environment
+# extra-paths`, so the package-relative branch is unresolvable for it by
+# construction; the ignore covers that branch only.
 try:
-    from .analyzer import AnalysisReport, Severity, Violation
+    from .analyzer import (  # ty: ignore[unresolved-import]
+        AnalysisReport,
+        ParsedFunction,
+        Severity,
+        Violation,
+    )
 except ImportError:
-    from analyzer import AnalysisReport, Severity, Violation
+    from analyzer import AnalysisReport, ParsedFunction, Severity, Violation
 
 
 # =============================================================================
@@ -65,6 +74,10 @@ DANGEROUS_PHP_OPCODES = {
 # Functions with timing side-channels (based on Paragonie research)
 DANGEROUS_PHP_FUNCTIONS = {
     "errors": {
+        # Division reached through a function rather than an operator, so no DIV
+        # opcode is emitted and the opcode table above never sees it
+        "intdiv": "intdiv() performs hardware division; execution time depends on operand values",
+        "fdiv": "fdiv() performs floating-point division with operand-dependent latency",
         # Cache-timing side-channels via table lookups
         "chr": "chr() uses table lookup indexed by secret data; use pack('C', $int) instead",
         "ord": "ord() uses table lookup indexed by secret data; use unpack('C', $char)[1] instead",
@@ -123,9 +136,13 @@ DANGEROUS_JS_BYTECODES = {
         "testequal": "Equality test may early-terminate on secret data",
         "testequalstrict": "Strict equality test may early-terminate on secret data",
         # Table lookups (cache timing via secret-indexed array access)
+        # Keyed access only: `obj[secret]` can be indexed by a secret, while a
+        # named access has a constant property name and never can, so flagging
+        # named access reports every `Math.trunc` call as a finding.
+        "getkeyedproperty": "Array/property access may leak timing via cache if index depends on secrets",
+        "setkeyedproperty": "Array/property access may leak timing via cache if index depends on secrets",
         "ldakeyedproperty": "Array/property access may leak timing via cache if index depends on secrets",
         "stakeyedproperty": "Array/property access may leak timing via cache if index depends on secrets",
-        "ldanamedproperty": "Property access may leak timing via cache if key depends on secrets",
         "getkeyed": "Array access may leak timing via cache if index depends on secrets",
         "setkeyed": "Array access may leak timing via cache if index depends on secrets",
         # Bit shift operations (may leak via timing if shift amount is secret)
@@ -516,6 +533,77 @@ DANGEROUS_CSHARP_FUNCTIONS = {
 # =============================================================================
 
 
+def qualified_call_pattern(func_name: str) -> str:
+    """Regex matching `func_name` as written in source, case-insensitively.
+
+    Table keys mix two shapes and they cannot be treated alike:
+
+    - `string.equals` names a method on any receiver, so it must match
+      `.equals(` regardless of what precedes the dot.
+    - `arrays.equals`, `base64.getencoder` and `convert.tobase64string` name a
+      member of a specific type, so they must match the qualified form only.
+      Matching these as bare methods would report every `.equals(` call as
+      `Arrays.equals`.
+
+    The per-backend if/elif chains spelled out only a few keys and skipped the
+    rest, which left the base64 and convert entries unreachable: the tables
+    listed them and no source could ever match. Case-insensitivity is embedded
+    with `(?i)` so callers that compile without flags still get it — the keys are
+    lowercase while the source spells them `Base64.getEncoder` and `.Equals`.
+    """
+    if "." in func_name:
+        qualifier, method = func_name.rsplit(".", 1)
+        if qualifier == "string":
+            return rf"(?i)\.{re.escape(method)}\s*\("
+        return rf"(?i)\b{re.escape(func_name)}\s*\("
+    return rf"(?i)\.{re.escape(func_name)}\s*\("
+
+
+def blank_comments(source: str, style: str = "c") -> str:
+    """Replace comment bodies with spaces, preserving offsets and line breaks.
+
+    The source-level detectors are regex scans, so without this a `/** ... */`
+    doc comment counted as a division and prose mentioning `Math.random()`
+    counted as a call. Blanking rather than deleting keeps every subsequent match
+    offset and line number correct.
+
+    String literals are matched first and left intact, because a comment marker
+    inside one is not a comment. Without that, `const u = "http://x"` blanked the
+    rest of the line — losing any real finding on it — and a lone `"/*"` blanked
+    every line up to the next `*/` anywhere in the file.
+
+    This is still a regex, not a lexer. Unterminated literals, JavaScript regex
+    literals like `/=/`, Ruby heredocs and `%w[]` literals are not modelled; the
+    failure mode is a blanked or unblanked span, never a crash.
+
+    Args:
+        source: The file contents to scrub.
+        style: `"c"` for `//` and `/* */` (C, C++, Java, Kotlin, C#, JS, TS),
+            `"hash"` for `#` (Python, Ruby). PHP is absent deliberately: its
+            detection is opcode-based and never scans source text.
+
+    Returns:
+        The source with comment bodies replaced by spaces.
+    """
+    literals = [
+        r'"""(?:\\.|[^\\])*?"""',  # Python triple-quoted, before the single form
+        r"'''(?:\\.|[^\\])*?'''",
+        r'"(?:\\.|[^"\\\n])*"',
+        r"'(?:\\.|[^'\\\n])*'",
+        r"`(?:\\.|[^`\\])*`",  # JS template literal
+    ]
+    comments = [r"#[^\n]*"] if style == "hash" else [r"//[^\n]*", r"/\*.*?\*/"]
+    pattern = "|".join(literals + comments)
+
+    def scrub(match: re.Match) -> str:
+        text = match.group(0)
+        if text[0] in "\"'`":
+            return text
+        return "".join("\n" if char == "\n" else " " for char in text)
+
+    return re.sub(pattern, scrub, source, flags=re.DOTALL)
+
+
 class ScriptAnalyzer(ABC):
     """Base class for scripting language analyzers."""
 
@@ -637,7 +725,7 @@ class PHPAnalyzer(ScriptAnalyzer):
         output: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse VLD output for dangerous opcodes and function calls.
 
@@ -654,7 +742,7 @@ class PHPAnalyzer(ScriptAnalyzer):
            6     1        ASSIGN                                                   !1, 3
            7     2        DIV                                              ~4      !0, !1
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_function = None
@@ -800,15 +888,134 @@ class PHPAnalyzer(ScriptAnalyzer):
         output: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
-        """
-        Parse OPcache debug output for dangerous opcodes.
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
+        """Parse `opcache.opt_debug_level` output.
 
-        OPcache output format is similar but not identical to VLD.
+        This used to delegate to the VLD parser on the claim that the formats
+        were "similar enough". They share nothing structural: VLD prints a
+        `function name:` header and a `---` ruled table, OPcache prints
+
+            ct_high_bits:
+                 ; (lines=11, args=2, vars=2, tmps=2)
+                 ; /path/to/file.php:7-10
+            0000 CV0($key_coef) = RECV 1
+            0004 T2 = MUL CV1($gamma2) int(2)
+
+        so the VLD parser never entered its opcode section and every PHP file
+        analysed without the VLD extension — which is the common case, since VLD
+        is an unbundled PECL build — reported zero findings and PASSED.
+
+        Args:
+            output: Raw OPcache debug output.
+            include_warnings: Also report warning-severity findings.
+            function_filter: Regex; when given, only matching functions report.
+
+        Returns:
+            The functions seen and the violations found.
         """
-        # OPcache format is similar enough that we can reuse the VLD parser
-        # with some adjustments
-        return self._parse_vld_output(output, include_warnings, function_filter)
+        functions: list[ParsedFunction] = []
+        violations: list[Violation] = []
+
+        current_function: str | None = None
+        current_line: int | None = None
+        filter_pattern = re.compile(function_filter) if function_filter else None
+
+        # `ct_high_bits:` or `$_main:` at the start of a line opens a block.
+        header_re = re.compile(r"^([A-Za-z_$][\w$\\:]*)\s*:\s*$")
+        # `; /path/file.php:7-10` gives the block's source range.
+        location_re = re.compile(r"^;\s*(.+?):(\d+)(?:-\d+)?\s*$")
+        # `0004 T2 = MUL CV1($gamma2) int(2)` / `0000 RETURN int(1)`
+        # `\d{4,}`, not `\d{4}`: op_arrays past 9999 opcodes exist in generated code,
+        # and a fixed width made `10000 T2 = MUL …` unparseable, silently dropping
+        # every opcode from that point on while `functions` stayed non-empty — so the
+        # "nothing parsed" guard would not fire and the report looked like a partial pass.
+        opcode_re = re.compile(r"^(\d{4,})\s+(?:\S+\s*=\s*)?([A-Z][A-Z0-9_]*)\s*(.*)$")
+
+        def report(mnemonic: str, reason: str, severity: Severity, offset: str, text: str) -> None:
+            if filter_pattern and current_function and not filter_pattern.search(current_function):
+                return
+            violations.append(
+                Violation(
+                    function=current_function or "<main>",
+                    file="",
+                    line=current_line,
+                    address=offset,
+                    instruction=text,
+                    mnemonic=mnemonic,
+                    reason=reason,
+                    severity=severity,
+                )
+            )
+
+        for line in output.split("\n"):
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            header = header_re.match(stripped)
+            if header:
+                name = header.group(1)
+                current_function = "<main>" if name == "$_main" else name
+                current_line = None
+                functions.append({"name": current_function, "instructions": 0})
+                continue
+
+            if stripped.startswith(";"):
+                location = location_re.match(stripped)
+                if location and location.group(1).endswith(".php"):
+                    current_line = int(location.group(2))
+                continue
+
+            opcode_match = opcode_re.match(stripped)
+            if not opcode_match:
+                continue
+
+            offset, opcode, operands = opcode_match.groups()
+            if functions:
+                functions[-1]["instructions"] += 1
+            opcode_lower = opcode.lower()
+
+            if opcode_lower in DANGEROUS_PHP_OPCODES["errors"]:
+                report(
+                    opcode,
+                    DANGEROUS_PHP_OPCODES["errors"][opcode_lower],
+                    Severity.ERROR,
+                    offset,
+                    stripped,
+                )
+            elif include_warnings and opcode_lower in DANGEROUS_PHP_OPCODES["warnings"]:
+                report(
+                    opcode,
+                    DANGEROUS_PHP_OPCODES["warnings"][opcode_lower],
+                    Severity.WARNING,
+                    offset,
+                    stripped,
+                )
+
+            # Calls name their target in the init opcode: INIT_FCALL 2 112 string("mt_rand")
+            if opcode.startswith("INIT_"):
+                called = re.search(r'string\("([^"]+)"\)', operands)
+                if not called:
+                    continue
+                name = called.group(1).lower().lstrip("\\")
+                if name in DANGEROUS_PHP_FUNCTIONS["errors"]:
+                    report(
+                        name.upper(),
+                        DANGEROUS_PHP_FUNCTIONS["errors"][name],
+                        Severity.ERROR,
+                        offset,
+                        stripped,
+                    )
+                elif include_warnings and name in DANGEROUS_PHP_FUNCTIONS["warnings"]:
+                    report(
+                        name.upper(),
+                        DANGEROUS_PHP_FUNCTIONS["warnings"][name],
+                        Severity.WARNING,
+                        offset,
+                        stripped,
+                    )
+
+        return functions, violations
 
     def analyze(
         self,
@@ -835,11 +1042,21 @@ class PHPAnalyzer(ScriptAnalyzer):
         if not success:
             raise RuntimeError(f"Failed to get opcodes: {output}")
 
-        functions, violations = self._parse_vld_output(
+        # Each backend gets its own parser: the formats are unrelated, and calling
+        # the VLD parser on OPcache output is why this path found nothing.
+        parse = self._parse_vld_output if use_vld else self._parse_opcache_output
+        functions, violations = parse(
             output,
             include_warnings,
             function_filter,
         )
+
+        if not functions:
+            raise RuntimeError(
+                f"Parsed no functions from {backend} output for {source_file}. Reporting "
+                "PASSED here would mean 'the parser understood nothing', not 'the code is "
+                "constant-time'."
+            )
 
         return AnalysisReport(
             architecture="zend",  # PHP's Zend Engine
@@ -959,8 +1176,15 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
     def _get_v8_bytecode(
         self, source_file: str, function_filter: str | None = None
     ) -> tuple[bool, str]:
-        """Get V8 bytecode output for a JavaScript file."""
-        cmd = [self.node_path, "--print-bytecode"]
+        """Get V8 bytecode output for a JavaScript file.
+
+        `--no-lazy` compiles function bodies V8 would otherwise skip. Without it
+        only executed code has bytecode, so a module that defines crypto helpers
+        and exports them — the normal shape for a library — was analysed as if it
+        contained nothing. It also pulls in hundreds of node-internal functions,
+        which `_declared_function_names` filters back out.
+        """
+        cmd = [self.node_path, "--no-lazy", "--print-bytecode"]
 
         if function_filter:
             cmd.extend(["--print-bytecode-filter", function_filter])
@@ -974,13 +1198,75 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
         except FileNotFoundError:
             return False, f"Node.js not found: {self.node_path}"
 
+    # Words that look like a call site but open a block, so they must never be
+    # mistaken for a declared function name.
+    _JS_KEYWORDS = frozenset(
+        {
+            "if",
+            "for",
+            "while",
+            "switch",
+            "catch",
+            "do",
+            "else",
+            "return",
+            "typeof",
+            "function",
+            "class",
+            "new",
+            "await",
+            "yield",
+        }
+    )
+
+    @classmethod
+    def _declared_function_names(cls, source: str) -> set[str]:
+        """Names declared in `source`, used to drop node's own functions.
+
+        Unlike Go, V8's bytecode dump carries no file attribution — every
+        function in the process appears the same way — so the only available
+        discriminator is the name. That makes this a heuristic, with two known
+        consequences: a user function sharing a name with a node internal lets
+        that internal through, and anonymous callbacks in user code are dropped.
+        Both are visible in the report rather than silent, because the
+        source-level scan still covers division and RNG calls textually.
+        """
+        blanked = blank_comments(source, "c")
+        names: set[str] = set()
+        patterns = (
+            r"\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)",  # function decls and generators
+            r"\bclass\s+([A-Za-z_$][\w$]*)",  # class decls
+            r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=",  # arrow/function assignment
+            r"([A-Za-z_$][\w$]*)\s*[:=]\s*(?:async\s*)?(?:function|\()",  # props and arrows
+            # Method shorthand, anywhere on a line — `class C { m(a) { … } }` is
+            # legal on one line. Erring toward over-capture is deliberate: an
+            # extra name only risks admitting a same-named node internal, while a
+            # missed name drops the user's own function from the analysis.
+            r"(?:static\s+|async\s+|get\s+|set\s+)*([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{",
+        )
+        for pattern in patterns:
+            for match in re.finditer(pattern, blanked, re.MULTILINE):
+                name = match.group(1)
+                if name not in cls._JS_KEYWORDS:
+                    names.add(name)
+        return names
+
+    @staticmethod
+    def _line_of_offset(source: str, offset: int) -> int | None:
+        """Convert a V8 source position (a byte offset) to a 1-based line number."""
+        if offset < 0 or offset > len(source):
+            return None
+        return source[:offset].count("\n") + 1
+
     def _parse_v8_bytecode(
         self,
         output: str,
         source_file: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+        compiled_source: str | None = None,
+        map_positions: bool = False,
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse V8 bytecode output for dangerous operations.
 
@@ -998,13 +1284,31 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
                 8 : Div r1
                10 : Return
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_function = None
         current_file = source_file
         in_bytecode_section = False
         filter_pattern = re.compile(function_filter) if function_filter else None
+
+        # V8 dumps every function the process compiles, node's own included, and
+        # names are the only discriminator available. Restrict to what the file
+        # under analysis declares; `declared` is empty only when the source could
+        # not be read, in which case nothing is filtered.
+        # None means "could not read the compiled file", which must not be
+        # confused with "no declarations found". Treating an empty set as
+        # "filtering off" let an unreadable file report hundreds of node-internal
+        # functions as findings, indistinguishable from a genuinely noisy file.
+        if compiled_source is None:
+            declared = None
+            print(
+                "Note: could not read the compiled JavaScript, so node-internal "
+                "functions cannot be filtered out of the bytecode findings",
+                file=sys.stderr,
+            )
+        else:
+            declared = self._declared_function_names(compiled_source)
 
         # Track function calls
         pending_call: str | None = None
@@ -1019,6 +1323,10 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
                 func_name = func_match.group(1).strip()
                 # Skip internal Node.js functions
                 if func_name and not func_name.startswith("__"):
+                    if declared is not None and func_name not in declared:
+                        current_function = None
+                        in_bytecode_section = False
+                        continue
                     current_function = func_name
                     functions.append({"name": current_function, "instructions": 0})
                     in_bytecode_section = True
@@ -1046,18 +1354,38 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
             ):
                 continue
 
-            # Parse bytecode instruction
-            # Format: offset : Instruction [operands]
+            # Parse a bytecode instruction. Real `node --print-bytecode` output
+            # carries a source position, the bytecode address and the raw opcode
+            # bytes ahead of the mnemonic:
+            #    67 E> 0x17461d981ece @   14 : 3e 03 04          Div a0, [4]
+            #          0x17461d981ed1 @   17 : c7                Star2
+            # Matching only `offset : Mnemonic` parsed none of it, so every V8
+            # file came back with zero instructions and no division findings.
+            # The leading segments stay optional so the bare form still parses.
             bytecode_match = re.match(
-                r"\s*(\d+)\s*:\s*([A-Za-z][A-Za-z0-9]*)\s*(.*)", line_stripped
+                r"(?:(\d+)\s+[SE]>\s*)?"  # source position, e.g. `67 E>`
+                r"(?:0x[0-9a-fA-F]+\s*@\s*)?"  # bytecode address
+                r"(\d+)\s*:\s*"  # offset within the function
+                r"(?:(?:[0-9a-f]{2}\s+)+)?"  # raw opcode bytes
+                r"([A-Za-z][A-Za-z0-9]*)\s*(.*)",  # mnemonic and operands
+                line_stripped,
             )
 
             if not bytecode_match:
                 continue
 
-            offset = bytecode_match.group(1)
-            instruction = bytecode_match.group(2)
-            operands = bytecode_match.group(3).strip()
+            # group(1) is V8's source *position*: a byte offset into the compiled
+            # file, not a line number. Convert it so findings are navigable; when
+            # the compiled file is transpiled output the offsets refer to that
+            # output, so `compiled_source` is only passed for plain JavaScript.
+            source_line = (
+                self._line_of_offset(compiled_source, int(bytecode_match.group(1)))
+                if map_positions and compiled_source and bytecode_match.group(1)
+                else None
+            )
+            offset = bytecode_match.group(2)
+            instruction = bytecode_match.group(3)
+            operands = bytecode_match.group(4).strip()
 
             # Update instruction count
             if functions:
@@ -1090,7 +1418,7 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
                     Violation(
                         function=current_function or "<anonymous>",
                         file=current_file,
-                        line=None,
+                        line=source_line,
                         address=offset,
                         instruction=f"{instruction} {operands}".strip(),
                         mnemonic=instruction.upper(),
@@ -1103,7 +1431,7 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
                     Violation(
                         function=current_function or "<anonymous>",
                         file=current_file,
-                        line=None,
+                        line=source_line,
                         address=offset,
                         instruction=f"{instruction} {operands}".strip(),
                         mnemonic=instruction.upper(),
@@ -1129,7 +1457,7 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
 
         try:
             with open(source_file) as f:
-                source = f.read()
+                source = blank_comments(f.read(), "c")
         except OSError:
             return violations
 
@@ -1205,7 +1533,10 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
 
         if include_warnings:
             for func_name, reason in DANGEROUS_JS_FUNCTIONS["warnings"].items():
-                pattern = rf"\.{re.escape(func_name)}\s*\("
+                # `(?:\.|\b)` so both method calls and globals match: requiring the
+                # leading dot made `btoa(`, `atob(`, `JSON.parse(` and the other
+                # non-method entries unreachable.
+                pattern = rf"(?:\.|\b){re.escape(func_name)}\s*\("
                 for match in re.finditer(pattern, source, re.IGNORECASE):
                     line_num = source[: match.start()].count("\n") + 1
                     violations.append(
@@ -1277,11 +1608,24 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
         if not success:
             raise RuntimeError(f"Failed to get V8 bytecode: {output}")
 
+        try:
+            with open(js_file, encoding="utf-8", errors="replace") as handle:
+                compiled_source = handle.read()
+        except OSError:
+            compiled_source = None
+
+        # TypeScript is transpiled first, so V8's positions index the generated
+        # JavaScript. Reporting those as line numbers in the .ts would point at
+        # the wrong code, so mapping is enabled only when no transpile happened.
+        map_positions = os.path.realpath(js_file) == os.path.realpath(report_file)
+
         functions, violations = self._parse_v8_bytecode(
             output,
             report_file,
             include_warnings,
             function_filter,
+            compiled_source=compiled_source,
+            map_positions=map_positions,
         )
 
         # Also check for dangerous function calls in source
@@ -1290,11 +1634,27 @@ class JavaScriptAnalyzer(ScriptAnalyzer):
             include_warnings,
         )
 
-        # Merge violations, avoiding duplicates
+        # Merge violations, avoiding duplicates. The two passes name the same
+        # operator differently — bytecode reports DIV, the source scan DIV_OP — so
+        # also drop a source-scan operator finding when the bytecode pass already
+        # reported one on that line. Keep the bytecode one: it names the enclosing
+        # function. The source scan still contributes on lines the bytecode pass
+        # cannot reach, such as anonymous callbacks.
+        operator_equivalents = {"DIV_OP": {"DIV", "DIVSMI"}, "MOD_OP": {"MOD", "MODSMI"}}
         existing = {(v.line, v.mnemonic) for v in violations}
+        lines_by_mnemonic: dict[str, set[int | None]] = {}
+        for v in violations:
+            lines_by_mnemonic.setdefault(v.mnemonic, set()).add(v.line)
+
         for v in source_violations:
-            if (v.line, v.mnemonic) not in existing:
-                violations.append(v)
+            if (v.line, v.mnemonic) in existing:
+                continue
+            covered = operator_equivalents.get(v.mnemonic, set())
+            if v.line is not None and any(
+                v.line in lines_by_mnemonic.get(mnemonic, set()) for mnemonic in covered
+            ):
+                continue
+            violations.append(v)
 
         return AnalysisReport(
             architecture="v8",
@@ -1321,16 +1681,19 @@ class PythonAnalyzer(ScriptAnalyzer):
 
     name = "python"
 
-    # Python 3.11+ BINARY_OP opargs for division/modulo
-    # See: https://docs.python.org/3.11/library/dis.html#opcode-BINARY_OP
-    BINARY_OP_DIV_OPARGS = {
-        11: "BINARY_OP_TRUEDIV",  # /
-        12: "BINARY_OP_FLOORDIV",  # //
-        6: "BINARY_OP_MODULO",  # %
-        # Inplace variants
-        24: "BINARY_OP_INPLACE_TRUEDIV",  # /=
-        25: "BINARY_OP_INPLACE_FLOORDIV",  # //=
-        19: "BINARY_OP_INPLACE_MODULO",  # %=
+    # Python 3.11+ collapses arithmetic into BINARY_OP, disambiguated by an oparg
+    # that dis renders as the operator symbol: `BINARY_OP  2 (//)`. Key off the
+    # symbol, not the number. The numbers come from CPython's `_nb_ops` table and
+    # are renumbered whenever an operator is added — an earlier version of this
+    # map read oparg 12 as `//` when 12 is `^`, so every constant-time XOR was
+    # reported as a division and every floor division was missed.
+    BINARY_OP_DIV_SYMBOLS = {
+        "/": "BINARY_OP_TRUEDIV",
+        "//": "BINARY_OP_FLOORDIV",
+        "%": "BINARY_OP_MODULO",
+        "/=": "BINARY_OP_INPLACE_TRUEDIV",
+        "//=": "BINARY_OP_INPLACE_FLOORDIV",
+        "%=": "BINARY_OP_INPLACE_MODULO",
     }
 
     def __init__(self, python_path: str | None = None):
@@ -1372,7 +1735,7 @@ class PythonAnalyzer(ScriptAnalyzer):
         source_file: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse Python dis output for dangerous bytecodes.
 
@@ -1393,10 +1756,11 @@ class PythonAnalyzer(ScriptAnalyzer):
                       6 BINARY_OP               11 (/)
                       8 STORE_FAST               2 (result)
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_function = None
+        last_line_num = None
         filter_pattern = re.compile(function_filter) if function_filter else None
 
         for line in output.split("\n"):
@@ -1408,28 +1772,43 @@ class PythonAnalyzer(ScriptAnalyzer):
             if func_match:
                 func_name = func_match.group(1).strip()
                 current_function = func_name
+                # Reset, or the first instructions of this code object inherit the
+                # previous function's line number when dis omits one.
+                last_line_num = None
                 functions.append({"name": current_function, "instructions": 0})
                 continue
 
             # Also detect module-level code
             if line_stripped.startswith("Disassembly of") and "<module>" in line_stripped:
                 current_function = "<module>"
+                last_line_num = None
                 functions.append({"name": current_function, "instructions": 0})
                 continue
 
-            # Parse bytecode instruction
-            # Format: line_num? offset INSTRUCTION oparg? (argval?)
-            # Examples:
-            #   3           0 LOAD_FAST                0 (value)
-            #               2 LOAD_FAST                1 (modulus)
-            #               4 BINARY_TRUE_DIVIDE
-            #               6 BINARY_OP               11 (/)
-            bytecode_match = re.match(r"(?:(\d+)\s+)?(\d+)\s+([A-Z_]+)\s*(.*)", line_stripped)
+            # Parse bytecode instruction. Every column ahead of the opcode is
+            # optional, because dis has dropped and added them across versions:
+            # 3.13 prints no byte offsets at all, and 3.13+ prints jump labels
+            # (`L1:`) where older versions printed `>>`. Requiring the offset made
+            # this skip every line except the first of each source line, which is
+            # how `x // secret` came back clean on 3.13.
+            #   3.10:   3     >>   12 BINARY_TRUE_DIVIDE
+            #   3.11:   3           6 BINARY_OP               11 (/)
+            #   3.13:   3             BINARY_OP                2 (//)
+            #   3.13:         L1:     FOR_ITER                15 (to L3)
+            bytecode_match = re.match(
+                r"(?:(\d+)\s+)?(?:L\d+:\s*)?(?:>>\s*)?(?:(\d+)\s+)?([A-Z][A-Z0-9_]*)\s*(.*)",
+                line_stripped,
+            )
 
             if not bytecode_match:
                 continue
 
-            line_num = int(bytecode_match.group(1)) if bytecode_match.group(1) else None
+            # dis prints the source line only on the first instruction of that
+            # line, so carry it forward: otherwise every violation after the first
+            # reports no line and the reviewer cannot navigate to it.
+            if bytecode_match.group(1):
+                last_line_num = int(bytecode_match.group(1))
+            line_num = last_line_num
             offset = bytecode_match.group(2)
             instruction = bytecode_match.group(3).strip()
             operands = bytecode_match.group(4).strip() if bytecode_match.group(4) else ""
@@ -1445,14 +1824,13 @@ class PythonAnalyzer(ScriptAnalyzer):
 
             instruction_lower = instruction.lower()
 
-            # Handle Python 3.11+ BINARY_OP with oparg
+            # Handle Python 3.11+ BINARY_OP, e.g. `BINARY_OP  2 (//)`
             if instruction == "BINARY_OP":
-                # Extract oparg number from operands
-                oparg_match = re.match(r"(\d+)", operands)
-                if oparg_match:
-                    oparg = int(oparg_match.group(1))
-                    if oparg in self.BINARY_OP_DIV_OPARGS:
-                        op_name = self.BINARY_OP_DIV_OPARGS[oparg]
+                symbol_match = re.search(r"\(([^)]+)\)", operands)
+                if symbol_match:
+                    symbol = symbol_match.group(1).strip()
+                    if symbol in self.BINARY_OP_DIV_SYMBOLS:
+                        op_name = self.BINARY_OP_DIV_SYMBOLS[symbol]
                         violations.append(
                             Violation(
                                 function=current_function or "<module>",
@@ -1509,7 +1887,7 @@ class PythonAnalyzer(ScriptAnalyzer):
 
         try:
             with open(source_file) as f:
-                source = f.read()
+                source = blank_comments(f.read(), "hash")
         except OSError:
             return violations
 
@@ -1652,7 +2030,7 @@ class RubyAnalyzer(ScriptAnalyzer):
         source_file: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse Ruby YARV instruction sequence output.
 
@@ -1671,7 +2049,7 @@ class RubyAnalyzer(ScriptAnalyzer):
         0004 opt_div                                <calldata!mid:/, argc:1, ARGS_SIMPLE>
         0006 leave
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_function = None
@@ -1764,7 +2142,7 @@ class RubyAnalyzer(ScriptAnalyzer):
 
         try:
             with open(source_file) as f:
-                source = f.read()
+                source = blank_comments(f.read(), "hash")
         except OSError:
             return violations
 
@@ -1798,9 +2176,16 @@ class RubyAnalyzer(ScriptAnalyzer):
                 # Match method calls like .include?(), .start_with?()
                 if func_name == "=~":
                     pattern = r"\s=~\s"
+                elif "." in func_name:
+                    # Module-qualified names such as `base64.encode64` are written
+                    # `Base64.encode64(...)`, so the leading dot used for method
+                    # calls must not be required — prefixing it produced
+                    # `\.base64\.encode64`, which no Ruby source can match. That
+                    # made five of these warning entries unreachable.
+                    pattern = rf"\b{re.escape(func_name)}\s*[(\[]?"
                 else:
                     pattern = rf"\.{re.escape(func_name)}\s*[(\[]?"
-                for match in re.finditer(pattern, source):
+                for match in re.finditer(pattern, source, re.IGNORECASE):
                     line_num = source[: match.start()].count("\n") + 1
                     violations.append(
                         Violation(
@@ -1809,7 +2194,7 @@ class RubyAnalyzer(ScriptAnalyzer):
                             line=line_num,
                             address="",
                             instruction=match.group(0),
-                            mnemonic=func_name.upper().replace("?", ""),
+                            mnemonic=func_name.upper().replace(".", "_").replace("?", ""),
                             reason=reason,
                             severity=Severity.WARNING,
                         )
@@ -1940,7 +2325,7 @@ class JavaAnalyzer(ScriptAnalyzer):
         source_file: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse javap bytecode output for dangerous operations.
 
@@ -1955,7 +2340,7 @@ class JavaAnalyzer(ScriptAnalyzer):
             LineNumberTable:
               line 5: 0
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_method = None
@@ -2093,14 +2478,18 @@ class JavaAnalyzer(ScriptAnalyzer):
 
         try:
             with open(source_file) as f:
-                source = f.read()
+                source = blank_comments(f.read(), "c")
         except OSError:
             return violations
 
         # Detect dangerous function calls
         for func_name, reason in DANGEROUS_JAVA_FUNCTIONS["errors"].items():
             if func_name == "java.util.random":
-                pattern = r"\bnew\s+Random\s*\("
+                # Both the imported short form and the fully-qualified one. Only
+                # `new Random(` was matched before, so `new java.util.Random()`
+                # — which needs no import and so is common in single files — was
+                # reported as clean.
+                pattern = r"\bnew\s+(?:java\.util\.)?Random\s*\("
             elif func_name == "math.random":
                 pattern = r"\bMath\.random\s*\("
             elif func_name == "math.sqrt":
@@ -2126,14 +2515,7 @@ class JavaAnalyzer(ScriptAnalyzer):
 
         if include_warnings:
             for func_name, reason in DANGEROUS_JAVA_FUNCTIONS["warnings"].items():
-                if func_name == "arrays.equals":
-                    pattern = r"\bArrays\.equals\s*\("
-                elif func_name == "string.equals":
-                    pattern = r"\.equals\s*\("
-                elif func_name == "string.compareto":
-                    pattern = r"\.compareTo\s*\("
-                else:
-                    continue
+                pattern = qualified_call_pattern(func_name)
                 for match in re.finditer(pattern, source):
                     line_num = source[: match.start()].count("\n") + 1
                     violations.append(
@@ -2173,7 +2555,7 @@ class JavaAnalyzer(ScriptAnalyzer):
             if not class_files:
                 raise RuntimeError("No class files generated from compilation")
 
-            all_functions = []
+            all_functions: list[ParsedFunction] = []
             all_violations = []
 
             # Analyze each class file
@@ -2293,9 +2675,9 @@ class KotlinAnalyzer(ScriptAnalyzer):
         source_file: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """Parse javap bytecode output for dangerous operations (same as Java)."""
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_method = None
@@ -2425,7 +2807,7 @@ class KotlinAnalyzer(ScriptAnalyzer):
 
         try:
             with open(source_file) as f:
-                source = f.read()
+                source = blank_comments(f.read(), "c")
         except OSError:
             return violations
 
@@ -2471,15 +2853,7 @@ class KotlinAnalyzer(ScriptAnalyzer):
 
         if include_warnings:
             for func_name, reason in DANGEROUS_KOTLIN_FUNCTIONS["warnings"].items():
-                pattern = None
-                if func_name == "contentequals":
-                    pattern = r"\.contentEquals\s*\("
-                elif func_name == "equals":
-                    pattern = r"\.equals\s*\("
-                elif func_name == "compareto":
-                    pattern = r"\.compareTo\s*\("
-                elif func_name == "arrays.equals":
-                    pattern = r"\bArrays\.equals\s*\("
+                pattern = qualified_call_pattern(func_name)
 
                 if pattern:
                     for match in re.finditer(pattern, source):
@@ -2521,7 +2895,7 @@ class KotlinAnalyzer(ScriptAnalyzer):
             if not class_files:
                 raise RuntimeError("No class files generated from compilation")
 
-            all_functions = []
+            all_functions: list[ParsedFunction] = []
             all_violations = []
 
             # Analyze each class file
@@ -2715,7 +3089,7 @@ class CSharpAnalyzer(ScriptAnalyzer):
         source_file: str,
         include_warnings: bool = False,
         function_filter: str | None = None,
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse CIL/IL output for dangerous operations.
 
@@ -2733,7 +3107,7 @@ class CSharpAnalyzer(ScriptAnalyzer):
           IL_0003: ret
         }
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_method = None
@@ -2845,7 +3219,7 @@ class CSharpAnalyzer(ScriptAnalyzer):
 
         try:
             with open(source_file) as f:
-                source = f.read()
+                source = blank_comments(f.read(), "c")
         except OSError:
             return violations
 
@@ -2876,14 +3250,7 @@ class CSharpAnalyzer(ScriptAnalyzer):
 
         if include_warnings:
             for func_name, reason in DANGEROUS_CSHARP_FUNCTIONS["warnings"].items():
-                if func_name == "sequenceequal":
-                    pattern = r"\.SequenceEqual\s*\("
-                elif func_name == "string.equals":
-                    pattern = r"\.Equals\s*\("
-                elif func_name == "string.compare":
-                    pattern = r"String\.Compare\s*\("
-                else:
-                    continue
+                pattern = qualified_call_pattern(func_name)
                 for match in re.finditer(pattern, source):
                     line_num = source[: match.start()].count("\n") + 1
                     violations.append(
@@ -2912,7 +3279,7 @@ class CSharpAnalyzer(ScriptAnalyzer):
         # Also detect division/modulo operators in source
         try:
             with open(source_file) as f:
-                source = f.read()
+                source = blank_comments(f.read(), "c")
         except OSError:
             source = ""
 

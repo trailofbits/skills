@@ -47,7 +47,7 @@
     },
     {
       "name": "constant-time-analysis",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "description": "Detect compiler-induced timing side-channels in cryptographic code",
       "author": {
         "name": "Scott Arciszewski",
@@ -105,8 +105,8 @@
     },
     {
       "name": "dwarf-expert",
-      "description": "Interact with and understand the DWARF debugging format",
-      "version": "1.0.1",
+      "description": "Analyze DWARF debug information: parse and search DIEs with dwarfdump and readelf, verify debug info integrity, and write DWARF parsing code",
+      "version": "1.1.0",
       "author": {
         "name": "Evan Hellman",
         "email": "opensource@trailofbits.com"
