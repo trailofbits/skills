@@ -1,0 +1,3 @@
+# Eval run output: timestamped result directories and HTML reports, regenerated
+# by `claude plugin eval`. The cases under evals/*/ are the suite and are tracked.
+evals/results/

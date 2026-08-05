@@ -413,6 +413,17 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/writing-lean-proofs"
+    },
+    {
+      "name": "diataxis",
+      "version": "0.1.0",
+      "description": "Generates a complete Diataxis-structured documentation set for a codebase using a dynamic workflow: one agent distills the framework from its upstream source, five survey the code in parallel, and four author the tutorials, how-to, reference, and explanation quadrants, with reference produced as real code documentation via Doxygen, Sphinx, rustdoc, TypeDoc, or the language's native generator.",
+      "author": {
+        "name": "Francesco Bertolaccini",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/diataxis"
     }
   ]
 }
