@@ -292,6 +292,12 @@ const EXTENSION_BY_LANGUAGE = {
   yaml: 'yaml',
 }
 
+// The rule always lands at `${stem}.yaml`, so a yaml target's test file is that same path: the
+// translate phase overwrites the spec the test phase wrote, and the rule is graded against
+// itself over no surviving annotations, which can still end in "All tests passed". It is the
+// only entry in the table that collides; json, xml and html do not.
+const RULE_FILE_EXTENSION = 'yaml'
+
 // The table is the whole answer, with no fall back to an extension the assessment claimed.
 // That fallback made the guard above self-defeating: the prompt asked every assessment for an
 // extension, so one was nearly always there to fall back to, and a target Semgrep cannot read
@@ -303,7 +309,18 @@ const EXTENSION_BY_LANGUAGE = {
 // assessment can report, and both find something on the prototype chain.
 function testFileExtension(language, assessment) {
   const key = (assessment.semgrepLanguage || '').toLowerCase().trim()
-  if (Object.hasOwn(EXTENSION_BY_LANGUAGE, key)) return EXTENSION_BY_LANGUAGE[key]
+  // A throw rather than a fallback, so the one return here stays the bare table lookup.
+  if (Object.hasOwn(EXTENSION_BY_LANGUAGE, key)) {
+    if (EXTENSION_BY_LANGUAGE[key] === RULE_FILE_EXTENSION) {
+      throw new Error(
+        `${language}: a test file for "${key}" would end in .${RULE_FILE_EXTENSION}, the same as ` +
+          'the rule this directory holds, so the translated rule would overwrite the tests that ' +
+          'specify it and then be graded against itself. Porting to it needs a directory layout ' +
+          'that separates the two, which this script does not have.',
+      )
+    }
+    return EXTENSION_BY_LANGUAGE[key]
+  }
 
   const shown = key.length > 60 ? `${key.slice(0, 60)}…` : key
   throw new Error(
@@ -323,12 +340,14 @@ function testFileExtension(language, assessment) {
 // last 20 lines an agent reports verbatim — either would fail a genuinely green port through
 // all three retries. Missing an unseen phrasing only falls back to the version check; failing
 // a good port has no fallback.
+//
+// Matched against the tail the agent reports, and semgrep prints these above the per-target
+// results, so validatePrompt asks for any such line to be carried in wherever it appeared. The
+// version check is no backstop here: the agent used the right binary and said so.
 const SKIPPED_RATHER_THAN_RUN = /missing plugin|missing semgrep extension|skipped because they require/i
 
-// Anchored first, then semgrep-qualified. `semgrep --version` prints a bare triple and the
-// prompt asks for exactly that, but a reply that puts anything else first — "Python 3.11.5 /
-// semgrep 1.172.0" — hands back 3.11.5 to a bare search. A genuinely green port then burns
-// every retry and lands in `failed` blaming a version nothing ran.
+// Anchored, then semgrep-qualified: an unanchored triple takes the 3.11.5 out of
+// "Python 3.11.5 / semgrep 1.172.0" and fails a green port against a version nothing ran.
 function semgrepVersion(reported) {
   const text = String(reported || '').trim()
   const bare = /^v?(\d+\.\d+\.\d+)/.exec(text)
@@ -378,12 +397,8 @@ function validationPassed(validation, expectedVersion) {
 
 // Splits the pipeline's results. A stage that throws drops its item to null, so filtering
 // happens here before anything reads a field, and the dropped ones are named rather than
-// quietly forgotten.
-//
-// Named, not counted: every other outcome carries its language, and a bare `1` leaves the
-// reader diffing the requested list against five result sets by hand to find which one to
-// re-run. `requested` is the array pipeline() received, so index alignment identifies the
-// dropped item without depending on a field a dead stage never set.
+// quietly forgotten — index-aligned to `requested`, since a dead stage set no field to
+// identify itself by, and a bare count leaves the reader working out which language to re-run.
 function partition(results, requested) {
   const done = results.filter(Boolean)
   const ported = done.filter((r) => !r.skipped && !r.unsupported && !r.stopped)
@@ -472,11 +487,9 @@ exactly the rule and its test file, so keep any prototyping you do elsewhere.
 ${reference('language-syntax-guide.md', 'covers translating patterns across languages')}${SCOPE}`
 }
 
-// `rejection` is the caller's ground for refusing the last round, and it has to travel: three of
-// the four grounds are ones the previous agent could not see. A round that went genuinely green
-// on the wrong binary reports "clean", so relaying only the agent's own words told the next round
-// "an earlier agent stopped before the tests passed, leaving: clean" — a contradiction carrying
-// nothing to act on, repeated until the retries ran out.
+// `rejection` has to travel: three of the four grounds are ones the previous agent could not
+// see. A round that went green on the wrong binary reports "clean", so relaying only its own
+// words told the retry "stopped before the tests passed, leaving: clean" and nothing to act on.
 function validatePrompt(language, test, artifact, previous, rejection) {
   return `Make the ${language} Semgrep rule at ${artifact.filePath} pass its tests.
 ${
@@ -498,6 +511,8 @@ Iterate in place, and leave the directory holding exactly the rule and its test 
 The semgrep already on PATH is the acceptance criterion. Do not install, pin, downgrade or otherwise switch semgrep to get a pass. If that semgrep cannot run this rule — a Pro-only parser for the target language, say — that is the result: report the failing output and say so. A port graded by a different binary is a port nobody can reproduce.
 
 Report the output of the final \`semgrep --test\` run verbatim as testOutput, trimmed to its last 20 lines if it is longer than that. Do not summarise it or restate the verdict in your own words there: the caller decides whether the port passed by reading semgrep's own words. Report the exact command you ran, and what \`semgrep --version\` prints for the binary that ran it. Also report how many test runs it took and what you changed.
+
+One exception to the last-20-lines trim. If the run printed a line saying rules were skipped, or naming a missing plugin or a missing Semgrep extension, include that line in testOutput too, wherever in the output it appeared. Semgrep prints those above the per-target results, so a tail can cut them off — and they are how the caller tells a rule semgrep graded from one it never ran, which otherwise also ends in "All tests passed".
 
 ${SCOPE}`
 }
@@ -538,9 +553,8 @@ const languages = (Array.isArray(args?.languages) ? args.languages : [args?.lang
   .map((language) => String(language ?? '').trim())
   .filter(Boolean)
 
-// One message per missing argument. A combined "needs args.rulePath and args.languages" opens
-// by naming the rule path, so a caller who passed a good one and a bad language list is sent to
-// check the wrong argument.
+// One message per missing argument: a combined one opens by naming args.rulePath, sending a
+// caller with a good rule path and an empty language list to check the wrong argument.
 const RESUME_NOTE =
   'Resuming needs it too: args are not saved with a run, so pass them again alongside resumeFromRunId.'
 
@@ -559,11 +573,9 @@ if (languages.length === 0) {
 // One language per entry. "Go and Java" and '["go","java"]' both survive the check above as
 // a single item, and would silently port one language named after the whole phrase.
 //
-// This also rejects a genuine multi-word name — "C Sharp", "Objective C" — which is deliberate,
-// since every such language has a single-token Semgrep key and that key is what names the
-// directory. So the message has to cover both readings: telling someone who typed "Objective C"
-// that their entry holds more than one language sends them looking for a phrase they did not
-// write.
+// A genuine multi-word name is rejected too, deliberately: each has a single-token Semgrep key
+// and that key names the directory. The message covers both, since telling someone who typed
+// "Objective C" that their entry holds two languages sends them after a phrase they never wrote.
 const malformed = languages.filter((language) => /[\s,[\]"']/.test(language))
 if (malformed.length > 0) {
   throw new Error(
@@ -577,12 +589,9 @@ if (!referencesDir) {
   )
 }
 
-// Non-empty is not the same as resolvable, and the difference is invisible at run time. A
-// skill documenting `{baseDir}/references` hands that literal straight through, because a
-// script cannot expand it and has no filesystem access to notice; every prompt then tells an
-// agent to read a path that does not exist, the agent ports without the guidance, and the run
-// reports every language passed. Checked here because it is deterministic, and because the
-// empty-value guard above was added for this exact failure and stops one spelling of it.
+// Non-empty is not resolvable. A script cannot expand `{baseDir}` and has no filesystem access
+// to notice it did not, so the literal reaches every prompt as a path that is not there and the
+// run reports every language passed. Deterministic, so it is checked rather than warned about.
 if (referencesDir.includes('{') || !referencesDir.startsWith('/')) {
   throw new Error(
     `port-rule-to-languages needs args.referencesDir as a resolved absolute path, and got ${JSON.stringify(args.referencesDir)}. A workflow script cannot expand {baseDir} or \${CLAUDE_PLUGIN_ROOT}, so resolve it before the call and pass the path as printed.`,
@@ -605,10 +614,9 @@ if (!rule) {
   )
 }
 
-// Every round measures the port against this version, so an unreadable one rejects every round
-// of every language on a condition that cannot change between them: MAX_VALIDATE_ROUNDS xhigh
-// agents per language, all refused for the same reason, knowable before the first one spawns.
-// The schema requires the field to be present, not to hold a version — "unknown" satisfies it.
+// Every round measures the port against this version, so an unreadable one refuses every round
+// of every language on a condition settled before the first agent spawns. The schema requires
+// the field to be present, not to hold a version — "unknown" satisfies it.
 const baseline = semgrepVersion(rule.semgrepVersion)
 if (!baseline) {
   throw new Error(

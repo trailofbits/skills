@@ -246,7 +246,10 @@ def check_no_guessed_test_file_extension(script: str) -> list[str]:
     if start == -1:
         return [*errors, "no testFileExtension(); the extension is not derived at all"]
 
-    body = brace_block(script, script.index("{", start))
+    # Comments come out before the scan below looks for `return`. A comment explaining why the
+    # function throws rather than falling back reads as a second return value otherwise, so the
+    # checker fired on prose — a false positive that punishes explaining the invariant.
+    body = re.sub(r"//[^\n]*", "", brace_block(script, script.index("{", start)))
     returns = [found.strip() for found in re.findall(r"\breturn\b([^\n]*)", body)]
     if not returns:
         return [*errors, "testFileExtension returns nothing; it cannot be deriving an extension"]
@@ -479,6 +482,12 @@ FAILURE_PATH_BREAKAGES = (
     pytest.param(
         ("extension = testFileExtension(language, settled)", "extension = 'txt'"),
         id="guessing the test file extension",
+    ),
+    pytest.param(
+        # Without it the translate phase overwrites the spec the test phase wrote, and the rule
+        # is graded against itself over zero surviving annotations.
+        ("if (EXTENSION_BY_LANGUAGE[key] === RULE_FILE_EXTENSION) {", "if (false) {"),
+        id="writing a test file the translated rule would overwrite",
     ),
     pytest.param(
         # The references reach an agent only as a resolved absolute path, and nothing

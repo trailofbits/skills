@@ -132,6 +132,16 @@ def check_the_skill_hands_over_its_references(skill: str, readme: str, script: s
             "SKILL.md resolves the references directory with a command that never prints it; "
             "`ls <dir>` lists the files inside the directory, so the caller has no path to copy"
         )
+
+    # Only Claude Code exports CLAUDE_PLUGIN_ROOT. A single-step resolution is unreachable
+    # everywhere else — Codex included, which this repo runs a loadability check for — and the
+    # skill's own fallback advice is to run the phases by hand, which still needs the references.
+    # c-review and rust-review both carry the same ladder.
+    if "CODEX_PLUGIN_ROOT" not in skill:
+        errors.append(
+            "SKILL.md resolves the references directory only through ${CLAUDE_PLUGIN_ROOT}, "
+            "which no harness outside Claude Code sets; it needs a fallback route"
+        )
     return errors
 
 
@@ -248,6 +258,13 @@ BREAKAGES = (
         # value as printed when nothing had printed a path.
         ('ls -d -- "${CLAUDE_PLUGIN_ROOT}', 'ls -- "${CLAUDE_PLUGIN_ROOT}'),
         id="resolving the references path with a command that never prints it",
+    ),
+    pytest.param(
+        check_the_skill_hands_over_its_references,
+        "skill",
+        # Collapsing the ladder to the one variable only Claude Code exports.
+        ("${CODEX_PLUGIN_ROOT}", "the plugin root"),
+        id="resolving the references path with no route outside Claude Code",
     ),
     pytest.param(
         check_basedir_paths_resolve,

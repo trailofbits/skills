@@ -230,6 +230,26 @@ test('an unknown semgrep language stops that language instead of writing a skipp
   assert.match(result.stopped[0].reason, /not a Semgrep language key/)
 })
 
+test('a target whose test file would be the rule file stops instead of being overwritten', async () => {
+  const { result, calls } = await run({
+    args: { ...BASE_ARGS, languages: ['Go', 'YAML'] },
+    stubs: {
+      assess: (language) => ({
+        verdict: 'APPLICABLE',
+        reasoning: 'ok',
+        semgrepLanguage: language === 'YAML' ? 'yaml' : 'go',
+        semgrepCanAnalyze: true,
+      }),
+    },
+  })
+
+  assert.equal(result.passed.length, 1, 'Go still finishes')
+  assert.equal(result.passed[0].language, 'Go')
+  assert.ok(!calls.includes('test:YAML'), 'no spec is written where the rule would overwrite it')
+  assert.equal(result.stopped.length, 1)
+  assert.match(result.stopped[0].reason, /the same as the rule this directory holds/)
+})
+
 test('a dead refuter stops the language instead of silently upholding the verdict', async () => {
   // agent() returns null when a subagent dies on a terminal error after retries. Folding that
   // into "the verdict stands" drops the language on a verdict nothing second-guessed, reported

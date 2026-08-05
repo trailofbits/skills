@@ -24,21 +24,25 @@ dynamic workflow rather than as instructions to re-follow each run:
 /semgrep-rule-variant-creator:port-rule-to-languages
 ```
 
-Pass all four arguments. One language per entry: `"Go and Java"` ports a single language
-named after the phrase, and the script rejects it.
+Pass the three required arguments, and `outputDir` unless the working directory is where you
+want the variants. One language per entry: `"Go and Java"` ports a single language named after
+the phrase, and the script rejects it.
 
-`referencesDir` has to be a resolved absolute path. Print the directory, then confirm the
-reference files are inside it:
+`referencesDir` has to be a resolved absolute path. Resolve it here, because no workflow script
+can expand a variable. Try in order, first hit wins — the `-d` is the point, since a bare `ls`
+prints the names of the files inside the directory rather than the directory itself and leaves
+nothing to copy:
 
-```
-ls -d -- "${CLAUDE_PLUGIN_ROOT}/skills/semgrep-rule-variant-creator/references"
-ls -1 -- "${CLAUDE_PLUGIN_ROOT}/skills/semgrep-rule-variant-creator/references"
-```
+1. **Claude Code** — `ls -d -- "${CLAUDE_PLUGIN_ROOT}/skills/semgrep-rule-variant-creator/references"`
+2. **Codex** — the same command with `${CODEX_PLUGIN_ROOT}`, if that variable is set instead
+3. **Neither set** — `find ~/.claude ~/.codex . -type d -path '*/semgrep-rule-variant-creator/skills/*/references' -print -quit 2>/dev/null`
 
-Pass the path the first command printed; it is already absolute. The `-d` is the point — `ls`
-without it prints the names of the files inside the directory rather than the directory, which
-leaves nothing to copy. If either command errors, or you find yourself assembling the path by
-hand, stop and say so instead: a path that was never printed is a path nobody has seen resolve.
+Then confirm the directory that printed holds both reference files, with `ls -1 -- "<that path>"`.
+
+Pass the path exactly as printed. If all three come back empty, stop and say so rather than
+assembling a path by hand: the script rejects a relative path and an unexpanded token, but a
+hand-built absolute path that happens not to exist clears every guard it has, and the run then
+reports every language as passed having read no guidance at all.
 
 ```json
 {
@@ -66,18 +70,26 @@ died. The rule travels as a path, not as text: every phase
 reads the file, because an agent asked to repeat a rule back verbatim does not — one
 HTML-escaped `<` and `>` and broke the `<... ...>` operator for every phase downstream.
 
-If a run dies partway — session limit, API outage — relaunch it with
+If a run is interrupted while the session is still alive — you stopped it, or an agent hit a
+terminal error — relaunch it with
 `Workflow({scriptPath: "…", resumeFromRunId: "<runId>", args: {…}})`, passing the same
 arguments again. Arguments are not saved with a run, so a resume that omits them fails the
 pre-flight check above before replaying anything; with them, languages that finished replay
 from cache and only the unfinished ones re-run.
 
-A run id that no longer exists is not an error. The workflow starts from scratch under that
-id and re-runs every language at full cost, so check the id is still there before counting on
-a resume — `ls -d ~/.claude/projects/*/*/subagents/workflows/*/` lists every run that can be
-resumed. If it is gone, re-invoke with the same arguments and point `outputDir` somewhere
-fresh: the script never deletes a directory, so a language that flipped to `NOT_APPLICABLE`
-on the second run leaves the first run's variant behind.
+Resume is same-session only, which rules it out for the interruption a long port is most
+likely to hit: a session limit ends the session, and runs are stored under that session's own
+directory, so the next session cannot reach them. A run id it cannot resolve is not an error
+either — the workflow starts from scratch under that id and re-runs every language at full
+cost, with nothing saying so. Check the id is still there before counting on a resume:
+
+```
+ls -d ~/.claude/projects/*/*/subagents/workflows/*/
+```
+
+If it is gone, or the session ended, re-invoke with the same arguments and point `outputDir`
+somewhere fresh: the script never deletes a directory, so a language that flipped to
+`NOT_APPLICABLE` on the second run leaves the first run's variant behind.
 
 The script is `workflows/port-rule-to-languages.js` at the plugin root. It pins a
 reasoning effort per phase — cheap to read the rule, highest for translation and for the

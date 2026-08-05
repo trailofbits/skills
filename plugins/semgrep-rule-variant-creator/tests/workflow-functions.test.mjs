@@ -66,7 +66,11 @@ const canonicalLanguage = load('canonicalLanguage', extractTable('CANONICAL_BY_L
 const partition = load('partition')
 const validationFailure = load('validationFailure', ...VALIDATION_DEPS)
 const validationPassed = load('validationPassed', ...VALIDATION_DEPS, extract('validationFailure'))
-const testFileExtension = load('testFileExtension', extractTable('EXTENSION_BY_LANGUAGE'))
+const testFileExtension = load(
+  'testFileExtension',
+  extractLineConst('RULE_FILE_EXTENSION'),
+  extractTable('EXTENSION_BY_LANGUAGE'),
+)
 
 // The semgrep the rule was read with. A port is only green when the same one graded it.
 const VERSION = '1.172.0'
@@ -162,6 +166,22 @@ test('testFileExtension throws rather than guessing, even when the agent claims 
     () => testFileExtension('Perl', { semgrepLanguage: 'perl', fileExtension: 'pl' }),
     /not a Semgrep language key/,
   )
+})
+
+test('testFileExtension refuses a target whose test file would be the rule file', () => {
+  // The rule always lands at `${stem}.yaml`, so for a yaml target the test file is that same
+  // path: the test phase writes the spec, the translate phase overwrites it with the rule, and
+  // validation grades the rule against itself. With no annotations left, `--test` over it can
+  // still end in "All tests passed" — a green for a port whose spec no longer exists.
+  assert.throws(
+    () => testFileExtension('YAML', { semgrepLanguage: 'yaml' }),
+    /the same as the rule this directory holds/,
+  )
+
+  // The neighbouring structural formats do not share the rule's extension, so they still port.
+  assert.equal(testFileExtension('JSON', { semgrepLanguage: 'json' }), 'json')
+  assert.equal(testFileExtension('XML', { semgrepLanguage: 'xml' }), 'xml')
+  assert.equal(testFileExtension('HTML', { semgrepLanguage: 'html' }), 'html')
 })
 
 test('testFileExtension rejects a key that only resolves on the prototype chain', () => {
