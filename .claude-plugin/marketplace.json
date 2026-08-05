@@ -47,7 +47,7 @@
     },
     {
       "name": "constant-time-analysis",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "description": "Detect compiler-induced timing side-channels in cryptographic code",
       "author": {
         "name": "Scott Arciszewski",
@@ -252,7 +252,7 @@
     },
     {
       "name": "insecure-defaults",
-      "version": "1.0.1",
+      "version": "2.0.0",
       "description": "Detects insecure default configurations including hardcoded credentials, fallback secrets, weak authentication defaults, and dangerous values in production",
       "author": {
         "name": "Trail of Bits",
