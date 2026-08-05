@@ -71,6 +71,34 @@ def check_anchors(entry, base):
                 f"    actual line:        {lines[idx].strip()}"
             )
             continue
+        # The grader's construct matching now depends on spans being present. Absent,
+        # truth_span() silently falls back to a proximity window and the neighbouring-
+        # construct conflation is back for that entry, with a green suite.
+        span = t.get("span")
+        if not span:
+            failures.append(
+                f"{entry['name']}: {t['file']}:{t['line']} has no span — the grader would "
+                f"fall back to a proximity window and conflate neighbouring constructs"
+            )
+            continue
+        if int(span[0]) < 1 or int(span[0]) > int(span[1]):
+            failures.append(f"{entry['name']}: {t['file']} span {span} is not a valid range")
+            continue
+        # A span that no longer contains its own anchor line is a span the grader
+        # would score against the wrong construct — the failure mode span exists to
+        # prevent, reintroduced by a stale hand-edit.
+        if not (int(span[0]) <= t["line"] <= int(span[1])):
+            failures.append(
+                f"{entry['name']}: {t['file']} span {span} does not contain its own "
+                f"anchor line {t['line']}"
+            )
+            continue
+        if int(span[1]) > len(lines):
+            failures.append(
+                f"{entry['name']}: {t['file']} span {span} runs past end of file "
+                f"({len(lines)} lines)"
+            )
+            continue
         checked += 1
     return checked, failures
 

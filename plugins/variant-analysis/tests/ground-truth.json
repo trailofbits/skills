@@ -17,7 +17,11 @@
           "line": 1110,
           "anchor": "subprocess.run(cmd, shell=True, check=False)",
           "is_seed": true,
-          "why": "user-controlled video path and timestamp interpolated into a shell command string"
+          "why": "user-controlled video path and timestamp interpolated into a shell command string",
+          "span": [
+            1103,
+            1111
+          ]
         },
         {
           "id": "gradio-os-system",
@@ -25,7 +29,11 @@
           "line": 351,
           "anchor": "os.system(f\"tar czf {archive_path} -C {flag_dir} {label}\")",
           "is_seed": false,
-          "why": "same root cause, different sink and different module: a flagged-sample label is interpolated into an os.system command. Grepping for the seed's exact sink (subprocess.run/shell=True) does not reach it \u2014 it takes generalizing to 'user data reaches a shell'."
+          "why": "same root cause, different sink and different module: a flagged-sample label is interpolated into an os.system command. Grepping for the seed's exact sink (subprocess.run/shell=True) does not reach it \u2014 it takes generalizing to 'user data reaches a shell'.",
+          "span": [
+            348,
+            352
+          ]
         }
       ],
       "decoy": {
@@ -33,8 +41,13 @@
         "file": "gradio/screen_recording_utils.py",
         "line": 14,
         "anchor": "def probe_recording_duration(recording_path: str) -> str:",
-        "why_safe": "argv list form (no shell), and the argument is rebuilt as DEFAULT_TEMP_DIR / Path(input).name before use: basename-only, so it can never be a URL (no protocol abuse) and never starts with '-' (no argument injection into ffprobe), and the is_file() gate means a crafted name never reaches the subprocess at all. Verified against shell-metachar, argument-injection, SSRF, concat-protocol and traversal payloads."
-      }
+        "why_safe": "argv list form (no shell), and the argument is rebuilt as DEFAULT_TEMP_DIR / Path(input).name before use: basename-only, so it can never be a URL (no protocol abuse) and never starts with '-' (no argument injection into ffprobe), and the is_file() gate means a crafted name never reaches the subprocess at all. Verified against shell-metachar, argument-injection, SSRF, concat-protocol and traversal payloads.",
+        "span": [
+          14,
+          35
+        ]
+      },
+      "_comment_span": "span is the injected function's line range: a reported location must fall inside it to be that construct. Without it a proximity window conflates neighbouring functions - observed crediting a finding 3 lines above a safe site as that safe site. verify_fixtures.py checks the anchor still sits inside its span."
     }
   ]
 }

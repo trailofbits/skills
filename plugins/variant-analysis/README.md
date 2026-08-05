@@ -22,8 +22,8 @@ Each step has its own strategy reference under `skills/variant-analysis/referenc
 
 | | Use when |
 |---|---|
-| `/variant-analysis:variants` | Workflow to run on large codebase or many manifestations. Runs the steps across parallel subagents, one per expansion axis (e.g., generalizing variable names, function names, ...), looping until the sweep stops finding anything new. Takes `bug`, `root`, `lang`, `out` which claude fills using the current context. |
-| The `variant-analysis` skill | Triggers on its own when you are working on a bug hunt, including straight after finding one in conversation. Best for a narrow search where you want a say in each generalization.|
+| `/variant-analysis:variants` | Workflow, for a large codebase or a root cause with many manifestations. Runs the steps across parallel subagents, one per expansion axis (generalizing variable names, function names, sink APIs, …), looping until the sweep stops finding anything new. Takes `bug`, `root`, `lang`, `out` as a JSON object, which Claude fills from the current context. Below ~40 source files (the primary language's, excluding vendored and fixture trees) it sweeps narrow and once, because fan-out buys nothing at that size. |
+| The `variant-analysis` skill | The knowledge behind the workflow, and the path for a narrow hunt you want to drive yourself — a handful of files, pasted snippets, or a candidate list to triage against a known root cause. Both fire on their own from a conversational "are there others like this?"; measured on a real codebase, Claude reaches for the workflow more often than the skill, so ask for the skill by name if you want to weigh in on each generalization. |
 
 ## Included
 

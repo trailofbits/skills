@@ -54,8 +54,14 @@ else
 fi
 
 echo "→ applying vulnerability patch"
+# Two different failures land here and the old message only named one of them: a checkout
+# at the wrong SHA, and a checkout at the RIGHT SHA whose patch is already partly applied
+# (the unpatched check above only looks at processing_utils.py, so a half-reverted tree
+# reaches this point). --force is the recovery for both.
 git -C "$DEST" apply --check "$PATCH" || {
-  echo "patch does not apply — the checkout is not at $SHA" >&2
+  echo "patch does not apply to $DEST" >&2
+  echo "  either the checkout is not at $SHA, or the patch is already partly applied." >&2
+  echo "  recover with: $0 --force" >&2
   exit 1
 }
 git -C "$DEST" apply "$PATCH"

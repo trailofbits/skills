@@ -5,7 +5,7 @@ export const meta = {
   name: 'variants',
   description: 'Hunt for variants of a known bug: root cause, baseline gate, parallel sweep across expansion axes, adversarial triage, report',
   whenToUse:
-    'After a specific vulnerability has been found and you want systematic coverage of its variants across a whole codebase. Not for initial discovery. Fill args from the conversation: bug (required, the vulnerability including file:line if known), root (codebase root, defaults to cwd), lang (primary language), out (report path). Do not ask the user for a plugin path; the run locates its own strategy references.',
+    'After a specific vulnerability has been found and you want systematic coverage of its variants across a whole codebase. Not for initial discovery. Pass args as a JSON OBJECT, not a prose string: {"bug": "...", "root": "...", "lang": "...", "out": "..."}. bug is required (the vulnerability, including file:line if known); root defaults to cwd; lang is the primary language; out is the report path. Fill them from the conversation. Do not ask the user for a plugin path; the run locates its own strategy references.',
   phases: [
     { title: 'Root cause', detail: 'Extract root cause statement, exact-match pattern, and expansion axes' },
     { title: 'Baseline', detail: 'Verify the exact pattern actually matches the known bug' },
@@ -26,12 +26,60 @@ export const meta = {
 //   skill: string  (rarely needed) override for the strategy-reference directory. The run
 //                  finds this itself; supply it only if the log reports resolution failed.
 // }
-const A = args || {}
-if (!A.bug) throw new Error('args.bug is required: describe the original vulnerability (ideally with file:line)')
+// A caller that passes args as prose rather than an object used to kill the run on the
+// first line, before a single agent started: `args.bug is required` with nothing to show
+// for it. Observed in a cold run — the model wrote
+// `"bug: ...; root: /path; lang: python"` and the whole invocation died. Parsing that
+// shape costs six lines and turns a hard failure into a working run.
+const parseArgs = (raw) => {
+  if (!raw) return {}
+  if (typeof raw === 'object') return raw
+  if (typeof raw !== 'string') return {}
+  const text = raw.trim()
+  if (text.startsWith('{')) {
+    try {
+      return JSON.parse(text)
+    } catch {
+      // Fall through to key: value parsing rather than dying on a malformed brace.
+    }
+  }
+  // `key: value; key: value`, where a value may itself contain colons (file:line, URLs).
+  // Only the four known keys start a new field, so a bug description containing
+  // "root cause:" does not get chopped in half.
+  const KEYS = ['bug', 'root', 'lang', 'out', 'skill']
+  const out = {}
+  let key = null
+  for (const part of text.split(/;\s*|\n/)) {
+    const m = part.match(/^\s*(\w+)\s*:\s*([\s\S]*)$/)
+    if (m && KEYS.includes(m[1].toLowerCase())) {
+      key = m[1].toLowerCase()
+      out[key] = m[2].trim()
+    } else if (key && part.trim()) {
+      out[key] = `${out[key]} ${part.trim()}`.trim()
+    }
+  }
+  // A bare string with no recognizable key at all is the bug description.
+  if (!Object.keys(out).length) out.bug = text
+  return out
+}
+
+const A = parseArgs(args)
+if (!A.bug) {
+  throw new Error(
+    'args.bug is required: describe the original vulnerability (ideally with file:line). ' +
+      'Pass args as a JSON object, e.g. {"bug": "...", "root": "/path", "lang": "python"}.',
+  )
+}
 
 const ROOT = A.root || '.'
 const LANG = A.lang || 'auto-detect from the codebase'
 const OUT = A.out || 'variant-analysis-report.md'
+
+// Single-quote for the shell. JSON.stringify looks like quoting but yields a
+// double-quoted string, where $(...) and backticks still expand — and the patterns
+// interpolated below are model-generated from codebase content. An unquoted path also
+// breaks on any root containing a space.
+const sh = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`
 
 // Each stage only reads its own strategy reference.
 //
@@ -123,11 +171,15 @@ const ROOT_CAUSE_SCHEMA = {
 
 const BASELINE_SCHEMA = {
   type: 'object',
-  required: ['match_count', 'locations', 'matches_origin'],
+  required: ['match_count', 'locations', 'matches_origin', 'source_file_count'],
   properties: {
     match_count: { type: 'integer' },
     locations: { type: 'array', items: { type: 'string' } },
     matches_origin: { type: 'boolean', description: 'True if one of the matches is the known vulnerable line named in the root cause.' },
+    source_file_count: {
+      type: 'integer',
+      description: 'Source files in the codebase, from the second command: the primary language\'s files, excluding vendored, generated, asset, and fixture directories. Sizes the sweep.',
+    },
     notes: { type: 'string' },
   },
 }
@@ -235,16 +287,26 @@ log(`${rc.axes.length} expansion axes: ${rc.axes.map((x) => x.id).join(', ')}`)
 phase('Baseline')
 
 const baseline = await agent(
-  `Run this ripgrep pattern against the codebase at \`${ROOT}\` and report exactly what it matches:
+  `Run these two commands against the codebase at \`${ROOT}\` and report exactly what they return.
 
-    rg -n --no-heading ${JSON.stringify(rc.exact_pattern)} ${ROOT}
+1. The calibration pattern:
+
+    rg -n --no-heading ${sh(rc.exact_pattern)} ${sh(ROOT)}
+
+2. The size of the tree, which decides how wide the sweep needs to be. Count SOURCE
+files only - restrict to the primary language's extensions when you can tell what it
+is, and exclude vendored, generated, asset, and test-fixture directories. A project of
+25 source files behind 300 fixtures is a small project:
+
+    rg --files ${sh(ROOT)} | wc -l        # then narrow it, e.g. -g '*.py'
 
 The pattern is supposed to match this known vulnerable line:
   ${rc.origin.file}:${rc.origin.line}
   ${rc.origin.snippet}
 
-Report the true match count and locations. Set matches_origin only if one of the matches
-really is that line. Do not adjust the pattern to make it work, just report what it does.`,
+Report the true match count and locations, and source_file_count from the second command.
+Set matches_origin only if one of the matches really is that line. Do not adjust the
+pattern to make it work, just report what it does.`,
   { schema: BASELINE_SCHEMA, label: 'baseline', effort: 'low' },
 )
 
@@ -260,6 +322,21 @@ if (!baseline.matches_origin) {
 }
 log(`Baseline OK: ${baseline.match_count} match(es), origin confirmed.`)
 
+// Size floor. Fanning six sweep agents and a triage batch per axis across a handful of
+// files spends 25 agents to re-read what one agent could hold at once — and the eval's
+// own negative result says exactly that: five small synthetic codebases showed no
+// difference between the workflow and the skill alone, because "the fan-out had nothing
+// to buy". Below the floor, sweep narrow and once.
+const SMALL_TREE = 40
+const isSmall = (baseline.source_file_count || 0) > 0 && baseline.source_file_count <= SMALL_TREE
+const axesPerRound = isSmall ? 2 : MAX_AXES_PER_ROUND
+const maxRounds = isSmall ? 1 : MAX_ROUNDS
+if (isSmall) {
+  log(
+    `Small tree (${baseline.source_file_count} files ≤ ${SMALL_TREE}): sweeping ${axesPerRound} axes in 1 round instead of ${MAX_AXES_PER_ROUND}×${MAX_ROUNDS}. Fan-out buys nothing at this size.`,
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Phases 3+4 - Sweep and triage, pipelined per axis
 // ---------------------------------------------------------------------------
@@ -274,8 +351,12 @@ const key = (c) => `${c.file}:${c.line}`
 let dry = 0
 let round = 0
 let stoppedForBudget = false
+// Which axes actually got swept. A single-round sweep on a small tree covers only the
+// first slice, and "we never looked" has to reach the report rather than only the live
+// progress log — an artifact that omits it is indistinguishable from an exhausted sweep.
+const sweptAxes = new Set()
 
-while (round < MAX_ROUNDS && dry < DRY_ROUNDS_TO_STOP) {
+while (round < maxRounds && dry < DRY_ROUNDS_TO_STOP) {
   // Checked BEFORE the increment: a round that never ran is not a round that ran,
   // and counting it made the report say "swept N rounds" and "hit the round cap"
   // for a sweep that actually stopped early on budget.
@@ -288,9 +369,10 @@ while (round < MAX_ROUNDS && dry < DRY_ROUNDS_TO_STOP) {
 
   // Rotate through the axes across rounds rather than re-running the same slice, so
   // a long axis list gets swept rather than truncated.
-  const offset = ((round - 1) * MAX_AXES_PER_ROUND) % rc.axes.length
-  const axes = [...rc.axes, ...rc.axes].slice(offset, offset + MAX_AXES_PER_ROUND).slice(0, rc.axes.length)
-  if (rc.axes.length > MAX_AXES_PER_ROUND) {
+  const offset = ((round - 1) * axesPerRound) % rc.axes.length
+  const axes = [...rc.axes, ...rc.axes].slice(offset, offset + axesPerRound).slice(0, rc.axes.length)
+  axes.forEach((a) => sweptAxes.add(a.id))
+  if (rc.axes.length > axesPerRound) {
     log(`Round ${round} sweeps ${axes.length}/${rc.axes.length} axes: ${axes.map((x) => x.id).join(', ')}`)
   }
 
@@ -386,21 +468,41 @@ Return a verdict for every candidate, including the ones you judge minor.`,
   }
 }
 
-// Three ways out of that loop, and the report has to be told which. Only the dry
-// exit means the sweep is exhausted; the other two are coverage bounds a reader
-// needs to see, not just a line in the live log.
+// Four ways out of that loop, and the report has to be told which. Only the dry exit
+// means the sweep is exhausted; the rest are coverage bounds a reader needs to see, not
+// just a line in the live log. The small-tree bound is deliberate rather than a
+// truncation, so it is named separately — reporting it as "cap hit while still finding
+// variants" would read as a warning about a sweep that did what it was asked to.
 const sweptToDry = dry >= DRY_ROUNDS_TO_STOP
 if (stoppedForBudget) {
   log(`COVERAGE BOUND: stopped after ${round} round(s) with the token budget exhausted. The sweep is not exhausted.`)
-} else if (round >= MAX_ROUNDS && !sweptToDry) {
-  log(`COVERAGE BOUND: stopped at the ${MAX_ROUNDS}-round cap while still finding new variants. The sweep is not exhausted.`)
+} else if (isSmall && !sweptToDry) {
+  log(`Single-round sweep on a ${baseline.source_file_count}-file tree, as sized at the baseline gate.`)
+} else if (round >= maxRounds && !sweptToDry) {
+  log(`COVERAGE BOUND: stopped at the ${maxRounds}-round cap while still finding new variants. The sweep is not exhausted.`)
 }
 
 const stopReason = sweptToDry
   ? ' (swept to dry - no new variants in the last rounds)'
   : stoppedForBudget
     ? ' (STOPPED EARLY: token budget exhausted, not swept to dry - say so in the report)'
-    : ` (hit the ${MAX_ROUNDS}-round cap - sweep not exhausted, say so in the report)`
+    : isSmall
+      ? ` (single round, sized to a ${baseline.source_file_count}-file tree)`
+      : ` (hit the ${maxRounds}-round cap - sweep not exhausted, say so in the report)`
+
+// Any axis the loop never reached is a generalization nobody attempted. That belongs in
+// the artifact, not just in the log the operator watched go by.
+const unsweptAxes = rc.axes.filter((a) => !sweptAxes.has(a.id))
+if (unsweptAxes.length) {
+  log(`COVERAGE BOUND: ${unsweptAxes.length}/${rc.axes.length} axes never swept: ${unsweptAxes.map((a) => a.id).join(', ')}`)
+}
+const axisCoverage =
+  `Axes swept: ${sweptAxes.size}/${rc.axes.length}` +
+  (unsweptAxes.length
+    ? `. NEVER SWEPT, and the report must say so under its own heading: ${unsweptAxes
+        .map((a) => `${a.id} (${a.kind}) - ${a.description}`)
+        .join('; ')}`
+    : ' (all of them).')
 
 // ---------------------------------------------------------------------------
 // Phase 5 - Report
@@ -423,12 +525,25 @@ Follow the template at \`${template(SKILL_DIR)}\` - read it first. Use \`date -I
 Match the report's length to what the findings need: cover the substance, but do not pad
 with filler sections, redundant summaries, or boilerplate.
 
+REQUIRED, and not negotiable for formatting reasons: give every confirmed variant its own
+\`### \` block under a \`## Findings\` heading, and inside that block put the location on
+its own line, exactly:
+
+    **Location:** \`path/to/file.ext:LINE\`
+
+Do not put the location only in the \`### \` header, and do not merge several findings into
+one block. Downstream tooling reads the \`**Location:**\` lines to tell a real finding from
+a path mentioned in passing while tracing data flow; a report that omits them is scored by
+a fallback that cannot make that distinction. Ruled-out sites go under a separate
+\`## False Positive Patterns\` heading, grouped by the reason they were safe.
+
 Codebase: ${ROOT}
 Original bug: ${A.bug}
 Root cause: ${rc.statement}
 Origin: ${rc.origin.file}:${rc.origin.line}
 Baseline: exact pattern \`${rc.exact_pattern}\` matched ${baseline.match_count} location(s)
 Rounds run: ${round}${stopReason}
+${axisCoverage}
 
 Abstraction ladder climbed, for the Search Methodology table:
 ${JSON.stringify(ladder, null, 2)}
@@ -448,6 +563,9 @@ return {
   root_cause: rc.statement,
   origin: `${rc.origin.file}:${rc.origin.line}`,
   rounds: round,
+  axes_total: rc.axes.length,
+  axes_swept: sweptAxes.size,
+  axes_unswept: unsweptAxes.map((a) => a.id),
   swept_to_dry: sweptToDry,
   stopped_for_budget: stoppedForBudget,
   confirmed: confirmed.length,

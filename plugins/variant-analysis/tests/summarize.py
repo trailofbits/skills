@@ -63,6 +63,13 @@ def aggregate(rows):
             ),
             "decoy_ruled_out": sum(1 for r in gradeable if r.get("decoy_examined_and_ruled_out")),
             "decoy_as_real": sum(1 for r in gradeable if r.get("decoy_reported_as_real")),
+            # Runs scored through score.py's permissive fallback rather than its
+            # **Location:** path. The fallback over-counts by design, so a score built on
+            # it means less than one built on location fields. Silence here read as
+            # "the strict path worked" on a cold run where it had not.
+            "permissive": sum(
+                1 for r in gradeable if r.get("extraction_mode") == "permissive-lines"
+            ),
         }
     return out
 
@@ -73,10 +80,11 @@ def report(agg, require_workflow=True):
 
     header = (
         f"{'codebase':<14}{'mode':<11}{'gradeable':<11}{'new/run':<10}"
-        f"{'tp':<7}{'fp':<7}{'unrev':<8}{'decoy':<12}"
+        f"{'tp':<7}{'fp':<7}{'unrev':<8}{'decoy':<15}{'loose':<7}"
     )
     print(header)
     print("-" * len(header))
+    loose_total = 0
     for c in codebases:
         for m in modes:
             s = agg.get((c, m))
@@ -85,10 +93,11 @@ def report(agg, require_workflow=True):
             decoy = f"{s['decoy_ruled_out']}/{s['gradeable']} ok"
             if s["decoy_as_real"]:
                 decoy += f" {s['decoy_as_real']} BAD"
+            loose_total += s["permissive"]
             print(
                 f"{c:<14}{m:<11}{str(s['gradeable']) + '/' + str(s['runs']):<11}"
                 f"{s['mean_new']:<10.2f}{s['mean_tp']:<7.2f}{s['mean_fp']:<7.2f}"
-                f"{s['mean_unreviewed']:<8.1f}{decoy:<12}"
+                f"{s['mean_unreviewed']:<8.1f}{decoy:<15}{s['permissive']:<7}"
             )
 
     failures = []
@@ -126,6 +135,10 @@ def report(agg, require_workflow=True):
     print()
     print("  unrev = findings outside ground truth: real upstream code the eval cannot")
     print("          adjudicate. Read them by hand; they do not affect pass/fail.")
+    if loose_total:
+        print(f"  loose = {loose_total} run(s) scored via the permissive fallback: no")
+        print("          **Location:** fields in the report, so those scores over-count.")
+        print("          Not a pass/fail input, but they are worth less than they look.")
     print()
     if failures:
         for f in failures:
@@ -186,6 +199,17 @@ def self_test():
     assert report(aggregate(ungradeable)) == 1, "no gradeable workflow run must fail"
     checks += 1
 
+    # The loose column. Without this, renaming score.py's mode label leaves the column
+    # reading zero on every run forever — restoring the silence the column exists to break.
+    loose = json.loads(json.dumps(SELF_TEST_ROWS))
+    loose[0]["extraction_mode"] = "permissive-lines"
+    loose[1]["extraction_mode"] = "location-fields"
+    agg = aggregate(loose)
+    assert agg[("x", "workflow")]["permissive"] == 1, agg
+    assert agg[("x", "baseline")]["permissive"] == 0, agg
+    assert report(agg) == 0, "permissive extraction is reported, not a failure"
+    checks += 1
+
     baseline_only = [SELF_TEST_ROWS[1]]
     assert report(aggregate(baseline_only)) == 1, "a summary with no workflow rows must fail"
     assert report(aggregate(baseline_only), require_workflow=False) == 0, (
@@ -193,7 +217,7 @@ def self_test():
     )
     checks += 1
 
-    expected = 6
+    expected = 7
     if checks != expected:
         raise AssertionError(f"self-test ran {checks}, expected {expected}")
     print(f"\nsummarize.py self-test: {checks}/{expected} checks passed")

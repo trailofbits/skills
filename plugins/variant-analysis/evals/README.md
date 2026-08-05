@@ -58,7 +58,15 @@ pilot it two or three times before the rubric is trustworthy.
 
 The `skill-fired` graders on cases 01–02 are **display-only** under ablation — reported, not
 scored, in either arm, so they never move Δ. They tell you the trigger rate independently of
-answer quality.
+answer quality. Carrying no `arm:` and no `weight:` is the mechanism; adding either would
+start scoring a check the baseline arm can never pass.
+
+The negative cases 06–07 briefly carried the mirror image of that, a `skill-not-fired`
+grader with `arm: both`. Scored, and unfailable in both directions: the baseline arm has no
+plugin so `Skill` never fires, and the with-plugin arm does not fire on these shapes either.
+A grader no arm can fail is worth deleting rather than reweighting, so it is gone. The
+`type: llm` grader on each of those cases carries the check that matters — whether the
+answer stayed an explanation or an audit instead of turning into a variant hunt.
 
 ## Two limitations, stated plainly
 
@@ -67,12 +75,32 @@ calibration: bare Opus 5 handles these panels unaided. Δ can therefore only go 
 is a precision-regression guard and a trigger detector, not an uplift measure. Creating
 headroom needs harder panels, or the codebase-search dimension this suite deliberately omits.
 
-**The skill does not fire.** Across 40+ runs and four pilots there were zero `Skill`
-invocations, including on prompts squarely inside the description's stated trigger conditions.
-The skill was present in the model's skills list and the `Skill` tool was available; the model
-declined it every time and answered unaided. Until that changes, both arms are the same
-unaided model and Δ measures noise. That is a finding about the skill description, not about
-this suite.
+**The skill does not fire *on these cases*.** Across 40+ runs and four pilots there were
+zero `Skill` invocations here. The skill was present in the model's skills list and the
+`Skill` tool was available; the model declined it every time and answered unaided. So on
+this suite both arms are the same unaided model and Δ measures noise.
+
+That was first read as a defect in the skill description. It is not — it is a property of
+the case shape. A later cold run, 9 runs across three prompt shapes, isolated the cause:
+
+| Prompt shape | Codebase on disk? | Fired |
+|---|---|---|
+| Conversational: "found a bug in `x.py`, are there others?" | yes | 2/3 |
+| The description's trigger language, near-verbatim | yes | 3/3 |
+| Inline candidate panel, no files — **the shape of every case here** | no | 0/3 |
+
+Every case in this directory pastes its candidates into the prompt, so there is no tree to
+sweep and nothing for the skill to do that the model cannot do inline. Declining it is
+arguably correct. Two consequences worth keeping straight:
+
+- The non-firing result here is **not** evidence the skill is undiscoverable in real use.
+- Giving these cases files on disk would fix the saturation above *and* the trigger rate at
+  once, since it restores the dimension that actually makes the skill worth invoking. That
+  is the single highest-value change to this suite and it is not a small one.
+
+One more thing the cold run showed: when something does fire on a real codebase it is
+usually `/variant-analysis:variants` (4 of 5 firing runs) rather than the skill itself
+(1 of 9). The plugin's entry-point table says so.
 
 ## Cost
 
