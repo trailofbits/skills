@@ -472,11 +472,16 @@ exactly the rule and its test file, so keep any prototyping you do elsewhere.
 ${reference('language-syntax-guide.md', 'covers translating patterns across languages')}${SCOPE}`
 }
 
-function validatePrompt(language, test, artifact, previous) {
+// `rejection` is the caller's ground for refusing the last round, and it has to travel: three of
+// the four grounds are ones the previous agent could not see. A round that went genuinely green
+// on the wrong binary reports "clean", so relaying only the agent's own words told the next round
+// "an earlier agent stopped before the tests passed, leaving: clean" — a contradiction carrying
+// nothing to act on, repeated until the retries ran out.
+function validatePrompt(language, test, artifact, previous, rejection) {
   return `Make the ${language} Semgrep rule at ${artifact.filePath} pass its tests.
 ${
-  previous
-    ? `\nAn earlier agent stopped before the tests passed, leaving: ${previous.summary}. Its edits to the rule are already on disk, so continue from the current state rather than starting over.\n`
+  rejection
+    ? `\nAn earlier round was rejected, on a ground the agent that ran it could not always see: ${rejection}. What that agent reported: ${previous?.summary || '(it did not report back)'}. Any edits it made to the rule are already on disk, so continue from the current state rather than starting over.\n`
     : ''
 }
 \`\`\`
@@ -600,7 +605,18 @@ if (!rule) {
   )
 }
 
-log(`${rule.id} (${rule.sourceLanguage || 'unknown'}${rule.mode ? `, ${rule.mode} mode` : ''}) -> ${languages.join(', ')}, graded by semgrep ${semgrepVersion(rule.semgrepVersion) || '(unreported — every port will fail validation)'}`)
+// Every round measures the port against this version, so an unreadable one rejects every round
+// of every language on a condition that cannot change between them: MAX_VALIDATE_ROUNDS xhigh
+// agents per language, all refused for the same reason, knowable before the first one spawns.
+// The schema requires the field to be present, not to hold a version — "unknown" satisfies it.
+const baseline = semgrepVersion(rule.semgrepVersion)
+if (!baseline) {
+  throw new Error(
+    `No semgrep version could be read from the reader agent's report (${JSON.stringify(rule.semgrepVersion)}). Every port in a run is graded against the semgrep that read the rule, so without one each language would spend ${MAX_VALIDATE_ROUNDS} validation rounds being refused for the same reason. Check that \`semgrep --version\` runs on this machine, then re-run.`,
+  )
+}
+
+log(`${rule.id} (${rule.sourceLanguage || 'unknown'}${rule.mode ? `, ${rule.mode} mode` : ''}) -> ${languages.join(', ')}, graded by semgrep ${baseline}`)
 log(`${languages.length} language(s): 4 agents each when a port goes green first try, up to ${MAX_AGENTS_PER_LANGUAGE} when a verdict needs rechecking and validation needs its retries`)
 
 const results = await pipeline(
@@ -682,12 +698,13 @@ const results = await pipeline(
     if (prev.skipped || prev.unsupported || prev.stopped) return prev
 
     let validation = null
+    let rejection = ''
     let rounds = 0
 
     while (rounds < MAX_VALIDATE_ROUNDS) {
       rounds += 1
       const reported = await agent(
-        validatePrompt(language, prev.test, prev.artifact, validation),
+        validatePrompt(language, prev.test, prev.artifact, validation, rejection),
         {
           schema: VALIDATION_SCHEMA,
           effort: 'xhigh',
@@ -701,11 +718,11 @@ const results = await pipeline(
         : null
       if (validation?.passed) break
 
-      const why = validationFailure(reported, rule.semgrepVersion)
+      rejection = validationFailure(reported, rule.semgrepVersion)
       log(
         rounds < MAX_VALIDATE_ROUNDS
-          ? `${language}: validation round ${rounds} did not pass — ${why}; retrying`
-          : `${language}: still failing after ${MAX_VALIDATE_ROUNDS} validation rounds — ${why}`,
+          ? `${language}: validation round ${rounds} did not pass — ${rejection}; retrying`
+          : `${language}: still failing after ${MAX_VALIDATE_ROUNDS} validation rounds — ${rejection}`,
       )
     }
 
@@ -719,7 +736,7 @@ log(`${passed.length} passed, ${failed.length} failed validation, ${skipped.leng
 
 return {
   rule: rule.id,
-  semgrepVersion: semgrepVersion(rule.semgrepVersion),
+  semgrepVersion: baseline,
   passed: passed.map((r) => ({
     language: r.language,
     directory: r.dir,

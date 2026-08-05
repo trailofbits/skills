@@ -328,6 +328,22 @@ def parse_error(script: str) -> str:
     return "" if completed.returncode == 0 else completed.stderr
 
 
+def test_ci_has_node_so_the_script_is_never_left_unexecuted() -> None:
+    """Fail in CI when node is missing, rather than skipping every check that runs the script.
+
+    Everything here needing node skips without it: the parse check, the schema validation, both
+    node suites, and the whole mutation battery behind them. That is a green job that never
+    executed the script — the same hole `test_ci_has_semgrep_...` closes for the grader, and a
+    wider one, since node gates the only checks that run this script rather than reading it.
+    """
+    if os.environ.get("CI") != "true":
+        pytest.skip("not CI: the node checks may skip where node is not installed")
+    assert shutil.which("node"), (
+        "node is not on PATH in CI, so the parse check, the schema validation, both node suites "
+        "and the entire mutation battery skipped without running the script once"
+    )
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 def test_workflow_script_parses() -> None:
     """Every other check here is a pattern over text.
@@ -498,6 +514,18 @@ FAILURE_PATH_BREAKAGES = (
         # Without it, "Go and Java" ports one language named after the whole phrase.
         ("if (malformed.length > 0) {", "if (false) {"),
         id="accepting a phrase as a single language",
+    ),
+    pytest.param(
+        # Back to relaying only the agent's own words, which is what shipped: a round that went
+        # green on the wrong binary reports "clean" and the retry learns nothing it can act on.
+        ("could not always see: ${rejection}", "could not always see: (not relayed)"),
+        id="retrying without saying why the last round was refused",
+    ),
+    pytest.param(
+        # Without it the run reaches the loop and refuses every round of every language on a
+        # condition settled before the first agent spawned.
+        ("if (!baseline) {", "if (false) {"),
+        id="starting a run with no baseline semgrep version",
     ),
     pytest.param(
         # Collapsing the two argument guards back into one message, which opened by naming

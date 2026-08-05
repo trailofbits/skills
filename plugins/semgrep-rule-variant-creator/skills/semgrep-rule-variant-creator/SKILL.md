@@ -27,15 +27,18 @@ dynamic workflow rather than as instructions to re-follow each run:
 Pass all four arguments. One language per entry: `"Go and Java"` ports a single language
 named after the phrase, and the script rejects it.
 
-`referencesDir` has to be a resolved absolute path. Print it first and confirm it lists both
-reference files:
+`referencesDir` has to be a resolved absolute path. Print the directory, then confirm the
+reference files are inside it:
 
 ```
-ls "${CLAUDE_PLUGIN_ROOT}/skills/semgrep-rule-variant-creator/references"
+ls -d -- "${CLAUDE_PLUGIN_ROOT}/skills/semgrep-rule-variant-creator/references"
+ls -1 -- "${CLAUDE_PLUGIN_ROOT}/skills/semgrep-rule-variant-creator/references"
 ```
 
-Pass the value as printed above; it is already the real path. If that lists nothing, stop and
-say so rather than passing a path you have not seen resolve.
+Pass the path the first command printed; it is already absolute. The `-d` is the point — `ls`
+without it prints the names of the files inside the directory rather than the directory, which
+leaves nothing to copy. If either command errors, or you find yourself assembling the path by
+hand, stop and say so instead: a path that was never printed is a path nobody has seen resolve.
 
 ```json
 {

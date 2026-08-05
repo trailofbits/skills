@@ -331,6 +331,42 @@ test('validation retries and reports the round it passed on', async () => {
   assert.equal(calls.filter((c) => c === 'validate:Go').length, 2)
 })
 
+test('a rejected round tells the next one the ground the caller refused it on', async () => {
+  // Three of the four grounds are ones the agent that ran the round could not see. A round that
+  // went genuinely green on the wrong binary reports "clean", so relaying only its own words
+  // told the next round "an earlier agent stopped before the tests passed, leaving: clean" — a
+  // contradiction with nothing in it to act on, repeated until the retries ran out.
+  const { result, prompts } = await run({
+    args: BASE_ARGS,
+    stubs: {
+      validate: (_language, attempt) =>
+        attempt < 2
+          ? { testOutput: GREEN, semgrepVersion: '1.50.0', iterations: 1, summary: 'clean' }
+          : { testOutput: GREEN, semgrepVersion: VERSION, iterations: 2, summary: 'reran on the right binary' },
+    },
+  })
+
+  assert.equal(result.passed.length, 1)
+  const rounds = prompts.filter((p) => p.label === 'validate:Go')
+  assert.equal(rounds.length, 2, 'the retry round never ran')
+  assert.doesNotMatch(rounds[0].prompt, /rejected/, 'the first round has nothing behind it yet')
+  assert.match(rounds[1].prompt, /graded with semgrep 1\.50\.0, not the 1\.172\.0/)
+  assert.match(rounds[1].prompt, /could not always see/)
+})
+
+test('an unreadable semgrep version stops the run instead of burning every retry', async () => {
+  // The schema requires the field to be present, not to hold a version, so "unknown" satisfies
+  // it. Left to the loop this refuses every round of every language on a condition that cannot
+  // change between them — MAX_VALIDATE_ROUNDS xhigh agents each, all for the same reason.
+  const { error, calls } = await run({
+    args: { ...BASE_ARGS, languages: ['Go', 'Java'] },
+    stubs: { 'read-rule': () => ({ ...RULE, semgrepVersion: 'unknown' }) },
+  })
+
+  assert.match(error.message, /No semgrep version could be read/)
+  assert.deepEqual(calls, ['read-rule'], 'no language work should start without a baseline')
+})
+
 test('validation that never passes stops at the bound and lands in failed', async () => {
   const { result, calls } = await run({
     args: BASE_ARGS,

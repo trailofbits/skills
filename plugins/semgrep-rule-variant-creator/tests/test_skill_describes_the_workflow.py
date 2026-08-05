@@ -31,6 +31,10 @@ ARGS_KEY_RE = re.compile(r"\bargs\??\.(\w+)")
 BASEDIR_PATH_RE = re.compile(r"\{baseDir\}/([A-Za-z0-9_./-]+)")
 # The value SKILL.md's argument block tells the caller to hand `referencesDir`.
 HANDOVER_RE = re.compile(r'"referencesDir"\s*:\s*"([^"]*)"')
+# A command that prints the directory itself. `ls <dir>` prints the names of the files inside
+# it, so a caller told to pass "the value as printed" has no path to copy and assembles one by
+# hand — which clears both script guards and still names a directory that is not there.
+PATH_PRINTING_RE = re.compile(r"ls\s+-[a-zA-Z]*d[a-zA-Z]*\s[^\n]*CLAUDE_PLUGIN_ROOT")
 # Reference files the script's prompts tell an agent to read.
 SCRIPT_REFERENCE_RE = re.compile(r"reference\('([A-Za-z0-9_.-]+\.md)'")
 
@@ -78,9 +82,10 @@ def check_every_arg_the_script_reads_is_documented(
 ) -> list[str]:
     """Check the skill names every argument the workflow requires.
 
-    The skill is the only place that can supply them: invoking the slash command passes the
-    user's trailing text through as a single string, so an argument the skill never names is
-    an argument nobody can pass.
+    Invoking the workflow means assembling an `args` object from what the skill documents — the
+    runtime hands it to the script as structured data rather than as text the script parses. So
+    an argument the skill never names is one nobody knows to put there, and the script's own
+    pre-flight guards are all that stands between that and a run made without it.
     """
     keys = sorted(set(ARGS_KEY_RE.findall(script)))
     if not keys:
@@ -121,6 +126,11 @@ def check_the_skill_hands_over_its_references(skill: str, readme: str, script: s
     if "CLAUDE_PLUGIN_ROOT" not in skill:
         errors.append(
             "SKILL.md does not show how to resolve the references directory to a real path"
+        )
+    elif not PATH_PRINTING_RE.search(skill):
+        errors.append(
+            "SKILL.md resolves the references directory with a command that never prints it; "
+            "`ls <dir>` lists the files inside the directory, so the caller has no path to copy"
         )
     return errors
 
@@ -229,6 +239,15 @@ BREAKAGES = (
         # placeholder in the block is the only remaining instruction.
         ("${CLAUDE_PLUGIN_ROOT}", "the plugin directory"),
         id="dropping the step that resolves the references path",
+    ),
+    pytest.param(
+        check_the_skill_hands_over_its_references,
+        "skill",
+        # Dropping the `-d` leaves a command that looks like it resolves the path and prints the
+        # names of the files inside it instead. This shipped: the instruction said to pass the
+        # value as printed when nothing had printed a path.
+        ('ls -d -- "${CLAUDE_PLUGIN_ROOT}', 'ls -- "${CLAUDE_PLUGIN_ROOT}'),
+        id="resolving the references path with a command that never prints it",
     ),
     pytest.param(
         check_basedir_paths_resolve,

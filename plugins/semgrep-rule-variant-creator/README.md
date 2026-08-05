@@ -178,6 +178,7 @@ then tells a reader that a guard they are looking for has nothing behind it.
 | Hand `referencesDir` a token no workflow can expand | `check_the_skill_hands_over_its_references` |
 | Drop `referencesDir` from the argument block | `check_the_skill_hands_over_its_references` |
 | Drop the step that resolves the references path | `check_the_skill_hands_over_its_references` |
+| Resolve that path with a command that never prints it | `check_the_skill_hands_over_its_references` |
 | Link a `{baseDir}` reference that does not exist | `check_basedir_paths_resolve` |
 | Rename a reference in the skill but not the script | `check_references_the_script_uses_are_linked` |
 | Rewrite the description into something vague | `test_description_check_rejects_a_vague_description` |
@@ -197,6 +198,8 @@ then tells a reader that a guard they are looking for has nothing behind it.
 | Report a lost language as a count that names nothing | `workflow-failure-paths.test.mjs` |
 | Lose the error that names the language list | `workflow-failure-paths.test.mjs` |
 | Accept a phrase or a spelled-out name as one language | `workflow-failure-paths.test.mjs` |
+| Retry without saying why the last round was refused | `workflow-failure-paths.test.mjs` |
+| Start a run with no baseline semgrep version | `workflow-failure-paths.test.mjs` |
 | Unpin an effort level | `workflow-failure-paths.test.mjs` |
 | Let a run proceed without the references | `workflow-failure-paths.test.mjs` |
 
