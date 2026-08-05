@@ -23,21 +23,27 @@ python3 "$TESTS_DIR/score.py" --self-test
 echo "→ aggregator self-test"
 python3 "$TESTS_DIR/summarize.py" --self-test
 
-# The workflow is the only JavaScript in this repo and nothing in CI parses it, so a
-# syntax error would surface only inside a paid eval.sh run. `node --check` is free and
-# offline. Skipped rather than failed where node is absent: this suite must stay green on
-# a machine that has no reason to have it.
+# The workflow is not standalone-valid JS in either module system: the runtime
+# executes it as an async function body (so top-level `return` is legal) and
+# separately reads the `export const meta`. `node --check` cannot model that —
+# .js/CJS rejects the export, .mjs/ESM rejects the return. So reproduce the
+# runtime's shape: demote `export` to a plain declaration and parse the source
+# as an AsyncFunction body. Syntax check only; nothing is executed.
 echo "→ workflow syntax"
 if command -v node >/dev/null 2>&1; then
-  # Copied to .mjs first. The file's first statement is `export const meta`, and
-  # `node --check` on a .js file only accepts that on a Node new enough to detect module
-  # syntax (~22.7+); older Nodes reject valid workflows with "Unexpected token 'export'".
-  # The extension removes the ambiguity, so this does not depend on the runner's Node.
-  MJS="$(mktemp -t variants.XXXXXX).mjs"
-  trap 'rm -f "$MJS"' EXIT
-  cp "$TESTS_DIR/../workflows/variants.js" "$MJS"
-  node --check "$MJS"
-  echo "  ✓ workflows/variants.js parses"
+  node -e '
+    const fs = require("fs");
+    const src = fs.readFileSync(process.argv[1], "utf8");
+    const body = src.replace(/^export[ \t]+(?=const|let|var|function|async|class)/gm, "");
+    const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+    try {
+      new AsyncFunction(body);
+      console.log("  ✓ workflows/variants.js parses");
+    } catch (e) {
+      console.error("  ✗ workflows/variants.js: " + e.message);
+      process.exit(1);
+    }
+  ' "$TESTS_DIR/../workflows/variants.js"
 else
   echo "  - node not on PATH; skipping"
 fi
