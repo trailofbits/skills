@@ -47,7 +47,7 @@
     },
     {
       "name": "constant-time-analysis",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "description": "Detect compiler-induced timing side-channels in cryptographic code",
       "author": {
         "name": "Scott Arciszewski",
@@ -186,8 +186,8 @@
     },
     {
       "name": "spec-to-code-compliance",
-      "description": "Specification-to-code compliance checker for blockchain audits with evidence-based alignment analysis",
-      "version": "1.1.1",
+      "description": "Check code against the documentation that specifies it: one agent per requirement, divergences refuted before they are reported, evidence cited to the line",
+      "version": "2.0.0",
       "author": {
         "name": "Omar Inuwa"
       },
@@ -214,7 +214,7 @@
     },
     {
       "name": "variant-analysis",
-      "version": "1.0.1",
+      "version": "2.0.1",
       "description": "Find similar vulnerabilities and bugs across codebases using pattern-based analysis",
       "author": {
         "name": "Axel Mierczuk"
@@ -252,7 +252,7 @@
     },
     {
       "name": "insecure-defaults",
-      "version": "1.0.1",
+      "version": "2.0.0",
       "description": "Detects insecure default configurations including hardcoded credentials, fallback secrets, weak authentication defaults, and dangerous values in production",
       "author": {
         "name": "Trail of Bits",
