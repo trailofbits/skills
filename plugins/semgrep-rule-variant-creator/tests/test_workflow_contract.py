@@ -439,7 +439,7 @@ FAILURE_PATH_BREAKAGES = (
         id="capping the retry loop at a single round",
     ),
     pytest.param(
-        ("validationPassed(reported, rule.semgrepVersion)", "reported.passed"),
+        ("validationPassed(reported, rule.semgrepVersion, prev.stem)", "reported.passed"),
         id="trusting the agent's self-reported pass",
     ),
     pytest.param(
@@ -452,6 +452,12 @@ FAILURE_PATH_BREAKAGES = (
     pytest.param(
         ("if (SKIPPED_RATHER_THAN_RUN.test(output)) {", "if (false) {"),
         id="accepting a green over a rule semgrep skipped",
+    ),
+    pytest.param(
+        # Back to trusting the summary line, which is what shipped: "All tests passed" is also
+        # what semgrep prints over a spec with no annotations left in it.
+        ("return gradingFailure(validation?.testJson, stem)", "return ''"),
+        id="accepting a green over a spec that graded no annotation",
     ),
     pytest.param(
         ("if (assessment.semgrepCanAnalyze === false) {", "if (false) {"),

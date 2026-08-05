@@ -40,6 +40,26 @@ const RULE = {
   semgrepVersion: VERSION,
 }
 
+// Mirrors the script's naming, `${rule.id}-${slug(canonicalLanguage(semgrepLanguage))}`, with only
+// the aliases these scenarios use. If the script's naming moves, the stub's JSON stops matching
+// the stem the script looks up and these tests go red rather than quietly agreeing.
+const CANONICAL = { golang: 'go', 'c#': 'csharp', 'c++': 'cpp' }
+
+function stemFor(semgrepLanguage) {
+  const key = CANONICAL[semgrepLanguage] || semgrepLanguage
+  return `${RULE.id}-${key.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
+}
+
+/** `semgrep --test --json` showing this variant's spec graded clean. */
+function gradedJson(semgrepLanguage) {
+  const stem = stemFor(semgrepLanguage)
+  const matches = { [`/out/${stem}/${stem}.src`]: { expected_lines: [3, 7], reported_lines: [3, 7] } }
+  return JSON.stringify({
+    config_with_errors: [],
+    results: { [`${stem}.yaml`]: { checks: { [stem]: { passed: true, matches } } } },
+  })
+}
+
 /** Result shapes keyed by the stage label prefix, so a scenario overrides only what it cares about. */
 function defaults() {
   return {
@@ -54,8 +74,9 @@ function defaults() {
     refute: () => ({ refuted: false, reasoning: 'the verdict holds' }),
     test: (language) => ({ filePath: `${language}/test`, summary: '2 ruleid, 2 ok' }),
     translate: (language) => ({ filePath: `${language}/rule.yaml`, summary: 'taint rule' }),
-    validate: () => ({
+    validate: (language) => ({
       testOutput: GREEN,
+      testJson: gradedJson(language.toLowerCase()),
       semgrepVersion: VERSION,
       command: 'semgrep --test --config rule.yaml test',
       iterations: 1,
@@ -342,7 +363,7 @@ test('validation retries and reports the round it passed on', async () => {
       validate: (_language, attempt) =>
         attempt < 2
           ? { testOutput: '✗ missed lines: [15]', semgrepVersion: VERSION, iterations: 1, summary: 'pattern too narrow' }
-          : { testOutput: GREEN, semgrepVersion: VERSION, iterations: 3, summary: 'widened the sink' },
+          : { testOutput: GREEN, testJson: gradedJson('go'), semgrepVersion: VERSION, iterations: 3, summary: 'widened the sink' },
     },
   })
 
@@ -362,7 +383,7 @@ test('a rejected round tells the next one the ground the caller refused it on', 
       validate: (_language, attempt) =>
         attempt < 2
           ? { testOutput: GREEN, semgrepVersion: '1.50.0', iterations: 1, summary: 'clean' }
-          : { testOutput: GREEN, semgrepVersion: VERSION, iterations: 2, summary: 'reran on the right binary' },
+          : { testOutput: GREEN, testJson: gradedJson('go'), semgrepVersion: VERSION, iterations: 2, summary: 'reran on the right binary' },
     },
   })
 
@@ -495,6 +516,66 @@ test('a green over a rule semgrep skipped rather than ran is not a pass', async 
   assert.match(result.failed[0].reason, /skipped the rule rather than running it/)
 })
 
+test('a green over a spec that graded no annotation is not a pass', async () => {
+  // The third vacuous green, and the one the live path accepted while the golden-fixture grader
+  // rejected it. Two routes here: a test agent that writes no `ruleid:` comments, and — because
+  // validatePrompt permits fixing a wrong test case — a validate agent three rounds deep deleting
+  // the annotation it cannot satisfy. Both leave semgrep printing "All tests passed" over nothing.
+  const stem = 'python-command-injection-go'
+  const emptyJson = JSON.stringify({
+    config_with_errors: [],
+    results: {
+      [`${stem}.yaml`]: {
+        checks: {
+          [stem]: {
+            passed: true,
+            matches: { [`/out/${stem}/${stem}.src`]: { expected_lines: [], reported_lines: [] } },
+          },
+        },
+      },
+    },
+  })
+
+  const { result } = await run({
+    args: BASE_ARGS,
+    stubs: {
+      validate: () => ({
+        testOutput: GREEN,
+        testJson: emptyJson,
+        semgrepVersion: VERSION,
+        command: 'semgrep --test --config rule.yaml test',
+        iterations: 1,
+        summary: 'clean',
+      }),
+    },
+  })
+
+  assert.equal(result.passed.length, 0, 'semgrep graded nothing, so its green means nothing')
+  assert.equal(result.failed.length, 1)
+  assert.match(result.failed[0].reason, /no annotated lines/)
+})
+
+test('a green whose rule id never appears in the graded checks is not a pass', async () => {
+  // The rule semgrep never applied: `ruleid:` naming the original rule rather than this variant's
+  // stem puts the check under a different key, and the summary line still reads clean.
+  const { result } = await run({
+    args: BASE_ARGS,
+    stubs: {
+      validate: () => ({
+        testOutput: GREEN,
+        testJson: gradedJson('python'),
+        semgrepVersion: VERSION,
+        command: 'semgrep --test --config rule.yaml test',
+        iterations: 1,
+        summary: 'clean',
+      }),
+    },
+  })
+
+  assert.equal(result.passed.length, 0)
+  assert.match(result.failed[0].reason, /graded no check under python-command-injection-go/)
+})
+
 test('a self-reported pass with no semgrep output in it is not a pass', async () => {
   // The F2 guard: the verdict is read out of semgrep's words, not the agent's claim.
   const { result } = await run({
@@ -539,7 +620,7 @@ test('one language failing leaves the others unaffected', async () => {
       validate: (language) =>
         language === 'Java'
           ? { testOutput: '✗ incorrect lines: [30]', semgrepVersion: VERSION, iterations: 2, summary: 'too broad' }
-          : { testOutput: GREEN, semgrepVersion: VERSION, iterations: 1, summary: 'clean' },
+          : { testOutput: GREEN, testJson: gradedJson('go'), semgrepVersion: VERSION, iterations: 1, summary: 'clean' },
     },
   })
 

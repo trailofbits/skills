@@ -58,10 +58,12 @@ function load(name, ...preamble) {
 const VALIDATION_DEPS = [
   extractLineConst('SKIPPED_RATHER_THAN_RUN'),
   extract('semgrepVersion'),
+  extract('gradingFailure'),
 ]
 
 const slug = load('slug')
 const semgrepVersion = load('semgrepVersion')
+const gradingFailure = load('gradingFailure')
 const canonicalLanguage = load('canonicalLanguage', extractTable('CANONICAL_BY_LANGUAGE'))
 const partition = load('partition')
 const validationFailure = load('validationFailure', ...VALIDATION_DEPS)
@@ -75,6 +77,16 @@ const testFileExtension = load(
 // The semgrep the rule was read with. A port is only green when the same one graded it.
 const VERSION = '1.172.0'
 const GREEN = '1/1: ✓ All tests passed'
+const STEM = 'python-command-injection-go'
+
+/** `semgrep --test --json` for a spec that graded clean, with the check's fields overridable. */
+function gradedJson(check = {}, stem = STEM) {
+  const matches = { [`/out/${stem}/${stem}.go`]: { expected_lines: [3, 7], reported_lines: [3, 7] } }
+  return JSON.stringify({
+    config_with_errors: [],
+    results: { [`${stem}.yaml`]: { checks: { [stem]: { passed: true, matches, ...check } } } },
+  })
+}
 
 test('extraction fails loudly when a function is gone', () => {
   assert.throws(() => load('noSuchFunction'), /no function noSuchFunction/)
@@ -223,33 +235,67 @@ test('semgrepVersion reads the version semgrep printed, not the first triple in 
 })
 
 test('validationPassed reads semgrep output rather than a self-reported boolean', () => {
-  const at = (testOutput) => ({ testOutput, semgrepVersion: VERSION })
-  assert.equal(validationPassed(at(GREEN), VERSION), true)
-  assert.equal(validationPassed(at('✗ python-command-injection-go\n missed lines: [15]'), VERSION), false)
-  assert.equal(validationPassed({ testOutput: '', passed: true, semgrepVersion: VERSION }, VERSION), false, 'a claimed pass is not a pass')
-  assert.equal(validationPassed({}, VERSION), false)
-  assert.equal(validationPassed(null, VERSION), false)
+  const at = (testOutput) => ({ testOutput, semgrepVersion: VERSION, testJson: gradedJson() })
+  assert.equal(validationPassed(at(GREEN), VERSION, STEM), true)
+  assert.equal(validationPassed(at('✗ python-command-injection-go\n missed lines: [15]'), VERSION, STEM), false)
+  assert.equal(validationPassed({ testOutput: '', passed: true, semgrepVersion: VERSION }, VERSION, STEM), false, 'a claimed pass is not a pass')
+  assert.equal(validationPassed({}, VERSION, STEM), false)
+  assert.equal(validationPassed(null, VERSION, STEM), false)
+})
+
+test('validationPassed rejects a green whose spec graded no annotation', () => {
+  // The third vacuous green, and the one the live path used to accept while the golden-fixture
+  // grader rejected it. A spec with no `ruleid:` comments, or one keyed on the original rule id
+  // instead of this variant's stem, grades zero and still ends in "All tests passed".
+  const at = (testJson) => ({ testOutput: GREEN, semgrepVersion: VERSION, testJson })
+
+  assert.equal(
+    validationPassed(at(gradedJson({ matches: { [`/out/${STEM}/${STEM}.go`]: { expected_lines: [], reported_lines: [] } } })), VERSION, STEM),
+    false,
+    'nothing annotated is not a pass',
+  )
+  assert.match(
+    validationFailure(at(gradedJson({ matches: { [`/out/${STEM}/${STEM}.go`]: { expected_lines: [], reported_lines: [] } } })), VERSION, STEM),
+    /no annotated lines/,
+  )
+
+  // Annotations the rule never matched, reported under a summary line that says otherwise.
+  assert.match(
+    validationFailure(at(gradedJson({ passed: false, matches: { [`/out/${STEM}/${STEM}.go`]: { expected_lines: [3, 7], reported_lines: [3] } } })), VERSION, STEM),
+    /expected matches on lines \[3,7\], semgrep reported \[3\]/,
+  )
+
+  // A rule semgrep never applied: the id is absent from `checks` entirely.
+  assert.match(validationFailure(at(gradedJson({}, 'some-other-stem')), VERSION, STEM), /graded no check under/)
+
+  // And silence fails closed, the same standing an unreported version has.
+  assert.match(validationFailure(at('not json at all'), VERSION, STEM), /did not parse/)
+  assert.match(validationFailure(at(''), VERSION, STEM), /did not parse/)
+})
+
+test('gradingFailure accepts a real green, so the checks above are not rejecting everything', () => {
+  assert.equal(gradingFailure(gradedJson(), STEM), '')
 })
 
 test('validationPassed rejects a pass graded by a different semgrep', () => {
   // The observed failure: an agent that could not make its Elixir tests pass installed semgrep
   // 1.50.0, the last OSS build shipping the Elixir parser, and reported its genuine green.
   // The words were semgrep's; the binary was not the one the rule has to run under.
-  assert.equal(validationPassed({ testOutput: GREEN, semgrepVersion: '1.50.0' }, VERSION), false)
+  assert.equal(validationPassed({ testOutput: GREEN, semgrepVersion: '1.50.0' }, VERSION, STEM), false)
   assert.match(
-    validationFailure({ testOutput: GREEN, semgrepVersion: '1.50.0' }, VERSION),
+    validationFailure({ testOutput: GREEN, semgrepVersion: '1.50.0' }, VERSION, STEM),
     /graded with semgrep 1\.50\.0, not the 1\.172\.0/,
   )
 
   // Tolerant of how the version is reported, strict about which one it is.
-  assert.equal(validationPassed({ testOutput: GREEN, semgrepVersion: 'semgrep 1.172.0' }, VERSION), true)
+  assert.equal(validationPassed({ testOutput: GREEN, semgrepVersion: 'semgrep 1.172.0', testJson: gradedJson() }, VERSION, STEM), true)
 })
 
 test('validationPassed fails when it cannot tell which semgrep spoke', () => {
   // A check that cannot identify the binary has not checked anything, so silence is a failure.
-  assert.equal(validationPassed({ testOutput: GREEN }, VERSION), false)
-  assert.equal(validationPassed({ testOutput: GREEN, semgrepVersion: VERSION }, ''), false)
-  assert.match(validationFailure({ testOutput: GREEN, semgrepVersion: VERSION }, ''), /no baseline/)
+  assert.equal(validationPassed({ testOutput: GREEN }, VERSION, STEM), false)
+  assert.equal(validationPassed({ testOutput: GREEN, semgrepVersion: VERSION }, '', STEM), false)
+  assert.match(validationFailure({ testOutput: GREEN, semgrepVersion: VERSION }, '', STEM), /no baseline/)
 })
 
 test('validationPassed rejects a green from a rule semgrep skipped rather than ran', () => {
@@ -260,7 +306,7 @@ test('validationPassed rejects a green from a rule semgrep skipped rather than r
     '1 rule(s) were skipped because they require Pro (try `--pro`)\n1/1: ✓ All tests passed',
   ]
   for (const testOutput of skipped) {
-    assert.equal(validationPassed({ testOutput, semgrepVersion: VERSION }, VERSION), false, testOutput)
+    assert.equal(validationPassed({ testOutput, semgrepVersion: VERSION, testJson: gradedJson() }, VERSION, STEM), false, testOutput)
   }
 
   // Noise that must NOT fail a green port. All of it can appear in the last 20 lines an agent
@@ -274,13 +320,13 @@ test('validationPassed rejects a green from a rule semgrep skipped rather than r
   ]
   for (const testOutput of green) {
     assert.equal(
-      validationPassed({ testOutput, semgrepVersion: VERSION }, VERSION),
+      validationPassed({ testOutput, semgrepVersion: VERSION, testJson: gradedJson() }, VERSION, STEM),
       true,
       testOutput,
     )
   }
   assert.match(
-    validationFailure({ testOutput: skipped[1], semgrepVersion: VERSION }, VERSION),
+    validationFailure({ testOutput: skipped[1], semgrepVersion: VERSION }, VERSION, STEM),
     /skipped the rule rather than running it/,
   )
 })

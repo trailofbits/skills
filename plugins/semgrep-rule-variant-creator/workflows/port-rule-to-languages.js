@@ -133,11 +133,19 @@ const ARTIFACT_SCHEMA = {
 // was not the one the rule has to run under.
 const VALIDATION_SCHEMA = {
   type: 'object',
-  required: ['testOutput', 'semgrepVersion', 'command', 'iterations', 'summary'],
+  required: ['testOutput', 'testJson', 'semgrepVersion', 'command', 'iterations', 'summary'],
   properties: {
     testOutput: {
       type: 'string',
       description: 'The final semgrep --test run output, verbatim, last 20 lines or fewer',
+    },
+    // Required, because "All tests passed" is also what semgrep prints over a spec with nothing
+    // annotated. Carried as the tool's own text rather than a shape the agent fills in, for the
+    // reason `passed` is absent: the agent reports what semgrep said, the script reads the verdict.
+    testJson: {
+      type: 'string',
+      description:
+        'The complete stdout of `semgrep --test --json --config <rule> <test>`, verbatim and unedited',
     },
     semgrepVersion: {
       type: 'string',
@@ -357,6 +365,56 @@ function semgrepVersion(reported) {
 }
 
 /**
+ * Return why semgrep's JSON does not show this variant's spec graded clean, or '' when it does.
+ *
+ * The text and version checks establish that semgrep ran and which binary spoke. Neither
+ * establishes that an annotation was graded, and that is the third vacuous green: a spec with no
+ * `ruleid:` comments, or one naming the original rule instead of this variant, grades zero and
+ * still ends in "All tests passed". The validate prompt also allows fixing a wrong test case, so
+ * an agent out of ideas can delete the annotation it cannot satisfy and go green. The golden
+ * fixtures are already judged this way in test_port_rule_workflow.py; this is the same verdict on
+ * the path that actually produces ports.
+ *
+ * Targets are matched on `<stem>.` because the spec is always `${stem}.${extension}` and the
+ * rule id is the stem, so the filename never has to be threaded through the pipeline.
+ */
+function gradingFailure(reported, stem) {
+  let report
+  try {
+    report = JSON.parse(reported || '')
+  } catch {
+    return 'the --test --json output did not parse, so nothing shows an annotation was graded'
+  }
+
+  if (report?.config_with_errors?.length) return 'semgrep could not load the rule itself'
+
+  // hasOwn, for the reason testFileExtension uses it: `constructor` resolves on any object.
+  const checks = Object.values(report?.results || {})
+    .map((entry) => entry?.checks || {})
+    .find((candidate) => Object.hasOwn(candidate, stem))
+  if (!checks) {
+    return `semgrep graded no check under ${stem}, so it skipped the rule rather than running it`
+  }
+
+  const check = checks[stem]
+  const graded = Object.entries(check?.matches || {}).find(([target]) =>
+    String(target).split('/').pop().startsWith(`${stem}.`),
+  )
+  if (!graded) return `no target named ${stem}.* is among the files semgrep graded`
+
+  const expected = graded[1]?.expected_lines || []
+  const found = graded[1]?.reported_lines || []
+  if (expected.length === 0) {
+    return `${graded[0].split('/').pop()} has no annotated lines, so a pass over it grades nothing`
+  }
+  if (expected.join(',') !== found.join(',')) {
+    return `expected matches on lines [${expected}], semgrep reported [${found}]`
+  }
+  if (!check.passed) return `semgrep marked ${stem} failed`
+  return ''
+}
+
+/**
  * Return why the validation did not pass, or an empty string when it did.
  *
  * Read out of semgrep's own output rather than a self-reported boolean, and out of the same
@@ -368,7 +426,7 @@ function semgrepVersion(reported) {
  * An unreported version fails rather than passes. A check that cannot tell which semgrep spoke
  * has not checked anything.
  */
-function validationFailure(validation, expectedVersion) {
+function validationFailure(validation, expectedVersion, stem) {
   const output = validation?.testOutput || ''
   if (!output) return 'the agent did not report back'
   if (SKIPPED_RATHER_THAN_RUN.test(output)) {
@@ -388,11 +446,11 @@ function validationFailure(validation, expectedVersion) {
   if (got !== want) {
     return `graded with semgrep ${got || '(unreported)'}, not the ${want} this port is measured against`
   }
-  return ''
+  return gradingFailure(validation?.testJson, stem)
 }
 
-function validationPassed(validation, expectedVersion) {
-  return validationFailure(validation, expectedVersion) === ''
+function validationPassed(validation, expectedVersion, stem) {
+  return validationFailure(validation, expectedVersion, stem) === ''
 }
 
 // Splits the pipeline's results. A stage that throws drops its item to null, so filtering
@@ -490,7 +548,11 @@ ${reference('language-syntax-guide.md', 'covers translating patterns across lang
 // `rejection` has to travel: three of the four grounds are ones the previous agent could not
 // see. A round that went green on the wrong binary reports "clean", so relaying only its own
 // words told the retry "stopped before the tests passed, leaving: clean" and nothing to act on.
-function validatePrompt(language, test, artifact, previous, rejection) {
+// Takes the pipeline item rather than its fields: the prompt needs the test file, the rule, and
+// the stem the annotations are keyed on, and spreading those into positional parameters puts this
+// over the five-argument limit.
+function validatePrompt(language, ported, previous, rejection) {
+  const { test, artifact, stem } = ported
   return `Make the ${language} Semgrep rule at ${artifact.filePath} pass its tests.
 ${
   rejection
@@ -500,6 +562,7 @@ ${
 \`\`\`
 semgrep --validate --config ${artifact.filePath}
 semgrep --test --config ${artifact.filePath} ${test.filePath}
+semgrep --test --json --config ${artifact.filePath} ${test.filePath}
 \`\`\`
 
 Read what the failure tells you: missed lines mean the pattern is narrower than the vulnerability, incorrect lines mean it is broader. For taint rules, \`semgrep --dataflow-traces -f ${artifact.filePath} ${test.filePath}\` shows where taint stops flowing. Edit the rule and re-run until semgrep reports that all tests passed.
@@ -513,6 +576,8 @@ The semgrep already on PATH is the acceptance criterion. Do not install, pin, do
 Report the output of the final \`semgrep --test\` run verbatim as testOutput, trimmed to its last 20 lines if it is longer than that. Do not summarise it or restate the verdict in your own words there: the caller decides whether the port passed by reading semgrep's own words. Report the exact command you ran, and what \`semgrep --version\` prints for the binary that ran it. Also report how many test runs it took and what you changed.
 
 One exception to the last-20-lines trim. If the run printed a line saying rules were skipped, or naming a missing plugin or a missing Semgrep extension, include that line in testOutput too, wherever in the output it appeared. Semgrep prints those above the per-target results, so a tail can cut them off — and they are how the caller tells a rule semgrep graded from one it never ran, which otherwise also ends in "All tests passed".
+
+Then run the same test once more with \`--json\` and report its complete stdout verbatim as testJson. Do not trim, reformat or summarise it. The caller reads which lines semgrep expected and which it actually matched out of that structure, because "All tests passed" is what semgrep prints over a spec with nothing annotated too — so a run whose annotations went missing, or whose \`ruleid:\` names the original rule rather than \`${stem}\`, reads as a pass in the summary line and as graded-nothing here.
 
 ${SCOPE}`
 }
@@ -712,7 +777,7 @@ const results = await pipeline(
     while (rounds < MAX_VALIDATE_ROUNDS) {
       rounds += 1
       const reported = await agent(
-        validatePrompt(language, prev.test, prev.artifact, validation, rejection),
+        validatePrompt(language, prev, validation, rejection),
         {
           schema: VALIDATION_SCHEMA,
           effort: 'xhigh',
@@ -722,11 +787,11 @@ const results = await pipeline(
       )
 
       validation = reported
-        ? { ...reported, passed: validationPassed(reported, rule.semgrepVersion) }
+        ? { ...reported, passed: validationPassed(reported, rule.semgrepVersion, prev.stem) }
         : null
       if (validation?.passed) break
 
-      rejection = validationFailure(reported, rule.semgrepVersion)
+      rejection = validationFailure(reported, rule.semgrepVersion, prev.stem)
       log(
         rounds < MAX_VALIDATE_ROUNDS
           ? `${language}: validation round ${rounds} did not pass — ${rejection}; retrying`
@@ -757,7 +822,7 @@ return {
     language: r.language,
     directory: r.dir,
     validationRounds: r.rounds,
-    reason: validationFailure(r.validation, rule.semgrepVersion),
+    reason: validationFailure(r.validation, rule.semgrepVersion, r.stem),
   })),
   notApplicable: skipped.map((r) => ({ language: r.language, reasoning: r.assessment.reasoning })),
   // Distinct from notApplicable: the pattern may port perfectly well and semgrep still cannot

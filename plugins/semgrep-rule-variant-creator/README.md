@@ -187,6 +187,7 @@ then tells a reader that a guard they are looking for has nothing behind it.
 | Trust the agent's self-reported pass | `workflow-failure-paths.test.mjs` |
 | Accept a pass graded by a different semgrep | `workflow-failure-paths.test.mjs` |
 | Accept a green over a rule semgrep skipped | `workflow-failure-paths.test.mjs` |
+| Accept a green over a spec that graded no annotation | `workflow-failure-paths.test.mjs` |
 | Port to a language semgrep cannot parse | `workflow-failure-paths.test.mjs` |
 | Treat a dead refuter as an upheld verdict | `workflow-failure-paths.test.mjs` |
 | Let two languages share one output directory | `workflow-failure-paths.test.mjs` |
