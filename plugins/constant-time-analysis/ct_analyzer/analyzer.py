@@ -32,6 +32,7 @@ Examples:
 import argparse
 import json
 import os
+import platform
 import re
 import subprocess
 import sys
@@ -39,6 +40,7 @@ import tempfile
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import TypedDict
 
 
 class Severity(Enum):
@@ -50,6 +52,31 @@ class OutputFormat(Enum):
     TEXT = "text"
     JSON = "json"
     GITHUB = "github"
+
+
+class ParsedFunction(TypedDict):
+    """A function or method seen while parsing, with its instruction count.
+
+    Previously a bare `dict`, which typed the values as `str | int` and made the
+    `functions[-1]["instructions"] += 1` counter in every parser look like string
+    addition to a type checker.
+    """
+
+    name: str
+    instructions: int
+
+
+def is_error(violation: "Violation") -> bool:
+    """True when `violation` is error severity, compared by value.
+
+    `analyzer.py` is documented to be run as a script, which makes this module
+    `__main__` while `script_analyzers` imports it again as `analyzer`. Each copy
+    defines its own `Severity` enum, so `severity is Severity.ERROR` is False for
+    every finding produced by a scripting-language backend. That printed all six
+    PHP errors as `[WARN]` while the summary line counted them as errors —
+    downgrading real findings in the output a reviewer actually reads.
+    """
+    return violation.severity.value == Severity.ERROR.value
 
 
 @dataclass
@@ -80,15 +107,47 @@ class AnalysisReport:
 
     @property
     def error_count(self) -> int:
-        return sum(1 for v in self.violations if v.severity == Severity.ERROR)
+        return sum(1 for v in self.violations if is_error(v))
 
     @property
     def warning_count(self) -> int:
-        return sum(1 for v in self.violations if v.severity == Severity.WARNING)
+        return sum(1 for v in self.violations if not is_error(v))
 
     @property
     def passed(self) -> bool:
         return self.error_count == 0
+
+
+# Compiler-provided division routines. A target without a hardware divider does
+# not emit a division instruction at all: gcc calls a libgcc helper, so the
+# mnemonic is an ordinary `bl`/`call` and the instruction tables never match.
+# armv7-a is the common case — `key_coef / (2 * gamma2)` becomes
+# `bl __aeabi_idiv` — and __divti3 appears on x86_64 for __int128 division, which
+# crypto code does use. These routines loop over the operands, so they are more
+# operand-dependent than the hardware instruction they replace, and reporting
+# PASSED for them is the worst kind of false negative.
+DIVISION_HELPERS = {
+    # Arm EABI
+    "__aeabi_idiv",
+    "__aeabi_uidiv",
+    "__aeabi_idivmod",
+    "__aeabi_uidivmod",
+    "__aeabi_ldivmod",
+    "__aeabi_uldivmod",
+    # libgcc / compiler-rt, by operand width
+    "__divsi3",
+    "__udivsi3",
+    "__modsi3",
+    "__umodsi3",
+    "__divdi3",
+    "__udivdi3",
+    "__moddi3",
+    "__umoddi3",
+    "__divti3",
+    "__udivti3",
+    "__modti3",
+    "__umodti3",
+}
 
 
 # Architecture-specific dangerous instructions
@@ -159,10 +218,20 @@ DANGEROUS_INSTRUCTIONS = {
             # Note: Even with DIT (Data Independent Timing) enabled, division is NOT constant-time
             "udiv": "UDIV has early termination optimization; execution time depends on operand values",
             "sdiv": "SDIV has early termination optimization; execution time depends on operand values",
+            # Go's assembler writes arm64 in Plan 9 syntax, which puts the operand
+            # width in the mnemonic instead of the register name: a 32-bit divide
+            # is SDIVW, not `sdiv w0, w0, w1`. Without these, `int32 / int32` — the
+            # shape of every polynomial coefficient divide — read as clean on Go.
+            "udivw": "UDIVW has early termination optimization; execution time depends on operand values",
+            "sdivw": "SDIVW has early termination optimization; execution time depends on operand values",
             # Floating-point division
             "fdiv": "FDIV (FP division) has variable latency based on operand values",
+            "fdivs": "FDIVS (FP division) has variable latency based on operand values",
+            "fdivd": "FDIVD (FP division) has variable latency based on operand values",
             # Square root
             "fsqrt": "FSQRT has variable latency based on operand values",
+            "fsqrts": "FSQRTS has variable latency based on operand values",
+            "fsqrtd": "FSQRTD has variable latency based on operand values",
         },
         "warnings": {
             # Conditional branches
@@ -371,8 +440,6 @@ def normalize_arch(arch: str) -> str:
 
 def get_native_arch() -> str:
     """Get the native architecture of the current system."""
-    import platform
-
     machine = platform.machine().lower()
     return normalize_arch(machine)
 
@@ -444,10 +511,23 @@ class Compiler:
         output_file: str,
         arch: str,
         optimization: str,
-        extra_flags: list[str] = None,
+        extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         """Compile source to assembly. Returns (success, error_message)."""
         raise NotImplementedError
+
+    def reject_arch(self, arch: str, supported) -> tuple[bool, str]:
+        """Refuse an architecture this compiler cannot target.
+
+        Omitting the target flag instead would compile for the host while
+        `analyze_source` still labels the report with the architecture that was
+        asked for and applies that architecture's instruction table. A reviewer
+        then records "PASSED for riscv64" from a run that never targeted riscv64,
+        which is worse than an error.
+        """
+        return False, (
+            f"{self.name} cannot target {arch} here; supported: {', '.join(sorted(supported))}"
+        )
 
     def is_available(self) -> bool:
         """Check if the compiler is available on the system."""
@@ -469,7 +549,10 @@ class GCCCompiler(Compiler):
         "x86_64": ["-m64"],
         "i386": ["-m32"],
         "arm64": ["-march=armv8-a"],
-        "arm": ["-march=armv7-a", "-mfloat-abi=hard"],
+        # -mfpu is required: armv7-a alone has no FPU, so hard float was
+        # rejected with "selected architecture lacks an FPU". vfpv3-d16 is
+        # Debian's armhf baseline.
+        "arm": ["-march=armv7-a", "-mfpu=vfpv3-d16", "-mfloat-abi=hard"],
         "riscv64": ["-march=rv64gc", "-mabi=lp64d"],
         "ppc64le": ["-mcpu=power8", "-mlittle-endian"],
         "s390x": ["-march=z13"],
@@ -484,10 +567,12 @@ class GCCCompiler(Compiler):
         output_file: str,
         arch: str,
         optimization: str,
-        extra_flags: list[str] = None,
+        extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
-        arch_flags = self.ARCH_FLAGS.get(arch, [])
+        if arch not in self.ARCH_FLAGS:
+            return self.reject_arch(arch, self.ARCH_FLAGS)
+        arch_flags = self.ARCH_FLAGS[arch]
 
         cmd = [
             self.path,
@@ -533,10 +618,12 @@ class ClangCompiler(Compiler):
         output_file: str,
         arch: str,
         optimization: str,
-        extra_flags: list[str] = None,
+        extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
-        target = self.ARCH_TARGETS.get(arch)
+        if arch not in self.ARCH_TARGETS:
+            return self.reject_arch(arch, self.ARCH_TARGETS)
+        target = self.ARCH_TARGETS[arch]
 
         cmd = [
             self.path,
@@ -592,10 +679,12 @@ class GoCompiler(Compiler):
         output_file: str,
         arch: str,
         optimization: str,
-        extra_flags: list[str] = None,
+        extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
-        goarch = self.ARCH_MAP.get(arch, arch)
+        if arch not in self.ARCH_MAP:
+            return self.reject_arch(arch, self.ARCH_MAP)
+        goarch = self.ARCH_MAP[arch]
 
         # For Go, we need to build a binary and then disassemble it
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -632,12 +721,59 @@ class GoCompiler(Compiler):
                 if result.returncode != 0:
                     return False, result.stderr
 
+                disassembly, kept = self._keep_only_source_symbols(result.stdout, source_file)
+                if not kept:
+                    return False, (
+                        f"Disassembly contained no symbols from {source_file}. Go links the "
+                        "whole runtime into the binary, so reporting the unfiltered listing "
+                        "would attribute the runtime's divisions to your code."
+                    )
+
                 with open(output_file, "w") as f:
-                    f.write(result.stdout)
+                    f.write(disassembly)
 
                 return True, ""
             except FileNotFoundError:
                 return False, f"Go not found: {self.path}"
+
+    @staticmethod
+    def _keep_only_source_symbols(disassembly: str, source_file: str) -> tuple[str, int]:
+        """Drop objdump blocks that did not come from `source_file`.
+
+        `go build` links the runtime into every binary, so an unfiltered objdump
+        of a 30-line file yields ~900 functions and reports the allocator's and
+        garbage collector's divisions — all on public data — while the caller's
+        own code is a rounding error in the output. Each block starts with
+        `TEXT main.fn(SB) /path/to/file.go`, so the originating file is known
+        exactly and no heuristic is needed.
+
+        Returns the filtered listing and the number of blocks kept.
+        """
+        wanted = os.path.realpath(source_file)
+        kept_lines: list[str] = []
+        kept = 0
+        in_wanted_block = False
+
+        for line in disassembly.splitlines(keepends=True):
+            header = re.match(r"^TEXT\s+[^\s(]+\(SB\)\s+(.*)$", line.strip())
+            if header:
+                block_file = header.group(1).strip()
+                if os.path.isabs(block_file):
+                    # objdump printed a full path, so compare exactly. Falling back
+                    # to basenames here readmitted the runtime: it ships map.go,
+                    # slice.go, string.go, time.go and select.go, so analyzing a
+                    # user file with any of those names matched
+                    # `/usr/lib/go/src/runtime/map.go` and reported the
+                    # allocator's divisions as the caller's.
+                    in_wanted_block = os.path.realpath(block_file) == wanted
+                else:
+                    in_wanted_block = os.path.basename(block_file) == os.path.basename(wanted)
+                if in_wanted_block:
+                    kept += 1
+            if in_wanted_block:
+                kept_lines.append(line)
+
+        return "".join(kept_lines), kept
 
 
 class RustCompiler(Compiler):
@@ -656,16 +792,30 @@ class RustCompiler(Compiler):
     def __init__(self, path: str | None = None):
         super().__init__("rustc", path or "rustc")
 
+    @staticmethod
+    def _declares_main(source_file: str) -> bool:
+        """True when the file defines a top-level `fn main`."""
+        try:
+            with open(source_file, encoding="utf-8", errors="replace") as handle:
+                return (
+                    re.search(r"^\s*(pub\s+)?fn\s+main\s*\(", handle.read(), re.MULTILINE)
+                    is not None
+                )
+        except OSError:
+            return False
+
     def compile_to_assembly(
         self,
         source_file: str,
         output_file: str,
         arch: str,
         optimization: str,
-        extra_flags: list[str] = None,
+        extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
-        target = self.ARCH_TARGETS.get(arch)
+        if arch not in self.ARCH_TARGETS:
+            return self.reject_arch(arch, self.ARCH_TARGETS)
+        target = self.ARCH_TARGETS[arch]
 
         opt_level = {
             "O0": "0",
@@ -676,9 +826,15 @@ class RustCompiler(Compiler):
             "Oz": "z",
         }.get(optimization, "2")
 
+        # rustc defaults to a bin crate, which rejects any file without `fn main`
+        # (E0601). Crypto code lives in libraries, so a bare module was previously
+        # unanalyzable. Compile as a lib unless the file really is a binary.
+        crate_type = "bin" if self._declares_main(source_file) else "lib"
+
         cmd = [
             self.path,
             "--emit=asm",
+            f"--crate-type={crate_type}",
             "-C",
             f"opt-level={opt_level}",
             *(["--target", target] if target else []),
@@ -709,8 +865,23 @@ class SwiftCompiler(Compiler):
         "x86_64-ios-sim": "x86_64-apple-ios13.0-simulator",
     }
 
+    # The Apple triples above need Xcode's SDK. On Linux swiftc rejects them with
+    # "unable to load standard library for target 'arm64-apple-macosx11.0'", which
+    # made every Swift analysis fail on Linux and in CI.
+    LINUX_ARCH_TARGETS = {
+        "x86_64": "x86_64-unknown-linux-gnu",
+        "arm64": "aarch64-unknown-linux-gnu",
+    }
+
     def __init__(self, path: str | None = None):
         super().__init__("swiftc", path or "swiftc")
+
+    @classmethod
+    def target_for(cls, arch: str) -> str | None:
+        """Return the triple for `arch` on the host platform, or None if unmapped."""
+        if platform.system() == "Darwin":
+            return cls.ARCH_TARGETS.get(arch)
+        return cls.LINUX_ARCH_TARGETS.get(arch)
 
     def compile_to_assembly(
         self,
@@ -718,10 +889,15 @@ class SwiftCompiler(Compiler):
         output_file: str,
         arch: str,
         optimization: str,
-        extra_flags: list[str] = None,
+        extra_flags: list[str] | None = None,
     ) -> tuple[bool, str]:
         arch = normalize_arch(arch)
-        target = self.ARCH_TARGETS.get(arch)
+        target = self.target_for(arch)
+        if target is None:
+            supported = (
+                self.ARCH_TARGETS if platform.system() == "Darwin" else self.LINUX_ARCH_TARGETS
+            )
+            return self.reject_arch(arch, supported)
 
         opt_level = {
             "O0": "-Onone",
@@ -752,8 +928,89 @@ class SwiftCompiler(Compiler):
             return False, f"Swift compiler not found: {self.path}"
 
 
-def get_compiler(name: str, language: str) -> Compiler:
-    """Get a compiler instance by name or detect from language."""
+# GNU cross-toolchain prefixes, for naming the binary to install or pass. The
+# analyzer's architecture names are not the triple prefixes: arm64 is aarch64,
+# i386 is i686, ppc64le is powerpc64le, and arm carries an ABI suffix.
+# Debian/Ubuntu cross libc packages are named by Debian architecture, which is
+# neither the analyzer's name nor the GNU triple: x86_64 is amd64, ppc64le is
+# ppc64el, arm is armhf.
+DEBIAN_CROSS_LIBC = {
+    "x86_64": "libc6-dev-amd64-cross",
+    "i386": "libc6-dev-i386-cross",
+    "arm64": "libc6-dev-arm64-cross",
+    "arm": "libc6-dev-armhf-cross",
+    "riscv64": "libc6-dev-riscv64-cross",
+    "ppc64le": "libc6-dev-ppc64el-cross",
+    "s390x": "libc6-dev-s390x-cross",
+}
+
+GNU_TRIPLES = {
+    "x86_64": "x86_64-linux-gnu",
+    "i386": "i686-linux-gnu",
+    "arm64": "aarch64-linux-gnu",
+    "arm": "arm-linux-gnueabihf",
+    "riscv64": "riscv64-linux-gnu",
+    "ppc64le": "powerpc64le-linux-gnu",
+    "s390x": "s390x-linux-gnu",
+}
+
+
+def compiler_family(name: str) -> str | None:
+    """Identify which compiler `name` is, by filename then by `--version`.
+
+    A GNU cross toolchain *is* a separate binary — `x86_64-linux-gnu-gcc` — so
+    handing the analyzer an explicit compiler is how cross-compilation works for
+    gcc. Every unrecognized `--compiler` value used to be driven as clang, which
+    passed `--target=` to gcc and failed with "unrecognized command-line option",
+    making the one escape hatch that should have worked unusable.
+
+    Args:
+        name: The `--compiler` value: a bare name or a path.
+
+    Returns:
+        One of `clang`, `gcc`, `rustc`, `swiftc`, `go`, or None when neither the
+        filename nor the version banner identifies it.
+    """
+    stem = Path(name).name.lower()
+    # clang before gcc: "gcc" contains "cc", and a clang binary may be named
+    # anything, so the more specific token wins.
+    if "clang" in stem:
+        return "clang"
+    if "gcc" in stem or "g++" in stem:
+        return "gcc"
+    if "rustc" in stem:
+        return "rustc"
+    if "swiftc" in stem:
+        return "swiftc"
+    if stem == "go":
+        return "go"
+
+    try:
+        probe = subprocess.run([name, "--version"], capture_output=True, text=True)
+    except OSError:
+        return None
+    banner = f"{probe.stdout}\n{probe.stderr}".lower()
+    if "clang version" in banner:
+        return "clang"
+    if "free software foundation" in banner or "gcc" in banner:
+        return "gcc"
+    if "rustc" in banner:
+        return "rustc"
+    if "swift version" in banner:
+        return "swiftc"
+    return None
+
+
+def get_compiler(name: str | None, language: str) -> Compiler:
+    """Get a compiler instance by name, or detect one from the language.
+
+    `name` is optional: callers pass the `--compiler` value through unchanged, and
+    the auto-detection below is what runs when it was not supplied. An explicit
+    value is dispatched on which compiler it actually is, so a cross toolchain
+    such as `x86_64-linux-gnu-gcc` is driven with gcc's flags. Nothing is
+    substituted on the caller's behalf: the binary asked for is the binary run,
+    and the report names it.
+    """
     compilers = {
         "gcc": GCCCompiler,
         "clang": ClangCompiler,
@@ -765,8 +1022,15 @@ def get_compiler(name: str, language: str) -> Compiler:
     if name:
         if name in compilers:
             return compilers[name]()
-        # Assume it's a path to a compiler
-        return ClangCompiler(name)
+        family = compiler_family(name)
+        if family is None:
+            print(
+                f"Note: could not tell which compiler {name} is from its name or "
+                "version banner; driving it with clang's flags",
+                file=sys.stderr,
+            )
+            return ClangCompiler(name)
+        return compilers[family](name)
 
     # Auto-detect based on language
     if language == "go":
@@ -804,12 +1068,12 @@ class AssemblyParser:
 
     def parse(
         self, assembly_text: str, include_warnings: bool = False
-    ) -> tuple[list[dict], list[Violation]]:
+    ) -> tuple[list[ParsedFunction], list[Violation]]:
         """
         Parse assembly text and detect violations.
         Returns (functions, violations).
         """
-        functions = []
+        functions: list[ParsedFunction] = []
         violations = []
 
         current_function = None
@@ -889,8 +1153,28 @@ class AssemblyParser:
 
             instruction_count += 1
 
+            called_helper = next(
+                (helper for helper in DIVISION_HELPERS if helper in instruction), None
+            )
+
             # Check for violations
-            if mnemonic in self.errors:
+            if called_helper:
+                violations.append(
+                    Violation(
+                        function=current_function or "<unknown>",
+                        file=current_file or "",
+                        line=current_line,
+                        address=address,
+                        instruction=instruction,
+                        mnemonic=called_helper.upper().lstrip("_"),
+                        reason=(
+                            f"{called_helper} performs division in software; it loops over "
+                            "the operands, so its execution time depends on their values"
+                        ),
+                        severity=Severity.ERROR,
+                    )
+                )
+            elif mnemonic in self.errors:
                 violations.append(
                     Violation(
                         function=current_function or "<unknown>",
@@ -931,12 +1215,12 @@ class AssemblyParser:
 
 def analyze_source(
     source_file: str,
-    arch: str = None,
-    compiler: str = None,
+    arch: str | None = None,
+    compiler: str | None = None,
     optimization: str = "O2",
     include_warnings: bool = False,
-    function_filter: str = None,
-    extra_flags: list[str] = None,
+    function_filter: str | None = None,
+    extra_flags: list[str] | None = None,
 ) -> AnalysisReport:
     """
     Analyze a source file for constant-time violations.
@@ -962,7 +1246,7 @@ def analyze_source(
     # Route scripting/bytecode languages to specialized analyzers
     if is_bytecode_language(language):
         try:
-            from .script_analyzers import get_script_analyzer
+            from .script_analyzers import get_script_analyzer  # ty: ignore[unresolved-import]
         except ImportError:
             from script_analyzers import get_script_analyzer
 
@@ -1013,6 +1297,30 @@ def analyze_source(
         )
 
         if not success:
+            if arch != get_native_arch() and "file not found" in error:
+                package = DEBIAN_CROSS_LIBC.get(arch)
+                remedy = f"install {package}" if package else "install the target's libc headers"
+                error = (
+                    f"{error.rstrip()}\n"
+                    f"Cross-compiling for {arch} needs that target's C library headers, which "
+                    f"are separate from the compiler: {remedy}, or analyze a source file that "
+                    "includes no libc headers."
+                )
+
+            already_cross = "-linux-gnu" in Path(compiler_obj.path).name
+            if (
+                arch != get_native_arch()
+                and compiler_family(compiler_obj.path) == "gcc"
+                and not already_cross
+            ):
+                triple = GNU_TRIPLES.get(arch)
+                suggestion = f"--compiler {triple}-gcc" if triple else "an explicit cross build"
+                error = (
+                    f"{error.rstrip()}\n"
+                    f"The gcc on PATH targets its own ISA family, so it cannot build for "
+                    f"{arch}. Pass a cross build explicitly ({suggestion}), or use "
+                    f"--compiler clang, which cross-compiles through --target."
+                )
             raise RuntimeError(f"Compilation failed: {error}")
 
         with open(asm_path) as f:
@@ -1030,7 +1338,11 @@ def analyze_source(
 
         return AnalysisReport(
             architecture=arch,
-            compiler=compiler_obj.name,
+            # The binary that ran, not the family: with an explicit cross toolchain
+            # `--compiler x86_64-linux-gnu-gcc`, reporting "gcc" would name a
+            # different compiler — often a different major version — than the one
+            # whose codegen is in this report.
+            compiler=compiler_obj.path,
             optimization=optimization,
             source_file=str(source_file),
             total_functions=len(functions),
@@ -1047,7 +1359,7 @@ def analyze_assembly(
     assembly_file: str,
     arch: str,
     include_warnings: bool = False,
-    function_filter: str = None,
+    function_filter: str | None = None,
 ) -> AnalysisReport:
     """
     Analyze pre-compiled assembly for constant-time violations.
@@ -1120,7 +1432,7 @@ def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
     elif format_type == OutputFormat.GITHUB:
         lines = []
         for v in report.violations:
-            level = "error" if v.severity == Severity.ERROR else "warning"
+            level = "error" if is_error(v) else "warning"
             file_ref = f"file={v.file}" if v.file else ""
             line_ref = f",line={v.line}" if v.line else ""
             lines.append(
@@ -1145,7 +1457,7 @@ def format_report(report: AnalysisReport, format_type: OutputFormat) -> str:
             lines.append("VIOLATIONS FOUND:")
             lines.append("-" * 40)
             for v in report.violations:
-                severity_marker = "ERROR" if v.severity == Severity.ERROR else "WARN"
+                severity_marker = "ERROR" if is_error(v) else "WARN"
                 lines.append(f"[{severity_marker}] {v.mnemonic}")
                 lines.append(f"  Function: {v.function}")
                 if v.file:

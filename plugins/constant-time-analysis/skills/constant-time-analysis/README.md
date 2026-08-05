@@ -19,6 +19,10 @@ When activated, this skill helps Claude:
 | C/C++ | Assembly (gcc/clang) | [references/compiled.md](references/compiled.md) |
 | Go | Assembly (go) | [references/compiled.md](references/compiled.md) |
 | Rust | Assembly (rustc) | [references/compiled.md](references/compiled.md) |
+| Swift | Assembly (swiftc) | [references/swift.md](references/swift.md) |
+| Java | JVM bytecode (javap) | [references/vm-compiled.md](references/vm-compiled.md) |
+| Kotlin | JVM bytecode (kotlinc + javap) | [references/kotlin.md](references/kotlin.md) |
+| C# | CIL (ilspycmd) | [references/vm-compiled.md](references/vm-compiled.md) |
 | PHP | Zend opcodes (VLD/OPcache) | [references/php.md](references/php.md) |
 | JavaScript | V8 bytecode (Node.js) | [references/javascript.md](references/javascript.md) |
 | TypeScript | V8 bytecode (tsc + Node.js) | [references/javascript.md](references/javascript.md) |
@@ -41,17 +45,28 @@ When activated, this skill helps Claude:
 
 ```text
 skills/constant-time-analysis/
-├── SKILL.md              # Entry point - routing and quick reference
+├── SKILL.md              # Entry point - routing, analyzer usage, triage
 ├── README.md             # This file
 └── references/
     ├── compiled.md       # C, C++, Go, Rust analysis
+    ├── swift.md          # Swift analysis
+    ├── vm-compiled.md    # Java and C# bytecode, JVM/.NET setup
+    ├── kotlin.md         # Kotlin analysis (Android/JVM)
     ├── php.md            # PHP analysis (VLD installation, opcodes)
     ├── javascript.md     # JavaScript/TypeScript analysis
     ├── python.md         # Python analysis (dis module)
     └── ruby.md           # Ruby analysis (YARV)
 ```
 
-The analyzer tool is located at `ct_analyzer/analyzer.py` in the plugin root.
+The analyzer tool is located at `ct_analyzer/analyzer.py` in the plugin root. Its
+test suite and samples live in `ct_analyzer/tests/`:
+
+- `test_samples/` — vulnerable and constant-time inputs for detector tests
+- `triage_samples/` — one known-answer fixture per supported language, each
+  pairing true positives with false positives the analyzer cannot distinguish.
+  `expectations.json` records the verdict and rationale for every case;
+  `TestTriageMatrix` asserts the analyzer still reports both members of each
+  pair, and fails rather than skipping if no fixture could be exercised.
 
 ## Usage
 
