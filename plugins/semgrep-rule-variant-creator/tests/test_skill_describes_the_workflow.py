@@ -29,8 +29,8 @@ SLASH_COMMAND_RE = re.compile(r"/([a-z0-9-]+):([a-z0-9-]+)")
 # Both `args.x` and the optional-chained `args?.x` the script uses for caller-supplied keys.
 ARGS_KEY_RE = re.compile(r"\bargs\??\.(\w+)")
 BASEDIR_PATH_RE = re.compile(r"\{baseDir\}/([A-Za-z0-9_./-]+)")
-# `referencesDir` paired on one line with the references directory itself, not a file inside it.
-HANDOVER_RE = re.compile(r"referencesDir[^\n]{0,40}\{baseDir\}/references(?![\w/-])")
+# The value SKILL.md's argument block tells the caller to hand `referencesDir`.
+HANDOVER_RE = re.compile(r'"referencesDir"\s*:\s*"([^"]*)"')
 # Reference files the script's prompts tell an agent to read.
 SCRIPT_REFERENCE_RE = re.compile(r"reference\('([A-Za-z0-9_.-]+\.md)'")
 
@@ -93,23 +93,35 @@ def check_every_arg_the_script_reads_is_documented(
 
 
 def check_the_skill_hands_over_its_references(skill: str, readme: str, script: str) -> list[str]:
-    """Check the skill passes its own references directory to the workflow.
+    """Check the skill hands the workflow a path it can actually read.
 
-    A workflow script cannot expand `{baseDir}`, and an installed plugin lives in the plugin
-    cache rather than the user's project. If the skill stops passing a resolved path, the
-    agents lose the reference material and the run still reports success.
+    A workflow script cannot expand `{baseDir}` or `${CLAUDE_PLUGIN_ROOT}`, and has no
+    filesystem access to notice that it did not, so the skill is the only place an
+    unresolvable value can be caught before it is passed. What follows one is silent: every
+    phase prompt names a path that does not exist, the agents port without the guidance, and
+    the run still reports every language as passed.
     """
     if "referencesDir" not in script:
         return ["the script no longer accepts a references directory"]
-
-    errors = []
     if "referencesDir" not in skill:
-        errors.append("SKILL.md does not tell the caller to pass referencesDir")
-    # Paired, and pointing at the directory itself. A bare `{baseDir}/references` substring
-    # search passes on any `{baseDir}/references/<file>.md` link further down the file, so the
-    # instruction could be deleted outright and this check would still report clean.
-    if not HANDOVER_RE.search(skill):
-        errors.append("SKILL.md does not pair referencesDir with a {baseDir}-resolved path")
+        return ["SKILL.md does not tell the caller to pass referencesDir"]
+
+    # The argument block is what a model copies, so the value it shows is the one that matters.
+    # Finding none means the block stopped naming the argument, which reads as clean to any
+    # check that only searches for the word `referencesDir` in the prose around it.
+    handed = HANDOVER_RE.findall(skill)
+    if not handed:
+        return ["SKILL.md names referencesDir but never shows what value to pass it"]
+
+    errors = [
+        f"SKILL.md hands referencesDir {value!r}, a token no workflow script can expand"
+        for value in handed
+        if "{" in value
+    ]
+    if "CLAUDE_PLUGIN_ROOT" not in skill:
+        errors.append(
+            "SKILL.md does not show how to resolve the references directory to a real path"
+        )
     return errors
 
 
@@ -193,10 +205,30 @@ BREAKAGES = (
     pytest.param(
         check_the_skill_hands_over_its_references,
         "skill",
-        # Deleting the instruction leaves `{baseDir}/references/<file>.md` links behind, which
-        # is precisely why the check pairs the two rather than searching for either alone.
-        ('"referencesDir": "{baseDir}/references",', ""),
-        id="dropping the referencesDir instruction",
+        # The regression this argument exists to prevent, and the one the review found: a token
+        # reaches the script, which cannot expand it and cannot see that the path is not there.
+        (
+            '"referencesDir": "<the absolute path the ls above printed>"',
+            '"referencesDir": "{baseDir}/references"',
+        ),
+        id="handing referencesDir a token no workflow can expand",
+    ),
+    pytest.param(
+        check_the_skill_hands_over_its_references,
+        "skill",
+        # Deleting the argument leaves the surrounding prose and the
+        # `{baseDir}/references/<file>.md` links behind, so a check that searches for the word
+        # alone still reports clean.
+        ('"referencesDir": "<the absolute path the ls above printed>",\n', ""),
+        id="dropping referencesDir from the argument block",
+    ),
+    pytest.param(
+        check_the_skill_hands_over_its_references,
+        "skill",
+        # Without the resolution step the caller has nowhere to get a real path from, and the
+        # placeholder in the block is the only remaining instruction.
+        ("${CLAUDE_PLUGIN_ROOT}", "the plugin directory"),
+        id="dropping the step that resolves the references path",
     ),
     pytest.param(
         check_basedir_paths_resolve,

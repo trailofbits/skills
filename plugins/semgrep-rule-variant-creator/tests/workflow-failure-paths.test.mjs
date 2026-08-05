@@ -143,6 +143,18 @@ test('a stringified array throws rather than becoming a single target', async ()
   assert.match(error.message, /one language per entry/)
 })
 
+test('a spelled-out language name is told how to spell it, not that it holds two', async () => {
+  // Rejecting these is deliberate — each has a single-token Semgrep key, and that key names the
+  // directory — but they are not the "Go and Java" mistake, and the message used to say they
+  // were. Someone who typed "Objective C" would go looking for a phrase they never wrote.
+  for (const name of ['C Sharp', 'Objective C']) {
+    const { error } = await run({ args: { ...BASE_ARGS, languages: [name] } })
+    assert.match(error.message, /each a single token/, name)
+    assert.match(error.message, /spell a multi-word name the way Semgrep does/, name)
+    assert.doesNotMatch(error.message, /hold more than one/, name)
+  }
+})
+
 test('a dead rule reader stops the run with a named error', async () => {
   const { error, calls } = await run({
     args: BASE_ARGS,
@@ -212,7 +224,7 @@ test('an unknown semgrep language stops that language instead of writing a skipp
   // Reported as a refusal carrying its reason, not as `incomplete`. The throw used to drop the
   // item to null, which the caller saw only as "did not report back" — reading as an agent
   // that died and is worth re-running, when it is deterministic and names what to change.
-  assert.equal(result.incomplete, 0)
+  assert.deepEqual(result.incomplete, [])
   assert.equal(result.stopped.length, 1)
   assert.equal(result.stopped[0].language, 'Zig')
   assert.match(result.stopped[0].reason, /not a Semgrep language key/)
@@ -293,10 +305,13 @@ test('a whitespace-only language entry is dropped before it costs an agent', asy
   assert.deepEqual(calls, ['read-rule', 'assess:Go', 'test:Go', 'translate:Go', 'validate:Go'])
 })
 
-test('languages that are only whitespace fail the same way as none at all', async () => {
+test('languages that are only whitespace name languages as the missing argument', async () => {
+  // One message per argument. The combined error opened by naming args.rulePath, so a caller
+  // who passed a good rule path and an empty language list was sent to check the wrong one.
   const { error, calls } = await run({ args: { ...BASE_ARGS, languages: ['   '] } })
 
-  assert.match(error.message, /needs args\.rulePath/)
+  assert.match(error.message, /needs args\.languages/)
+  assert.doesNotMatch(error.message, /needs args\.rulePath/)
   assert.deepEqual(calls, [])
 })
 
@@ -357,7 +372,7 @@ test('a language semgrep cannot analyse is reported apart from NOT_APPLICABLE', 
   assert.equal(result.notApplicable.length, 0, 'the vulnerability class is not the reason')
   assert.equal(result.passed.length, 0)
   assert.equal(result.failed.length, 0)
-  assert.equal(result.incomplete, 0, 'stopping deliberately is not the same as losing an agent')
+  assert.deepEqual(result.incomplete, [], 'stopping deliberately is not losing an agent')
   assert.deepEqual(calls, ['read-rule', 'assess:Perl'], 'no test, translate, or validate agent')
 })
 
@@ -442,15 +457,17 @@ test('a self-reported pass with no semgrep output in it is not a pass', async ()
   assert.equal(result.failed.length, 1)
 })
 
-test('a dead agent mid-pipeline is counted as incomplete, not as a pass', async () => {
+test('a dead agent mid-pipeline is named in incomplete, not reported as a pass', async () => {
   const { result } = await run({
-    args: BASE_ARGS,
-    stubs: { test: () => null },
+    args: { ...BASE_ARGS, languages: ['Go', 'Java'] },
+    stubs: { test: (language) => (language === 'Java' ? null : { filePath: 'go/test', summary: '2 ruleid, 2 ok' }) },
   })
 
-  assert.equal(result.passed.length, 0)
+  assert.equal(result.passed.length, 1)
   assert.equal(result.failed.length, 0)
-  assert.equal(result.incomplete, 1)
+  // Named, not counted. Every other outcome carries its language, so a bare `1` here left the
+  // caller diffing the requested list against five result sets to find what to re-run.
+  assert.deepEqual(result.incomplete, ['Java'])
 })
 
 test('one language failing leaves the others unaffected', async () => {
@@ -472,7 +489,7 @@ test('one language failing leaves the others unaffected', async () => {
 
   assert.deepEqual(result.passed.map((r) => r.language), ['Go'])
   assert.deepEqual(result.failed.map((r) => r.language), ['Java'])
-  assert.equal(result.incomplete, 0)
+  assert.deepEqual(result.incomplete, [])
 })
 
 // An unpinned agent silently inherits the session's effort. The port still finishes and
@@ -526,6 +543,28 @@ test('a missing references directory stops the run before any agent is spawned',
 
   const { error, calls } = await run({ args: withoutReferences })
 
-  assert.match(error.message, /needs args\.referencesDir/)
+  // The omitted-argument message, not the unresolved-path one below. An empty string is also an
+  // unresolvable path, so the shape guard would stop this run too — and telling someone who
+  // passed nothing that their path does not resolve sends them looking for a path they never
+  // wrote. Asserting which message fires is what keeps the two guards distinguishable.
+  assert.match(error.message, /needs args\.referencesDir:/)
+  assert.doesNotMatch(error.message, /resolved absolute path/)
   assert.deepEqual(calls, [], 'nothing should be spawned before the guidance is checked')
+})
+
+// Non-empty is not the same as resolvable, and the script cannot tell the difference by looking
+// — it has no filesystem access. `{baseDir}/references` is the specific value at issue: SKILL.md
+// documented it, a script cannot expand it, and the guard above only rejects an empty string, so
+// it reached every prompt as a path that does not exist while the run reported clean.
+test('an unresolved references path stops the run rather than reading nothing', async () => {
+  for (const referencesDir of ['{baseDir}/references', 'references', './references']) {
+    const { error, calls } = await run({ args: { ...BASE_ARGS, referencesDir } })
+
+    assert.match(
+      error.message,
+      /needs args\.referencesDir as a resolved absolute path/,
+      `${referencesDir} was accepted`,
+    )
+    assert.deepEqual(calls, [], `${referencesDir} should stop before an agent is spawned`)
+  }
 })

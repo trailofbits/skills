@@ -61,6 +61,7 @@ const VALIDATION_DEPS = [
 ]
 
 const slug = load('slug')
+const semgrepVersion = load('semgrepVersion')
 const canonicalLanguage = load('canonicalLanguage', extractTable('CANONICAL_BY_LANGUAGE'))
 const partition = load('partition')
 const validationFailure = load('validationFailure', ...VALIDATION_DEPS)
@@ -180,6 +181,27 @@ test('testFileExtension truncates a prose language key instead of echoing a para
   })
 })
 
+test('semgrepVersion reads the version semgrep printed, not the first triple in the reply', () => {
+  // `semgrep --version` prints a bare triple, which is what the prompt asks for.
+  assert.equal(semgrepVersion('1.172.0'), '1.172.0')
+  assert.equal(semgrepVersion('v1.172.0'), '1.172.0')
+  assert.equal(semgrepVersion('  1.172.0\n'), '1.172.0')
+
+  // Tolerant of a qualified answer, because agents do give one.
+  assert.equal(semgrepVersion('semgrep 1.172.0'), '1.172.0')
+
+  // Why it is anchored rather than a bare search for a triple: an unanchored one takes the
+  // Python version here, the comparison then fails against a version nothing ran, and a
+  // genuinely green port burns all three retries and lands in `failed` blaming 3.11.5.
+  assert.equal(semgrepVersion('Python 3.11.5 / semgrep 1.172.0'), '1.172.0')
+
+  // Nothing recognisable fails closed: validationFailure treats an unreported version as a
+  // failure, because a check that cannot tell which binary spoke has not checked anything.
+  assert.equal(semgrepVersion(''), '')
+  assert.equal(semgrepVersion(null), '')
+  assert.equal(semgrepVersion('could not determine the version'), '')
+})
+
 test('validationPassed reads semgrep output rather than a self-reported boolean', () => {
   const at = (testOutput) => ({ testOutput, semgrepVersion: VERSION })
   assert.equal(validationPassed(at(GREEN), VERSION), true)
@@ -247,22 +269,25 @@ const ported = (language, passed) => ({ language, validation: { passed }, rounds
 const dropped = (language) => ({ language, skipped: true })
 const untooled = (language) => ({ language, unsupported: true })
 
-test('partition filters nulls before reading any field', () => {
-  const result = partition([null, ported('go', true), null], 3)
+test('partition names the dropped languages rather than counting them', () => {
+  // Index-aligned with what pipeline() received, because a stage that died never set a field
+  // to identify itself by. A bare count leaves the reader diffing the requested list against
+  // five result sets by hand to find which language to re-run.
+  const result = partition([null, ported('go', true), null], ['rust', 'go', 'java'])
   assert.equal(result.passed.length, 1)
   assert.equal(result.failed.length, 0)
-  assert.equal(result.lost, 2, 'a dropped item is counted, not forgotten')
+  assert.deepEqual(result.lost, ['rust', 'java'], 'a dropped item is named, not forgotten')
 })
 
 test('partition counts a language whose validation never reported as failed', () => {
-  const result = partition([{ language: 'go', validation: null }], 1)
+  const result = partition([{ language: 'go', validation: null }], ['go'])
   assert.equal(result.failed.length, 1)
   assert.equal(result.passed.length, 0)
-  assert.equal(result.lost, 0)
+  assert.deepEqual(result.lost, [])
 })
 
 test('partition never counts a skipped language as failed', () => {
-  const result = partition([dropped('solidity'), ported('go', true)], 2)
+  const result = partition([dropped('solidity'), ported('go', true)], ['solidity', 'go'])
   assert.equal(result.skipped.length, 1)
   assert.equal(result.failed.length, 0, 'NOT_APPLICABLE is not a failure')
   assert.equal(result.passed.length, 1)
@@ -271,7 +296,7 @@ test('partition never counts a skipped language as failed', () => {
 test('partition never counts a language semgrep cannot analyse as failed', () => {
   // A language with no semgrep parser was never ported, so it is neither a pass nor a failure
   // to fix. Counting it as failed would send someone to debug a rule that does not exist.
-  const result = partition([untooled('perl'), ported('go', true)], 2)
+  const result = partition([untooled('perl'), ported('go', true)], ['perl', 'go'])
   assert.equal(result.unsupported.length, 1)
   assert.equal(result.failed.length, 0)
   assert.equal(result.skipped.length, 0, 'unsupported is not the same bucket as NOT_APPLICABLE')
@@ -279,7 +304,7 @@ test('partition never counts a language semgrep cannot analyse as failed', () =>
 })
 
 test('partition on empty input yields empty sets and does not throw', () => {
-  const result = partition([], 0)
+  const result = partition([], [])
   assert.deepEqual(
     {
       passed: result.passed,
@@ -288,12 +313,12 @@ test('partition on empty input yields empty sets and does not throw', () => {
       unsupported: result.unsupported,
       lost: result.lost,
     },
-    { passed: [], failed: [], skipped: [], unsupported: [], lost: 0 },
+    { passed: [], failed: [], skipped: [], unsupported: [], lost: [] },
   )
 })
 
 test('partition separates passed from failed on the validation verdict alone', () => {
-  const result = partition([ported('go', true), ported('java', false)], 2)
+  const result = partition([ported('go', true), ported('java', false)], ['go', 'java'])
   assert.deepEqual(result.passed.map((r) => r.language), ['go'])
   assert.deepEqual(result.failed.map((r) => r.language), ['java'])
 })

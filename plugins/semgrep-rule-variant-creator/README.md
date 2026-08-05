@@ -29,8 +29,9 @@ workflow, with the phase order and the retry bound held in code rather than in p
 - [Semgrep](https://semgrep.dev/docs/getting-started/) installed and available in PATH
 - Existing Semgrep rule to port (in YAML)
 - Target languages specified
-- Dynamic workflows enabled (Claude Code 2.1.154+, paid plan). Where they are unavailable
-  the slash command does not exist and the skill falls back to running phases by hand
+- Dynamic workflows enabled — [Claude Code v2.1.154 or later, on any paid
+  plan](https://code.claude.com/docs/en/workflows). Where they are unavailable the slash
+  command does not exist and the skill falls back to running phases by hand
 
 ## Usage
 
@@ -45,7 +46,7 @@ dynamic workflow:
 |---|---|---|
 | `rulePath` | required | Path to the Semgrep rule YAML being ported |
 | `languages` | required | One target language per entry: `["Go", "Java"]`. A phrase like `"Go and Java"` is rejected rather than ported as a single language named after the phrase |
-| `referencesDir` | required | This plugin's `references/` directory, resolved by the skill from `{baseDir}`. A workflow script cannot resolve `{baseDir}` itself, and an installed plugin does not sit in your project, so this is the only route by which the guidance reaches the phase agents. The script rejects a run without it: a port made without the references still reports every language as passed, so a warning would be the one signal that can be ignored for free |
+| `referencesDir` | required | This plugin's `references/` directory, as a resolved absolute path — the skill prints it with `ls "${CLAUDE_PLUGIN_ROOT}/…"` and passes what it saw. A workflow script cannot expand `{baseDir}` or `${CLAUDE_PLUGIN_ROOT}`, and has no filesystem access to notice that it did not, and an installed plugin does not sit in your project, so this is the only route by which the guidance reaches the phase agents. The script rejects both an omitted value and a path holding an unexpanded token: a port made without the references still reports every language as passed, so a warning would be the one signal that can be ignored for free |
 | `outputDir` | working directory | Where the variant directories land |
 
 It reads the rule once, then runs each language through its own applicability, test,
@@ -142,13 +143,20 @@ cover them; the third is for iterating on them directly. Name the files rather t
 directory — `node --test <dir>` resolves the directory as a module and errors.
 
 Needs `semgrep` and `node` on PATH. Without semgrep the golden-fixture grader skips; without
-node the parse check, the schema validation and both node suites skip.
+node the parse check, the schema validation and both node suites skip. CI installs semgrep and
+fails rather than skipping when it is absent — otherwise the one check that judges a finished
+port would quietly reduce to the structural ones. The verdict it applies is read from
+`semgrep --test --json`, not from the `All tests passed` summary, which semgrep also prints
+over a rule it skipped; that verdict has its own cases proving it rejects each way a run can
+look green having graded nothing.
 
 ### The mutation battery
 
-Passing tests only prove the code runs. These 24 mutations are the evidence the tests
+Passing tests only prove the code runs. The mutations below are the evidence the tests
 *detect* anything — each is a parametrized case, so `make check` runs the whole battery and
-names any that stops firing.
+names any that stops firing. Deliberately unnumbered, and named by checker rather than by a
+share of a suite: nothing verifies a count written in prose, so one goes stale silently and
+then tells a reader that a guard they are looking for has nothing behind it.
 
 | Mutation | Caught by |
 |---|---|
@@ -166,25 +174,42 @@ names any that stops firing.
 | Rename the workflow without updating the docs | `check_documented_command_matches_the_script` |
 | Drop an argument name from the skill | `check_every_arg_the_script_reads_is_documented` |
 | Rename an argument without updating the docs | `check_every_arg_the_script_reads_is_documented` |
-| Drop the `referencesDir` instruction | `check_the_skill_hands_over_its_references` |
+| Relay the rule as text an agent retyped | `check_the_rule_is_read_rather_than_relayed` |
+| Hand `referencesDir` a token no workflow can expand | `check_the_skill_hands_over_its_references` |
+| Drop `referencesDir` from the argument block | `check_the_skill_hands_over_its_references` |
+| Drop the step that resolves the references path | `check_the_skill_hands_over_its_references` |
 | Link a `{baseDir}` reference that does not exist | `check_basedir_paths_resolve` |
 | Rename a reference in the skill but not the script | `check_references_the_script_uses_are_linked` |
 | Rewrite the description into something vague | `test_description_check_rejects_a_vague_description` |
-| Cap the validation retry at one round | 2 of 16 failure-path cases |
-| Trust the agent's self-reported pass | 6 of 16 failure-path cases |
-| Guess the extension (failure-path view) | 1 of 16 failure-path cases |
-| Pass a relative reference path | 1 of 16 failure-path cases |
-| Unpin an effort level | 1 of 16 failure-path cases |
-| Let a run proceed without the references | 1 of 16 failure-path cases |
+| Accept a semgrep run that looks green having graded nothing | `test_grading_errors_rejects_a_run_that_proves_nothing` |
+| Cap the validation retry at one round | `workflow-failure-paths.test.mjs` |
+| Trust the agent's self-reported pass | `workflow-failure-paths.test.mjs` |
+| Accept a pass graded by a different semgrep | `workflow-failure-paths.test.mjs` |
+| Accept a green over a rule semgrep skipped | `workflow-failure-paths.test.mjs` |
+| Port to a language semgrep cannot parse | `workflow-failure-paths.test.mjs` |
+| Treat a dead refuter as an upheld verdict | `workflow-failure-paths.test.mjs` |
+| Let two languages share one output directory | `workflow-failure-paths.test.mjs` |
+| Slug an alias without canonicalising it first | `workflow-failure-paths.test.mjs` |
+| Lose the reason a guard stopped a language | `workflow-failure-paths.test.mjs` |
+| Guess the extension (failure-path view) | `workflow-failure-paths.test.mjs` |
+| Pass a relative reference path | `workflow-failure-paths.test.mjs` |
+| Accept a references path that cannot resolve | `workflow-failure-paths.test.mjs` |
+| Report a lost language as a count that names nothing | `workflow-failure-paths.test.mjs` |
+| Lose the error that names the language list | `workflow-failure-paths.test.mjs` |
+| Accept a phrase or a spelled-out name as one language | `workflow-failure-paths.test.mjs` |
+| Unpin an effort level | `workflow-failure-paths.test.mjs` |
+| Let a run proceed without the references | `workflow-failure-paths.test.mjs` |
 
-The last six run the real script against a mutated copy, so the gate additionally requires
-that some cases still pass and that nothing raised a `SyntaxError` — a mutation that merely
-stops the script compiling fails everything and would otherwise look like proof.
+The `workflow-failure-paths.test.mjs` rows run the real script against a mutated copy, so the
+gate additionally requires that some cases still pass and that nothing raised a `SyntaxError` —
+a mutation that merely stops the script compiling fails everything and would otherwise look
+like proof.
 
 Stage order, the `NOT_APPLICABLE` short-circuit, the refuter, the variant directory shape, and
 batching languages behind a barrier are asserted directly by `workflow-failure-paths.test.mjs`,
 which executes the script and checks what it spawned and returned, so they are covered without
-a mutation row of their own — swapping `pipeline()` for `parallel()` fails 10 of its 16 cases.
+a mutation row of their own — swapping `pipeline()` for `parallel()` turns most of that suite
+red.
 
 ## Related Skills
 

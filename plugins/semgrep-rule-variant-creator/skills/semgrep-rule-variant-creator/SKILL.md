@@ -27,21 +27,32 @@ dynamic workflow rather than as instructions to re-follow each run:
 Pass all four arguments. One language per entry: `"Go and Java"` ports a single language
 named after the phrase, and the script rejects it.
 
+`referencesDir` has to be a resolved absolute path. Print it first and confirm it lists both
+reference files:
+
+```
+ls "${CLAUDE_PLUGIN_ROOT}/skills/semgrep-rule-variant-creator/references"
+```
+
+Pass the value as printed above; it is already the real path. If that lists nothing, stop and
+say so rather than passing a path you have not seen resolve.
+
 ```json
 {
   "rulePath": "<path to the rule being ported>",
   "languages": ["Go", "Java"],
-  "referencesDir": "{baseDir}/references",
+  "referencesDir": "<the absolute path the ls above printed>",
   "outputDir": "<where the variant directories should land>"
 }
 ```
 
-A workflow script cannot resolve `{baseDir}` itself, and an installed plugin does not sit in
-the user's project, so `referencesDir` is the only route by which the references below reach
-the phase agents. The script rejects a run without it rather than porting without them, since
-a port made without this guidance still reports every language as passed. `outputDir` is the
-one optional argument, defaulting to the working directory, which is rarely what you want
-inside a repository.
+A workflow script cannot expand `{baseDir}` or `${CLAUDE_PLUGIN_ROOT}`, and has no filesystem
+access to notice that it did not; an installed plugin does not sit in the user's project
+either, so `referencesDir` is the only route by which the references below reach the phase
+agents. The script rejects a run that omits it and one that passes a token instead of a path,
+rather than porting without them, since a port made without this guidance still reports every
+language as passed. `outputDir` is the one optional argument, defaulting to the working
+directory, which is rarely what you want inside a repository.
 
 It reads the rule once, then runs each language through the full cycle independently, and
 reports which languages passed, which failed validation, which it judged not applicable, which

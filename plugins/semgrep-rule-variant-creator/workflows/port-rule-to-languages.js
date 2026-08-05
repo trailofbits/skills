@@ -325,9 +325,16 @@ function testFileExtension(language, assessment) {
 // a good port has no fallback.
 const SKIPPED_RATHER_THAN_RUN = /missing plugin|missing semgrep extension|skipped because they require/i
 
+// Anchored first, then semgrep-qualified. `semgrep --version` prints a bare triple and the
+// prompt asks for exactly that, but a reply that puts anything else first — "Python 3.11.5 /
+// semgrep 1.172.0" — hands back 3.11.5 to a bare search. A genuinely green port then burns
+// every retry and lands in `failed` blaming a version nothing ran.
 function semgrepVersion(reported) {
-  const found = /\d+\.\d+\.\d+/.exec(String(reported || ''))
-  return found ? found[0] : ''
+  const text = String(reported || '').trim()
+  const bare = /^v?(\d+\.\d+\.\d+)/.exec(text)
+  if (bare) return bare[1]
+  const qualified = /semgrep\D{0,20}(\d+\.\d+\.\d+)/i.exec(text)
+  return qualified ? qualified[1] : ''
 }
 
 /**
@@ -370,8 +377,13 @@ function validationPassed(validation, expectedVersion) {
 }
 
 // Splits the pipeline's results. A stage that throws drops its item to null, so filtering
-// happens here before anything reads a field, and the dropped ones are counted rather than
+// happens here before anything reads a field, and the dropped ones are named rather than
 // quietly forgotten.
+//
+// Named, not counted: every other outcome carries its language, and a bare `1` leaves the
+// reader diffing the requested list against five result sets by hand to find which one to
+// re-run. `requested` is the array pipeline() received, so index alignment identifies the
+// dropped item without depending on a field a dead stage never set.
 function partition(results, requested) {
   const done = results.filter(Boolean)
   const ported = done.filter((r) => !r.skipped && !r.unsupported && !r.stopped)
@@ -381,7 +393,7 @@ function partition(results, requested) {
     skipped: done.filter((r) => r.skipped),
     unsupported: done.filter((r) => r.unsupported),
     stopped: done.filter((r) => r.stopped),
-    lost: requested - done.length,
+    lost: requested.filter((_, index) => !results[index]),
   }
 }
 
@@ -521,24 +533,54 @@ const languages = (Array.isArray(args?.languages) ? args.languages : [args?.lang
   .map((language) => String(language ?? '').trim())
   .filter(Boolean)
 
-if (!args?.rulePath || languages.length === 0) {
+// One message per missing argument. A combined "needs args.rulePath and args.languages" opens
+// by naming the rule path, so a caller who passed a good one and a bad language list is sent to
+// check the wrong argument.
+const RESUME_NOTE =
+  'Resuming needs it too: args are not saved with a run, so pass them again alongside resumeFromRunId.'
+
+if (!args?.rulePath) {
   throw new Error(
-    'port-rule-to-languages needs args.rulePath (path to the Semgrep rule YAML) and args.languages (one or more target languages). Resuming needs them too: args are not saved with a run, so pass them again alongside resumeFromRunId.',
+    `port-rule-to-languages needs args.rulePath: the path to the Semgrep rule YAML being ported. ${RESUME_NOTE}`,
+  )
+}
+
+if (languages.length === 0) {
+  throw new Error(
+    `port-rule-to-languages needs args.languages: one or more target languages, one per entry. ${RESUME_NOTE}`,
   )
 }
 
 // One language per entry. "Go and Java" and '["go","java"]' both survive the check above as
 // a single item, and would silently port one language named after the whole phrase.
+//
+// This also rejects a genuine multi-word name — "C Sharp", "Objective C" — which is deliberate,
+// since every such language has a single-token Semgrep key and that key is what names the
+// directory. So the message has to cover both readings: telling someone who typed "Objective C"
+// that their entry holds more than one language sends them looking for a phrase they did not
+// write.
 const malformed = languages.filter((language) => /[\s,[\]"']/.test(language))
 if (malformed.length > 0) {
   throw new Error(
-    `port-rule-to-languages needs one language per entry in args.languages; these hold more than one or are quoted: ${JSON.stringify(malformed)}. Pass ["Go", "Java"], not "Go and Java" or a JSON string.`,
+    `port-rule-to-languages needs one language per entry in args.languages, each a single token; these are not: ${JSON.stringify(malformed)}. Pass ["Go", "Java"] rather than "Go and Java" or a JSON string, and spell a multi-word name the way Semgrep does — "csharp" or "C#", not "C Sharp".`,
   )
 }
 
 if (!referencesDir) {
   throw new Error(
     'port-rule-to-languages needs args.referencesDir: an absolute path to a directory holding applicability-analysis.md and language-syntax-guide.md. Without it every phase runs without the guidance the port depends on, and nothing downstream fails — the run reports every language passed either way — so it stops here instead.',
+  )
+}
+
+// Non-empty is not the same as resolvable, and the difference is invisible at run time. A
+// skill documenting `{baseDir}/references` hands that literal straight through, because a
+// script cannot expand it and has no filesystem access to notice; every prompt then tells an
+// agent to read a path that does not exist, the agent ports without the guidance, and the run
+// reports every language passed. Checked here because it is deterministic, and because the
+// empty-value guard above was added for this exact failure and stops one spelling of it.
+if (referencesDir.includes('{') || !referencesDir.startsWith('/')) {
+  throw new Error(
+    `port-rule-to-languages needs args.referencesDir as a resolved absolute path, and got ${JSON.stringify(args.referencesDir)}. A workflow script cannot expand {baseDir} or \${CLAUDE_PLUGIN_ROOT}, so resolve it before the call and pass the path as printed.`,
   )
 }
 
@@ -671,9 +713,9 @@ const results = await pipeline(
   },
 )
 
-const { passed, failed, skipped, unsupported, stopped, lost } = partition(results, languages.length)
+const { passed, failed, skipped, unsupported, stopped, lost } = partition(results, languages)
 
-log(`${passed.length} passed, ${failed.length} failed validation, ${skipped.length} not applicable, ${unsupported.length} unsupported by semgrep${stopped.length > 0 ? `, ${stopped.length} stopped` : ''}${lost > 0 ? `, ${lost} did not report back` : ''}`)
+log(`${passed.length} passed, ${failed.length} failed validation, ${skipped.length} not applicable, ${unsupported.length} unsupported by semgrep${stopped.length > 0 ? `, ${stopped.length} stopped` : ''}${lost.length > 0 ? `, ${lost.length} did not report back (${lost.join(', ')})` : ''}`)
 
 return {
   rule: rule.id,
@@ -704,5 +746,6 @@ return {
   // this one will refuse again on a re-run and names what to change; `incomplete` is an agent
   // that died and is worth retrying as-is.
   stopped: stopped.map((r) => ({ language: r.language, reason: r.reason })),
+  // The languages, not how many: this is the one outcome whose follow-up is "run these again".
   incomplete: lost,
 }

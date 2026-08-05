@@ -480,6 +480,31 @@ FAILURE_PATH_BREAKAGES = (
         ("if (!referencesDir) {", "if (false) {"),
         id="letting a run proceed without the references",
     ),
+    pytest.param(
+        # Back to accepting anything non-empty, which is the state that shipped: a script cannot
+        # expand `{baseDir}` and has no filesystem access to notice the path is not there, so the
+        # literal reached every prompt while the run reported every language passed.
+        (
+            "if (referencesDir.includes('{') || !referencesDir.startsWith('/')) {",
+            "if (false) {",
+        ),
+        id="accepting a references path that cannot resolve",
+    ),
+    pytest.param(
+        ("incomplete: lost,", "incomplete: lost.length,"),
+        id="reporting a lost language as a count that names nothing",
+    ),
+    pytest.param(
+        # Without it, "Go and Java" ports one language named after the whole phrase.
+        ("if (malformed.length > 0) {", "if (false) {"),
+        id="accepting a phrase as a single language",
+    ),
+    pytest.param(
+        # Collapsing the two argument guards back into one message, which opened by naming
+        # args.rulePath however the call was actually wrong.
+        ("if (languages.length === 0) {", "if (false) {"),
+        id="losing the error that names the language list",
+    ),
 )
 
 
