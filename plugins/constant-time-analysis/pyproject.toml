@@ -40,13 +40,23 @@ Homepage = "https://github.com/trailofbits/skills"
 Documentation = "https://github.com/trailofbits/skills/tree/main/plugins/constant-time-analysis#readme"
 Repository = "https://github.com/trailofbits/skills.git"
 
+[tool.ty.environment]
+# The tests run as scripts and reach the modules via `sys.path.insert`, importing
+# `analyzer` rather than `ct_analyzer.analyzer`. Without this, ty reports every one
+# of those imports as unresolved, which buries the diagnostics that matter.
+extra-paths = ["ct_analyzer"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["ct_analyzer"]
 
 [tool.hatch.build.targets.sdist]
+# Every fixture the test suite reads, not just the three C/Go/Rust globs that
+# were listed: a packaged install was missing the Python, Ruby, PHP, JS, TS,
+# Java, C#, Kotlin and Swift samples, so the tests that use them could not run
+# from an sdist. `triage_samples` also needs expectations.json, which is the
+# manifest driving the triage matrix.
 include = [
     "ct_analyzer/**/*.py",
-    "ct_analyzer/tests/test_samples/*.c",
-    "ct_analyzer/tests/test_samples/*.go",
-    "ct_analyzer/tests/test_samples/*.rs",
+    "ct_analyzer/tests/test_samples/*",
+    "ct_analyzer/tests/triage_samples/*",
 ]
