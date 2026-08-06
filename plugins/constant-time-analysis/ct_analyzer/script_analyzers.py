@@ -1698,6 +1698,7 @@ class PythonAnalyzer(ScriptAnalyzer):
 
     def __init__(self, python_path: str | None = None):
         self.python_path = python_path or "python3"
+        self._show_offsets_supported: bool | None = None
 
     def is_available(self) -> bool:
         """Check if Python is available."""
@@ -1711,14 +1712,41 @@ class PythonAnalyzer(ScriptAnalyzer):
         except FileNotFoundError:
             return False
 
+    def _supports_show_offsets(self) -> bool:
+        """
+        Check if this Python's `python -m dis` CLI supports --show-offsets.
+
+        Python 3.13 stopped printing the bytecode byte-offset column by
+        default (see https://docs.python.org/3/whatsnew/3.13.html) and added
+        `-O`/`--show-offsets` to opt back in. `_parse_dis_output` below
+        depends on that offset column being present, so on 3.13+ we must
+        pass this flag explicitly or every instruction line silently fails
+        to match and no violations are ever reported (a false negative,
+        not a "no violations found" true negative). Older Pythons (<3.13)
+        printed offsets by default and don't have this flag at all, so we
+        detect support at runtime instead of hardcoding a version check.
+        """
+        if self._show_offsets_supported is not None:
+            return self._show_offsets_supported
+
+        try:
+            result = subprocess.run(
+                [self.python_path, "-m", "dis", "--help"],
+                capture_output=True,
+                text=True,
+            )
+            self._show_offsets_supported = "--show-offsets" in result.stdout
+        except FileNotFoundError:
+            self._show_offsets_supported = False
+
+        return self._show_offsets_supported
+
     def _get_dis_output(self, source_file: str) -> tuple[bool, str]:
         """Get Python dis module output for bytecode disassembly."""
-        cmd = [
-            self.python_path,
-            "-m",
-            "dis",
-            source_file,
-        ]
+        cmd = [self.python_path, "-m", "dis"]
+        if self._supports_show_offsets():
+            cmd.append("--show-offsets")
+        cmd.append(source_file)
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True)
