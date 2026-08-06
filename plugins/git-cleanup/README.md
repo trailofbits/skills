@@ -22,7 +22,7 @@ Analysis runs as a [dynamic workflow](workflows/analyze-branches.js) — a JavaS
 3. **Investigate** — batched agents hunt for merge evidence on the branches that remain ambiguous, mostly `[gone]` remotes and groups of similarly-named branches. Related branches go to one agent so supersession is visible.
 4. **Refute** — every delete candidate goes to a skeptic whose job is to find a commit that is *not* in the default branch. A refuted candidate is downgraded to "needs review", never deleted.
 
-The fleet is bounded at eleven agents — one survey, at most five investigators, at most five skeptics. Past five batches the batches grow rather than the agent count, so the number of agents stops rising even as the repository gets messier. Tokens still scale with the number of ambiguous branches; it is the coordination cost that is capped, not the reading.
+Typical runs are small: a repo with a dozen branches spawns about three agents, because the triage in step 2 decides most of them without spawning anything. Eleven is the ceiling, not the norm — one survey, at most five investigators, at most five skeptics — and past five batches the batches grow rather than the agent count, so the number stops rising even as the repository gets messier. Tokens still scale with the number of ambiguous branches; it is the coordination cost that is capped, not the reading.
 
 The workflow is strictly read-only. Both confirmation gates and every `git branch -d/-D` and `git worktree remove` run in the main session, because subagents have no way to ask the user anything.
 
