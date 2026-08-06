@@ -53,7 +53,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | Plugin | Description |
 |--------|-------------|
 | [agentic-actions-auditor](plugins/agentic-actions-auditor/) | Audit GitHub Actions workflows for AI agent security vulnerabilities |
-| [audit-context-building](plugins/audit-context-building/) | Build deep architectural context through ultra-granular code analysis |
+| [audit-context-building](plugins/audit-context-building/) | Understand a codebase before looking for bugs in it, one function at a time |
 | [burpsuite-project-parser](plugins/burpsuite-project-parser/) | Search and extract data from Burp Suite project files |
 | [c-review](plugins/c-review/) | Comprehensive C/C++ security review with clustered parallel workers and SARIF output |
 | [differential-review](plugins/differential-review/) | Security-focused differential review of code changes with git history analysis |
@@ -84,7 +84,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [constant-time-analysis](plugins/constant-time-analysis/) | Detect compiler-induced timing side-channels in cryptographic code |
 | [mutation-testing](plugins/mutation-testing/) | Configure mewt/muton mutation testing campaigns — scope targets, tune timeouts, optimize long runs |
 | [property-based-testing](plugins/property-based-testing/) | Property-based testing guidance for multiple languages and smart contracts |
-| [spec-to-code-compliance](plugins/spec-to-code-compliance/) | Specification-to-code compliance checker for blockchain audits |
+| [spec-to-code-compliance](plugins/spec-to-code-compliance/) | Check code against the documentation that specifies it, across contracts, C/C++, services, and firmware |
 | [zeroize-audit](plugins/zeroize-audit/) | Detect missing or compiler-eliminated zeroization of secrets in C/C++ and Rust |
 
 ### Reverse Engineering
