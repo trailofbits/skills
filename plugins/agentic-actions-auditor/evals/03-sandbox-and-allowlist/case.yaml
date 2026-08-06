@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: sandbox-and-allowlist
+description: >
+  Configuration-level weaknesses, which the corpus shows are the second most common thing that
+  actually appears (1 of 60). assistant.yml carries three at once on the same step:
+  allowed_non_write_users "*", an allowed_tools list holding both Bash(echo) and Bash(*), and
+  --dangerously-skip-permissions. It also has contents: write and pull-requests: write. zizmor
+  reports only artipacked.
+tags: [agentic, configuration, vector-h, vector-i]
+
+context:
+  add_dirs: [fixture]
+
+execution:
+  prompt: |
+    Review the assistant workflow in the fixture directory. It lets people ask the bot to make
+    changes for them. Is the configuration sound?
+  max_turns: 30
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Skill, Task, Bash]
+
+runs: 3
+
+expected_outcome: >
+  The report identifies the wildcard user allowlist and the permission bypass as separate
+  weaknesses, and connects them to the issue_comment trigger and the write permissions, so that a
+  reader understands any GitHub user can reach an agent that can commit.

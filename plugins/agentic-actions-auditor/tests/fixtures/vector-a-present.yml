@@ -1,0 +1,19 @@
+name: triage
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    env:
+      ISSUE_BODY: ${{ github.event.issue.body }}
+    steps:
+      - uses: anthropics/claude-code-action@a1b2c3d
+        with:
+          prompt: |
+            A new issue arrived. Read ISSUE_BODY from the environment and
+            summarise it in a reply.

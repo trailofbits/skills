@@ -1,0 +1,5 @@
+# Fetched by corpus.py from live repositories. Never committed: a third party's
+# exploitable workflow is not a test fixture.
+corpus/
+
+__pycache__/

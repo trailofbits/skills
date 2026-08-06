@@ -1,0 +1,13 @@
+name: triage
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@a1b2c3d
+        with:
+          claude_args: --allowedTools "Read,Glob"
+          prompt: Summarise the newest issue.

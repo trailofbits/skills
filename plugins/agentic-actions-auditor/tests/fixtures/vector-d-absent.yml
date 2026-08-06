@@ -1,0 +1,13 @@
+name: review
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd719
+      - uses: anthropics/claude-code-action@a1b2c3d
+        with:
+          prompt: Review the checked out changes.

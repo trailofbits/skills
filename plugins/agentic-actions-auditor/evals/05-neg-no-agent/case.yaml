@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: neg-no-agent
+description: >
+  The boundary the skill's own "When NOT to Use" draws, made concrete by measurement. label.yml
+  interpolates github.event.issue.title into a run: block, which is a real injection and is
+  exactly what zizmor already reports on this fixture as template-injection. There is no AI agent
+  anywhere in it. In the corpus every one of the 12 template-injection findings landed on run:
+  steps like this one, so the general tooling covers this and the skill should not claim it.
+tags: [agentic, negative, boundary]
+
+context:
+  add_dirs: [fixture]
+
+execution:
+  prompt: |
+    Can you audit the workflow in the fixture directory for me?
+  max_turns: 30
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Skill, Task, Bash]
+
+runs: 3
+
+expected_outcome: >
+  The response states that the workflow invokes no AI agent, so the agentic vectors do not apply,
+  while still being useful about the shell injection in the run: block and pointing at general
+  Actions tooling for it.

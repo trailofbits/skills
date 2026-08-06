@@ -1,0 +1,5 @@
+# Eval run output, regenerated on every claude plugin eval invocation.
+results/
+
+# Byte-compiled harness modules, imported by the audit.
+__pycache__/

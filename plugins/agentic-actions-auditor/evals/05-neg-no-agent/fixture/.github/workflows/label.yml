@@ -1,0 +1,21 @@
+name: label from title
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: derive label
+        run: |
+          echo "Filing: ${{ github.event.issue.title }}"
+          if echo "${{ github.event.issue.title }}" | grep -qi '^\[bug\]'; then
+            gh issue edit "$NUMBER" --add-label bug
+          fi
+        env:
+          NUMBER: ${{ github.event.issue.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

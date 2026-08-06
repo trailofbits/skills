@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: neg-safe-agent
+description: >
+  A negative case that punishes padding. digest.yml runs on schedule and workflow_dispatch, so
+  there is no attacker-controlled event; env carries only github.repository; the tool list is
+  read-only; turns are capped. None of the six statically decidable vectors matches it and zizmor
+  reports only artipacked. The correct report says so rather than finding something to say.
+tags: [agentic, negative, precision]
+
+context:
+  add_dirs: [fixture]
+
+execution:
+  prompt: |
+    Last audit item for today: the weekly digest workflow in the fixture directory. Anything to
+    fix before I sign this off?
+  max_turns: 30
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Skill, Task, Bash]
+
+runs: 3
+
+expected_outcome: >
+  The report states that the workflow carries no agentic attack path, on the strength of the
+  trigger not being attacker controlled, and does not manufacture a vector from the env block, the
+  tool list or the prompt.
