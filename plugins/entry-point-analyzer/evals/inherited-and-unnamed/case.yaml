@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: inherited-and-unnamed
+description: >
+  The attack surface of StakingVault is not all in StakingVault.sol. Four of its eleven
+  state-changing entry points are declared two files away, in AccessBase and Pausable, and two more
+  are receive() and fallback(), which carry no name to grep for. Six of its nine read-only ABI
+  members are generated getters for public variables, which read like functions but cannot change
+  state. Entry points here are the ABI members that are neither view nor pure.
+tags: [solidity, inheritance, access-control]
+
+context:
+  add_dirs: [fixture]
+
+execution:
+  prompt: |
+    We're scoping an audit of the vault in the fixture directory. StakingVault is the deployed
+    contract.
+
+    Map the attack surface for me: which functions can an outside caller reach that change state,
+    and who is allowed to call each one? I want the entry point list before anyone starts hunting
+    for bugs.
+  max_turns: 30
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Skill, Task]
+
+runs: 3
+
+expected_outcome: >
+  The report lists all eleven state-changing entry points of StakingVault, including
+  transferOwnership, setKeeper, pause and unpause, which are inherited from AccessBase and Pausable
+  rather than declared in StakingVault.sol, and receive(). It does not present the public state
+  variable getters, previewWithdraw, pauseStatus or quoteFee as entry points. Access is classified:
+  uniswapV3SwapCallback is callable only by the pool, pause only by a keeper, and
+  transferOwnership, setKeeper, unpause and sweep only by the owner.
