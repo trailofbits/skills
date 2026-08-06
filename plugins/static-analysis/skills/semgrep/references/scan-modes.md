@@ -13,10 +13,20 @@ Focused on high-confidence security vulnerabilities. Excludes code quality, best
 Add these flags to every `semgrep` command:
 
 ```bash
---severity MEDIUM --severity HIGH --severity CRITICAL
+--severity WARNING --severity ERROR
 ```
 
-This excludes LOW/INFO severity findings at scan time, reducing output volume before post-filtering.
+This excludes INFO findings at scan time, reducing output volume before post-filtering.
+
+`--severity` takes `INFO`, `WARNING`, or `ERROR`, and nothing else. Anything else exits 2 before
+scanning, with no output written. The `LOW`/`MEDIUM`/`HIGH`/`CRITICAL` scale in the table below
+belongs to the rule metadata, which the post-filter reads. The two are not interchangeable.
+
+The two scales do not nest. A registry rule can carry CLI severity `INFO` and metadata
+`impact: HIGH`, and this flag drops it at scan time before the post-filter sees it. The volume
+reduction is why the pre-filter runs at scan time, but it makes important-only "WARNING and
+above, then filtered on metadata" rather than "everything the metadata filter would keep".
+Check a missing finding against a run-all scan before concluding the rule did not fire.
 
 ### Post-Filter: Metadata Criteria
 
@@ -28,13 +38,15 @@ After scanning, filter each JSON result file to keep only findings matching ALL 
 | `extra.metadata.confidence` | `"MEDIUM"`, `"HIGH"` | Excludes low-precision rules (high false positive rate) |
 | `extra.metadata.impact` | `"MEDIUM"`, `"HIGH"` | Excludes low-impact informational findings |
 
-**Third-party rules** (Trail of Bits, 0xdea, Decurity, etc.) may not have `confidence`/`impact`/`category` metadata. Findings **without** these metadata fields are **kept** — we cannot filter what is not annotated, and third-party rules are typically security-focused.
+**Third-party rules** (Trail of Bits, 0xdea, Decurity, etc.) may not have `confidence`/`impact`/`category` metadata. Findings **without** these metadata fields are **kept by the post-filter** — we cannot filter what is not annotated, and third-party rules are typically security-focused.
+
+This exemption applies only to findings that reach the post-filter. The pre-filter above runs first and on every command, including the cross-language unit that carries the cloned third-party repos, so an unannotated rule with CLI `severity: INFO` is dropped at scan time and never becomes a finding the exemption can keep. A third-party rule is exempt from the metadata filter, not from `--severity`.
 
 ### Semgrep Metadata Background
 
 Semgrep security rules have these metadata fields (required for `category: security` in the official registry):
 
-| Field | Purpose | Values |
+| Field | Purpose | Metadata values (never CLI `--severity` values) |
 |---|---|---|
 | `severity` (top-level) | Overall rule severity, derived from likelihood × impact | `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` |
 | `category` | Rule category | `security`, `correctness`, `best-practice`, `maintainability`, `performance` |
@@ -97,14 +109,13 @@ for f in "$OUTPUT_DIR/raw"/*-*.json; do
 done
 ```
 
-### Scanner Task Modifications
+### Scanner Command Modifications
 
-In important-only mode, add `[SEVERITY_FLAGS]` to the scanner template:
+`scripts/run-scans.sh` puts these on every command it generates; they are not yours to add.
 
-```bash
-semgrep [--pro if available] --metrics=off [SEVERITY_FLAGS] --config [RULESET] --json -o [OUTPUT_DIR]/raw/[lang]-[ruleset].json --sarif-output=[OUTPUT_DIR]/raw/[lang]-[ruleset].sarif [TARGET] &
-```
+- **Run all**: no severity flags
+- **Important only**: `--severity WARNING --severity ERROR`
 
-Where `[SEVERITY_FLAGS]` is:
-- **Run all**: *(empty)*
-- **Important only**: `--severity MEDIUM --severity HIGH --severity CRITICAL`
+That pre-filter is applied by semgrep at scan time, before the metadata post-filter above. A
+rule shipping with CLI severity INFO is dropped by the flag and never reaches the filter that
+would have kept it.

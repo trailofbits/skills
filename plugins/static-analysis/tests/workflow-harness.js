@@ -1,0 +1,257 @@
+#!/usr/bin/env node
+// Exercises workflows/semgrep-scan.js with every agent stubbed. The runtime injects globals
+// and wraps the body in an async function; that is reproduced here by stripping the `export`
+// and wrapping, so each phase guard is testable offline.
+//
+//   node workflow-harness.js <path-to-semgrep-scan.js> [--self-test]
+//
+// --self-test mutates the workflow and requires each mutation to turn a scenario red, so a
+// harness that stopped checking anything cannot still report success.
+
+"use strict";
+
+const fs = require("fs");
+
+const workflowPath = process.argv[2];
+const selfTest = process.argv.includes("--self-test");
+if (!workflowPath) {
+  console.error("usage: node workflow-harness.js <path-to-semgrep-scan.js> [--self-test]");
+  process.exit(2);
+}
+const SOURCE = fs.readFileSync(workflowPath, "utf8");
+
+function compile(src) {
+  const body = src.replace(/^export const meta/m, "const meta");
+  return new Function(
+    "agent",
+    "parallel",
+    "phase",
+    "log",
+    "args",
+    `return (async () => {\n${body}\n})()`,
+  );
+}
+
+const DETECT = {
+  target: "/proj",
+  outputDir: "/proj/static_analysis_semgrep_1",
+  pro: false,
+  proReason: "",
+  languages: [{ name: "python", files: 12 }],
+  frameworks: ["django"],
+};
+const SELECT = { rulesetsPath: "/proj/static_analysis_semgrep_1/rulesets.json", counts: { baseline: 2, language: 2, thirdParty: 1 } };
+const SCAN = { ok: true, scansJson: "/proj/static_analysis_semgrep_1/scans.json", succeeded: 4, failed: 0, skipped: 0, error: "" };
+const REPORT = { resultsSarif: "/proj/static_analysis_semgrep_1/results/results.sarif", total: 7, report: "# Semgrep Scan Complete" };
+
+// Each phase's reply is overridable; `null` stands for an agent that returned nothing.
+async function run(src, { args, detect = DETECT, select = SELECT, scan = SCAN, report = REPORT } = {}) {
+  const logs = [];
+  const prompts = {};
+  const replies = { detect, select, scan, report };
+  const agent = async (prompt, opts = {}) => {
+    const label = opts.label || "?";
+    prompts[label] = prompt;
+    if (!(label in replies)) throw new Error(`unexpected agent label: ${label}`);
+    return replies[label];
+  };
+  const parallel = async (thunks) =>
+    Promise.all(thunks.map((t) => Promise.resolve().then(t).catch(() => null)));
+  const out = await compile(src)(agent, parallel, () => {}, (m) => logs.push(m), args);
+  return { out, logs, prompts };
+}
+
+async function throws(src, opts) {
+  try {
+    await run(src, opts);
+    return null;
+  } catch (e) {
+    return e.message;
+  }
+}
+
+let PASS = 0;
+const FAILURES = [];
+const ok = (cond, msg) => {
+  if (cond) PASS++;
+  else FAILURES.push(msg);
+};
+
+// ---------------------------------------------------------------- scenarios
+// Each returns a list of [condition, message]. --self-test re-runs them against mutated
+// sources and requires that at least one goes red, which is what proves they bite.
+const SCENARIOS = {
+  "happy path returns the assembled result": async (src) => {
+    const { out, prompts } = await run(src, { args: { target: "/proj" } });
+    return [
+      [out && out.total === 7, "the merged finding total must be returned"],
+      [out && out.outputDir === DETECT.outputDir, "the resolved output directory must be returned"],
+      [out && out.succeeded === 4, "the scan counts must be carried through"],
+      [Object.keys(prompts).length === 4, "all four phases must run"],
+    ];
+  },
+
+  "args parse from a prose string": async (src) => {
+    const { out } = await run(src, { args: "target: /proj; mode: important-only" });
+    return [[out && out.mode === "important-only", "a prose args string must still set the mode"]];
+  },
+
+  "an unknown mode is rejected before any agent runs": async (src) => {
+    const msg = await throws(src, { args: { mode: "everything" } });
+    return [[msg && /mode must be one of/.test(msg), "an unknown mode must throw"]];
+  },
+
+  "a non-integer jobs is rejected": async (src) => {
+    const msg = await throws(src, { args: { jobs: "lots" } });
+    return [[msg && /jobs must be a positive integer/.test(msg), "a non-integer --jobs must throw"]];
+  },
+
+  // The guards below all protect the same thing: a later phase acting on a path an earlier
+  // phase did not actually resolve, which silently scans or deletes the wrong tree.
+  "a relative target from detect is rejected": async (src) => {
+    const msg = await throws(src, { detect: { ...DETECT, target: "proj" } });
+    return [[msg && /non-absolute target/.test(msg), "a relative target must throw rather than reach the scan"]];
+  },
+
+  "an output directory equal to the target is rejected": async (src) => {
+    const msg = await throws(src, { detect: { ...DETECT, outputDir: "/proj" } });
+    return [[msg && /scan target/.test(msg), "an output directory equal to the target must throw"]];
+  },
+
+  "a dead detect phase stops the run": async (src) => {
+    const msg = await throws(src, { detect: null });
+    return [[msg && /no scan ran/.test(msg), "a detect agent that returned nothing must stop the run"]];
+  },
+
+  "a select phase with no ruleset file stops the run": async (src) => {
+    const msg = await throws(src, { select: { rulesetsPath: "", counts: {} } });
+    return [[msg && /no scan ran/.test(msg), "an empty ruleset path must stop the run"]];
+  },
+
+  // The most important negative: a failed scan must not reach the report as an empty result.
+  "a failed scan stops the run rather than reporting zero findings": async (src) => {
+    const msg = await throws(src, { scan: { ...SCAN, ok: false, succeeded: 0, error: "semgrep exited 7" } });
+    return [
+      [msg && /no scan succeeded/.test(msg), "a failed scan must throw"],
+      [msg && /semgrep exited 7/.test(msg), "the script's own error must be carried into the message"],
+    ];
+  },
+
+  "a dead report phase names where the raw output is": async (src) => {
+    const msg = await throws(src, { report: null });
+    return [[msg && /raw/.test(msg), "a dead merge phase must still point at the raw scan output"]];
+  },
+
+  "pro reaches the scan command only when detected": async (src) => {
+    const off = await run(src, {});
+    const on = await run(src, { detect: { ...DETECT, pro: true } });
+    return [
+      [!/--pro/.test(off.prompts.scan), "--pro must be absent when Pro was not available"],
+      [/--pro/.test(on.prompts.scan), "--pro must be passed when Pro was detected"],
+    ];
+  },
+
+  "jobs reaches the scan command only when given": async (src) => {
+    const without = await run(src, {});
+    const with_ = await run(src, { args: { jobs: 8 } });
+    return [
+      [!/--jobs/.test(without.prompts.scan), "--jobs must be absent unless asked for"],
+      [/--jobs 8/.test(with_.prompts.scan), "--jobs must reach the command when given"],
+    ];
+  },
+
+  "the scan phase calls the script and nothing else": async (src) => {
+    const { prompts } = await run(src, {});
+    return [
+      [/run-scans\.sh/.test(prompts.scan), "the scan phase must invoke run-scans.sh"],
+      [/--rulesets "\/proj\/static_analysis_semgrep_1\/rulesets\.json"/.test(prompts.scan), "the ruleset file from the select phase must be passed through"],
+      [/Do not add rulesets/.test(prompts.scan), "the agent must be told not to compose its own commands"],
+    ];
+  },
+
+  "the select phase is pointed at the shared catalogue": async (src) => {
+    const { prompts } = await run(src, {});
+    return [
+      [/references\/rulesets\.md/.test(prompts.select), "ruleset selection must read rulesets.md rather than memory"],
+      [/third_party/.test(prompts.select), "the required third-party rules must be named"],
+    ];
+  },
+
+  "important-only reaches both the scan and the merge": async (src) => {
+    const { prompts } = await run(src, { args: { mode: "important-only" } });
+    return [
+      [/--mode important-only/.test(prompts.scan), "the mode must reach the scan command"],
+      [/scan-modes\.md/.test(prompts.report), "important-only must post-filter before the merge"],
+    ];
+  },
+
+  "the report is told to count from the merged SARIF": async (src) => {
+    const { prompts } = await run(src, {});
+    return [
+      [/Never sum the per-scan findings counts/.test(prompts.report), "the report must not sum per-scan counts"],
+      [/Did Not Run/.test(prompts.report), "failed and skipped rulesets must get their own section"],
+      [/rm -rf/.test(prompts.report), "the cloned rule repos must be deleted after the merge"],
+    ];
+  },
+};
+
+// Mutations the scenarios must notice. Each removes one guard or one flag.
+const MUTATIONS = [
+  ["drop the absolute-target guard", (s) => s.replace(/if \(!target \|\| !target\.startsWith\('\/'\)\).*\n/, "")],
+  ["drop the output-dir-equals-target guard", (s) => s.replace(/if \(outputDir\.replace[\s\S]*?\n\}\n/, "")],
+  ["treat a failed scan as success", (s) => s.replace("if (!scanned || !scanned.ok) {", "if (false) {")],
+  ["always pass --pro", (s) => s.replace("${detected.pro ? ' \\\\\\n    --pro' : ''}", "' \\\\\\n    --pro'")],
+  ["drop the mode validation", (s) => s.replace(/if \(!MODES\.has\(mode\)\) \{[\s\S]*?\n\}\n/, "")],
+  ["drop the dead-detect guard", (s) => s.replace("if (!detected) throw new Error('the detect phase returned nothing; no scan ran')", "if (!detected) return {}")],
+];
+
+(async () => {
+  for (const [name, fn] of Object.entries(SCENARIOS)) {
+    let results;
+    try {
+      results = await fn(SOURCE);
+    } catch (e) {
+      FAILURES.push(`${name}: threw unexpectedly: ${e.message}`);
+      continue;
+    }
+    for (const [cond, msg] of results) ok(cond, `${name}: ${msg}`);
+  }
+
+  if (selfTest) {
+    let bitten = 0;
+    for (const [label, mutate] of MUTATIONS) {
+      const mutated = mutate(SOURCE);
+      if (mutated === SOURCE) {
+        FAILURES.push(`self-test: mutation "${label}" changed nothing — it no longer matches the source`);
+        continue;
+      }
+      let red = false;
+      for (const fn of Object.values(SCENARIOS)) {
+        try {
+          const results = await fn(mutated);
+          if (results.some(([cond]) => !cond)) {
+            red = true;
+            break;
+          }
+        } catch {
+          red = true;
+          break;
+        }
+      }
+      if (red) bitten++;
+      else FAILURES.push(`self-test: no scenario caught the mutation "${label}"`);
+    }
+    ok(bitten === MUTATIONS.length, `self-test: ${bitten}/${MUTATIONS.length} mutations caught`);
+  }
+
+  if (FAILURES.length) {
+    for (const f of FAILURES) console.error(`  FAIL: ${f}`);
+    console.error(`${FAILURES.length} failed, ${PASS} passed`);
+    process.exit(1);
+  }
+  if (PASS === 0) {
+    console.error("no assertions ran — discovery is broken");
+    process.exit(1);
+  }
+  console.log(`${PASS} assertions passed`);
+})();

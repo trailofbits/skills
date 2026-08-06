@@ -1,0 +1,350 @@
+#!/usr/bin/env bash
+# Regression suite for scripts/run-scans.sh, discovered by CI's run_*.sh glob.
+#
+# Command generation is checked with --dry-run; execution, exit codes and clone failures run
+# against stub semgrep and git binaries on PATH, so the suite is hermetic.
+#
+# The negative assertions matter most: a repo that would not clone, and a scan that exited
+# non-zero, must not reach `scans`. The counter at the bottom fails the run when fewer
+# assertions execute than are written.
+set -uo pipefail
+
+PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
+readonly EXPECTED_ASSERTIONS=55
+
+command -v jq >/dev/null 2>&1 || {
+  echo "run_scan_tests.sh: jq not found — required" >&2
+  exit 1
+}
+[ -x "$SCRIPT" ] || [ -r "$SCRIPT" ] || {
+  echo "run_scan_tests.sh: cannot read $SCRIPT" >&2
+  exit 1
+}
+
+PASS=0
+FAIL=0
+ok() {
+  if [ "$1" = "0" ]; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1))
+    echo "  FAIL: $2" >&2
+  fi
+}
+# Asserts on a value rather than a status, so the failure message can show what was actually got.
+eq() {
+  if [ "$1" = "$2" ]; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1))
+    echo "  FAIL: $3 (expected '$2', got '$1')" >&2
+  fi
+}
+contains() {
+  case "$1" in
+    *"$2"*) PASS=$((PASS + 1)) ;;
+    *)
+      FAIL=$((FAIL + 1))
+      echo "  FAIL: $3" >&2
+      ;;
+  esac
+}
+lacks() {
+  case "$1" in
+    *"$2"*)
+      FAIL=$((FAIL + 1))
+      echo "  FAIL: $3" >&2
+      ;;
+    *) PASS=$((PASS + 1)) ;;
+  esac
+}
+
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/run-scan-tests.XXXXXX")
+trap 'rm -rf "$WORK"' EXIT
+
+TARGET="$WORK/proj"
+mkdir -p "$TARGET/src"
+printf 'x = 1\n' >"$TARGET/src/a.py"
+
+plan() { # plan <name> <json>
+  printf '%s\n' "$2" >"$WORK/$1.json"
+  printf '%s' "$WORK/$1.json"
+}
+
+dry() { # dry <plan-file> [extra args...] -> generated commands on stdout
+  local p=$1
+  shift
+  bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/out" --mode run-all \
+    --rulesets "$p" --dry-run "$@" 2>/dev/null
+}
+
+# Returns the die() message; used to assert a bad plan is rejected rather than degraded.
+fails() { # fails <args...> -> prints stderr, returns 0 if the script exited non-zero
+  local out
+  if out=$("$@" 2>&1); then
+    printf '%s' "$out"
+    return 1
+  fi
+  printf '%s' "$out"
+  return 0
+}
+
+echo "→ argument validation"
+
+BASIC=$(plan basic '{"baseline":["p/security-audit"],"python":["p/python"],"third_party":[]}')
+
+msg=$(fails bash "$SCRIPT" --target relative/path --output-dir "$WORK/out" --mode run-all --rulesets "$BASIC" --dry-run)
+ok $? "a relative --target must be rejected"
+contains "$msg" "absolute path" "the message must name the absolute-path requirement"
+
+msg=$(fails bash "$SCRIPT" --target "$TARGET" --output-dir rel --mode run-all --rulesets "$BASIC" --dry-run)
+ok $? "a relative --output-dir must be rejected"
+
+msg=$(fails bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/out" --mode wrong --rulesets "$BASIC" --dry-run)
+ok $? "an unknown --mode must be rejected"
+
+msg=$(fails bash "$SCRIPT" --target "$TARGET" --output-dir "$TARGET" --mode run-all --rulesets "$BASIC" --dry-run)
+ok $? "an output directory equal to the target must be rejected"
+contains "$msg" "scan target" "the message must explain the run would scan its own output"
+
+msg=$(fails bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/out" --mode run-all --rulesets "$WORK/nope.json" --dry-run)
+ok $? "a missing rulesets file must be rejected"
+
+printf 'not json' >"$WORK/bad.json"
+msg=$(fails bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/out" --mode run-all --rulesets "$WORK/bad.json" --dry-run)
+ok $? "a rulesets file that is not JSON must be rejected"
+
+# A single ruleset written without the brackets would otherwise iterate the string.
+SCALAR=$(plan scalar '{"docker":"p/dockerfile","third_party":[]}')
+msg=$(fails bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/out" --mode run-all --rulesets "$SCALAR" --dry-run)
+ok $? "a scalar where an array is expected must be rejected"
+contains "$msg" "must be an array" "the message must name the array requirement"
+
+URLKEY=$(plan urlkey '{"python":["https://github.com/x/y"],"third_party":[]}')
+msg=$(fails bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/out" --mode run-all --rulesets "$URLKEY" --dry-run)
+ok $? "a repository URL filed under a language key must be rejected"
+contains "$msg" "third_party" "the message must point at third_party"
+
+TRAVERSE=$(plan traverse '{"baseline":["p/python/../../.."],"third_party":[]}')
+ok "$(
+  fails bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/out" --mode run-all --rulesets "$TRAVERSE" --dry-run >/dev/null
+  echo $?
+)" "a traversing ruleset id must be rejected"
+
+ABS=$(plan abs '{"baseline":["/etc"],"third_party":[]}')
+ok "$(
+  fails bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/out" --mode run-all --rulesets "$ABS" --dry-run >/dev/null
+  echo $?
+)" "an absolute path is not a registry identifier"
+
+BADURL=$(plan badurl '{"baseline":[],"third_party":["http://insecure/x/y"]}')
+ok "$(
+  fails bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/out" --mode run-all --rulesets "$BADURL" --dry-run >/dev/null
+  echo $?
+)" "a non-https third_party URL must be rejected"
+
+EMPTY=$(plan empty '{"baseline":[],"third_party":[]}')
+msg=$(fails bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/out" --mode run-all --rulesets "$EMPTY" --dry-run)
+ok $? "a plan with no rulesets at all must be rejected, not run as an empty scan"
+contains "$msg" "nothing to run" "the message must say there is nothing to run"
+
+RESERVED=$(plan reserved '{"all":["p/python"],"third_party":[]}')
+msg=$(fails bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/out" --mode run-all --rulesets "$RESERVED" --dry-run)
+ok $? "the reserved language name 'all' must be rejected"
+
+# shellcheck disable=SC2016  # the literal $(id) is the payload under test
+INJECT=$(plan inject '{"py$(id)":["p/python"],"third_party":[]}')
+msg=$(fails bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/out" --mode run-all --rulesets "$INJECT" --dry-run)
+ok $? "a language key holding a command substitution must be rejected"
+
+echo "→ command generation"
+
+out=$(dry "$BASIC")
+n=$(printf '%s\n' "$out" | grep -c 'semgrep')
+eq "$n" "2" "one command per ruleset"
+n=$(printf '%s\n' "$out" | grep -c -- '--metrics=off')
+eq "$n" "2" "--metrics=off must be on every command"
+lacks "$out" "--severity" "run-all mode must add no severity flags"
+lacks "$out" "--pro" "--pro must be absent unless asked for"
+
+# The cross-language ruleset scans the whole target: a filter would drop findings in the files
+# it does not match.
+baseline_cmd=$(printf '%s\n' "$out" | grep 'p/security-audit')
+lacks "$baseline_cmd" "--include" "cross-language rulesets must never take --include"
+py_cmd=$(printf '%s\n' "$out" | grep 'p/python')
+contains "$py_cmd" '"--include=*.py"' "language rulesets must be scoped with --include"
+contains "$py_cmd" '"--include=*.pyi"' "every glob for the language must be present"
+contains "$baseline_cmd" 'raw/all-security-audit.json' "cross-language output stems start with all-"
+
+out=$(dry "$BASIC" --mode important-only)
+n=$(printf '%s\n' "$out" | grep -c -- '--severity WARNING --severity ERROR')
+eq "$n" "2" "important-only must add the severity pre-filter to every command"
+
+out=$(dry "$BASIC" --pro)
+n=$(printf '%s\n' "$out" | grep -c -- '--pro')
+eq "$n" "2" "--pro must reach every command when requested"
+
+echo "→ output directory exclusion"
+
+# The default output directory sits inside the target, where the cloned rule repos and the raw
+# JSON of sibling scans would otherwise be scanned as if they were the user's code.
+out=$(bash "$SCRIPT" --target "$TARGET" --output-dir "$TARGET/out" --mode run-all --rulesets "$BASIC" --dry-run 2>/dev/null)
+n=$(printf '%s\n' "$out" | grep -c -- '--exclude=out')
+eq "$n" "2" "--exclude must be on every command, including the cross-language ones"
+
+out=$(dry "$BASIC")
+lacks "$out" "--exclude" "no --exclude when the output directory is outside the target"
+
+echo "→ cross-language hoisting and dedup"
+
+# p/secrets is in baseline and in the python list. Running it twice would put two findings
+# counts in the report for one scan; the merged SARIF dedups the results but a sum does not.
+SHARED=$(plan shared '{"baseline":["p/secrets"],"python":["p/python","p/secrets"],"third_party":[]}')
+out=$(dry "$SHARED")
+n=$(printf '%s\n' "$out" | grep -c 'p/secrets')
+eq "$n" "1" "a ruleset already running unscoped must not be scanned again per language"
+n=$(printf '%s\n' "$out" | grep -c 'p/python')
+eq "$n" "1" "the language keeps the rulesets that are its own"
+
+# js and javascript are the same language. Two units would carry identical --include sets, and
+# a ruleset named under both would be scanned and counted twice.
+ALIAS=$(plan alias '{"baseline":[],"js":["p/javascript"],"javascript":["p/nodejs"],"third_party":[]}')
+out=$(dry "$ALIAS")
+n=$(printf '%s\n' "$out" | grep -c 'raw/javascript-')
+eq "$n" "2" "aliased keys must fold onto one language, one command per distinct ruleset"
+
+DUPE=$(plan dupe '{"baseline":[],"js":["p/javascript"],"javascript":["p/javascript"],"third_party":[]}')
+out=$(dry "$DUPE")
+n=$(printf '%s\n' "$out" | grep -c 'p/javascript')
+eq "$n" "1" "the same ruleset under two aliases of one language must be scanned once"
+
+# Two spellings of one repository collapse to one clone directory, so the second clone would
+# fail into a non-empty tree and both would then read the same result.
+GITDUP=$(plan gitdup '{"baseline":[],"third_party":["https://github.com/trailofbits/semgrep-rules","https://github.com/trailofbits/semgrep-rules.git"]}')
+out=$(dry "$GITDUP")
+n=$(printf '%s\n' "$out" | grep -c 'trailofbits-semgrep-rules')
+eq "$n" "1" "two spellings of one repository must clone and scan once"
+
+# Different owners publishing a repo of the same name must stay distinct.
+TWOORG=$(plan twoorg '{"baseline":[],"third_party":["https://github.com/trailofbits/semgrep-rules","https://github.com/elttam/semgrep-rules"]}')
+out=$(dry "$TWOORG")
+contains "$out" "trailofbits-semgrep-rules" "the clone directory must carry the owner"
+contains "$out" "elttam-semgrep-rules" "a second org's identically named repo must not collide"
+
+UNKNOWN=$(plan unknown '{"baseline":[],"cobol":["p/cobol"],"third_party":[]}')
+out=$(dry "$UNKNOWN")
+lacks "$out" "--include" "an unrecognised language must run unscoped rather than guess a glob"
+
+echo "→ execution, exit codes and finding counts"
+
+# Stub semgrep: writes the output files it was told to and exits with $STUB_RC. The real binary
+# is not needed to prove how this script reads a result, and stubbing keeps the suite hermetic.
+mkdir -p "$WORK/bin"
+cat >"$WORK/bin/semgrep" <<'STUB'
+#!/usr/bin/env bash
+json=""; sarif=""; prev=""
+for a in "$@"; do
+  case "$prev" in -o) json=$a ;; esac
+  case "$a" in --sarif-output=*) sarif=${a#--sarif-output=} ;; esac
+  prev=$a
+done
+if [ "${STUB_WRITE:-1}" = "1" ]; then
+  printf '{"results":[%s]}' "${STUB_RESULTS:-}" > "$json"
+  printf '{"runs":[]}' > "$sarif"
+fi
+[ -z "${STUB_STDERR:-}" ] || echo "$STUB_STDERR" >&2
+exit "${STUB_RC:-0}"
+STUB
+chmod +x "$WORK/bin/semgrep"
+
+run_real() { # run_real <plan> [env assignments already exported] -> scans.json path
+  local p=$1 outdir=$2
+  rm -rf "$outdir"
+  PATH="$WORK/bin:$PATH" bash "$SCRIPT" --target "$TARGET" --output-dir "$outdir" \
+    --mode run-all --rulesets "$p" --jobs 2 >/dev/null 2>&1
+  echo $?
+}
+
+ONE=$(plan one '{"baseline":[],"python":["p/python"],"third_party":[]}')
+
+export STUB_RC=0 STUB_RESULTS='{"a":1},{"b":2}'
+rc=$(run_real "$ONE" "$WORK/o1")
+eq "$rc" "0" "a successful scan must exit 0"
+eq "$(jq '.scans | length' "$WORK/o1/scans.json")" "1" "the successful scan must appear in scans"
+eq "$(jq -r '.scans[0].findings' "$WORK/o1/scans.json")" "2" "findings must be counted from the JSON, not reported"
+eq "$(jq '.failed | length' "$WORK/o1/scans.json")" "0" "a successful scan must not appear in failed"
+
+# Exit 1 means "findings present" on older semgrep, so it is a successful scan.
+export STUB_RC=1 STUB_RESULTS='{"a":1}'
+rc=$(run_real "$ONE" "$WORK/o2")
+eq "$(jq '.scans | length' "$WORK/o2/scans.json")" "1" "exit 1 must count as a successful scan"
+
+# Exit 7 is a config that would not load: no scan happened.
+export STUB_RC=7 STUB_RESULTS=''
+rc=$(run_real "$ONE" "$WORK/o3")
+eq "$rc" "1" "a run where every scan failed must exit non-zero"
+eq "$(jq '.scans | length' "$WORK/o3/scans.json")" "0" "a scan that exited 7 must not reach scans"
+eq "$(jq '.failed | length' "$WORK/o3/scans.json")" "1" "a scan that exited 7 must be reported as failed"
+contains "$(jq -r '.failed[0].json' "$WORK/o3/scans.json")" "raw/python-python.json" \
+  "a failed entry must carry the paths it may have partly written"
+
+# Exit 0 with no output file is the case the exit code alone cannot catch.
+export STUB_RC=0 STUB_WRITE=0
+rc=$(run_real "$ONE" "$WORK/o4")
+eq "$(jq '.failed | length' "$WORK/o4/scans.json")" "1" "exit 0 with no output file must be a failure, not a clean scan"
+unset STUB_WRITE
+
+echo "→ clone failures"
+
+export STUB_RC=0 STUB_RESULTS=''
+mkdir -p "$WORK/gitbin"
+cat >"$WORK/gitbin/git" <<'GITSTUB'
+#!/usr/bin/env bash
+# clone <flags> <url> <dest>
+dest=${*: -1}
+case "${GIT_STUB_MODE:-fail}" in
+  fail)  echo "fatal: repository not found" >&2; exit 128 ;;
+  empty) mkdir -p "$dest"; exit 0 ;;
+  ok)    mkdir -p "$dest"; printf 'rules: []\n' > "$dest/rules.yaml"; exit 0 ;;
+esac
+GITSTUB
+chmod +x "$WORK/gitbin/git"
+
+REPO=$(plan repo '{"baseline":["p/security-audit"],"third_party":["https://github.com/x/rules"]}')
+
+run_clone() {
+  rm -rf "$2"
+  PATH="$WORK/gitbin:$WORK/bin:$PATH" GIT_STUB_MODE="$1" bash "$SCRIPT" --target "$TARGET" \
+    --output-dir "$2" --mode run-all --rulesets "$REPO" --jobs 1 >/dev/null 2>&1
+  echo $?
+}
+
+run_clone fail "$WORK/c1" >/dev/null
+eq "$(jq '.skipped | length' "$WORK/c1/scans.json")" "1" "a repo that will not clone must be reported as skipped"
+eq "$(jq -r '.skipped[0].ruleset' "$WORK/c1/scans.json")" "https://github.com/x/rules" \
+  "the skipped entry must name the repository the user approved"
+eq "$(jq '[.scans[].ruleset | select(test("github"))] | length' "$WORK/c1/scans.json")" "0" \
+  "a repo that failed to clone must not appear as a scanned ruleset"
+
+# A clone that succeeds but carries no rules scans nothing; reporting it as fine would show a
+# completed scan against a ruleset that never ran.
+run_clone empty "$WORK/c2" >/dev/null
+eq "$(jq '.skipped | length' "$WORK/c2/scans.json")" "1" "a clone with no rule files must be skipped"
+
+run_clone ok "$WORK/c3" >/dev/null
+eq "$(jq '.skipped | length' "$WORK/c3/scans.json")" "0" "a healthy clone must not be skipped"
+eq "$(jq '.scans | length' "$WORK/c3/scans.json")" "2" "a healthy clone must be scanned alongside the baseline"
+
+TOTAL=$((PASS + FAIL))
+echo
+echo "$PASS passed, $FAIL failed, $TOTAL run"
+if [ "$FAIL" -ne 0 ]; then
+  exit 1
+fi
+# A suite that stopped early would otherwise exit 0 having proved nothing.
+if [ "$TOTAL" -ne "$EXPECTED_ASSERTIONS" ]; then
+  echo "ran $TOTAL assertions, expected $EXPECTED_ASSERTIONS, so the suite did not run in full" >&2
+  exit 1
+fi
+echo "$TOTAL assertions passed"
