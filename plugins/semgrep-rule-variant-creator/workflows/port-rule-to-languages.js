@@ -416,8 +416,17 @@ function gradingFailure(reported, stem) {
 
   const expected = graded[1]?.expected_lines || []
   const found = graded[1]?.reported_lines || []
+  const name = graded[0].split('/').pop()
   if (expected.length === 0) {
-    return `${graded[0].split('/').pop()} has no annotated lines, so a pass over it grades nothing`
+    return `${name} has no annotated lines, so a pass over it grades nothing`
+  }
+
+  // Two, not one. testPrompt asks for at least two of each case and test_port_rule_workflow.py
+  // holds the golden fixtures to that, so accepting one here would let the live path pass a spec
+  // the plugin's own fixture standard rejects — the same split this verdict exists to close.
+  // Only the ruleid side is visible from here; `ok:` lines never appear in expected_lines.
+  if (expected.length < 2) {
+    return `${name} has one annotated line, where a spec is meant to cover at least two vulnerable cases`
   }
   if (expected.join(',') !== found.join(',')) {
     return `expected matches on lines [${expected}], semgrep reported [${found}]`
@@ -751,6 +760,19 @@ const results = await pipeline(
     // no rule whatever the vulnerability class does there, so refuting the verdict would
     // settle nothing and cost an agent. This is the gap a Pro-only parser walked through —
     // the port was graded by a semgrep that could read the language rather than by this one.
+    // Absent is not a yes. The schema requires this field, so a missing one is malformed output
+    // rather than permission to proceed — and reading it as permission is the unsafe direction,
+    // since this is the gate that keeps a Pro-only parser out and it drops a language with no
+    // refuter behind it. Checked before the `=== false` branch so the message stays accurate:
+    // "semgrep cannot analyse it" and "nobody said" are different findings.
+    if (typeof assessment.semgrepCanAnalyze !== 'boolean') {
+      return stop(
+        language,
+        assessment,
+        'the assessment never said whether semgrep can parse this language, and that claim is the only thing standing between a Pro-only parser and a port graded over zero rules',
+      )
+    }
+
     if (assessment.semgrepCanAnalyze === false) {
       return unsupportedResult(language, assessment)
     }

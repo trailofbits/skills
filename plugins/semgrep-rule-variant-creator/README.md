@@ -46,7 +46,7 @@ dynamic workflow:
 |---|---|---|
 | `rulePath` | required | Path to the Semgrep rule YAML being ported |
 | `languages` | required | One target language per entry: `["Go", "Java"]`. A phrase like `"Go and Java"` is rejected rather than ported as a single language named after the phrase |
-| `referencesDir` | required | This plugin's `references/` directory, as a resolved absolute path — the skill prints it with `ls "${CLAUDE_PLUGIN_ROOT}/…"` and passes what it saw. A workflow script cannot expand `{baseDir}` or `${CLAUDE_PLUGIN_ROOT}`, and has no filesystem access to notice that it did not, and an installed plugin does not sit in your project, so this is the only route by which the guidance reaches the phase agents. The script rejects both an omitted value and a path holding an unexpanded token: a port made without the references still reports every language as passed, so a warning would be the one signal that can be ignored for free |
+| `referencesDir` | required | This plugin's `references/` directory, as a resolved absolute path — the skill prints it with `ls -d -- "${CLAUDE_PLUGIN_ROOT}/…"` and passes what it saw — `-d`, because `ls` without it lists the files inside the directory rather than the directory, leaving nothing to copy. A workflow script cannot expand `{baseDir}` or `${CLAUDE_PLUGIN_ROOT}`, and has no filesystem access to notice that it did not, and an installed plugin does not sit in your project, so this is the only route by which the guidance reaches the phase agents. The script rejects both an omitted value and a path holding an unexpanded token: a port made without the references still reports every language as passed, so a warning would be the one signal that can be ignored for free |
 | `outputDir` | working directory | Where the variant directories land |
 
 It reads the rule once, then runs each language through its own applicability, test,
@@ -191,6 +191,8 @@ then tells a reader that a guard they are looking for has nothing behind it.
 | Port to a language semgrep cannot parse | `workflow-failure-paths.test.mjs` |
 | Inherit the parse answer through a renamed language key | `workflow-failure-paths.test.mjs` |
 | Overturn a verdict without naming a construct | `workflow-failure-paths.test.mjs` |
+| Treat an unanswered parse question as a yes | `workflow-failure-paths.test.mjs` |
+| Grade a spec with a single annotated line as a pass | `workflow-failure-paths.test.mjs` |
 | Treat a dead refuter as an upheld verdict | `workflow-failure-paths.test.mjs` |
 | Let two languages share one output directory | `workflow-failure-paths.test.mjs` |
 | Slug an alias without canonicalising it first | `workflow-failure-paths.test.mjs` |

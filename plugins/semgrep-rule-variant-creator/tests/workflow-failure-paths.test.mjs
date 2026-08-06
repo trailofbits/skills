@@ -193,6 +193,7 @@ test('an upheld NOT_APPLICABLE yields no directory and spawns no test or transla
         verdict: 'NOT_APPLICABLE',
         reasoning: 'no shell in this language',
         semgrepLanguage: 'go',
+        semgrepCanAnalyze: true,
       }),
     },
   })
@@ -211,6 +212,7 @@ test('an overturned NOT_APPLICABLE continues to a finished port', async () => {
         verdict: 'NOT_APPLICABLE',
         reasoning: 'no shell',
         semgrepLanguage: 'go',
+        semgrepCanAnalyze: true,
       }),
       refute: () => ({
         refuted: true,
@@ -224,6 +226,60 @@ test('an overturned NOT_APPLICABLE continues to a finished port', async () => {
   assert.equal(result.passed.length, 1)
   assert.equal(result.notApplicable.length, 0)
   assert.ok(calls.includes('test:Go'), 'the port should proceed once the verdict is overturned')
+})
+
+test('an assessment that never answers the parse question stops rather than proceeding', async () => {
+  // The field is schema-required, so an absent one is malformed output rather than permission to
+  // proceed. Reading it as permission is the unsafe direction: this gate is what keeps a Pro-only
+  // parser out, and it drops a language with no refuter behind it.
+  const { result, calls } = await run({
+    args: BASE_ARGS,
+    stubs: {
+      assess: () => ({ verdict: 'APPLICABLE', reasoning: 'ok', semgrepLanguage: 'go' }),
+    },
+  })
+
+  assert.equal(result.stopped.length, 1)
+  assert.match(result.stopped[0].reason, /never said whether semgrep can parse/)
+  assert.equal(result.passed.length, 0)
+  assert.deepEqual(calls, ['read-rule', 'assess:Go'], 'no port work on an unanswered gate')
+})
+
+test('a green over a spec with a single annotated line is not a pass', async () => {
+  // testPrompt asks for at least two of each case and test_port_rule_workflow.py holds the golden
+  // fixtures to that, so accepting one here would let the live path pass a spec the plugin's own
+  // fixture standard rejects — the same split between the two graders this verdict closes.
+  const stem = 'python-command-injection-go'
+  const thin = JSON.stringify({
+    config_with_errors: [],
+    results: {
+      [`${stem}.yaml`]: {
+        checks: {
+          [stem]: {
+            passed: true,
+            matches: { [`/out/${stem}/${stem}.src`]: { expected_lines: [3], reported_lines: [3] } },
+          },
+        },
+      },
+    },
+  })
+
+  const { result } = await run({
+    args: BASE_ARGS,
+    stubs: {
+      validate: () => ({
+        testOutput: GREEN,
+        testJson: thin,
+        semgrepVersion: VERSION,
+        command: 'semgrep --test --config rule.yaml test',
+        iterations: 1,
+        summary: 'clean',
+      }),
+    },
+  })
+
+  assert.equal(result.passed.length, 0)
+  assert.match(result.failed[0].reason, /one annotated line/)
 })
 
 test('a refuter that renames the language to one semgrep cannot parse reports unsupported', async () => {
@@ -312,6 +368,7 @@ test('an unknown semgrep language stops that language instead of writing a skipp
         verdict: 'APPLICABLE',
         reasoning: 'ok',
         semgrepLanguage: language === 'Zig' ? 'zig' : 'go',
+        semgrepCanAnalyze: true,
       }),
     },
   })
@@ -744,7 +801,7 @@ test('the references directory reaches the phase prompts as a resolved path', as
   const rechecked = await run({
     args: BASE_ARGS,
     stubs: {
-      assess: () => ({ verdict: 'NOT_APPLICABLE', reasoning: 'no shell', semgrepLanguage: 'go' }),
+      assess: () => ({ verdict: 'NOT_APPLICABLE', reasoning: 'no shell', semgrepLanguage: 'go', semgrepCanAnalyze: true }),
     },
   })
   assert.match(promptFor(rechecked, 'refute:Go'), /\/plugin\/references\/applicability-analysis\.md/)

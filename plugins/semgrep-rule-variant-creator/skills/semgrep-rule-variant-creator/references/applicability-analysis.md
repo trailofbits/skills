@@ -158,9 +158,12 @@ Two ways it fails, both silent:
   ~100% "parsed".
 - **A Pro-only parser.** Elixir left OSS Semgrep in 1.51.0. A rule declaring
   `languages: [elixir]` is *skipped* rather than run: "1 rule(s) were skipped
-  because they require Pro". Under `--test` that surfaces as missed lines, and
-  the tempting fix — an older Semgrep that still ships the parser — produces a
-  green nobody can reproduce.
+  because they require Pro". Under `--test` that does **not** surface as a
+  failure — the run ends in "All tests passed" over zero graded tests, which is
+  why nothing downstream catches it and why this question has to be settled here
+  by running semgrep rather than inferred from a green. The tempting fix — an
+  older Semgrep that still ships the parser — produces a green nobody can
+  reproduce.
 
 Report this as `semgrepCanAnalyze`, and say which of the two questions is
 failing. Folding "Semgrep cannot read this language" into `NOT_APPLICABLE`

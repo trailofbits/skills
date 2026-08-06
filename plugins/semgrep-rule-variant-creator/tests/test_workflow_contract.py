@@ -482,6 +482,17 @@ FAILURE_PATH_BREAKAGES = (
         id="overturning a verdict without naming a construct",
     ),
     pytest.param(
+        # Back to reading an absent answer as permission to proceed, which is what `=== false`
+        # alone did: the field is schema-required, so missing is malformed, not a yes.
+        ("typeof assessment.semgrepCanAnalyze !== 'boolean'", "false"),
+        id="treating an unanswered parse question as a yes",
+    ),
+    pytest.param(
+        # The live grader accepting one annotated line where the golden grader demands two.
+        ("if (expected.length < 2) {", "if (false) {"),
+        id="grading a spec with a single annotated line as a pass",
+    ),
+    pytest.param(
         # A dead refuter folded into "the verdict stands" drops the language on a verdict
         # nothing second-guessed, reported identically to one that was.
         ("if (!refutation) {\n    return null\n  }", "if (false) {\n    return null\n  }"),
