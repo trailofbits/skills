@@ -87,8 +87,10 @@ cost, with nothing saying so. Check the id is still there before counting on a r
 ls -d ~/.claude/projects/*/*/subagents/workflows/*/
 ```
 
-If it is gone, or the session ended, re-invoke with the same arguments and point `outputDir`
-somewhere fresh: the script never deletes a directory, so a language that flipped to
+That is where runs land today rather than a documented interface, so an empty result may mean the
+layout moved rather than that the run is gone. The safe reading is the same either way: if you
+cannot confirm the id, or the session ended, re-invoke with the same arguments and point
+`outputDir` somewhere fresh. The script never deletes a directory, so a language that flipped to
 `NOT_APPLICABLE` on the second run leaves the first run's variant behind.
 
 The script is `workflows/port-rule-to-languages.js` at the plugin root. It pins a

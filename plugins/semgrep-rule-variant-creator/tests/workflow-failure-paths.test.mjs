@@ -226,6 +226,84 @@ test('an overturned NOT_APPLICABLE continues to a finished port', async () => {
   assert.ok(calls.includes('test:Go'), 'the port should proceed once the verdict is overturned')
 })
 
+test('a refuter that renames the language to one semgrep cannot parse reports unsupported', async () => {
+  // The parse gate runs before the refuter, against the key the assessment probed. The refuter is
+  // allowed to correct that key, so inheriting the old key's answer let a Pro-only parser through
+  // the one phase permitted to change the target — reaching translation and three xhigh validation
+  // rounds, then landing in `failed` ("fix the rule") when the truth was `unsupported`.
+  const { result, calls } = await run({
+    args: { ...BASE_ARGS, languages: ['Elixir'] },
+    stubs: {
+      assess: () => ({
+        verdict: 'NOT_APPLICABLE',
+        reasoning: 'no raw query sink found',
+        semgrepLanguage: 'go',
+        semgrepCanAnalyze: true,
+      }),
+      refute: () => ({
+        refuted: true,
+        reasoning: 'Ecto.Adapters.SQL.query/3 reaches a raw query',
+        equivalentConstructs: ['os.system -> Ecto.Adapters.SQL.query'],
+        semgrepLanguage: 'elixir',
+        semgrepCanAnalyze: false,
+        semgrepCheck: 'semgrep --test -> Missing Semgrep extension needed for parsing Elixir target',
+      }),
+    },
+  })
+
+  assert.equal(result.unsupported.length, 1, 'the renamed key is what gets gated')
+  assert.equal(result.failed.length, 0, 'this is not a rule to go fix')
+  assert.equal(result.passed.length, 0)
+  assert.match(result.unsupported[0].semgrepCheck, /Missing Semgrep extension/)
+  assert.deepEqual(calls, ['read-rule', 'assess:Elixir', 'refute:Elixir'], 'no port work at all')
+})
+
+test('a refuter that renames the language without probing it stops rather than proceeding', async () => {
+  const { result, calls } = await run({
+    args: { ...BASE_ARGS, languages: ['Elixir'] },
+    stubs: {
+      assess: () => ({
+        verdict: 'NOT_APPLICABLE',
+        reasoning: 'no raw query sink found',
+        semgrepLanguage: 'go',
+        semgrepCanAnalyze: true,
+      }),
+      refute: () => ({
+        refuted: true,
+        reasoning: 'Ecto raw queries',
+        equivalentConstructs: ['os.system -> Ecto.Adapters.SQL.query'],
+        semgrepLanguage: 'elixir',
+      }),
+    },
+  })
+
+  assert.equal(result.stopped.length, 1)
+  assert.match(result.stopped[0].reason, /without establishing that semgrep can parse it/)
+  assert.ok(!calls.includes('test:Elixir'))
+})
+
+test('an overturn naming no equivalent constructs leaves the verdict standing', async () => {
+  // The prompt requires them and a JSON schema cannot make them conditionally required. This is
+  // the one path where the fallback is empty, since the agent being overturned enumerated nothing,
+  // so without this the test-first phase writes its spec from an empty construct list.
+  const { result, calls } = await run({
+    args: BASE_ARGS,
+    stubs: {
+      assess: () => ({
+        verdict: 'NOT_APPLICABLE',
+        reasoning: 'no shell in this language',
+        semgrepLanguage: 'go',
+        semgrepCanAnalyze: true,
+      }),
+      refute: () => ({ refuted: true, reasoning: 'I am fairly sure it ports' }),
+    },
+  })
+
+  assert.equal(result.notApplicable.length, 1, 'an unevidenced overturn is not an overturn')
+  assert.equal(result.passed.length, 0)
+  assert.deepEqual(calls, ['read-rule', 'assess:Go', 'refute:Go'])
+})
+
 test('an unknown semgrep language stops that language instead of writing a skippable test file', async () => {
   const { result, calls } = await run({
     args: { ...BASE_ARGS, languages: ['Go', 'Zig'] },

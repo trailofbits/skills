@@ -189,6 +189,8 @@ then tells a reader that a guard they are looking for has nothing behind it.
 | Accept a green over a rule semgrep skipped | `workflow-failure-paths.test.mjs` |
 | Accept a green over a spec that graded no annotation | `workflow-failure-paths.test.mjs` |
 | Port to a language semgrep cannot parse | `workflow-failure-paths.test.mjs` |
+| Inherit the parse answer through a renamed language key | `workflow-failure-paths.test.mjs` |
+| Overturn a verdict without naming a construct | `workflow-failure-paths.test.mjs` |
 | Treat a dead refuter as an upheld verdict | `workflow-failure-paths.test.mjs` |
 | Let two languages share one output directory | `workflow-failure-paths.test.mjs` |
 | Slug an alias without canonicalising it first | `workflow-failure-paths.test.mjs` |

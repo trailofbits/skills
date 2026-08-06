@@ -111,6 +111,18 @@ const REFUTATION_SCHEMA = {
       type: 'string',
       description: "Semgrep's own language key, when refuting a verdict that named the wrong one",
     },
+    // A corrected key is a key nothing has probed: the parse gate runs before this phase, against
+    // the key the assessment reported. So a refutation that renames the target has to answer for
+    // it, on the same terms the assessment does — by running semgrep, not from memory.
+    semgrepCanAnalyze: {
+      type: 'boolean',
+      description:
+        'Required when you name a different semgrepLanguage: whether the installed semgrep can parse that key, Pro-gated parsers included. Establish it by running semgrep',
+    },
+    semgrepCheck: {
+      type: 'string',
+      description: 'The command that settled semgrepCanAnalyze and the line it printed',
+    },
   },
 }
 
@@ -479,6 +491,14 @@ function stop(language, assessment, reason) {
   return { language, assessment, stopped: true, reason }
 }
 
+// The class exists here and semgrep cannot read the language, which is a different finding from
+// NOT_APPLICABLE and calls for a different follow-up. Shared, because two phases can reach it:
+// the assessment's own answer, and the refuter's when it renames the target.
+function unsupportedResult(language, assessment) {
+  log(`${language}: semgrep cannot analyse it — ${assessment.semgrepCheck || assessment.reasoning}`)
+  return { language, assessment, unsupported: true }
+}
+
 // The rule travels as a path, never as text an agent retyped into a prompt. See RULE_SCHEMA.
 function ruleFile() {
   return `The rule being ported is at ${args.rulePath}. Read it there — work from the file, not from a description of it.\n\n`
@@ -508,7 +528,9 @@ ${ruleFile()}The verdict is wrong if the vulnerability class does exist in ${lan
 
 A matching construct is necessary and not sufficient. The source you would taint has to be attacker-controlled: untrusted input that reaches the code from outside the system. A developer-set environment variable, a hardcoded test fixture, config the deploying team owns, or any other value supplied by the people running the code is not attacker-controlled, and a reachable sink fed only from such a source does not make the rule applicable. When that is the situation, say so explicitly and leave the verdict standing.
 
-Refute it only when you can name the ${language} constructs a ported rule would match, as "original -> target" entries, and say who controls each source and why they are untrusted. Otherwise return refuted: false and name the part of the verdict that holds.
+Refute it only when you can name the ${language} constructs a ported rule would match, as "original -> target" entries, and say who controls each source and why they are untrusted. An overturn with no constructs named is treated as leaving the verdict standing, because the phase after this one writes its tests from that list. Otherwise return refuted: false and name the part of the verdict that holds.
+
+If the verdict named the wrong Semgrep language key and you give a different one, establish whether the installed semgrep can parse *that* key and report it as semgrepCanAnalyze with the command as semgrepCheck. The check that would have caught a Pro-only parser already ran, against the key you are replacing.
 
 ${reference('applicability-analysis.md', 'holds worked examples of each verdict')}${SCOPE}`
 }
@@ -602,15 +624,33 @@ async function recheckApplicability(rule, language, assessment) {
     return assessment
   }
 
+  // An overturn names the constructs or it is not an overturn. The prompt asks for them and the
+  // schema cannot make them conditionally required, and this is the one path where the fallback
+  // below is empty: the agent being overturned concluded the rule does not port, so it enumerated
+  // nothing. Without this, the test-first phase writes its spec from `[]`.
+  const constructs = refutation.equivalentConstructs || assessment.equivalentConstructs || []
+  if (constructs.length === 0) {
+    log(`${language}: overturn named no equivalent constructs, so the verdict stands`)
+    return assessment
+  }
+
+  // The refuter's key wins: the agent it overturned had concluded the rule does not port, so its
+  // language key was never load-bearing and may not even be right. But a key nothing has probed
+  // cannot inherit the parse answer for the key it replaces — the gate runs before this phase, and
+  // inheriting `true` through a rename is how a Pro-only parser reached translation and three
+  // xhigh validation rounds, landing in `failed` when the truth was `unsupported`.
+  const key = refutation.semgrepLanguage || assessment.semgrepLanguage
+  const renamed = canonicalLanguage(key) !== canonicalLanguage(assessment.semgrepLanguage)
+
   log(`${language}: NOT_APPLICABLE overturned on recheck — ${refutation.reasoning}`)
   return {
     ...assessment,
     verdict: 'APPLICABLE_WITH_ADAPTATION',
     reasoning: refutation.reasoning,
-    equivalentConstructs: refutation.equivalentConstructs || assessment.equivalentConstructs,
-    // The refuter's key wins: the agent it overturned had concluded the rule does not port,
-    // so its language key was never load-bearing and may not even be right.
-    semgrepLanguage: refutation.semgrepLanguage || assessment.semgrepLanguage,
+    equivalentConstructs: constructs,
+    semgrepLanguage: key,
+    semgrepCanAnalyze: renamed ? refutation.semgrepCanAnalyze : assessment.semgrepCanAnalyze,
+    semgrepCheck: renamed ? refutation.semgrepCheck : assessment.semgrepCheck,
   }
 }
 
@@ -712,8 +752,7 @@ const results = await pipeline(
     // settle nothing and cost an agent. This is the gap a Pro-only parser walked through —
     // the port was graded by a semgrep that could read the language rather than by this one.
     if (assessment.semgrepCanAnalyze === false) {
-      log(`${language}: semgrep cannot analyse it — ${assessment.semgrepCheck || assessment.reasoning}`)
-      return { language, assessment, unsupported: true }
+      return unsupportedResult(language, assessment)
     }
 
     const settled =
@@ -728,6 +767,26 @@ const results = await pipeline(
     if (settled.verdict === 'NOT_APPLICABLE') {
       log(`${language}: NOT_APPLICABLE — ${settled.reasoning}`)
       return { language, assessment: settled, skipped: true }
+    }
+
+    // Gated again, because the refuter is allowed to correct the language key and the check above
+    // ran against the key the assessment probed. On the path where nothing was renamed this is the
+    // same boolean twice; where something was, it is the only place the new key is asked about.
+    if (settled.semgrepCanAnalyze === false) {
+      return unsupportedResult(language, settled)
+    }
+
+    // And a rename with no answer at all is not an answer. Scoped to a rename on purpose: absent
+    // is only suspicious once something changed the target, and the message would misdescribe any
+    // other path.
+    const renamed =
+      canonicalLanguage(settled.semgrepLanguage) !== canonicalLanguage(assessment.semgrepLanguage)
+    if (renamed && settled.semgrepCanAnalyze !== true) {
+      return stop(
+        language,
+        settled,
+        `the recheck moved the Semgrep language key to "${settled.semgrepLanguage}" without establishing that semgrep can parse it, and the gate that would have caught a Pro-only parser ran against "${assessment.semgrepLanguage}"`,
+      )
     }
 
     // Both guards run before the paths are built from them, so an unusable language key or a

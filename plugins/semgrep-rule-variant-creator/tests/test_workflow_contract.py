@@ -405,8 +405,16 @@ def test_every_schema_is_a_usable_json_schema() -> None:
 
 
 def node_test(suite: Path, script: Path | None = None) -> tuple[int, str]:
-    """Run a node test suite, optionally against a substitute workflow script."""
-    env = {**os.environ, "WORKFLOW_SCRIPT": str(script)} if script else None
+    """Run a node test suite, optionally against a substitute workflow script.
+
+    An ambient `WORKFLOW_SCRIPT` is stripped rather than inherited. Left in, a contributor who
+    exported it while debugging a mutated copy would have `make check` grade that copy and report
+    the real script green — the suite passing while measuring something else entirely.
+    """
+    env = {**os.environ}
+    env.pop("WORKFLOW_SCRIPT", None)
+    if script:
+        env["WORKFLOW_SCRIPT"] = str(script)
     completed = subprocess.run(
         ["node", "--test", str(suite)],
         capture_output=True,
@@ -462,6 +470,16 @@ FAILURE_PATH_BREAKAGES = (
     pytest.param(
         ("if (assessment.semgrepCanAnalyze === false) {", "if (false) {"),
         id="porting to a language semgrep cannot parse",
+    ),
+    pytest.param(
+        # The gate runs before the refuter, against the key the assessment probed. Inheriting that
+        # answer through a rename let a Pro-only parser reach translation and three xhigh rounds.
+        ("renamed ? refutation.semgrepCanAnalyze :", ""),
+        id="inheriting the parse answer through a renamed language key",
+    ),
+    pytest.param(
+        ("if (constructs.length === 0) {", "if (false) {"),
+        id="overturning a verdict without naming a construct",
     ),
     pytest.param(
         # A dead refuter folded into "the verdict stands" drops the language on a verdict
