@@ -11,8 +11,8 @@
   "plugins": [
     {
       "name": "audit-context-building",
-      "description": "Build deep architectural context through ultra-granular code analysis before vulnerability hunting",
-      "version": "1.1.1",
+      "description": "Understand a codebase before looking for bugs in it. Reads it function by function, records what each one assumes and depends on, and saves the write-ups to files instead of filling up the conversation.",
+      "version": "2.0.0",
       "author": {
         "name": "Omar Inuwa"
       },
@@ -186,8 +186,8 @@
     },
     {
       "name": "spec-to-code-compliance",
-      "description": "Specification-to-code compliance checker for blockchain audits with evidence-based alignment analysis",
-      "version": "1.1.1",
+      "description": "Check code against the documentation that specifies it: one agent per requirement, divergences refuted before they are reported, evidence cited to the line",
+      "version": "2.0.0",
       "author": {
         "name": "Omar Inuwa"
       },
@@ -214,7 +214,7 @@
     },
     {
       "name": "variant-analysis",
-      "version": "1.0.1",
+      "version": "2.0.1",
       "description": "Find similar vulnerabilities and bugs across codebases using pattern-based analysis",
       "author": {
         "name": "Axel Mierczuk"
@@ -252,7 +252,7 @@
     },
     {
       "name": "insecure-defaults",
-      "version": "1.0.1",
+      "version": "2.0.0",
       "description": "Detects insecure default configurations including hardcoded credentials, fallback secrets, weak authentication defaults, and dangerous values in production",
       "author": {
         "name": "Trail of Bits",
