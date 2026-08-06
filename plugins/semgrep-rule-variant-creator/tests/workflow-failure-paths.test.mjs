@@ -60,6 +60,21 @@ function gradedJson(semgrepLanguage) {
   })
 }
 
+/**
+ * `semgrep --lang generic --pattern 'ok: <stem>' --json` over a spec with two safe cases.
+ *
+ * A second run, because `--test --json` has no `ok:` side: it reports the lines the rule matched
+ * and the lines it was meant to match, and an annotated safe line is in neither.
+ */
+function probeJson(semgrepLanguage, lines = [102, 115]) {
+  const stem = stemFor(semgrepLanguage)
+  return JSON.stringify({
+    results: lines.map((line) => ({ start: { line } })),
+    errors: [],
+    paths: { scanned: [`/out/${stem}/${stem}.src`] },
+  })
+}
+
 /** Result shapes keyed by the stage label prefix, so a scenario overrides only what it cares about. */
 function defaults() {
   return {
@@ -77,6 +92,7 @@ function defaults() {
     validate: (language) => ({
       testOutput: GREEN,
       testJson: gradedJson(language.toLowerCase()),
+      safeCaseJson: probeJson(language.toLowerCase()),
       semgrepVersion: VERSION,
       command: 'semgrep --test --config rule.yaml test',
       iterations: 1,
@@ -270,6 +286,7 @@ test('a green over a spec with a single annotated line is not a pass', async () 
       validate: () => ({
         testOutput: GREEN,
         testJson: thin,
+        safeCaseJson: probeJson('go'),
         semgrepVersion: VERSION,
         command: 'semgrep --test --config rule.yaml test',
         iterations: 1,
@@ -498,7 +515,7 @@ test('validation retries and reports the round it passed on', async () => {
       validate: (_language, attempt) =>
         attempt < 2
           ? { testOutput: '✗ missed lines: [15]', semgrepVersion: VERSION, iterations: 1, summary: 'pattern too narrow' }
-          : { testOutput: GREEN, testJson: gradedJson('go'), semgrepVersion: VERSION, iterations: 3, summary: 'widened the sink' },
+          : { testOutput: GREEN, testJson: gradedJson('go'), safeCaseJson: probeJson('go'), semgrepVersion: VERSION, iterations: 3, summary: 'widened the sink' },
     },
   })
 
@@ -518,7 +535,7 @@ test('a rejected round tells the next one the ground the caller refused it on', 
       validate: (_language, attempt) =>
         attempt < 2
           ? { testOutput: GREEN, semgrepVersion: '1.50.0', iterations: 1, summary: 'clean' }
-          : { testOutput: GREEN, testJson: gradedJson('go'), semgrepVersion: VERSION, iterations: 2, summary: 'reran on the right binary' },
+          : { testOutput: GREEN, testJson: gradedJson('go'), safeCaseJson: probeJson('go'), semgrepVersion: VERSION, iterations: 2, summary: 'reran on the right binary' },
     },
   })
 
@@ -677,6 +694,7 @@ test('a green over a spec that graded no annotation is not a pass', async () => 
       validate: () => ({
         testOutput: GREEN,
         testJson: emptyJson,
+        safeCaseJson: probeJson('go'),
         semgrepVersion: VERSION,
         command: 'semgrep --test --config rule.yaml test',
         iterations: 1,
@@ -690,6 +708,39 @@ test('a green over a spec that graded no annotation is not a pass', async () => 
   assert.match(result.failed[0].reason, /no annotated lines/)
 })
 
+test('a green over a spec that annotates no safe case is not a pass', async () => {
+  // The half of the spec `--test --json` cannot show: it reports the lines the rule matched and
+  // the lines it was meant to match, and an annotated safe line is in neither. So a spec with
+  // three vulnerable cases and no safe ones grades clean, and the rule that passes it can be
+  // broad enough to flag every process launch in the language — the false positive SKILL.md says
+  // a port most often invents, and one the golden-fixture grader rejects for the same reason.
+  const { result, prompts } = await run({
+    args: BASE_ARGS,
+    stubs: {
+      validate: () => ({
+        testOutput: GREEN,
+        testJson: gradedJson('go'),
+        safeCaseJson: probeJson('go', []),
+        semgrepVersion: VERSION,
+        command: 'semgrep --test --config rule.yaml test',
+        iterations: 1,
+        summary: 'clean',
+      }),
+    },
+  })
+
+  assert.equal(result.passed.length, 0, 'a spec with no safe case cannot show the rule is narrow')
+  assert.equal(result.failed.length, 1)
+  assert.match(result.failed[0].reason, /found 0 `ok: python-command-injection-go` annotation/)
+
+  // The count is semgrep's rather than the agent's, so the run that produces it has to be asked
+  // for. Nothing else in the prompt would tell an agent to make it.
+  assert.match(
+    prompts.find((p) => p.label === 'validate:Go').prompt,
+    /--lang generic --pattern 'ok: python-command-injection-go'/,
+  )
+})
+
 test('a green whose rule id never appears in the graded checks is not a pass', async () => {
   // The rule semgrep never applied: `ruleid:` naming the original rule rather than this variant's
   // stem puts the check under a different key, and the summary line still reads clean.
@@ -699,6 +750,7 @@ test('a green whose rule id never appears in the graded checks is not a pass', a
       validate: () => ({
         testOutput: GREEN,
         testJson: gradedJson('python'),
+        safeCaseJson: probeJson('go'),
         semgrepVersion: VERSION,
         command: 'semgrep --test --config rule.yaml test',
         iterations: 1,
@@ -755,7 +807,7 @@ test('one language failing leaves the others unaffected', async () => {
       validate: (language) =>
         language === 'Java'
           ? { testOutput: '✗ incorrect lines: [30]', semgrepVersion: VERSION, iterations: 2, summary: 'too broad' }
-          : { testOutput: GREEN, testJson: gradedJson('go'), semgrepVersion: VERSION, iterations: 1, summary: 'clean' },
+          : { testOutput: GREEN, testJson: gradedJson('go'), safeCaseJson: probeJson('go'), semgrepVersion: VERSION, iterations: 1, summary: 'clean' },
     },
   })
 

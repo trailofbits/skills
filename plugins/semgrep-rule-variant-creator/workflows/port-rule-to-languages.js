@@ -145,7 +145,15 @@ const ARTIFACT_SCHEMA = {
 // was not the one the rule has to run under.
 const VALIDATION_SCHEMA = {
   type: 'object',
-  required: ['testOutput', 'testJson', 'semgrepVersion', 'command', 'iterations', 'summary'],
+  required: [
+    'testOutput',
+    'testJson',
+    'safeCaseJson',
+    'semgrepVersion',
+    'command',
+    'iterations',
+    'summary',
+  ],
   properties: {
     testOutput: {
       type: 'string',
@@ -158,6 +166,13 @@ const VALIDATION_SCHEMA = {
       type: 'string',
       description:
         'The complete stdout of `semgrep --test --json --config <rule> <test>`, verbatim and unedited',
+    },
+    // Required for the reason `passed` is absent: `--test --json` says nothing about the lines the
+    // rule must leave alone, so this is semgrep counting that half rather than the agent stating it.
+    safeCaseJson: {
+      type: 'string',
+      description:
+        "The complete stdout of `semgrep --lang generic --pattern 'ok: <rule id>' --json <test>`, verbatim and unedited",
     },
     semgrepVersion: {
       type: 'string',
@@ -424,7 +439,7 @@ function gradingFailure(reported, stem) {
   // Two, not one. testPrompt asks for at least two of each case and test_port_rule_workflow.py
   // holds the golden fixtures to that, so accepting one here would let the live path pass a spec
   // the plugin's own fixture standard rejects — the same split this verdict exists to close.
-  // Only the ruleid side is visible from here; `ok:` lines never appear in expected_lines.
+  // Only the ruleid side is here; safeCaseFailure counts the `ok:` lines, absent from expected_lines.
   if (expected.length < 2) {
     return `${name} has one annotated line, where a spec is meant to cover at least two vulnerable cases`
   }
@@ -432,6 +447,44 @@ function gradingFailure(reported, stem) {
     return `expected matches on lines [${expected}], semgrep reported [${found}]`
   }
   if (!check.passed) return `semgrep marked ${stem} failed`
+  return ''
+}
+
+/**
+ * Return why semgrep's count of this spec's safe cases falls short, or '' when it does not.
+ *
+ * The verdict above reads the `ruleid:` side out of `expected_lines`, and there is no `ok:` side to
+ * read: an annotated safe line is neither expected nor reported. So vulnerable cases alone grade
+ * clean, for a rule that may flag every process launch in the target language — the false positive
+ * SKILL.md says a port most often invents, and one the golden fixtures are held to two of each for.
+ *
+ * Semgrep's count rather than the agent's, for the reason `passed` is absent, and taken at
+ * validation because validatePrompt permits deleting a test case after the test phase reported it.
+ */
+function safeCaseFailure(reported, stem) {
+  let report
+  try {
+    report = JSON.parse(reported || '')
+  } catch {
+    return 'the safe-case probe output did not parse, so nothing shows the spec covers a safe case'
+  }
+
+  // Before the count, since semgrep prints it over a run that matched nothing: a probe pointed
+  // somewhere else otherwise reads as zero safe cases in a spec holding five.
+  const scanned = (report?.paths?.scanned || []).map((path) => String(path).split('/').pop())
+  if (!scanned.some((name) => name.startsWith(`${stem}.`))) {
+    return `the safe-case probe scanned ${scanned.join(', ') || 'nothing'} rather than ${stem}.*, so its count is about some other file`
+  }
+
+  // Distinct positions, not the length of `results`: entries carrying no line are a cheap two.
+  const annotated = new Set(
+    (report?.results || [])
+      .map((match) => match?.start?.line)
+      .filter((line) => typeof line === 'number'),
+  )
+  if (annotated.size < 2) {
+    return `semgrep found ${annotated.size} \`ok: ${stem}\` annotation(s) in the spec, where two safe cases are the floor — a rule broad enough to flag every construct passes a spec with none`
+  }
   return ''
 }
 
@@ -467,7 +520,10 @@ function validationFailure(validation, expectedVersion, stem) {
   if (got !== want) {
     return `graded with semgrep ${got || '(unreported)'}, not the ${want} this port is measured against`
   }
-  return gradingFailure(validation?.testJson, stem)
+  // Graded at all before covered well: a spec semgrep never reached makes the count meaningless.
+  const ungraded = gradingFailure(validation?.testJson, stem)
+  if (ungraded) return ungraded
+  return safeCaseFailure(validation?.safeCaseJson, stem)
 }
 
 function validationPassed(validation, expectedVersion, stem) {
@@ -594,6 +650,7 @@ ${
 semgrep --validate --config ${artifact.filePath}
 semgrep --test --config ${artifact.filePath} ${test.filePath}
 semgrep --test --json --config ${artifact.filePath} ${test.filePath}
+semgrep --lang generic --pattern 'ok: ${stem}' --json ${test.filePath}
 \`\`\`
 
 Read what the failure tells you: missed lines mean the pattern is narrower than the vulnerability, incorrect lines mean it is broader. For taint rules, \`semgrep --dataflow-traces -f ${artifact.filePath} ${test.filePath}\` shows where taint stops flowing. Edit the rule and re-run until semgrep reports that all tests passed.
@@ -609,6 +666,8 @@ Report the output of the final \`semgrep --test\` run verbatim as testOutput, tr
 One exception to the last-20-lines trim. If the run printed a line saying rules were skipped, or naming a missing plugin or a missing Semgrep extension, include that line in testOutput too, wherever in the output it appeared. Semgrep prints those above the per-target results, so a tail can cut them off — and they are how the caller tells a rule semgrep graded from one it never ran, which otherwise also ends in "All tests passed".
 
 Then run the same test once more with \`--json\` and report its complete stdout verbatim as testJson. Do not trim, reformat or summarise it. The caller reads which lines semgrep expected and which it actually matched out of that structure, because "All tests passed" is what semgrep prints over a spec with nothing annotated too — so a run whose annotations went missing, or whose \`ruleid:\` names the original rule rather than \`${stem}\`, reads as a pass in the summary line and as graded-nothing here.
+
+That structure has no \`ok:\` side to read — an annotated safe line is neither expected nor matched — so run the last command as well and report its complete stdout verbatim as safeCaseJson, untrimmed. It is semgrep counting the spec's safe cases, and two is the floor there for the same reason it is on the vulnerable side: a rule broad enough to flag every ${language} construct of this shape passes a spec that annotates none. If the spec is short of two \`ok: ${stem}\` cases, add them — including the ${language} idiom for doing this correctly — rather than reporting a green the caller cannot read as one.
 
 ${SCOPE}`
 }

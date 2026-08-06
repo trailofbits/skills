@@ -464,8 +464,15 @@ FAILURE_PATH_BREAKAGES = (
     pytest.param(
         # Back to trusting the summary line, which is what shipped: "All tests passed" is also
         # what semgrep prints over a spec with no annotations left in it.
-        ("return gradingFailure(validation?.testJson, stem)", "return ''"),
+        ("const ungraded = gradingFailure(validation?.testJson, stem)", "const ungraded = ''"),
         id="accepting a green over a spec that graded no annotation",
+    ),
+    pytest.param(
+        # The other half of the spec, which `--test --json` cannot show: an annotated safe line is
+        # neither expected nor reported there, so vulnerable cases alone grade clean and the rule
+        # that passes them can flag every construct in the target language.
+        ("return safeCaseFailure(validation?.safeCaseJson, stem)", "return ''"),
+        id="accepting a green over a spec that annotates no safe case",
     ),
     pytest.param(
         ("if (assessment.semgrepCanAnalyze === false) {", "if (false) {"),

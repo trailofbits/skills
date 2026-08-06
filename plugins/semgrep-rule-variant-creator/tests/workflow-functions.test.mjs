@@ -59,11 +59,13 @@ const VALIDATION_DEPS = [
   extractLineConst('SKIPPED_RATHER_THAN_RUN'),
   extract('semgrepVersion'),
   extract('gradingFailure'),
+  extract('safeCaseFailure'),
 ]
 
 const slug = load('slug')
 const semgrepVersion = load('semgrepVersion')
 const gradingFailure = load('gradingFailure')
+const safeCaseFailure = load('safeCaseFailure')
 const canonicalLanguage = load('canonicalLanguage', extractTable('CANONICAL_BY_LANGUAGE'))
 const partition = load('partition')
 const validationFailure = load('validationFailure', ...VALIDATION_DEPS)
@@ -85,6 +87,21 @@ function gradedJson(check = {}, stem = STEM) {
   return JSON.stringify({
     config_with_errors: [],
     results: { [`${stem}.yaml`]: { checks: { [stem]: { passed: true, matches, ...check } } } },
+  })
+}
+
+/**
+ * `semgrep --lang generic --pattern 'ok: <stem>' --json` over a spec with two safe cases.
+ *
+ * Shaped from a real 1.172.0 run: findings carry `start.line` and nothing else this reads, and
+ * `paths.scanned` is present whether or not anything matched, which is what lets a count of zero
+ * be told apart from a probe that never reached the file.
+ */
+function probeJson({ lines = [102, 115], scanned = [`/out/${STEM}/${STEM}.go`] } = {}) {
+  return JSON.stringify({
+    results: lines.map((line) => ({ start: { line } })),
+    errors: [],
+    paths: { scanned },
   })
 }
 
@@ -235,7 +252,12 @@ test('semgrepVersion reads the version semgrep printed, not the first triple in 
 })
 
 test('validationPassed reads semgrep output rather than a self-reported boolean', () => {
-  const at = (testOutput) => ({ testOutput, semgrepVersion: VERSION, testJson: gradedJson() })
+  const at = (testOutput) => ({
+    testOutput,
+    semgrepVersion: VERSION,
+    testJson: gradedJson(),
+    safeCaseJson: probeJson(),
+  })
   assert.equal(validationPassed(at(GREEN), VERSION, STEM), true)
   assert.equal(validationPassed(at('✗ python-command-injection-go\n missed lines: [15]'), VERSION, STEM), false)
   assert.equal(validationPassed({ testOutput: '', passed: true, semgrepVersion: VERSION }, VERSION, STEM), false, 'a claimed pass is not a pass')
@@ -247,7 +269,12 @@ test('validationPassed rejects a green whose spec graded no annotation', () => {
   // The third vacuous green, and the one the live path used to accept while the golden-fixture
   // grader rejected it. A spec with no `ruleid:` comments, or one keyed on the original rule id
   // instead of this variant's stem, grades zero and still ends in "All tests passed".
-  const at = (testJson) => ({ testOutput: GREEN, semgrepVersion: VERSION, testJson })
+  const at = (testJson) => ({
+    testOutput: GREEN,
+    semgrepVersion: VERSION,
+    testJson,
+    safeCaseJson: probeJson(),
+  })
 
   assert.equal(
     validationPassed(at(gradedJson({ matches: { [`/out/${STEM}/${STEM}.go`]: { expected_lines: [], reported_lines: [] } } })), VERSION, STEM),
@@ -277,6 +304,60 @@ test('gradingFailure accepts a real green, so the checks above are not rejecting
   assert.equal(gradingFailure(gradedJson(), STEM), '')
 })
 
+test('validationPassed rejects a green whose spec annotates no safe case', () => {
+  // The fourth vacuous green, and the one `--test --json` cannot see: it reports the lines the
+  // rule matched and the lines it was meant to match, and an annotated safe line is in neither.
+  // So a spec with vulnerable cases and no safe ones grades clean, and the rule that passes it
+  // can flag every process launch in the target language.
+  const at = (safeCaseJson) => ({
+    testOutput: GREEN,
+    semgrepVersion: VERSION,
+    testJson: gradedJson(),
+    safeCaseJson,
+  })
+
+  assert.equal(validationPassed(at(probeJson()), VERSION, STEM), true, 'two safe cases clears it')
+  assert.equal(validationPassed(at(probeJson({ lines: [] })), VERSION, STEM), false)
+  assert.match(
+    validationFailure(at(probeJson({ lines: [102] })), VERSION, STEM),
+    /found 1 `ok: python-command-injection-go` annotation/,
+  )
+
+  // Positions rather than entries, because two objects carrying no `start` are the cheapest way
+  // to a count of two, and a pattern matching twice on one line is the honest way to one.
+  const positionless = { results: [{}, {}], errors: [], paths: { scanned: [`${STEM}.go`] } }
+  assert.equal(validationPassed(at(JSON.stringify(positionless)), VERSION, STEM), false)
+  assert.equal(validationPassed(at(probeJson({ lines: [102, 102] })), VERSION, STEM), false)
+
+  // And silence fails closed, the same standing an unreported version has.
+  assert.match(validationFailure(at('1/1: ✓ All tests passed'), VERSION, STEM), /did not parse/)
+  assert.match(validationFailure(at(''), VERSION, STEM), /did not parse/)
+})
+
+test('safeCaseFailure reports the scan before the count, so zero is attributable', () => {
+  // A count of zero has two causes and they call for different things: a spec that annotates no
+  // safe case, and a probe that never read the spec. Semgrep prints `paths.scanned` either way.
+  assert.match(
+    safeCaseFailure(probeJson({ scanned: ['/out/other-java/other-java.java'] }), STEM),
+    /scanned other-java\.java rather than python-command-injection-go\.\*/,
+  )
+
+  // Verbatim from semgrep 1.172.0 asked to scan a path that is not there.
+  const missing = {
+    results: [],
+    errors: [{ code: 2, level: 'error', type: 'SemgrepError', message: 'Invalid scanning root: nosuchfile.go' }],
+    paths: { scanned: [] },
+  }
+  assert.match(safeCaseFailure(JSON.stringify(missing), STEM), /scanned nothing rather than/)
+})
+
+test('safeCaseFailure accepts a real probe run, so the checks above are not rejecting everything', () => {
+  // The five lines carrying `ok: python-command-injection-go` in the checked-in Go fixture, as
+  // `semgrep --lang generic --pattern 'ok: <stem>' --json` reported them.
+  const real = probeJson({ lines: [102, 115, 139, 150, 157] })
+  assert.equal(safeCaseFailure(real, STEM), '')
+})
+
 test('validationPassed rejects a pass graded by a different semgrep', () => {
   // The observed failure: an agent that could not make its Elixir tests pass installed semgrep
   // 1.50.0, the last OSS build shipping the Elixir parser, and reported its genuine green.
@@ -288,7 +369,7 @@ test('validationPassed rejects a pass graded by a different semgrep', () => {
   )
 
   // Tolerant of how the version is reported, strict about which one it is.
-  assert.equal(validationPassed({ testOutput: GREEN, semgrepVersion: 'semgrep 1.172.0', testJson: gradedJson() }, VERSION, STEM), true)
+  assert.equal(validationPassed({ testOutput: GREEN, semgrepVersion: 'semgrep 1.172.0', testJson: gradedJson(), safeCaseJson: probeJson() }, VERSION, STEM), true)
 })
 
 test('validationPassed fails when it cannot tell which semgrep spoke', () => {
@@ -306,7 +387,7 @@ test('validationPassed rejects a green from a rule semgrep skipped rather than r
     '1 rule(s) were skipped because they require Pro (try `--pro`)\n1/1: ✓ All tests passed',
   ]
   for (const testOutput of skipped) {
-    assert.equal(validationPassed({ testOutput, semgrepVersion: VERSION, testJson: gradedJson() }, VERSION, STEM), false, testOutput)
+    assert.equal(validationPassed({ testOutput, semgrepVersion: VERSION, testJson: gradedJson(), safeCaseJson: probeJson() }, VERSION, STEM), false, testOutput)
   }
 
   // Noise that must NOT fail a green port. All of it can appear in the last 20 lines an agent
@@ -320,7 +401,7 @@ test('validationPassed rejects a green from a rule semgrep skipped rather than r
   ]
   for (const testOutput of green) {
     assert.equal(
-      validationPassed({ testOutput, semgrepVersion: VERSION, testJson: gradedJson() }, VERSION, STEM),
+      validationPassed({ testOutput, semgrepVersion: VERSION, testJson: gradedJson(), safeCaseJson: probeJson() }, VERSION, STEM),
       true,
       testOutput,
     )

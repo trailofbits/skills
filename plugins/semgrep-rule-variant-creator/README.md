@@ -55,11 +55,14 @@ validation, which were not applicable, and which Semgrep cannot analyze at all â
 frontend and Elixir's parser is Pro-only, and in both cases the bug class is present while
 the rule is ungradeable. Validation is measured against one specific Semgrep, the version
 recorded when the rule was read, because "All tests passed" is also what Semgrep prints for a
-rule it skipped and for a test file it never matched. The script pins a reasoning effort per phase and
-encodes the phase order, so a rule cannot be written before the tests that specify it. It
-also sends a `NOT_APPLICABLE` verdict to an independent refuter before dropping a language,
-and retries failed validation up to three times instead of trusting one agent to iterate
-until the tests pass.
+rule it skipped and for a test file it never matched. Two annotations is the floor on both sides
+of a spec, and the `ok:` side is counted by a second Semgrep run over it, because `--test --json`
+reports the lines the rule matched and nothing about the lines it must leave alone â€” so vulnerable
+cases alone grade clean for a rule that flags every construct in the target language. The script
+pins a reasoning effort per phase and encodes the phase order, so a rule cannot be written before
+the tests that specify it. It also sends a `NOT_APPLICABLE` verdict to an independent refuter
+before dropping a language, and retries failed validation up to three times instead of trusting
+one agent to iterate until the tests pass.
 
 The skill also triggers on a plain request, for porting a single language by hand:
 
@@ -188,6 +191,7 @@ then tells a reader that a guard they are looking for has nothing behind it.
 | Accept a pass graded by a different semgrep | `workflow-failure-paths.test.mjs` |
 | Accept a green over a rule semgrep skipped | `workflow-failure-paths.test.mjs` |
 | Accept a green over a spec that graded no annotation | `workflow-failure-paths.test.mjs` |
+| Accept a green over a spec that annotates no safe case | `workflow-failure-paths.test.mjs` |
 | Port to a language semgrep cannot parse | `workflow-failure-paths.test.mjs` |
 | Inherit the parse answer through a renamed language key | `workflow-failure-paths.test.mjs` |
 | Overturn a verdict without naming a construct | `workflow-failure-paths.test.mjs` |
