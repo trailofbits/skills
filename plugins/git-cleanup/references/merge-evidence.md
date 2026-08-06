@@ -23,7 +23,9 @@ Every rule below is calibrated to that: when the evidence is thin, the answer is
 
 ## Commands that produce the evidence
 
-Branch names can contain characters that break shell expansion. Always quote `"$branch"`.
+**Wrap every branch name in SINGLE quotes.** Git's refname rules reject a space and little else — `evil$(id)`, ``evil`id` ``, `has'quote`, `a;b`, and `a|b` are all legal branch names. You are pasting literal names into commands, not expanding a shell variable, and double quotes still run `$(...)` and backticks. For a name containing a single quote, close and reopen around it: `'has'\''quote'`.
+
+The examples below use `"$branch"` because they read a shell variable you control. That is not the case you are in.
 
 ```bash
 # What this branch has that the default branch does not, by commit

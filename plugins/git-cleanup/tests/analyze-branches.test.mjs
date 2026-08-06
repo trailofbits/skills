@@ -86,7 +86,7 @@ const survey = {
 
 // Bump when you add an assertion. The check at the bottom is what makes a suite that
 // silently stopped running most of itself fail instead of reporting a pass.
-const EXPECTED_ASSERTIONS = 37
+const EXPECTED_ASSERTIONS = 44
 let ran = 0
 let failures = 0
 
@@ -436,6 +436,114 @@ const assert = (label, cond, extra = '') => {
     'a full refs/heads ref still matches its branch',
     porcelain.out.worktrees[0].stale === true,
     JSON.stringify(porcelain.out.worktrees),
+  )
+}
+
+// ---- case 12: long-lived environment branches are protected on both paths
+{
+  const names = ['staging', 'production', 'dev', 'hotfix/urgent', 'Staging', 'release/1.0', 'support/2.x']
+  const mergedPath = await run({
+    survey: { ...survey, worktrees: [], branches: [b('main'), ...names.map((n) => b(n, { merged: true }))] },
+    investigate: () => null,
+    refute: () => null,
+  })
+  assert(
+    'environment branches are never merged-path delete candidates',
+    mergedPath.out.deleteCandidates.length === 0,
+    JSON.stringify(mergedPath.out.deleteCandidates.map((c) => c.branch)),
+  )
+  const gonePath = await run({
+    survey: {
+      ...survey,
+      worktrees: [],
+      branches: [b('main'), ...names.map((n) => b(n, { remoteGone: true, tracking: 'origin/' + n, unpushedCommits: 0 }))],
+    },
+    investigate: (p) => ({
+      verdicts: [...p.matchAll(/^ {2}- (\S+) \|/gm)].map((m) => ({
+        branch: m[1],
+        category: 'SQUASH_MERGED',
+        evidence: 'PR #1',
+        group: '',
+      })),
+    }),
+    refute: (p) => ({
+      refutations: [...p.matchAll(/^ {2}- (\S+): claimed/gm)].map((m) => ({
+        branch: m[1],
+        refuted: false,
+        reason: 'ok',
+      })),
+    }),
+  })
+  assert(
+    'environment branches never reach the remote-gone force-delete path',
+    gonePath.out.deleteCandidates.length === 0 && gonePath.out.unanalyzed.length === 0,
+    JSON.stringify(gonePath.out.deleteCandidates.map((c) => c.branch)),
+  )
+}
+
+// ---- case 13: SAFE_TO_DELETE ships a checkable precondition, not a bare assertion
+{
+  const { out } = await run({
+    survey: {
+      ...survey,
+      worktrees: [],
+      branches: [b('main'), b('fix/typo', { merged: true, lastCommit: 'abc1234 fix a typo' })],
+    },
+    investigate: () => null,
+    refute: () => null,
+  })
+  const c = out.deleteCandidates.find((x) => x.branch === 'fix/typo')
+  assert(
+    'evidence names the tip commit',
+    c.evidence.includes('abc1234'),
+    JSON.stringify(c.evidence),
+  )
+  assert(
+    'verifyWith tests ancestry in the default branch',
+    c.verifyWith === 'git merge-base --is-ancestor abc1234 main',
+    JSON.stringify(c.verifyWith),
+  )
+}
+
+// ---- case 14: worktree ordering survives a survey that omits the optional worktreePath
+{
+  const { out } = await run({
+    survey: {
+      ...survey,
+      branches: [b('main'), b('feature/auth', { merged: true })],
+      worktrees: [{ path: '/wt/auth', branch: 'refs/heads/feature/auth', dirty: false, dirtyFiles: [] }],
+    },
+    investigate: () => null,
+    refute: () => null,
+  })
+  assert(
+    'worktreePath is derived from the required worktrees array',
+    out.deleteCandidates[0].worktreePath === '/wt/auth',
+    JSON.stringify(out.deleteCandidates[0]),
+  )
+}
+
+// ---- case 15: context is capped and untrusted spans are fenced
+{
+  const siblings = Array.from({ length: 40 }, (_, i) => b(`feature/api-old${i}`, { tracking: '', unpushedCommits: -1 }))
+  const { prompts } = await run({
+    survey: {
+      ...survey,
+      worktrees: [],
+      branches: [
+        b('main'),
+        ...siblings.map((s) => ({ ...s, merged: true })),
+        b('feature/api-x', { remoteGone: true, tracking: 'origin/feature/api-x', unpushedCommits: 0 }),
+      ],
+    },
+    investigate: () => ({ verdicts: [] }),
+    refute: () => ({ refutations: [] }),
+  })
+  const contextLines = (prompts[0].match(/^ {2}- feature\/api-old/gm) || []).length
+  assert('context list is capped', contextLines <= 8, String(contextLines))
+  assert(
+    'untrusted repo text is fenced as data',
+    prompts[0].includes('<repo-data>') && prompts[0].includes('DATA BOUNDARY'),
   )
 }
 
