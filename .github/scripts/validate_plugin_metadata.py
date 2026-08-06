@@ -80,7 +80,7 @@ PLUGIN_NAME_MAX_LENGTH = 64
 SEMVER_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
 
 # Floor for --self-test. Raise it when you add fixtures; see the check in self_test().
-SELF_TEST_MINIMUM = 20
+SELF_TEST_MINIMUM = 26
 
 
 @dataclass
@@ -204,6 +204,14 @@ def skill_files(plugin_path: Path) -> list[Path]:
     return sorted(skills_dir.rglob("SKILL.md"))
 
 
+def command_files(plugin_path: Path) -> list[Path]:
+    """Every slash-command markdown file under the plugin."""
+    commands_dir = plugin_path / "commands"
+    if not commands_dir.is_dir():
+        return []
+    return sorted(commands_dir.rglob("*.md"))
+
+
 # ---------------------------------------------------------------------------- errors
 
 
@@ -325,6 +333,48 @@ def validate_agent_frontmatter(plugin_path: Path) -> list[str]:
             errors.append(f"{rel} uses '{AGENT_TOOLS_KEY}:'; skills must use '{SKILL_TOOLS_KEY}:'")
 
     return errors
+
+
+def validate_command_frontmatter(plugin_path: Path) -> list[str]:
+    """Command files need parseable frontmatter with a description, and `allowed-tools:`.
+
+    Nothing else checks commands. A plugin whose only entry point is a command had its
+    frontmatter validated by no tool at all, and the loadability checks count skills, so
+    a malformed command shipped green.
+    """
+    errors = []
+
+    for command in command_files(plugin_path):
+        rel = command.relative_to(plugin_path)
+        block = extract_frontmatter(command.read_text(encoding="utf-8", errors="replace"))
+        if block is None:
+            errors.append(f"{rel}: command file has no YAML frontmatter")
+            continue
+        if not frontmatter_has_key(block, "description"):
+            errors.append(f"{rel}: command frontmatter has no 'description:'")
+        if frontmatter_has_key(block, AGENT_TOOLS_KEY):
+            errors.append(
+                f"{rel} uses '{AGENT_TOOLS_KEY}:'; commands must use '{SKILL_TOOLS_KEY}:' "
+                "(the loader ignores the other key silently)"
+            )
+
+    return errors
+
+
+def validate_entry_points(plugin_path: Path) -> list[str]:
+    """A plugin must expose something a user or model can actually invoke.
+
+    The loadability checks count `skills/**/SKILL.md` and MCP servers, so a plugin with
+    neither passes them at 0 == 0 while shipping nothing runnable. Requiring at least one
+    entry point here means that vacuous pass cannot be the whole story.
+    """
+    if skill_files(plugin_path) or command_files(plugin_path):
+        return []
+    if (plugin_path / "agents").is_dir() and agent_files(plugin_path):
+        return []
+    if (plugin_path / ".mcp.json").is_file() or (plugin_path / "hooks" / "hooks.json").is_file():
+        return []
+    return ["exposes no entry point: no skills/, commands/, agents/, hooks, or .mcp.json"]
 
 
 def validate_subagent_dispatch(plugin_path: Path, plugin_name: str) -> list[str]:
@@ -644,6 +694,10 @@ def validate_plugins(
             result.add(plugin_name, msg)
         for msg in validate_agent_frontmatter(plugin_path):
             result.add(plugin_name, msg)
+        for msg in validate_command_frontmatter(plugin_path):
+            result.add(plugin_name, msg)
+        for msg in validate_entry_points(plugin_path):
+            result.add(plugin_name, msg)
         for msg in validate_subagent_dispatch(plugin_path, plugin_name):
             result.add(plugin_name, msg)
 
@@ -814,6 +868,63 @@ def _self_test_errors(ran: list[str]) -> None:
         plugin = _build_demo(root)
         (plugin / "README.md").unlink()
         _check(ran, "missing plugin README", any("README.md" in e for e in _errors_for(root)))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "commands" / "go.md", "# no frontmatter\n")
+        _check(
+            ran,
+            "command without frontmatter",
+            any("no YAML frontmatter" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "commands" / "go.md", "---\nargument-hint: x\n---\n")
+        _check(
+            ran,
+            "command without description",
+            any("no 'description:'" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "commands" / "go.md", "---\ndescription: Go.\ntools:\n  - Read\n---\n")
+        _check(
+            ran,
+            "command using tools:",
+            any("commands must use 'allowed-tools:'" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "commands" / "go.md", "---\ndescription: Go.\nallowed-tools: Read\n---\n")
+        _check(ran, "a valid command is accepted", not _errors_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        shutil.rmtree(plugin / "skills")
+        _check(
+            ran,
+            "plugin with no entry point",
+            any("exposes no entry point" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        shutil.rmtree(plugin / "skills")
+        _write(plugin / "commands" / "go.md", "---\ndescription: Go.\nallowed-tools: Read\n---\n")
+        _check(
+            ran,
+            "commands alone satisfy the entry-point rule",
+            not any("exposes no entry point" in e for e in _errors_for(root)),
+        )
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

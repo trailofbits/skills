@@ -39,7 +39,7 @@ It runs three phases — survey, investigate, refute — and returns:
 
 | Field | Meaning |
 |-------|---------|
-| `deleteCandidates` | Recommended deletions. Each carries `evidence` and the exact `command` (`-d` or `-D`). |
+| `deleteCandidates` | Recommended deletions. Each carries `evidence`, the exact `command` (`-d` or `-D`), `worktreePath` when a worktree holds the branch, `group` for related-branch display, and `verifyWith` on `SAFE_TO_DELETE` entries. |
 | `needsReview` | Remote gone, work not found in the default branch. Never recommend these. |
 | `keep` | Unpushed, local-only, or synced with a live remote. |
 | `worktrees` | Path, branch, `dirty`, `dirtyFiles`, and whether the branch is stale. |
@@ -70,8 +70,8 @@ git log --oneline "$default_branch" | grep -iE "#[0-9]+" | head -40
 
 The workflow reports evidence so you can audit it, not so you can forward it unread. Before building the gate-1 table:
 
-1. **Every `deleteCandidate` names specific evidence** — a PR number, a commit sha, or a superseding branch. "Similar name", "looks stale", or an empty evidence string is not a delete recommendation. Move it to needs-review.
-2. **No protected branch appears anywhere.** The script filters `main|master|develop|release/*` and the current branch programmatically. If one surfaces regardless, drop it and say so.
+1. **Every `deleteCandidate` names specific evidence** — a PR number, a commit sha, or a superseding branch. "Similar name", "looks stale", or an empty evidence string is not a delete recommendation. Move it to needs-review. `SAFE_TO_DELETE` entries satisfy this by naming the tip commit; they also carry `verifyWith`, which phase 3 runs before deleting.
+2. **No protected branch appears anywhere.** The script filters long-lived integration and environment names (`main`, `master`, `develop`, `staging`, `production`, `release/*`, `hotfix/*`, and similar), plus the repository's actual default branch and the current branch, programmatically. If one surfaces regardless, drop it and say so.
 3. **`unanalyzed` is empty, or you list it.** A partial run must not read as a complete one.
 4. **Dirty worktrees are flagged**, whatever their branch's category.
 
@@ -79,7 +79,7 @@ The categories, and what has to be true for each:
 
 | Category | Meaning | Delete Command |
 |----------|---------|----------------|
-| SAFE_TO_DELETE | Merged into default branch — git proved it | `git branch -d` |
+| SAFE_TO_DELETE | Reported by `git branch --merged`, re-checked by `verifyWith` at execution | `git branch -d` |
 | SQUASH_MERGED | Work incorporated via squash merge, PR or commit named | `git branch -D` |
 | SUPERSEDED | Work verified in main via PR, or contained in a named newer branch | `git branch -D` |
 | REMOTE_GONE | Remote deleted, work NOT found in main | Review needed |
@@ -162,8 +162,8 @@ I will execute:
 # Worktrees holding branches being deleted (must precede the branch delete)
 git worktree remove '../proj-auth'
 
-# Merged branches (safe delete)
-git branch -d 'fix/typo'
+# Merged branches (safe delete, each guarded by its verifyWith precondition)
+git merge-base --is-ancestor abc1234 main && git branch -d 'fix/typo'
 
 # Squash-merged and superseded (force delete — work is in main via PRs)
 git branch -D 'feature/auth'
@@ -189,9 +189,11 @@ Keep the gate-2 order: every `git worktree remove` runs before the `git branch` 
 
 ```bash
 git worktree remove '../proj-auth'
-git branch -d 'fix/typo'
+git merge-base --is-ancestor abc1234 main && git branch -d 'fix/typo'
 git branch -D 'feature/auth'
 ```
+
+**Run each `SAFE_TO_DELETE` candidate's `verifyWith` immediately before its delete, and skip the delete if it fails.** That category is the one that never went through the refutation pass, and `git branch -d` is not the backstop it looks like: it accepts a branch merged into `HEAD` *or* into its own upstream, so a branch level with its remote but never merged to the default branch deletes cleanly under `-d`. `git merge-base --is-ancestor <tip> <default>` tests the property actually being claimed. If it fails, report the branch as needing review instead of deleting it.
 
 If a branch name itself contains a single quote, end the quoting around it: `'wip/it'\''s'`.
 
