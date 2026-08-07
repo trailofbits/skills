@@ -103,38 +103,35 @@ def test_extraction_found_blocks() -> None:
     )
 
 
-@pytest.mark.parametrize(
-    ("path", "line", "source"),
-    ALL_BLOCKS,
-    ids=[_ident(p, ln) for p, ln, _ in ALL_BLOCKS],
-)
-def test_block_is_syntactically_valid(path: Path, line: int, source: str) -> None:
+def test_every_block_is_syntactically_valid() -> None:
     """Every block must parse. Catches unterminated heredocs and quoting errors."""
-    # <BUILD_CMD>, <mode> etc. are documentation, not shell — neutralise before parsing.
-    cleaned = re.sub(r"<[A-Za-z0-9_ .-]+>", "PLACEHOLDER", source)
-    result = subprocess.run(["bash", "-n"], input=cleaned, capture_output=True, text=True)
-    assert result.returncode == 0, f"{_ident(path, line)} is not valid bash:\n{result.stderr}"
+    offenders = []
+    for path, line, source in ALL_BLOCKS:
+        # <BUILD_CMD>, <mode> etc. are documentation, not shell — neutralise before parsing.
+        cleaned = re.sub(r"<[A-Za-z0-9_ .-]+>", "PLACEHOLDER", source)
+        result = subprocess.run(["bash", "-n"], input=cleaned, capture_output=True, text=True)
+        if result.returncode != 0:
+            offenders.append(f"{_ident(path, line)}: {result.stderr.strip()}")
+
+    assert not offenders, "a block is not valid bash:\n  " + "\n  ".join(offenders)
 
 
-@pytest.mark.parametrize(
-    ("path", "line", "source"),
-    ALL_BLOCKS,
-    ids=[_ident(p, ln) for p, ln, _ in ALL_BLOCKS],
-)
-def test_piped_commands_preserve_exit_status(path: Path, line: int, source: str) -> None:
+def test_no_block_consumes_an_unpreserved_pipeline_status() -> None:
     """A pipeline whose *exit status* is consumed must preserve the real one.
 
     Without pipefail that status is the formatter's, which is always 0. No block ships a
-    bare pipeline today — every one goes through `run_logged` — so this parametrization
-    is a tripwire for new markdown. What proves the detector still fires is
+    bare pipeline today — every one goes through `run_logged` — so this is a tripwire for
+    new markdown, and it scans every block in one test rather than parametrizing over all
+    of them to skip the ones with no pipeline. What proves the detector still fires is
     `test_detector_flags_unsafe_pipelines` below.
     """
-    if not _status_consuming_pipelines(source):
-        pytest.skip("no pipeline in this block has its exit status consumed")
-
-    offenders = _unpreserved_pipelines(source)
+    offenders = [
+        f"{_ident(path, line)}: {offender}"
+        for path, line, source in ALL_BLOCKS
+        for offender in _unpreserved_pipelines(source)
+    ]
     assert not offenders, (
-        f"{_ident(path, line)} decides control flow on a pipeline's exit status without "
+        f"a block decides control flow on a pipeline's exit status without "
         f"`set -o pipefail` or {SAFE_PIPE_WRAPPER}, so it reads the formatter's status "
         f"(always 0) rather than the command's:\n  " + "\n  ".join(offenders)
     )
@@ -188,45 +185,43 @@ def test_sourcing_the_helpers_covers_the_rest_of_the_block() -> None:
     assert _unpreserved_pipelines(source) == []
 
 
-@pytest.mark.parametrize(
-    ("path", "line", "source"),
-    ALL_BLOCKS,
-    ids=[_ident(p, ln) for p, ln, _ in ALL_BLOCKS],
-)
-def test_exit_status_is_not_captured_after_a_pipe(path: Path, line: int, source: str) -> None:
+def test_exit_status_is_not_captured_after_a_pipe() -> None:
     """`EXIT_CODE=$?` after a pipeline captures the wrong process.
 
     This is how the arm64e exit-137 check was neutered.
     """
-    lines = source.splitlines()
-    for index, raw in enumerate(lines[:-1]):
-        if raw.strip().startswith("#") or "|" not in raw:
+    offenders = []
+    for path, line, source in ALL_BLOCKS:
+        if "set -o pipefail" in source or "set -euo pipefail" in source:
             continue
-        if re.search(r"\|\s*(tee|wc|head|tail)\b", raw) and re.match(
-            r"\s*\w+=\$\?", lines[index + 1]
-        ):
-            assert "set -o pipefail" in source or "set -euo pipefail" in source, (
-                f"{_ident(path, line)} captures $? straight after a pipe without pipefail — "
-                f"it records the formatter's status, not the command's:\n"
-                f"  {raw.strip()}\n  {lines[index + 1].strip()}"
-            )
+        lines = source.splitlines()
+        for index, raw in enumerate(lines[:-1]):
+            if raw.strip().startswith("#") or "|" not in raw:
+                continue
+            if re.search(r"\|\s*(tee|wc|head|tail)\b", raw) and re.match(
+                r"\s*\w+=\$\?", lines[index + 1]
+            ):
+                offenders.append(
+                    f"{_ident(path, line)}: {raw.strip()} / {lines[index + 1].strip()}"
+                )
+
+    assert not offenders, (
+        "a block captures $? straight after a pipe without pipefail, so it records the "
+        "formatter's status rather than the command's:\n  " + "\n  ".join(offenders)
+    )
 
 
-@pytest.mark.parametrize(
-    ("path", "line", "source"),
-    ALL_BLOCKS,
-    ids=[_ident(p, ln) for p, ln, _ in ALL_BLOCKS],
-)
-def test_no_unquoted_command_string_expansion(path: Path, line: int, source: str) -> None:
+def test_no_unquoted_command_string_expansion() -> None:
     """`CMD="a b c"` then `$CMD` word-splits on any path containing a space."""
     offenders = [
-        raw.strip()
+        f"{_ident(path, line)}: {raw.strip()}"
+        for path, line, source in ALL_BLOCKS
         for raw in source.splitlines()
         if re.match(r"\s*\$(CMD|BUILD_CMD)\b", raw) and not raw.strip().startswith("#")
     ]
     assert not offenders, (
-        f"{_ident(path, line)} runs a command built as a string, unquoted — pass argv as a "
-        f"list (see run_logged) so paths with spaces survive:\n  " + "\n  ".join(offenders)
+        "a block runs a command built as a string, unquoted. Pass argv as a list (see "
+        "run_logged) so paths with spaces survive:\n  " + "\n  ".join(offenders)
     )
 
 
@@ -259,12 +254,7 @@ def _outside_heredoc(source: str):
             terminator = opener.group(1)
 
 
-@pytest.mark.parametrize(
-    ("path", "line", "source"),
-    ALL_BLOCKS,
-    ids=[_ident(p, ln) for p, ln, _ in ALL_BLOCKS],
-)
-def test_path_variables_are_quoted(path: Path, line: int, source: str) -> None:
+def test_path_variables_are_quoted() -> None:
     """Every path variable must be quoted at the point of use.
 
     The narrower CMD/BUILD_CMD check above missed the production command:
@@ -272,20 +262,21 @@ def test_path_variables_are_quoted(path: Path, line: int, source: str) -> None:
     output directory containing a space.
     """
     offenders = []
-    for raw, is_shell in _outside_heredoc(source):
-        stripped = raw.strip()
-        if not is_shell or stripped.startswith("#"):
-            continue
-        for match in UNQUOTED_PATH_VAR.finditer(raw):
-            # Inside double quotes is fine; count quotes before the match to tell.
-            if raw[: match.start()].count('"') % 2 == 1:
+    for path, line, source in ALL_BLOCKS:
+        for raw, is_shell in _outside_heredoc(source):
+            stripped = raw.strip()
+            if not is_shell or stripped.startswith("#"):
                 continue
-            offenders.append(stripped)
-            break
+            for match in UNQUOTED_PATH_VAR.finditer(raw):
+                # Inside double quotes is fine; count quotes before the match to tell.
+                if raw[: match.start()].count('"') % 2 == 1:
+                    continue
+                offenders.append(f"{_ident(path, line)}: {stripped}")
+                break
 
     assert not offenders, (
-        f"{_ident(path, line)} expands a path variable unquoted, so it word-splits on any "
-        f"path containing a space:\n  " + "\n  ".join(offenders)
+        "a block expands a path variable unquoted, so it word-splits on any path "
+        "containing a space:\n  " + "\n  ".join(offenders)
     )
 
 
@@ -300,12 +291,16 @@ ARRAY_NAMES = frozenset(
 )
 
 
-@pytest.mark.parametrize(
-    ("path", "line", "source"),
-    ALL_BLOCKS,
-    ids=[_ident(p, ln) for p, ln, _ in ALL_BLOCKS],
-)
-def test_arrays_are_expanded_with_subscript(path: Path, line: int, source: str) -> None:
+def test_array_names_were_found() -> None:
+    """Guard the guard: with no names collected, the scan below inspects nothing and
+    passes. A skip here would report that as success."""
+    assert ARRAY_NAMES, (
+        f"no `NAME=()` assignment found in any of the {len(ALL_BLOCKS)} blocks in "
+        f"{SKILL_ROOT} — the collector is broken, not the skill"
+    )
+
+
+def test_arrays_are_expanded_with_subscript() -> None:
     """`$ARR` on an array yields only element 0, silently.
 
     SKILL.md built FOUND_DBS as an array, counted it with ${#FOUND_DBS[@]}, then looped
@@ -313,29 +308,25 @@ def test_arrays_are_expanded_with_subscript(path: Path, line: int, source: str) 
     database, contradicting three other sections of the same file.
 
     Keyed on assignment rather than a name list, so a new array is covered on the day it
-    is written.
+    is written. Names are collected across every block and checked against every block:
+    SKILL.md assigns FOUND_DBS=() in the discovery block and loops over it in a later
+    one, so neither half of the pairing can be found by looking at a block alone.
     """
-    # Collected across every block in the skill, not just this one: SKILL.md assigns
-    # FOUND_DBS=() in the discovery block and loops over it in a later block, so a
-    # per-block scan cannot see the bug this test exists for.
-    arrays = ARRAY_NAMES
-    if not arrays:
-        pytest.skip("no arrays assigned anywhere in the skill")
-
     offenders = []
-    for raw in source.splitlines():
-        stripped = raw.strip()
-        if stripped.startswith("#"):
-            continue
-        for name in arrays:
-            # Bare $NAME or ${NAME}: no [@], [*], or [n] subscript, and not ${#NAME[@]}.
-            if re.search(rf"(?<!#)\$\{{?{name}\}}?(?!\[|\w)", raw):
-                offenders.append(stripped)
-                break
+    for path, line, source in ALL_BLOCKS:
+        for raw in source.splitlines():
+            stripped = raw.strip()
+            if stripped.startswith("#"):
+                continue
+            for name in ARRAY_NAMES:
+                # Bare $NAME or ${NAME}: no [@], [*], or [n] subscript, and not ${#NAME[@]}.
+                if re.search(rf"(?<!#)\$\{{?{name}\}}?(?!\[|\w)", raw):
+                    offenders.append(f"{_ident(path, line)}: {stripped}")
+                    break
 
     assert not offenders, (
-        f"{_ident(path, line)} expands an array without a subscript, which yields only its "
-        f'first element. Use "${{NAME[@]}}":\n  ' + "\n  ".join(offenders)
+        "an array is expanded without a subscript, which yields only its first element. "
+        'Use "${NAME[@]}":\n  ' + "\n  ".join(offenders)
     )
 
 
@@ -349,17 +340,29 @@ def _embedded_python(source: str) -> list[str]:
     return [match.group(2) for match in EMBEDDED_PYTHON.finditer(source)]
 
 
-def test_embedded_python_extraction_still_matches() -> None:
-    """Guard the guard: two blocks embed Python, and a regex that matched none of them
-    would leave every test below passing as a skip.
+def _embedded_python_bodies() -> list[tuple[str, str]]:
+    """Every `python3 -c` body in the skill, as (where it came from, the source)."""
+    return [
+        (f"{_ident(path, line)}#{index}", body)
+        for path, line, source in ALL_BLOCKS
+        for index, body in enumerate(_embedded_python(source))
+    ]
 
-    Was three until quality-assessment.md stopped parsing baseline-info.json inline —
-    check_db_quality.py reports baseline_loc, so the block was computing it twice.
+
+ALL_EMBEDDED_PYTHON = _embedded_python_bodies()
+
+
+def test_embedded_python_extraction_still_matches() -> None:
+    """Guard the guard: a regex that matched nothing would leave the compile check below
+    running against an empty parameter set, which passes without inspecting anything.
+
+    Two bodies today, both in create-data-extensions.md. Was three until
+    quality-assessment.md stopped parsing baseline-info.json inline — check_db_quality.py
+    reports baseline_loc, so the block was computing it twice.
     """
-    bodies = [body for _, _, source in ALL_BLOCKS for body in _embedded_python(source)]
-    assert len(bodies) >= 2, (
-        f"only {len(bodies)} embedded python bodies extracted from {SKILL_ROOT} — the "
-        f"extractor is broken, not the skill"
+    assert len(ALL_EMBEDDED_PYTHON) >= 2, (
+        f"only {len(ALL_EMBEDDED_PYTHON)} embedded python bodies extracted from "
+        f"{SKILL_ROOT} — the extractor is broken, not the skill"
     )
 
 
@@ -378,11 +381,11 @@ def test_both_quote_styles_are_extracted(snippet: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("path", "line", "source"),
-    ALL_BLOCKS,
-    ids=[_ident(p, ln) for p, ln, _ in ALL_BLOCKS],
+    ("origin", "body"),
+    ALL_EMBEDDED_PYTHON,
+    ids=[origin for origin, _ in ALL_EMBEDDED_PYTHON],
 )
-def test_embedded_python_compiles(path: Path, line: int, source: str) -> None:
+def test_embedded_python_compiles(origin: str, body: str) -> None:
     """Python inside a bash block must parse.
 
     Quoting the shell string correctly and quoting the Python correctly are separate
@@ -390,12 +393,7 @@ def test_embedded_python_compiles(path: Path, line: int, source: str) -> None:
     single-quoted shell string leaves `\\"` escapes behind that are then literal
     backslashes to Python.
     """
-    bodies = _embedded_python(source)
-    if not bodies:
-        pytest.skip("no embedded python in this block")
-
-    for body in bodies:
-        try:
-            compile(body, "<embedded>", "exec")
-        except SyntaxError as error:
-            pytest.fail(f"{_ident(path, line)} embeds Python that does not parse: {error}\n{body}")
+    try:
+        compile(body, "<embedded>", "exec")
+    except SyntaxError as error:
+        pytest.fail(f"{origin} embeds Python that does not parse: {error}\n{body}")
