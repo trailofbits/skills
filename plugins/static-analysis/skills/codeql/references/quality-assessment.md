@@ -105,10 +105,8 @@ generated code exceeds it legitimately. Look at which files failed before decidi
 the errors are confined to code that does not need analysing, re-run with a raised
 threshold and record the reason in the log.
 
-The log line is inside the `if`, not after it. Unguarded, a re-run that still fails the raised
-threshold writes "Raised error-ratio threshold to 15%" into the build log as though the override
-took, and the block's own exit status becomes `log_result`'s 0 — a decision recorded as made
-because the command that refused it ran first.
+The log line goes inside the `if`. After it, a re-run that still fails writes "Raised
+threshold to 15%" as though the override took, and the block exits 0 — `log_result`'s status.
 
 ```bash
 . "{baseDir}/scripts/build_log.sh"

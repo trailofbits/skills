@@ -264,13 +264,9 @@ uv run {baseDir}/scripts/check_db_quality.py "$DB_NAME"
 without error and reports zero findings, which is the same output a clean codebase
 produces. The two failure exits call for different responses:
 
-- **Exit 1 — nothing to analyse.** Zero baseline LoC, or zero project files in the source
-  archive. Not a judgement call: go to Step 5 and fix the build.
-- **Exit 3 — extractor error ratio above 5%.** A heuristic that partial C/C++ extraction
-  over vendored or generated code exceeds legitimately. Inspect which files failed. If
-  they are outside the code under review, re-run with `--max-error-ratio` and log the
-  reason; otherwise treat it as exit 1. Exit 4 means the diagnostics format changed and
-  the checker needs updating; exit 2 is argparse rejecting the command line.
+Exit 1 is not a judgement call — go to Step 5 and fix the build. Exit 3 is, and
+[quality-assessment.md](../references/quality-assessment.md) has the table for it and for
+exits 2 and 4.
 
 If it fails, go to [quality-assessment.md](../references/quality-assessment.md) for the
 metric breakdown and the improvement steps, then re-run the gate. If it still fails after
