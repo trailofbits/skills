@@ -137,52 +137,46 @@ def test_no_block_consumes_an_unpreserved_pipeline_status() -> None:
     )
 
 
-UNSAFE_PIPELINES = (
-    'codeql database create "$DB_NAME" --language=cpp 2>&1 | tee -a "$LOG_FILE"',
-    'if codeql resolve queries "$SUITE_FILE" | grep -q "\\.ql"; then echo ok; fi',
+# The detector matches no block in the skill today, so these fixtures are the only thing
+# that would notice it silently breaking. Kept as tables inside two tests rather than
+# parametrized: seven pytest cases for one detector was more ceremony than it earns.
+_BARE_TEE = 'codeql database analyze "$DB_NAME" suite.qls 2>&1 | tee -a "$LOG_FILE"'
+
+MUST_FLAG = (
+    ('codeql database create "$DB_NAME" --language=cpp 2>&1 | tee -a "$LOG_FILE"', None),
+    ('if codeql resolve queries "$SUITE_FILE" | grep -q "\\.ql"; then echo ok; fi', None),
+    # The regression the per-line exemption exists for: under the old whole-block test
+    # `run_logged` appearing anywhere waved through every pipeline in the block.
+    (f'run_logged codeql database create "$DB_NAME" --language=cpp\n{_BARE_TEE}\n', [_BARE_TEE]),
 )
 
-SAFE_PIPELINES = (
+MUST_PASS = (
     # Output capture: the pipeline's status is never read.
     'COUNT=$(codeql resolve queries "$SUITE_FILE" | wc -l)',
     # Logical or, not a pipeline.
     "if [ -f setup.py ] || [ -f pyproject.toml ]; then echo python; fi",
     # The wrapper sets pipefail itself.
     'run_logged codeql database create "$DB_NAME" --language=cpp',
+    # `. build_log.sh` runs `set -o pipefail`, so the rest of the block is genuinely safe.
+    f'. "{{baseDir}}/scripts/build_log.sh"\n{_BARE_TEE}\n',
 )
 
 
-@pytest.mark.parametrize("line", UNSAFE_PIPELINES)
-def test_detector_flags_unsafe_pipelines(line: str) -> None:
+def test_detector_flags_unsafe_pipelines() -> None:
     """Guard the guard: with no offending block left in the skill, nothing else would
     notice if this detector stopped matching."""
-    assert _unpreserved_pipelines(line) == [line]
+    for source, expected in MUST_FLAG:
+        assert _unpreserved_pipelines(source) == (expected or [source]), (
+            f"the detector stopped flagging:\n  {source}"
+        )
 
 
-@pytest.mark.parametrize("line", SAFE_PIPELINES)
-def test_detector_passes_safe_pipelines(line: str) -> None:
+def test_detector_passes_safe_pipelines() -> None:
     """False positives get silenced, and a silenced check catches nothing."""
-    assert _unpreserved_pipelines(line) == []
-
-
-def test_run_logged_elsewhere_does_not_exempt_a_bare_pipe() -> None:
-    """The regression the per-line exemption exists for.
-
-    Under the old whole-block test this source passed: `run_logged` appeared in it, so
-    every pipeline in the block was waved through, including one that reads tee's status.
-    """
-    bare = 'codeql database analyze "$DB_NAME" suite.qls 2>&1 | tee -a "$LOG_FILE"'
-    source = f'run_logged codeql database create "$DB_NAME" --language=cpp\n{bare}\n'
-    assert _unpreserved_pipelines(source) == [bare]
-
-
-def test_sourcing_the_helpers_covers_the_rest_of_the_block() -> None:
-    """`. build_log.sh` runs `set -o pipefail`, so the block is genuinely safe after it."""
-    source = (
-        '. "{baseDir}/scripts/build_log.sh"\n'
-        'codeql database analyze "$DB_NAME" suite.qls 2>&1 | tee -a "$LOG_FILE"\n'
-    )
-    assert _unpreserved_pipelines(source) == []
+    for source in MUST_PASS:
+        assert _unpreserved_pipelines(source) == [], (
+            f"the detector now fires on safe shell, which is how it gets disabled:\n  {source}"
+        )
 
 
 def test_exit_status_is_not_captured_after_a_pipe() -> None:

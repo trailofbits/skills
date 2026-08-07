@@ -199,21 +199,14 @@ empty argument that CodeQL rejects, and leaving a string unquoted so it can be e
 lets `$DB_NAME` split on spaces. `"${ARRAY[@]}"` expands to nothing when empty and to
 each element intact otherwise.
 
-**Declare the three arrays in this block, filled in with the choices from Step 3.** They
-cannot be inherited: an array does not survive into a later Bash call, so arrays declared
-in Step 3 arrive here empty, every `--threat-model` and `--model-packs` the user asked for
-is dropped, and the Final Output template still reports them as used — the scan
-under-reports while claiming full coverage. Leaving an array empty is correct only when
-Step 3 selected nothing for it.
-
-The scalars need re-establishing for the same reason the arrays do. `set -u` is on, so a
-`$DB_NAME` left behind in an earlier block aborts this one with `DB_NAME: unbound variable` and
-the analysis never starts. Safe to fail, but the step cannot run as written.
+**Declare the three arrays and the scalars in this block, filled in with the choices from
+Step 3.** Nothing survives from Step 3 — see
+[Each Bash call is a fresh shell](../SKILL.md#each-bash-call-is-a-fresh-shell). Leaving an
+array empty is correct only when Step 3 selected nothing for it.
 
 ```bash
 set -euo pipefail
 
-# Re-establish these here: an earlier Bash call's variables are gone by this one.
 DB_NAME="${DB_NAME:?set this to the database selected in Step 1}"
 RAW_DIR="${RAW_DIR:-$OUTPUT_DIR/raw}"
 SUITE_FILE="${SUITE_FILE:?set this to the .qls written in Step 2}"

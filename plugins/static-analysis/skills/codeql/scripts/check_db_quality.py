@@ -49,6 +49,9 @@ NON_PROJECT_PREFIXES = (
 )
 
 SOURCE_LOCATION_PREFIX = re.compile(r"^sourceLocationPrefix:\s*(.+?)\s*$", re.MULTILINE)
+# CodeQL spells it the British way. Checked on 2.25.6, where an interrupted build leaves
+# the key absent rather than false.
+FINALISED = re.compile(r"^finalised:\s*(\S+)\s*$", re.MULTILINE)
 
 DEFAULT_MAX_ERROR_RATIO = 5.0
 
@@ -127,8 +130,18 @@ def _archive_source_root(database: Path) -> str | None:
     return f"{root}/" if root else None
 
 
-def project_file_count(database: Path) -> int:
-    """Files in the source archive that belong to the project, not the toolchain."""
+def archive_file_count(database: Path) -> int:
+    """Every file in the source archive, toolchain included.
+
+    Reported so a caller does not have to run its own `unzip -Z1 | wc -l`. For a compiled
+    language this is 10-20x project_file_count — 690 against 66 for an mbedtls cpp
+    database on 2.25.6 — which is why it is not the quality signal on its own.
+    """
+    return len(_archive_files(database))
+
+
+def _archive_files(database: Path) -> list[str]:
+    """Non-directory entries in src.zip."""
     archive = database / "src.zip"
     if not archive.is_file():
         raise QualityFailure(f"{archive} is missing — the database has no source archive.")
@@ -137,8 +150,26 @@ def project_file_count(database: Path) -> int:
             names = handle.namelist()
     except (zipfile.BadZipFile, OSError) as error:
         raise QualityFailure(f"Could not read {archive}: {error}") from error
+    return [name for name in names if not name.endswith("/")]
 
-    files = [name for name in names if not name.endswith("/")]
+
+def is_finalised(database: Path) -> bool:
+    """Whether `codeql database finalize` completed.
+
+    A database that is not finalised resolves and analyses, and reports nothing.
+    """
+    try:
+        text = (database / "codeql-database.yml").read_text()
+    except (OSError, UnicodeDecodeError):
+        return False
+    match = FINALISED.search(text)
+    return bool(match) and match.group(1).strip().strip("'\"").lower() == "true"
+
+
+def project_file_count(database: Path) -> int:
+    """Files in the source archive that belong to the project, not the toolchain."""
+    archive = database / "src.zip"
+    files = _archive_files(database)
     root = _archive_source_root(database)
     if root is None:
         return sum(1 for name in files if not name.startswith(NON_PROJECT_PREFIXES))
@@ -287,8 +318,10 @@ def assess(database: Path, max_error_ratio: float = DEFAULT_MAX_ERROR_RATIO) -> 
     return {
         "baseline_loc": loc,
         "project_files": files,
+        "archive_files": archive_file_count(database),
         "extractor_errors": errors,
         "error_ratio": round(ratio, 1),
+        "finalised": is_finalised(database),
     }
 
 

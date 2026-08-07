@@ -33,6 +33,19 @@ Supported languages: Python, JavaScript/TypeScript, Go, Java/Kotlin, C/C++, C#, 
 
 6. **Follow workflows step by step.** Each phase gates the next; skipping quality assessment or data extensions leaves the gap invisible in the results.
 
+## Each Bash call is a fresh shell
+
+Nothing carries across a Bash call: not variables, not arrays, not functions sourced from
+`build_log.sh`. Every block below that uses a value must re-establish it in the same block.
+The workflows point back here rather than repeating it; what they do state is the specific
+damage at that site, because each one fails differently and silently:
+
+- a lost **function** makes `run_logged` exit 127, which the build ladder reads as a failed
+  method and walks down to `--build-mode=none`, never having invoked CodeQL
+- a lost **array** expands to nothing, so every `--threat-model` and `--model-packs` the user
+  chose is dropped while the final report still lists them as used
+- a lost **scalar** under `set -u` aborts the block with `unbound variable`
+
 ## Output Directory
 
 All generated files (database, build logs, diagnostics, extensions, results) are stored in a single output directory.

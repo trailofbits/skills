@@ -17,6 +17,7 @@ from check_db_quality import (
     ERROR_RATIO_EXCEEDED,
     QualityFailure,
     assess,
+    is_finalised,
     main,
 )
 
@@ -428,8 +429,19 @@ def test_json_output_carries_the_metrics_the_docs_read(tmp_path: Path, capsys) -
     """
     assert main([str(_database(tmp_path)), "--format=json"]) == 0
     metrics = json.loads(capsys.readouterr().out)
-    assert set(metrics) == {"baseline_loc", "project_files", "extractor_errors", "error_ratio"}
+    assert set(metrics) == {
+        "baseline_loc",
+        "project_files",
+        "archive_files",
+        "extractor_errors",
+        "error_ratio",
+        "finalised",
+    }
     assert metrics["project_files"] == len(PROJECT_FILES)
+    # archive_files counts the toolchain too, so it is the larger of the two. The doc used
+    # to get this from its own `unzip -Z1 | wc -l`.
+    assert metrics["archive_files"] > metrics["project_files"]
+    assert metrics["finalised"] is True
 
 
 def test_cli_exits_zero_on_healthy_database(tmp_path: Path) -> None:
@@ -474,3 +486,16 @@ def test_a_malformed_json_diagnostic_still_fails_with_its_own_code(tmp_path: Pat
     database = _database(tmp_path)
     _diag(database, "weird.jsonl", "not json at all\nnor this")
     assert main([str(database)]) == DIAGNOSTICS_FORMAT_CHANGED
+
+
+def test_an_unfinalised_database_is_reported_as_such(tmp_path: Path) -> None:
+    """An interrupted build leaves the key absent, not false.
+
+    `codeql database finalize` after a failed trace-command is the case: the database
+    resolves, analyses, and reports nothing.
+    """
+    database = _database(tmp_path)
+    marker = database / "codeql-database.yml"
+    marker.write_text(marker.read_text().replace("finalised: true\n", ""))
+    assert is_finalised(database) is False
+    assert assess(database)["finalised"] is False

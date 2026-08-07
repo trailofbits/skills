@@ -65,38 +65,19 @@ function ladderFor(lang, isMacosArm64e) {
   return rungs
 }
 
+// Each rung names its section of build-database.md rather than restating the commands.
+// Both copies were live before, and they had already drifted: the workflow was passing
+// check_db_quality.py a --json flag the script does not define while the doc had it right.
+const BUILD_DB = `${SKILL_DIR}/workflows/build-database.md`
 const METHODS = {
   interpreted: {
     label: 'interpreted extraction',
-    detail: [
-      'CodeQL extracts source directly for this language. One command, with the exclusion',
-      'config written in the Detect phase:',
-      '',
-      '  run_logged codeql database create "$DB_NAME" \\',
-      '    --language="$CODEQL_LANG" --source-root=. \\',
-      '    --codescanning-config="$OUTPUT_DIR/codeql-config.yml" --overwrite',
-    ].join('\n'),
+    detail: `Run the command under "For Interpreted Languages" in ${BUILD_DB}: one \`codeql database create\`, with --codescanning-config pointing at the exclusion config written in the Detect phase.`,
   },
-  1: {
-    label: 'Method 1: autobuild',
-    detail: [
-      '  run_logged codeql database create "$DB_NAME" \\',
-      '    --language="$CODEQL_LANG" --source-root=. --overwrite',
-    ].join('\n'),
-  },
+  1: { label: 'Method 1: autobuild', detail: `Follow "Method 1: Autobuild" in ${BUILD_DB}.` },
   2: {
     label: 'Method 2: custom command',
-    detail: [
-      'Use the build command identified in the Detect phase.',
-      '',
-      '  run_logged codeql database create "$DB_NAME" \\',
-      '    --language="$CODEQL_LANG" --source-root=. \\',
-      '    --command="$BUILD_CMD" --overwrite',
-      '',
-      'Write --command="$BUILD_CMD", not --command=\'$BUILD_CMD\'. Single quotes inside a',
-      'double-quoted string are literal, so the second form hands CodeQL a command starting',
-      "with a ' .",
-    ].join('\n'),
+    detail: `Follow "Method 2: Custom Command" in ${BUILD_DB}, using BUILD_CMD from the Detect phase. Mind the quoting note there.`,
   },
   '2m': {
     label: 'Method 2m: macOS arm64 toolchain',
@@ -108,26 +89,11 @@ const METHODS = {
   },
   3: {
     label: 'Method 3: multi-step build',
-    detail: [
-      '  run_logged codeql database init "$DB_NAME" \\',
-      '    --language="$CODEQL_LANG" --source-root=. --overwrite',
-      '  run_logged codeql database trace-command "$DB_NAME" -- <build step>',
-      '  run_logged codeql database finalize "$DB_NAME"',
-      '',
-      'Every step must succeed before the next runs. Running finalize after a failed',
-      'trace-command produces a database that resolves correctly and contains nothing.',
-    ].join('\n'),
+    detail: `Follow "Method 3: Multi-step Build" in ${BUILD_DB}. Every step must succeed before the next runs.`,
   },
   4: {
     label: 'Method 4: no-build fallback',
-    detail: [
-      '  run_logged codeql database create "$DB_NAME" \\',
-      '    --language="$CODEQL_LANG" --source-root=. --build-mode=none --overwrite',
-      '',
-      'Last resort: no build tracing, so only source-level patterns are detected. A database',
-      'built this way often fails the quality gate, and that is the honest result rather than',
-      'a problem to work around.',
-    ].join('\n'),
+    detail: `Follow "Method 4: No-Build Fallback" in ${BUILD_DB}. A database built this way often fails the quality gate, and that is the honest result rather than a problem to work around.`,
   },
 }
 
@@ -160,7 +126,7 @@ const BUILD_SCHEMA = {
     ok: {
       type: 'boolean',
       description:
-        'true only when `codeql resolve database` succeeds afterwards. The build command exiting 0 is not enough: finalize after a failed trace-command leaves a database that resolves and holds nothing.',
+        'true only when `codeql resolve database` succeeds afterwards, for the reason given in the prompt. The build command exiting 0 is not enough.',
     },
     resolved: { type: 'boolean', description: 'the literal result of running codeql resolve database' },
     attempts: { type: 'integer', description: 'how many times this method was run, including retries after a fix' },
@@ -209,36 +175,20 @@ const detected = await agent(
     '   profile if the database cannot be built.',
     (input.out || '').trim()
       ? '3. Use the output directory given above. mkdir -p it and resolve it absolutely.'
-      : [
-          '3. Pick the output directory: static_analysis_codeql_1 beside the source root,',
-          '   incrementing while the name exists. mkdir -p and resolve it absolutely.',
-        ].join('\n'),
+      : `3. Pick the output directory with the block under "Output Directory" in ${SKILL_DIR}/SKILL.md, leaving USER_SPECIFIED_DIR unset so it auto-increments. mkdir -p and resolve it absolutely.`,
     '   Set dbPath to <outputDir>/codeql.db.',
     '',
     '4. Detect the language by counting source files, and report the CodeQL identifier for it',
     '   (cpp, csharp, go, java, javascript, python, ruby, swift). CodeQL builds one language',
     `   per database. ${SKILL_DIR}/references/language-details.md has the mapping.`,
     '',
-    '5. macOS arm64e check. This is the only thing that decides whether the ladder starts at',
-    '   Method 1 or jumps to 2m, so run it exactly:',
+    `5. macOS arm64e check. Run the block under "Step 2a: macOS arm64e Detection" in ${BUILD_DB}`,
+    '   exactly as written and report its IS_MACOS_ARM64E. This is the only thing deciding',
+    '   whether the ladder starts at Method 1 or jumps to 2m, so do not approximate it.',
     '',
-    '     IS_MACOS_ARM64E=false',
-    '     if [[ "$(uname -s)" == "Darwin" ]] && [[ "$(uname -m)" == "arm64" ]]; then',
-    '       LIBTRACE=$(find "$(dirname "$(command -v codeql)")" -name libtrace.dylib 2>/dev/null | head -1)',
-    '       if [ -n "$LIBTRACE" ]; then',
-    '         LIBTRACE_ARCHS=$(lipo -archs "$LIBTRACE" 2>/dev/null)',
-    '         if [[ "$LIBTRACE_ARCHS" != *"arm64e"* ]]; then',
-    '           MAKE_ARCHS=$(lipo -archs /usr/bin/make 2>/dev/null)',
-    '           [[ "$MAKE_ARCHS" == *"arm64e"* ]] && IS_MACOS_ARM64E=true',
-    '         fi',
-    '       fi',
-    '     fi',
-    '',
-    '6. For a compiled language, identify the build system and the command Method 2 should run:',
-    '   Makefile → `make clean && make -j$(nproc)`; CMakeLists.txt → `cmake -B build && cmake',
-    '   --build build`; build.gradle → `./gradlew clean build -x test`; pom.xml → `mvn clean',
-    '   compile -DskipTests`; Cargo.toml → `cargo clean && cargo build`; *.sln → `dotnet clean',
-    '   && dotnet build`. Also look for build.sh, compile.sh and the README.',
+    '6. For a compiled language, identify the build system and the command Method 2 should run,',
+    `   from the detection table under "Method 2: Custom Command" in ${BUILD_DB}. Also look for`,
+    '   build.sh, compile.sh and the README.',
     '',
     '7. For python, javascript, typescript or ruby only, write the exclusion config to',
     '   <outputDir>/codeql-config.yml. Compiled languages do not support it — everything traced',

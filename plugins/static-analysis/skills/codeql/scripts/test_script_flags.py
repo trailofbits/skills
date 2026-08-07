@@ -73,6 +73,12 @@ def _doc_files() -> list[Path]:
     )
 
 
+# An invocation names the script by path — `{baseDir}/scripts/x.py`, `${SKILL_DIR}/scripts/x.py`.
+# A bare mention is prose: a comment reading "the workflow passed check_db_quality.py a --json
+# flag" is not a call site, and reporting it as one made this check fail on its own changelog.
+INVOCATION = re.compile(r"/(" + "|".join(re.escape(n) for n in ACCEPTED) + r")(?=\s|$)")
+
+
 def _invocations() -> list[tuple[Path, int, str, str]]:
     """Every (file, line, script, flag) the plugin documents.
 
@@ -83,16 +89,13 @@ def _invocations() -> list[tuple[Path, int, str, str]]:
     found: list[tuple[Path, int, str, str]] = []
     for path in _doc_files():
         for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            for name in ACCEPTED:
-                start = line.find(name)
-                if start < 0:
-                    continue
-                tail = line[start + len(name) :]
+            for match in INVOCATION.finditer(line):
+                tail = line[match.end() :]
                 end = COMMAND_END.search(tail)
                 if end:
                     tail = tail[: end.start()]
                 for flag in LONG_FLAG.findall(tail):
-                    found.append((path, lineno, name, flag))
+                    found.append((path, lineno, match.group(1), flag))
     return found
 
 
@@ -110,8 +113,12 @@ def test_scripts_were_discovered() -> None:
 
 
 def test_flagged_invocations_were_found() -> None:
-    """A regex that matches nothing would pass this file silently."""
-    assert len(ALL_INVOCATIONS) >= 3, (
+    """A regex that matches nothing would pass this file silently.
+
+    Deliberately low: deduplicating the docs legitimately removes call sites, and this
+    guard is here to catch a scanner that finds nothing at all, not to pin a count.
+    """
+    assert len(ALL_INVOCATIONS) >= 2, (
         f"only {len(ALL_INVOCATIONS)} flagged script invocations extracted from "
         f"{PLUGIN_ROOT} — the scanner is broken, not the docs"
     )
@@ -141,3 +148,20 @@ def test_documented_flag_exists(path: Path, line: int, script: str, flag: str) -
         f"not accept it. argparse exits 2 on an unrecognised flag. Accepted: "
         f"{', '.join(sorted(accepted))}"
     )
+
+
+def test_the_scanner_tells_an_invocation_from_a_mention() -> None:
+    """Both directions, because getting either wrong disables the check quietly.
+
+    A prose mention counted as a call site makes the check fail on documentation that
+    merely discusses a flag. A real call site missed makes it pass on a broken command.
+    """
+    script = next(iter(ACCEPTED))
+    assert not INVOCATION.search(f"the workflow passed {script} a --json flag"), (
+        "a bare mention in prose is being read as an invocation"
+    )
+    for real in (
+        f'uv run {{baseDir}}/scripts/{script} "$DB_NAME" --format=json',
+        f'  uv run ${{SKILL_DIR}}/scripts/{script} "$DB_NAME" --format=json',
+    ):
+        assert INVOCATION.search(real), f"a real invocation is not being scanned: {real}"

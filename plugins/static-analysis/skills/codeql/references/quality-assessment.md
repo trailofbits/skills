@@ -4,62 +4,49 @@ How to assess and improve CodeQL database quality after a successful build.
 
 ## Collect Metrics
 
+One call produces every metric and enforces the thresholds. Nothing else recomputes any of
+them: a second hand-written pipeline drifts from the script and logs a contradicting number,
+which is how this file came to report 202 project files where the script said 2.
+
 ```bash
-# Each Bash call is a fresh shell, so the helpers have to be re-sourced here even though an
-# earlier block already did it. Without this, log_step and log_result are "command not found";
-# there is no `set -e` in this block, so it runs on and the build log records nothing —
-# including, further down, the reason the quality gate failed.
 . "{baseDir}/scripts/build_log.sh"
 
 log_step "Assessing database quality"
 
-# 1. Total archive file count. The only metric the checker does not report: it counts
-#    project source under the recorded source root, which for a compiled language is a
-#    fraction of the archive.
-SRC_FILE_COUNT=$(unzip -Z1 "$DB_NAME/src.zip" 2>/dev/null | wc -l)
-echo "Files in source archive: $SRC_FILE_COUNT"
-
-# 2. Quality gate and the metrics it derives, in one call. Exit 1 means nothing to
-#    analyse, 3 the error ratio was exceeded, 4 a format change; see "Enforce the
-#    Thresholds".
-#    Everything downstream reads $QUALITY_JSON rather than recomputing — a second
-#    hand-written pipeline drifts from the script and logs a contradicting number.
-#    Capture the status into a variable: inside `if ! cmd; then`, `$?` is the *negated*
-#    status and always reads 0, so the log would record every failure as a success.
+# Capture the status into a variable. Inside `if ! cmd; then`, `$?` is the *negated*
+# status and always reads 0, so the log would record every failure as a success.
 QUALITY_JSON=$(uv run {baseDir}/scripts/check_db_quality.py "$DB_NAME" --format=json)
 QUALITY_STATUS=$?
 if [ "$QUALITY_STATUS" -ne 0 ]; then
   log_result "Quality gate failed (exit $QUALITY_STATUS) — see Enforce the Thresholds below"
   exit "$QUALITY_STATUS"
 fi
-PROJECT_SRC_COUNT=$(printf '%s' "$QUALITY_JSON" | jq -r '.project_files')
-DB_LOC=$(printf '%s' "$QUALITY_JSON" | jq -r '.baseline_loc')
-EXTRACTOR_ERRORS=$(printf '%s' "$QUALITY_JSON" | jq -r '.extractor_errors')
-ERROR_RATIO=$(printf '%s' "$QUALITY_JSON" | jq -r '.error_ratio')
-echo "Project files: $PROJECT_SRC_COUNT, baseline LoC: $DB_LOC, extractor errors: $EXTRACTOR_ERRORS (${ERROR_RATIO}%)"
 
-# 3. Export diagnostics summary (experimental but useful)
+printf '%s' "$QUALITY_JSON" | jq -r '
+  "Baseline LoC: \(.baseline_loc)",
+  "Project source files: \(.project_files)",
+  "Total archive files: \(.archive_files) (system headers included for compiled languages)",
+  "Extractor errors: \(.extractor_errors) (\(.error_ratio)%)",
+  "Finalised: \(.finalised)"' | tee -a "$LOG_FILE"
+
+# Not derived from the database, so the script cannot report it.
 DIAG_TEXT=$(codeql database export-diagnostics --format=text -- "$DB_NAME" 2>/dev/null || true)
 if [ -n "$DIAG_TEXT" ]; then
   echo "Diagnostics: $DIAG_TEXT"
 fi
-
-# 4. Check database is finalized
-FINALIZED=$(grep '^finalised:' "$DB_NAME/codeql-database.yml" 2>/dev/null \
-  | awk '{print $2}')
-echo "Finalized: $FINALIZED"
 ```
 
 ## Compare Against Expected Source
 
-Estimate the expected source file count from the working directory and compare.
-
-> **Compiled languages (C/C++, Java, C#):** The source archive (`src.zip`) includes system headers and SDK files alongside project source files. For C/C++, this can inflate the archive count 10-20x (e.g., 111 archive files for 5 project source files). Compare against **project-relative files only** by filtering the archive listing.
+The one number the checker cannot produce: how many source files the working tree holds.
+Compare it against `.project_files`, never against `.archive_files` — for C/C++ the archive
+runs 10-20x larger because it carries the SDK headers (690 against 473 on a real mbedtls
+database).
 
 ```bash
-# Count source files in the project. `fd` is not in the Quick Start preflight, and a
-# missing fd exits non-zero into `wc -l`, which prints 0 — so the comparison below would
-# read as "extraction met expectations" on a machine that simply lacks the tool.
+# `fd` is not in the Quick Start preflight, and a missing fd exits non-zero into `wc -l`,
+# which prints 0 — so this would read as "extraction met expectations" on a machine that
+# simply lacks the tool.
 if command -v fd >/dev/null 2>&1; then
   EXPECTED=$(fd -t f -e c -e cpp -e h -e hpp -e java -e kt -e py -e js -e ts \
     --exclude 'codeql_*.db' --exclude node_modules --exclude vendor --exclude .git . \
@@ -71,15 +58,6 @@ else
     -not -path './codeql_*.db/*' | wc -l)
 fi
 echo "Expected source files: $EXPECTED"
-
-# PROJECT_SRC_COUNT and DB_LOC come from check_db_quality.py above. Do not recount here:
-# the script counts files under the source root recorded in codeql-database.yml, and the
-# `grep -v '^(Library/|usr/|System/…)'` this block used to run is a macOS-shaped guess
-# that scores a Linux toolchain under nix/store/ as project source — 202 files where the
-# script says 2.
-echo "Project files in source archive: $PROJECT_SRC_COUNT"
-echo "Total files in source archive: $SRC_FILE_COUNT (includes system headers for compiled langs)"
-echo "Baseline LoC: $DB_LOC"
 ```
 
 ## Enforce the Thresholds
@@ -119,48 +97,23 @@ else
 fi
 ```
 
-## Log Assessment
-
-This block runs in its own shell, so re-source the helpers and re-read the metrics rather
-than expecting them to survive from Collect Metrics. Unset, they expand to empty and the log
-records `Baseline LoC:` with no number.
-
-```bash
-. "{baseDir}/scripts/build_log.sh"
-QUALITY_JSON=$(uv run {baseDir}/scripts/check_db_quality.py "$DB_NAME" --format=json)
-DB_LOC=$(printf '%s' "$QUALITY_JSON" | jq -r '.baseline_loc')
-PROJECT_SRC_COUNT=$(printf '%s' "$QUALITY_JSON" | jq -r '.project_files')
-SRC_FILE_COUNT=$(unzip -Z1 "$DB_NAME/src.zip" 2>/dev/null | wc -l)
-FINALIZED=$(grep '^finalised:' "$DB_NAME/codeql-database.yml" 2>/dev/null | awk '{print $2}')
-
-log_step "Quality assessment results"
-log_result "Baseline LoC: $DB_LOC"
-log_result "Project source files: $PROJECT_SRC_COUNT"
-log_result "Total archive files: $SRC_FILE_COUNT (includes system headers for compiled langs)"
-# Extractor errors are reported by check_db_quality.py above, which is the only
-# place that counts them correctly.
-log_result "Finalized: $FINALIZED"
-
-# Sample extracted project files (exclude system paths)
-unzip -Z1 "$DB_NAME/src.zip" 2>/dev/null \
-  | grep -v -E '^(Library/|usr/|System/|opt/|Applications/)' \
-  | head -20 >> "$LOG_FILE"
-```
-
 ## Quality Criteria
 
-| Metric | Source | Good | Poor |
-|--------|--------|------|------|
-| Baseline LoC | `check_db_quality.py` (`.baseline_loc`) | > 0, proportional to project size | 0 or far below expected |
-| Project source files | `src.zip` (filtered) | Close to expected source file count | 0 or < 50% of expected |
-| Extractor errors | `diagnostic/extractors/*.jsonl` | 0 or < 5% of project files | > 5% of project files |
-| Finalized | `codeql-database.yml` | `true` | `false` (incomplete build) |
-| Key directories | `src.zip` listing | Application code directories present | Missing `src/main`, `lib/`, `app/` etc. |
-| "No source code seen" | build log | Absent | Present (cached build — compiled languages) |
+Every metric below comes from the single call in Collect Metrics. The gate already fails on
+the first three; the rest are for reading the result.
 
-**Interpreting archive file counts for compiled languages:** C/C++ databases include system headers (e.g., `<stdio.h>`, SDK headers) in `src.zip`. A project with 5 source files may have 100+ files in the archive. Always filter to project-relative paths when comparing against expected counts. Use `baselineLinesOfCode` as the primary quality indicator.
+| Metric | JSON key | Good | Poor |
+|--------|----------|------|------|
+| Baseline LoC | `.baseline_loc` | > 0, proportional to project size | 0 or far below expected |
+| Project source files | `.project_files` | Close to the expected count | 0 or < 50% of expected |
+| Extractor errors | `.error_ratio` | < 5% of project files | > 5% |
+| Total archive files | `.archive_files` | 10-20x `.project_files` for C/C++, ≈ equal for interpreted | equal to `.project_files` for C/C++ (no toolchain traced) |
+| Finalised | `.finalised` | `true` | `false` or absent (interrupted build) |
+| "No source code seen" | build log | Absent | Present (cached build, compiled languages) |
 
-**Interpreting baseline LoC:** A small number of extractor errors is normal and does not significantly impact analysis. However, if `baselineLinesOfCode` is 0 or the source archive contains no files, the database is empty — likely a cached build (compiled languages) or wrong `--source-root`.
+A small number of extractor errors is normal. Baseline LoC of 0, or an archive with no
+project files, means the database is empty: a cached build for a compiled language, or the
+wrong `--source-root`.
 
 ---
 
