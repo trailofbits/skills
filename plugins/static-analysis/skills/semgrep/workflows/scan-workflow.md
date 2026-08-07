@@ -399,6 +399,12 @@ one finding flagged by two rulesets is one row in the merge and two in that sum]
   looked at anything. Check the plan against the languages Step 1 detected: this is what a
   ruleset for a language the target does not contain looks like
 
+### Missing From The Merge:
+[omit when the merge printed no "unparseable:" line]
+- <file> — the scan succeeded and is counted in scans.json, but its SARIF could not be parsed,
+  so its findings are not in results.sarif. The total below is short by that scan's `findings`
+  count from scans.json
+
 Results written to:
 - $OUTPUT_DIR/results/results.sarif (merged SARIF)
 - $OUTPUT_DIR/raw/ (per-scan raw results, unfiltered)

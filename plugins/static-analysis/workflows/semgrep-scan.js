@@ -434,6 +434,13 @@ const reported = await agent(
     '   rulesets that opened zero files because their --include globs matched nothing. They',
     '   report 0 findings exactly like a ruleset that ran and found nothing, so leaving them out',
     '   is how a plan aimed at the wrong languages reads as a clean audit.',
+    '',
+    '6. Read the merge command\'s own stdout and carry two lines into the report if present:',
+    '   "excluding N SARIF file(s) from failed scans" and "unparseable: N of M SARIF files".',
+    '   The unparseable one is the important one. That scan is in .scans as a success with a',
+    '   finding count, so its findings are missing from results.sarif and nothing in scans.json',
+    '   says so — the total simply comes out lower. Name those files and say their findings are',
+    '   not in the merge.',
   ].join('\n'),
   { label: 'report', schema: REPORT_SCHEMA },
 )

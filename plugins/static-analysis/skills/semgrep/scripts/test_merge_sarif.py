@@ -353,6 +353,50 @@ def test_important_leaves_an_existing_deliverable_alone_when_it_fails(tmp_path):
     assert out.read_text() == before
 
 
+# --------------------------------------------------------------------- unparseable SARIF
+
+
+def test_an_unparseable_sarif_is_named_on_stdout(tmp_path):
+    """The silent-omission case this whole flag set exists to prevent.
+
+    A scan can exit 0, write a valid .json — so it lands in .scans with a finding count — and
+    still leave a truncated .sarif. The merge drops it and the total is short by exactly those
+    findings. On stderr that was invisible to the report; it has to be in the same stream the
+    Report phase reads, and named, or the run presents as clean.
+    """
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    write_scan(raw, "python-python", [sarif_result(RULE, "a.py", 5)], None)
+    (raw / "python-broken.sarif").write_text('{"runs":[{"results":[')
+    out = tmp_path / "results.sarif"
+    proc = run_merge(raw, out)
+    assert proc.returncode == 0, proc.stderr
+    assert count(out) == 1, "the healthy scan must still merge"
+    assert "unparseable" in proc.stdout
+    assert "python-broken.sarif" in proc.stdout, "the file must be named, not just counted"
+
+
+def test_every_sarif_unparseable_is_an_error(tmp_path):
+    """Zero findings from zero readable files is a broken run, not a clean one."""
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    (raw / "python-broken.sarif").write_text('{"runs":[{"results":[')
+    out = tmp_path / "results.sarif"
+    proc = run_merge(raw, out)
+    assert proc.returncode == 1
+    assert "nothing to merge" in proc.stderr
+    assert not out.exists()
+
+
+def test_the_merge_returns_what_it_could_not_read(tmp_path):
+    """The list is a return value, so a caller cannot forget to look at it."""
+    write_scan(tmp_path, "ok", [sarif_result(RULE, "a.py", 5)], None)
+    (tmp_path / "bad.sarif").write_text("{{{")
+    merged, unparseable = merge_sarif_pure_python(sorted(tmp_path.glob("*.sarif")))
+    assert [Path(p).name for p in unparseable] == ["bad.sarif"]
+    assert sum(len(r["results"]) for r in merged["runs"]) == 1
+
+
 # ------------------------------------------------------------------------- one merge backend
 
 
@@ -533,5 +577,5 @@ def test_merge_dedups_one_finding_flagged_by_two_rulesets(tmp_path):
     """The reason the report counts from the merge and never sums per-scan counts."""
     write_scan(tmp_path, "python-python", [sarif_result(RULE, "a.py", 5)], None)
     write_scan(tmp_path, "all-audit", [sarif_result(RULE, "a.py", 5)], None)
-    merged = merge_sarif_pure_python(sorted(tmp_path.glob("*.sarif")))
+    merged, _ = merge_sarif_pure_python(sorted(tmp_path.glob("*.sarif")))
     assert sum(len(run["results"]) for run in merged["runs"]) == 1

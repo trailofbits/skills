@@ -306,6 +306,9 @@ const SCENARIOS = {
       // A ruleset that opened no file reports 0 findings like any other. Left out of the
       // report, a plan aimed at the wrong languages is indistinguishable from a clean scan.
       [/coveredNothing/.test(prompts.report), "rulesets that matched no file must be reported"],
+      // The merge drops an unparseable SARIF and exits 0. That scan is a success in scans.json,
+      // so unless the report carries the line, the shortfall has nothing pointing at it.
+      [/unparseable/.test(prompts.report), "SARIF files missing from the merge must be reported"],
     ];
   },
 };
@@ -326,6 +329,7 @@ const MUTATIONS = [
   ["treat a failed merge as success", (s) => s.replace("if (!reported.ok) {", "if (false) {")],
   ["drop --scans from the merge", (s) => s.replace(/\n\s*`\s*--scans "\$\{scanned\.scansJson[\s\S]*?`,/, "")],
   ["stop reporting rulesets that covered nothing", (s) => s.replace(/\n\s*'\s*\.coveredNothing gets its own section[\s\S]*?clean audit\.',/, "")],
+  ["stop reporting unparseable SARIF", (s) => s.replace(/\n\s*'6\. Read the merge command[\s\S]*?not in the merge\.',/, "")],
 ];
 
 (async () => {

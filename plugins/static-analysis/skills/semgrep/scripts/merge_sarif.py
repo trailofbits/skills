@@ -151,8 +151,13 @@ def filter_to_keys(merged: dict, keys: set[Key]) -> tuple[int, int]:
     return kept, dropped
 
 
-def merge_sarif_pure_python(sarif_files: list[Path]) -> dict:
+def merge_sarif_pure_python(sarif_files: list[Path]) -> tuple[dict, list[str]]:
     """Merge every SARIF into one run, deduplicating results by sarif_key.
+
+    Returns (merged, unparseable). The unparseable list is returned rather than just
+    warned about: a scan can exit 0, write a valid .json that puts it in .scans with a
+    finding count, and still leave a truncated .sarif. Dropping that file silently makes
+    results.sarif short by exactly those findings with nothing anywhere pointing at it.
 
     The dedup is what makes the merged total meaningful: one finding flagged by two
     rulesets is one row here and two in a sum of per-scan counts.
@@ -202,16 +207,7 @@ def merge_sarif_pure_python(sarif_files: list[Path]) -> dict:
         merged_run["tool"]["driver"]["rules"] = list(seen_rules.values())
         merged["runs"].append(merged_run)
 
-    if skipped_files:
-        print(
-            f"WARNING: {len(skipped_files)} of {len(sarif_files)} SARIF files "
-            f"could not be parsed. Results may be incomplete.",
-            file=sys.stderr,
-        )
-        for sf in skipped_files:
-            print(f"  Skipped: {sf}", file=sys.stderr)
-
-    return merged
+    return merged, skipped_files
 
 
 def main() -> int:
@@ -288,7 +284,25 @@ def main() -> int:
     # Ensure output directory exists
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    merged = merge_sarif_pure_python(sarif_files)
+    merged, unparseable = merge_sarif_pure_python(sarif_files)
+    if unparseable:
+        # stdout, alongside the --scans exclusions, because that is the stream the Report phase
+        # reads and it must give these their own section. On stderr this was invisible to the
+        # summary: the scan sits in .scans as a success carrying its finding count, so nothing
+        # in scans.json or results.sarif shows that those findings went missing.
+        names = ", ".join(sorted(Path(p).name for p in unparseable))
+        print(
+            f"unparseable: {len(unparseable)} of {len(sarif_files)} SARIF files could not be "
+            f"parsed and are missing from the merge: {names}"
+        )
+    # Nothing was read at all, so "0 findings" would be a clean run rather than a broken one.
+    if unparseable and len(unparseable) == len(sarif_files):
+        print(
+            f"Error: none of the {len(sarif_files)} SARIF files could be parsed; "
+            "there is nothing to merge",
+            file=sys.stderr,
+        )
+        return 1
 
     if important:
         before = sum(len(run.get("results", [])) for run in merged.get("runs", []))
