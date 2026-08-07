@@ -17,7 +17,7 @@ hand-write this file — the script adds the installed third-party packs and ver
 result, and `test_generation_scripts.py` fails if this block and the script disagree:
 
 ```yaml
-- description: Run-all — all security, experimental, and quality queries from all installed packs
+- description: Run-all — the security-and-quality and security-experimental suites from all installed packs, not every query in them; see run-all-suite.md
 # Official queries: import BOTH suites (they are complementary, not hierarchical)
 # security-and-quality = stable security + code quality (excludes experimental/ paths)
 # security-experimental = stable security + experimental security (re-includes experimental/ with security tag)

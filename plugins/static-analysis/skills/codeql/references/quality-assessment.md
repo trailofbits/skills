@@ -5,6 +5,12 @@ How to assess and improve CodeQL database quality after a successful build.
 ## Collect Metrics
 
 ```bash
+# Each Bash call is a fresh shell, so the helpers have to be re-sourced here even though an
+# earlier block already did it. Without this, log_step and log_result are "command not found";
+# there is no `set -e` in this block, so it runs on and the build log records nothing —
+# including, further down, the reason the quality gate failed.
+. "{baseDir}/scripts/build_log.sh"
+
 log_step "Assessing database quality"
 
 # 1. Baseline lines of code and file list (most reliable metric).
@@ -115,9 +121,20 @@ generated code exceeds it legitimately. Look at which files failed before decidi
 the errors are confined to code that does not need analysing, re-run with a raised
 threshold and record the reason in the log.
 
+The log line is inside the `if`, not after it. Unguarded, a re-run that still fails the raised
+threshold writes "Raised error-ratio threshold to 15%" into the build log as though the override
+took, and the block's own exit status becomes `log_result`'s 0 — a decision recorded as made
+because the command that refused it ran first.
+
 ```bash
-uv run {baseDir}/scripts/check_db_quality.py "$DB_NAME" --max-error-ratio 15
-log_result "Raised error-ratio threshold to 15%: failures are all in third_party/, not project source"
+. "{baseDir}/scripts/build_log.sh"
+
+if uv run {baseDir}/scripts/check_db_quality.py "$DB_NAME" --max-error-ratio 15; then
+  log_result "Raised error-ratio threshold to 15%: failures are all in third_party/, not project source"
+else
+  log_result "Still failing at a 15% error ratio — the failures are not confined to third_party/"
+  exit 1
+fi
 ```
 
 ## Log Assessment

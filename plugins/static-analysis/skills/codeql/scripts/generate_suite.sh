@@ -35,7 +35,7 @@ SUITE_FILE="$RAW_DIR/$MODE.qls"
 # Unquoted heredocs here: ${CODEQL_LANG} must expand.
 if [ "$MODE" = run-all ]; then
   cat >"$SUITE_FILE" <<HEADER
-- description: Run-all — all security, experimental, and quality queries from all installed packs
+- description: Run-all — the security-and-quality and security-experimental suites from all installed packs, not every query in them; see run-all-suite.md
 - import: codeql-suites/${CODEQL_LANG}-security-and-quality.qls
   from: codeql/${CODEQL_LANG}-queries
 - import: codeql-suites/${CODEQL_LANG}-security-experimental.qls

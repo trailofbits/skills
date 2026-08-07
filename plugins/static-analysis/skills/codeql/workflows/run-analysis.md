@@ -206,8 +206,18 @@ is dropped, and the Final Output template still reports them as used — the sca
 under-reports while claiming full coverage. Leaving an array empty is correct only when
 Step 3 selected nothing for it.
 
+The scalars need re-establishing for the same reason the arrays do. `set -u` is on, so a
+`$DB_NAME` left behind in an earlier block aborts this one with `DB_NAME: unbound variable` and
+the analysis never starts. Safe to fail, but the step cannot run as written.
+
 ```bash
 set -euo pipefail
+
+# Re-establish these here: an earlier Bash call's variables are gone by this one.
+DB_NAME="${DB_NAME:?set this to the database selected in Step 1}"
+RAW_DIR="${RAW_DIR:-$OUTPUT_DIR/raw}"
+SUITE_FILE="${SUITE_FILE:?set this to the .qls written in Step 2}"
+mkdir -p "$RAW_DIR"
 
 # Fill these from the Step 3 answers. Empty means "the user chose none".
 THREAT_MODEL_FLAGS=()        # e.g. (--threat-model local --threat-model environment)

@@ -52,6 +52,13 @@ That provides `log_step`, `log_cmd`, `log_result`, and `run_logged`; defaults `L
 exit status survives being piped to `tee`. It deliberately does not set `-e`: the method
 ladder below has to survive each failed method to reach the next one.
 
+> **Repeat those two lines at the top of every block below that uses `run_logged` or
+> `$DB_NAME`.** Each Bash call is a fresh shell: a shell function does not survive it any more
+> than an array does. Skipping them makes `run_logged` exit 127 with `command not found`, which
+> the method ladder reads as "this build method failed" — so it walks down to
+> `--build-mode=none` and produces a partial database having never invoked CodeQL. That is the
+> misdiagnosis `build_log.sh`'s writability guard exists to prevent, arriving by another route.
+
 **What to log:** Detected language/build system, each build attempt with exact command, fix attempts and outcomes, quality assessment results, final successful command.
 
 ---

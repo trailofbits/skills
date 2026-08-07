@@ -50,14 +50,22 @@ Run custom QL queries against the database to enumerate all sources and sinks Co
 
 #### 2a: Select Database and Language
 
-A CodeQL database is a directory containing a `codeql-database.yml` marker file. `$DB_NAME` may already be set by the parent skill. If not, discover inside `$OUTPUT_DIR`.
+`$DB_NAME` may already be set by the parent skill. If not, discover with `find_databases.sh`,
+which filters candidates through `codeql resolve database`. Do not use a bare `find` for the
+marker file: `codeql database create` writes `codeql-database.yml` before the build finishes, so
+a run killed mid-build leaves one behind. Selecting it here makes `list-sources.ql` and
+`list-sinks.ql` return nothing, `sources.csv` and `sinks.csv` come back empty, and Step 3's
+"no missing models identified" early exit reports coverage as adequate for a database that was
+never finalized.
 
 ```bash
 if [ -z "$DB_NAME" ]; then
+  # Discovery and selection share a block: an array built in an earlier Bash call is gone by
+  # this one, and an empty FOUND_DBS reads as "no database".
   FOUND_DBS=()
-  while IFS= read -r yml; do
-    FOUND_DBS+=("$(dirname "$yml")")
-  done < <(find "$OUTPUT_DIR" -maxdepth 2 -name "codeql-database.yml" 2>/dev/null)
+  while IFS= read -r db; do
+    FOUND_DBS+=("$db")
+  done < <({baseDir}/scripts/find_databases.sh "${OUTPUT_DIR:-.}" .)
 
   if [ ${#FOUND_DBS[@]} -eq 0 ]; then
     echo "ERROR: No CodeQL database found in $OUTPUT_DIR"; exit 1
