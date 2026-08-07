@@ -124,6 +124,8 @@ Try these improvements, re-assess after each. **Log all improvements:**
 ### 1. Adjust source root
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "Quality improvement: adjust source root"
 NEW_ROOT="./src"  # or detected subdirectory
 # For interpreted: add --codescanning-config=codeql-config.yml
@@ -136,6 +138,8 @@ log_result "Changed source-root to: $NEW_ROOT"
 ### 2. Fix "no source code seen" (cached build - compiled languages only)
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "Quality improvement: force rebuild (cached build detected)"
 # The rebuild is only worth running if the clean succeeded. Against a still-cached tree it
 # re-extracts the same empty database, and the log would record that as a fix.
@@ -172,6 +176,8 @@ run_logged pip install -e . || log_result "WARNING: pip install -e . failed — 
 ### 4. Adjust extractor options
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "Quality improvement: adjust extractor options"
 
 # C/C++: Include headers

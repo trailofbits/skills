@@ -179,6 +179,87 @@ def test_detector_passes_safe_pipelines() -> None:
         )
 
 
+# Everything build_log.sh defines. Used in a block that never sourced the file, a helper is
+# 127 and LOG_FILE is an append to "".
+LOG_HELPERS = ("run_logged", "log_step", "log_cmd", "log_result", "LOG_FILE")
+USES_LOG_HELPER = re.compile(r"\b(" + "|".join(LOG_HELPERS) + r")\b")
+
+
+def _unsourced_helper_uses(source: str) -> list[str]:
+    """Lines that use a build_log.sh helper in a block that never sources build_log.sh."""
+    if any(SOURCES_LOG_HELPERS.match(raw) for raw in source.splitlines()):
+        return []
+    lines = (raw.strip() for raw in source.splitlines())
+    return [line for line in lines if not line.startswith("#") and USES_LOG_HELPER.search(line)]
+
+
+def test_helper_uses_are_sourced_in_the_same_block() -> None:
+    """A helper is a function, and a function does not survive into the next Bash call.
+
+    Same rule as the array check below, higher cost: 127 is a non-zero status, so the ladder
+    in build-database.md records the method as failed and walks to the next one. Method 2m-a
+    was the case that motivated this: the first rung an affected Mac lands on called
+    `log_step` without sourcing the helpers.
+    """
+    offenders = [
+        f"{_ident(path, line)}: {offender}"
+        for path, line, source in ALL_BLOCKS
+        for offender in _unsourced_helper_uses(source)
+    ]
+    assert not offenders, (
+        "a block uses a build_log.sh helper without sourcing it. Each block is a separate "
+        "Bash call, so the helper is undefined there and the line exits 127. Add `. "
+        '"{baseDir}/scripts/build_log.sh" || exit 1` to the block:\n  ' + "\n  ".join(offenders)
+    )
+
+
+HELPERS_MUST_FLAG = (
+    'log_step "METHOD 2m-a: macOS arm64 Homebrew compiler"',
+    'run_logged codeql database create "$DB_NAME" --language=cpp',
+    # Not a function, but build_log.sh is what defaults it. Unsourced, this appends to "".
+    'echo "=== Build Complete ===" >> "$LOG_FILE"',
+)
+
+HELPERS_MUST_PASS = (
+    '. "{baseDir}/scripts/build_log.sh" || exit 1\nlog_step "building"',
+    "source {baseDir}/scripts/build_log.sh\nrun_logged make",
+    # A comment about the helpers, not a call. Blocks carry those.
+    "# run_logged returns the build's exit status. Check it before moving on.",
+)
+
+
+def test_detector_flags_unsourced_helpers() -> None:
+    """Guard the guard: no block violates the rule now, so nothing else would notice this
+    detector going quiet."""
+    for source in HELPERS_MUST_FLAG:
+        assert _unsourced_helper_uses(source) == [source], (
+            f"the detector stopped flagging:\n  {source}"
+        )
+
+
+def test_detector_passes_sourced_helpers() -> None:
+    """False positives get silenced, and a silenced check catches nothing."""
+    for source in HELPERS_MUST_PASS:
+        assert _unsourced_helper_uses(source) == [], (
+            f"the detector now fires on a block that sources the helpers, which is how it "
+            f"gets disabled:\n  {source}"
+        )
+
+
+def test_the_sourcing_rule_has_something_to_check() -> None:
+    """Guard the guard: if the token list or the block extractor broke, every block would
+    look helper-free and the check above would inspect nothing."""
+    users = [
+        _ident(path, line)
+        for path, line, source in ALL_BLOCKS
+        if any(USES_LOG_HELPER.search(raw) for raw in source.splitlines())
+    ]
+    assert len(users) >= 10, (
+        f"only {len(users)} blocks use a build_log.sh helper across {len(ALL_BLOCKS)} blocks "
+        f"in {SKILL_ROOT} — the detector is broken, not the skill"
+    )
+
+
 def test_exit_status_is_not_captured_after_a_pipe() -> None:
     """`EXIT_CODE=$?` after a pipeline captures the wrong process.
 

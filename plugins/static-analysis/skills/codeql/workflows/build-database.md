@@ -52,9 +52,10 @@ That provides `log_step`, `log_cmd`, `log_result`, and `run_logged`; defaults `L
 exit status survives being piped to `tee`. It deliberately does not set `-e`: the method
 ladder below has to survive each failed method to reach the next one.
 
-> **Repeat those two lines at the top of every block below that uses `run_logged` or
-> `$DB_NAME`.** See [Each Bash call is a fresh shell](../SKILL.md#each-bash-call-is-a-fresh-shell)
-> for why, and for what each kind of loss costs.
+> **Every block below that uses a helper repeats the source line.** A function defined in an
+> earlier Bash call is gone by the next one, and `run_logged` then exits 127, which the ladder
+> reads as a failed build method. Set `DB_NAME` and `CODEQL_LANG` in the block as well.
+> See [Each Bash call is a fresh shell](../SKILL.md#each-bash-call-is-a-fresh-shell).
 
 **What to log:** Detected language/build system, each build attempt with exact command, fix attempts and outcomes, quality assessment results, final successful command.
 
@@ -113,6 +114,8 @@ Scan for irrelevant directories and create `$OUTPUT_DIR/codeql-config.yml` with 
 ### For Interpreted Languages
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "Building database for interpreted language: <LANG>"
 run_logged codeql database create "$DB_NAME" \
   --language="$CODEQL_LANG" \
@@ -154,6 +157,8 @@ Try build methods in sequence until one succeeds:
 > **Skip if `IS_MACOS_ARM64E=true`.**
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "METHOD 1: Autobuild"
 run_logged codeql database create "$DB_NAME" \
   --language="$CODEQL_LANG" --source-root=. --overwrite
@@ -180,6 +185,8 @@ Detect build system and use explicit command:
 Also check for project-specific build scripts (`build.sh`, `compile.sh`) and README instructions.
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "METHOD 2: Custom command"
 run_logged codeql database create "$DB_NAME" \
   --language="$CODEQL_LANG" \
@@ -205,6 +212,8 @@ For complex builds needing fine-grained control:
 > **On macOS with `IS_MACOS_ARM64E=true`:** Only trace arm64 Homebrew binaries. Do NOT trace system tools.
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "METHOD 3: Multi-step build"
 run_logged codeql database init "$DB_NAME" \
   --language="$CODEQL_LANG" --source-root=. --overwrite
@@ -225,6 +234,8 @@ Each step must succeed before the next runs. Running `finalize` after a failed
 > a cycle attempting this for those languages.
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "METHOD 4: No-build fallback (partial analysis)"
 run_logged codeql database create "$DB_NAME" \
   --language="$CODEQL_LANG" --source-root=. --build-mode=none --overwrite
@@ -288,6 +299,8 @@ AskUserQuestion: "All build methods failed. Options:"
 ## Final Report
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 echo "=== Build Complete ===" >> "$LOG_FILE"
 echo "Finished: $(date -Iseconds)" >> "$LOG_FILE"
 echo "Final database: $DB_NAME" >> "$LOG_FILE"

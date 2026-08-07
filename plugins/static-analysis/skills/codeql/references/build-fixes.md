@@ -2,9 +2,14 @@
 
 Fixes to apply when a CodeQL database build method fails. Try these in order, then retry the current build method. **Log each fix attempt.**
 
+Every block sources `build_log.sh` for itself. A helper defined in an earlier Bash call is
+gone by the next one, and `log_step` then exits 127, which the ladder reads as a failed method.
+
 ## 1. Clean existing state
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "Applying fix: clean existing state"
 rm -rf "$DB_NAME"
 log_result "Removed $DB_NAME"
@@ -13,6 +18,8 @@ log_result "Removed $DB_NAME"
 ## 2. Clean build cache
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "Applying fix: clean build cache"
 CLEANED=""
 make clean 2>/dev/null && CLEANED="$CLEANED make"
@@ -27,9 +34,9 @@ log_result "Cleaned: $CLEANED"
 
 > **Note:** The commands below install the *target project's* dependencies so CodeQL can trace the build. Use whatever package manager the target project expects (`pip`, `npm`, `go mod`, etc.) — these are not the skill's own tooling preferences.
 
-Uses `run_logged`. Source it first: `. "{baseDir}/scripts/build_log.sh" || exit 1`.
-
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "Applying fix: install dependencies"
 FAILED_INSTALLS=()
 
@@ -84,6 +91,8 @@ AskUserQuestion: "Build requires private registry access. Options:"
 ```
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 # Log authentication setup if performed
 log_step "Private registry authentication configured"
 log_result "Registry: <REGISTRY_URL>, Method: <AUTH_METHOD>"

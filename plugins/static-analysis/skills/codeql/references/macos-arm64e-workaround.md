@@ -6,15 +6,17 @@ Methods for building CodeQL databases on macOS Apple Silicon when the `arm64e`/`
 
 The strategy is to use Homebrew-installed tools (plain `arm64`, not `arm64e`) so `libtrace.dylib` can be injected successfully. Try sub-methods in order:
 
-> These blocks use `run_logged`, `log_step`, and `log_result`. Source them first:
-> `. "{baseDir}/scripts/build_log.sh" || exit 1`. The sub-methods below branch on exit code 137, so
-> they need the command's real status rather than tee's.
+> Each sub-method sources `build_log.sh` itself. That defines the helpers, which are gone by
+> the next Bash call, and sets `pipefail`. These sub-methods branch on exit code 137, so
+> without `pipefail` they read tee's status instead of the build's.
 
 ## Sub-method 2m-a: Homebrew clang/gcc with multi-step tracing
 
 Trace only the compiler invocations individually, avoiding system tools (`/usr/bin/ar`, `/bin/mkdir`) that would be killed. This requires a multi-step build: init → trace each compiler call → finalize.
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "METHOD 2m-a: macOS arm64 — Homebrew compiler with multi-step tracing"
 
 # 1. Find Homebrew C/C++ compiler (arm64, not arm64e)
@@ -175,6 +177,8 @@ AskUserQuestion:
 
 **If "Install arm64 tools and retry":**
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "Installing Homebrew arm64 toolchain"
 run_logged brew install llvm make || {
   log_result "FAILED: brew install did not complete — do not retry 2m-a, it will fail identically"
@@ -185,6 +189,8 @@ run_logged brew install llvm make || {
 
 **If "Install Rosetta and retry":**
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "Installing Rosetta"
 run_logged softwareupdate --install-rosetta --agree-to-license || {
   log_result "FAILED: Rosetta did not install — do not retry 2m-b, it will fail identically"
