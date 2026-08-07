@@ -11,10 +11,10 @@ RUFF_VERSION := 0.14.13
 
 .DEFAULT_GOAL := check
 .NOTPARALLEL:
-.PHONY: check self-test lint shell bats shell-suites python-tests validate fix help
+.PHONY: check self-test lint shell bats shell-suites python-tests js-tests eval-selftest evals validate fix help
 
 ## check: most of what CI runs (this is the one you want)
-check: self-test lint shell bats python-tests validate
+check: self-test lint shell bats python-tests js-tests eval-selftest validate
 	@echo ""
 	@echo "✓ check passed — most of CI, but not the loadability checks, the"
 	@echo "  version-increment check, or the non-ruff pre-commit hooks."
@@ -36,10 +36,15 @@ lint:
 ## shell: shellcheck + shfmt over every shell script
 # plugins/ AND .github/scripts/ — globbing only plugins/ left the repo's own scripts
 # unchecked locally, which is where they are most likely to be edited.
+#
+# No --severity filter, deliberately. The pre-commit hook CI runs is plain
+# `shellcheck -x`, so a --severity=warning here hides every info-level finding that
+# will still fail the Lint job — SC1091 (unresolvable `source`) most of all, which is
+# exactly the class a local run should catch. That gap shipped a red build once.
 shell:
 	@echo "→ shellcheck"
 	@find plugins .github/scripts -name '*.sh' -type f \
-		-exec shellcheck --severity=warning -x {} +
+		-exec shellcheck -x {} +
 	@echo "→ shfmt"
 	@find plugins .github/scripts -name '*.sh' -type f -exec shfmt -i 2 -ci -d {} +
 
@@ -95,6 +100,85 @@ python-tests:
 	done; \
 	echo "  ran $$ran test director(ies)"; \
 	exit $$failed
+
+## js-tests: node suites a plugin ships as *.test.mjs
+# Two guards, because discovery and execution fail independently. An empty glob is a
+# failure, as in python-tests. And `node <file>` runs a file that asserts nothing just
+# as happily as one that asserts everything — the same shape python-tests moved away
+# from — so each suite must also report at least one passing assertion.
+#
+# Two report formats count, because the repo has two kinds of suite and a guard that
+# only knew one would fail an honest suite for using the other convention:
+#   `<mark> pass <n>`        — node:test, as semgrep-rule-variant-creator writes them
+#   `<n> assertions passed`  — a hand-rolled suite, as git-cleanup writes them
+# A suite that stops running its own body stops emitting either line.
+#
+# The node:test branch is deliberately byte-agnostic about the leading mark. That mark
+# is a multi-byte character, and this recipe runs under /bin/sh in whatever locale the
+# machine has; `^.` matches one BYTE in the C locale, so anchoring on it passes locally
+# and fails in CI.
+js-tests:
+	@echo "→ js tests"
+	@files=$$(find plugins -type f -name '*.test.mjs' | sort); \
+	if [ -z "$$files" ]; then \
+		echo "  ✗ no .test.mjs files found — discovery is broken"; \
+		exit 1; \
+	fi; \
+	failed=0; ran=0; \
+	for f in $$files; do \
+		echo "  → $$f"; \
+		out=$$(node "$$f" 2>&1) || failed=1; \
+		echo "$$out"; \
+		if ! echo "$$out" | grep -qE '(^[1-9][0-9]* assertions passed$$|^[^0-9]*[[:space:]]pass [1-9][0-9]*$$)'; then \
+			echo "  ✗ $$f reported no passing assertions — it ran nothing"; \
+			failed=1; \
+		fi; \
+		ran=$$((ran + 1)); \
+	done; \
+	echo "  ran $$ran js suite(s)"; \
+	exit $$failed
+
+## eval-selftest: prove the eval graders still detect what they exist to detect
+# Same reasoning as `self-test` above, applied to the eval suites. No API calls, so it
+# belongs in `check`: the paid suite (`make evals`) runs rarely, and a grader whose
+# pattern silently stopped matching would report a clean bill of health indefinitely.
+#
+# Each suite must print an `<n> assertions passed` line with n > 0, as in js-tests — a
+# self-test that stops running its own body would otherwise exit 0 having proved
+# nothing.
+eval-selftest:
+	@echo "→ eval grader self-tests"
+	@suites=$$(find plugins -type f -path '*/evals/selftest/run-selftest.sh' | sort); \
+	if [ -z "$$suites" ]; then \
+		echo "  ✗ no eval self-tests found — discovery is broken"; \
+		exit 1; \
+	fi; \
+	failed=0; ran=0; \
+	for s in $$suites; do \
+		echo "  → $$s"; \
+		out=$$(bash "$$s" 2>&1) || failed=1; \
+		echo "$$out"; \
+		if ! echo "$$out" | grep -qE '^[1-9][0-9]* assertions passed$$'; then \
+			echo "  ✗ $$s reported no passing assertions — it ran nothing"; \
+			failed=1; \
+		fi; \
+		ran=$$((ran + 1)); \
+	done; \
+	echo "  ran $$ran eval self-test(s)"; \
+	exit $$failed
+
+## evals: run a plugin's eval suite against the real model (COSTS API CALLS)
+# Deliberately NOT in `check` and not in CI. Pass PLUGIN=<name> to pick the suite, and
+# ARGS='--case 01-mixed-repo --arm with' to narrow a run while iterating.
+PLUGIN ?= git-cleanup
+ARGS ?=
+evals:
+	@if [ ! -x plugins/$(PLUGIN)/evals/run-evals.sh ]; then \
+		echo "✗ plugins/$(PLUGIN)/evals/run-evals.sh not found or not executable"; \
+		exit 1; \
+	fi
+	@echo "→ evals: $(PLUGIN) (this makes real API calls)"
+	@bash plugins/$(PLUGIN)/evals/run-evals.sh $(ARGS)
 
 ## validate: plugin metadata, structure, and cross-references
 # Scans every plugin. CI scopes to the plugins a PR touches, so local is a strict
