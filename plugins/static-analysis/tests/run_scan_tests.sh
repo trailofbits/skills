@@ -11,7 +11,7 @@ set -uo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
-readonly EXPECTED_ASSERTIONS=75
+readonly EXPECTED_ASSERTIONS=77
 
 command -v jq >/dev/null 2>&1 || {
   echo "run_scan_tests.sh: jq not found — required" >&2
@@ -195,21 +195,6 @@ eq "$n" "2" "--exclude must be on every command, including the cross-language on
 
 out=$(dry "$BASIC")
 lacks "$out" "--exclude" "no --exclude when the output directory is outside the target"
-
-# The pattern is unanchored, so it drops src/out/ as well as the output directory. Announced
-# only on stderr it is invisible to the report, and the missing files read as clean coverage.
-unset STUB_PATHS
-export STUB_RC=0 STUB_RESULTS=''
-rm -rf "$TARGET/out"
-PATH="$WORK/bin:$PATH" bash "$SCRIPT" --target "$TARGET" --output-dir "$TARGET/out" \
-  --mode run-all --rulesets "$BASIC" --jobs 2 >/dev/null 2>&1
-eq "$(jq -r '.excludePattern' "$TARGET/out/scans.json")" "out" \
-  "scans.json must record the pattern excluded from every scan"
-rm -rf "$TARGET/out"
-
-run_real "$BASIC" "$WORK/ex2" >/dev/null
-eq "$(jq -r '.excludePattern' "$WORK/ex2/scans.json")" "" \
-  "excludePattern must be empty when nothing was excluded"
 
 echo "→ cross-language hoisting and dedup"
 
@@ -409,6 +394,30 @@ run_real "$ONE" "$WORK/cn3" >/dev/null
 eq "$(jq -r '.scans[0].filesScanned' "$WORK/cn3/scans.json")" "-1" "a missing .paths must report -1, not 0"
 eq "$(jq '.coveredNothing | length' "$WORK/cn3/scans.json")" "0" \
   "an unknown file count must not be reported as covering nothing"
+
+# --------------------------------------------------------------- the recorded exclude pattern
+# semgrep matches --exclude anywhere in the tree, so an output directory named `out` inside the
+# target also drops the target's own src/out/. Announced only on stderr that is invisible to the
+# report and the missing files read as clean coverage.
+echo "→ the recorded exclude pattern"
+
+unset STUB_PATHS
+export STUB_RC=0 STUB_RESULTS=''
+
+rm -rf "$TARGET/out"
+PATH="$WORK/bin:$PATH" bash "$SCRIPT" --target "$TARGET" --output-dir "$TARGET/out" \
+  --mode run-all --rulesets "$BASIC" --jobs 2 >/dev/null 2>&1
+# Asserted before the value is read: jq on a missing file prints nothing, which compares equal
+# to the empty string the second case expects, so both would pass having checked nothing.
+ok "$([ -f "$TARGET/out/scans.json" ] && echo 0 || echo 1)" "the excluded run must write scans.json"
+eq "$(jq -r '.excludePattern' "$TARGET/out/scans.json" 2>/dev/null || echo NOFILE)" "out" \
+  "scans.json must record the pattern excluded from every scan"
+rm -rf "$TARGET/out"
+
+run_real "$BASIC" "$WORK/ex2" >/dev/null
+ok "$([ -f "$WORK/ex2/scans.json" ] && echo 0 || echo 1)" "the unexcluded run must write scans.json"
+eq "$(jq -r '.excludePattern' "$WORK/ex2/scans.json" 2>/dev/null || echo NOFILE)" "" \
+  "excludePattern must be empty when nothing was excluded"
 
 # ------------------------------------------------------------------ the documented post-filter
 # The important-only loop lives in scan-modes.md rather than in a script, so it is extracted and
