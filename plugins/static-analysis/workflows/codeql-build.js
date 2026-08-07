@@ -48,7 +48,7 @@ const input = parseArgs(args)
 
 // What matters is which build modes a language accepts, not whether it is interpreted. Go is
 // compiled and has no `none` mode; C# and Java are compiled and do. CodeQL's own `--help` list
-// omits C/C++, which does support `none` (checked on 2.25.6).
+// omits C/C++ and Rust, both of which do support `none` (checked on 2.25.6).
 const NO_BUILD = new Set(['python', 'javascript', 'typescript', 'ruby'])
 const NO_NONE_FALLBACK = new Set(['go', 'swift'])
 
@@ -349,19 +349,14 @@ const assessed = await agent(
     '',
     `  uv run ${SKILL_DIR}/scripts/check_db_quality.py "$DB_NAME" --json`,
     '',
-    'Exit codes, which do not deserve the same response:',
-    '  0  passes.',
-    '  1  nothing to analyse — no baseline lines of code, no project files, or unreadable.',
-    '     Not a judgement call and not overridable. Report it; do not raise the threshold.',
-    '  3  extractor error ratio above the threshold. A heuristic: partial C/C++ extraction over',
-    '     vendored or generated code exceeds it legitimately.',
-    '  4  the diagnostics format changed and the checker needs updating — the database may be fine.',
-    '  (2 is argparse\'s usage error and never one of our verdicts.)',
+    `Read "Enforce the Thresholds" in ${SKILL_DIR}/references/quality-assessment.md for what`,
+    'each exit code calls for, rather than working it out from the number. The two that decide',
+    'what you do here: exit 1 is nothing to analyse and is not overridable, and exit 3 is a',
+    'heuristic that legitimate partial extraction can exceed.',
     '',
-    'On exit 3 only, try the improvements in',
-    `${SKILL_DIR}/references/quality-assessment.md — adjust the source root, force a clean`,
-    'rebuild if the build was cached, install type stubs, set extractor options — then re-run',
-    'the checker once and report the final exit code. Report every improvement you applied.',
+    'On exit 3 only, try the improvements further down that same file — adjust the source root,',
+    'force a clean rebuild if the build was cached, install type stubs, set extractor options —',
+    'then re-run the checker once and report the final exit code, with every improvement applied.',
     '',
     'Do not raise --max-error-ratio to make the gate pass. Whether the remaining errors are',
     'confined to code that does not need analysing is the caller\'s call, not yours; report the',
