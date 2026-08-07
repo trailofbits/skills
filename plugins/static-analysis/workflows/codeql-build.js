@@ -347,7 +347,7 @@ const assessed = await agent(
     `  DB_NAME=${detected.dbPath}`,
     `  OUTPUT_DIR=${detected.outputDir}`,
     '',
-    `  uv run ${SKILL_DIR}/scripts/check_db_quality.py "$DB_NAME" --json`,
+    `  uv run ${SKILL_DIR}/scripts/check_db_quality.py "$DB_NAME" --format=json`,
     '',
     `Read "Enforce the Thresholds" in ${SKILL_DIR}/references/quality-assessment.md for what`,
     'each exit code calls for, rather than working it out from the number. The two that decide',
