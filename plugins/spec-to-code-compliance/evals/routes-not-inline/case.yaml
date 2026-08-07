@@ -1,0 +1,49 @@
+schema_version: "1.1"
+name: routes-not-inline
+description: >
+  The plugin's structural rule is that requirement checking never happens in the invoking context — it goes to
+  the spec-compliance workflow, and only records come back. The skill it replaced held seven phases of inline
+  instructions and would work through all of them here.
+
+  Both graders score tool invocation rather than response text, deliberately. Two things make text graders
+  useless for this case. The fixture lives inside the installed plugin, so the no-plugin arm can read SKILL.md,
+  README.md, and the workflow script off disk and then describe the routing perfectly without the plugin loaded
+  — measured at 1.00 in the baseline arm against 0.00 with the plugin, entirely from reading the plugin's own
+  source. And the Workflow tool does not execute inside an eval run, so the correct behavior is followed by a
+  fallback to working inline, which a text grader reads as the violation. Dispatching a skill and a workflow
+  that exist only when the plugin is installed is the one signal the baseline arm cannot produce.
+
+  The workflow is intentionally left out of allowed_tools: the attempt is what is being graded, and letting the
+  fan-out actually run would cost more than the rest of the suite combined.
+
+  Measured Δ +1.00: 1.00 with the plugin, 0.00 without it. Removing the plugin is the red condition, and it is
+  the only one — `tool_used` counts attempted calls rather than successful ones, so this grader is an OR over
+  two redundant causes. Deleting the routing section from SKILL.md still passes 2/2, because the workflow is a
+  real command Claude finds and dispatches without being told to. Deleting `workflows/spec-compliance.js` while
+  leaving SKILL.md also passes 2/2, because the prose names the command and the failed attempt still counts.
+  Neither single-component mutation reddens the case; only removing both does.
+
+  That redundancy is the design working, not a gap in it: the mechanism does not depend on the prose, and the
+  prose does not depend on the mechanism being guessed at. It does mean this case cannot attribute the routing
+  to SKILL.md specifically. Requiring the workflow to actually complete — a `file_exists` grader on
+  `spec-compliance/REPORT.md` — would isolate it, at the cost of running the full fan-out on every eval run.
+tags: [dispatch, output-discipline]
+
+context:
+  add_dirs: [fixture]
+
+execution:
+  prompt: |
+    The fixture directory has SPEC.md and the Vault.sol contract it specifies.
+
+    We owe the client a compliance check on this — every requirement in the spec against what the code
+    actually does. Get that done.
+  max_turns: 20
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Skill]
+
+runs: 3
+
+expected_outcome: >
+  The run invokes the spec-to-code-compliance skill and dispatches
+  /spec-to-code-compliance:spec-compliance, rather than working through the spec's requirements itself.

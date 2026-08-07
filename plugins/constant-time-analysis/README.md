@@ -14,10 +14,10 @@ The infamous [KyberSlash](https://kyberslash.cr.yp.to/) attack demonstrated how 
 
 ## Features
 
-- **Multi-language support**: C, C++, Go, Rust, PHP, JavaScript, TypeScript, Python, Ruby
+- **Multi-language support**: C, C++, Go, Rust, Swift, Java, Kotlin, C#, PHP, JavaScript, TypeScript, Python, Ruby
 - **Multi-architecture support**: x86_64, ARM64, ARM, RISC-V, PowerPC, s390x, i386
-- **Multi-compiler support**: GCC, Clang, Go compiler, Rustc
-- **Scripting language support**: PHP (VLD/opcache), JavaScript/TypeScript (V8 bytecode), Python (dis), Ruby (YARV)
+- **Multi-compiler support**: GCC, Clang, Go compiler, Rustc, Swiftc
+- **Bytecode support**: Java/Kotlin (JVM), C# (CIL), PHP (VLD/opcache), JavaScript/TypeScript (V8 bytecode), Python (dis), Ruby (YARV)
 - **Optimization-level testing**: Test across O0-O3, Os, Oz
 - **Multiple output formats**: Text, JSON, GitHub Actions annotations
 - **Cross-compilation**: Analyze code for different target architectures

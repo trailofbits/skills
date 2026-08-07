@@ -111,14 +111,63 @@ The pattern should not be ported to this language.
 
 **Example:**
 ```
-Original: C buffer overflow detection
+Original: C strcpy/strncpy detection (CWE-676, use of a dangerous function)
 Target: Python
 
 VERDICT: NOT_APPLICABLE
-REASONING: Python handles memory management automatically. Buffer overflows
-in the traditional C sense don't exist. The vulnerability class is not
-present in the target language.
+REASONING: The rule detects an unbounded/bounded pair where a safer
+replacement exists — strcpy -> strcpy_s, strncpy -> a variant that
+NUL-terminates. Python has neither half. str and bytes are immutable and
+length-prefixed, bytearray slice assignment resizes or raises, and there is
+no NUL-termination contract to omit, so the ported sink would match only
+memory-safe code.
 ```
+
+Note what that reasoning does **not** say. "Python is memory-safe, so buffer
+overflows cannot happen" is false, and reaching for it will get a verdict
+overturned: `ctypes.memmove(create_string_buffer(8), b"B"*64, 64)` writes 64
+bytes into an 8-byte buffer from pure Python and segfaults the interpreter.
+The verdict holds on the sink, not on the language's reputation — `memmove` is
+the analogue of `memcpy`, there is no `memmove_s` to recommend, and telling a
+Python developer to use `strcpy_s` misattributes the finding. A `ctypes` rule
+is worth writing; it is a different rule, not this one ported.
+
+Reach for a language's safety reputation and you will overshoot. Check the
+specific construct the rule names.
+
+## Can Semgrep Analyze the Target at All?
+
+Separate from the verdict, and answered by running Semgrep rather than from
+memory. The three questions above ask whether the *bug* exists in the target.
+This one asks whether Semgrep can *see* it, and a "no" stops the port however
+applicable the pattern is.
+
+```sh
+semgrep show supported-languages          # is there a key for this language?
+semgrep --dump-ast -l <key> probe.<ext>   # does the parser actually run?
+```
+
+Two ways it fails, both silent:
+
+- **No frontend.** Perl is not a Semgrep language. Command injection is if
+  anything worse there than in Python — `system("cmd $x")`, backticks, `qx{}`,
+  two-arg piped `open` all reach `/bin/sh` — and CGI.pm, Plack and Mojolicious
+  supply genuinely attacker-controlled sources. None of that matters: the only
+  ways to touch a `.pl` file are `generic` and `regex`, neither of which has an
+  AST or a dataflow engine, so `mode: taint` no-ops and returns zero findings at
+  ~100% "parsed".
+- **A Pro-only parser.** Elixir left OSS Semgrep in 1.51.0. A rule declaring
+  `languages: [elixir]` is *skipped* rather than run: "1 rule(s) were skipped
+  because they require Pro". Under `--test` that does **not** surface as a
+  failure — the run ends in "All tests passed" over zero graded tests, which is
+  why nothing downstream catches it and why this question has to be settled here
+  by running semgrep rather than inferred from a green. The tempting fix — an
+  older Semgrep that still ships the parser — produces a green nobody can
+  reproduce.
+
+Report this as `semgrepCanAnalyze`, and say which of the two questions is
+failing. Folding "Semgrep cannot read this language" into `NOT_APPLICABLE`
+claims the bug class is absent, which is a different and often false statement.
 
 ## Common Applicability Patterns
 
