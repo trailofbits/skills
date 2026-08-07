@@ -91,11 +91,11 @@ rule MAL_JS_SocGholish_Dropper
         $magic3 = "'00000000'" ascii
 
     condition:
+        // Typical size range for SocGholish dropper -- cheapest check first
+        filesize > 3KB and filesize < 5KB and
+
         // SocGholish starts with "try{" block
         $try_block in (0..10) and
-
-        // Typical size range for SocGholish dropper
-        filesize > 3KB and filesize < 5KB and
 
         // Need most of these patterns
         8 of ($ax*, $brack*, $magic*)

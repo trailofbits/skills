@@ -1,142 +1,76 @@
 ---
 name: variant-analysis
-description: Find similar vulnerabilities and bugs across codebases using pattern-based analysis. Use when hunting bug variants, building CodeQL/Semgrep queries, analyzing security vulnerabilities, or performing systematic code audits after finding an initial issue.
+description: Hunts for the other instances of a bug already found — the variants of one root cause across a codebase. Use immediately after a vulnerability, logic bug, or bad pattern turns up in a specific file and the question becomes where else it occurs, including the bare conversational form ("are there others like this?", "is this the same bug?"). Also for generalizing one known instance into a CodeQL or Semgrep query for its whole pattern family, and for triaging a set of look-alike candidates against a known root cause. Not for initial discovery with no bug in hand.
 ---
 
 # Variant Analysis
 
-You are a variant analysis expert. Your role is to help find similar vulnerabilities and bugs across a codebase after identifying an initial pattern.
+Find the other instances of a bug you have already found. One root cause usually has several
+manifestations, and they are rarely in the module where you found the first one.
 
 ## When to Use
 
-Use this skill when:
 - A vulnerability has been found and you need to search for similar instances
 - Building or refining CodeQL/Semgrep queries for security patterns
 - Performing systematic code audits after an initial issue discovery
-- Hunting for bug variants across a codebase
 - Analyzing how a single root cause manifests in different code paths
 
 ## When NOT to Use
 
-Do NOT use this skill for:
-- Initial vulnerability discovery (use audit-context-building or domain-specific audits instead)
-- General code review without a known pattern to search for
-- Writing fix recommendations (use issue-writer instead)
-- Understanding unfamiliar code (use audit-context-building for deep comprehension first)
+- Initial vulnerability discovery — use audit-context-building or a domain-specific audit
+- General code review with no known pattern to search for
+- Writing fix recommendations — use issue-writer
+- Understanding unfamiliar code — use audit-context-building first
 
-## The Five-Step Process
+## The Five Steps
 
-### Step 1: Understand the Original Issue
+Read the reference for a step when you reach it.
 
-Before searching, deeply understand the known bug:
-- **What is the root cause?** Not the symptom, but WHY it's vulnerable
-- **What conditions are required?** Control flow, data flow, state
-- **What makes it exploitable?** User control, missing validation, etc.
+**1. Understand the original issue.** Extract the root cause — why the code is wrong, not
+what it does — and enumerate the directions a variant could hide in: related identifiers,
+other manifestations of the same mistake, data-type edge cases.
+→ [references/root-cause.md](references/root-cause.md)
 
-### Step 2: Create an Exact Match
+**2. Create an exact match.** Write a pattern matching ONLY the known instance and confirm
+it hits. A pattern that matches nothing means you have misunderstood the bug, and every
+search built on it is calibrated against the wrong code.
 
-Start with a pattern that matches ONLY the known instance:
-```bash
-rg -n "exact_vulnerable_code_here"
-```
-Verify: Does it match exactly ONE location (the original)?
+**3–4. Generalize one element at a time.** Climb from the exact match toward the pattern
+family, running and reading all matches after each single change. Stop when more than half
+the matches are noise.
+→ [references/searching.md](references/searching.md) — abstraction ladder, tool selection,
+false-positive filters
 
-### Step 3: Identify Abstraction Points
+**5. Triage.** Decide which candidates are real, and say so with a severity attached.
+→ [references/triage.md](references/triage.md)
 
-| Element | Keep Specific | Can Abstract |
-|---------|---------------|--------------|
-| Function name | If unique to bug | If pattern applies to family |
-| Variable names | Never | Always use metavariables |
-| Literal values | If value matters | If any value triggers bug |
-| Arguments | If position matters | Use `...` wildcards |
+**Then write it up**, including the patterns that failed and a CI rule to prevent regression.
+→ [references/reporting.md](references/reporting.md)
 
-### Step 4: Iteratively Generalize
+## Running it as a Workflow
 
-**Change ONE element at a time:**
-1. Run the pattern
-2. Review ALL new matches
-3. Classify: true positive or false positive?
-4. If FP rate acceptable, generalize next element
-5. If FP rate too high, revert and try different abstraction
+This plugin ships `/variant-analysis:variants`, which runs the five steps across parallel
+subagents — one per expansion axis, looping until the sweep stops finding anything new.
+Each stage reads the reference above that matches its job.
 
-**Stop when false positive rate exceeds ~50%**
+Use the workflow when the codebase is large or the root cause has many manifestations. Work
+the steps directly when the search is narrow or you want a say in each generalization.
 
-### Step 5: Analyze and Triage Results
+## What Makes Hunts Fail
 
-For each match, document:
-- **Location**: File, line, function
-- **Confidence**: High/Medium/Low
-- **Exploitability**: Reachable? Controllable inputs?
-- **Priority**: Based on impact and exploitability
+1. **Narrow scope** — searching only the module the original bug was in
+2. **Pattern too specific** — searching one attribute and missing the family around it
+3. **One vulnerability class** — chasing a single manifestation of the root cause
+4. **Happy-path testing** — never trying the null, empty, and boundary cases
+5. **Generalizing too fast** — abstracting several elements at once, so noise cannot be
+   attributed to any one of them
 
-For deeper strategic guidance, see [METHODOLOGY.md](METHODOLOGY.md).
-
-## Tool Selection
-
-| Scenario | Tool | Why |
-|----------|------|-----|
-| Quick surface search | ripgrep | Fast, zero setup |
-| Simple pattern matching | Semgrep | Easy syntax, no build needed |
-| Data flow tracking | Semgrep taint / CodeQL | Follows values across functions |
-| Cross-function analysis | CodeQL | Best interprocedural analysis |
-| Non-building code | Semgrep | Works on incomplete code |
-
-## Key Principles
-
-1. **Root cause first**: Understand WHY before searching for WHERE
-2. **Start specific**: First pattern should match exactly the known bug
-3. **One change at a time**: Generalize incrementally, verify after each change
-4. **Know when to stop**: 50%+ FP rate means you've gone too generic
-5. **Search everywhere**: Always search the ENTIRE codebase, not just the module where the bug was found
-6. **Expand vulnerability classes**: One root cause often has multiple manifestations
-
-## Critical Pitfalls to Avoid
-
-These common mistakes cause analysts to miss real vulnerabilities:
-
-### 1. Narrow Search Scope
-
-Searching only the module where the original bug was found misses variants in other locations.
-
-**Example:** Bug found in `api/handlers/` → only searching that directory → missing variant in `utils/auth.py`
-
-**Mitigation:** Always run searches against the entire codebase root directory.
-
-### 2. Pattern Too Specific
-
-Using only the exact attribute/function from the original bug misses variants using related constructs.
-
-**Example:** Bug uses `isAuthenticated` check → only searching for that exact term → missing bugs using related properties like `isActive`, `isAdmin`, `isVerified`
-
-**Mitigation:** Enumerate ALL semantically related attributes/functions for the bug class.
-
-### 3. Single Vulnerability Class
-
-Focusing on only one manifestation of the root cause misses other ways the same logic error appears.
-
-**Example:** Original bug is "return allow when condition is false" → only searching that pattern → missing:
-- Null equality bypasses (`null == null` evaluates to true)
-- Documentation/code mismatches (function does opposite of what docs claim)
-- Inverted conditional logic (wrong branch taken)
-
-**Mitigation:** List all possible manifestations of the root cause before searching.
-
-### 4. Missing Edge Cases
-
-Testing patterns only with "normal" scenarios misses vulnerabilities triggered by edge cases.
-
-**Example:** Testing auth checks only with valid users → missing bypass when `userId = null` matches `resourceOwnerId = null`
-
-**Mitigation:** Test with: unauthenticated users, null/undefined values, empty collections, and boundary conditions.
+The first three are covered in root-cause.md and searching.md, the fourth in triage.md.
 
 ## Resources
 
-Ready-to-use templates in `resources/`:
+**CodeQL** (`resources/codeql/`): `python.ql`, `javascript.ql`, `java.ql`, `go.ql`, `cpp.ql`
 
-**CodeQL** (`resources/codeql/`):
-- `python.ql`, `javascript.ql`, `java.ql`, `go.ql`, `cpp.ql`
-
-**Semgrep** (`resources/semgrep/`):
-- `python.yaml`, `javascript.yaml`, `java.yaml`, `go.yaml`, `cpp.yaml`
+**Semgrep** (`resources/semgrep/`): `python.yaml`, `javascript.yaml`, `java.yaml`, `go.yaml`, `cpp.yaml`
 
 **Report**: `resources/variant-report-template.md`
