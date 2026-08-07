@@ -5,11 +5,18 @@
 """Merge SARIF files into a single consolidated output.
 
 Usage:
-    uv run merge_sarif.py RAW_DIR OUTPUT_FILE [--important]
+    uv run merge_sarif.py RAW_DIR OUTPUT_FILE [--important] [--scans scans.json]
 
 Reads *.sarif files from RAW_DIR (e.g., $OUTPUT_DIR/raw), produces
 OUTPUT_FILE (e.g., $OUTPUT_DIR/results/results.sarif) containing all
 findings merged and deduplicated.
+
+--scans names the scans.json run-scans.sh wrote, and drops the SARIF files
+belonging to scans recorded under .failed. Those files exist because a scan
+that died part-way may still have written one, so without this a single dead
+scan takes the whole run's deliverable with it: under --important its output
+has no post-filter beside it, and that is an error rather than an empty
+filter. Pass it whenever scans.json exists.
 
 --important restricts the merged output to the findings that survived the
 important-only post-filter. That filter reads semgrep's JSON metadata
@@ -59,6 +66,27 @@ def json_key(result: dict) -> Key:
         result.get("path", ""),
         result.get("start", {}).get("line", 0),
     )
+
+
+def failed_sarifs(scans_json: Path) -> set[Path]:
+    """Resolved paths of the SARIF files belonging to scans that did not succeed.
+
+    run-scans.sh records a failed scan carrying the same paths a success does, because a scan
+    that crashed part-way may still have written a file. What it wrote is not a scan result:
+    it is whatever semgrep produced before it stopped. Those files must not be held to the
+    post-filter requirement, or one dead process denies every healthy scan a deliverable.
+    """
+    data = json.loads(scans_json.read_text())
+    failed = data.get("failed")
+    if not isinstance(failed, list):
+        raise ValueError(
+            f"{scans_json} has no .failed array; it is not a scans.json written by run-scans.sh"
+        )
+    return {
+        Path(entry["sarif"]).resolve()
+        for entry in failed
+        if isinstance(entry, dict) and entry.get("sarif")
+    }
 
 
 def surviving_keys(sarif_files: list[Path]) -> set[Key]:
@@ -245,8 +273,21 @@ def main() -> int:
     argv = sys.argv[1:]
     important = "--important" in argv
     argv = [a for a in argv if a != "--important"]
+
+    scans_json: Path | None = None
+    if "--scans" in argv:
+        i = argv.index("--scans")
+        if i + 1 >= len(argv):
+            print("--scans needs the path to scans.json", file=sys.stderr)
+            return 1
+        scans_json = Path(argv[i + 1])
+        del argv[i : i + 2]
+
     if len(argv) != 2:
-        print(f"Usage: {sys.argv[0]} RAW_DIR OUTPUT_FILE [--important]", file=sys.stderr)
+        print(
+            f"Usage: {sys.argv[0]} RAW_DIR OUTPUT_FILE [--important] [--scans scans.json]",
+            file=sys.stderr,
+        )
         return 1
 
     raw_dir = Path(argv[0])
@@ -263,6 +304,29 @@ def main() -> int:
     if not sarif_files:
         print("No SARIF files found, nothing to merge", file=sys.stderr)
         return 1
+
+    # Before the post-filter requirement below, so a dead scan is dropped rather than held to it.
+    if scans_json is not None:
+        try:
+            excluded = failed_sarifs(scans_json)
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+        kept = [p for p in sarif_files if p.resolve() not in excluded]
+        if len(kept) != len(sarif_files):
+            names = sorted(p.name for p in sarif_files if p.resolve() in excluded)
+            print(
+                f"excluding {len(sarif_files) - len(kept)} SARIF file(s) from failed scans: "
+                f"{', '.join(names)}"
+            )
+        sarif_files = kept
+        # Every scan failed. Writing an empty merge here would report a clean run over nothing.
+        if not sarif_files:
+            print(
+                f"Error: every scan in {scans_json} failed, so there is nothing to merge",
+                file=sys.stderr,
+            )
+            return 1
 
     # Resolved before the merge, not after: a post-filter that did not run is a broken run,
     # and finding that out first costs nothing while finding it out afterwards means either

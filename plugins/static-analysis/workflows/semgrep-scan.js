@@ -151,14 +151,27 @@ const SCAN_SCHEMA = {
   },
 }
 
+// ok exists for the same reason SCAN_SCHEMA's does. Without it the only fields are required
+// ones, so an agent whose merge command exited non-zero has nowhere to say so and fills in
+// total: 0 and a results.sarif path that was never written. The workflow would then return a
+// populated success object that reads exactly like a scan which found nothing.
 const REPORT_SCHEMA = {
   type: 'object',
-  required: ['resultsSarif', 'total', 'report'],
+  required: ['ok', 'resultsSarif', 'total', 'report'],
   additionalProperties: false,
   properties: {
-    resultsSarif: { type: 'string', description: 'absolute path of the merged SARIF' },
-    total: { type: 'integer', description: 'finding count read from the merged SARIF, never summed from per-scan counts' },
+    ok: {
+      type: 'boolean',
+      description:
+        'true only when the merge command exited 0 and wrote the merged SARIF. A merge that failed is not a scan that found nothing.',
+    },
+    resultsSarif: { type: 'string', description: 'absolute path of the merged SARIF, or "" when the merge wrote none' },
+    total: {
+      type: 'integer',
+      description: 'finding count read from the merged SARIF, never summed from per-scan counts; -1 when the merge failed',
+    },
     report: { type: 'string', description: 'the markdown summary to show the user' },
+    error: { type: 'string', description: 'the merge stderr when ok is false, else ""' },
   },
 }
 
@@ -375,7 +388,13 @@ const reported = await agent(
     '2. Merge:',
     `     uv run ${SKILL_DIR}/scripts/merge_sarif.py "${outputDir}/raw" "${outputDir}/results/results.sarif"${
       mode === 'important-only' ? ' --important' : ''
-    }`,
+    } \\`,
+    `       --scans "${scanned.scansJson || `${outputDir}/scans.json`}"`,
+    '',
+    '   --scans drops the output of scans recorded under .failed. A scan that died part-way may',
+    '   still have written a .sarif, and without this one dead scan denies every healthy scan a',
+    '   merged result: its output has no post-filter beside it, which is an error rather than an',
+    '   empty filter. The excluded files are named on stdout; carry them into the report.',
     ...(mode === 'important-only'
       ? [
           '',
@@ -386,6 +405,12 @@ const reported = await agent(
           '   on (rule, file, line) instead, and fails the merge if any scan has no filtered JSON.',
         ]
       : []),
+    '',
+    '',
+    '   A non-zero exit means the merge wrote no results.sarif. Report ok=false with its stderr,',
+    '   total=-1 and resultsSarif="". Do not retry it with different arguments and do not write a',
+    '   summary reporting zero findings: the scans succeeded and the merge did not, and those two',
+    '   read identically once a total of 0 is written down.',
     '',
     '3. Confirm the merged file is valid JSON and count the findings FROM IT:',
     `     jq '[.runs[].results[]] | length' "${outputDir}/results/results.sarif"`,
@@ -409,6 +434,12 @@ const reported = await agent(
 )
 
 if (!reported) throw new Error(`the merge phase returned nothing; raw scan output is in ${outputDir}/raw`)
+// Symmetric with the scan phase. A merge that exited non-zero wrote no results.sarif, and
+// returning that as a run with zero findings hides a completed scan behind a failed merge.
+if (!reported.ok) {
+  const why = reported.error || 'the merge agent did not say why'
+  throw new Error(`the merge failed, so there is no results.sarif: ${why}. Raw scan output is in ${outputDir}/raw`)
+}
 log(`${reported.total} findings in ${reported.resultsSarif}`)
 
 return {

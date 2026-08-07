@@ -6,13 +6,15 @@
 
 The important-only merge rests on one claim: a finding's identity in semgrep's JSON output
 (check_id, path, start.line) is the same triple SARIF carries as (ruleId, uri,
-region.startLine). The pair in test_key_contract is that claim, taken field-for-field from
-real `semgrep --json --sarif-output` runs over the same file. If semgrep ever changes either
-shape, that test goes red rather than the filter silently keeping nothing.
+region.startLine). test_key_contract pins the field names this script reads, but builds both
+halves itself, so only test_key_contract_against_real_semgrep can notice semgrep changing
+either shape. That one runs semgrep and compares the two records of one real finding.
 
 The negatives matter as much: a post-filter that ran over only some scans, or wrote a file
 that will not parse, must fail the merge. Filtering against a partial key set drops real
-findings from the primary deliverable and nothing downstream could notice.
+findings from the primary deliverable and nothing downstream could notice. The exception is a
+scan recorded under .failed in scans.json, whose output is whatever a dying process wrote:
+--scans drops those, so one crashed scan cannot deny every healthy scan a deliverable.
 """
 
 from __future__ import annotations
@@ -349,6 +351,136 @@ def test_important_leaves_an_existing_deliverable_alone_when_it_fails(tmp_path):
     before = out.read_text()
     assert run_merge(raw, out, "--important").returncode == 1
     assert out.read_text() == before
+
+
+# ------------------------------------------------------------------------------------ --scans
+
+
+def write_scans_json(path: Path, succeeded: list[Path], failed: list[Path]) -> Path:
+    """A scans.json in run-scans.sh's shape. Both lists carry the same `sarif` key."""
+    path.write_text(
+        json.dumps(
+            {
+                "scans": [
+                    {"lang": "python", "ruleset": "p/python", "sarif": str(p)} for p in succeeded
+                ],
+                "failed": [
+                    {"lang": "python", "ruleset": "p/x", "sarif": str(p), "error": "exited 7"}
+                    for p in failed
+                ],
+                "skipped": [],
+            }
+        )
+    )
+    return path
+
+
+def dead_scan(raw: Path, stem: str) -> Path:
+    """A scan recorded under .failed: its SARIF is on disk with no post-filter beside it."""
+    sarif = raw / f"{stem}.sarif"
+    sarif.write_text(json.dumps(sarif_doc(sarif_result(OTHER, "b.py", 9))))
+    return sarif
+
+
+def test_a_failed_scan_no_longer_denies_every_other_scan_a_deliverable(tmp_path):
+    """The point of the flag: one dead scan must not take the whole important-only merge."""
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    write_scan(
+        raw, "python-python", [sarif_result(RULE, "a.py", 5)], [json_result(RULE, "a.py", 5)]
+    )
+    dead = dead_scan(raw, "python-broken")
+    scans = write_scans_json(tmp_path / "scans.json", [raw / "python-python.sarif"], [dead])
+    out = tmp_path / "results.sarif"
+    proc = run_merge(raw, out, "--important", "--scans", str(scans))
+    assert proc.returncode == 0, proc.stderr
+    assert count(out) == 1
+    assert "python-broken.sarif" in proc.stdout, "the excluded file must be named for the report"
+
+
+def test_the_same_run_without_scans_json_still_fails(tmp_path):
+    """Pins that the flag is what makes it survivable, not a change in the merge's strictness."""
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    write_scan(
+        raw, "python-python", [sarif_result(RULE, "a.py", 5)], [json_result(RULE, "a.py", 5)]
+    )
+    dead_scan(raw, "python-broken")
+    out = tmp_path / "results.sarif"
+    assert run_merge(raw, out, "--important").returncode == 1
+    assert not out.exists()
+
+
+def test_a_succeeded_scan_missing_its_filter_still_fails(tmp_path):
+    """Only failed scans are exempt.
+
+    A healthy scan with no post-filter beside it still aborts the merge: its findings are real,
+    and filtering against a key set that never saw them drops them from the deliverable with
+    nothing downstream able to notice.
+    """
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    write_scan(
+        raw, "python-python", [sarif_result(RULE, "a.py", 5)], [json_result(RULE, "a.py", 5)]
+    )
+    healthy = dead_scan(raw, "python-other")  # same shape, but recorded as a success below
+    scans = write_scans_json(tmp_path / "scans.json", [raw / "python-python.sarif", healthy], [])
+    out = tmp_path / "results.sarif"
+    proc = run_merge(raw, out, "--important", "--scans", str(scans))
+    assert proc.returncode == 1
+    assert "python-other-important.json" in proc.stderr
+    assert not out.exists()
+
+
+def test_run_all_also_drops_a_failed_scan_output(tmp_path):
+    """A dead process's file is not a scan result in either mode."""
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    write_scan(raw, "python-python", [sarif_result(RULE, "a.py", 5)], None)
+    dead = dead_scan(raw, "python-broken")
+    scans = write_scans_json(tmp_path / "scans.json", [raw / "python-python.sarif"], [dead])
+    out = tmp_path / "results.sarif"
+    proc = run_merge(raw, out, "--scans", str(scans))
+    assert proc.returncode == 0, proc.stderr
+    assert count(out) == 1, "the failed scan's finding must not reach the merge"
+
+
+def test_every_scan_failed_is_an_error_not_an_empty_merge(tmp_path):
+    """Excluding everything would otherwise write an empty SARIF and report a clean run."""
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    dead = dead_scan(raw, "python-broken")
+    scans = write_scans_json(tmp_path / "scans.json", [], [dead])
+    out = tmp_path / "results.sarif"
+    proc = run_merge(raw, out, "--scans", str(scans))
+    assert proc.returncode == 1
+    assert "nothing to merge" in proc.stderr
+    assert not out.exists()
+
+
+def test_a_scans_json_with_no_failed_array_is_rejected(tmp_path):
+    """Catches the wrong file being passed; treating it as 'nothing failed' would be silent."""
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    write_scan(
+        raw, "python-python", [sarif_result(RULE, "a.py", 5)], [json_result(RULE, "a.py", 5)]
+    )
+    bad = tmp_path / "scans.json"
+    bad.write_text(json.dumps({"scans": []}))
+    out = tmp_path / "results.sarif"
+    proc = run_merge(raw, out, "--important", "--scans", str(bad))
+    assert proc.returncode == 1
+    assert "not a scans.json" in proc.stderr
+    assert not out.exists()
+
+
+def test_scans_flag_without_a_path_is_rejected(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    write_scan(raw, "python-python", [sarif_result(RULE, "a.py", 5)], None)
+    proc = run_merge(raw, tmp_path / "results.sarif", "--scans")
+    assert proc.returncode == 1
+    assert "--scans needs" in proc.stderr
 
 
 def test_an_empty_raw_directory_is_an_error(tmp_path):

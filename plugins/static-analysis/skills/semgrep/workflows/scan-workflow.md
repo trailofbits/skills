@@ -316,10 +316,12 @@ do not need re-verifying.
 
 ```bash
 # run-all
-uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif"
+uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" \
+  --scans "$OUTPUT_DIR/scans.json"
 
 # important-only, once the post-filter above has run over every file in raw/
-uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" --important
+uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" \
+  --important --scans "$OUTPUT_DIR/scans.json"
 ```
 
 - **Run-all mode:** The script merges all `*.sarif` files from `$OUTPUT_DIR/raw/`.

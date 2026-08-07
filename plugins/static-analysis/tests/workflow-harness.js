@@ -47,7 +47,7 @@ const DETECT = {
 };
 const SELECT = { rulesetsPath: "/proj/static_analysis_semgrep_1/rulesets.json", counts: { baseline: 2, language: 2, thirdParty: 1 } };
 const SCAN = { ok: true, scansJson: "/proj/static_analysis_semgrep_1/scans.json", succeeded: 4, failed: 0, skipped: 0, error: "" };
-const REPORT = { resultsSarif: "/proj/static_analysis_semgrep_1/results/results.sarif", total: 7, report: "# Semgrep Scan Complete" };
+const REPORT = { ok: true, resultsSarif: "/proj/static_analysis_semgrep_1/results/results.sarif", total: 7, report: "# Semgrep Scan Complete", error: "" };
 
 // Each phase's reply is overridable; `null` stands for an agent that returned nothing.
 async function run(src, { args, detect = DETECT, select = SELECT, scan = SCAN, report = REPORT } = {}) {
@@ -169,6 +169,32 @@ const SCENARIOS = {
   "a dead report phase names where the raw output is": async (src) => {
     const msg = await throws(src, { report: null });
     return [[msg && /raw/.test(msg), "a dead merge phase must still point at the raw scan output"]];
+  },
+
+  // The mirror of the failed-scan guard. Without a failure channel in REPORT_SCHEMA the agent
+  // has to fill in a total, and total 0 with an unwritten results.sarif path is what a scan
+  // that genuinely found nothing looks like.
+  "a failed merge stops the run rather than returning zero findings": async (src) => {
+    const msg = await throws(src, {
+      report: { ok: false, resultsSarif: "", total: -1, report: "", error: "merge_sarif.py exited 1" },
+    });
+    return [
+      [msg && /merge failed/.test(msg), "a failed merge must throw"],
+      [msg && /merge_sarif\.py exited 1/.test(msg), "the merge's own error must reach the message"],
+      [msg && /raw/.test(msg), "the message must still point at the raw scan output"],
+    ];
+  },
+
+  // Dropping a dead scan's output is what keeps one crashed scan from denying every healthy
+  // scan a merged result, so the flag has to actually reach the command.
+  "the merge is told which scans failed": async (src) => {
+    const { prompts } = await run(src, {});
+    const merge = prompts.report.split("\n").find((l) => l.includes("merge_sarif.py")) || "";
+    return [
+      [/--scans/.test(prompts.report), "the merge must be passed the scans.json it should read"],
+      [prompts.report.includes(`--scans "${SCAN.scansJson}"`), "the path must be the one the scan phase reported"],
+      [/merge_sarif\.py/.test(merge), "the merge command must still be one pasteable line"],
+    ];
   },
 
   "pro reaches the scan command only when detected": async (src) => {
@@ -294,6 +320,8 @@ const MUTATIONS = [
   ["drop --important from the important-only merge", (s) => s.replace("mode === 'important-only' ? ' --important' : ''", "''")],
   ["ignore a bare path and scan cwd", (s) => s.replace("if (bare) return { target: text }", "if (false) return { target: text }")],
   ["accept unparseable args instead of refusing", (s) => s.replace("  throw new Error(`could not parse args", "  return {}\n  throw new Error(`could not parse args")],
+  ["treat a failed merge as success", (s) => s.replace("if (!reported.ok) {", "if (false) {")],
+  ["drop --scans from the merge", (s) => s.replace(/\n\s*`\s*--scans "\$\{scanned\.scansJson[\s\S]*?`,/, "")],
 ];
 
 (async () => {

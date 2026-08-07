@@ -187,11 +187,18 @@ selection itself matters and you want to see and edit the list first.
 
 ```bash
 # run-all
-uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif"
+uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" \
+  --scans "$OUTPUT_DIR/scans.json"
 
 # important-only, once the JSON post-filter has run over every file in raw/
-uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" --important
+uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" \
+  --important --scans "$OUTPUT_DIR/scans.json"
 ```
+
+`--scans` drops the output of scans listed under `.failed`. A scan that died part-way may still
+have written a `.sarif`, and under `--important` that file has no post-filter beside it, which is
+an error rather than an empty filter. Without the flag one dead scan denies every healthy scan a
+merged result. The excluded files are named on stdout, so they can go in the report.
 
 The post-filter reads metadata SARIF does not carry, so it cannot be re-run against the merged
 file; `--important` instead keeps the findings the JSON filter kept, matched on
