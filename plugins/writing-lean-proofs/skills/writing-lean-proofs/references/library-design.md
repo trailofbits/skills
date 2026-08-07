@@ -86,6 +86,18 @@ boundary working as intended — the smell is a downstream proof *needing*
 
 - `irreducible_def` only with a documented profiling reason.
 
+## Optimized definitions keep a readable reference
+
+When a definition must be rewritten for elaboration or reduction speed, do
+not replace it — keep the readable definition as the reference semantics,
+add the fast form beside it, and prove them equal for *every* input
+(including degenerate and failure cases). Downstream proofs keep using the
+readable form and repoint with a single `rw` where they touched the old
+shape; the optimization cannot silently change meaning; and the intended
+semantics stay legible. This is "statements are the interface" applied to
+definitions under optimization. Mechanics and the reduction-cost diagnosis
+that motivates it: [performance.md](performance.md).
+
 ## Simp-normal form
 
 When a term has multiple equivalent spellings, designate one canonical form

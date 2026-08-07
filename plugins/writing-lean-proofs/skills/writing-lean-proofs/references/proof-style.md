@@ -74,6 +74,19 @@ Lean's goal ordering, the classic source of fragility. Enforced by the
 uniformly closes all goals; named `case` blocks are a permitted alternative
 to `·` when the case names add information.
 
+## One tactic invocation per line, in general
+
+Mathlib's
+[style guide](https://leanprover-community.github.io/contribute/style.html)
+recommends one tactic invocation per line **in general**, except when a proof
+that closes the goal fits entirely on one line. It also permits short sequences
+that express one mathematical idea, while preferring newlines. Apply this as
+readability guidance, not as a parser-like rule: do not split a clear terminal
+`by simpa using h` merely to satisfy a slogan, and do not compress unrelated
+state-changing tactics onto one line. This is separate from goal focusing;
+`linter.style.multiGoal` protects goal ownership, while line layout is reviewed
+qualitatively.
+
 ## simp discipline
 
 - **Terminal** `simp` (closes the goal): leave it as `simp` — do *not*
@@ -82,8 +95,44 @@ to `·` when the case names add information.
 - **Non-terminal** `simp` (leaves a goal for later tactics): squeeze it to
   `simp only [...]` so the intermediate goal is stable; a non-terminal bare
   `simp` couples every following tactic to the current simp set.
+- **Whether a `simp` is terminal is a property of the declaration, not the
+  idiom.** Three sibling lemmas can look identical while one has a trailing
+  `rw` that makes its `simp` non-terminal. Read each proof to the end before
+  classifying; "the previous two were terminal" is not evidence about the
+  third.
+- **Derive every `simp only` list with `simp?` run at that site.** Lists do
+  not transfer between look-alike goals — near-identical copy-pasted call
+  sites routinely need different lists (one needs `or_self`, the next
+  doesn't; one goal's numerals are already reduced, the next's aren't). The
+  cost of probing each site is seconds; the cost of assuming transfer is a
+  broken proof that looks like a typo.
 - Adding a `@[simp]` lemma: its left-hand side must itself be in
   simp-normal form (checked by the `simpNF` linter).
+- **One canonical spelling per domain constant — including numerals.**
+  `u32Max`, `2 ^ 32`, and `4294967296` are one value in three spellings; if
+  the definition, the API lemmas, and the normalized goal each use a
+  different one, nothing matches, no rewrite fires, and simp burns its whole
+  budget failing. Stronger form: prefer LHS patterns keyed on *structure*
+  (a function application over operands) with no numeral in the pattern at
+  all — those cannot miss for spelling reasons.
+- **`simp`'s default `maxDischargeDepth = 2` silently truncates chained side
+  conditions.** A conditional rewrite whose hypothesis is discharged by
+  another conditional rewrite (and so on) stops firing past depth 2 — no
+  diagnostic, just a goal that does not close and a burned heartbeat budget.
+  If a conditional lemma provably applies but never fires on deeper
+  instances, raise `maxDischargeDepth` before suspecting the lemma.
+- **Traversal order can make a lemma unreachable.** simp rewrites subterms
+  first, so a fusion lemma about `f (g x)` never fires if `g x` has already
+  been rewritten away. Register such lemmas pre-order with `@[simp ↓]`.
+  Symptom: a lemma that is obviously applicable, provably true, and never
+  used.
+- **"Redundant `@[simp]`" and "useful lemma" are independent.** When
+  `simpNF` reports the default set already proves a lemma, drop the global
+  `@[simp]` but consider keeping its membership in a scoped simp set —
+  `simp only [myScopedSet]` does not include the default set, so the entry
+  still does work there. Relatedly, a lemma reached only through
+  `simp [mySet]` has zero by-name references and is fully live: check
+  attribute consumption before deleting "dead" lemmas.
 
 ## Structure at the decisions, terseness at the routine
 

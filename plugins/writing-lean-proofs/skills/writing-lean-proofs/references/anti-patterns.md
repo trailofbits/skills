@@ -66,9 +66,36 @@ results are the carve-out. Caught by: review.
 Stating with `>` instead of `<`, or against a concrete spelling instead of
 the designated simp-normal form. Harmful because simp and every API lemma
 match syntactically — off-normal statements need duplicate API or never get
-rewritten. Caught by: `simpNF` linter (for simp lemmas); review.
+rewritten. Caught by: `simpNF` linter (for simp lemmas); review. The numeral
+special case is easy to miss: a simp lemma keyed on `2 ^ 32` never fires on
+a goal normalized to `4294967296` — the lemma is true, applicable-looking,
+and dead. Prefer structural LHS patterns with no numeral at all.
+
+### Copy-pasted resource budgets
+
+The same `set_option maxHeartbeats N in` value on many declarations.
+Harmful because at that density the annotations carry no information about
+which proof is actually expensive, and every unmeasured budget masks the
+regression it was meant to surface — audits have found "6.4M-heartbeat"
+proofs that run at the default budget once measured. Caught by:
+`#count_heartbeats` bisection; Mathlib's `maxHeartbeats` style linter (which
+demands a justification comment on every override — the unscoped file-level
+form is the `setOption` linter's, see "Leftover debugging scaffolding"
+above). Fix: measure, keep only the overrides that are real, each scoped to
+its declaration.
 
 ## Library-level
+
+### Project conventions enforced only by review
+
+A project-specific construct — a simp-set discipline, a required attribute,
+a coverage rule like "every constructor the executor handles has a soundness
+lemma" — with no linter behind it. Harmful because the failure mode is
+forgetting the step on 1 of 30 declarations with no visible symptom, which
+is precisely what review does not catch (and what models writing Lean get
+wrong). Caught by: nothing — that is the problem. Fix: a declaration-level
+`@[env_linter]` wired into CI's `#lint`, written alongside the construct,
+not after the first regression. See [linting.md](linting.md).
 
 ### Definitional transparency abuse
 
@@ -118,6 +145,9 @@ with it, or genuine simplification from a factored substructure. Prefer
 When editing or reviewing, do **not** cite these as rules — they are
 commonly repeated but unsupported or wrong:
 
-- "One tactic per line is required" — not a Mathlib style rule.
+- "One tactic per line is an absolute requirement" — Mathlib recommends one
+  tactic invocation per line in general, but explicitly excepts a proof that
+  closes the goal and fits entirely on one line. Apply the recommendation
+  with that exception instead of inventing a hard rule.
 - Any numeric proof-length threshold ("proofs over 20 lines must be split")
   — the review criterion is deliberately qualitative.

@@ -32,9 +32,9 @@ Every principle is sourced from Mathlib's style/review/naming guides, the
 Mathlib maintenance papers, retrospectives of large formalizations
 (perfectoid spaces, LTE, PFR, FLT), Mathematics in Lean, Theorem Proving in
 Lean 4, and the ImProver paper (ICLR 2025) for LLM-specific techniques. The
-claims were verified against the primary sources; commonly repeated
-non-rules (e.g. "one tactic per line") are explicitly called out in the
-anti-patterns reference so they don't creep back in.
+claims were verified against the primary sources; commonly overstated rules
+(e.g. turning Mathlib's general one-tactic-per-line recommendation into an
+absolute requirement) are qualified in the anti-patterns reference.
 
 ## Contents
 
@@ -48,6 +48,10 @@ All paths below are relative to `skills/writing-lean-proofs/`:
 - `references/anti-patterns.md` — anti-patterns → rationale → enforcing
   linter
 - `references/llm-techniques.md` — LLM-specific drafting techniques
+- `references/linting.md` — axiom audits, library versus self-contained CI
+  linter profiles, and project-specific linters
+- `references/performance.md` — proof and reduction-cost diagnosis
+- `references/tactics.md` — safe, bounded, traceable tactic metaprogramming
 
 ## Evals
 

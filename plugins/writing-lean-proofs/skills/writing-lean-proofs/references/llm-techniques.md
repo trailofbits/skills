@@ -18,13 +18,17 @@ not from better generation. Practical rule: never emit a proof you have not
 compiled (`lake build` / `lake env lean file.lean`). Treat compiler errors
 as the feedback channel, not as failure.
 
-## Chain-of-States: annotate goal states while drafting
+## Chain-of-States: annotate compiler-emitted goal states while drafting
 
 The single most impactful technique in ImProver's ablations: before each
 tactic, record the current goal state as a comment — *extracted from Lean's
-InfoView or compiler output, never imagined*. Goal states contain
-information the tactic script omits (the expression after simplification,
-the instantiated types).
+InfoView or compiler output, never imagined*. In a headless agent workflow,
+insert `trace_state` immediately before the tactic of interest and run
+`lake env lean Path/To/File.lean`; Lean prints the local hypotheses, target,
+and case name. A deliberate `done` is a useful assertion at a point where no
+goals should remain: if any do, compilation fails and prints them. Goal
+states contain information the tactic script omits (the expression after
+simplification, the instantiated types).
 
 ```lean
 theorem foo (h : a ≤ b) : a + c ≤ b + c := by
@@ -35,9 +39,10 @@ theorem foo (h : a ≤ b) : a + c ≤ b + c := by
 ```
 
 Drafting annotations are scaffolding: keep them while working, then strip
-routine ones and keep only those marking non-obvious states (after a big
-`simp`, before a witness choice) in the final proof — the same information
-belongs in `show` lines where possible, since those are checked by Lean.
+`trace_state`, deliberate failing `done`s, and routine comments. Keep only
+comments marking non-obvious states (after a big `simp`, before a witness
+choice) in the final proof — the same information belongs in `show` lines
+where possible, since those are checked by Lean.
 
 ## Declarativity: typed `have` skeletons
 
@@ -67,24 +72,36 @@ understand the whole. Rules:
 - Prefer many small stubs over few large ones: the granularity criterion is
   "one agent can discharge one stub without global context".
 
-## Name-guessing over search
+## Search by goal shape before deriving a helper
 
-Because Mathlib names are computable from statements (see the
-naming-conventions reference), the fastest way to find a
-lemma is often to guess
-the name (`add_le_add_left`, `Finset.sum_comm`) and check with
-`exact?`/`apply?` or a direct reference. When a guessed name fails,
-`exact?` and `rw?` are the sanctioned search tactics — use them in
-drafting, but replace their output with the named lemma in the final proof
-(their suggestions are already explicit lemma applications).
+Predictable Mathlib names make a direct guess (`add_le_add_left`,
+`Finset.sum_comm`) a useful fast path, but names are weak queries when only
+the goal shape is known. Before deriving a helper:
+
+1. State the exact fragment as a scratch `example` with a bare goal.
+2. Run `exact?` and `apply?`; for rewrite-shaped goals, also try `rw?`.
+3. Search by type pattern (`#find` in a Mathlib scratch file) and search the
+   relevant source namespace for the conclusion's operators and types.
+4. Only then derive a local helper or propose a new API lemma.
+
+Replace successful search tactics with the named theorem they report in the
+final proof. Never claim a Mathlib API gap without showing the failed bare-goal
+search and at least one type-pattern or source search; otherwise a re-derived
+theorem is evidence of a search failure, not a library gap.
 
 ## Automation tactics: draft freely, finalize deliberately
 
-`omega`, `decide`, `norm_num`, `ring`, `positivity`, `gcongr` are the right
-tool for goals genuinely in their fragment — using them there is not an
-anti-pattern, and golfing trivial results is accepted review policy. The
-failure mode to avoid is using heavyweight closers (`nlinarith`,
-`polyrith`, `aesop` with wide search, `decide` on large instances) to skip
+`omega`, `decide`, `norm_num`, `ring`, `positivity`, `gcongr`, and `grind`
+are appropriate when the goal genuinely lies in their fragment. Treat a
+broad `grind` success as a draft: run `grind?` and prefer its bounded
+`grind only [...]` suggestion when that remains readable and measurably
+reasonable. `bv_decide` is for fixed-width `BitVec` and Boolean combinatorial
+goals, not ordinary `Nat` arithmetic merely described as “u32”; audit its
+axioms against the project's trust policy and use `bv_decide?` when a checked
+certificate should be persisted.
+
+The failure mode to avoid is using heavyweight closers (`nlinarith`,
+`polyrith`, unbounded `grind`/`aesop`, `decide` on large instances) to skip
 *structuring* a nontrivial argument: the proof becomes a black box that
 breaks opaquely and slowly. If a closer needs hand-fed auxiliary terms to
 succeed, that is the signal the argument has structure worth writing out.

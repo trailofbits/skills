@@ -1,9 +1,19 @@
 ---
 name: writing-lean-proofs
-description: "Writes and reviews structured Lean 4 proofs and designs Lean libraries following Mathlib conventions. Use when proving theorems in Lean, formalizing mathematics or specifications in Lean 4, defining new types or definitions in a Lean library, reviewing Lean proofs for readability and maintainability, refactoring long tactic proofs into lemmas, or filling in sorry placeholders in a Lean development."
+description: "Writes and reviews structured Lean 4 proofs and designs Lean libraries following Mathlib conventions. Use when proving theorems in Lean, formalizing mathematics or specifications in Lean 4, defining new types or definitions in a Lean library, reviewing Lean proofs for readability and maintainability, refactoring long tactic proofs into lemmas, filling in sorry placeholders in a Lean development, setting up CI or linters for a Lean project, diagnosing slow proofs or maxHeartbeats timeouts, or writing custom tactics, macros, or linters."
 ---
 
 # Writing Lean Proofs
+
+## Contents
+
+- [When to Use](#when-to-use)
+- [When NOT to Use](#when-not-to-use)
+- [The workflow](#the-workflow)
+- [The extraction ladder](#the-extraction-ladder)
+- [Quick reference](#quick-reference)
+- [Rationalizations to reject](#rationalizations-to-reject)
+- [References](#references)
 
 Structured Lean 4 proof writing and library design, distilled from Mathlib's
 style and review conventions and from the methodology of large formalization
@@ -24,6 +34,10 @@ proofs against skeletons that already compile (modulo `sorry`).
 - Refactoring a long or fragile tactic proof into lemmas
 - Setting up a formalization project that several people or agents will
   contribute to in parallel
+- Setting up CI, linters, or verification gates for a Lean project — do this
+  at project start, before patterns propagate
+- Diagnosing slow proofs, `maxHeartbeats` timeouts, or expensive reduction
+- Writing custom tactics, macros, or project-specific linters
 
 ## When NOT to Use
 
@@ -92,9 +106,12 @@ example (a b c d : ℝ) (h : c = d * a + b) (h' : b = a * d) : c = 2 * a * d := 
 - `have` for forward stepping stones ("we first establish X"); `suffices`
   for backward reduction ("it suffices to show X").
 - While drafting, annotate the goal state as a comment before non-obvious
-  tactics — copied from the InfoView, not imagined. This is the single most
-  effective technique for LLM-written proofs (see
-  [llm-techniques.md](references/llm-techniques.md)).
+  tactics — emitted by Lean, never imagined. In a headless workflow, insert
+  `trace_state` at the point of interest or a deliberate `done` where goals
+  should be closed, then run `lake env lean Path/To/File.lean`; copy the
+  reported hypotheses, case name, and target. Strip routine probes after the
+  proof works. This is the single most effective technique for LLM-written
+  proofs (see [llm-techniques.md](references/llm-techniques.md)).
 
 See [proof-style.md](references/proof-style.md) for the full tactic-style
 rules, and [naming-conventions.md](references/naming-conventions.md) for
@@ -102,32 +119,51 @@ naming lemmas so their names are guessable from their statements.
 
 ### 4. Verify mechanically
 
-Do not eyeball-check style — run the checkers:
+Do not eyeball-check style — run the checkers. `lake build` is the floor,
+and it is *only* the floor: `sorry` is a warning, so a green build exits 0
+with sorries still present.
 
-```sh
-lake build                                    # everything compiles
-! grep -rn --include='*.lean' sorry MyProject # fails if any sorry remains
-```
-
-`sorry` is only a *warning*, so `lake build` alone exits 0 with sorries
-still present — hence the grep, with `!` inverting its exit status so a
-match fails the check. The grep also matches `sorry` inside comments and
-docstrings; inspect the hits rather than trusting the exit code blindly
-(or check the target theorem with `#print axioms`, which reports
-`sorryAx`).
-
-The style linters (`multiGoal`, `show`, `setOption`, ...) run as part of
-Mathlib's own build but are **off by default elsewhere** — in a
-Mathlib-dependent project, opt in per option (`set_option
-linter.style.multiGoal true`, ideally in the lakefile's `leanOptions`).
-Run Batteries' `#lint` (which includes `simpNF`) in a scratch file or CI.
-The evidence for tooling over review: the first simp-normal-form linter
-found 100+ redundant simp lemmas in Mathlib that had all passed expert
-maintainer review.
+- **Gate unproved obligations by asking the kernel, never by grepping.**
+  `#print axioms myTheorem` for a spot check; for CI, collect axioms per
+  declaration with `Lean.collectAxioms` and assert the *whole* expected
+  footprint (`[propext, Classical.choice, Quot.sound]` unless deliberately
+  widened), so a stray `sorry` *or* a new trust assumption like
+  `native_decide` fails loudly. Grep is wrong in both directions: it matches
+  the word in comments, and it misses a theorem whose own text is clean but
+  which applies an unproved helper. Working script in
+  [linting.md](references/linting.md).
+- **Choose lints by project role and put them in CI at project start.** Do not
+  enable `linter.mathlibStandardSet` wholesale in a downstream project: it
+  combines proof-maintenance checks with public-API checks, house style, and
+  Mathlib-specific repository policy. For a self-contained proof, start with
+  `linter.auxLemma`, `linter.style.maxHeartbeats`,
+  `linter.style.multiGoal`, `linter.style.setOption`, and
+  `linter.style.show`. A reusable library should additionally enable
+  `linter.flexible`, `linter.style.missingEnd`,
+  `linter.style.openClassical`, and the two `unused*InType` checks. Treat
+  `nativeDecide` as a trust-policy choice and formatting or deprecated-syntax
+  checks as project style. No warning gates anything unless warnings fail
+  the build. Run Batteries' declaration-level `#lint` checks, including
+  `simpNF`, separately. Verify every option against the pinned Mathlib source
+  and with a known-trigger fixture: a misspelled `weak.` option is
+  intentionally ignored. The complete 26-member audit and lakefile profiles
+  are in [linting.md](references/linting.md).
+- **Write a custom linter for every project-specific convention** (simp-set
+  discipline, summary-lemma coverage, required attributes) — a
+  declaration-level `@[env_linter]` is one structure, and it is the only
+  thing that reliably catches "the attribute is missing on 29 of 30
+  declarations". See [linting.md](references/linting.md) for the recipe and
+  the engineering rules (vacuity anchors, prove-it-can-fail, allowlists).
 
 ## The extraction ladder
 
 When does proof structure graduate into separate lemmas?
+
+0. **Before extracting, state the fragment's type and search by shape.** Put
+   the proposed statement in a scratch `example`, run `exact?` and `apply?`
+   on the bare goal, then try a type-pattern and source search. If an existing
+   theorem fits, use it. Do not report an API gap without recording the
+   searches that failed.
 
 1. **A sub-argument repeats within one proof** → name it as a local `have`.
 
@@ -136,11 +172,15 @@ When does proof structure graduate into separate lemmas?
      have h : ∀ x y : ℝ, min x y ≤ min y x := by
        intro x y
        apply le_min
-       · apply min_le_right
-       · apply min_le_left
+       · show min x y ≤ y
+         exact min_le_right x y
+       · show min x y ≤ x
+         exact min_le_left x y
      apply le_antisymm
-     · apply h
-     · apply h
+     · show min a b ≤ min b a
+       exact h a b
+     · show min b a ≤ min a b
+       exact h b a
    ```
 
 2. **The statement is independently interesting, or extraction sheds
@@ -158,13 +198,21 @@ When does proof structure graduate into separate lemmas?
 |------|-----|-------------|
 | Never unfold definitions downstream; `erw` or trailing `rfl` = missing API | API lemmas are the abstraction boundary | review ("missing API" smell) |
 | Terminal `simp` stays unsqueezed; non-terminal `simp` becomes `simp only [...]` | squeezed terminal calls bury the key lemmas and break on renames | style guide |
-| One focused goal at a time (`·` blocks) | kills goal-ordering fragility | `multiGoal` linter |
-| `show` must not change the goal (use `change`) | stated goals stay honest | `show` linter |
-| No `set_option` debug/trace/profiler or unscoped `maxHeartbeats` in final code | debugging scaffolding | `setOption` linter |
+| One focused goal at a time (`·` blocks) | kills goal-ordering fragility | `linter.style.multiGoal` |
+| `show` must not change the goal (use `change`) | stated goals stay honest | `linter.style.show` |
+| No `set_option` debug/trace/profiler or unscoped `maxHeartbeats` in final code | debugging scaffolding | `linter.style.setOption` |
 | State lemmas in simp-normal form, `<` not `>` | simp matches syntactically | `simpNF` linter |
 | Golf only when the result is at least as readable; trivial results exempt | short ≠ better | review |
 | `Fact` instances are local, never global | global instances degrade all typeclass search | review |
-| Name lemmas from their statements (see naming reference) | names become guessable without search | `nameCheck` linter, review |
+| Name lemmas from their statements (see naming reference) | names become guessable without search | `linter.style.nameCheck` catches only `__`; `#lint defsWithUnderscore` and review cover more |
+| Search a bare goal by shape before writing a helper or claiming an API gap | names are not always guessable from the target | `exact?`, `apply?`, type/source search |
+| Generally one tactic invocation per line; a one-line closing proof is the exception | preserves readable proof structure without inventing an absolute rule | style guide |
+| Gate `sorry` with `collectAxioms`/`#print axioms`, never grep | grep matches comments, misses unproved helpers | axiom audit in CI |
+| Prefer simp-lemma LHSs keyed on structure, not numerals; one spelling per constant | `2 ^ 32` never matches a goal normalized to `4294967296` | `simpNF`, review |
+| Re-derive every `simp only` list with `simp?` at its own site | lists do not transfer between look-alike goals | `linter.flexible` |
+| Every `maxHeartbeats` override is an unproven claim — measure before believing | copy-pasted budgets carry no information | `#count_heartbeats`, bisection |
+| Conditional simp lemma fires shallow but not deep → raise `maxDischargeDepth` (default 2) | chained side conditions truncate silently, no diagnostic | diagnosis (proof-style, simp discipline) |
+| Every project-specific convention gets a custom linter, in CI from day one | review misses the 29-of-30 failure mode | `@[env_linter]` + `#lint` |
 
 Full rationale for each row, plus the library-level anti-patterns, in
 [anti-patterns.md](references/anti-patterns.md).
@@ -180,16 +228,32 @@ Full rationale for each row, plus the library-level anti-patterns, in
 | "I'll restructure it into lemmas after it works" | After it works, the structure is load-bearing and tangled. State the skeleton first; the lemmas fall out for free. |
 | "Adding `show` lines is redundant noise" | They are redundant to the kernel and essential to every human or model that reads the proof next. |
 | "This helper is too specific to be a lemma" | If it has a clean statement, extract it — dropping the hypotheses it doesn't need usually reveals it was general all along. |
+| "We'll add linters once the library stabilizes" | Backwards: patterns propagate by copy-paste, so a deferred linter meets a 400-warning backlog instead of one bad line. Enable what is already clean and gate it now. |
+| "The check passed, so we're clean" | A check that can't fail proves nothing — sweeps reach zero files, misspelled `weak.` options are ignored, pipelines swallow exit codes. Prove every gate can fail before trusting that it passes. |
+| "The proof is slow, raise maxHeartbeats" | An unmeasured budget is a claim, not a fix — and it masks the regression the next reader needs to see. Measure with `#count_heartbeats`; restructure the definition or decompose the goal. |
 
 ## References
 
 - [library-design.md](references/library-design.md) — definitions, APIs,
   bundling, abstraction boundaries, spec-driven project decomposition
 - [proof-style.md](references/proof-style.md) — tactic proof structure:
-  calc, have/suffices, focusing, simp discipline
+  calc, have/suffices, focusing, and simp discipline including the
+  why-doesn't-this-lemma-fire diagnoses (discharge depth, traversal order,
+  numeral spellings)
 - [naming-conventions.md](references/naming-conventions.md) — Mathlib naming
   so lemma names are computable from statements
 - [anti-patterns.md](references/anti-patterns.md) — recognized anti-patterns,
   why each is harmful, and which linter catches it
 - [llm-techniques.md](references/llm-techniques.md) — evidence-based
   techniques specific to LLM-written proofs
+- [linting.md](references/linting.md) — axiom-based sorry gates, enabling
+  project-specific linter profiles in CI early, the full Mathlib standard-set
+  audit, adopting linters with a backlog, writing custom linters for
+  project-specific constructs, and proving every gate can fail
+- [performance.md](references/performance.md) — measuring per-declaration
+  cost, where reduction cost comes from, optimizing definitions without
+  losing semantics
+- [tactics.md](references/tactics.md) — metaprogramming discipline:
+  extension-point selection, metavariable and recovery safeguards, bounded
+  search, actionable errors, structured tracing, generated declarations,
+  and failure-surface testing

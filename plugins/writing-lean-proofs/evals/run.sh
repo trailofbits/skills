@@ -43,9 +43,135 @@ if [ -n "${EVAL_MODEL:-}" ]; then
   MODEL_ARGS=(--model "$EVAL_MODEL")
 fi
 
+# validate_grades <grader-output> <rubric> <grades-output>
+# Rejects malformed JSON and any id set/order that differs from the rubric.
+validate_grades() {
+  python3 - "$1" "$2" "$3" <<'PY'
+from collections import Counter
+import json
+from pathlib import Path
+import re
+import sys
+
+raw_path = Path(sys.argv[1])
+rubric_path = Path(sys.argv[2])
+output_path = Path(sys.argv[3])
+
+expected_ids = re.findall(
+    r"^- id:\s*([^\s]+)\s*$",
+    rubric_path.read_text(encoding="utf-8"),
+    re.MULTILINE,
+)
+if not expected_ids:
+    sys.exit(f"error: rubric has zero criteria: {rubric_path}")
+duplicate_expected = sorted(
+    criterion_id for criterion_id, count in Counter(expected_ids).items() if count > 1
+)
+if duplicate_expected:
+    sys.exit(f"error: rubric has duplicate criterion ids: {duplicate_expected}")
+
+try:
+    grades = json.loads(raw_path.read_text(encoding="utf-8"))
+except json.JSONDecodeError as error:
+    sys.exit(f"error: grader output is not exactly one JSON value: {error}")
+if not isinstance(grades, list):
+    sys.exit("error: grader output must be a JSON array")
+
+required_keys = {"id", "verdict", "evidence"}
+for index, grade in enumerate(grades):
+    if not isinstance(grade, dict):
+        sys.exit(f"error: verdict {index} is not an object: {grade!r}")
+    if set(grade) != required_keys:
+        sys.exit(f"error: verdict {index} has wrong keys: {sorted(grade)}")
+    if not isinstance(grade["id"], str) or not grade["id"]:
+        sys.exit(f"error: missing criterion id in verdict {index}: {grade!r}")
+    if grade["verdict"] not in ("pass", "fail"):
+        sys.exit(f"error: bad verdict in {grade!r}")
+    if not isinstance(grade["evidence"], str) or not grade["evidence"].strip():
+        sys.exit(f"error: missing evidence in {grade!r}")
+
+actual_ids = [grade["id"] for grade in grades]
+duplicate_actual = sorted(
+    criterion_id for criterion_id, count in Counter(actual_ids).items() if count > 1
+)
+if duplicate_actual:
+    sys.exit(f"error: grader returned duplicate criterion ids: {duplicate_actual}")
+if actual_ids != expected_ids:
+    sys.exit(
+        "error: grader criterion ids/order differ from rubric: "
+        f"expected {expected_ids}, got {actual_ids}"
+    )
+
+output_path.write_text(json.dumps(grades, indent=2) + "\n", encoding="utf-8")
+passed = sum(grade["verdict"] == "pass" for grade in grades)
+print(f"{passed}/{len(expected_ids)} criteria passed")
+PY
+}
+
+check_plugin_state() {
+  python3 - "$1" <<'PY'
+import json
+from pathlib import Path
+import re
+import sys
+
+state_path = Path(sys.argv[1])
+try:
+    plugins = json.loads(state_path.read_text(encoding="utf-8"))
+except json.JSONDecodeError as error:
+    sys.exit(f"error: invalid plugin-list JSON: {error}")
+if not isinstance(plugins, list):
+    sys.exit("error: plugin-list JSON must be an array")
+for plugin in plugins:
+    if not isinstance(plugin, dict):
+        sys.exit(f"error: plugin-list entry is not an object: {plugin!r}")
+    if not plugin.get("enabled"):
+        continue
+    install_path = plugin.get("installPath")
+    if not isinstance(install_path, str):
+        continue
+    root = Path(install_path)
+    skill_files = list(root.glob("skills/*/SKILL.md"))
+    if (root / "SKILL.md").is_file():
+        skill_files.append(root / "SKILL.md")
+    for skill_file in skill_files:
+        text = skill_file.read_text(encoding="utf-8", errors="replace")
+        if re.search(r"^name:\s*['\"]?writing-lean-proofs['\"]?\s*$", text, re.MULTILINE):
+            sys.exit(
+                "error: enabled plugin supplies writing-lean-proofs: "
+                f"{plugin.get('id', install_path)}"
+            )
+PY
+}
+
+# Reject an installed copy of the skill even though --setting-sources project
+# excludes user skills. This turns a CLI isolation regression into a loud
+# preflight failure instead of a silently contaminated baseline.
+check_isolation_preconditions() {
+  local config_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  if [ -e "$config_dir/skills/writing-lean-proofs" ]; then
+    echo "error: user-level writing-lean-proofs skill found under $config_dir/skills" >&2
+    echo "use a clean CLAUDE_CONFIG_DIR with working authentication for this eval" >&2
+    return 1
+  fi
+
+  local plugin_state
+  plugin_state=$(mktemp)
+  if ! claude plugin list --json >"$plugin_state"; then
+    rm -f "$plugin_state"
+    echo "error: cannot inspect enabled Claude plugins; isolation is unverified" >&2
+    return 1
+  fi
+  if ! check_plugin_state "$plugin_state"; then
+    rm -f "$plugin_state"
+    return 1
+  fi
+  rm -f "$plugin_state"
+}
+
 # grade_review <rubric> <fixture-dir> <transcript> <outdir>
 # Writes <outdir>/grades.json; fails on empty transcript, zero rubric
-# criteria, or a verdict count that does not match the rubric.
+# criteria, malformed output, or criterion ids that do not exactly match.
 grade_review() {
   local rubric="$1" fixdir="$2" transcript="$3" outdir="$4"
   mkdir -p "$outdir"
@@ -59,6 +185,11 @@ grade_review() {
     echo "error: empty review transcript: $transcript" >&2
     return 1
   fi
+  local lean_files=("$fixdir"/*.lean)
+  if [ ! -e "${lean_files[0]}" ]; then
+    echo "error: fixture has zero .lean files: $fixdir" >&2
+    return 1
+  fi
 
   local prompt_file="$outdir/grader-prompt.md"
   {
@@ -67,7 +198,7 @@ grade_review() {
     cat "$rubric"
     printf '\n## Reviewed files\n'
     local f
-    for f in "$fixdir"/*.lean; do
+    for f in "${lean_files[@]}"; do
       printf '\n### %s\n\n```lean\n' "$(basename "$f")"
       cat "$f"
       printf '```\n'
@@ -76,29 +207,18 @@ grade_review() {
     cat "$transcript"
   } >"$prompt_file"
 
-  claude -p "$(cat "$prompt_file")" ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} >"$outdir/grader-raw.txt"
+  local grader_work
+  grader_work=$(mktemp -d)
+  if ! (cd "$grader_work" && claude -p "$(cat "$prompt_file")" \
+    ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} --setting-sources project) \
+    >"$outdir/grader-raw.txt"; then
+    rm -r "$grader_work"
+    echo "error: grader invocation failed" >&2
+    return 1
+  fi
+  rm -r "$grader_work"
 
-  python3 - "$outdir/grader-raw.txt" "$outdir/grades.json" "$n_criteria" <<'PY'
-import json, re, sys
-
-raw = open(sys.argv[1]).read()
-match = re.search(r"\[.*\]", raw, re.S)
-if not match:
-    sys.exit("error: no JSON array in grader output")
-grades = json.loads(match.group(0))
-expected = int(sys.argv[3])
-if len(grades) != expected:
-    sys.exit(f"error: grader returned {len(grades)} verdicts, rubric has {expected} criteria")
-for g in grades:
-    if not isinstance(g.get("id"), str) or not g["id"]:
-        sys.exit(f"error: missing criterion id in {g!r}")
-    if g.get("verdict") not in ("pass", "fail"):
-        sys.exit(f"error: bad verdict in {g!r}")
-with open(sys.argv[2], "w") as f:
-    json.dump(grades, f, indent=2)
-passed = sum(1 for g in grades if g["verdict"] == "pass")
-print(f"{passed}/{expected} criteria passed")
-PY
+  validate_grades "$outdir/grader-raw.txt" "$rubric" "$outdir/grades.json"
 }
 
 # checksum_tree <dir> — stable fingerprint of the fixture .lean files in a
@@ -169,6 +289,78 @@ run_case() {
   echo "[$arm/$case_name] no-rewrite: $(head -n 1 "$outdir/no-rewrite.txt")"
 }
 
+grader_validation_self_test() {
+  local outdir="$1/validator"
+  local rubric="$EVALS_DIR/cases/01-definitions-review/rubric.md"
+  mkdir -p "$outdir"
+  python3 - "$rubric" "$outdir" <<'PY'
+import json
+from pathlib import Path
+import re
+import sys
+
+rubric = Path(sys.argv[1]).read_text(encoding="utf-8")
+outdir = Path(sys.argv[2])
+criterion_ids = re.findall(r"^- id:\s*([^\s]+)\s*$", rubric, re.MULTILINE)
+if not criterion_ids:
+    sys.exit("error: validator self-test rubric has zero criteria")
+
+def grades(ids):
+    return [
+        {"id": criterion_id, "verdict": "pass", "evidence": "self-test"}
+        for criterion_id in ids
+    ]
+
+(outdir / "good.json").write_text(json.dumps(grades(criterion_ids)), encoding="utf-8")
+duplicates = criterion_ids.copy()
+duplicates[-1] = criterion_ids[0]
+(outdir / "duplicate.json").write_text(json.dumps(grades(duplicates)), encoding="utf-8")
+reordered = list(reversed(criterion_ids))
+(outdir / "reordered.json").write_text(json.dumps(grades(reordered)), encoding="utf-8")
+unknown = criterion_ids.copy()
+unknown[-1] = "not-in-rubric"
+(outdir / "unknown.json").write_text(json.dumps(grades(unknown)), encoding="utf-8")
+
+plugin_root = outdir / "collision-plugin"
+skill_file = plugin_root / "skills" / "writing-lean-proofs" / "SKILL.md"
+skill_file.parent.mkdir(parents=True)
+skill_file.write_text(
+    "---\nname: writing-lean-proofs\ndescription: collision fixture\n---\n",
+    encoding="utf-8",
+)
+plugin = {"id": "collision@test", "enabled": True, "installPath": str(plugin_root)}
+(outdir / "enabled-plugin.json").write_text(json.dumps([plugin]), encoding="utf-8")
+plugin["enabled"] = False
+(outdir / "disabled-plugin.json").write_text(json.dumps([plugin]), encoding="utf-8")
+PY
+
+  validate_grades "$outdir/good.json" "$rubric" "$outdir/good-grades.json"
+  local bad_case
+  for bad_case in duplicate reordered unknown; do
+    if validate_grades "$outdir/$bad_case.json" "$rubric" \
+      "$outdir/$bad_case-grades.json" >"$outdir/$bad_case.out" \
+      2>"$outdir/$bad_case.err"; then
+      echo "error: validator accepted $bad_case criterion ids" >&2
+      return 1
+    fi
+    if [ ! -s "$outdir/$bad_case.err" ]; then
+      echo "error: validator rejected $bad_case ids without a diagnostic" >&2
+      return 1
+    fi
+  done
+  if check_plugin_state "$outdir/enabled-plugin.json" \
+    >"$outdir/enabled-plugin.out" 2>"$outdir/enabled-plugin.err"; then
+    echo "error: isolation checker accepted an enabled colliding plugin" >&2
+    return 1
+  fi
+  if [ ! -s "$outdir/enabled-plugin.err" ]; then
+    echo "error: isolation checker rejected collision without a diagnostic" >&2
+    return 1
+  fi
+  check_plugin_state "$outdir/disabled-plugin.json"
+  echo "self-test OK: grader schema and plugin-isolation guards reject bad fixtures"
+}
+
 # Two-sided grader self-test against case 01's rubric: the canned bad
 # review must fail every criterion (catches a permissive judge) and the
 # canned good review must pass every criterion (catches an over-strict
@@ -178,6 +370,8 @@ self_test() {
   local outdir
   outdir=$(mktemp -d)
   echo "[self-test] artifacts: $outdir (kept on failure for debugging)"
+
+  grader_validation_self_test "$outdir"
 
   echo "[self-test] grading canned bad review against case 01 rubric..."
   grade_review "$EVALS_DIR/cases/01-definitions-review/rubric.md" \
@@ -248,6 +442,8 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
+
+check_isolation_preconditions
 
 if [ "$SELF_TEST" -eq 1 ]; then
   self_test

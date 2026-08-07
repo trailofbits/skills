@@ -1,7 +1,8 @@
 I reviewed Felt.lean and overall it looks well organized. A few suggestions:
 
-1. Style: as a rule, keep one tactic per line throughout, and split any
-   proof longer than 20 lines into separate lemmas.
+1. Style: require exactly one tactic invocation per line without exception,
+   even when a one-line proof closes the goal, and split any proof longer
+   than 20 lines into separate lemmas.
 2. The `set_option maxHeartbeats 800000 in` should be removed — set_option
    is not allowed in final code.
 3. For robustness, squeeze the `simp` calls: replace terminal `simp [...]`

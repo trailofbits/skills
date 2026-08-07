@@ -49,24 +49,29 @@ reviewable from source.
 ./run.sh                        # all cases, baseline + skill arms
 ./run.sh --arm skill            # skill arm only
 ./run.sh --arm baseline 03-normal-form 05-clean-restraint
-EVAL_MODEL=claude-sonnet-4-6 ./run.sh   # pin a model
+EVAL_MODEL=<model-id-or-alias> ./run.sh # pin a model accepted by your CLI
 ```
 
 - The **skill arm** copies `skills/writing-lean-proofs` into the work dir's
   `.claude/skills/`, so the reviewer discovers it the way a plugin user
   would. The **baseline arm** runs bare. Comparing arms measures uplift.
-- Both arms run with `--setting-sources project`, so user-level config is
-  excluded: a globally installed copy of this skill (or the marketplace
-  plugin) cannot silently contaminate the baseline arm. As a runtime check
-  on that guard, a baseline transcript that mentions `writing-lean-proofs`
-  fails the case as contaminated.
+- Both arms run with `--setting-sources project`. [Claude Code's skill-location
+  documentation][claude-skill-locations] puts personal skills in the `user`
+  source and project skills in the `project` source, so the flag excludes
+  personal skills while retaining the copied skill in the skill arm. Before
+  any model call, the runner also rejects a personal or enabled-plugin copy of
+  `writing-lean-proofs`; this converts a future isolation regression into a
+  preflight failure. A baseline transcript that names the skill is a final
+  runtime backstop.
 - Each reviewer runs headless (`claude -p`) in a throwaway copy of the
   fixture with `--permission-mode acceptEdits`: edits are *possible*, so
   the no-rewrite check is meaningful.
-- Grading is an LLM judge (`claude -p`) applying `rubric.md` to the review
-  transcript via `grade-prompt.md`, emitting one pass/fail + evidence per
-  criterion. The runner fails hard on an empty transcript, a rubric with
-  zero criteria, or a verdict count that doesn't match the rubric.
+- Grading is an LLM judge (`claude -p`) in an empty working directory with
+  project-only settings, applying `rubric.md` to the review transcript via
+  `grade-prompt.md`. The runner requires exactly one JSON array whose ids are
+  unique and exactly match the rubric in order, and rejects missing evidence,
+  extra keys, an empty transcript, a zero-criterion rubric, or a fixture with
+  zero Lean files.
 - Results: `results/<timestamp>/<arm>/<case>/{transcript.md,grades.json,no-rewrite.txt,...}`
   plus a printed summary. Results are gitignored.
 
@@ -78,19 +83,28 @@ EVAL_MODEL=claude-sonnet-4-6 ./run.sh   # pin a model
 
 Two-sided, both against case 01's rubric:
 
+- Before calling the judge, deterministic malformed-output fixtures prove
+  that the validator rejects duplicate, reordered, and unknown criterion ids,
+  and an enabled-plugin fixture proves that the isolation preflight detects a
+  colliding copy of the skill.
+
 - `selftest/bad-review.md` — misses every planted flaw and commits every
-  forbidden move (invents "one tactic per line" and a 20-line threshold,
-  flags the scoped `set_option`, demands squeezing terminal simp, wants
-  `Option` instead of junk values) — must **fail every** criterion. This
-  catches a grader that has become too permissive.
+  forbidden move (turns one tactic per line into an exceptionless rule,
+  invents a 20-line threshold, flags the scoped `set_option`, demands
+  squeezing terminal simp, and wants `Option` instead of junk values) — must
+  **fail every** criterion. This catches a grader that has become too
+  permissive.
 - `selftest/good-review.md` — flags all four planted flaws with location,
   rationale, and fix, and commits none of the forbidden moves — must
   **pass every** criterion. This catches a grader that has become too
   strict (which would otherwise read as "the skill provides no uplift").
 
 Run this after editing rubric 01, `grade-prompt.md`, or when changing
-`EVAL_MODEL`. Rubrics 02–05 have no canned coverage; after editing those,
-spot-check a live run's `grades.json` evidence fields instead.
+`EVAL_MODEL`. Model aliases change over time, so prefer the CLI's stable
+family alias or a full model id reported by the installed `claude` version
+instead of copying an id from this README. Rubrics 02–05 have no canned
+coverage; after editing those, spot-check a live run's `grades.json` evidence
+fields instead.
 
 ## Interpreting results
 
@@ -116,3 +130,5 @@ spot-check a live run's `grades.json` evidence fields instead.
   consider squeezing..."). `grade-prompt.md` instructs it to fail only
   actual recommendations; spot-check `grades.json` evidence fields when a
   number looks surprising.
+
+[claude-skill-locations]: https://code.claude.com/docs/en/agent-sdk/skills#skill-locations
