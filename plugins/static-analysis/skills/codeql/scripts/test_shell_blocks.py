@@ -350,10 +350,14 @@ def _embedded_python(source: str) -> list[str]:
 
 
 def test_embedded_python_extraction_still_matches() -> None:
-    """Guard the guard: three blocks embed Python, and a regex that matched none of them
-    would leave every test below passing as a skip."""
+    """Guard the guard: two blocks embed Python, and a regex that matched none of them
+    would leave every test below passing as a skip.
+
+    Was three until quality-assessment.md stopped parsing baseline-info.json inline —
+    check_db_quality.py reports baseline_loc, so the block was computing it twice.
+    """
     bodies = [body for _, _, source in ALL_BLOCKS for body in _embedded_python(source)]
-    assert len(bodies) >= 3, (
+    assert len(bodies) >= 2, (
         f"only {len(bodies)} embedded python bodies extracted from {SKILL_ROOT} — the "
         f"extractor is broken, not the skill"
     )
@@ -364,7 +368,7 @@ def test_embedded_python_extraction_still_matches() -> None:
     (
         # create-data-extensions.md counts SARIF results this way.
         "BASELINE=$(python3 -c \"import json; print(len(json.load(open('x.sarif'))))\")",
-        # quality-assessment.md passes the path as argv instead.
+        # The argv form, which the extractor must handle even though no doc uses it today.
         "LOC=$(python3 -c '\nimport json, sys\nprint(json.load(open(sys.argv[1])))\n' \"$DB\")",
     ),
 )

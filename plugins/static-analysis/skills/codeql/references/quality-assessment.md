@@ -13,29 +13,13 @@ How to assess and improve CodeQL database quality after a successful build.
 
 log_step "Assessing database quality"
 
-# 1. Baseline lines of code and file list (most reliable metric).
-#    `codeql database create` writes baseline-info.json when it finalizes. print-baseline
-#    only prints a human-readable count to stdout; it does not create or refresh the file.
-codeql database print-baseline -- "$DB_NAME"
-
-# Single-quoted source with the path passed as argv. Interpolating "$DB_NAME" into a
-# double-quoted script would break on any path containing a space or a quote.
-BASELINE_LOC=$(python3 -c '
-import json, sys, pathlib
-data = json.loads((pathlib.Path(sys.argv[1]) / "baseline-info.json").read_text())
-for lang, info in data["languages"].items():
-    loc = info["linesOfCode"]
-    files = len(info["files"])
-    print(f"{lang}: {loc} LoC, {files} files")
-' "$DB_NAME")
-echo "$BASELINE_LOC"
-log_result "Baseline: $BASELINE_LOC"
-
-# 2. Source archive file count
+# 1. Total archive file count. The only metric the checker does not report: it counts
+#    project source under the recorded source root, which for a compiled language is a
+#    fraction of the archive.
 SRC_FILE_COUNT=$(unzip -Z1 "$DB_NAME/src.zip" 2>/dev/null | wc -l)
 echo "Files in source archive: $SRC_FILE_COUNT"
 
-# 3. Quality gate and the metrics it derives, in one call. Exit 1 means nothing to
+# 2. Quality gate and the metrics it derives, in one call. Exit 1 means nothing to
 #    analyse, 3 the error ratio was exceeded, 4 a format change; see "Enforce the
 #    Thresholds".
 #    Everything downstream reads $QUALITY_JSON rather than recomputing — a second
@@ -54,13 +38,13 @@ EXTRACTOR_ERRORS=$(printf '%s' "$QUALITY_JSON" | jq -r '.extractor_errors')
 ERROR_RATIO=$(printf '%s' "$QUALITY_JSON" | jq -r '.error_ratio')
 echo "Project files: $PROJECT_SRC_COUNT, baseline LoC: $DB_LOC, extractor errors: $EXTRACTOR_ERRORS (${ERROR_RATIO}%)"
 
-# 4. Export diagnostics summary (experimental but useful)
+# 3. Export diagnostics summary (experimental but useful)
 DIAG_TEXT=$(codeql database export-diagnostics --format=text -- "$DB_NAME" 2>/dev/null || true)
 if [ -n "$DIAG_TEXT" ]; then
   echo "Diagnostics: $DIAG_TEXT"
 fi
 
-# 5. Check database is finalized
+# 4. Check database is finalized
 FINALIZED=$(grep '^finalised:' "$DB_NAME/codeql-database.yml" 2>/dev/null \
   | awk '{print $2}')
 echo "Finalized: $FINALIZED"
@@ -139,10 +123,21 @@ fi
 
 ## Log Assessment
 
+This block runs in its own shell, so re-source the helpers and re-read the metrics rather
+than expecting them to survive from Collect Metrics. Unset, they expand to empty and the log
+records `Baseline LoC:` with no number.
+
 ```bash
+. "{baseDir}/scripts/build_log.sh"
+QUALITY_JSON=$(uv run {baseDir}/scripts/check_db_quality.py "$DB_NAME" --format=json)
+DB_LOC=$(printf '%s' "$QUALITY_JSON" | jq -r '.baseline_loc')
+PROJECT_SRC_COUNT=$(printf '%s' "$QUALITY_JSON" | jq -r '.project_files')
+SRC_FILE_COUNT=$(unzip -Z1 "$DB_NAME/src.zip" 2>/dev/null | wc -l)
+FINALIZED=$(grep '^finalised:' "$DB_NAME/codeql-database.yml" 2>/dev/null | awk '{print $2}')
+
 log_step "Quality assessment results"
 log_result "Baseline LoC: $DB_LOC"
-log_result "Project source files: $PROJECT_SRC_COUNT (expected: ~$EXPECTED)"
+log_result "Project source files: $PROJECT_SRC_COUNT"
 log_result "Total archive files: $SRC_FILE_COUNT (includes system headers for compiled langs)"
 # Extractor errors are reported by check_db_quality.py above, which is the only
 # place that counts them correctly.
@@ -158,7 +153,7 @@ unzip -Z1 "$DB_NAME/src.zip" 2>/dev/null \
 
 | Metric | Source | Good | Poor |
 |--------|--------|------|------|
-| Baseline LoC | `print-baseline` / `baseline-info.json` | > 0, proportional to project size | 0 or far below expected |
+| Baseline LoC | `check_db_quality.py` (`.baseline_loc`) | > 0, proportional to project size | 0 or far below expected |
 | Project source files | `src.zip` (filtered) | Close to expected source file count | 0 or < 50% of expected |
 | Extractor errors | `diagnostic/extractors/*.jsonl` | 0 or < 5% of project files | > 5% of project files |
 | Finalized | `codeql-database.yml` | `true` | `false` (incomplete build) |
