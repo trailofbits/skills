@@ -182,6 +182,25 @@ track progress. Decide which steps are worth tracking based on the run.
 | [create-data-extensions](workflows/create-data-extensions.md) | Detect or generate data extension models for project APIs |
 | [run-analysis](workflows/run-analysis.md) | Select rulesets, execute queries, process results |
 
+### Building unattended
+
+This plugin ships `/static-analysis:codeql-build`, which runs the build-database steps
+end to end: detect the language and toolchain, walk the method ladder applying fixes from
+[build-fixes.md](references/build-fixes.md) between rungs, and enforce the quality gate.
+
+```
+/static-analysis:codeql-build {"target": "/abs/path", "lang": "cpp"}
+```
+
+It asks nothing. Every method failing, and a database that built but sits below the quality
+threshold, come back as statuses — `no-method-succeeded` and `built-below-threshold` — for you
+to act on here, because whether the remaining extractor errors are confined to code nobody
+needs analysed is a judgement call the run cannot make.
+
+Use it when the build is the long, uncertain part and you want it driven to a conclusion. Work
+[build-database.md](workflows/build-database.md) by hand when you want a say in which method is
+tried, or when a build failure needs interpreting as it happens.
+
 ### Auto-Detection Logic
 
 **If user explicitly specifies** what to do (e.g., "build a database", "run analysis on ./my-db"), execute that workflow directly. **Do NOT call `AskUserQuestion` for database selection if the user's prompt already makes their intent clear** — e.g., "build a new database", "analyze the codeql database in static_analysis_codeql_2", "run a full scan from scratch".
