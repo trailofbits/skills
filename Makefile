@@ -105,8 +105,18 @@ python-tests:
 # Two guards, because discovery and execution fail independently. An empty glob is a
 # failure, as in python-tests. And `node <file>` runs a file that asserts nothing just
 # as happily as one that asserts everything — the same shape python-tests moved away
-# from — so each suite must also print a `<n> assertions passed` line, and n must be
-# greater than zero. A suite that stops running its own body stops emitting that line.
+# from — so each suite must also report at least one passing assertion.
+#
+# Two report formats count, because the repo has two kinds of suite and a guard that
+# only knew one would fail an honest suite for using the other convention:
+#   `<mark> pass <n>`        — node:test, as semgrep-rule-variant-creator writes them
+#   `<n> assertions passed`  — a hand-rolled suite, as git-cleanup writes them
+# A suite that stops running its own body stops emitting either line.
+#
+# The node:test branch is deliberately byte-agnostic about the leading mark. That mark
+# is a multi-byte character, and this recipe runs under /bin/sh in whatever locale the
+# machine has; `^.` matches one BYTE in the C locale, so anchoring on it passes locally
+# and fails in CI.
 js-tests:
 	@echo "→ js tests"
 	@files=$$(find plugins -type f -name '*.test.mjs' | sort); \
@@ -119,7 +129,7 @@ js-tests:
 		echo "  → $$f"; \
 		out=$$(node "$$f" 2>&1) || failed=1; \
 		echo "$$out"; \
-		if ! echo "$$out" | grep -qE '^[1-9][0-9]* assertions passed$$'; then \
+		if ! echo "$$out" | grep -qE '(^[1-9][0-9]* assertions passed$$|^[^0-9]*[[:space:]]pass [1-9][0-9]*$$)'; then \
 			echo "  ✗ $$f reported no passing assertions — it ran nothing"; \
 			failed=1; \
 		fi; \
