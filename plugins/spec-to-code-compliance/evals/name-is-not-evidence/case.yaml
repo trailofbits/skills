@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: name-is-not-evidence
+description: >
+  The plugin's central judgment rule is that a requirement is not satisfied because a plausibly-named function
+  guards it — the enforcement has to be opened and read. Here §3.2 says a redemption must not push a balance
+  below locked collateral "regardless of tier", and redeem() guards itself with
+  require(_collateralPreserved(...)), which returns true unconditionally for Senior members without ever
+  comparing balance to locked. Reaching the right verdict requires opening the callee and walking both
+  branches; stopping at the call site produces a confident "implemented" that is wrong. The fixture also
+  carries an easier divergence (the operator can zero a balance via reassign, which §4 forbids) so that a
+  shallow pass still produces findings and the grader is not measuring whether the model found anything at all.
+  Measured Δ 0.00: 1.00 with the plugin, 1.00 without it, both in 4 turns. Opus 5 opens the callee and finds
+  the Senior branch unaided, so this case currently scores the model rather than the skill. It is kept as a
+  regression guard — it will go red if a future edit stops the skill reading callees — but it is not evidence
+  that the plugin adds anything, and it should not be cited as though it were. Making it discriminate means
+  burying the branch further from the entry point, or giving the fixture enough surface that a single pass has
+  to choose where to look.
+tags: [callee-reading, verdict-discipline, no-delta]
+
+context:
+  add_dirs: [fixture]
+
+execution:
+  prompt: |
+    SPEC.md in the fixture directory is the protocol specification for Vault.sol, which is in the same
+    directory.
+
+    Check the contract against section 3 of the spec. I want to know which of those requirements the code
+    actually holds to.
+  max_turns: 30
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Write, Skill, Task]
+
+runs: 3
+
+expected_outcome: >
+  The response reports that §3.2 is not enforced for Senior-tier members, because _collateralPreserved returns
+  true on the Senior branch without comparing balance to locked collateral, and does not report §3.2 as
+  satisfied on the strength of the require at the call site.

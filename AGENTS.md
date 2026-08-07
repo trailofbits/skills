@@ -68,17 +68,29 @@ plugins/
       plugin.json         # Plugin metadata (name, version, description, author)
     commands/             # Optional: slash commands
     agents/               # Optional: autonomous agents
+    workflows/            # Optional: dynamic workflows (*.js), ships as /<plugin>:<workflow>
+    evals/                # Optional: `claude plugin eval` cases + graders
     skills/               # Optional: knowledge/guidance
       <skill-name>/
         SKILL.md          # Entry point with frontmatter
         references/       # Optional: detailed docs
-        workflows/        # Optional: step-by-step guides
+        workflows/        # Optional: step-by-step guides (prose, not scripts)
         scripts/          # Optional: utility scripts
     hooks/                # Optional: event hooks
+    tests/                # Optional: run_*.sh suites (CI runs these — keep them free)
     README.md             # Plugin documentation
 ```
 
 **Important**: Component directories (`skills/`, `commands/`, `agents/`, `hooks/`) must be at the plugin root, NOT inside `.claude-plugin/`. Only `plugin.json` belongs in `.claude-plugin/`.
+
+**Two different `workflows/`.** A **dynamic workflow** is a JavaScript file at the *plugin
+root* under `workflows/`; it exports a `meta` object, orchestrates subagents in code, and
+ships through the marketplace as `/<plugin-name>:<workflow-name>` (from `meta.name`, not the
+filename). The older `skills/<skill>/workflows/` holds prose step-by-step guides. If a
+SKILL.md has "Phase 1", "for each finding", or "repeat until" sections, the plan belongs in
+a script at the plugin root, not in prose. See `plugins/variant-analysis/workflows/` for a
+worked example, and note that `${CLAUDE_PLUGIN_ROOT}` is **not** available inside a workflow
+script — it is not a hook, MCP, or LSP subprocess.
 
 ### Frontmatter
 

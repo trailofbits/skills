@@ -83,9 +83,28 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.13"
-      - name: Install pytest
-        # The rust-review / c-review test files are pytest-based
-        run: python3 -m pip install pytest
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        # semgrep-rule-variant-creator runs its workflow script through node: the parse check,
+        # the schema validation, both .test.mjs suites and the whole mutation battery. They were
+        # relying on the runner image happening to ship node, so a change to that image would
+        # have taken the only checks that execute the script rather than read it. A guard in the
+        # suite turns that into a failure rather than a skip; this makes it not happen.
+        with:
+          node-version: "22"
+      - name: Install pytest and semgrep
+        # The rust-review / c-review test files are pytest-based.
+        #
+        # semgrep grades semgrep-rule-variant-creator's golden variant fixtures, which are
+        # otherwise checked only structurally: its grader skips when semgrep is absent, so
+        # without this the end-to-end evidence never runs anywhere but a contributor's laptop.
+        #
+        # Unpinned, like pytest above. Dependabot watches uv lockfiles and action SHAs, so a
+        # version written here would be invisible to it and would sit unchanged indefinitely —
+        # and a job grading against a years-stale semgrep looks like coverage while being worth
+        # less than none. A release that stops grading those two rules is also a result worth
+        # having rather than one to hold off: a parser moving behind Pro is the failure that
+        # plugin exists to catch.
+        run: python3 -m pip install pytest semgrep
       - name: Install toolchain dependencies
         # constant-time-analysis tests cross-compile C to aarch64 via
         # `clang --target=aarch64-unknown-linux-gnu`. Without the cross
