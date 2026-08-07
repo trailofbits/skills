@@ -67,7 +67,8 @@ The output directory is resolved **once** at the start of Step 1 and used throug
 
 ```
 $OUTPUT_DIR/
-├── rulesets.txt                 # Approved rulesets (logged after Step 3)
+├── rulesets.json                # The approved plan (Step 3), read by run-scans.sh (Step 4)
+├── scans.json                   # What ran, failed, skipped, and covered nothing (Step 4)
 ├── raw/                         # Per-scan raw output (unfiltered)
 │   ├── python-python.json        # <language>-<ruleset> for language-scoped rules
 │   ├── python-python.sarif
@@ -256,7 +257,9 @@ read from the processes and the JSON they wrote.
 - [ ] `run-scans.sh` exited 0 and wrote `$OUTPUT_DIR/scans.json`
 - [ ] `failed` and `skipped` from `scans.json` are empty, or listed in the report
 - [ ] Every `semgrep` command used `--metrics=off`
-- [ ] Approved rulesets logged to `$OUTPUT_DIR/rulesets.txt`
+- [ ] Approved plan written to `$OUTPUT_DIR/rulesets.json` at the Step 3 gate, and passed to
+      the scanner unchanged
+- [ ] `coveredNothing` from `scans.json` is empty, or listed in the report
 - [ ] Raw per-scan outputs stored in `$OUTPUT_DIR/raw/`
 - [ ] `results.sarif` exists in `$OUTPUT_DIR/results/` and is valid JSON
 - [ ] Important-only mode: post-filter applied before merge, merge run with `--important`, unfiltered results preserved in `raw/`

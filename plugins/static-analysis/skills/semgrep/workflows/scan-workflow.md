@@ -222,23 +222,32 @@ Before marking Step 3 complete:
 
 ### Log Approved Rulesets
 
-After approval, write the approved rulesets to `$OUTPUT_DIR/rulesets.txt`:
+After approval, write the approved plan to `$OUTPUT_DIR/rulesets.json`. This is the same file
+Step 4 hands to the scanner: what the user approved and what runs are one artifact, so there is
+no second copy to transcribe and no way for the two to disagree.
+
+Fill in the plan that was just approved. Every value is an array, even a single ruleset:
 
 ```bash
-cat > "$OUTPUT_DIR/rulesets.txt" << RULESETS
-# Semgrep Scan — Approved Rulesets
-# Generated: $(date -Iseconds)
-# Scan mode: <run-all|important-only>
-
-## Rulesets:
-<one ruleset per line, e.g.:>
-p/security-audit
-p/secrets
-p/python
-p/django
-https://github.com/trailofbits/semgrep-rules
+cat > "$OUTPUT_DIR/rulesets.json" << 'RULESETS'
+{
+  "baseline": [<the always-on rulesets from Step 2>],
+  "<each detected language>": [<its approved rulesets>],
+  "third_party": [<approved repository URLs>]
+}
 RULESETS
 ```
+
+One key per language *detected in Step 1*, using the lowercase names from that step. A language
+key for a language the target does not contain scans nothing: its `--include` globs match no
+file, semgrep exits 0 with an empty result, and the report shows the ruleset with 0 findings
+exactly as it would for a ruleset that ran and found nothing. The script counts the files each
+scan opened and lists any that covered nothing under `coveredNothing` in `scans.json`, but
+getting the languages right here is what stops it happening.
+
+Repository URLs go under `third_party` and nowhere else. Registry identifiers like `p/python`
+go under a language key; a `https://…` there fails the identifier check and the script exits
+without scanning.
 
 ---
 
@@ -247,20 +256,10 @@ RULESETS
 > **Entry:** Step 3 approved — user explicitly confirmed the plan.
 > **Exit:** `$OUTPUT_DIR/scans.json` exists; result files exist in `$OUTPUT_DIR/raw/`.
 
-Write the approved rulesets to a file, then run the script. Both are Bash calls; there is no
-subagent in this step.
+Run the script against the plan Step 3 already wrote. One Bash call; there is no subagent in
+this step, and no second copy of the ruleset list to compose here.
 
 ```bash
-cat > "$OUTPUT_DIR/rulesets.json" <<'RULESETS'
-{
-  "baseline": ["p/security-audit", "p/secrets"],
-  "python": ["p/python", "p/django"],
-  "javascript": ["p/javascript"],
-  "docker": ["p/dockerfile"],
-  "third_party": ["https://github.com/trailofbits/semgrep-rules"]
-}
-RULESETS
-
 {baseDir}/scripts/run-scans.sh \
   --target "$TARGET" \
   --output-dir "$OUTPUT_DIR" \
@@ -268,8 +267,11 @@ RULESETS
   --rulesets "$OUTPUT_DIR/rulesets.json"
 ```
 
-That JSON is the structured plan from Step 2, exactly as the user approved it in Step 3. Pass it
-through unchanged. `--mode` is `run-all` or `important-only`. Add `--pro` only when Step 1
+Do not rewrite `rulesets.json` here. It is the plan the user approved at the Step 3 gate, and
+regenerating it at this point is how a ruleset nobody agreed to reaches the scanner. If it needs
+to change, go back to Step 3 and get the change approved.
+
+`--mode` is `run-all` or `important-only`. Add `--pro` only when Step 1
 printed `Pro: AVAILABLE`; it puts `--pro` on every command, so passing it without a licence
 fails every scan in the run. `--jobs N` sets how many semgrep processes run at once (default 4);
 semgrep holds the rules and the scanned ASTs in memory, so raising it on a large tree trades
@@ -284,7 +286,8 @@ and the severity flags are all its job, not yours. It writes `$OUTPUT_DIR/scans.
 
 | Field | Meaning |
 |-------|---------|
-| `scans` | Rulesets that ran, with `json`, `sarif`, and `findings` for each. `findings` is counted from the JSON the scan wrote |
+| `scans` | Rulesets that ran, with `json`, `sarif`, `findings` and `filesScanned` for each. `findings` is counted from the JSON the scan wrote; `filesScanned` is how many files semgrep opened, or `-1` when it did not say |
+| `coveredNothing` | Rulesets that ran against zero files, because their `--include` globs matched nothing in the target. They report 0 findings exactly like a ruleset that ran and found nothing, so a plan naming a language the target does not contain reads as a clean audit. **Must be shown.** |
 | `failed` | Rulesets that ran and did not produce usable output, with the `json` and `sarif` paths they may have partly written, and the stderr excerpt. **Must be shown to the user.** |
 | `skipped` | Rulesets dropped before scanning, mostly repos that would not clone. **Must be shown.** |
 | `unscoped` | Languages with no `--include` globs, which ran against every file |
@@ -390,10 +393,16 @@ one finding flagged by two rulesets is one row in the merge and two in that sum]
 [omit when unscoped is empty]
 - <language> — no --include map, so its rulesets ran against every file
 
+### Covered Nothing:
+[omit when coveredNothing is empty]
+- <language>/<ruleset> — matched no file in the target, so it reports 0 findings without having
+  looked at anything. Check the plan against the languages Step 1 detected: this is what a
+  ruleset for a language the target does not contain looks like
+
 Results written to:
 - $OUTPUT_DIR/results/results.sarif (merged SARIF)
 - $OUTPUT_DIR/raw/ (per-scan raw results, unfiltered)
-- $OUTPUT_DIR/rulesets.txt (approved rulesets)
+- $OUTPUT_DIR/rulesets.json (the approved plan, as passed to the scanner)
 ```
 
 **Verify** before reporting: confirm `results.sarif` exists and is valid JSON.

@@ -11,7 +11,7 @@ set -uo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
-readonly EXPECTED_ASSERTIONS=66
+readonly EXPECTED_ASSERTIONS=73
 
 command -v jq >/dev/null 2>&1 || {
   echo "run_scan_tests.sh: jq not found — required" >&2
@@ -250,7 +250,13 @@ for a in "$@"; do
   prev=$a
 done
 if [ "${STUB_WRITE:-1}" = "1" ]; then
-  printf '{"results":[%s]}' "${STUB_RESULTS:-}" > "$json"
+  # STUB_PATHS unset means no .paths key at all, which is the "semgrep did not say" case the
+  # script must report as -1 rather than as a scan that opened no file.
+  if [ -n "${STUB_PATHS:-}" ]; then
+    printf '{"results":[%s],"paths":{"scanned":[%s]}}' "${STUB_RESULTS:-}" "$STUB_PATHS" > "$json"
+  else
+    printf '{"results":[%s]}' "${STUB_RESULTS:-}" > "$json"
+  fi
   printf '{"runs":[]}' > "$sarif"
 fi
 [ -z "${STUB_STDERR:-}" ] || echo "$STUB_STDERR" >&2
@@ -355,6 +361,39 @@ eq "$(jq '.skipped | length' "$WORK/c2/scans.json")" "1" "a clone with no rule f
 run_clone ok "$WORK/c3" >/dev/null
 eq "$(jq '.skipped | length' "$WORK/c3/scans.json")" "0" "a healthy clone must not be skipped"
 eq "$(jq '.scans | length' "$WORK/c3/scans.json")" "2" "a healthy clone must be scanned alongside the baseline"
+
+# ------------------------------------------------------------------------- coverage reporting
+# A ruleset whose --include globs match nothing exits 0 with an empty result, which reads in the
+# report exactly like a ruleset that ran and found nothing. That is how a plan naming the wrong
+# languages — p/python on a Go tree — comes back as a clean audit.
+echo "→ rulesets that covered nothing"
+
+unset STUB_PATHS
+export STUB_RC=0 STUB_RESULTS=''
+
+# semgrep opened files: a real scan that happened to find nothing.
+export STUB_PATHS='"a.py","b.py"'
+run_real "$ONE" "$WORK/cn1" >/dev/null
+eq "$(jq -r '.scans[0].filesScanned' "$WORK/cn1/scans.json")" "2" "filesScanned must come from .paths.scanned"
+eq "$(jq '.coveredNothing | length' "$WORK/cn1/scans.json")" "0" \
+  "a scan that opened files must not be reported as covering nothing"
+
+# semgrep opened nothing: the ruleset does not apply to this tree at all.
+export STUB_PATHS=' '
+run_real "$ONE" "$WORK/cn2" >/dev/null
+eq "$(jq -r '.scans[0].filesScanned' "$WORK/cn2/scans.json")" "0" "an empty scanned list must be 0, not unknown"
+eq "$(jq -r '.coveredNothing | join(",")' "$WORK/cn2/scans.json")" "python/p/python" \
+  "a ruleset that opened no file must be named in coveredNothing"
+eq "$(jq '.scans | length' "$WORK/cn2/scans.json")" "1" \
+  "it still ran, so it stays in scans rather than moving to failed"
+
+# No .paths key at all. Unknown is not the same answer as zero, and reporting every scan as
+# covering nothing would make the field worthless on any semgrep that does not emit it.
+unset STUB_PATHS
+run_real "$ONE" "$WORK/cn3" >/dev/null
+eq "$(jq -r '.scans[0].filesScanned' "$WORK/cn3/scans.json")" "-1" "a missing .paths must report -1, not 0"
+eq "$(jq '.coveredNothing | length' "$WORK/cn3/scans.json")" "0" \
+  "an unknown file count must not be reported as covering nothing"
 
 # ------------------------------------------------------------------ the documented post-filter
 # The important-only loop lives in scan-modes.md rather than in a script, so it is extracted and

@@ -251,10 +251,17 @@ SCAN_LIST="$WORK/scans.tsv"
 SKIPPED="$WORK/skipped.tsv"
 ALSO_SHARED="$WORK/also-shared.txt"
 UNSCOPED="$WORK/unscoped.txt"
+# A ruleset whose --include globs matched no file exits 0 with an empty result, which is
+# indistinguishable in scans.json from a ruleset that ran and found nothing. That is how a plan
+# naming the wrong languages reads as a clean audit: p/python on a Go tree reports 0 findings
+# exactly like p/gosec would have. semgrep counts what it opened in .paths.scanned, so the two
+# can be told apart and the ones that covered nothing named.
+COVERED_NOTHING="$WORK/covered-nothing.txt"
 : >"$SCAN_LIST"
 : >"$SKIPPED"
 : >"$ALSO_SHARED"
 : >"$UNSCOPED"
+: >"$COVERED_NOTHING"
 
 # Stems are the filename half of every output path and the key results are matched on, so a
 # collision would let one scan's result be read as another's.
@@ -510,6 +517,7 @@ while IFS=$'\t' read -r stem lang ruleset config includes; do
   sarif="$RAW_DIR/$stem.sarif"
   rc=$(cat "$WORK/rc.$stem" 2>/dev/null || echo 127)
   findings=-1
+  scanned=-1
   ok=""
   # Exit 0 covers both "found nothing" and "found plenty", so it says nothing about findings.
   # Exit 1 is a successful scan on older versions. 7 means the config would not load and 2 a
@@ -517,14 +525,20 @@ while IFS=$'\t' read -r stem lang ruleset config includes; do
   if { [ "$rc" -eq 0 ] || [ "$rc" -eq 1 ]; } && [ -s "$json" ] && [ -s "$sarif" ]; then
     if findings=$(jq -e '.results | length' "$json" 2>/dev/null); then
       ok=1
+      # null and empty are different answers: a semgrep that does not report .paths gives -1,
+      # "not known", while a present-but-empty list is a scan that genuinely opened no file.
+      # Collapsing them with `// []` would report every scan as covering nothing.
+      scanned=$(jq 'if .paths.scanned == null then -1 else (.paths.scanned | length) end' \
+        "$json" 2>/dev/null || echo -1)
     else
       findings=-1
     fi
   fi
   if [ -n "$ok" ]; then
+    [ "$scanned" -ne 0 ] || printf '%s/%s\n' "$lang" "$ruleset" >>"$COVERED_NOTHING"
     jq -nc --arg lang "$lang" --arg ruleset "$ruleset" --arg json "$json" \
-      --arg sarif "$sarif" --argjson findings "$findings" \
-      '{lang:$lang, ruleset:$ruleset, json:$json, sarif:$sarif, findings:$findings}' \
+      --arg sarif "$sarif" --argjson findings "$findings" --argjson scanned "$scanned" \
+      '{lang:$lang, ruleset:$ruleset, json:$json, sarif:$sarif, findings:$findings, filesScanned:$scanned}' \
       >>"$WORK/scans.jsonl"
   else
     # Carries the same paths a success does: a scan that crashed part-way may still have
@@ -552,13 +566,15 @@ jq -n \
   --rawfile skippedRaw "$SKIPPED" \
   --rawfile alsoSharedRaw "$ALSO_SHARED" \
   --rawfile unscopedRaw "$UNSCOPED" \
+  --rawfile coveredNothingRaw "$COVERED_NOTHING" \
   '{
      outputDir: $outputDir, rawDir: $rawDir, reposPath: $reposPath, mode: $mode, pro: $pro,
      scans: $scans, failed: $failed,
      skipped: ($skippedRaw | split("\n") | map(select(length > 0)) | map(split("\t"))
                | map({ruleset: .[0], reason: (.[1] // "clone failed")})),
      alsoShared: ($alsoSharedRaw | split("\n") | map(select(length > 0)) | unique),
-     unscoped: ($unscopedRaw | split("\n") | map(select(length > 0)) | unique)
+     unscoped: ($unscopedRaw | split("\n") | map(select(length > 0)) | unique),
+     coveredNothing: ($coveredNothingRaw | split("\n") | map(select(length > 0)) | unique)
    }' >"$OUTPUT_ROOT/scans.json"
 
 n_ok=$(jq '.scans | length' "$OUTPUT_ROOT/scans.json")

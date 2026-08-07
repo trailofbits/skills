@@ -429,6 +429,11 @@ const reported = await agent(
     '   Do the same for .unscoped (languages with no --include, which ran against every file) and',
     '   .alsoShared (rulesets not repeated per language because they already ran over the whole',
     '   target — coverage is unaffected, but it explains why the ruleset and scan counts differ).',
+    '',
+    '   .coveredNothing gets its own section too, and matters more than the other two: those are',
+    '   rulesets that opened zero files because their --include globs matched nothing. They',
+    '   report 0 findings exactly like a ruleset that ran and found nothing, so leaving them out',
+    '   is how a plan aimed at the wrong languages reads as a clean audit.',
   ].join('\n'),
   { label: 'report', schema: REPORT_SCHEMA },
 )

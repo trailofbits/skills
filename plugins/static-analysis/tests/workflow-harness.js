@@ -303,6 +303,9 @@ const SCENARIOS = {
       [/Never sum the per-scan findings counts/.test(prompts.report), "the report must not sum per-scan counts"],
       [/Did Not Run/.test(prompts.report), "failed and skipped rulesets must get their own section"],
       [/rm -rf/.test(prompts.report), "the cloned rule repos must be deleted after the merge"],
+      // A ruleset that opened no file reports 0 findings like any other. Left out of the
+      // report, a plan aimed at the wrong languages is indistinguishable from a clean scan.
+      [/coveredNothing/.test(prompts.report), "rulesets that matched no file must be reported"],
     ];
   },
 };
@@ -322,6 +325,7 @@ const MUTATIONS = [
   ["accept unparseable args instead of refusing", (s) => s.replace("  throw new Error(`could not parse args", "  return {}\n  throw new Error(`could not parse args")],
   ["treat a failed merge as success", (s) => s.replace("if (!reported.ok) {", "if (false) {")],
   ["drop --scans from the merge", (s) => s.replace(/\n\s*`\s*--scans "\$\{scanned\.scansJson[\s\S]*?`,/, "")],
+  ["stop reporting rulesets that covered nothing", (s) => s.replace(/\n\s*'\s*\.coveredNothing gets its own section[\s\S]*?clean audit\.',/, "")],
 ];
 
 (async () => {
