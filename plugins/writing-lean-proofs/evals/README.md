@@ -23,6 +23,8 @@ Each case under `cases/<name>/` is:
 
 Every case also gets a deterministic **no-rewrite** check: the reviewer was
 asked for a review, so the fixture files must be byte-identical afterwards.
+A rewritten fixture fails the run — the check gates the exit status, it is
+not only reported in the summary.
 
 ## The cases
 
@@ -63,6 +65,13 @@ EVAL_MODEL=<model-id-or-alias> ./run.sh # pin a model accepted by your CLI
   `writing-lean-proofs`; this converts a future isolation regression into a
   preflight failure. A baseline transcript that names the skill is a final
   runtime backstop.
+- The skill arm has the mirror of that backstop: one canary call per run asks
+  the CLI to list the skills it can see under `--setting-sources project` and
+  fails the run if the copied skill is not among them. Copying the skill in
+  does not prove the CLI *discovered* it; without this, a change to project-
+  skill discovery would silently make the skill arm run bare, and the suite
+  would report the two arms as tied — indistinguishable from a true "no
+  uplift" result.
 - Each reviewer runs headless (`claude -p`) in a throwaway copy of the
   fixture with `--permission-mode acceptEdits`: edits are *possible*, so
   the no-rewrite check is meaningful.
@@ -86,7 +95,10 @@ Two-sided, both against case 01's rubric:
 - Before calling the judge, deterministic malformed-output fixtures prove
   that the validator rejects duplicate, reordered, and unknown criterion ids,
   and an enabled-plugin fixture proves that the isolation preflight detects a
-  colliding copy of the skill.
+  colliding copy of the skill. This half makes no model call and runs before
+  the CLI preflight, so it works on a machine with no `claude` on `PATH` and
+  no authentication — which is where you would want to run it, e.g. from a
+  CI shell-test suite.
 
 - `selftest/bad-review.md` — misses every planted flaw and commits every
   forbidden move (turns one tactic per line into an exceptionless rule,

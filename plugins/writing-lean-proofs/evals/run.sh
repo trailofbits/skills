@@ -169,6 +169,43 @@ check_isolation_preconditions() {
   rm -f "$plugin_state"
 }
 
+# Mirror of the baseline contamination backstop, for the skill arm.
+#
+# `cp -R` succeeding proves the skill is on disk; it does not prove the CLI
+# *discovered* it. If project-skill discovery under --setting-sources project
+# ever changes (project skills move to another source, .claude/skills grows a
+# manifest requirement), the copy still succeeds, the skill-arm reviewer runs
+# bare, and both arms score identically — which is indistinguishable from the
+# true negative "the skill provides no uplift", the one conclusion this suite
+# exists to measure. One canary call per run, in the layout run_case_body
+# stages, asking the CLI directly what it can see.
+check_skill_discovery() {
+  local work answer rc=0
+  work=$(mktemp -d)
+  mkdir -p "$work/.claude/skills"
+  if cp -R "$SKILL_SRC" "$work/.claude/skills/writing-lean-proofs"; then
+    echo "[preflight] checking project-skill discovery..."
+    if answer=$(cd "$work" && claude -p \
+      'List the name of every skill available to you, one per line, and nothing else.' \
+      ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} \
+      --setting-sources project \
+      --permission-mode "$PERMISSION_MODE"); then
+      printf '%s' "$answer" | grep -qi "writing-lean-proofs" || rc=1
+    else
+      rc=1
+    fi
+  else
+    rc=1
+  fi
+  rm -rf "$work"
+  if [ "$rc" -ne 0 ]; then
+    echo "error: the CLI did not report writing-lean-proofs as an available skill" >&2
+    echo "under --setting-sources project; the skill arm would run bare and score" >&2
+    echo "like the baseline, reporting a false 'no uplift'. Check skill discovery." >&2
+    return 1
+  fi
+}
+
 # grade_review <rubric> <fixture-dir> <transcript> <outdir>
 # Writes <outdir>/grades.json; fails on empty transcript, zero rubric
 # criteria, malformed output, or criterion ids that do not exactly match.
@@ -176,7 +213,11 @@ grade_review() {
   local rubric="$1" fixdir="$2" transcript="$3" outdir="$4"
   mkdir -p "$outdir"
   local n_criteria
-  n_criteria=$(grep -c '^- id:' "$rubric" || true)
+  # Same shape as the Python capture below (^- id:\s*([^\s]+)\s*$). A looser
+  # pattern here would count a malformed line like `- id: foo bar` that the
+  # capture drops, and the run would fail later with an id-mismatch diff
+  # instead of pointing at the rubric line.
+  n_criteria=$(grep -cE '^- id:[[:space:]]*[^[:space:]]+[[:space:]]*$' "$rubric" || true)
   if [ "$n_criteria" -eq 0 ]; then
     echo "error: rubric has zero criteria: $rubric" >&2
     return 1
@@ -236,19 +277,26 @@ checksum_tree() {
   (cd "$1" && find . -path ./.claude -prune -o -name '*.lean' -type f -exec cksum {} \; | sort)
 }
 
-# run_case <case-dir> <arm> <outdir>
-run_case() {
-  local case_dir="$1" arm="$2" outdir="$3"
+# run_case_body <case-dir> <arm> <outdir> <work>
+# The working half of run_case, factored out so run_case can remove the
+# scratch tree on every path. Several steps here return early (fixture and
+# skill copies, both checksums, the reviewer call, the contamination check),
+# and a transient auth failure across every case and arm would otherwise
+# leave one fixture copy — plus a full skill copy on the skill arm — per
+# case under /tmp.
+run_case_body() {
+  local case_dir="$1" arm="$2" outdir="$3" work="$4"
   local case_name
   case_name=$(basename "$case_dir")
-  mkdir -p "$outdir"
 
-  local work
-  work=$(mktemp -d)
   cp -R "$case_dir/input/." "$work/" || return 1
   if [ "$arm" = "skill" ]; then
     mkdir -p "$work/.claude/skills"
     cp -R "$SKILL_SRC" "$work/.claude/skills/writing-lean-proofs" || return 1
+    if [ ! -s "$work/.claude/skills/writing-lean-proofs/SKILL.md" ]; then
+      echo "error: skill arm staged no SKILL.md under $work/.claude/skills" >&2
+      return 1
+    fi
   fi
 
   checksum_tree "$work" >"$outdir/cksum.before" || return 1
@@ -278,7 +326,6 @@ run_case() {
     echo "fail" >"$outdir/no-rewrite.txt"
     diff "$outdir/cksum.before" "$outdir/cksum.after" >>"$outdir/no-rewrite.txt" || true
   fi
-  rm -rf "$work"
 
   echo "[$arm/$case_name] grading..."
   if ! grade_review "$case_dir/rubric.md" "$case_dir/input" \
@@ -287,6 +334,17 @@ run_case() {
     return 1
   fi
   echo "[$arm/$case_name] no-rewrite: $(head -n 1 "$outdir/no-rewrite.txt")"
+}
+
+# run_case <case-dir> <arm> <outdir>
+run_case() {
+  local case_dir="$1" arm="$2" outdir="$3"
+  local work rc=0
+  mkdir -p "$outdir"
+  work=$(mktemp -d)
+  run_case_body "$case_dir" "$arm" "$outdir" "$work" || rc=$?
+  rm -rf "$work"
+  return "$rc"
 }
 
 grader_validation_self_test() {
@@ -373,6 +431,13 @@ self_test() {
 
   grader_validation_self_test "$outdir"
 
+  # The preflight runs here rather than at the top of the script so the
+  # offline half above — the schema, isolation-fixture and rubric checks,
+  # which make no model call — stays runnable on a machine with no `claude`
+  # on PATH and no authentication. That is exactly where you want it: a
+  # tests/ suite in CI. Everything below this line does call the grader.
+  check_isolation_preconditions
+
   echo "[self-test] grading canned bad review against case 01 rubric..."
   grade_review "$EVALS_DIR/cases/01-definitions-review/rubric.md" \
     "$EVALS_DIR/cases/01-definitions-review/input" \
@@ -443,12 +508,12 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-check_isolation_preconditions
-
 if [ "$SELF_TEST" -eq 1 ]; then
   self_test
   exit 0
 fi
+
+check_isolation_preconditions
 
 case "$ARM" in
   skill | baseline | both) ;;
@@ -457,6 +522,10 @@ case "$ARM" in
     exit 1
     ;;
 esac
+
+if [ "$ARM" = "skill" ] || [ "$ARM" = "both" ]; then
+  check_skill_discovery
+fi
 
 if [ ${#CASES[@]} -eq 0 ]; then
   while IFS= read -r d; do
@@ -476,6 +545,7 @@ RESULTS="$EVALS_DIR/results/$STAMP"
 RAN=0
 
 CASE_FAILURES=0
+REWRITE_FAILURES=0
 for arm in "${ARMS[@]}"; do
   for c in "${CASES[@]}"; do
     case_dir="$EVALS_DIR/cases/$c"
@@ -489,6 +559,14 @@ for arm in "${ARMS[@]}"; do
     if ! run_case "$case_dir" "$arm" "$RESULTS/$arm/$c"; then
       echo "[$arm/$c] case FAILED to run or grade" >&2
       CASE_FAILURES=$((CASE_FAILURES + 1))
+    elif [ "$(head -n 1 "$RESULTS/$arm/$c/no-rewrite.txt")" != "pass" ]; then
+      # The no-rewrite check has to be able to fail the run. Counting it only
+      # in the summary would mean that a reviewer which starts applying its
+      # own fixes under --permission-mode acceptEdits rewrites every fixture,
+      # prints no-rewrite:fail on every line, and still exits 0 — so CI and
+      # any scripted use would read the run as green.
+      echo "[$arm/$c] reviewer rewrote the fixture" >&2
+      REWRITE_FAILURES=$((REWRITE_FAILURES + 1))
     fi
     RAN=$((RAN + 1))
   done
@@ -526,7 +604,13 @@ if rows == 0:
     sys.exit("error: summary found zero graded cases")
 PY
 
+STATUS=0
 if [ "$CASE_FAILURES" -gt 0 ]; then
   echo "error: $CASE_FAILURES case(s) failed to run or grade" >&2
-  exit 1
+  STATUS=1
 fi
+if [ "$REWRITE_FAILURES" -gt 0 ]; then
+  echo "error: $REWRITE_FAILURES case(s) had the fixture rewritten by the reviewer" >&2
+  STATUS=1
+fi
+exit "$STATUS"

@@ -214,8 +214,21 @@ mechanics matter:
   ```sh
   set -o pipefail                        # or the build failure vanishes into tee
   lake build MyProject 2>&1 | tee build.log
+  # Vacuity anchor: Lake caches per-module artifacts and linter warnings are
+  # emitted only when a module is *recompiled*. On a restored cache with
+  # nothing to rebuild, build.log is empty, the grep below matches nothing,
+  # and the gate reports clean over live warnings and sorries. Prove the
+  # sweep reached something before trusting its silence.
+  grep -qE "^(info: )?\[[0-9]+/[0-9]+\]" build.log \
+    || { echo "gate is vacuous: lake compiled no module" >&2; exit 1; }
   ! grep -n "warning:" build.log         # any warning (linter or sorry) fails CI
   ```
+
+  The anchor is what makes this a gate rather than a report; the alternative
+  is to build the gating job from a cold cache. This is the same discipline
+  the `checked == 0` guard enforces in `AxiomCheck.lean` above, and the same
+  one the sweep-counting rule below states in general — a check that cannot
+  observe its own reach cannot fail.
 - **Anything outside the default build target rots silently.** A test or
   regression file that nothing builds stops compiling and nobody notices.
   Give such files their own `lean_lib` target in the lakefile and build that
