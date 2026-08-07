@@ -324,8 +324,10 @@ def _reconcile_transitive_ledger(transitive: dict, total: int) -> None:
     `total` is derived from the buckets themselves, so it reconciles by construction
     even when a triple is silently dropped before bucketing — which is how a nested
     copy of a direct dependency once vanished from the sweep with the counts still
-    balancing. `lockfile_entries` is counted from the raw lockfile before any
-    exclusion, so a dropped triple breaks this equation instead of disappearing.
+    balancing. `lockfile_entries` is counted from the lock readers' output, before any
+    exclusion or bucketing, so a triple dropped after they return breaks this equation
+    instead of disappearing. A drop inside a reader is outside this guard's reach: the
+    readers are the origin of the count, so nothing independent can contradict them.
     """
     lockfile_entries = transitive.get("lockfile_entries")
     excluded = transitive.get("excluded_direct")

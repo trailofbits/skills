@@ -239,6 +239,22 @@ def test_third_party_text_cannot_forge_a_section_outside_tables():
     assert forged_bullets == []
 
 
+def test_code_spans_stay_copyable_while_prose_is_escaped():
+    """Markdown does not process backslashes inside a code span, so escaping there
+    writes them out literally and corrupts the path a reader copies. A backtick is the
+    only character that needs handling in that position."""
+    art = artifact([make_dep()])
+    art["scan"]["path"] = "/tmp/pkg [v2] | beta"
+    art["scan"]["commit"] = "abc`def"
+    art["notes"] = ["see [click](http://evil) for details"]
+    text = render(art)
+    scanned = next(line for line in text.splitlines() if line.startswith("**Scanned:**"))
+    assert scanned == "**Scanned:** `/tmp/pkg [v2] | beta`  "
+    assert "`abc'def`" in text
+    # prose still cannot forge a link
+    assert "see \\[click](http://evil)" in text
+
+
 def test_third_party_text_cannot_break_the_table():
     dep = make_dep("hostile")
     dep.signals["deprecated"] = Signal.flagged(

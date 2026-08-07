@@ -108,7 +108,7 @@ SCORECARD_CAVEAT = {
 
 
 def _safe_text(value: object) -> str:
-    """Make third-party text safe anywhere in the report.
+    """Make third-party text safe in report prose, table cells, and headings.
 
     Registry- and manifest-controlled strings (deprecation messages, versions, package
     names, git HEAD contents) reach the report from the audited project and its
@@ -120,11 +120,31 @@ def _safe_text(value: object) -> str:
 
     Collapsing whitespace is the security-critical half — it confines anything hostile
     to the line it was interpolated into, where the worst available is inline emphasis.
-    The `|` and `[` escapes keep tables and links intact. Use this for every value that
-    did not originate in this repository, in prose and headers as well as cells.
+    Escaping `|` keeps a value inside its table cell, and escaping `[` stops prose from
+    forging a link. Use this for every value that did not originate in this repository.
+
+    For a value going inside backticks use `_safe_code` instead: Markdown does not
+    process backslash escapes in a code span, so escaping there writes the backslashes
+    out literally and corrupts the value a reader copies.
     """
-    text = re.sub(r"\s+", " ", str(value)).strip()
-    return text.replace("|", "\\|").replace("[", "\\[")
+    return _collapse(value).replace("|", "\\|").replace("[", "\\[")
+
+
+def _safe_code(value: object) -> str:
+    """Make third-party text safe inside a Markdown code span.
+
+    A code span needs no `|` or `[` escaping — neither can be misread inside one, and a
+    backslash written there survives literally, so escaping corrupted the report title
+    and the `Scanned:` path into something no reader could copy. What a code span does
+    need is protection from a backtick, which would close the span early and let the
+    rest of the value become live Markdown.
+    """
+    return _collapse(value).replace("`", "'")
+
+
+def _collapse(value: object) -> str:
+    """Flatten a value to one line, which is what confines hostile text to that line."""
+    return re.sub(r"\s+", " ", str(value)).strip()
 
 
 def plural(n: int, singular: str, many: str) -> str:
@@ -205,7 +225,7 @@ def _finding_rows(hits: list[tuple[dict, list]]) -> list[str]:
     for dep, flags in sorted(hits, key=lambda x: (-len(x[1]), x[0]["name"])):
         detail = _safe_text("; ".join(s["detail"] for _, s in flags))
         rows.append(
-            f"| `{_safe_text(dep['name'])}` | {_safe_text(_version_label(dep))} | {_volume(dep)} | {detail} |"
+            f"| `{_safe_code(dep['name'])}` | {_safe_text(_version_label(dep))} | {_volume(dep)} | {detail} |"
         )
     return rows
 
@@ -357,7 +377,7 @@ def transitive_section(artifact: dict) -> list[str]:
         if len(entry["advisories"]) > 6:
             ids += f" and {len(entry['advisories']) - 6} more"
         out.append(
-            f"| `{_safe_text(entry['name'])}` ({_safe_text(entry['ecosystem'])}) | "
+            f"| `{_safe_code(entry['name'])}` ({_safe_text(entry['ecosystem'])}) | "
             f"{_safe_text(entry['version'])} | {reaches} | {_safe_text(ids)} |"
         )
     out.append("")
@@ -383,7 +403,7 @@ def _unverifiable_lines(transitive: dict) -> list[str]:
     ]
     for entry in entries[:10]:
         out.append(
-            f"- `{_safe_text(entry['name'])}` {_safe_text(entry['version'])} "
+            f"- `{_safe_code(entry['name'])}` {_safe_text(entry['version'])} "
             f"({_safe_text(entry['ecosystem'])}) — {_safe_text(entry['reason'])}"
         )
     if len(entries) > 10:
@@ -436,7 +456,7 @@ def production_section(artifact: dict) -> list[str]:
             LABELS.get(c, c) for c in dep["flagged"] if c != "advisories" and c not in UPSTREAM_ONLY
         ]
         out.append(
-            f"| `{_safe_text(dep['name'])}` | {_safe_text(_version_label(dep))} | {_safe_text(verdict)} "
+            f"| `{_safe_code(dep['name'])}` | {_safe_text(_version_label(dep))} | {_safe_text(verdict)} "
             f"| {_safe_text(', '.join(others) or '—')} |"
         )
     out.append("")
@@ -458,7 +478,7 @@ def unassessable_section(artifact: dict) -> list[str]:
     for criterion, reasons in sorted(grouped.items()):
         out += [f"**{LABELS.get(criterion, criterion)}**", ""]
         for reason, names in sorted(reasons.items(), key=lambda kv: -len(kv[1])):
-            sample = ", ".join(f"`{_safe_text(n)}`" for n in sorted(names)[:6])
+            sample = ", ".join(f"`{_safe_code(n)}`" for n in sorted(names)[:6])
             more = f" and {len(names) - 6} more" if len(names) > 6 else ""
             out.append(
                 f"- {plural(len(names), 'dependency', 'dependencies')} — "
@@ -599,12 +619,12 @@ def header(artifact: dict) -> list[str]:
     total = artifact["coverage"]["total_dependencies"]
     ecosystems = ", ".join(f"{eco} {n}" for eco, n in artifact["ecosystems"].items())
     subject = scan.get("subject") or Path(artifact["target"]).name or "unnamed project"
-    lines = [f"# Supply Chain Risk Report — `{_safe_text(subject)}`", ""]
-    lines.append(f"**Scanned:** `{_safe_text(scan.get('path', artifact['target']))}`  ")
+    lines = [f"# Supply Chain Risk Report — `{_safe_code(subject)}`", ""]
+    lines.append(f"**Scanned:** `{_safe_code(scan.get('path', artifact['target']))}`  ")
     if scan.get("commit"):
-        lines.append(f"**Commit:** `{_safe_text(scan['commit'])}`  ")
+        lines.append(f"**Commit:** `{_safe_code(scan['commit'])}`  ")
     if scan.get("manifests"):
-        joined = ", ".join(f"`{_safe_text(m)}`" for m in scan["manifests"])
+        joined = ", ".join(f"`{_safe_code(m)}`" for m in scan["manifests"])
         lines.append(f"**Manifests read:** {joined}  ")
     if scan.get("scanned_at"):
         lines.append(f"**Scanned at:** {scan['scanned_at']}  ")

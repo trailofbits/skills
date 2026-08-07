@@ -54,6 +54,14 @@ LOW_DOWNLOADS_PER_WEEK = 1000
 
 REPO_CRITERIA = ("archived", "staleness", "security_policy")
 
+# Shared by every criterion of every dependency that resolves outside its public
+# registry, so the report can group them into one bullet per criterion. The specific
+# source is the signal's value, and each dependency also gets its own Method note.
+NON_REGISTRY_REASON = (
+    "the dependency resolves from outside its public registry, so registry-keyed data "
+    "does not apply to it (the source is named in Method and caveats)"
+)
+
 
 # ------------------------------------------------------------------ npm manifests
 
@@ -245,7 +253,13 @@ _REQ_SPLIT = re.compile(r"[<>=!~\[;@]")
 # A permissive PEP 440 shape: enough to reject line-continuation and inline-option
 # debris ("2.19.0 \\", "2.19.0 --hash") that would otherwise be sent to OSV as a
 # version and printed in the report as a version-matched claim.
-_VALID_VERSION = re.compile(r"^[0-9][0-9A-Za-z.+!_-]*$")
+#
+# The optional `v` is load-bearing: PEP 440 permits it, pip accepts `django==v3.2.0`,
+# and requiring a leading digit turned that legal pin into an unresolved version, so
+# advisories were matched against the latest release and 62 real ones read as clean. The
+# prefix is stripped rather than kept, because the canonical form is what OSV, the
+# report, and any hand-check should agree on.
+_VALID_VERSION = re.compile(r"^v?[0-9][0-9A-Za-z.+!_-]*$")
 _PEP503 = re.compile(r"[-_.]+")
 _VALID_NAME = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$")
 
@@ -321,8 +335,8 @@ def _pypi_specs(project: Path) -> tuple[dict[str, tuple[str, bool]], list[str]]:
         poetry = ((data.get("tool") or {}).get("poetry") or {}).get("dependencies") or {}
         if poetry:
             notes.append(
-                f"{len(poetry)} Poetry dependencies in [tool.poetry.dependencies] were not "
-                f"parsed; only PEP 621 and PEP 735 tables are read."
+                f"{len(poetry)} Poetry dependencies in the tool.poetry.dependencies "
+                f"table were not parsed; only PEP 621 and PEP 735 tables are read."
             )
         for group, is_dev in groups:
             _absorb_specs(group, specs, notes, is_dev)
@@ -356,16 +370,22 @@ def _absorb_specs(
             specs[canonical] = (raw, is_dev)
 
 
+# What terminates the value of a `==` pin. Deliberately not `_REQ_SPLIT`, which also
+# splits on `!` for the `!=` operator and would truncate a PEP 440 epoch — `1!2.0`
+# became the version `1`, a wrong pin reported as version-matched.
+_VERSION_END = re.compile(r"[\s,;]")
+
+
 def _pypi_version(raw: str, locked: dict[str, str], canonical: str) -> tuple[str | None, str]:
     if canonical in locked:
         return locked[canonical], "lockfile"
     spec = _strip_marker(raw)
     if "==" in spec:
-        candidate = _REQ_SPLIT.split(spec.split("==", 1)[1].strip().strip(","), 1)[0].strip()
+        candidate = _VERSION_END.split(spec.split("==", 1)[1].strip().strip(","), 1)[0].strip()
         # `1.0.*` is a range, not a pin, and pip-compile hash lines leave debris
         # (`2.19.0 \\`) that must not be reported as a version.
         if candidate and "*" not in candidate and _VALID_VERSION.match(candidate):
-            return candidate, "manifest-pin"
+            return candidate.removeprefix("v"), "manifest-pin"
     return None, "unresolved"
 
 
@@ -1031,7 +1051,7 @@ def _advisory_map(
 
 def _locked_beyond_direct(
     project: Path, deps: list[Dependency]
-) -> tuple[dict[tuple[str, str, str], bool | None], list[Unverifiable], list[str], list[str]]:
+) -> tuple[dict[tuple[str, str, str], bool | None], list[Unverifiable], dict, list[str], list[str]]:
     """Lockfile-resolved (ecosystem, name, version) triples that are not direct deps.
 
     Returns the attested triples with their dev-only markers, the unverifiable entries
@@ -1061,7 +1081,7 @@ def _locked_beyond_direct(
         if note:
             notes.append(note)
     direct_triples = {(d.ecosystem, d.name, d.version) for d in deps if d.version}
-    # The ledger total is counted from the raw lockfile before any exclusion, so a
+    # Counted from the lock readers' output, before any exclusion or bucketing, so a
     # triple dropped without landing in a named bucket breaks validation instead of
     # vanishing while the remaining counts reconcile among themselves.
     all_triples = {(e, n, v) for e, n, v, _ in gathered}
@@ -1386,7 +1406,16 @@ def collect(project: Path, cache: Path, offline: bool) -> dict:
     registry_deps = [d for d in deps if not d.non_registry_reason]
     for dep in deps:
         if dep.non_registry_reason:
-            _fill(dep, CRITERIA, Signal.unassessable(dep.non_registry_reason))
+            # One shared reason across all 13 criteria, with the per-dependency source
+            # carried in the signal's value and in the Method note. Embedding the source
+            # in the reason gave every dependency a unique string, which defeated the
+            # report's grouping: 13 criteria x 7 workspace packages produced 91
+            # near-identical bullets, scaling linearly with monorepo size.
+            _fill(
+                dep,
+                CRITERIA,
+                Signal.unassessable(NON_REGISTRY_REASON, dep.non_registry_reason),
+            )
 
     resolve_from_registry(http, registry_deps)
     found = _advisory_map(http, registry_deps, notes)

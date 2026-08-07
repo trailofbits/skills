@@ -32,7 +32,7 @@ from collect import (
     parse_pypi,
     sweep_transitive,
 )
-from model import Dependency, ReconciliationError, State
+from model import Dependency, ReconciliationError, State, _validate_transitive
 
 # ---------------------------------------------------------------------- npm parsing
 
@@ -154,15 +154,23 @@ def test_pep508_marker_does_not_fabricate_a_version():
     assert version is None and source == "unresolved"
 
 
-def test_wildcard_pin_is_a_range():
-    assert _pypi_version("foo==1.0.*", {}, "foo") == (None, "unresolved")
-    # pip-compile hash lines leave debris that must not read as a version-matched pin
-    assert _pypi_version("requests==2.19.0 \\", {}, "requests") == (None, "unresolved")
-    assert _pypi_version("requests==2.19.0 --hash=sha256:abc", {}, "requests") == (
-        None,
-        "unresolved",
-    )
+def test_pinned_version_extraction():
     assert _pypi_version("requests==2.19.0", {}, "requests") == ("2.19.0", "manifest-pin")
+    assert _pypi_version("foo==1.0.*", {}, "foo") == (None, "unresolved")
+    # pip-compile continuation and inline options end the version without corrupting it
+    assert _pypi_version("requests==2.19.0 \\", {}, "requests") == ("2.19.0", "manifest-pin")
+    assert _pypi_version("requests==2.19.0 --hash=sha256:abc", {}, "requests") == (
+        "2.19.0",
+        "manifest-pin",
+    )
+    # PEP 440 permits a `v` prefix and pip accepts it; requiring a leading digit made
+    # this legal pin unresolved, so advisories matched the latest release and 62 real
+    # ones for django v3.2.0 read as clean
+    assert _pypi_version("django==v3.2.0", {}, "django") == ("3.2.0", "manifest-pin")
+    # an epoch must survive: splitting on `!` (there for `!=`) truncated 1!2.0 to 1
+    assert _pypi_version("x==1!2.0+local", {}, "x") == ("1!2.0+local", "manifest-pin")
+    # anything the gate cannot recognise stays unresolved rather than reaching OSV
+    assert _pypi_version("x==1.2.3[extra]", {}, "x") == (None, "unresolved")
 
 
 def test_requirements_filename_hints_dev(tmp_path: Path):
@@ -435,6 +443,44 @@ def test_sweep_osv_unreachable_reports_zero_coverage(tmp_path: Path):
     assert any("transitive advisory coverage is zero" in n for n in notes)
 
 
+def test_ledger_is_sourced_independently_of_the_buckets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """A drop between reading the lockfile and bucketing must be refused.
+
+    The ledger only detects that if `lockfile_entries` is counted from the lock readers'
+    output rather than from the buckets themselves. Deriving it from the buckets makes
+    the equation true by construction — the artifact reconciles while a package is
+    missing from the sweep — so the drop is injected at a real seam here rather than
+    hand-doctoring a dict, which is what the validator-level test already covers.
+    """
+    (tmp_path / "package-lock.json").write_text(
+        json.dumps(
+            {
+                "packages": {
+                    "node_modules/attested": registry_entry("attested", "1.0.0"),
+                    "node_modules/vendored": {
+                        "version": "2.0.0",
+                        "resolved": "git+ssh://git@github.com/acme/vendored.git#abc",
+                    },
+                }
+            }
+        )
+    )
+    triples = [("npm", "attested", "1.0.0")]
+    http = seeded_http(tmp_path / "cache", {("POST", OSV, osv_body(triples)): {"results": [{}]}})
+    transitive, _ = sweep_transitive(http, tmp_path, [])
+    assert transitive["lockfile_entries"] == 2
+    assert transitive["checked"] == 1 and len(transitive["unverifiable"]) == 1
+
+    # Drop the unverifiable bucket on the way out of the gatherer.
+    monkeypatch.setattr("collect._dedup_unverifiable", lambda *args: [])
+    dropped, _ = sweep_transitive(http, tmp_path, [])
+    assert dropped["lockfile_entries"] == 2, "the ledger must not follow the buckets down"
+    with pytest.raises(ReconciliationError, match="vanished"):
+        _validate_transitive({"transitive": dropped})
+
+
 PROXY = "https://proxy.golang.org"
 
 
@@ -611,4 +657,7 @@ def test_non_registry_direct_dep_is_never_queried(tmp_path: Path, monkeypatch: p
     assert utils["flagged"] == []
     for signal in utils["signals"].values():
         assert signal["state"] == State.UNASSESSABLE.value
-        assert "not the npm registry" in signal["detail"]
+        # one shared reason so the report can group these, with the specific source
+        # carried alongside it
+        assert "resolves from outside its public registry" in signal["detail"]
+        assert "not the npm registry" in signal["value"]
