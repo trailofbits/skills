@@ -95,12 +95,21 @@ jobs:
         # gcc-aarch64-linux-gnu pulls in binutils-aarch64-linux-gnu (the
         # cross linker clang invokes). --no-install-recommends suppresses
         # Recommends, so each package must be listed explicitly.
+        #
+        # llvm-19 supplies llvm-dwarfdump for the dwarf-expert contract test,
+        # which fails rather than skips when the tool is missing. 19 is the
+        # floor: --error-display and --verify-json landed in LLVM 19, and
+        # ubuntu-24.04's default llvm is 18. The fallback covers future
+        # runner images whose default llvm is >= 19 but that no longer
+        # package llvm-19 itself.
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             clang \
             gcc-aarch64-linux-gnu \
             libc6-dev-arm64-cross
+          sudo apt-get install -y --no-install-recommends llvm-19 \
+            || sudo apt-get install -y --no-install-recommends llvm
       - name: Discover and run plugin Python tests
         shell: bash
         run: |

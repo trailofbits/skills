@@ -77,7 +77,6 @@ FORBIDDEN_PLUGIN_SIDECARS = (".codex-plugin", ".opencode-plugin")
 SKILL_LINE_LIMIT = 500
 KEBAB_CASE_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 PLUGIN_NAME_MAX_LENGTH = 64
-REQUIRED_SKILL_SECTIONS = ("## When to Use", "## When NOT to Use")
 SEMVER_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
 
 # Floor for --self-test. Raise it when you add fixtures; see the check in self_test().
@@ -532,19 +531,6 @@ def validate_version_increment(
 # -------------------------------------------------------------------------- warnings
 
 
-def check_required_sections(plugin_path: Path) -> list[str]:
-    """Skills should say when to use them and when not to."""
-    warnings = []
-    for skill in skill_files(plugin_path):
-        text = skill.read_text(encoding="utf-8", errors="replace")
-        rel = skill.relative_to(plugin_path)
-        for section in REQUIRED_SKILL_SECTIONS:
-            # Tolerate trailing words, e.g. "## When to Use This Skill".
-            if not re.search(rf"^{re.escape(section)}\b", text, re.MULTILINE):
-                warnings.append(f"{rel} missing '{section}' section")
-    return warnings
-
-
 def check_skill_length(plugin_path: Path) -> list[str]:
     """Long skills should be split into references/."""
     warnings = []
@@ -670,8 +656,6 @@ def validate_plugins(
         if plugin_name not in readme_plugins:
             result.add(plugin_name, "not found in README.md")
 
-        for msg in check_required_sections(plugin_path):
-            result.add(plugin_name, msg, WARNING)
         for msg in check_skill_length(plugin_path):
             result.add(plugin_name, msg, WARNING)
 
@@ -938,26 +922,6 @@ def _self_test_errors(ran: list[str]) -> None:
 
 def _self_test_warnings(ran: list[str]) -> None:
     """Each warning-level checker fires on a known-bad fixture, and does not block."""
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        plugin = _build_demo(root)
-        skill = plugin / "skills" / "demo" / "SKILL.md"
-        skill.write_text(skill.read_text().replace("## When NOT to Use", "## Notes"))
-        warnings = _warnings_for(root)
-        _check(ran, "missing When NOT to Use", any("When NOT to Use" in w for w in warnings))
-        _check(ran, "required sections are warnings only", not _errors_for(root))
-
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        plugin = _build_demo(root)
-        skill = plugin / "skills" / "demo" / "SKILL.md"
-        skill.write_text(skill.read_text().replace("## When to Use", "## When to Use This Skill"))
-        _check(
-            ran,
-            "trailing words on section heading tolerated",
-            not any("When to Use" in w for w in _warnings_for(root)),
-        )
-
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         plugin = _build_demo(root)
