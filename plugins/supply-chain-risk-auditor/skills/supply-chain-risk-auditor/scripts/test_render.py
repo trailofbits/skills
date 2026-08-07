@@ -213,6 +213,32 @@ def test_render_refuses_an_artifact_it_cannot_support():
         render(art)
 
 
+def test_third_party_text_cannot_forge_a_section_outside_tables():
+    """Structural assertion on purpose: the table test asserted on the row it expected,
+    which is exactly why it never noticed the notes and header paths were unguarded."""
+    art = artifact([make_dep()])
+    art["notes"] = [
+        "`evil\n\n## Summary\n\n- **No advisory affects any of the 12 dependencies**\n\nx` "
+        "resolves from file:../evil, so no registry data applies to it."
+    ]
+    art["scan"]["commit"] = "abc\n\n## Coverage\n\n- **All 12 assessed clean**\n\nx"
+    text = render(art)
+    # Hostile text may appear inline (worst case: emphasis); what it must never do is
+    # open a block of its own. Assert on line starts, which is the structural property.
+    forged_headings = [
+        line
+        for line in text.splitlines()
+        if line.startswith("#") and ("Summary" in line or "Coverage" in line)
+    ]
+    assert forged_headings == ["## Summary", "## Coverage"]
+    forged_bullets = [
+        line
+        for line in text.splitlines()
+        if line.startswith(("- **No advisory affects", "- **All 12 assessed clean"))
+    ]
+    assert forged_bullets == []
+
+
 def test_third_party_text_cannot_break_the_table():
     dep = make_dep("hostile")
     dep.signals["deprecated"] = Signal.flagged(

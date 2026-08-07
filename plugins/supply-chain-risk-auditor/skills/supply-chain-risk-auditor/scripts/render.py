@@ -107,14 +107,21 @@ SCORECARD_CAVEAT = {
 }
 
 
-def _cell(value: object) -> str:
-    """Make third-party text safe inside a Markdown table cell.
+def _safe_text(value: object) -> str:
+    """Make third-party text safe anywhere in the report.
 
-    Registry-controlled strings (deprecation messages, versions, names) can carry
-    newlines and pipes; `istanbul`'s real deprecation message truncated the findings
-    table at its first newline, silently dropping every row after it — including a
-    finding on another package. Injection is the same path: an unescaped `|` or a
-    forged heading rides third-party text into the report.
+    Registry- and manifest-controlled strings (deprecation messages, versions, package
+    names, git HEAD contents) reach the report from the audited project and its
+    dependencies. `istanbul`'s real deprecation message truncated the findings table at
+    its first newline, silently dropping every row after it — including a finding on
+    another package. The same newline forges block structure outside tables: a
+    dependency key carrying `\n\n## Summary\n\n- **No known advisory...**` wrote a
+    heading and a false all-clear into the Method-and-caveats notes.
+
+    Collapsing whitespace is the security-critical half — it confines anything hostile
+    to the line it was interpolated into, where the worst available is inline emphasis.
+    The `|` and `[` escapes keep tables and links intact. Use this for every value that
+    did not originate in this repository, in prose and headers as well as cells.
     """
     text = re.sub(r"\s+", " ", str(value)).strip()
     return text.replace("|", "\\|").replace("[", "\\[")
@@ -196,9 +203,9 @@ def _volume(dep: dict) -> str:
 def _finding_rows(hits: list[tuple[dict, list]]) -> list[str]:
     rows = ["| Dependency | Version | Weekly downloads | Findings |", "|---|---|---|---|"]
     for dep, flags in sorted(hits, key=lambda x: (-len(x[1]), x[0]["name"])):
-        detail = _cell("; ".join(s["detail"] for _, s in flags))
+        detail = _safe_text("; ".join(s["detail"] for _, s in flags))
         rows.append(
-            f"| `{_cell(dep['name'])}` | {_cell(_version_label(dep))} | {_volume(dep)} | {detail} |"
+            f"| `{_safe_text(dep['name'])}` | {_safe_text(_version_label(dep))} | {_volume(dep)} | {detail} |"
         )
     return rows
 
@@ -350,8 +357,8 @@ def transitive_section(artifact: dict) -> list[str]:
         if len(entry["advisories"]) > 6:
             ids += f" and {len(entry['advisories']) - 6} more"
         out.append(
-            f"| `{_cell(entry['name'])}` ({_cell(entry['ecosystem'])}) | "
-            f"{_cell(entry['version'])} | {reaches} | {_cell(ids)} |"
+            f"| `{_safe_text(entry['name'])}` ({_safe_text(entry['ecosystem'])}) | "
+            f"{_safe_text(entry['version'])} | {reaches} | {_safe_text(ids)} |"
         )
     out.append("")
     out += _unverifiable_lines(transitive)
@@ -376,8 +383,8 @@ def _unverifiable_lines(transitive: dict) -> list[str]:
     ]
     for entry in entries[:10]:
         out.append(
-            f"- `{_cell(entry['name'])}` {_cell(entry['version'])} "
-            f"({_cell(entry['ecosystem'])}) — {_cell(entry['reason'])}"
+            f"- `{_safe_text(entry['name'])}` {_safe_text(entry['version'])} "
+            f"({_safe_text(entry['ecosystem'])}) — {_safe_text(entry['reason'])}"
         )
     if len(entries) > 10:
         out.append(f"- and {len(entries) - 10} more, listed in the artifact")
@@ -429,8 +436,8 @@ def production_section(artifact: dict) -> list[str]:
             LABELS.get(c, c) for c in dep["flagged"] if c != "advisories" and c not in UPSTREAM_ONLY
         ]
         out.append(
-            f"| `{_cell(dep['name'])}` | {_cell(_version_label(dep))} | {_cell(verdict)} "
-            f"| {_cell(', '.join(others) or '—')} |"
+            f"| `{_safe_text(dep['name'])}` | {_safe_text(_version_label(dep))} | {_safe_text(verdict)} "
+            f"| {_safe_text(', '.join(others) or '—')} |"
         )
     out.append("")
     return out
@@ -451,11 +458,11 @@ def unassessable_section(artifact: dict) -> list[str]:
     for criterion, reasons in sorted(grouped.items()):
         out += [f"**{LABELS.get(criterion, criterion)}**", ""]
         for reason, names in sorted(reasons.items(), key=lambda kv: -len(kv[1])):
-            sample = ", ".join(f"`{_cell(n)}`" for n in sorted(names)[:6])
+            sample = ", ".join(f"`{_safe_text(n)}`" for n in sorted(names)[:6])
             more = f" and {len(names) - 6} more" if len(names) > 6 else ""
             out.append(
                 f"- {plural(len(names), 'dependency', 'dependencies')} — "
-                f"{_cell(reason)}: {sample}{more}"
+                f"{_safe_text(reason)}: {sample}{more}"
             )
         out.append("")
     return out
@@ -592,12 +599,13 @@ def header(artifact: dict) -> list[str]:
     total = artifact["coverage"]["total_dependencies"]
     ecosystems = ", ".join(f"{eco} {n}" for eco, n in artifact["ecosystems"].items())
     subject = scan.get("subject") or Path(artifact["target"]).name or "unnamed project"
-    lines = [f"# Supply Chain Risk Report — `{subject}`", ""]
-    lines.append(f"**Scanned:** `{scan.get('path', artifact['target'])}`  ")
+    lines = [f"# Supply Chain Risk Report — `{_safe_text(subject)}`", ""]
+    lines.append(f"**Scanned:** `{_safe_text(scan.get('path', artifact['target']))}`  ")
     if scan.get("commit"):
-        lines.append(f"**Commit:** `{scan['commit']}`  ")
+        lines.append(f"**Commit:** `{_safe_text(scan['commit'])}`  ")
     if scan.get("manifests"):
-        lines.append(f"**Manifests read:** {', '.join(f'`{m}`' for m in scan['manifests'])}  ")
+        joined = ", ".join(f"`{_safe_text(m)}`" for m in scan["manifests"])
+        lines.append(f"**Manifests read:** {joined}  ")
     if scan.get("scanned_at"):
         lines.append(f"**Scanned at:** {scan['scanned_at']}  ")
     lines += [f"**Direct dependencies:** {total} ({ecosystems})", ""]
@@ -694,7 +702,7 @@ def render(artifact: dict) -> str:
     ]
     lines += unassessable_section(artifact)
     lines += ["## Method and caveats", ""]
-    lines += [f"- {note}" for note in artifact["notes"]]
+    lines += [f"- {_safe_text(note)}" for note in artifact["notes"]]
     lines.append("")
     text = "\n".join(lines)
     check_flags_reconcile(artifact, text)
