@@ -179,8 +179,14 @@ jobs:
           #
           # The second guard covers execution rather than discovery. `node <file>`
           # exits 0 on a file that asserted nothing — the shape the Python job's
-          # comment above describes — so each suite must print a
-          # `<n> assertions passed` line with n > 0 to count as having run.
+          # comment above describes — so each suite must report at least one
+          # passing assertion. Two formats count, because the repo has two kinds
+          # of suite and a guard that only knew one would fail an honest suite for
+          # using the other convention:
+          #   `<mark> pass <n>`        node:test (semgrep-rule-variant-creator)
+          #   `<n> assertions passed`  hand-rolled (git-cleanup)
+          # The mark is multi-byte, so the pattern must not anchor on `^.` — that
+          # matches a single byte in the C locale and would reject an honest suite.
           set -uo pipefail
           mapfile -d '' suites < <(find plugins -type f -name '*.test.mjs' -print0)
           if [ "${#suites[@]}" -eq 0 ]; then
@@ -192,7 +198,7 @@ jobs:
             echo "::group::$s"
             if out=$(node "$s" 2>&1); then :; else failed=1; fi
             echo "$out"
-            if ! grep -qE '^[1-9][0-9]* assertions passed$' <<<"$out"; then
+            if ! grep -qE '(^[1-9][0-9]* assertions passed$|^[^0-9]*[[:space:]]pass [1-9][0-9]*$)' <<<"$out"; then
               echo "ERROR: $s reported no passing assertions — it ran nothing"
               failed=1
             fi
