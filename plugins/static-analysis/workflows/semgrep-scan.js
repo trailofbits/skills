@@ -17,11 +17,16 @@ export const meta = {
 
 // args = { target, out, mode, jobs, skill }, all optional. Prose is parsed too (`target: /x;
 // mode: run-all`), since a caller passing a string would otherwise kill the run on the first line.
+const ARGS_HELP =
+  'Pass a JSON object like {"target": "/abs/path", "mode": "run-all"}, a bare path, or ' +
+  '`target: /abs/path; mode: run-all`.'
+
 const parseArgs = (raw) => {
   if (!raw) return {}
   if (typeof raw === 'object') return raw
   if (typeof raw !== 'string') return {}
   const text = raw.trim()
+  if (!text) return {}
   if (text.startsWith('{')) {
     try {
       return JSON.parse(text)
@@ -41,7 +46,19 @@ const parseArgs = (raw) => {
       out[key] = `${out[key]} ${part.trim()}`.trim()
     }
   }
-  return out
+  if (Object.keys(out).length) return out
+
+  // Nothing matched a key. `/static-analysis:semgrep-scan ~/proj` is the other shape a caller
+  // reaches for, and the regex above cannot see it: a path opens with / ~ or . rather than a
+  // word character and a colon. That fell through as {}, leaving targetHint empty, and the run
+  // scanned cwd instead — a complete, clean-looking report over a tree nobody asked about,
+  // which is worse than not running. A leading { is excluded so malformed JSON lands on the
+  // throw below rather than becoming a target named after its own opening brace.
+  const bare = !text.startsWith('{') && (/^[/~.]/.test(text) || !/\s/.test(text))
+  if (bare) return { target: text }
+  // Not a path and not a key: pair. Defaulting to cwd here is the same silent wrong-target
+  // scan, so this is the one place the parser refuses rather than guesses.
+  throw new Error(`could not parse args: ${JSON.stringify(raw)}. ${ARGS_HELP}`)
 }
 
 const input = parseArgs(args)

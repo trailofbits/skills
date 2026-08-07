@@ -101,6 +101,30 @@ const SCENARIOS = {
     return [[out && out.mode === "important-only", "a prose args string must still set the mode"]];
   },
 
+  // A bare path carries no `key:` for the prose parser to find, and it is the natural way to
+  // invoke this. Parsing it to {} left the target empty and the run scanned cwd, reporting a
+  // full result set for a tree the caller never named.
+  "a bare path is taken as the target rather than falling back to cwd": async (src) => {
+    const plain = await run(src, { args: "/some/other/proj" });
+    const spaced = await run(src, { args: "/Users/me/My Project" });
+    const relative = await run(src, { args: "~/code/app" });
+    return [
+      [/Target: \/some\/other\/proj/.test(plain.prompts.detect), "a bare path must become the target"],
+      [!/current working directory/.test(plain.prompts.detect), "cwd must not be the target when a path was given"],
+      [/Target: \/Users\/me\/My Project/.test(spaced.prompts.detect), "a path containing a space must survive"],
+      [/Target: ~\/code\/app/.test(relative.prompts.detect), "a ~ path must become the target"],
+    ];
+  },
+
+  "an args string that names no path stops the run rather than scanning cwd": async (src) => {
+    const prose = await throws(src, { args: "please scan the repo for bugs" });
+    const brokenJson = await throws(src, { args: '{"target": "/proj"' });
+    return [
+      [prose && /could not parse args/.test(prose), "prose that names no path must throw"],
+      [brokenJson && /could not parse args/.test(brokenJson), "malformed JSON must throw, not become a target"],
+    ];
+  },
+
   "an unknown mode is rejected before any agent runs": async (src) => {
     const msg = await throws(src, { args: { mode: "everything" } });
     return [[msg && /mode must be one of/.test(msg), "an unknown mode must throw"]];
@@ -268,6 +292,8 @@ const MUTATIONS = [
   ["hardcode the skill directory back to a repo-relative path", (s) => s.replace(/^const SKILL_DIR = .*$/m, "const SKILL_DIR = 'plugins/static-analysis/skills/semgrep'")],
   ["accept an unresolved skill directory", (s) => s.replace("if (!SKILL_DIR || !SKILL_DIR.startsWith('/')) {", "if (false) {")],
   ["drop --important from the important-only merge", (s) => s.replace("mode === 'important-only' ? ' --important' : ''", "''")],
+  ["ignore a bare path and scan cwd", (s) => s.replace("if (bare) return { target: text }", "if (false) return { target: text }")],
+  ["accept unparseable args instead of refusing", (s) => s.replace("  throw new Error(`could not parse args", "  return {}\n  throw new Error(`could not parse args")],
 ];
 
 (async () => {

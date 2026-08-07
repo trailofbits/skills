@@ -295,6 +295,22 @@ def main() -> int:
         before = sum(len(run.get("results", [])) for run in merged.get("runs", []))
         kept, dropped = filter_to_keys(merged, keys)
         print(f"important-only: kept {kept} of {before} merged findings, dropped {dropped}")
+        # Unreachable while the two formats agree: every key came from the *-important.json
+        # sibling of a SARIF in this merge, so at least one must match something. Reaching it
+        # means sarif_key and json_key are no longer reading one identity out of two shapes —
+        # semgrep changed an output format — and every finding was dropped for that reason
+        # rather than by the filter. Writing anyway ships an empty results.sarif that reads as
+        # a clean important-only run, which is the failure this whole flag exists to prevent.
+        # Guarded on keys: a filter that legitimately kept nothing is a real zero, not drift.
+        if keys and before and not kept:
+            print(
+                f"Error: the post-filter kept {len(keys)} findings and the merge read {before}, "
+                "but none of them matched. The JSON and SARIF records of a finding no longer "
+                "reduce to the same (rule, file, line), so refusing to write a zero-finding "
+                f"{output_file}. Compare a raw *.json against its *.sarif in {raw_dir}.",
+                file=sys.stderr,
+            )
+            return 1
 
     result_count = sum(len(run.get("results", [])) for run in merged.get("runs", []))
     print(f"Merged SARIF contains {result_count} findings")

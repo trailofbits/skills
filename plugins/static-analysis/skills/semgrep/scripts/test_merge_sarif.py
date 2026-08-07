@@ -18,6 +18,7 @@ findings from the primary deliverable and nothing downstream could notice.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -89,10 +90,89 @@ def count(sarif_file: Path) -> int:
 
 
 def test_key_contract():
-    """Captured from real semgrep output over one file: the two shapes carry one identity."""
+    """The shapes this script expects, pinned.
+
+    Both halves are built by this file from one literal path, so this fixes the field names
+    `sarif_key` and `json_key` read and nothing more. It cannot notice semgrep changing either
+    output — test_key_contract_against_real_semgrep below is the one that can.
+    """
     from_json = json_result(RULE, "src/app.py", 5)
     from_sarif = sarif_result(RULE, "src/app.py", 5)
     assert json_key(from_json) == sarif_key(from_sarif) == (RULE, "src/app.py", 5)
+
+
+MD5_RULE = """\
+rules:
+  - id: insecure-md5
+    pattern: hashlib.md5(...)
+    message: md5 is insecure
+    languages: [python]
+    severity: WARNING
+"""
+
+
+def semgrep_bin() -> str:
+    """Fail rather than skip, the same reason run_workflow_tests.sh fails without node.
+
+    A skip here reads as a clean run while the only check that could catch cross-format drift
+    silently did not execute. semgrep is this plugin's own dependency and CI installs it.
+    """
+    found = shutil.which("semgrep")
+    if not found:
+        raise AssertionError(
+            "semgrep is not installed, so the JSON/SARIF contract went unverified. "
+            "Install it (pip install semgrep) — this suite must not pass without it."
+        )
+    return found
+
+
+@pytest.mark.parametrize("absolute", [True, False])
+def test_key_contract_against_real_semgrep(tmp_path, absolute):
+    """The contract read out of semgrep itself, over one real finding.
+
+    --important rests entirely on the claim that (check_id, path, start.line) in the JSON is
+    (ruleId, uri, region.startLine) in the SARIF. Only this test can see that claim break: if
+    semgrep changes either shape, the keys stop matching, every finding is dropped and the
+    deliverable goes empty. run-scans.sh always passes an absolute target; the relative case is
+    parametrized because a path shape is exactly where the two formats would diverge first.
+    """
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "app.py").write_text(
+        "import hashlib\ndef f(x):\n    return hashlib.md5(x).hexdigest()\n"
+    )
+    rule = tmp_path / "md5.yaml"
+    rule.write_text(MD5_RULE)
+    json_out = tmp_path / "out.json"
+    sarif_out = tmp_path / "out.sarif"
+
+    proc = subprocess.run(
+        [
+            semgrep_bin(),
+            "--metrics=off",
+            "--config",
+            str(rule),
+            "--json",
+            "-o",
+            str(json_out),
+            f"--sarif-output={sarif_out}",
+            str(src) if absolute else "src",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert json_out.is_file(), f"semgrep wrote no JSON: {proc.stderr}"
+    assert sarif_out.is_file(), f"semgrep wrote no SARIF: {proc.stderr}"
+
+    json_results = json.loads(json_out.read_text())["results"]
+    sarif_results = json.loads(sarif_out.read_text())["runs"][0]["results"]
+    assert len(json_results) == 1, f"expected one JSON finding, got {len(json_results)}"
+    assert len(sarif_results) == 1, f"expected one SARIF finding, got {len(sarif_results)}"
+
+    # The whole contract in one line. A mismatch here is the empty-deliverable bug, found at
+    # its source rather than as a zero-finding results.sarif nobody can explain.
+    assert json_key(json_results[0]) == sarif_key(sarif_results[0])
 
 
 def test_keys_differ_on_line():
@@ -206,6 +286,58 @@ def test_important_without_a_post_filter_fails_and_writes_nothing(tmp_path):
     assert proc.returncode == 1
     assert "post-filtered JSON" in proc.stderr
     assert not out.exists()
+
+
+def test_a_total_key_mismatch_fails_the_merge(tmp_path):
+    """Cross-format drift, forced: the filter kept a finding no merged result matches.
+
+    Without the guard this writes a zero-finding results.sarif and exits 0, so important-only
+    reports a clean run that found nothing while the JSON side has findings.
+    """
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    write_scan(
+        raw,
+        "python-python",
+        [sarif_result(RULE, "src/app.py", 5)],
+        [json_result(RULE, "/abs/proj/src/app.py", 5)],
+    )
+    out = tmp_path / "results" / "results.sarif"
+    proc = run_merge(raw, out, "--important")
+    assert proc.returncode == 1, proc.stdout
+    assert "none of them matched" in proc.stderr
+    assert not out.exists()
+
+
+def test_a_filter_that_kept_nothing_is_not_a_mismatch(tmp_path):
+    """The guard is conditioned on the key set, not on the kept count.
+
+    A post-filter that legitimately excluded every finding is a real zero. If this goes red,
+    important-only can no longer report an honest empty result.
+    """
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    write_scan(raw, "python-python", [sarif_result(RULE, "a.py", 5)], [])
+    out = tmp_path / "results" / "results.sarif"
+    proc = run_merge(raw, out, "--important")
+    assert proc.returncode == 0, proc.stderr
+    assert count(out) == 0
+
+
+def test_a_partial_key_mismatch_still_merges(tmp_path):
+    """One matching key is enough to prove the formats still agree; the rest is the filter."""
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    write_scan(
+        raw,
+        "python-python",
+        [sarif_result(RULE, "a.py", 5), sarif_result(OTHER, "a.py", 3)],
+        [json_result(RULE, "a.py", 5), json_result(OTHER, "/elsewhere/a.py", 3)],
+    )
+    out = tmp_path / "results" / "results.sarif"
+    proc = run_merge(raw, out, "--important")
+    assert proc.returncode == 0, proc.stderr
+    assert count(out) == 1
 
 
 def test_important_leaves_an_existing_deliverable_alone_when_it_fails(tmp_path):
