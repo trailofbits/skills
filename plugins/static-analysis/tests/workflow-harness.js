@@ -309,6 +309,7 @@ const SCENARIOS = {
       // The merge drops an unparseable SARIF and exits 0. That scan is a success in scans.json,
       // so unless the report carries the line, the shortfall has nothing pointing at it.
       [/unparseable/.test(prompts.report), "SARIF files missing from the merge must be reported"],
+      [/excludePattern/.test(prompts.report), "the pattern excluded from every scan must be reported"],
     ];
   },
 };
@@ -330,6 +331,7 @@ const MUTATIONS = [
   ["drop --scans from the merge", (s) => s.replace(/\n\s*`\s*--scans "\$\{scanned\.scansJson[\s\S]*?`,/, "")],
   ["stop reporting rulesets that covered nothing", (s) => s.replace(/\n\s*'\s*\.coveredNothing gets its own section[\s\S]*?clean audit\.',/, "")],
   ["stop reporting unparseable SARIF", (s) => s.replace(/\n\s*'6\. Read the merge command[\s\S]*?not in the merge\.',/, "")],
+  ["stop reporting the exclude pattern", (s) => s.replace(/\n\s*'7\. If \.excludePattern[\s\S]*?clean coverage\.',/, "")],
 ];
 
 (async () => {

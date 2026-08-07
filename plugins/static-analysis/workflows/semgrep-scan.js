@@ -441,6 +441,10 @@ const reported = await agent(
     '   finding count, so its findings are missing from results.sarif and nothing in scans.json',
     '   says so — the total simply comes out lower. Name those files and say their findings are',
     '   not in the merge.',
+    '',
+    '7. If .excludePattern in scans.json is non-empty, give it a line too. Every scan skipped',
+    '   that pattern, and semgrep matches it anywhere in the tree, so a target with its own',
+    '   directory of the same name lost those files as well. It reads as clean coverage.',
   ].join('\n'),
   { label: 'report', schema: REPORT_SCHEMA },
 )

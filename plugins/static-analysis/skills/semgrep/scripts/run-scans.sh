@@ -234,10 +234,17 @@ REPOS_DIR="$OUTPUT_ROOT/repos"
 # writing. --exclude takes a pattern, not a rooted path: `out` also excludes `vendor/out`, and
 # there is no anchored form, so it is announced rather than applied quietly.
 EXCLUDE_ARG=""
+EXCLUDE_PATTERN=""
 case "$OUTPUT_ROOT/" in
   "$TARGET_ROOT"/*)
     rel=${OUTPUT_ROOT#"$TARGET_ROOT"/}
     EXCLUDE_ARG="--exclude=$rel"
+    # Recorded in scans.json, not just announced here. This drops files from every scan, and an
+    # unanchored pattern drops more than the output directory: --exclude=out also skips
+    # src/out/. On stderr alone the report has nothing to show, so the gap looks like clean
+    # coverage — the same silent truncation `coveredNothing` and the unparseable list exist to
+    # prevent.
+    EXCLUDE_PATTERN="$rel"
     echo "note: output directory is inside the target; excluding '$rel' from every scan." >&2
     echo "      semgrep matches that pattern anywhere in the tree." >&2
     ;;
@@ -560,6 +567,7 @@ jq -n \
   --arg rawDir "$RAW_DIR" \
   --arg reposPath "$REPOS_DIR" \
   --arg mode "$MODE" \
+  --arg excludePattern "$EXCLUDE_PATTERN" \
   --argjson pro "$PRO_JSON" \
   --slurpfile scans "$WORK/scans.jsonl" \
   --slurpfile failed "$WORK/failed.jsonl" \
@@ -569,6 +577,7 @@ jq -n \
   --rawfile coveredNothingRaw "$COVERED_NOTHING" \
   '{
      outputDir: $outputDir, rawDir: $rawDir, reposPath: $reposPath, mode: $mode, pro: $pro,
+     excludePattern: $excludePattern,
      scans: $scans, failed: $failed,
      skipped: ($skippedRaw | split("\n") | map(select(length > 0)) | map(split("\t"))
                | map({ruleset: .[0], reason: (.[1] // "clone failed")})),

@@ -292,6 +292,7 @@ and the severity flags are all its job, not yours. It writes `$OUTPUT_DIR/scans.
 | `skipped` | Rulesets dropped before scanning, mostly repos that would not clone. **Must be shown.** |
 | `unscoped` | Languages with no `--include` globs, which ran against every file |
 | `alsoShared` | Rulesets dropped from a language because the same ruleset is already running unscoped over the whole target. Coverage is unaffected; report them so a per-ruleset accounting adds up |
+| `excludePattern` | Set when the output directory sits inside the target: the pattern passed as `--exclude` to every scan, or `""`. semgrep matches it anywhere in the tree, so `out` also drops `src/out/`. **Must be shown when non-empty.** |
 | `reposPath` | The clone directory Step 5 deletes |
 
 **A non-zero exit means no scan succeeded.** The script exits 1 when `scans` is empty, so a run
@@ -404,6 +405,12 @@ one finding flagged by two rulesets is one row in the merge and two in that sum]
 - <file> — the scan succeeded and is counted in scans.json, but its SARIF could not be parsed,
   so its findings are not in results.sarif. The total below is short by that scan's `findings`
   count from scans.json
+
+### Excluded From Every Scan:
+[omit when excludePattern is empty]
+- <excludePattern> — the output directory sits inside the target, so this pattern was excluded
+  from every scan. semgrep matches it anywhere in the tree, so any other directory with that
+  name was skipped too. Move the output directory outside the target to scan those files
 
 Results written to:
 - $OUTPUT_DIR/results/results.sarif (merged SARIF)

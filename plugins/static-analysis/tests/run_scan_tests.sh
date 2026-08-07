@@ -11,7 +11,7 @@ set -uo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
-readonly EXPECTED_ASSERTIONS=73
+readonly EXPECTED_ASSERTIONS=75
 
 command -v jq >/dev/null 2>&1 || {
   echo "run_scan_tests.sh: jq not found — required" >&2
@@ -195,6 +195,21 @@ eq "$n" "2" "--exclude must be on every command, including the cross-language on
 
 out=$(dry "$BASIC")
 lacks "$out" "--exclude" "no --exclude when the output directory is outside the target"
+
+# The pattern is unanchored, so it drops src/out/ as well as the output directory. Announced
+# only on stderr it is invisible to the report, and the missing files read as clean coverage.
+unset STUB_PATHS
+export STUB_RC=0 STUB_RESULTS=''
+rm -rf "$TARGET/out"
+PATH="$WORK/bin:$PATH" bash "$SCRIPT" --target "$TARGET" --output-dir "$TARGET/out" \
+  --mode run-all --rulesets "$BASIC" --jobs 2 >/dev/null 2>&1
+eq "$(jq -r '.excludePattern' "$TARGET/out/scans.json")" "out" \
+  "scans.json must record the pattern excluded from every scan"
+rm -rf "$TARGET/out"
+
+run_real "$BASIC" "$WORK/ex2" >/dev/null
+eq "$(jq -r '.excludePattern' "$WORK/ex2/scans.json")" "" \
+  "excludePattern must be empty when nothing was excluded"
 
 echo "→ cross-language hoisting and dedup"
 
