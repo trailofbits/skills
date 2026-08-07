@@ -88,9 +88,9 @@ def test_the_invocation_block_propagates_failure(name: str) -> None:
 def test_the_documented_template_matches_what_the_script_writes(name: str, tmp_path: Path) -> None:
     """The yaml template is a copy of logic that now lives in the script.
 
-    Nothing else compares them: test_suite_templates.py checks the template's shape and
-    test_suite_resolution.py resolves it against the real CLI, so a filter changed in one
-    place leaves every test green while the doc documents filters nobody runs.
+    Nothing else compares them: test_suite_templates.py checks the template's shape, so a
+    filter changed in one place leaves every test green while the doc documents filters
+    nobody runs. Neither resolves against the real CLI — that is a manual check now.
     """
     result = _run(name, tmp_path, env_extra={"CODEQL_LANG": "cpp"})
     assert result.returncode == 0, result.stderr

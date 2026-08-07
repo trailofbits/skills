@@ -86,8 +86,8 @@ Two consequences the mode name hides:
   and filters on precision. So important-only selects a few queries run-all does not —
   three for cpp, including `SuspiciousCallToMemset.ql`.
 
-Confirm on your own packs with `test_suite_resolution.py`, which resolves both templates
-against the real CLI. Re-check after a pack upgrade; these counts move.
+Re-check on your own packs after a pack upgrade; these counts move:
+`codeql resolve queries "$OUTPUT_DIR/raw/run-all.qls" --format=json | jq length`.
 
 ## How This Differs From Important-Only
 
