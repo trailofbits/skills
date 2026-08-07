@@ -25,17 +25,20 @@ re-run against SARIF. Finding identity can be matched across the two formats
 though, and that is what this flag does. Without it the merged SARIF in
 important-only mode keeps every finding the mode exists to exclude.
 
-Attempts to use SARIF Multitool for merging if available, falls back to
-pure Python implementation.
+The merge is pure Python and shells out to nothing. It used to try
+`npx @microsoft/sarif-multitool` first, which made the output depend on
+whether that package happened to be in the npx cache: the two backends do not
+agree. Only this one dedups results on (ruleId, uri, startLine), which is the
+identity --important matches against and the reason the report is told to
+count from the merged file rather than sum per-scan totals. Multitool also
+normalizes artifactLocation.uri, which would leave --important matching
+nothing and blaming a semgrep format change that never happened.
 """
 
 from __future__ import annotations
 
 import json
-import shutil
-import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 Key = tuple[str, str, int]
@@ -148,70 +151,12 @@ def filter_to_keys(merged: dict, keys: set[Key]) -> tuple[int, int]:
     return kept, dropped
 
 
-def has_sarif_multitool() -> bool:
-    """Check if SARIF Multitool is pre-installed via npx."""
-    if not shutil.which("npx"):
-        return False
-    try:
-        result = subprocess.run(
-            ["npx", "--no-install", "@microsoft/sarif-multitool", "--version"],
-            capture_output=True,
-            timeout=30,
-        )
-        return result.returncode == 0
-    except subprocess.TimeoutExpired:
-        print("Warning: SARIF Multitool version check timed out", file=sys.stderr)
-        return False
-    except FileNotFoundError:
-        return False
-    except OSError as e:
-        print(f"Warning: Failed to check SARIF Multitool: {e}", file=sys.stderr)
-        return False
-
-
-def merge_with_multitool(sarif_files: list[Path]) -> dict | None:
-    """Use SARIF Multitool to merge SARIF files. Returns merged SARIF or None."""
-    if not sarif_files:
-        return None
-
-    with tempfile.NamedTemporaryFile(suffix=".sarif", delete=False) as tmp:
-        tmp_path = Path(tmp.name)
-
-    try:
-        cmd = [
-            "npx",
-            "--no-install",
-            "@microsoft/sarif-multitool",
-            "merge",
-            *[str(f) for f in sarif_files],
-            "--output-file",
-            str(tmp_path),
-            "--force",
-        ]
-        result = subprocess.run(cmd, capture_output=True, timeout=120)
-        if result.returncode != 0:
-            print(f"SARIF Multitool merge failed: {result.stderr.decode()}", file=sys.stderr)
-            return None
-
-        return json.loads(tmp_path.read_text())
-    except subprocess.TimeoutExpired as e:
-        print(f"SARIF Multitool timed out: {e}", file=sys.stderr)
-        return None
-    except json.JSONDecodeError as e:
-        print(f"SARIF Multitool produced invalid JSON: {e}", file=sys.stderr)
-        return None
-    except FileNotFoundError as e:
-        print(f"SARIF Multitool not found: {e}", file=sys.stderr)
-        return None
-    except OSError as e:
-        print(f"SARIF Multitool OS error ({type(e).__name__}): {e}", file=sys.stderr)
-        return None
-    finally:
-        tmp_path.unlink(missing_ok=True)
-
-
 def merge_sarif_pure_python(sarif_files: list[Path]) -> dict:
-    """Pure Python SARIF merge (fallback)."""
+    """Merge every SARIF into one run, deduplicating results by sarif_key.
+
+    The dedup is what makes the merged total meaningful: one finding flagged by two
+    rulesets is one row here and two in a sum of per-scan counts.
+    """
     merged = {
         "version": "2.1.0",
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
@@ -343,17 +288,7 @@ def main() -> int:
     # Ensure output directory exists
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # Try SARIF Multitool first, fall back to pure Python
-    merged: dict | None = None
-    if has_sarif_multitool():
-        print("Using SARIF Multitool for merge...")
-        merged = merge_with_multitool(sarif_files)
-        if merged:
-            print("SARIF Multitool merge successful")
-
-    if merged is None:
-        print("Using pure Python merge (SARIF Multitool not available or failed)")
-        merged = merge_sarif_pure_python(sarif_files)
+    merged = merge_sarif_pure_python(sarif_files)
 
     if important:
         before = sum(len(run.get("results", [])) for run in merged.get("runs", []))

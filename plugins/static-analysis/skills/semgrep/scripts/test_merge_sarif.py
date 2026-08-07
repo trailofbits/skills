@@ -353,6 +353,43 @@ def test_important_leaves_an_existing_deliverable_alone_when_it_fails(tmp_path):
     assert out.read_text() == before
 
 
+# ------------------------------------------------------------------------- one merge backend
+
+
+def test_the_merge_shells_out_to_nothing(tmp_path):
+    """Run with an empty PATH, so any external merge tool is unreachable.
+
+    The merge used to try `npx @microsoft/sarif-multitool` first and fall back to Python, which
+    made the result depend on whether that package sat in the npx cache. Only the Python merge
+    dedups on sarif_key, and multitool rewrites artifactLocation.uri, so on a machine that had
+    it cached --important would match nothing and blame a semgrep format change. One backend,
+    same answer everywhere.
+    """
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    write_scan(
+        raw, "python-python", [sarif_result(RULE, "a.py", 5)], [json_result(RULE, "a.py", 5)]
+    )
+    out = tmp_path / "results.sarif"
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT), str(raw), str(out), "--important"],
+        capture_output=True,
+        text=True,
+        env={"PATH": "", "HOME": str(tmp_path)},
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert count(out) == 1
+    assert "multitool" not in proc.stdout.lower(), "no external merge tool may be consulted"
+
+    # The empty PATH above proves the merge survives without a backend, not that it stopped
+    # looking for one: a reintroduced optional branch would just fall back and pass. This is
+    # the assertion that fails if one comes back.
+    assert "import subprocess" not in SCRIPT.read_text(), (
+        "merge_sarif.py must not shell out; a second merge backend disagrees with this one "
+        "on dedup and on artifactLocation.uri, and which one runs would depend on the machine"
+    )
+
+
 # ------------------------------------------------------------------------------------ --scans
 
 
