@@ -6,9 +6,8 @@
 # Reads OUTPUT_DIR, CODEQL_LANG, and INSTALLED_THIRD_PARTY_PACKS from the environment;
 # writes $OUTPUT_DIR/raw/<mode>.qls.
 #
-# The two modes differ only in their header entries and their include filters. Everything
-# else — the guards, the third-party pack loop, the shared excludes, the verification —
-# was duplicated across two reference docs, where `make shell` could not see it.
+# The modes differ only in header entries and include filters; everything else was
+# duplicated across two reference docs, where `make shell` could not see it.
 set -euo pipefail
 
 MODE="${1:-}"
@@ -20,9 +19,8 @@ case "$MODE" in
     ;;
 esac
 
-# Check CODEQL_LANG before the first heredoc. Unset, ${CODEQL_LANG} expands to nothing and
-# the suite names the pack `codeql/-queries`, which does not exist — and by then the file
-# is on disk for a later step to pick up.
+# Before the first heredoc: unset, ${CODEQL_LANG} names the pack `codeql/-queries`, and the
+# broken suite is on disk for a later step to pick up.
 : "${CODEQL_LANG:?ERROR: CODEQL_LANG must be set before generating the suite}"
 : "${OUTPUT_DIR:?ERROR: OUTPUT_DIR must be set}"
 INSTALLED_THIRD_PARTY_PACKS="${INSTALLED_THIRD_PARTY_PACKS:-}"
@@ -100,12 +98,11 @@ cat >>"$SUITE_FILE" <<'SHARED_FILTERS'
       - modelgenerator
 SHARED_FILTERS
 
-# Fails on zero resolved queries, on a CodeQL error, and on malformed output. Not
+# Fails on zero resolved queries, a CodeQL error, or malformed output. Not
 # `codeql resolve queries | wc -l`, which reports wc's status whatever CodeQL did.
 #
-# Delete the suite if it does not verify. Left on disk it is indistinguishable from a good
-# one, and run-analysis Step 4 derives the same path — so a later step picks up the file
-# that just failed verification and skips re-checking it, believing this script already did.
+# Delete an unverified suite: left on disk it is indistinguishable from a good one, and
+# run-analysis Step 4 derives the same path and would pick it up.
 if ! uv run "$SCRIPT_DIR/verify_query_suite.py" "$SUITE_FILE"; then
   rm -f "$SUITE_FILE"
   echo "Removed $SUITE_FILE: it did not resolve to any queries." >&2

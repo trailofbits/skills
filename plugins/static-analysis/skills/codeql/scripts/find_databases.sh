@@ -3,14 +3,11 @@
 #
 #   find_databases.sh [root ...]      # defaults to "$OUTPUT_DIR" then "."
 #
-# Each markdown block runs in a fresh shell, so a bash array built by a discovery loop in
-# one block is gone by the time another block reads it — `${#FOUND_DBS[@]}` comes back
-# empty and the run concludes there is no database. Callers run this and build their own
-# array from the output, in their own block.
+# Callers build their own array from this output, in their own block: an array does not
+# survive into a later Bash call, and an empty one reads as "no database".
 #
-# `codeql resolve database` is the filter that matters: `codeql database create` writes
-# the codeql-database.yml marker before the build finishes, so a failed build leaves one
-# behind and a bare `find` reports it as a database.
+# `codeql resolve database` is the filter that matters. The codeql-database.yml marker is
+# written before the build finishes, so a failed build leaves one a bare `find` would take.
 set -uo pipefail
 
 if [ "$#" -eq 0 ]; then
@@ -20,10 +17,8 @@ fi
 seen=""
 for root in "$@"; do
   [ -d "$root" ] || continue
-  # Resolve to an absolute physical path first. Callers pass "$OUTPUT_DIR" and ".", and
-  # $OUTPUT_DIR is usually inside "." — searched as written, the same database surfaces
-  # once as /abs/out/codeql.db and once as ./out/codeql.db, defeating the dedup below and
-  # offering the user the same database twice.
+  # Absolute physical path first: $OUTPUT_DIR is usually inside ".", so searched as written
+  # one database surfaces twice under two spellings and defeats the dedup below.
   root=$(cd "$root" 2>/dev/null && pwd -P) || continue
   while IFS= read -r marker; do
     db=$(dirname "$marker")
