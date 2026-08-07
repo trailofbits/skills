@@ -1,10 +1,10 @@
 # Run-All Query Suite
 
-In run-all mode, generate a custom `.qls` query suite file at runtime. This ensures all queries from all installed packs actually execute, avoiding the silent filtering caused by each pack's `defaultSuiteFile`.
+In run-all mode, generate a custom `.qls` query suite file at runtime. It runs the `security-and-quality` and `security-experimental` suites of every installed pack, which is a much wider selection than the code-scanning default each pack would otherwise apply — but it is not every query in those packs. See [What "run all" does and does not cover](#what-run-all-does-and-does-not-cover) before reporting coverage to anyone.
 
 ## Why a Custom Suite
 
-When you pass a pack name directly to `codeql database analyze` (e.g., `-- codeql/cpp-queries`), CodeQL uses the pack's `defaultSuiteFile` field from `qlpack.yml`. For official packs, this is typically `codeql-suites/<lang>-code-scanning.qls`, which applies strict precision and severity filters. This silently drops many queries and can produce zero results for small codebases.
+When you pass a pack name directly to `codeql database analyze` (e.g., `-- codeql/cpp-queries`), CodeQL uses the pack's `defaultSuiteFile` field from `qlpack.yml`. For official packs, this is typically `codeql-suites/<lang>-code-scanning.qls`, which applies strict precision and severity filters. This drops many queries and can produce zero results for small codebases.
 
 The run-all suite explicitly imports both `security-and-quality` and `security-experimental` from official packs, plus third-party packs with minimal filtering.
 

@@ -9,7 +9,7 @@ them: a second hand-written pipeline drifts from the script and logs a contradic
 which is how this file came to report 202 project files where the script said 2.
 
 ```bash
-. "{baseDir}/scripts/build_log.sh"
+. "{baseDir}/scripts/build_log.sh" || exit 1
 
 log_step "Assessing database quality"
 
@@ -87,7 +87,7 @@ The log line goes inside the `if`. After it, a re-run that still fails writes "R
 threshold to 15%" as though the override took, and the block exits 0 — `log_result`'s status.
 
 ```bash
-. "{baseDir}/scripts/build_log.sh"
+. "{baseDir}/scripts/build_log.sh" || exit 1
 
 if uv run {baseDir}/scripts/check_db_quality.py "$DB_NAME" --max-error-ratio 15; then
   log_result "Raised error-ratio threshold to 15%: failures are all in third_party/, not project source"
@@ -152,7 +152,7 @@ fi
 > **Note:** These install into the *target project's* environment to improve CodeQL extraction quality.
 
 ```bash
-. "{baseDir}/scripts/build_log.sh"
+. "{baseDir}/scripts/build_log.sh" || exit 1
 
 log_step "Quality improvement: install type stubs/additional deps"
 

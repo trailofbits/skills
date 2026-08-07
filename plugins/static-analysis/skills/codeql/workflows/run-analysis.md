@@ -47,16 +47,30 @@ if [ -z "${DB_NAME:-}" ]; then
   FOUND_DBS=()
   while IFS= read -r db; do
     FOUND_DBS+=("$db")
-  done < <({baseDir}/scripts/find_databases.sh "${OUTPUT_DIR:-.}" .)
+  done < <("{baseDir}/scripts/find_databases.sh" "${OUTPUT_DIR:-.}" .)
 
   if [ "${#FOUND_DBS[@]}" -eq 0 ]; then
     echo "ERROR: No CodeQL database found in $OUTPUT_DIR or project root" >&2
     exit 1
+  elif [ "${#FOUND_DBS[@]}" -eq 1 ]; then
+    DB_NAME="${FOUND_DBS[0]}"
+  else
+    # More than one: select with AskUserQuestion, at most four options — the three most
+    # recent plus "Build a new database", the rest named in the prompt text. Skip the
+    # prompt when the user already said which database to use.
+    #
+    # DB_NAME stays unset here on purpose, and the check below turns that into an error.
+    # Falling through to FOUND_DBS[0] would analyse whichever database `find` happened to
+    # return first — a different language or a stale build, chosen without the user ever
+    # being told there was a choice. The `:` is required: an else branch of only comments
+    # is a bash syntax error.
+    :
   fi
-  # Exactly one: use it. More than one: select with AskUserQuestion, at most four options
-  # — the three most recent plus "Build a new database", the rest named in the prompt
-  # text. Skip the prompt when the user already said which database to use.
-  DB_NAME="${FOUND_DBS[0]}"
+fi
+
+if [ -z "${DB_NAME:-}" ]; then
+  echo "ERROR: more than one database found. Ask which one, then re-run this block with DB_NAME set." >&2
+  exit 1
 fi
 
 CODEQL_LANG=$(codeql resolve database --format=json -- "$DB_NAME" | jq -r '.languages[0]')
@@ -196,8 +210,13 @@ Output goes to `$RAW_DIR/results.sarif` (unfiltered). The final results are prod
 
 Build the optional flags as **arrays**, not strings. A quoted empty string becomes an
 empty argument that CodeQL rejects, and leaving a string unquoted so it can be empty also
-lets `$DB_NAME` split on spaces. `"${ARRAY[@]}"` expands to nothing when empty and to
-each element intact otherwise.
+lets `$DB_NAME` split on spaces. An array expands to nothing when empty and to each
+element intact otherwise.
+
+Expand them as `"${ARRAY[@]+"${ARRAY[@]}"}"`, not `"${ARRAY[@]}"`. Before bash 4.4 an
+empty array under `set -u` is an unbound variable, so on macOS's `/bin/bash` 3.2 the plain
+form aborts with `THREAT_MODEL_FLAGS[@]: unbound variable` before CodeQL runs — for the
+documented default, a user who selected no threat models and no model packs.
 
 **Declare the three arrays and the scalars in this block, filled in with the choices from
 Step 3.** Nothing survives from Step 3 — see
@@ -221,9 +240,9 @@ codeql database analyze "$DB_NAME" \
   --format=sarif-latest \
   --output="$RAW_DIR/results.sarif" \
   --threads=0 \
-  "${THREAT_MODEL_FLAGS[@]}" \
-  "${MODEL_PACK_FLAGS[@]}" \
-  "${ADDITIONAL_PACK_FLAGS[@]}" \
+  ${THREAT_MODEL_FLAGS[@]+"${THREAT_MODEL_FLAGS[@]}"} \
+  ${MODEL_PACK_FLAGS[@]+"${MODEL_PACK_FLAGS[@]}"} \
+  ${ADDITIONAL_PACK_FLAGS[@]+"${ADDITIONAL_PACK_FLAGS[@]}"} \
   -- "$SUITE_FILE"
 ```
 

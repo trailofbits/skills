@@ -7,7 +7,7 @@ Methods for building CodeQL databases on macOS Apple Silicon when the `arm64e`/`
 The strategy is to use Homebrew-installed tools (plain `arm64`, not `arm64e`) so `libtrace.dylib` can be injected successfully. Try sub-methods in order:
 
 > These blocks use `run_logged`, `log_step`, and `log_result`. Source them first:
-> `. "{baseDir}/scripts/build_log.sh"`. The sub-methods below branch on exit code 137, so
+> `. "{baseDir}/scripts/build_log.sh" || exit 1`. The sub-methods below branch on exit code 137, so
 > they need the command's real status rather than tee's.
 
 ## Sub-method 2m-a: Homebrew clang/gcc with multi-step tracing
@@ -102,7 +102,7 @@ fi
 Force the entire CodeQL pipeline to run under Rosetta, which uses the `x86_64` slice of both `libtrace.dylib` and system tools — no `arm64e` mismatch.
 
 ```bash
-. "{baseDir}/scripts/build_log.sh"
+. "{baseDir}/scripts/build_log.sh" || exit 1
 
 log_step "METHOD 2m-b: macOS arm64 — Rosetta x86_64 emulation"
 
@@ -134,7 +134,7 @@ As a verification step, try the standard autobuild with the system compiler. Thi
 > here: without `pipefail` the value is always 0 and 137 is never seen.
 
 ```bash
-. "{baseDir}/scripts/build_log.sh"
+. "{baseDir}/scripts/build_log.sh" || exit 1
 
 log_step "METHOD 2m-c: System compiler (expected to fail on arm64e)"
 

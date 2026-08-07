@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Logging helpers shared by the build-database workflow and its reference docs.
-# Source it: . "{baseDir}/scripts/build_log.sh"
+# Source it: . "{baseDir}/scripts/build_log.sh" || exit 1
+#
+# The `|| exit 1` is not decoration. The guard below returns 1 without defining the helpers,
+# and the blocks that source this do not set -e, so without it the diagnostic scrolls past and
+# the next line is `log_step: command not found` — 127, which the caller reads as a failed
+# build rather than an unwritable log.
 #
 # Defaulted, so sourcing this in a standalone block is safe: an unset LOG_FILE makes
 # `tee -a ""` fail, which under pipefail reports a successful build as failed.

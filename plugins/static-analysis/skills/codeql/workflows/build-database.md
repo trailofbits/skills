@@ -43,7 +43,7 @@ reference doc that uses `run_logged`:
 
 ```bash
 DB_NAME="$OUTPUT_DIR/codeql.db"
-. "{baseDir}/scripts/build_log.sh"
+. "{baseDir}/scripts/build_log.sh" || exit 1
 log_step "CodeQL database build — $DB_NAME"
 ```
 
@@ -170,7 +170,7 @@ Detect build system and use explicit command:
 
 | Build System | Detection | Command |
 |--------------|-----------|---------|
-| Make | `Makefile` | `make clean && make -j$(nproc)` |
+| Make | `Makefile` | `make clean && make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"` |
 | CMake | `CMakeLists.txt` | `cmake -B build && cmake --build build` |
 | Gradle | `build.gradle` | `./gradlew clean build -x test` |
 | Maven | `pom.xml` | `mvn clean compile -DskipTests` |

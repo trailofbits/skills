@@ -10,6 +10,15 @@
 # written before the build finishes, so a failed build leaves one a bare `find` would take.
 set -uo pipefail
 
+# Without codeql the filter below rejects everything, and the script exits 0 having printed
+# nothing — indistinguishable from a project with no databases. SKILL.md's auto-detection
+# routes that to "build the whole pipeline", so a machine with three good databases and no
+# codeql on this shell's PATH rebuilds instead of being told what is actually wrong.
+if ! command -v codeql >/dev/null 2>&1; then
+  echo "ERROR: codeql not found on PATH — cannot tell a database from the marker a failed build leaves." >&2
+  exit 2
+fi
+
 if [ "$#" -eq 0 ]; then
   set -- "${OUTPUT_DIR:-.}" "."
 fi

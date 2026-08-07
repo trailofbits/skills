@@ -65,7 +65,7 @@ if [ -z "$DB_NAME" ]; then
   FOUND_DBS=()
   while IFS= read -r db; do
     FOUND_DBS+=("$db")
-  done < <({baseDir}/scripts/find_databases.sh "${OUTPUT_DIR:-.}" .)
+  done < <("{baseDir}/scripts/find_databases.sh" "${OUTPUT_DIR:-.}" .)
 
   if [ ${#FOUND_DBS[@]} -eq 0 ]; then
     echo "ERROR: No CodeQL database found in $OUTPUT_DIR"; exit 1

@@ -27,7 +27,7 @@ log_result "Cleaned: $CLEANED"
 
 > **Note:** The commands below install the *target project's* dependencies so CodeQL can trace the build. Use whatever package manager the target project expects (`pip`, `npm`, `go mod`, etc.) — these are not the skill's own tooling preferences.
 
-Uses `run_logged`. Source it first: `. "{baseDir}/scripts/build_log.sh"`.
+Uses `run_logged`. Source it first: `. "{baseDir}/scripts/build_log.sh" || exit 1`.
 
 ```bash
 log_step "Applying fix: install dependencies"

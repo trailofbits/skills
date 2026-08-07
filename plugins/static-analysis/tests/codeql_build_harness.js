@@ -25,8 +25,12 @@ function compile(src) {
   return new Function("agent", "parallel", "phase", "log", "args", `return (async () => {\n${body}\n})()`);
 }
 
+// An installed plugin, deliberately: the path the workflow used to hardcode was relative to a
+// checkout of the marketplace repo, so a stub using that path would agree with the bug.
+const SKILL_DIR = "/home/u/.claude/plugins/cache/trailofbits/static-analysis/skills/codeql";
 const DETECT = {
   ok: true,
+  skillDir: SKILL_DIR,
   lang: "cpp",
   target: "/proj",
   outputDir: "/proj/static_analysis_codeql_1",
@@ -159,6 +163,31 @@ const SCENARIOS = {
     ];
   },
 
+  // The skill path was hardcoded as 'plugins/static-analysis/skills/codeql', which resolves
+  // only in a checkout of this repo. Installed, every rung sourced a build_log.sh that was not
+  // there and exited 127 — four build failures for a project that builds fine.
+  "the skill directory comes from the run, not from this repo's layout": async (src) => {
+    const { prompts } = await run(src, {});
+    const build = prompts["build:1"];
+    return [
+      [!/plugins\/static-analysis\/skills\/codeql/.test(build), "no prompt may carry a repo-relative skill path"],
+      [build.includes(`${SKILL_DIR}/scripts/build_log.sh`), "the build prompt must source the helpers from the resolved directory"],
+      [build.includes(`${SKILL_DIR}/workflows/build-database.md`), "the method detail must point at the resolved directory"],
+      [prompts.assess.includes(`${SKILL_DIR}/scripts/check_db_quality.py`), "the quality gate must run from the resolved directory"],
+      [/build_log\.sh/.test(prompts.detect), "detect must validate its candidate against a marker file, not just take one"],
+    ];
+  },
+
+  "an unresolved skill directory stops the run": async (src) => {
+    const relative = await run(src, { detect: { ...DETECT, skillDir: "plugins/static-analysis/skills/codeql" } });
+    const empty = await run(src, { detect: { ...DETECT, skillDir: "" } });
+    return [
+      [relative.out && relative.out.status === "detect-failed", "a relative skillDir must stop the run"],
+      [relative.order.length === 0, "no build may be attempted with an unresolved skill directory"],
+      [empty.out && empty.out.status === "detect-failed", "an empty skillDir must stop the run"],
+    ];
+  },
+
   "the build prompt carries what a fresh shell loses": async (src) => {
     const { prompts } = await run(src, {});
     const p = prompts["build:1"];
@@ -194,7 +223,8 @@ const MUTATIONS = [
   ["try 1 and 2 on arm64e", (s) => s.replace("const rungs = isMacosArm64e ? ['2m'] : ['1', '2']", "const rungs = ['1', '2']")],
   ["accept a build that does not resolve", (s) => s.replace("const ok = Boolean(result && result.ok && result.resolved)", "const ok = Boolean(result && result.ok)")],
   ["treat a failing gate as a pass", (s) => s.replace("status: passed ? 'built' : 'built-below-threshold',", "status: 'built',")],
-  ["drop the absolute-path guard", (s) => s.replace(/for \(const \[name, value\] of \[\['target'[\s\S]*?\n\}\n/, "")],
+  ["drop the absolute-path guard", (s) => s.replace(/for \(const \[name, value\] of \[\n[\s\S]*?\n\}\n/, "")],
+  ["hardcode the skill path again", (s) => s.replace("const SKILL_DIR = String(detected.skillDir)", "const SKILL_DIR = 'plugins/static-analysis/skills/codeql'")],
   ["keep walking the ladder after a success", (s) => s.replace("    built = rung\n    break", "    built = rung")],
 ];
 

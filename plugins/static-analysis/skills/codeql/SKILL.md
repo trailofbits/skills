@@ -104,19 +104,13 @@ by the next call, and the run concludes there is no database:
 FOUND_DBS=()
 while IFS= read -r db; do
   FOUND_DBS+=("$db")
-done < <({baseDir}/scripts/find_databases.sh "${OUTPUT_DIR:-.}" .)
+done < <("{baseDir}/scripts/find_databases.sh" "${OUTPUT_DIR:-.}" .)
 
 echo "Found ${#FOUND_DBS[@]} existing database(s)"
-```
 
-Never assume a database is named `codeql.db` — discover it by its marker file.
-
-**When multiple databases are found:**
-
-For each discovered database, collect metadata to help the user choose:
-
-```bash
-# For each database, extract language and creation time
+# The metadata the selection prompt needs, collected here rather than in a block of its
+# own: FOUND_DBS is gone by the next Bash call, and a loop over an array that no longer
+# exists prints nothing and reports success.
 for db in "${FOUND_DBS[@]}"; do
   CODEQL_LANG=$(codeql resolve database --format=json -- "$db" 2>/dev/null | jq -r '.languages[0]')
   CREATED=$(grep '^creationMetadata:' -A5 "$db/codeql-database.yml" 2>/dev/null | grep 'creationTime' | awk '{print $2}')
@@ -124,7 +118,9 @@ for db in "${FOUND_DBS[@]}"; do
 done
 ```
 
-Then use `AskUserQuestion` to let the user select which database to use, or to build a new one. `AskUserQuestion` takes at most four options, so with more databases than that, offer the three most recent plus "Build a new database" and list the rest in the prompt text. **Skip `AskUserQuestion` if the user explicitly stated which database to use or to build a new one in their prompt.**
+Never assume a database is named `codeql.db` — discover it by its marker file.
+
+**When multiple databases are found:** use `AskUserQuestion` to let the user select which database to use, or to build a new one, from the language and creation time printed above. `AskUserQuestion` takes at most four options, so with more databases than that, offer the three most recent plus "Build a new database" and list the rest in the prompt text. **Skip `AskUserQuestion` if the user explicitly stated which database to use or to build a new one in their prompt.**
 
 ## Quick Start
 
@@ -255,6 +251,8 @@ extensions, run analysis — naming any databases found and the resolved `$OUTPU
 | [scripts/verify_query_suite.py](scripts/verify_query_suite.py) | Fails a suite that resolves to zero queries. The generation scripts run it; invoke by hand only for a reused or hand-edited suite |
 | [scripts/check_db_quality.py](scripts/check_db_quality.py) | Fails a database with no analysable source. Run after every build |
 | [scripts/build_log.sh](scripts/build_log.sh) | `log_step`/`run_logged` helpers; source before any build step |
+| [scripts/find_databases.sh](scripts/find_databases.sh) | Prints every database that `codeql resolve database` accepts, one per line. Build your array from it in the block that reads it |
+| [scripts/generate_suite.sh](scripts/generate_suite.sh) | Writes the run-all or important-only `.qls` and verifies it resolves to a non-zero query count |
 | **References** — the three workflows are listed under [Workflow Selection](#workflow-selection) | |
 | [references/macos-arm64e-workaround.md](references/macos-arm64e-workaround.md) | Apple Silicon build tracing workarounds |
 | [references/build-fixes.md](references/build-fixes.md) | Build failure fix catalog |

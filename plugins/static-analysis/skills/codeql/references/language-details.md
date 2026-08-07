@@ -104,7 +104,7 @@ codeql database create "$DB_NAME" --language=cpp \
 **Build System Tips:**
 | Build System | Command |
 |--------------|---------|
-| Make | `make clean && make -j$(nproc)` |
+| Make | `make clean && make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"` |
 | CMake | `cmake -B build && cmake --build build` |
 | Meson | `meson setup build && ninja -C build` |
 | Bazel | `bazel build //...` |

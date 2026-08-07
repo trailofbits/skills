@@ -43,11 +43,15 @@ def _fake_codeql(bin_dir: Path, *, valid: list[str]) -> None:
     script.chmod(script.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def _run(tmp_path: Path, *roots: str) -> list[str]:
+def _invoke(tmp_path: Path, *roots: str) -> subprocess.CompletedProcess[str]:
     env = {"PATH": f"{tmp_path / 'bin'}:/usr/bin:/bin", "HOME": str(tmp_path)}
-    result = subprocess.run(
+    return subprocess.run(
         [str(SCRIPT), *roots], capture_output=True, text=True, cwd=tmp_path, env=env
     )
+
+
+def _run(tmp_path: Path, *roots: str) -> list[str]:
+    result = _invoke(tmp_path, *roots)
     assert result.returncode == 0, result.stderr
     return result.stdout.split()
 
@@ -92,3 +96,20 @@ def test_no_databases_prints_nothing_and_succeeds(tmp_path: Path) -> None:
     """The caller decides what an empty list means; this is not an error here."""
     _fake_codeql(tmp_path / "bin", valid=[])
     assert _run(tmp_path, ".") == []
+
+
+def test_a_missing_codeql_is_an_error_not_an_empty_list(tmp_path: Path) -> None:
+    """Otherwise "codeql is not installed" and "this project has no databases" look alike.
+
+    The filter is `codeql resolve database`, so without the binary every candidate is
+    rejected and the script prints nothing. SKILL.md's auto-detection table sends an empty
+    result to "run the full pipeline", so the user gets a rebuild attempt rather than the
+    one line that would have told them what to fix.
+    """
+    _marker(tmp_path / "good.db")
+    (tmp_path / "bin").mkdir(parents=True, exist_ok=True)  # on PATH, but holding no codeql
+
+    result = _invoke(tmp_path, ".")
+    assert result.returncode != 0, "a missing codeql must not report success"
+    assert "codeql not found" in result.stderr
+    assert result.stdout == "", "no database may be reported when none could be validated"

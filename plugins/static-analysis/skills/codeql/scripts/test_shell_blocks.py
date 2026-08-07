@@ -302,9 +302,8 @@ def test_arrays_are_expanded_with_subscript() -> None:
     database, contradicting three other sections of the same file.
 
     Keyed on assignment rather than a name list, so a new array is covered on the day it
-    is written. Names are collected across every block and checked against every block:
-    SKILL.md assigns FOUND_DBS=() in the discovery block and loops over it in a later
-    one, so neither half of the pairing can be found by looking at a block alone.
+    is written. Names are collected across every block and checked against every block, so
+    a bad expansion is caught wherever it sits relative to the assignment.
     """
     offenders = []
     for path, line, source in ALL_BLOCKS:
@@ -322,6 +321,64 @@ def test_arrays_are_expanded_with_subscript() -> None:
         "an array is expanded without a subscript, which yields only its first element. "
         'Use "${NAME[@]}":\n  ' + "\n  ".join(offenders)
     )
+
+
+# A subscripted read: "${NAME[@]}", ${#NAME[@]}, ${NAME[0]}. Bare $NAME is the other bug,
+# caught by the test above.
+def _subscripted_reads(source: str, name: str) -> bool:
+    return bool(re.search(rf"\$\{{#?{name}\[", source))
+
+
+def _assigns(source: str, name: str) -> bool:
+    return any((m := ARRAY_ASSIGN.match(raw)) and m.group(1) == name for raw in source.splitlines())
+
+
+def test_arrays_are_consumed_in_the_block_that_builds_them() -> None:
+    """An array does not survive into the next Bash call, so neither half works alone.
+
+    Each fenced block is its own Bash invocation. SKILL.md built FOUND_DBS in the Database
+    Discovery block and looped over it in the next one to print each database's language
+    and creation time: the loop iterated zero times and printed nothing, and the selection
+    prompt it feeds had no metadata to offer — one paragraph after the text stating the
+    rule. Nothing caught it, because both halves are correct read on their own.
+
+    Scoped to arrays because that is the case where the failure is silent: an unset array
+    expands to nothing and the loop simply does not run. An unset scalar usually surfaces
+    as a command that fails.
+    """
+    offenders = []
+    for path, line, source in ALL_BLOCKS:
+        for name in ARRAY_NAMES:
+            if _subscripted_reads(source, name) and not _assigns(source, name):
+                offenders.append(f"{_ident(path, line)}: reads ${{{name}[@]}}, never builds it")
+
+    assert not offenders, (
+        "a block reads an array it does not build. Each block is a separate Bash call, so "
+        "the array is empty there and the loop over it silently does nothing — build it in "
+        "the same block that reads it:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_the_same_block_rule_has_something_to_check() -> None:
+    """Guard the guard: with no subscripted read anywhere, the check above inspects nothing.
+
+    Also pins the detector itself, since no block in the skill violates the rule today and
+    a detector that stopped matching would look identical to a clean skill.
+    """
+    reads = [
+        (path, line, name)
+        for path, line, source in ALL_BLOCKS
+        for name in ARRAY_NAMES
+        if _subscripted_reads(source, name)
+    ]
+    assert len(reads) >= 2, (
+        f"only {len(reads)} subscripted array reads found across {len(ALL_BLOCKS)} blocks — "
+        f"the detector is broken, not the skill"
+    )
+    split = 'FOUND_DBS=()\nFOUND_DBS+=("$db")\n'
+    assert _subscripted_reads('for db in "${FOUND_DBS[@]}"; do :; done', "FOUND_DBS")
+    assert not _assigns('for db in "${FOUND_DBS[@]}"; do :; done', "FOUND_DBS")
+    assert _assigns(split, "FOUND_DBS"), "an append must not be mistaken for the declaration"
 
 
 # Bodies of `python3 -c '…'`, either quote style, on one line or many. Requiring a newline
