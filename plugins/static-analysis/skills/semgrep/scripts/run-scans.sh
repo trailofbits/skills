@@ -355,7 +355,14 @@ while [ $i -lt ${#CLONE_URLS[@]} ]; do
   fi
   # A repository that cloned but carries no rules scans nothing, and reporting it as fine would
   # show a completed scan against a ruleset that never ran.
-  if ! find "$dest" \( -name '*.yaml' -o -name '*.yml' \) -type f | head -1 | grep -q .; then
+  #
+  # -print -quit rather than `find … | head -1`: under pipefail, head exits after the first line
+  # and find dies on SIGPIPE with 141 once its output passes the pipe buffer. pipefail makes the
+  # pipeline non-zero, so a repository with enough rules to fill 64 KiB of pathnames — which is
+  # every real rule repo, trailofbits/semgrep-rules included — was recorded as carrying none.
+  # The required third-party rules then silently did not run. -quit stops at the first match
+  # with no reader to race.
+  if [ -z "$(find "$dest" \( -name '*.yaml' -o -name '*.yml' \) -type f -print -quit)" ]; then
     printf '%s\t%s\n' "$url" "cloned but contains no rule files" >>"$SKIPPED"
     continue
   fi

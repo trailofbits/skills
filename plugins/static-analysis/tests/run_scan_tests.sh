@@ -332,7 +332,18 @@ dest=${*: -1}
 case "${GIT_STUB_MODE:-fail}" in
   fail)  echo "fatal: repository not found" >&2; exit 128 ;;
   empty) mkdir -p "$dest"; exit 0 ;;
-  ok)    mkdir -p "$dest"; printf 'rules: []\n' > "$dest/rules.yaml"; exit 0 ;;
+  # Enough rule files that `find` output passes the 64 KiB pipe buffer. A single rules.yaml
+  # fits well inside it, so the old `find | head -1` pipeline never got SIGPIPE and this case
+  # passed against a repo shape no real rule repository has.
+  ok)
+    mkdir -p "$dest"
+    i=1
+    while [ "$i" -le 2000 ]; do
+      printf 'rules: []\n' >"$dest/rule-with-a-fairly-long-filename-to-fill-the-buffer-$i.yaml"
+      i=$((i + 1))
+    done
+    exit 0
+    ;;
 esac
 GITSTUB
 chmod +x "$WORK/gitbin/git"
