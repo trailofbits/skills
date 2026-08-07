@@ -309,6 +309,11 @@ for url in ${THIRD_PARTY[@]+"${THIRD_PARTY[@]}"}; do
 done
 
 if [ -z "$DRY_RUN" ]; then
+  # Cleared for the same reason each clone destination is. merge_sarif.py globs every *.sarif
+  # in here, so into a reused output directory a run that drops a ruleset still merges the
+  # previous run's output for it: results.sarif and its total then cover a ruleset this run's
+  # scans.json never mentions. Only this script's own output lives here.
+  rm -rf "$RAW_DIR"
   mkdir -p "$RAW_DIR"
   [ ${#CLONE_URLS[@]} -eq 0 ] || mkdir -p "$REPOS_DIR"
 fi

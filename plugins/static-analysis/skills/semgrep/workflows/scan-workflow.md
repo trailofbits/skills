@@ -315,11 +315,25 @@ do not need re-verifying.
 **Generate merged SARIF** using the merge script. The resolved path is in SKILL.md's "Merge command" section — use that exact path:
 
 ```bash
+# run-all
 uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif"
+
+# important-only, once the post-filter above has run over every file in raw/
+uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" --important
 ```
 
 - **Run-all mode:** The script merges all `*.sarif` files from `$OUTPUT_DIR/raw/`.
-- **Important-only mode:** Run the post-filter first (creates `*-important.json` in `raw/`), then run the merge script. Raw SARIF files are unaffected by the JSON post-filter, so the merge operates on the unfiltered SARIF. For SARIF-level filtering, apply the jq post-filter from scan-modes.md to `$OUTPUT_DIR/results/results.sarif` after merge.
+- **Important-only mode:** `--important` is not optional. The JSON post-filter does not touch the
+  SARIF files the merge reads, so without that flag `results.sarif` keeps every finding the mode
+  exists to exclude while the JSON side is correctly filtered, and the Total findings counted from
+  it is the run-all total.
+
+  Do **not** try to run the jq filter from scan-modes.md against a `.sarif` file. It reads
+  `.results[].extra.metadata`, which SARIF does not have — there is no top-level `.results` at
+  all — so it exits with `Cannot iterate over null` and, if redirected over its own input,
+  truncates the merged SARIF to nothing. `--important` matches findings across the two formats on
+  `(rule, file, line)`, the same key the merge dedups on, and fails rather than filtering if any
+  scan in `raw/` has no `*-important.json` beside it.
 
 **Verify merged SARIF is valid:**
 

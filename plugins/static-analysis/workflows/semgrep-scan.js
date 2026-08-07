@@ -15,8 +15,8 @@ export const meta = {
   ],
 }
 
-// args = { target, out, mode, jobs }, all optional. Prose is parsed too (`target: /x; mode:
-// run-all`), since a caller passing a string would otherwise kill the run on the first line.
+// args = { target, out, mode, jobs, skill }, all optional. Prose is parsed too (`target: /x;
+// mode: run-all`), since a caller passing a string would otherwise kill the run on the first line.
 const parseArgs = (raw) => {
   if (!raw) return {}
   if (typeof raw === 'object') return raw
@@ -29,7 +29,7 @@ const parseArgs = (raw) => {
       // Fall through to key: value parsing rather than dying on a malformed brace.
     }
   }
-  const KEYS = ['target', 'out', 'mode', 'jobs']
+  const KEYS = ['target', 'out', 'mode', 'jobs', 'skill']
   const out = {}
   let key = null
   for (const part of text.split(/;\s*|\n/)) {
@@ -61,14 +61,19 @@ if (jobs && !/^[1-9][0-9]*$/.test(jobs)) {
 // gated path for when the ruleset list matters.
 const targetHint = (input.target || '').trim()
 const outHint = (input.out || '').trim()
+const skillHint = (input.skill || '').trim()
 
 const DETECT_SCHEMA = {
   type: 'object',
-  required: ['target', 'outputDir', 'pro', 'languages'],
+  required: ['target', 'outputDir', 'skillDir', 'pro', 'languages'],
   additionalProperties: false,
   properties: {
     target: { type: 'string', description: 'absolute path that was scanned for languages' },
     outputDir: { type: 'string', description: 'absolute path of the created output directory' },
+    skillDir: {
+      type: 'string',
+      description: 'absolute path of the semgrep skill directory (the parent of scripts/), or "" if it could not be found',
+    },
     pro: { type: 'boolean', description: 'true only when `semgrep --pro --validate` succeeded' },
     proReason: { type: 'string', description: 'when pro is false, the last lines of stderr explaining why; else ""' },
     languages: {
@@ -140,8 +145,38 @@ const REPORT_SCHEMA = {
   },
 }
 
-// Both paths read these, so a ruleset added to rulesets.md reaches the workflow too.
-const SKILL_DIR = 'plugins/static-analysis/skills/semgrep'
+// Every later phase runs a script or reads a reference out of the semgrep skill directory, and
+// where that directory is depends on how the plugin was loaded. It cannot be a constant:
+// ${CLAUDE_PLUGIN_ROOT} is exported to hook, MCP and LSP subprocesses and substituted into
+// skill and agent content, but a workflow script is none of those. A repo-relative path only
+// resolves inside a checkout of trailofbits/skills, and a marketplace install — which is every
+// real user — runs with their own project as cwd.
+//
+// So it is resolved at runtime, folded into the Detect phase rather than costing its own agent
+// turn. The agent's Bash subprocess can read $CLAUDE_PLUGIN_ROOT even though this script cannot.
+// Each candidate ends at scripts/run-scans.sh rather than the skill directory, which makes a
+// stale install self-excluding: versions before that script have nothing for the search to bind
+// to, and binding to one would leave the scan phase with no command to run.
+const RESOLVE_SKILL_DIR = skillHint
+  ? [
+      `The semgrep skill directory is \`${skillHint}\`. Confirm \`${skillHint}/scripts/run-scans.sh\``,
+      'exists and report it as skillDir; report "" if it does not.',
+    ].join('\n')
+  : [
+      'Locate the semgrep skill directory. Run these in order and stop at the first that',
+      '   prints a path:',
+      '',
+      '     ls "$CLAUDE_PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh" 2>/dev/null',
+      '     ls ~/.claude/plugins/cache/*/static-analysis/*/skills/semgrep/scripts/run-scans.sh 2>/dev/null | sort -V | tail -1',
+      "     find . -maxdepth 6 -type f -path '*static-analysis/skills/semgrep/scripts/run-scans.sh' 2>/dev/null | head -1",
+      "     find \"$HOME\" -maxdepth 9 -type f -path '*static-analysis/skills/semgrep/scripts/run-scans.sh' 2>/dev/null | head -1",
+      '',
+      '   The last one takes ~15s and is the fallback for a plugin loaded with --plugin-dir from',
+      '   outside the current tree, so run it only if the first three print nothing.',
+      '',
+      '   Report the directory two levels above the matched file (the one containing scripts/) as',
+      '   skillDir. If all four print nothing, report skillDir as "" rather than guessing a path.',
+    ].join('\n')
 
 phase('Detect')
 const detected = await agent(
@@ -161,22 +196,24 @@ const detected = await agent(
         ].join('\n'),
     '   It must be an absolute path and must not be the target itself.',
     '',
-    '3. Confirm semgrep is installed (`semgrep --version`). If it is not, stop and say so —',
+    `3. ${RESOLVE_SKILL_DIR}`,
+    '',
+    '4. Confirm semgrep is installed (`semgrep --version`). If it is not, stop and say so —',
     '   there is no point profiling a codebase you cannot scan.',
     '',
-    '4. Check Pro. Keep stderr: "OSS only" has several causes (logged out, no subscription,',
+    '5. Check Pro. Keep stderr: "OSS only" has several causes (logged out, no subscription,',
     '   registry blocked) and the run downgrades silently for all of them.',
     '     if PRO_ERR=$(semgrep --pro --validate --metrics=off --config p/default 2>&1); then',
     '       echo "Pro available"; else echo "OSS only"; printf \'%s\' "$PRO_ERR" | tail -n 3; fi',
     '   --metrics=off matters here too: this is the first semgrep call of the run and it resolves',
     '   p/default against the registry, so without it an audit phones home before scanning.',
     '',
-    '5. Detect languages by counting files. Report the count that justified each category, since',
+    '6. Detect languages by counting files. Report the count that justified each category, since',
     '   a category with one file is worth knowing about before its rulesets run. Cover at least:',
     '   python, javascript, typescript, go, ruby, java, php, c, cpp, rust, docker, terraform,',
     '   kubernetes. Use lowercase category names.',
     '',
-    '6. Read the framework markers that exist — package.json, pyproject.toml, Gemfile, go.mod,',
+    '7. Read the framework markers that exist — package.json, pyproject.toml, Gemfile, go.mod,',
     '   Cargo.toml, pom.xml — and name the frameworks you find (django, flask, react, express,',
     '   nextjs, spring, …). These select extra rulesets in the next phase.',
     '',
@@ -194,6 +231,18 @@ if (outputDir.replace(/\/+$/, '') === target.replace(/\/+$/, '')) {
   throw new Error(`output directory is the scan target (${outputDir}); the run would scan its own output`)
 }
 
+// Throwing here rather than degrading. Without the skill directory the scan phase has no
+// run-scans.sh to invoke, and an agent handed the flag list and a Bash tool would compose the
+// semgrep commands by hand — dropping --metrics=off, the --include scoping and the
+// output-directory --exclude, which is the exact failure the script exists to prevent.
+const SKILL_DIR = (detected.skillDir || '').replace(/\/+$/, '')
+if (!SKILL_DIR || !SKILL_DIR.startsWith('/')) {
+  throw new Error(
+    'could not locate the semgrep skill directory, so run-scans.sh cannot be invoked and no scan ran. ' +
+      'Pass it explicitly as {"skill": "/abs/path/to/skills/semgrep"}.',
+  )
+}
+
 const langNames = (detected.languages || []).map((l) => l.name).filter(Boolean)
 log(
   `target ${target}, output ${outputDir}, ${detected.pro ? 'Pro' : 'OSS'}, ` +
@@ -201,6 +250,7 @@ log(
     `${(detected.frameworks || []).length ? ` (${detected.frameworks.join(', ')})` : ''}`,
 )
 if (!detected.pro && detected.proReason) log(`Pro unavailable: ${detected.proReason}`)
+log(`skill directory ${SKILL_DIR}`)
 
 phase('Select')
 const selected = await agent(
@@ -301,13 +351,24 @@ const reported = await agent(
           '1. Post-filter first. Apply the "Filter All Result Files in a Directory" jq filter from',
           `   ${SKILL_DIR}/references/scan-modes.md to every result JSON in ${outputDir}/raw/.`,
           '   It writes *-important.json alongside the originals and leaves them untouched.',
-          '   Then apply the same jq filter to the merged SARIF after step 2, because the JSON',
-          '   post-filter does not touch the .sarif files the merge reads.',
+          '   Every .sarif in raw/ must end up with one, because step 2 requires it.',
         ].join('\n')
       : '1. Run-all mode: no post-filter. Merge the raw output as it is.',
     '',
     '2. Merge:',
-    `     uv run ${SKILL_DIR}/scripts/merge_sarif.py "${outputDir}/raw" "${outputDir}/results/results.sarif"`,
+    `     uv run ${SKILL_DIR}/scripts/merge_sarif.py "${outputDir}/raw" "${outputDir}/results/results.sarif"${
+      mode === 'important-only' ? ' --important' : ''
+    }`,
+    ...(mode === 'important-only'
+      ? [
+          '',
+          '   --important is what applies the mode to the merged SARIF. Do not try to run the jq',
+          '   filter from step 1 against a .sarif file: that filter reads .results[].extra.metadata,',
+          '   which SARIF does not have at all, so it exits with "Cannot iterate over null" and',
+          '   leaves the deliverable unfiltered. The flag matches findings across the two formats',
+          '   on (rule, file, line) instead, and fails the merge if any scan has no filtered JSON.',
+        ]
+      : []),
     '',
     '3. Confirm the merged file is valid JSON and count the findings FROM IT:',
     `     jq '[.runs[].results[]] | length' "${outputDir}/results/results.sarif"`,

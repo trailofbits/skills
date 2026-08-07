@@ -5,11 +5,18 @@
 """Merge SARIF files into a single consolidated output.
 
 Usage:
-    uv run merge_sarif.py RAW_DIR OUTPUT_FILE
+    uv run merge_sarif.py RAW_DIR OUTPUT_FILE [--important]
 
 Reads *.sarif files from RAW_DIR (e.g., $OUTPUT_DIR/raw), produces
 OUTPUT_FILE (e.g., $OUTPUT_DIR/results/results.sarif) containing all
 findings merged and deduplicated.
+
+--important restricts the merged output to the findings that survived the
+important-only post-filter. That filter reads semgrep's JSON metadata
+(category/confidence/impact), which SARIF does not carry, so it cannot be
+re-run against SARIF. Finding identity can be matched across the two formats
+though, and that is what this flag does. Without it the merged SARIF in
+important-only mode keeps every finding the mode exists to exclude.
 
 Attempts to use SARIF Multitool for merging if available, falls back to
 pure Python implementation.
@@ -23,6 +30,94 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+Key = tuple[str, str, int]
+
+
+def sarif_key(result: dict) -> Key:
+    """Identity of one SARIF result: rule, file, line.
+
+    The same triple in semgrep's JSON is (check_id, path, start.line), verified
+    field-for-field against semgrep output. Both the merge dedup and the
+    --important filter read it from here so the two cannot drift apart. The
+    filter is only correct while its keys are the keys the merge produced.
+    """
+    locations = result.get("locations", [])
+    uri = ""
+    start_line = 0
+    if locations:
+        phys = locations[0].get("physicalLocation", {})
+        uri = phys.get("artifactLocation", {}).get("uri", "")
+        start_line = phys.get("region", {}).get("startLine", 0)
+    return (result.get("ruleId", ""), uri, start_line)
+
+
+def json_key(result: dict) -> Key:
+    """The same identity read out of a semgrep JSON result."""
+    return (
+        result.get("check_id", ""),
+        result.get("path", ""),
+        result.get("start", {}).get("line", 0),
+    )
+
+
+def surviving_keys(sarif_files: list[Path]) -> set[Key]:
+    """Keys kept by the important-only post-filter, one *-important.json per SARIF.
+
+    Derived from the SARIF files going into the merge rather than by globbing
+    *-important.json, so a post-filter that ran on only some of them is an error
+    here instead of a merged SARIF quietly missing whole rulesets.
+
+    Raises ValueError when a filter file is missing or unreadable. Filtering
+    against a partial key set drops real findings from the primary deliverable
+    and there is nothing downstream that could notice. That is stricter than
+    the merge itself, which warns and skips a SARIF file it cannot parse: an
+    unparseable SARIF contributes no findings either way, while an unparseable
+    filter file silently removes findings the SARIF does contain.
+    """
+    keys: set[Key] = set()
+    missing: list[str] = []
+    for sarif_file in sarif_files:
+        filtered = sarif_file.with_name(f"{sarif_file.stem}-important.json")
+        if not filtered.is_file():
+            missing.append(filtered.name)
+            continue
+        try:
+            data = json.loads(filtered.read_text())
+        except json.JSONDecodeError as e:
+            raise ValueError(f"{filtered} is not valid JSON: {e}") from e
+        results = data.get("results")
+        if not isinstance(results, list):
+            raise ValueError(
+                f"{filtered} has no .results array; it is not a filtered semgrep result file"
+            )
+        for result in results:
+            keys.add(json_key(result))
+
+    if missing:
+        raise ValueError(
+            f"{len(missing)} of {len(sarif_files)} scans have no post-filtered JSON "
+            f"({', '.join(sorted(missing)[:5])}"
+            f"{', ...' if len(missing) > 5 else ''}). Run the important-only post-filter "
+            "over every file in the raw directory first."
+        )
+    return keys
+
+
+def filter_to_keys(merged: dict, keys: set[Key]) -> tuple[int, int]:
+    """Keep only results whose identity survived the post-filter. Returns (kept, dropped)."""
+    kept = 0
+    dropped = 0
+    for run in merged.get("runs", []):
+        keeping = []
+        for result in run.get("results", []):
+            if sarif_key(result) in keys:
+                keeping.append(result)
+                kept += 1
+            else:
+                dropped += 1
+        run["results"] = keeping
+    return kept, dropped
 
 
 def has_sarif_multitool() -> bool:
@@ -97,7 +192,7 @@ def merge_sarif_pure_python(sarif_files: list[Path]) -> dict:
 
     seen_rules: dict[str, dict] = {}
     all_results: list[dict] = []
-    seen_results: set[tuple[str, str, int]] = set()
+    seen_results: set[Key] = set()
     tool_info: dict | None = None
     skipped_files: list[str] = []
 
@@ -120,15 +215,7 @@ def merge_sarif_pure_python(sarif_files: list[Path]) -> dict:
                     seen_rules[rule_id] = rule
 
             for result in run.get("results", []):
-                rule_id = result.get("ruleId", "")
-                uri = ""
-                start_line = 0
-                locations = result.get("locations", [])
-                if locations:
-                    phys = locations[0].get("physicalLocation", {})
-                    uri = phys.get("artifactLocation", {}).get("uri", "")
-                    start_line = phys.get("region", {}).get("startLine", 0)
-                dedup_key = (rule_id, uri, start_line)
+                dedup_key = sarif_key(result)
                 if dedup_key in seen_results:
                     continue
                 seen_results.add(dedup_key)
@@ -155,12 +242,15 @@ def merge_sarif_pure_python(sarif_files: list[Path]) -> dict:
 
 
 def main() -> int:
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} RAW_DIR OUTPUT_FILE", file=sys.stderr)
+    argv = sys.argv[1:]
+    important = "--important" in argv
+    argv = [a for a in argv if a != "--important"]
+    if len(argv) != 2:
+        print(f"Usage: {sys.argv[0]} RAW_DIR OUTPUT_FILE [--important]", file=sys.stderr)
         return 1
 
-    raw_dir = Path(sys.argv[1])
-    output_file = Path(sys.argv[2])
+    raw_dir = Path(argv[0])
+    output_file = Path(argv[1])
 
     if not raw_dir.is_dir():
         print(f"Error: {raw_dir} is not a directory", file=sys.stderr)
@@ -173,6 +263,18 @@ def main() -> int:
     if not sarif_files:
         print("No SARIF files found, nothing to merge", file=sys.stderr)
         return 1
+
+    # Resolved before the merge, not after: a post-filter that did not run is a broken run,
+    # and finding that out first costs nothing while finding it out afterwards means either
+    # a wrong results.sarif on disk or a merge thrown away.
+    keys: set[Key] = set()
+    if important:
+        try:
+            keys = surviving_keys(sarif_files)
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+        print(f"important-only: {len(keys)} findings survived the post-filter")
 
     # Ensure output directory exists
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -188,6 +290,11 @@ def main() -> int:
     if merged is None:
         print("Using pure Python merge (SARIF Multitool not available or failed)")
         merged = merge_sarif_pure_python(sarif_files)
+
+    if important:
+        before = sum(len(run.get("results", [])) for run in merged.get("runs", []))
+        kept, dropped = filter_to_keys(merged, keys)
+        print(f"important-only: kept {kept} of {before} merged findings, dropped {dropped}")
 
     result_count = sum(len(run.get("results", [])) for run in merged.get("runs", []))
     print(f"Merged SARIF contains {result_count} findings")

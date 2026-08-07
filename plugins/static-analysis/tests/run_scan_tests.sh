@@ -11,7 +11,7 @@ set -uo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
-readonly EXPECTED_ASSERTIONS=55
+readonly EXPECTED_ASSERTIONS=58
 
 command -v jq >/dev/null 2>&1 || {
   echo "run_scan_tests.sh: jq not found — required" >&2
@@ -294,6 +294,26 @@ export STUB_RC=0 STUB_WRITE=0
 rc=$(run_real "$ONE" "$WORK/o4")
 eq "$(jq '.failed | length' "$WORK/o4/scans.json")" "1" "exit 0 with no output file must be a failure, not a clean scan"
 unset STUB_WRITE
+
+echo "→ reused output directory"
+
+# merge_sarif.py globs every *.sarif in raw/ and cannot tell one run's output from another's, so
+# a ruleset dropped between two runs into the same output directory would still reach
+# results.sarif and its total, under a ruleset the current scans.json never mentions.
+export STUB_RC=0 STUB_RESULTS='{"a":1}'
+rerun() {
+  PATH="$WORK/bin:$PATH" bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/o5" \
+    --mode run-all --rulesets "$ONE" --jobs 1 >/dev/null 2>&1
+}
+rm -rf "$WORK/o5"
+rerun
+printf '{"runs":[]}' >"$WORK/o5/raw/docker-dockerfile.sarif"
+printf '{"results":[]}' >"$WORK/o5/raw/docker-dockerfile.json"
+rerun
+if [ -e "$WORK/o5/raw/docker-dockerfile.sarif" ]; then stale=present; else stale=gone; fi
+eq "$stale" "gone" "a previous run's SARIF must not survive into a rerun's raw/"
+eq "$(find "$WORK/o5/raw" -type f | wc -l | tr -d ' ')" "2" "raw/ must hold only the current run's output"
+eq "$(jq '.scans | length' "$WORK/o5/scans.json")" "1" "clearing raw/ must not break the rerun itself"
 
 echo "→ clone failures"
 

@@ -109,6 +109,19 @@ for f in "$OUTPUT_DIR/raw"/*-*.json; do
 done
 ```
 
+### The Filter Does Not Apply to SARIF
+
+Both filters above are written for semgrep's JSON shape and cannot be pointed at a `.sarif` file.
+SARIF has no top-level `.results` and no `extra.metadata` — `category`, `confidence` and `impact`
+are simply not in the format — so the filter exits with `Cannot iterate over null`, and
+redirecting it over its own input truncates the file first.
+
+The merged SARIF is filtered by `scripts/merge_sarif.py --important` instead, which keeps the
+findings these filters kept by matching `(check_id, path, start.line)` against SARIF's
+`(ruleId, uri, region.startLine)`. Run the JSON filter over every file in `raw/` first: the merge
+fails rather than filtering if any scan has no `*-important.json` beside it, since a partial key
+set would drop real findings from the primary deliverable with nothing downstream to notice.
+
 ### Scanner Command Modifications
 
 `scripts/run-scans.sh` puts these on every command it generates; they are not yours to add.

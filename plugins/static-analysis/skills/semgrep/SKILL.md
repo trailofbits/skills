@@ -186,8 +186,16 @@ selection itself matters and you want to see and edit the list first.
 **Merge command (Step 5):**
 
 ```bash
+# run-all
 uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif"
+
+# important-only, once the JSON post-filter has run over every file in raw/
+uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" --important
 ```
+
+The post-filter reads metadata SARIF does not carry, so it cannot be re-run against the merged
+file; `--important` instead keeps the findings the JSON filter kept, matched on
+`(rule, file, line)`. Without it `results.sarif` is unfiltered while the JSON side is not.
 
 ## Workflow and agents
 
@@ -244,6 +252,6 @@ read from the processes and the JSON they wrote.
 - [ ] Approved rulesets logged to `$OUTPUT_DIR/rulesets.txt`
 - [ ] Raw per-scan outputs stored in `$OUTPUT_DIR/raw/`
 - [ ] `results.sarif` exists in `$OUTPUT_DIR/results/` and is valid JSON
-- [ ] Important-only mode: post-filter applied before merge; unfiltered results preserved in `raw/`
+- [ ] Important-only mode: post-filter applied before merge, merge run with `--important`, unfiltered results preserved in `raw/`
 - [ ] Results summary reported with severity and category breakdown
 - [ ] Cloned repos (if any) cleaned up from `$OUTPUT_DIR/repos/`

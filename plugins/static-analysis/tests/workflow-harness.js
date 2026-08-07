@@ -32,9 +32,14 @@ function compile(src) {
   );
 }
 
+// An installed-plugin path on purpose. Every later phase must splice in the value the detect
+// phase resolved, and a repo-relative constant would still look right against a repo checkout.
+const SKILL_DIR = "/home/u/.claude/plugins/cache/trailofbits/static-analysis/1.3.0/skills/semgrep";
+
 const DETECT = {
   target: "/proj",
   outputDir: "/proj/static_analysis_semgrep_1",
+  skillDir: SKILL_DIR,
   pro: false,
   proReason: "",
   languages: [{ name: "python", files: 12 }],
@@ -169,6 +174,49 @@ const SCENARIOS = {
     ];
   },
 
+  // The skill directory is wherever the plugin was installed. A constant only resolves inside a
+  // checkout of this repo, so for a marketplace install every scripted command would run against
+  // a path that does not exist.
+  "the detect phase resolves the skill directory rather than assuming one": async (src) => {
+    const { prompts } = await run(src, {});
+    return [
+      [/CLAUDE_PLUGIN_ROOT/.test(prompts.detect), "the search must try $CLAUDE_PLUGIN_ROOT first"],
+      [/plugins\/cache/.test(prompts.detect), "the search must cover a marketplace install"],
+      [/run-scans\.sh/.test(prompts.detect), "the search must anchor on the script, so a stale install cannot match"],
+    ];
+  },
+
+  "the resolved skill directory is what later phases use": async (src) => {
+    const { prompts } = await run(src, {});
+    const repoRelative = /(^|[^/\w])plugins\/static-analysis\/skills\/semgrep/;
+    return [
+      [prompts.scan.includes(`${SKILL_DIR}/scripts/run-scans.sh`), "the scan must run the resolved script path"],
+      [prompts.select.includes(`${SKILL_DIR}/references/rulesets.md`), "the catalogue must be read from the resolved path"],
+      [prompts.report.includes(`${SKILL_DIR}/scripts/merge_sarif.py`), "the merge must use the resolved script path"],
+      [!repoRelative.test(prompts.scan), "no repo-relative path may survive into the scan prompt"],
+      [!repoRelative.test(prompts.select), "no repo-relative path may survive into the select prompt"],
+      [!repoRelative.test(prompts.report), "no repo-relative path may survive into the report prompt"],
+    ];
+  },
+
+  "an unresolved skill directory stops the run": async (src) => {
+    const empty = await throws(src, { detect: { ...DETECT, skillDir: "" } });
+    const relative = await throws(src, { detect: { ...DETECT, skillDir: "plugins/static-analysis/skills/semgrep" } });
+    return [
+      [empty && /skill directory/.test(empty), "a skill directory that could not be found must throw"],
+      [empty && /no scan ran/.test(empty), "the message must say no scan ran"],
+      [relative && /skill directory/.test(relative), "a relative skill directory must throw rather than reach the scan"],
+    ];
+  },
+
+  "an explicit skill argument replaces the search": async (src) => {
+    const { prompts } = await run(src, { args: { skill: "/opt/sa/skills/semgrep" } });
+    return [
+      [/\/opt\/sa\/skills\/semgrep\/scripts\/run-scans\.sh/.test(prompts.detect), "the given directory must be confirmed, not searched for"],
+      [!/CLAUDE_PLUGIN_ROOT/.test(prompts.detect), "the four-step search must be skipped when the path was given"],
+    ];
+  },
+
   "the select phase is pointed at the shared catalogue": async (src) => {
     const { prompts } = await run(src, {});
     return [
@@ -177,11 +225,25 @@ const SCENARIOS = {
     ];
   },
 
-  "important-only reaches both the scan and the merge": async (src) => {
+  // The JSON post-filter reads .results[].extra.metadata, which SARIF does not have, so the
+  // merged SARIF cannot be filtered by re-running it — results.sarif is the primary deliverable
+  // and would keep everything the mode exists to exclude while the JSON side was filtered.
+  "important-only filters the merged SARIF through the merge script": async (src) => {
     const { prompts } = await run(src, { args: { mode: "important-only" } });
+    const merge = prompts.report.split("\n").find((l) => l.includes("merge_sarif.py")) || "";
     return [
       [/--mode important-only/.test(prompts.scan), "the mode must reach the scan command"],
       [/scan-modes\.md/.test(prompts.report), "important-only must post-filter before the merge"],
+      [/--important/.test(merge), "the merge command itself must carry --important"],
+      [/Cannot iterate over null/.test(prompts.report), "the report must say why jq cannot filter the SARIF"],
+    ];
+  },
+
+  "run-all does not filter the merge": async (src) => {
+    const { prompts } = await run(src, {});
+    return [
+      [!/--important/.test(prompts.report), "--important must be absent in run-all mode"],
+      [!/scan-modes\.md/.test(prompts.report), "run-all must not post-filter"],
     ];
   },
 
@@ -203,6 +265,9 @@ const MUTATIONS = [
   ["always pass --pro", (s) => s.replace("${detected.pro ? ' \\\\\\n    --pro' : ''}", "' \\\\\\n    --pro'")],
   ["drop the mode validation", (s) => s.replace(/if \(!MODES\.has\(mode\)\) \{[\s\S]*?\n\}\n/, "")],
   ["drop the dead-detect guard", (s) => s.replace("if (!detected) throw new Error('the detect phase returned nothing; no scan ran')", "if (!detected) return {}")],
+  ["hardcode the skill directory back to a repo-relative path", (s) => s.replace(/^const SKILL_DIR = .*$/m, "const SKILL_DIR = 'plugins/static-analysis/skills/semgrep'")],
+  ["accept an unresolved skill directory", (s) => s.replace("if (!SKILL_DIR || !SKILL_DIR.startsWith('/')) {", "if (false) {")],
+  ["drop --important from the important-only merge", (s) => s.replace("mode === 'important-only' ? ' --important' : ''", "''")],
 ];
 
 (async () => {
