@@ -6,6 +6,8 @@ artifacts doctored into self-contradiction must be refused, not rendered.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from model import CRITERIA, Dependency, ReconciliationError, Signal, to_json
 from render import (
@@ -237,6 +239,62 @@ def test_third_party_text_cannot_forge_a_section_outside_tables():
         if line.startswith(("- **No advisory affects", "- **All 12 assessed clean"))
     ]
     assert forged_bullets == []
+
+
+def _unescaped_pipes(line: str) -> int:
+    """Count the pipes GFM splits a row on: an escaped `\\|` is content, not a boundary."""
+    return len(re.findall(r"(?<!\\)\|", line))
+
+
+def _table_rows_are_well_formed(text: str) -> bool:
+    """Every row has the same column count as the header of the table it belongs to."""
+    expected = None
+    for line in text.splitlines():
+        if not line.startswith("|"):
+            expected = None
+            continue
+        if expected is None:
+            expected = _unescaped_pipes(line)
+        elif _unescaped_pipes(line) != expected:
+            return False
+    return True
+
+
+def test_a_pipe_in_a_name_cannot_add_a_table_column():
+    """Asserted over every table in the document, not one row in one table: per-path
+    assertions are what let this reach three call sites at once. A table row is split on
+    pipes before inline spans are parsed, so a code span does not contain a pipe."""
+    dep = make_dep("evil|forged")
+    dep.signals["deprecated"] = Signal.flagged("deprecated by its maintainers", True)
+    art = artifact(
+        [dep],
+        {
+            "examined": True,
+            "reason": None,
+            "sources": ["package-lock.json"],
+            "total": 1,
+            "checked": 1,
+            "lockfile_entries": 1,
+            "excluded_direct": 0,
+            "unverifiable": [],
+            "flagged": [
+                {
+                    "ecosystem": "npm",
+                    "name": "nested|forged",
+                    "version": "2.0.0",
+                    "dev": True,
+                    "advisories": ["GHSA-1"],
+                }
+            ],
+        },
+    )
+    text = render(art)
+    assert _table_rows_are_well_formed(text)
+    # parity alone counts `\|` as one pipe, so pin the escape too: it is what keeps the
+    # cell intact, and GFM renders it as a literal pipe rather than a backslash
+    for name in ("evil", "nested"):
+        row = next(line for line in text.splitlines() if line.startswith("|") and name in line)
+        assert "\\|" in row
 
 
 def test_code_spans_stay_copyable_while_prose_is_escaped():

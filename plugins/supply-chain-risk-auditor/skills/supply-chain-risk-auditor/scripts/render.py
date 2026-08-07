@@ -125,7 +125,8 @@ def _safe_text(value: object) -> str:
 
     For a value going inside backticks use `_safe_code` instead: Markdown does not
     process backslash escapes in a code span, so escaping there writes the backslashes
-    out literally and corrupts the value a reader copies.
+    out literally and corrupts the value a reader copies. Inside backticks *in a table
+    cell*, use `_safe_code_cell` — pipes still end the cell there.
     """
     return _collapse(value).replace("|", "\\|").replace("[", "\\[")
 
@@ -133,13 +134,29 @@ def _safe_text(value: object) -> str:
 def _safe_code(value: object) -> str:
     """Make third-party text safe inside a Markdown code span.
 
-    A code span needs no `|` or `[` escaping — neither can be misread inside one, and a
+    A code span needs no `[` escaping — a bracket cannot open a link inside one — and a
     backslash written there survives literally, so escaping corrupted the report title
     and the `Scanned:` path into something no reader could copy. What a code span does
     need is protection from a backtick, which would close the span early and let the
     rest of the value become live Markdown.
+
+    A code span inside a table cell is the exception and takes `_safe_code_cell`: the
+    row is split on pipes before inline spans are parsed, so a pipe still ends the cell.
     """
     return _collapse(value).replace("`", "'")
+
+
+def _safe_code_cell(value: object) -> str:
+    """Make third-party text safe inside a code span that sits in a table cell.
+
+    A table row is split on pipes before inline spans are parsed, so a `|` inside a code
+    span still ends the cell: a dependency named `evil|forged` put six pipes in a
+    five-pipe row, shifting every later value one column right. GFM requires the `\\|`
+    escape here, including inside other inline spans, and processes it in the table
+    context — so unlike `_safe_code`'s territory, the backslash does not survive into
+    the output. That difference is why this is a separate helper rather than a flag.
+    """
+    return _safe_code(value).replace("|", "\\|")
 
 
 def _collapse(value: object) -> str:
@@ -225,7 +242,7 @@ def _finding_rows(hits: list[tuple[dict, list]]) -> list[str]:
     for dep, flags in sorted(hits, key=lambda x: (-len(x[1]), x[0]["name"])):
         detail = _safe_text("; ".join(s["detail"] for _, s in flags))
         rows.append(
-            f"| `{_safe_code(dep['name'])}` | {_safe_text(_version_label(dep))} | {_volume(dep)} | {detail} |"
+            f"| `{_safe_code_cell(dep['name'])}` | {_safe_text(_version_label(dep))} | {_volume(dep)} | {detail} |"
         )
     return rows
 
@@ -377,7 +394,7 @@ def transitive_section(artifact: dict) -> list[str]:
         if len(entry["advisories"]) > 6:
             ids += f" and {len(entry['advisories']) - 6} more"
         out.append(
-            f"| `{_safe_code(entry['name'])}` ({_safe_text(entry['ecosystem'])}) | "
+            f"| `{_safe_code_cell(entry['name'])}` ({_safe_text(entry['ecosystem'])}) | "
             f"{_safe_text(entry['version'])} | {reaches} | {_safe_text(ids)} |"
         )
     out.append("")
@@ -456,7 +473,7 @@ def production_section(artifact: dict) -> list[str]:
             LABELS.get(c, c) for c in dep["flagged"] if c != "advisories" and c not in UPSTREAM_ONLY
         ]
         out.append(
-            f"| `{_safe_code(dep['name'])}` | {_safe_text(_version_label(dep))} | {_safe_text(verdict)} "
+            f"| `{_safe_code_cell(dep['name'])}` | {_safe_text(_version_label(dep))} | {_safe_text(verdict)} "
             f"| {_safe_text(', '.join(others) or '—')} |"
         )
     out.append("")
