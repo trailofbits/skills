@@ -37,7 +37,9 @@ Excluded: deprecated queries, model editor/generator queries. Experimental queri
 
 ## Suite Template
 
-Generate this file as `important-only.qls` in the results directory before running analysis:
+What the generation script writes, shown so the filter semantics are readable. Do not
+hand-write this file — the script adds the installed third-party packs and verifies the
+result, and `test_generation_scripts.py` fails if this block and the script disagree:
 
 ```yaml
 - description: Important-only — security vulnerabilities, medium-high confidence
@@ -81,66 +83,23 @@ Generate this file as `important-only.qls` in the results directory before runni
 
 ## Generation Script
 
-The agent should generate the suite file dynamically based on installed packs:
+The suite is generated from the installed packs, not copied from the template above:
 
 ```bash
-RAW_DIR="$OUTPUT_DIR/raw"
-SUITE_FILE="$RAW_DIR/important-only.qls"
-
-# NOTE: CODEQL_LANG must be set before running this script (e.g., CODEQL_LANG=cpp)
-# NOTE: INSTALLED_THIRD_PARTY_PACKS must be a space-separated list of pack names
-
-# Use a heredoc WITHOUT quotes so ${CODEQL_LANG} expands
-cat > "$SUITE_FILE" << HEADER
-- description: Important-only — security vulnerabilities, medium-high confidence
-- queries: .
-  from: codeql/${CODEQL_LANG}-queries
-HEADER
-
-# Add each installed third-party pack
-for PACK in $INSTALLED_THIRD_PARTY_PACKS; do
-  cat >> "$SUITE_FILE" << PACK_ENTRY
-- queries: .
-  from: ${PACK}
-PACK_ENTRY
-done
-
-# Append the filtering rules (quoted heredoc — no variable expansion needed)
-cat >> "$SUITE_FILE" << 'FILTERS'
-- include:
-    kind:
-      - problem
-      - path-problem
-    precision:
-      - high
-      - very-high
-    tags contain:
-      - security
-- include:
-    kind:
-      - problem
-      - path-problem
-    precision:
-      - medium
-    tags contain:
-      - security
-- exclude:
-    deprecated: //
-- exclude:
-    tags contain:
-      - modeleditor
-      - modelgenerator
-FILTERS
-
-# Verify the suite resolves correctly
-: "${CODEQL_LANG:?ERROR: CODEQL_LANG must be set before generating suite}"
-: "${SUITE_FILE:?ERROR: SUITE_FILE must be set}"
-
-if ! codeql resolve queries "$SUITE_FILE" | head -20; then
-  echo "ERROR: Suite file failed to resolve. Check CODEQL_LANG=$CODEQL_LANG and installed packs."
-fi
-echo "Suite generated: $SUITE_FILE"
+# `set -e` and the trailing script call are both load-bearing: an assignment placed last
+# would overwrite the script's exit status, and the run would proceed to analysis with no
+# suite — or with a stale one from an earlier run.
+set -euo pipefail
+SUITE_FILE="$OUTPUT_DIR/raw/important-only.qls"
+CODEQL_LANG="${CODEQL_LANG:-}" OUTPUT_DIR="${OUTPUT_DIR:-}" \
+  INSTALLED_THIRD_PARTY_PACKS="${INSTALLED_THIRD_PARTY_PACKS:-}" \
+  {baseDir}/scripts/generate_suite.sh important-only
 ```
+
+`codeql database analyze` accepts a suite that resolves to zero queries. It writes an empty
+SARIF and the run reports "0 findings". The script runs `verify_query_suite.py`, which
+exits non-zero on zero queries, on a CodeQL error, and on malformed output, so the run
+stops before analysis rather than after it.
 
 ## How Filtering Works on Third-Party Queries
 
