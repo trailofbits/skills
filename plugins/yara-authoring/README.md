@@ -29,21 +29,15 @@ cargo install yara-x
 yr --version
 ```
 
-### Python Package (for scripts)
-
-```bash
-pip install yara-x
-# or with uv
-uv pip install yara-x
-```
-
 ### Plugin
 
-Add this plugin to your Claude Code configuration:
-
-```bash
-claude mcp add-plugin /path/to/yara-authoring
 ```
+/plugin marketplace add trailofbits/skills
+/plugin install yara-authoring
+```
+
+The scripts declare their dependencies with PEP 723 inline metadata, so `uv run`
+resolves the `yara-x` Python package on first use. No separate install step.
 
 ## Skills
 
@@ -66,16 +60,20 @@ Guides authoring of YARA-X rules for malware detection with expert judgment.
 
 ## Scripts
 
-The skill includes two Python scripts that require `uv` to run:
+Two Python scripts under `skills/yara-rule-authoring/scripts/`, run with `uv`. Both
+accept a file or a directory, and both exit non-zero if the path yields no rules to
+inspect rather than reporting a clean run over nothing.
 
 ### yara_lint.py
 
-Validates YARA-X rules for style, metadata, compatibility issues, and anti-patterns:
+Compiles each rule with YARA-X, then checks style, metadata, and anti-patterns.
+See [style-guide.md](skills/yara-rule-authoring/references/style-guide.md#linter-error-codes)
+for the full code table.
 
 ```bash
-uv run yara_lint.py rule.yar
-uv run yara_lint.py --json rules/
-uv run yara_lint.py --strict rule.yar
+uv run skills/yara-rule-authoring/scripts/yara_lint.py rule.yar
+uv run skills/yara-rule-authoring/scripts/yara_lint.py --json rules/
+uv run skills/yara-rule-authoring/scripts/yara_lint.py --strict rule.yar   # warnings fail too
 ```
 
 ### atom_analyzer.py
@@ -83,9 +81,12 @@ uv run yara_lint.py --strict rule.yar
 Evaluates string quality for efficient atom extraction:
 
 ```bash
-uv run atom_analyzer.py rule.yar
-uv run atom_analyzer.py --verbose rule.yar
+uv run skills/yara-rule-authoring/scripts/atom_analyzer.py rule.yar
+uv run skills/yara-rule-authoring/scripts/atom_analyzer.py --verbose rule.yar
 ```
+
+Both import `yara_rules.py`, a dependency-free module holding the parsing and
+analysis logic. `test_yara_rules.py` covers it; `make python-tests` picks it up.
 
 ## Reference Documentation
 
