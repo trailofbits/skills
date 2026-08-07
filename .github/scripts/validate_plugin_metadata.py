@@ -327,6 +327,45 @@ def validate_agent_frontmatter(plugin_path: Path) -> list[str]:
     return errors
 
 
+def validate_skill_frontmatter(plugin_path: Path) -> list[str]:
+    """Top-level frontmatter values must survive a YAML parse.
+
+    A plain (unquoted) YAML scalar cannot contain ": " — that parses as a nested
+    mapping — nor " #", which starts a comment. Either one makes the whole block
+    unparseable, and the loader then drops *every* field and loads the skill with
+    empty metadata. Nothing about the file looks wrong: a presence check still sees
+    `description:` on line 3 and reports it clean, so the skill ships with no
+    description and simply never triggers.
+    """
+    errors = []
+
+    for skill in skill_files(plugin_path):
+        block = extract_frontmatter(skill.read_text(encoding="utf-8", errors="replace"))
+        if block is None:
+            errors.append(f"{skill.relative_to(plugin_path)}: has no YAML frontmatter")
+            continue
+
+        for line in block.splitlines():
+            match = re.match(r"^([A-Za-z0-9_-]+)\s*:\s*(\S.*?)\s*$", line)
+            if not match:
+                continue
+            key, value = match.group(1), match.group(2)
+            # Quotes, block scalars, flow collections and YAML indicators are all
+            # parsed by rules other than the plain-scalar ones below.
+            if value[0] in "\"'|>[{&*!%@`":
+                continue
+            for token, human in ((": ", "': '"), (" #", "' #'")):
+                if token in value:
+                    errors.append(
+                        f"{skill.relative_to(plugin_path)}: '{key}' is an unquoted YAML "
+                        f"scalar containing {human}, so the frontmatter does not parse and "
+                        f"the skill loads with no metadata at all — wrap the value in quotes"
+                    )
+                    break
+
+    return errors
+
+
 def validate_subagent_dispatch(plugin_path: Path, plugin_name: str) -> list[str]:
     """subagent_type values referring to this plugin's agents must be namespaced.
 
@@ -570,7 +609,15 @@ def validate_reference_links(plugin_path: Path) -> tuple[list[str], int]:
     warnings: list[str] = []
     checked = 0
 
-    files = [p for p in plugin_path.rglob("*.md") if p.is_file() and "evals" not in p.parts]
+    # Any evals* directory is skipped: its .md files are labelled eval queries, not
+    # documentation, and they carry frontmatter rather than references. The prefix match
+    # covers "evals-extra" (harnesses invoked by hand rather than by `make check`) as
+    # well as "evals" — a bare equality check silently starts scanning them.
+    files = [
+        p
+        for p in plugin_path.rglob("*.md")
+        if p.is_file() and not any(part.startswith("evals") for part in p.parts)
+    ]
     if not files:
         return warnings, checked
 
@@ -643,6 +690,8 @@ def validate_plugins(
         for msg in validate_marketplace_entry(marketplace_plugins, plugin_data, plugin_name):
             result.add(plugin_name, msg)
         for msg in validate_agent_frontmatter(plugin_path):
+            result.add(plugin_name, msg)
+        for msg in validate_skill_frontmatter(plugin_path):
             result.add(plugin_name, msg)
         for msg in validate_subagent_dispatch(plugin_path, plugin_name):
             result.add(plugin_name, msg)
@@ -855,6 +904,25 @@ def _self_test_errors(ran: list[str]) -> None:
         skill = plugin / "skills" / "demo" / "SKILL.md"
         skill.write_text(skill.read_text() + '\nsubagent_type="Explore" is builtin.\n')
         _check(ran, "builtin subagent_type accepted", not _errors_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        skill = plugin / "skills" / "demo" / "SKILL.md"
+        _write(skill, "---\nname: demo\ndescription: Use when: parsing files\n---\n\nBody\n")
+        _check(
+            ran,
+            "unquoted description with a colon",
+            any("does not parse" in e for e in _errors_for(root)),
+        )
+        _write(skill, "---\nname: demo\ndescription: Handles a # sign\n---\n\nBody\n")
+        _check(
+            ran,
+            "unquoted description with a comment marker",
+            any("does not parse" in e for e in _errors_for(root)),
+        )
+        _write(skill, '---\nname: demo\ndescription: "Use when: parsing files"\n---\n\nBody\n')
+        _check(ran, "quoted description with a colon accepted", not _errors_for(root))
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

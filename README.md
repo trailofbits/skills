@@ -83,7 +83,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 |--------|-------------|
 | [constant-time-analysis](plugins/constant-time-analysis/) | Detect compiler-induced timing side-channels in cryptographic code |
 | [mutation-testing](plugins/mutation-testing/) | Configure mewt/muton mutation testing campaigns — scope targets, tune timeouts, optimize long runs |
-| [property-based-testing](plugins/property-based-testing/) | Property-based testing guidance for multiple languages and smart contracts |
+| [property-based-testing](plugins/property-based-testing/) | Write, review, and triage property-based tests — Hypothesis, fast-check, proptest, and Echidna or Medusa for Solidity invariants |
 | [spec-to-code-compliance](plugins/spec-to-code-compliance/) | Check code against the documentation that specifies it, across contracts, C/C++, services, and firmware |
 | [zeroize-audit](plugins/zeroize-audit/) | Detect missing or compiler-eliminated zeroization of secrets in C/C++ and Rust |
 
