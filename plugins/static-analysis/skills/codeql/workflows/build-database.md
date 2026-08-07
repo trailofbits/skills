@@ -7,7 +7,7 @@ Create high-quality CodeQL databases by trying build methods in sequence until o
 What matters is which build modes a language accepts, not whether it is interpreted.
 Go is compiled but has no `none` mode; C# and Java are compiled and do. Confirm against
 your own CLI with `codeql database create --help`, and note its `none` list is
-incomplete — it omits C/C++, which does support `none` (2.25.6).
+incomplete — it omits C/C++ and Rust, both of which do support `none` (2.25.6).
 
 ### No build needed (Python, JavaScript/TypeScript, Ruby)
 - CodeQL extracts source directly
@@ -20,7 +20,7 @@ incomplete — it omits C/C++, which does support `none` (2.25.6).
   If it fails there is no no-build escape — fix the build or stop.
 - Skip Method 4 for these languages.
 
-### Build required, `none` available as a fallback (C/C++, Java/Kotlin, C#)
+### Build required, `none` available as a fallback (C/C++, Java/Kotlin, C#, Rust)
 - **Build required for complete extraction** — CodeQL must trace the compilation
 - **Exclusion config NOT supported** — all traced code is extracted
 - `--build-mode=none` works but produces partial analysis. Method 4, last resort.
@@ -95,7 +95,7 @@ ls -la Makefile CMakeLists.txt build.gradle pom.xml Cargo.toml *.sln 2>/dev/null
 | Java/Kotlin | `java` | Yes | Supported (partial analysis) |
 | C# | `csharp` | Yes | Supported (partial analysis) |
 | C/C++ | `cpp` | Yes | Supported (partial analysis) |
-| Rust | `rust` | Yes | Check your CLI — not listed either way |
+| Rust | `rust` | Yes | Supported (partial analysis) — omitted from `--help`, like C/C++ |
 
 Verified against CodeQL 2.25.6. Re-check with `codeql database create --help` if your
 version differs; the supported modes have changed between releases.
