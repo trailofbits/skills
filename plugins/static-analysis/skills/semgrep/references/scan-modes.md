@@ -87,9 +87,14 @@ Raw scan output lives in `$OUTPUT_DIR/raw/`. The filter creates `*-important.jso
 
 ```bash
 # Apply important-only filter to all scan result JSON files in raw/
+filter_failed=0
 for f in "$OUTPUT_DIR/raw"/*-*.json; do
   [[ "$f" == *-triage.json || "$f" == *-important.json ]] && continue
-  jq '{
+  out="${f%.json}-important.json"
+  # The redirect creates $out before jq runs, so a jq failure leaves a zero-byte file sitting
+  # there. merge_sarif.py --important reads that as a corrupt filter and aborts the whole
+  # merge, losing every other scan's findings to one bad file. Delete it and name the file.
+  if ! jq '{
     results: [.results[] |
       ((.extra.metadata.category // "security") | ascii_downcase) as $cat |
       ((.extra.metadata.confidence // "HIGH") | ascii_upcase) as $conf |
@@ -102,11 +107,18 @@ for f in "$OUTPUT_DIR/raw"/*-*.json; do
     ],
     errors: .errors,
     paths: .paths
-  }' "$f" > "${f%.json}-important.json"
+  }' "$f" >"$out"; then
+    rm -f "$out"
+    filter_failed=$((filter_failed + 1))
+    echo "post-filter failed on $f" >&2
+    continue
+  fi
   BEFORE=$(jq '.results | length' "$f")
-  AFTER=$(jq '.results | length' "${f%.json}-important.json")
+  AFTER=$(jq '.results | length' "$out")
   echo "$f: $BEFORE → $AFTER findings (filtered $(( BEFORE - AFTER )))"
 done
+[ "$filter_failed" -eq 0 ] ||
+  echo "$filter_failed file(s) failed to filter; fix them before merging" >&2
 ```
 
 ### The Filter Does Not Apply to SARIF

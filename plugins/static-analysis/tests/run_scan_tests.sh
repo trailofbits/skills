@@ -11,7 +11,7 @@ set -uo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
-readonly EXPECTED_ASSERTIONS=58
+readonly EXPECTED_ASSERTIONS=66
 
 command -v jq >/dev/null 2>&1 || {
   echo "run_scan_tests.sh: jq not found — required" >&2
@@ -355,6 +355,63 @@ eq "$(jq '.skipped | length' "$WORK/c2/scans.json")" "1" "a clone with no rule f
 run_clone ok "$WORK/c3" >/dev/null
 eq "$(jq '.skipped | length' "$WORK/c3/scans.json")" "0" "a healthy clone must not be skipped"
 eq "$(jq '.scans | length' "$WORK/c3/scans.json")" "2" "a healthy clone must be scanned alongside the baseline"
+
+# ------------------------------------------------------------------ the documented post-filter
+# The important-only loop lives in scan-modes.md rather than in a script, so it is extracted and
+# run here. Redirection creates the output before jq does, and merge_sarif.py --important treats
+# a zero-byte filter file as corrupt and refuses the whole merge — one unfilterable scan would
+# take every other scan's findings with it.
+echo "→ documented post-filter loop"
+
+MODES="$PLUGIN_ROOT/skills/semgrep/references/scan-modes.md"
+FILTER_LOOP=$(awk '
+  /^### Filter All Result Files in a Directory$/ { found = 1 }
+  found && /^```bash$/ { inblock = 1; next }
+  inblock && /^```$/   { exit }
+  inblock              { print }
+' "$MODES")
+
+# Extraction is itself a checker: a renamed heading or fence would otherwise run an empty
+# string through bash and pass every assertion below.
+contains "$FILTER_LOOP" "jq" "the post-filter loop must be extractable from scan-modes.md"
+contains "$FILTER_LOOP" "important.json" "the extracted block must be the important-only filter"
+
+FRAW="$WORK/filter/raw"
+mkdir -p "$FRAW"
+# One finding passes the filter, one is excluded by confidence.
+cat >"$FRAW/python-good.json" <<'JSON'
+{"results":[
+  {"check_id":"r.keep","path":"a.py","start":{"line":5},
+   "extra":{"metadata":{"category":"security","confidence":"HIGH","impact":"HIGH"}}},
+  {"check_id":"r.drop","path":"a.py","start":{"line":9},
+   "extra":{"metadata":{"category":"security","confidence":"LOW","impact":"HIGH"}}}
+],"errors":[],"paths":{}}
+JSON
+# Whatever the cause (a truncated write, a disk that filled), jq cannot read this one.
+printf '{"results":[{"check_id":"r.x"' >"$FRAW/python-broken.json"
+
+FILTER_ERR=$(OUTPUT_DIR="$WORK/filter" bash -c "$FILTER_LOOP" 2>&1 >/dev/null)
+
+eq "$(jq '.results | length' "$FRAW/python-good-important.json" 2>/dev/null)" "1" \
+  "a readable scan must still be filtered when a sibling fails"
+eq "$(find "$FRAW" -name '*-important.json' -size 0 | wc -l | tr -d ' ')" "0" \
+  "a failed filter must not leave a zero-byte -important.json for the merge to choke on"
+ok "$([ -e "$FRAW/python-broken-important.json" ] && echo 1 || echo 0)" \
+  "the unfilterable scan must have no -important.json at all"
+contains "$FILTER_ERR" "python-broken.json" "the failure must name the file it happened on"
+
+# The merge is the gate that must still refuse: the scan is unfiltered, so its findings cannot
+# be included or excluded honestly. It now fails naming the missing file rather than reporting
+# a corrupt one.
+MERGE="$PLUGIN_ROOT/skills/semgrep/scripts/merge_sarif.py"
+printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"semgrep","rules":[]}},"results":[]}]}\n' \
+  >"$FRAW/python-good.sarif"
+cp "$FRAW/python-good.sarif" "$FRAW/python-broken.sarif"
+MERGE_ERR=$(python3 "$MERGE" "$FRAW" "$WORK/filter/results.sarif" --important 2>&1 >/dev/null)
+ok "$([ -e "$WORK/filter/results.sarif" ] && echo 1 || echo 0)" \
+  "the merge must write nothing while a scan is unfiltered"
+contains "$MERGE_ERR" "python-broken-important.json" \
+  "the merge error must name the scan that has no filtered JSON"
 
 TOTAL=$((PASS + FAIL))
 echo
