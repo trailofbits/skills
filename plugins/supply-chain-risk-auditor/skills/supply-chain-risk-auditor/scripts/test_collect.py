@@ -170,10 +170,16 @@ def test_requirements_filename_hints_dev(tmp_path: Path):
     # sorts before requirements.txt; a package in both must stay runtime at the
     # runtime pin, not collapse to the first-seen dev entry
     (tmp_path / "requirements-dev.txt").write_text("pytest==8.0.0\nflask==1.0.2\n")
+    # PEP 508 direct reference: the fork URL is the identity, not the public name
+    (tmp_path / "requirements.txt").write_text(
+        "flask==2.0.0\ninternal-lib @ git+ssh://git@github.com/acme/internal-lib.git\n"
+    )
     deps, _ = parse_pypi(tmp_path)
     by_name = {d.name: d for d in deps}
     assert by_name["flask"].dev is False and by_name["flask"].version == "2.0.0"
     assert by_name["pytest"].dev is True
+    assert by_name["internal-lib"].non_registry_reason
+    assert "git+ssh://" in by_name["internal-lib"].non_registry_reason
 
 
 def test_uv_lock_closure_skips_the_project_itself(tmp_path: Path):

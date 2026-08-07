@@ -264,6 +264,19 @@ def _strip_marker(line: str) -> str:
     return line.split(";", 1)[0].strip()
 
 
+# `name [extras] @ url` — PEP 508's direct-reference form. `@` is also a name
+# terminator in _REQ_SPLIT, so without this check the URL is silently discarded and a
+# git or file fork is looked up on PyPI under the public package's name.
+_DIRECT_REF = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\s*(?:\[[^\]]*\]\s*)?@\s*(\S+)")
+
+
+def _direct_reference_url(line: str) -> str | None:
+    """The URL of a PEP 508 direct reference, if this requirement uses one."""
+    spec = _strip_marker(line.split("#", 1)[0].strip())
+    match = _DIRECT_REF.match(spec)
+    return match.group(1) if match else None
+
+
 def _requirement_name(line: str) -> str | None:
     """Extract a distribution name, or None when the line declares no requirement."""
     line = line.split("#", 1)[0].strip()
@@ -442,8 +455,12 @@ def parse_pypi(project: Path) -> tuple[list[Dependency], list[str]]:
     for canonical, (raw, is_dev) in specs.items():
         version, source = _pypi_version(raw, locked, canonical)
         reason = None
-        if canonical in non_registry:
+        url = _direct_reference_url(raw)
+        if url:
+            reason = f"resolves from {url}, not PyPI"
+        elif canonical in non_registry:
             reason = f"resolves from a {non_registry[canonical]} source, not PyPI"
+        if reason:
             notes.append(f"`{canonical}` {reason}, so no registry or advisory data applies to it.")
         deps.append(
             Dependency(
