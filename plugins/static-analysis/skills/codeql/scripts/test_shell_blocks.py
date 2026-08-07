@@ -260,6 +260,85 @@ def test_the_sourcing_rule_has_something_to_check() -> None:
     )
 
 
+# `codeql database finalize` after a failed `trace-command` writes a database that resolves
+# and holds nothing, so the build method reports success. Something has to gate it: a test on
+# the same line, or an enclosing `if` the step already set, which shows as indentation.
+FINALIZE = "codeql database finalize"
+GATED_ON_THE_LINE = re.compile(r"^(if|elif)\s+!|&&")
+
+
+def _ungated_finalizes(source: str) -> list[str]:
+    """`codeql database finalize` calls that run whatever the step before them returned."""
+    found: list[str] = []
+    for raw in source.splitlines():
+        stripped = raw.strip()
+        if FINALIZE not in stripped or stripped.startswith("#"):
+            continue
+        # Indented means it sits inside an enclosing block; 2m-a's is under `if $TRACE_OK`.
+        if raw != stripped or GATED_ON_THE_LINE.search(stripped):
+            continue
+        found.append(stripped)
+    return found
+
+
+def test_finalize_is_gated_on_the_step_before_it() -> None:
+    """A build method that finalizes a database it failed to populate reports success.
+
+    `build_log.sh` deliberately omits `set -e` so the ladder survives a failed method, which
+    leaves each block responsible for its own sequencing. Method 3 in build-database.md ran
+    four `run_logged` calls in a row, so a `trace-command` that failed on build step 2 still
+    reached `finalize`, and `codeql resolve database` then succeeded.
+    """
+    offenders = [
+        f"{_ident(path, line)}: {offender}"
+        for path, line, source in ALL_BLOCKS
+        for offender in _ungated_finalizes(source)
+    ]
+    assert not offenders, (
+        "a block finalizes a database without checking that the step before it succeeded, so "
+        "a failed trace-command still produces a database that resolves and holds nothing:\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+FINALIZE_MUST_FLAG = (
+    'run_logged codeql database finalize "$DB_NAME"',
+    'codeql database finalize "$DB_NAME"',
+)
+
+FINALIZE_MUST_PASS = (
+    'elif ! run_logged codeql database finalize "$DB_NAME"; then',
+    'if ! run_logged codeql database finalize "$DB_NAME"; then',
+    # 2m-a's shape: the trace loop sets TRACE_OK, and the finalize sits inside that test.
+    'if $TRACE_OK; then\n  run_logged codeql database finalize "$DB_NAME"\nfi',
+)
+
+
+def test_detector_flags_ungated_finalize() -> None:
+    """Guard the guard: two call sites, both gated now, so nothing else would notice this
+    detector going quiet."""
+    for source in FINALIZE_MUST_FLAG:
+        assert _ungated_finalizes(source) == [source], f"the detector stopped flagging:\n  {source}"
+
+
+def test_detector_passes_gated_finalize() -> None:
+    """False positives get silenced, and a silenced check catches nothing."""
+    for source in FINALIZE_MUST_PASS:
+        assert _ungated_finalizes(source) == [], (
+            f"the detector now fires on a gated finalize, which is how it gets disabled:\n"
+            f"  {source}"
+        )
+
+
+def test_the_finalize_rule_has_something_to_check() -> None:
+    """Guard the guard: no `finalize` anywhere means the check above inspects nothing."""
+    sites = [_ident(path, line) for path, line, source in ALL_BLOCKS if FINALIZE in source]
+    assert len(sites) >= 2, (
+        f"only {len(sites)} `{FINALIZE}` call sites found across {len(ALL_BLOCKS)} blocks in "
+        f"{SKILL_ROOT} — the detector is broken, not the skill"
+    )
+
+
 def test_exit_status_is_not_captured_after_a_pipe() -> None:
     """`EXIT_CODE=$?` after a pipeline captures the wrong process.
 

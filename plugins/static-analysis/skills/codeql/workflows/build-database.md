@@ -215,15 +215,24 @@ For complex builds needing fine-grained control:
 . "{baseDir}/scripts/build_log.sh" || exit 1
 
 log_step "METHOD 3: Multi-step build"
-run_logged codeql database init "$DB_NAME" \
-  --language="$CODEQL_LANG" --source-root=. --overwrite
-run_logged codeql database trace-command "$DB_NAME" -- <build step 1>
-run_logged codeql database trace-command "$DB_NAME" -- <build step 2>
-run_logged codeql database finalize "$DB_NAME"
+
+# Each step gates the next. `finalize` after a failed `trace-command` produces a database
+# that resolves correctly and contains nothing, so the rung reports success.
+if ! run_logged codeql database init "$DB_NAME" \
+  --language="$CODEQL_LANG" --source-root=. --overwrite; then
+  log_result "FAILED (init)"
+elif ! run_logged codeql database trace-command "$DB_NAME" -- <build step 1>; then
+  log_result "FAILED (build step 1)"
+elif ! run_logged codeql database trace-command "$DB_NAME" -- <build step 2>; then
+  log_result "FAILED (build step 2)"
+elif ! run_logged codeql database finalize "$DB_NAME"; then
+  log_result "FAILED (finalize)"
+else
+  log_result "SUCCESS (multi-step)"
+fi
 ```
 
-Each step must succeed before the next runs. Running `finalize` after a failed
-`trace-command` produces a database that resolves correctly but contains nothing.
+Add one `elif` per build step. A method that stops early has failed: move to Method 4.
 
 #### Method 4: No-Build Fallback (Last Resort)
 
