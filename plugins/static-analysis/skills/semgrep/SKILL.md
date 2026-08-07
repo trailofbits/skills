@@ -1,13 +1,16 @@
 ---
 name: semgrep
 description: >-
-  Run Semgrep static analysis scan on a codebase using parallel subagents.
-  Supports two scan modes — "run all" (full ruleset coverage) and "important
-  only" (high-confidence security vulnerabilities). Automatically detects and
-  uses Semgrep Pro for cross-file taint analysis when available. Use when asked
-  to scan code for vulnerabilities, run a security audit with Semgrep, find
-  bugs, or perform static analysis. Spawns parallel workers for multi-language
-  codebases.
+  Runs a Semgrep security scan over a codebase: detects languages, selects
+  rulesets, presents the plan for explicit approval, then runs every approved
+  ruleset through scripts/run-scans.sh, which batches the semgrep processes and
+  writes scans.json, and merges the output to SARIF. Supports two scan modes,
+  "run all" for full ruleset coverage and "important only" for security
+  findings at medium-to-high confidence and impact. Uses Semgrep Pro for
+  cross-file taint analysis when it is available. Use when asked to scan code
+  for vulnerabilities, run a security audit with Semgrep, find bugs, or perform
+  static analysis. For the same scan without the approval gate, use the
+  /static-analysis:semgrep-scan workflow.
 allowed-tools: Bash Read Glob AskUserQuestion TaskCreate TaskList TaskUpdate
 ---
 
