@@ -47,12 +47,52 @@ Use this plugin when you need to:
 - Aggregate and deduplicate results from multiple files
 - CI/CD integration patterns
 
-## Agents Included
+## Running a Semgrep scan
 
-| Agent              | Tools                  | Purpose                                                        |
-|--------------------|------------------------|----------------------------------------------------------------|
-| `semgrep-scanner`  | Bash                   | Executes parallel semgrep scans for a language category        |
-| `semgrep-triager`  | Read, Grep, Glob, Write | Classifies findings as true/false positives by reading source |
+Two entry points over one implementation.
+
+```
+/static-analysis:semgrep-scan {"target": "/abs/path", "mode": "run-all"}
+```
+
+runs the scan end to end: detect languages and Pro, select rulesets, scan, merge, report. It
+does not stop to have the ruleset list approved — invoking it with a target is the opt-in. That
+is safe because the scan is read-only over the target: no `--autofix`, every write inside the
+output directory, and it refuses to run when the output directory is the target.
+
+Ask for the `semgrep` skill instead when the ruleset selection is the thing that matters. Its
+five-step path presents the list and waits for approval before anything runs. Both paths read
+the same `references/`, so a ruleset added to `rulesets.md` reaches both.
+
+## Workflows Included
+
+| Workflow | Purpose |
+|----------|---------|
+| `workflows/semgrep-scan.js` | Ships as `/static-analysis:semgrep-scan`. Four phases: Detect, Select, Scan, Report |
+
+## Scripts Included
+
+| Script | Purpose |
+|--------|---------|
+| `skills/semgrep/scripts/run-scans.sh` | Builds every semgrep command from the selected rulesets, clones the third-party rule repos, runs the scans in batches and writes `scans.json` |
+| `skills/semgrep/scripts/merge_sarif.py` | Merges the per-scan SARIF into one `results.sarif` |
+
+Generating the commands in one place is what makes `--metrics=off`, the `--include` scoping
+rule, and the output-directory `--exclude` properties of the code rather than instructions a
+model can drop.
+
+No subagent runs any part of the scan — the workflow's Scan phase calls `run-scans.sh`. Exit
+codes come from the semgrep processes and finding counts from the JSON they wrote, so nothing in
+the result is a self-report that a later step has to go behind and verify.
+
+## Tests
+
+Both suites are hermetic, reach no network, and are discovered by CI's existing shell-suite step.
+
+| Suite | Covers |
+|-------|--------|
+| `tests/run_scan_tests.sh` | `run-scans.sh`: command generation via `--dry-run`, plus execution, exit codes and clone failures against stub `semgrep` and `git` binaries |
+| `tests/run_workflow_tests.sh` | `semgrep-scan.js`, via `tests/workflow-harness.js`, which compiles it with stubbed globals. `--self-test` mutates the workflow and requires every mutation to turn a scenario red |
 
 ## Installation
 
