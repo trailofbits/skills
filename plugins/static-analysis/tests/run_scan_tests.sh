@@ -11,7 +11,7 @@ set -uo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
-readonly EXPECTED_ASSERTIONS=77
+readonly EXPECTED_ASSERTIONS=78
 
 command -v jq >/dev/null 2>&1 || {
   echo "run_scan_tests.sh: jq not found — required" >&2
@@ -195,6 +195,17 @@ eq "$n" "2" "--exclude must be on every command, including the cross-language on
 
 out=$(dry "$BASIC")
 lacks "$out" "--exclude" "no --exclude when the output directory is outside the target"
+
+# The containment test is `case "$OUTPUT_ROOT/" in "$TARGET_ROOT"/*)`. The quotes are what make
+# it a string compare: unquoted, a target holding [ ] * or ? is read as a glob and a path like
+# proj[1] stops matching itself, so --exclude is never added and every scan then reads raw/ and
+# the cloned rule repos, which carry literal example secrets.
+GLOBDIR="$WORK/glob[1]/src"
+mkdir -p "$GLOBDIR"
+printf 'x = 1\n' >"$GLOBDIR/a.py"
+out=$(bash "$SCRIPT" --target "$WORK/glob[1]" --output-dir "$WORK/glob[1]/out" \
+  --mode run-all --rulesets "$BASIC" --dry-run 2>/dev/null)
+contains "$out" "--exclude=out" "a target holding glob metacharacters must still exclude its output directory"
 
 echo "→ cross-language hoisting and dedup"
 
