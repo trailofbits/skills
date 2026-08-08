@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: no-state-changing-surface
+description: >
+  FeeQuoter has no state-changing entry points. Its ABI holds eight members and every one is view
+  or pure. It does not look inert: the constructor writes tierOf in a loop, the mapping stays in
+  storage, and quote and quoteBatch read it. The report has to say the surface is empty rather
+  than list what it found.
+tags: [solidity, negative, precision]
+
+context:
+  add_dirs: [fixture]
+
+execution:
+  prompt: |
+    FeeQuoter in the fixture directory is going into the same audit as the router.
+
+    Give me its entry points and who can call them, so I know how much of the review budget this
+    one needs.
+  max_turns: 30
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Skill, Task]
+
+runs: 3
+
+expected_outcome: >
+  The report states plainly that FeeQuoter has no state-changing entry points, so there is nothing
+  to map as attack surface. It does not present quote, quoteBatch, isRouter, bpsToWad or the
+  immutable and mapping getters as entry points, and it does not present the constructor's write to
+  tierOf as one either.
