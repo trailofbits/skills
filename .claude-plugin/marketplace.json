@@ -23,7 +23,7 @@
       "version": "1.1.2",
       "description": "Comprehensive smart contract security toolkit based on Trail of Bits' Building Secure Contracts framework. Includes vulnerability scanners for 6 blockchains and 5 development guideline assistants.",
       "author": {
-        "name": "Omar Inuwa && Pawe\u0142 P\u0142atek"
+        "name": "Omar Inuwa && Paweł Płatek"
       },
       "source": "./plugins/building-secure-contracts"
     },
@@ -127,7 +127,7 @@
     {
       "name": "mutation-testing",
       "version": "1.0.1",
-      "description": "Configures mewt or muton mutation testing campaigns \u2014 scopes targets, tunes timeouts, and optimizes long-running runs. Use when the user mentions mewt, muton, mutation testing, or wants to configure or optimize a mutation testing campaign.",
+      "description": "Configures mewt or muton mutation testing campaigns — scopes targets, tunes timeouts, and optimizes long-running runs. Use when the user mentions mewt, muton, mutation testing, or wants to configure or optimize a mutation testing campaign.",
       "author": {
         "name": "Trail of Bits",
         "email": "opensource@trailofbits.com",
@@ -180,7 +180,7 @@
       "version": "1.2.2",
       "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
       "author": {
-        "name": "Axel Mierczuk & Pawe\u0142 P\u0142atek"
+        "name": "Axel Mierczuk & Paweł Płatek"
       },
       "source": "./plugins/static-analysis"
     },
@@ -198,7 +198,7 @@
       "version": "1.0.2",
       "description": "Skills from the Trail of Bits Application Security Testing Handbook (appsec.guide)",
       "author": {
-        "name": "Pawe\u0142 P\u0142atek"
+        "name": "Paweł Płatek"
       },
       "source": "./plugins/testing-handbook-skills"
     },
@@ -223,10 +223,10 @@
     },
     {
       "name": "c-review",
-      "version": "1.2.0",
-      "description": "Comprehensive C/C++ security code review with specialized bug-finding agents covering memory safety, type safety, concurrency, and Linux/Windows userspace-specific issues",
+      "version": "4.3.0",
+      "description": "C/C++ security code review driven by a Workflow script: location-partitioned review over a generated unit list, a per-unit coverage ledger checked against the parse, a shared-state invariant audit, a bug-class completeness sweep, and deterministic SARIF and report generation, in about a dozen agents",
       "author": {
-        "name": "Pawe\u0142 P\u0142atek"
+        "name": "Paweł Płatek"
       },
       "source": "./plugins/c-review"
     },
@@ -235,7 +235,7 @@
       "version": "1.0.0",
       "description": "Comprehensive Rust security code review with specialized bug-finding agents covering the safe/unsafe boundary, memory safety in unsafe blocks, concurrency, panic-induced DoS, recursion-induced stack overflow, FFI, and async runtime hazards",
       "author": {
-        "name": "Andrea Cappa (Aptos Labs) & Pawe\u0142 P\u0142atek (Trail of Bits)"
+        "name": "Andrea Cappa (Aptos Labs) & Paweł Płatek (Trail of Bits)"
       },
       "source": "./plugins/rust-review"
     },
@@ -327,7 +327,7 @@
       "version": "1.2.1",
       "description": "Audits GitHub Actions workflows for security vulnerabilities in AI agent integrations (Claude Code Action, Gemini CLI, OpenAI Codex, GitHub AI Inference)",
       "author": {
-        "name": "Emilio L\u00f3pez & Will Vandevanter"
+        "name": "Emilio López & Will Vandevanter"
       },
       "source": "./plugins/agentic-actions-auditor"
     },
@@ -336,7 +336,7 @@
       "version": "1.0.5",
       "description": "Automatically reviews and fixes Claude Code skills through iterative refinement until they meet quality standards. Requires plugin-dev plugin.",
       "author": {
-        "name": "Pawe\u0142 P\u0142atek",
+        "name": "Paweł Płatek",
         "url": "https://github.com/GrosQuildu"
       },
       "source": "./plugins/skill-improver"

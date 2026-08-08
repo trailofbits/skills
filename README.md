@@ -55,7 +55,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [agentic-actions-auditor](plugins/agentic-actions-auditor/) | Audit GitHub Actions workflows for AI agent security vulnerabilities |
 | [audit-context-building](plugins/audit-context-building/) | Understand a codebase before looking for bugs in it, one function at a time |
 | [burpsuite-project-parser](plugins/burpsuite-project-parser/) | Search and extract data from Burp Suite project files |
-| [c-review](plugins/c-review/) | Comprehensive C/C++ security review with clustered parallel workers and SARIF output |
+| [c-review](plugins/c-review/) | C/C++ security review as a Workflow: parallel bug-class hunters, FP/severity judging, SARIF, ground-truth eval |
 | [differential-review](plugins/differential-review/) | Security-focused differential review of code changes with git history analysis |
 | [dimensional-analysis](plugins/dimensional-analysis/) | Annotate codebases with dimensional analysis comments to detect unit mismatches and formula bugs |
 | [fp-check](plugins/fp-check/) | Systematic false positive verification for security bug analysis with mandatory gate reviews |

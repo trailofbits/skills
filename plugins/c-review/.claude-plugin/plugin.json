@@ -1,9 +1,20 @@
 {
   "name": "c-review",
-  "version": "1.2.0",
-  "description": "Comprehensive C/C++ security code review with specialized bug-finding agents covering memory safety, type safety, concurrency, and Linux/Windows userspace-specific issues",
+  "version": "4.3.0",
+  "description": "C/C++ security code review driven by a Workflow script: location-partitioned review over a generated unit list, a per-unit coverage ledger checked against the parse, a shared-state invariant audit, a bug-class completeness sweep, and deterministic SARIF and report generation, in about a dozen agents",
   "author": {
     "name": "Paweł Płatek"
   },
-  "keywords": ["c", "cpp", "security", "code-review", "static-analysis", "vulnerabilities", "linux", "macos", "posix", "windows"]
+  "keywords": [
+    "c",
+    "cpp",
+    "security",
+    "code-review",
+    "static-analysis",
+    "vulnerabilities",
+    "linux",
+    "macos",
+    "posix",
+    "windows"
+  ]
 }

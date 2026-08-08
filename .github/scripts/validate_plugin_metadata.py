@@ -1055,6 +1055,13 @@ def _self_test_guards(ran: list[str]) -> None:
             ["git", "init", "-q"],
             ["git", "config", "user.email", "t@example.com"],
             ["git", "config", "user.name", "t"],
+            # Throwaway fixture repo in a tempdir: signing it means nothing, and inheriting
+            # the developer's global `commit.gpgsign` makes this self-test fail for a reason
+            # that has nothing to do with the code under test. On a machine configured for
+            # 1Password SSH signing every commit here dies with "failed to fill whole
+            # buffer" and `make check` reports a validator failure that does not exist.
+            ["git", "config", "commit.gpgsign", "false"],
+            ["git", "config", "tag.gpgsign", "false"],
             ["git", "add", "-A"],
             ["git", "commit", "-q", "-m", "base"],
         ):
