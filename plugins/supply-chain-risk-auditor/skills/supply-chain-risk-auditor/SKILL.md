@@ -1,62 +1,122 @@
 ---
 name: supply-chain-risk-auditor
-description: "Identifies dependencies at heightened risk of exploitation or takeover. Use when assessing supply chain attack surface, evaluating dependency health, or scoping security engagements."
+description: "Audits a project's dependencies for supply-chain risk: version-matched advisories for direct dependencies and the full lockfile tree, abandoned or archived upstreams, npm publisher concentration, and install-time script execution. Use when asked to audit dependencies, assess supply-chain or third-party package risk, or review a dependency tree before an engagement."
 allowed-tools: Read Write Bash Glob Grep
 ---
 
 # Supply Chain Risk Auditor
 
-Activates when the user says "audit this project's dependencies".
+Generates a supply-chain risk report for a project's direct dependencies (npm, PyPI,
+Go), plus an advisory sweep of everything its lockfile resolves. Two deterministic
+scripts do the measuring; your job is the judgment they refuse to automate.
 
-## When to Use
+## Why the scripts do the measuring, not you
 
-- Assessing dependency risk before a security audit
-- Evaluating supply chain attack surface of a project
-- Identifying unmaintained or risky dependencies
-- Pre-engagement scoping for supply chain concerns
+Every figure in this report is a claim about somebody else's project, and hand-collected
+figures were measured wrong before this skill was rebuilt around scripts: GitHub
+contributor counts said five-plus people maintain `lodash` where npm's ACL says one, and
+`gh` saw zero downloads for a package that moves 164 million a week. Do not estimate
+maintainer counts, downloads, staleness, or CVE history from `gh`, web search, or
+memory — run the collector, and quote what it measured.
 
-## When NOT to Use
+The scripts enforce two rules worth knowing before you read their output:
 
-- Active vulnerability scanning (use dedicated tools like npm audit, pip-audit)
-- Runtime dependency analysis
-- License compliance auditing
+- **Unavailable data is never evidence of risk.** Every criterion resolves to
+  assessed-clean, assessed-flagged, or unassessable-with-a-reason.
+- **An absent measurement is never a clean verdict.** A run that measured nothing exits
+  non-zero instead of printing a report that finds nothing.
 
-## Purpose
+## Workflow
 
-You systematically evaluate all dependencies of a project to identify red flags that indicate a high risk of exploitation or takeover. You generate a summary report noting these issues.
+1. Confirm the target directory has manifests: `package.json`, `pyproject.toml`,
+   `requirements*.txt`, or `go.mod`. If none exist, say so and stop — do not audit an
+   ecosystem this collector does not parse by hand. Lockfiles read for exact versions
+   and the transitive sweep: `package-lock.json`/`npm-shrinkwrap.json`, `uv.lock`, and
+   a go 1.17+ `go.mod`. `yarn.lock`, `pnpm-lock.yaml`, and `poetry.lock` are not read —
+   the report says so when they are present, and versions fall back to pins or the
+   latest release.
+2. Check `gh auth status`. Unauthenticated GitHub allows 60 requests/hour against 5,000,
+   and the collector makes several per dependency; expect repository criteria to come
+   back unassessable without it. Say so rather than fixing it silently.
+3. Collect, then render. Put outputs somewhere outside the audited repository unless
+   asked otherwise:
 
-### Risk Criteria
+   ```sh
+   uv run {baseDir}/scripts/collect.py <project-dir> --json <out-dir>/findings.json
+   uv run {baseDir}/scripts/render.py <out-dir>/findings.json --out <out-dir>/report.md
+   ```
 
-A dependency is considered high-risk if it features any of the following risk factors:
+   Expect a few minutes for ~50 dependencies — several HTTP requests per dependency,
+   more with many Go modules, and slower without authenticated `gh`. If `collect.py`
+   exits non-zero, it is refusing to report — relay its message verbatim instead of
+   retrying or working around it.
+4. Read `report.md` and `findings.json`. The report is the deliverable; the JSON carries
+   the datum behind every verdict when you need to cite one.
+5. Add what the collector cannot, clearly separated from what it measured:
+   - A short narrative for this reader: what to act on first, and why.
+   - Upgrade paths for advisory findings — check whether the fix is a patch or a major
+     version away.
+   - Replacement candidates for abandoned or archived dependencies. Verify a candidate
+     exists in the registry before naming it, and label these as judgment, not
+     measurement.
+   - For flagged install scripts: whether `npm ci --ignore-scripts` is viable for this
+     project's build.
 
-* **Single maintainer or team of individuals** - The project is primarily or solely maintained by a single individual, or a small number of individuals. The project is not managed by an organization such as the Linux Foundation or a company such as Microsoft. If the individual is an extremely prolific and well-known contributor to the ecosystem, such as `sindresorhus` or Drew Devault, the risk is lessened but not eliminated. Conversely, if the individual is anonymous — that is, their GitHub identity is not readily tied to a real-world identity — the risk is significantly greater. **Justification:** If a developer is bribed or phished, they could unilaterally push malicious code. Consider the left-pad incident.
-* **Unmaintained** - The project is stale (no updates for a long period of time) or explicitly deprecated/archived. The maintainer may have put a note in the README.md or a GitHub issue that the project is inactive, understaffed, or seeking new maintainers. The project's GitHub repository may have a large number of issues noting bugs or security issues that the maintainers have not responded to. Feature request issues do NOT count.  **Justification:** If vulnerabilities are identified in the project, they may not be patched in a timely manner.
-* **Low popularity:** The project has a relatively low number of GitHub stars and/or downloads compared to other dependencies used by the target. **Justification:** Fewer users means fewer eyes on the project. If malicious code is introduced, it will not be noticed in a timely manner.
-* **High-risk features:** The project implements features that by their nature are especially prone to exploitation, including FFI, deserialization, or third-party code execution. **Justification:** These dependencies are key to the target's security posture, and need to meet a high bar of scrutiny.
-* **Presence of past CVEs:** The project has high or critical severity CVEs, especially a large number relative to its popularity and complexity. **Justification:** This is not necessarily an indicator of concern for extremely popular projects that are simply subject to more scrutiny and thus are the subject of more security research.
-* **Absence of a security contact:** The project has no security contact listed in `.github/SECURITY.md`, `CONTRIBUTING.md`, `README.md`, etc., or separately on the project's website (if one exists). **Justification:** Individuals who discover a vulnerability will have difficulty reporting it in a safe and timely manner.
+## Style for what you add
 
-## Prerequisites
+Write added prose the way a security report reads, and apply the same register to the
+report addendum and the final reply alike — replies get pasted into tickets and reports
+verbatim. State the finding, the datum behind it, and the action.
 
-Ensure that the `gh` tool is available before continuing. Ask the user to install if it is not found.
+- Impersonal and declarative: no first or second person ("I ran the collector", "you
+  should upgrade"), no contractions, no exclamation points.
+- Active voice, with the subject matter as the actor: "upgrading to 1.19.0 clears all
+  25 advisories", not "it is recommended that axios be upgraded".
+- Objective: no intensifiers or subjective framing ("very", "significant",
+  "fortunately"), and no guesses about why the project chose what it chose.
+- Tense: past for what the audit did, present for the state of the dependencies,
+  future for the consequences of acting or not.
+- Constructive: a recommendation names the action and its cost, never a culprit.
 
-## Workflow (Initial Setup)
+If the `report-writing:writing-style` skill is available in the session, follow it —
+it is the full version of this register.
 
-You achieve your purpose by:
+The rendered report carries facts only. The interpretive rules below are instructions
+to you, not content for the reader — do not copy them into the deliverable as caveats
+or framing.
 
-1. Creating a `.supply-chain-risk-auditor` directory for your workspace
-	* Start a `results.md` report file based on `results-template.md` in this directory
-2. Finding all git repositories for direct dependencies.
-3. Normalizing the git repository entries to URLs, i.e., if they are just in name/project format, make sure to prepend the github URL.
+## Reading the report
 
-## Workflow (Dependency Audit)
-1. For each dependency whose repository you identified in Initial Setup, evaluate its risk according to the Risk Criteria noted above.
-	* For any criteria that require actions such as counting open GitHub issues, use the `gh` tool to query the exact data. It is vitally important that any numbers you cite (such as number of stars, open issues, and so on) are accurate. You may round numbers of issues and stars using ~ notation, e.g. "~4000 stars".
-2. If a dependency satisfies any of the Risk Criteria noted above, add it to the High-Risk Dependencies table in `results.md`, clearly noting your reason for flagging it as high-risk. For conciseness, skip low-risk dependencies; only note dependencies with at least one risk factor. Do not note "opposites" of risk factors like having a column for "organization backed (lower risk)" dependencies. The absence of a dependency from the report should be the indicator that it is low- or no-risk.
+- **Unassessable is not risk.** PyPI publishes no maintainer ACL and Go has no registry;
+  those rows say what could not be known, not what is wrong.
+- **The coverage table bounds every claim.** "No advisories" means "none among what was
+  assessed" — check the assessed count before repeating a clean verdict.
+- **Quote figures verbatim.** Do not re-derive, round, or embellish the report's
+  numbers; every one is reproducible from the artifact.
+- **Absence from the findings is not endorsement.** A dependency with no findings was
+  measured against these criteria only.
 
-## Workflow (Post-Audit)
-1. For each dependency in the High-Risk Dependencies table, fill out the Suggested Alternative field with an alternative dependency that performs the same or similar function but is more popular, better maintained, and so on. Prefer direct successors and drop-in replacements if available. Provide a short justification of your suggestion.
-2. Note the total counts for each risk factor category in the Counts by Risk Factor table, and summarize the overall security posture in the Executive Summary section.
-3. Summarize your recommendations under the Recommendations section
+## Rationalizations to reject
 
-**NOTE:** Do not add sections beyond those noted in `results-template.md`.
+- "`gh` can give me maintainer counts faster than the collector." Measured wrong — repo
+  contributors and registry publish rights are different populations.
+- "No findings, so the dependencies are safe." Read the coverage table; on PyPI and Go,
+  half the criteria are structurally unassessable.
+- "The unassessable rows would just confuse the reader; I'll drop them." They are the
+  boundary of every claim in the report. Dropping them turns partial coverage into a
+  clean bill of health, which is the failure this skill was rebuilt to prevent.
+- "The version is probably close enough." A range checked at latest-release and a
+  lockfile-resolved version are different claims; the report labels which one it makes.
+  Keep the label.
+
+## When not to use
+
+- License compliance auditing.
+- Scanning the target's own source for vulnerabilities or secrets — this skill never
+  reads dependency source, only registry, advisory, and repository metadata.
+- Judging whether the project installs or builds. The audit is designed to work from
+  nothing more than the dependency list — manifests and lockfiles — and never installs,
+  builds, or executes anything. Broken installs and import-time breakage are out of
+  scope, and worth saying so if the user seems to expect them.
+- Ecosystems other than npm, PyPI, and Go; say the ecosystem is unsupported rather than
+  improvising an audit for it.
