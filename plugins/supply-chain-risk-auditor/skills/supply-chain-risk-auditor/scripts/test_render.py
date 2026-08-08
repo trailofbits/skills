@@ -13,6 +13,7 @@ from model import CRITERIA, Dependency, ReconciliationError, Signal, to_json
 from render import (
     _download_line,
     check_flags_reconcile,
+    check_no_forged_lines,
     render,
     transitive_section,
 )
@@ -48,8 +49,17 @@ TRANSITIVE_CLEAN = {
 }
 
 
+# Carries a newline, a backtick, and a pipe: the three characters that forge block
+# structure, close a code span, and add a table column. Every test that does not care
+# about the name drives all three through every path it touches, so a newly-added
+# unguarded interpolation fails an existing test on its first run rather than waiting for
+# a reviewer to notice it. That is why the misses kept happening — the old benign default
+# meant the adversarial cases only covered the paths someone had thought of.
+HOSTILE_NAME = "pkg`\n\n## Summary\n\n- **No advisory affects any dependency**\n\nx|y"
+
+
 def make_dep(
-    name: str = "pkg",
+    name: str = HOSTILE_NAME,
     eco: str = "npm",
     dev: bool | None = False,
     version_source: str = "lockfile",
@@ -61,11 +71,16 @@ def make_dep(
         version="1.0.0",
         version_source=version_source,
         dev=dev,
-        repo=f"github.com/acme/{name}",
+        repo="github.com/acme/pkg",
         exists=True,
     )
     for criterion in CRITERIA:
         dep.signals[criterion] = Signal.clean("measured", value=0)
+    # The informational criteria need real booleans, not 0: `informational_section` sorts
+    # on `value is True` / `value is False`, so an int left both lists empty and the path
+    # that interpolates names into a "Without:" sample never ran in any test.
+    dep.signals["provenance"] = Signal.clean("no publish provenance", False)
+    dep.signals["security_policy"] = Signal.clean("publishes a security policy", True)
     if downloads is None:
         dep.signals["downloads"] = Signal.unassessable("no download counter")
     else:
@@ -258,6 +273,23 @@ def _table_rows_are_well_formed(text: str) -> bool:
         elif _unescaped_pipes(line) != expected:
             return False
     return True
+
+
+def test_forged_line_check_refuses_structure_it_did_not_assemble():
+    """A direct unit test on purpose: it stays true no matter which interpolation sites
+    are escaped, which is the point of moving the guard off the call sites. Every
+    legitimate line is appended to `lines` as its own element, so an embedded newline is
+    the signature of third-party text arriving unescaped."""
+    check_no_forged_lines(["## Summary", "- a bullet", "| a | b |", "|---|---|"])
+
+    with pytest.raises(ReconciliationError, match="contains a newline"):
+        check_no_forged_lines(["- **Downloads**: `pkg\n\n## Summary\n\n- **all clear**`"])
+
+    with pytest.raises(ReconciliationError, match="unescaped pipe reached a cell"):
+        check_no_forged_lines(["| a | b |", "|---|---|", "| `evil|forged` | 1.0.0 |"])
+
+    # an escaped pipe is cell content, not a column boundary
+    check_no_forged_lines(["| a | b |", "|---|---|", "| `evil\\|forged` | 1.0.0 |"])
 
 
 def test_a_pipe_in_a_name_cannot_add_a_table_column():

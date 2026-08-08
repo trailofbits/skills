@@ -552,7 +552,7 @@ def _download_line(artifact: dict) -> str:
     if not counted:
         return f"- **{label}**: not determinable for any dependency in this project."
     median = counted[len(counted) // 2][0]
-    lowest = ", ".join(f"`{name}` ({value:,}/wk)" for value, name in counted[:3])
+    lowest = ", ".join(f"`{_safe_code(name)}` ({value:,}/wk)" for value, name in counted[:3])
     return (
         f"- **{label}**: established for {len(counted)} of {total}; median "
         f"{median:,}/week. Lowest: {lowest}."
@@ -586,11 +586,52 @@ def informational_section(artifact: dict) -> list[str]:
             f"{INFO_PHRASING.get(criterion, 'satisfy this')}."
         )
         if no:
-            sample = ", ".join(f"`{n}`" for n in sorted(no)[:10])
+            sample = ", ".join(f"`{_safe_code(n)}`" for n in sorted(no)[:10])
             more = f" and {len(no) - 10} more" if len(no) > 10 else ""
             out.append(f"  Without: {sample}{more}")
     out.append("")
     return out
+
+
+def check_no_forged_lines(lines: list[str]) -> None:
+    """Refuse a document whose structure did not come from this renderer.
+
+    Escaping is applied per interpolation site, so its coverage is only as good as the
+    author's memory — this defect reached separate call sites across three successive
+    commits, each fix correct and each leaving siblings unguarded. These two invariants
+    hold regardless of which site leaks, including sites not yet written.
+
+    A forged heading, bullet, or row needs a newline inside a line the renderer meant as
+    one line, and every legitimate line is appended to `lines` as its own element, so an
+    embedded newline is precisely the signature of interpolated hostile text. A pipe
+    surviving into a table row is the same story for cells: GFM splits the row before it
+    parses inline spans, so an unescaped pipe silently adds a column and shifts every
+    later value right.
+
+    Raises:
+        ReconciliationError: If any assembled line carries a newline, or a table row's
+            unescaped-pipe count differs from its header's.
+    """
+    for line in lines:
+        if "\n" in line:
+            raise ReconciliationError(
+                f"a line assembled by the renderer contains a newline, so third-party "
+                f"text reached it unescaped: {line!r}"
+            )
+    expected = None
+    for line in lines:
+        if not line.startswith("|"):
+            expected = None
+            continue
+        # Only the pipes GFM splits on: an escaped `\|` is cell content.
+        count = len(re.findall(r"(?<!\\)\|", line))
+        if expected is None:
+            expected = count
+        elif count != expected:
+            raise ReconciliationError(
+                f"table row has {count} columns where its header has {expected}, so an "
+                f"unescaped pipe reached a cell: {line!r}"
+            )
 
 
 def check_flags_reconcile(artifact: dict, rendered: str) -> None:
@@ -741,6 +782,7 @@ def render(artifact: dict) -> str:
     lines += ["## Method and caveats", ""]
     lines += [f"- {_safe_text(note)}" for note in artifact["notes"]]
     lines.append("")
+    check_no_forged_lines(lines)
     text = "\n".join(lines)
     check_flags_reconcile(artifact, text)
     return text
