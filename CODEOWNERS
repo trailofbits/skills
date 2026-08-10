@@ -39,5 +39,6 @@
 /plugins/trailmark/ @tob-scott-a @pbottine @tob-joe @dguido @kz-tob
 /plugins/variant-analysis/ @axelm-tob @dguido @kz-tob
 /plugins/vulnerability-triage-brocards/ @DarkaMaul @dguido @kz-tob
+/plugins/writing-lean-proofs/ @fegge @dguido @kz-tob
 /plugins/yara-authoring/ @dguido @kz-tob
 /plugins/zeroize-audit/ @kumarak @dguido @kz-tob
