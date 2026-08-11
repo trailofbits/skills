@@ -44,10 +44,20 @@ build cannot be selected as though it were a database.
 # one. The script is what SKILL.md's Database Discovery section calls too, so the search
 # depth and the validity filter are defined once.
 if [ -z "${DB_NAME:-}" ]; then
+  # Command substitution, not `done < <(...)`: a process substitution discards the script's
+  # exit status, so exit 2 ("codeql not on this shell's PATH" — a fresh shell each block,
+  # so the preflight's PATH does not carry) would arrive here as an empty list and be
+  # reported as "No CodeQL database found" for a project that has several.
+  if ! DB_LIST=$("{baseDir}/scripts/find_databases.sh" "${OUTPUT_DIR:-.}" .); then
+    echo "ERROR: database discovery failed — see the message above" >&2
+    exit 1
+  fi
+
   FOUND_DBS=()
   while IFS= read -r db; do
+    [ -n "$db" ] || continue
     FOUND_DBS+=("$db")
-  done < <("{baseDir}/scripts/find_databases.sh" "${OUTPUT_DIR:-.}" .)
+  done <<<"$DB_LIST"
 
   if [ "${#FOUND_DBS[@]}" -eq 0 ]; then
     echo "ERROR: No CodeQL database found in $OUTPUT_DIR or project root" >&2

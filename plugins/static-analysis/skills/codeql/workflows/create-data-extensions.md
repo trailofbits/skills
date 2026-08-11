@@ -62,10 +62,19 @@ never finalized.
 if [ -z "$DB_NAME" ]; then
   # Discovery and selection share a block: an array built in an earlier Bash call is gone by
   # this one, and an empty FOUND_DBS reads as "no database".
+  # Command substitution, not `done < <(...)`: a process substitution discards the script's
+  # exit status, so exit 2 ("codeql not on this shell's PATH") would arrive as an empty list
+  # and be reported below as "No CodeQL database found".
+  if ! DB_LIST=$("{baseDir}/scripts/find_databases.sh" "${OUTPUT_DIR:-.}" .); then
+    echo "ERROR: database discovery failed — see the message above" >&2
+    exit 1
+  fi
+
   FOUND_DBS=()
   while IFS= read -r db; do
+    [ -n "$db" ] || continue
     FOUND_DBS+=("$db")
-  done < <("{baseDir}/scripts/find_databases.sh" "${OUTPUT_DIR:-.}" .)
+  done <<<"$DB_LIST"
 
   if [ ${#FOUND_DBS[@]} -eq 0 ]; then
     echo "ERROR: No CodeQL database found in $OUTPUT_DIR"; exit 1

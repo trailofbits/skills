@@ -101,10 +101,19 @@ that selects from it** — each Bash call is a fresh shell, so an array built he
 by the next call, and the run concludes there is no database:
 
 ```bash
+# Command substitution, not `done < <(...)`: a process substitution discards the script's
+# exit status, so "codeql is not on this shell's PATH" (exit 2) would arrive as an empty
+# list and route to "build a new database" with three good ones sitting on disk.
+if ! DB_LIST=$("{baseDir}/scripts/find_databases.sh" "${OUTPUT_DIR:-.}" .); then
+  echo "ERROR: database discovery failed — see the message above" >&2
+  exit 1
+fi
+
 FOUND_DBS=()
 while IFS= read -r db; do
+  [ -n "$db" ] || continue
   FOUND_DBS+=("$db")
-done < <("{baseDir}/scripts/find_databases.sh" "${OUTPUT_DIR:-.}" .)
+done <<<"$DB_LIST"
 
 echo "Found ${#FOUND_DBS[@]} existing database(s)"
 

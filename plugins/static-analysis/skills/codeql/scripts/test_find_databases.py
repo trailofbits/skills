@@ -92,6 +92,36 @@ def test_overlapping_roots_do_not_produce_duplicates(tmp_path: Path) -> None:
     assert _run(tmp_path, str(tmp_path / "out"), ".") == [str(tmp_path / "out" / "codeql.db")]
 
 
+def test_a_database_under_a_dotted_ancestor_is_still_found(tmp_path: Path) -> None:
+    """Roots are absolutised, so the old `-not -path '*/.*'` matched dotted *ancestors* too.
+
+    `find` tests -path against the whole path. Once the root became absolute, a checkout
+    under ~/.cache, ~/.local, or any dotted parent had every database filtered out: the
+    script printed nothing and exited 0, and SKILL.md's auto-detection reads that as "no
+    databases found" and rebuilds from scratch.
+    """
+    root = tmp_path / ".cache" / "builds" / "proj"
+    database = root / "static_analysis_codeql_1" / "codeql.db"
+    _marker(database)
+    _fake_codeql(tmp_path / "bin", valid=["codeql.db"])
+
+    assert _run(tmp_path, str(root)) == [str(database)]
+
+
+def test_a_dot_directory_below_the_root_is_still_skipped(tmp_path: Path) -> None:
+    """The fix must not widen into "search dot-directories".
+
+    A database inside .git or .venv is a stray copy, not the project's own. Offering it in
+    the selection prompt spends one of AskUserQuestion's four options on a database nobody
+    asked to build.
+    """
+    _marker(tmp_path / ".git" / "stray.db")
+    _marker(tmp_path / "real.db")
+    _fake_codeql(tmp_path / "bin", valid=["stray.db", "real.db"])
+
+    assert _run(tmp_path, ".") == [str(tmp_path / "real.db")]
+
+
 def test_no_databases_prints_nothing_and_succeeds(tmp_path: Path) -> None:
     """The caller decides what an empty list means; this is not an error here."""
     _fake_codeql(tmp_path / "bin", valid=[])

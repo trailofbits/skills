@@ -541,6 +541,100 @@ def test_the_same_block_rule_has_something_to_check() -> None:
     assert _assigns(split, "FOUND_DBS"), "an append must not be mistaken for the declaration"
 
 
+# find_databases.sh exits 2 when codeql is missing from the calling shell's PATH, precisely
+# so that state cannot be mistaken for "this project has no databases". `done < <(script)`
+# throws the status away: the loop's status is the loop's, and the substitution's is
+# unobservable. Command substitution keeps it, so the caller can tell the two apart.
+DISCOVERY_SCRIPT = "find_databases.sh"
+PROCESS_SUBSTITUTION = re.compile(r"<\s*<\(")
+
+
+def _discovery_without_status(source: str) -> list[str]:
+    """Lines that run the discovery script through a process substitution."""
+    offenders = []
+    for raw in source.splitlines():
+        stripped = raw.strip()
+        if stripped.startswith("#") or DISCOVERY_SCRIPT not in stripped:
+            continue
+        if PROCESS_SUBSTITUTION.search(stripped):
+            offenders.append(stripped)
+    return offenders
+
+
+def test_discovery_exit_status_is_observed() -> None:
+    """All three callers read discovery through a process substitution and dropped its status.
+
+    Failure scenario: codeql is not on this Bash call's PATH — a fresh shell each block, so
+    the preflight that checked it ran in a different one. The script prints its ERROR to
+    stderr and exits 2, the array comes back empty, and the caller reports "No CodeQL
+    database found" while three good databases sit on disk. The user is then walked through
+    a full rebuild that fails for the same reason at the same place.
+    """
+    offenders = [
+        f"{_ident(path, line)}: {offender}"
+        for path, line, source in ALL_BLOCKS
+        for offender in _discovery_without_status(source)
+    ]
+    assert not offenders, (
+        "a block reads find_databases.sh through a process substitution, whose exit status "
+        "is unobservable, so exit 2 (no codeql on PATH) reads as an empty result. Use "
+        '`if ! DB_LIST=$("{baseDir}/scripts/find_databases.sh" …); then … fi` and loop over '
+        '`<<<"$DB_LIST"`:\n  ' + "\n  ".join(offenders)
+    )
+
+
+DISCOVERY_MUST_FLAG = (
+    'done < <("{baseDir}/scripts/find_databases.sh" "${OUTPUT_DIR:-.}" .)',
+    "done < <(find_databases.sh)",
+    # Spacing between the redirect and the substitution is the caller's habit, not a signal.
+    'done <  <("{baseDir}/scripts/find_databases.sh" .)',
+)
+
+DISCOVERY_MUST_PASS = (
+    'if ! DB_LIST=$("{baseDir}/scripts/find_databases.sh" "${OUTPUT_DIR:-.}" .); then',
+    'done <<<"$DB_LIST"',
+    # Prose about the script, which the blocks carry above every call site.
+    "# Command substitution, not `done < <(...)`: find_databases.sh exits 2 when codeql is "
+    "missing.",
+)
+
+
+def test_detector_flags_discovery_process_substitution() -> None:
+    """Guard the guard: no block violates the rule now, so nothing else would notice this
+    detector going quiet."""
+    for source in DISCOVERY_MUST_FLAG:
+        assert _discovery_without_status(source) == [source], (
+            f"the detector stopped flagging:\n  {source}"
+        )
+
+
+def test_detector_passes_status_checked_discovery() -> None:
+    """False positives get silenced, and a silenced check catches nothing."""
+    for source in DISCOVERY_MUST_PASS:
+        assert _discovery_without_status(source) == [], (
+            f"the detector now fires on a caller that does check the status, which is how it "
+            f"gets disabled:\n  {source}"
+        )
+
+
+def test_the_discovery_rule_has_something_to_check() -> None:
+    """Guard the guard: if the block extractor or the script name broke, every block would
+    look discovery-free and the check above would inspect nothing."""
+    callers = [
+        _ident(path, line)
+        for path, line, source in ALL_BLOCKS
+        if any(
+            DISCOVERY_SCRIPT in raw and not raw.strip().startswith("#")
+            for raw in source.splitlines()
+        )
+    ]
+    assert len(callers) >= 3, (
+        f"only {len(callers)} blocks call {DISCOVERY_SCRIPT} across {len(ALL_BLOCKS)} blocks "
+        f"in {SKILL_ROOT} — SKILL.md, run-analysis.md and create-data-extensions.md each do, "
+        f"so the detector is broken, not the skill"
+    )
+
+
 # Bodies of `python3 -c '…'`, either quote style, on one line or many. Requiring a newline
 # after the opening quote missed the two one-liners in create-data-extensions.md, and a
 # missed block reports `skip` — indistinguishable from a block with no Python in it.
