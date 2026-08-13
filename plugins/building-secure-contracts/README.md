@@ -6,9 +6,9 @@ Comprehensive smart contract security toolkit based on Trail of Bits' [Building 
 
 ## Overview
 
-This plugin provides 11 specialized skills for smart contract security across multiple blockchain platforms:
+This plugin provides 12 specialized skills for smart contract security across multiple blockchain platforms:
 
-- **6 Vulnerability Scanners** for platform-specific attack patterns
+- **7 Vulnerability Scanners** for platform-specific attack patterns
 - **5 Development Guidelines Assistants** for secure development practices
 
 ## Installation
@@ -33,6 +33,26 @@ Scans Algorand/TEAL codebases for 11 vulnerability patterns including:
 - Group size checks
 - Time-based replay attacks
 - And 6 more patterns
+
+### Cardano Vulnerability Scanner
+**Skill:** `/cardano-vulnerability-scanner`
+
+Scans Cardano validators, minting policies and staking scripts for 15 eUTxO-specific
+vulnerability patterns:
+- Double satisfaction
+- Datum hijacking / unauthenticated datum
+- Missing signer checks
+- Value not preserved
+- Unrestricted minting
+- And 10 more patterns
+
+Covers Aiken, Plutus/PlutusTx, Plutarch and OpShin. eUTxO vulnerabilities do not
+resemble EVM ones — there is no reentrancy or `msg.sender`, and almost every finding
+is a transaction field the validator failed to constrain.
+
+Pairs with the Cardano Foundation's
+[cardano-dev-skills](https://github.com/cardano-foundation/cardano-dev-skills)
+plugin, which bundles current Cardano documentation and a 26-category eUTxO checklist.
 
 ### Cairo Vulnerability Scanner
 **Skill:** `/cairo-vulnerability-scanner`
