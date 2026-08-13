@@ -34,26 +34,6 @@ Scans Algorand/TEAL codebases for 11 vulnerability patterns including:
 - Time-based replay attacks
 - And 6 more patterns
 
-### Cardano Vulnerability Scanner
-**Skill:** `/cardano-vulnerability-scanner`
-
-Scans Cardano validators, minting policies and staking scripts for 15 eUTxO-specific
-vulnerability patterns:
-- Double satisfaction
-- Datum hijacking / unauthenticated datum
-- Missing signer checks
-- Value not preserved
-- Unrestricted minting
-- And 10 more patterns
-
-Covers Aiken, Plutus/PlutusTx, Plutarch and OpShin. eUTxO vulnerabilities do not
-resemble EVM ones — there is no reentrancy or `msg.sender`, and almost every finding
-is a transaction field the validator failed to constrain.
-
-Pairs with the Cardano Foundation's
-[cardano-dev-skills](https://github.com/cardano-foundation/cardano-dev-skills)
-plugin, which bundles current Cardano documentation and a 26-category eUTxO checklist.
-
 ### Cairo Vulnerability Scanner
 **Skill:** `/cairo-vulnerability-scanner`
 
@@ -63,6 +43,28 @@ Analyzes StarkNet/Cairo smart contracts for 6 vulnerability patterns:
 - Uninitialized storage
 - Authorization bypass
 - And 2 more patterns
+
+### Cardano Vulnerability Scanner
+**Skill:** `/cardano-vulnerability-scanner`
+
+Scans Cardano validators, minting policies and staking scripts for 17 eUTxO
+vulnerability patterns:
+- Double satisfaction
+- Datum hijacking / unauthenticated datum
+- Missing signer checks
+- Value not preserved
+- Unrestricted minting
+- And 12 more patterns
+
+Covers Aiken, Plutus/PlutusTx, Plutarch and OpShin. eUTxO vulnerabilities do not
+resemble EVM ones: there is no reentrancy and no `msg.sender`, and almost every
+finding is a transaction field the validator failed to constrain.
+
+Complements the Cardano Foundation's
+[cardano-dev-skills](https://github.com/cardano-foundation/cardano-dev-skills),
+which bundles current Cardano documentation, design patterns and a 26-category
+eUTxO checklist. That project tracks protocol releases, so this scanner points at
+it rather than duplicating reference material that would go stale here.
 
 ### Cosmos Vulnerability Scanner
 **Skill:** `/cosmos-vulnerability-scanner`
@@ -184,6 +186,7 @@ building-secure-contracts/
     ├── algorand-vulnerability-scanner/
     ├── audit-prep-assistant/
     ├── cairo-vulnerability-scanner/
+    ├── cardano-vulnerability-scanner/
     ├── code-maturity-assessor/
     ├── cosmos-vulnerability-scanner/
     ├── guidelines-advisor/
