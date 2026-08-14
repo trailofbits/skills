@@ -79,11 +79,11 @@ EVAL_ARGS=(--runs "$RUNS" --judge-model "$JUDGE" --scaffold --keep-temp --no-pub
 [ -n "$CASE" ] && EVAL_ARGS+=(--case "$CASE")
 
 echo "=== arm A (v2, this tree) ==="
-(cd "$PLUGIN_DIR/evals" && CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval . "${EVAL_ARGS[@]}" --json "$OUT/arm-a.json")
+(cd "$PLUGIN_DIR" && CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval . "${EVAL_ARGS[@]}" --json "$OUT/arm-a.json")
 python3 "$HERE/../check_contamination.py" "$OUT/arm-a.json"
 
 echo "=== arm B ($EXPECT_VERSION @ $BASELINE_REF) ==="
-(cd "$ARM_B/skill-improver/evals" && CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval . "${EVAL_ARGS[@]}" --json "$OUT/arm-b.json")
+(cd "$ARM_B/skill-improver" && CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval . "${EVAL_ARGS[@]}" --json "$OUT/arm-b.json")
 python3 "$HERE/../check_contamination.py" "$OUT/arm-b.json"
 
 python3 "$HERE/scorecard.py" \

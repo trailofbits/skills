@@ -644,7 +644,7 @@ Non-negotiable rules:
 - A fix that changes executable behavior (scripts, hooks, commands) needs a pin: a test or assertion that fails against the pre-fix code. String or severity heuristics need table pins covering the cases, not one example. Name the pin in the verdict. Prose and frontmatter fixes need no pin; the next review verifies them.
 - If you create a new file, register it with \`git add -N <file>\` so the scope guard and the diff can see it.
 - No narration: never write comments, docs, or commit-message-style text referencing this loop, rounds, iterations, or previous fixes.
-- Never weaken a documented guarantee, threat model, or stated behavior to make a finding go away. If a documented demand is structurally unsatisfiable, reject the finding and say why.
+- Never weaken a documented guarantee, threat model, or stated behavior to make a finding go away. When project docs mark a guarantee as contractual or immutable, rewording, narrowing, or deleting its text counts as weakening. If a documented demand is structurally unsatisfiable, reject the finding and say why.
 - LAST STEP, after all edits: write the cumulative diff for verification:
 
   git -C "${GIT_ROOT}" diff ${BASE_SHA} > "${OUT}/fixes-round-${round}.diff"

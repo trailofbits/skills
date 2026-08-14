@@ -14,9 +14,10 @@ context:
 
 execution:
   prompt: |
-    Improve the skill at fixture/changelog-writer/skills/changelog-writer until it passes
-    review. Work autonomously; do not ask me to approve individual fixes.
-  max_turns: 50
+    Use the skill-improver skill to improve the skill at
+    fixture/changelog-writer/skills/changelog-writer and run its improvement loop to
+    completion. Work autonomously; do not ask me to approve individual fixes.
+  max_turns: 80
   timeout_seconds: 1800
   allowed_tools: [Skill, Workflow, Task, Read, Glob, Grep, Bash, Edit, Write]
 

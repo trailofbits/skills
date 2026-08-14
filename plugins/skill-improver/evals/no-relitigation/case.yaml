@@ -12,10 +12,11 @@ context:
 
 execution:
   prompt: |
-    Improve the skill at fixture/pdf-extractor/skills/pdf-extractor until it passes
-    review. The fixture's AGENTS.md documents this repo's conventions. Work autonomously;
-    do not ask me to approve individual fixes.
-  max_turns: 60
+    Use the skill-improver skill to improve the skill at
+    fixture/pdf-extractor/skills/pdf-extractor and run its improvement loop to
+    completion. The fixture's AGENTS.md documents this repo's conventions. Work
+    autonomously; do not ask me to approve individual fixes.
+  max_turns: 80
   timeout_seconds: 2400
   allowed_tools: [Skill, Workflow, Task, Read, Glob, Grep, Bash, Edit, Write]
 

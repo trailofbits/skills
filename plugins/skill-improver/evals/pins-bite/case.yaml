@@ -14,9 +14,10 @@ context:
 
 execution:
   prompt: |
-    Improve the skill at fixture/csv-splitter/skills/csv-splitter until it passes review.
+    Use the skill-improver skill to improve the skill at
+    fixture/csv-splitter/skills/csv-splitter and run its improvement loop to completion.
     Work autonomously; do not ask me to approve individual fixes.
-  max_turns: 60
+  max_turns: 80
   timeout_seconds: 2400
   allowed_tools: [Skill, Workflow, Task, Read, Glob, Grep, Bash, Edit, Write]
 

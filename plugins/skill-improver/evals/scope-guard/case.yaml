@@ -15,10 +15,11 @@ context:
 
 execution:
   prompt: |
-    Improve the skill at fixture/todo-tracker/skills/todo-tracker until it passes review.
+    Use the skill-improver skill to improve the skill at
+    fixture/todo-tracker/skills/todo-tracker and run its improvement loop to completion.
     Only files under fixture/todo-tracker may be changed. Work autonomously; do not ask
     me to approve individual fixes.
-  max_turns: 50
+  max_turns: 80
   timeout_seconds: 1800
   allowed_tools: [Skill, Workflow, Task, Read, Glob, Grep, Bash, Edit, Write]
 

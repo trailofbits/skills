@@ -27,8 +27,8 @@ The user provided: `$ARGUMENTS` (if empty, take the target skill from the conver
 
 ### 2. Invoke the workflow
 
-Run the `improve` workflow (Workflow tool, `{name: "improve"}`; installed as
-`/skill-improver:improve`) with args as a JSON object:
+Run the `improve` workflow (Workflow tool, `{name: "skill-improver:improve"}`; installed
+as `/skill-improver:improve`) with args as a JSON object:
 
 ```json
 {
@@ -48,6 +48,20 @@ Run the `improve` workflow (Workflow tool, `{name: "improve"}`; installed as
 The workflow runs in the background and needs no babysitting: it reviews, fixes,
 re-reviews, checks scope after every fix round, and can only complete on a clean review.
 It never commits; all changes stay in the working tree.
+
+**If the Workflow tool is unavailable or denied, stop and say so.** Do not improvise the
+loop inline with direct edits — the ledger, scope guard, and escalation guarantees live
+in the workflow, and an inline imitation has none of them (observed failure: an inline
+fallback "fixed" a finding by weakening the documented guarantee, exactly what the loop
+exists to prevent).
+
+**Do not end your turn while the loop is running.** The Workflow tool returns a task id
+immediately; the result comes later. In an interactive session the completion
+notification re-invokes you — wait for it. In a non-interactive run (scripted, CI, eval)
+there is no later turn: stopping abandons the loop mid-round, so after launching, poll
+the task (TaskOutput with the returned task id, or sleep-and-recheck) until it completes,
+then relay the result. A session that answers "the loop is running, I'll report later"
+has lost the run.
 
 ## Relaying the result
 
