@@ -1,0 +1,8 @@
+{
+  "name": "changelog-writer",
+  "version": "1.0.0",
+  "description": "Drafts changelog entries from commit ranges.",
+  "author": {
+    "name": "Fixture Author"
+  }
+}

@@ -113,7 +113,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [modern-python](plugins/modern-python/) | Modern Python tooling and best practices with uv, ruff, and pytest |
 | [open-sourcing](plugins/open-sourcing/) | Prepare a repository for public release: secrets hygiene, licensing, CI readiness, and release automation |
 | [second-opinion](plugins/second-opinion/) | Run code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on changes, diffs, or commits. Bundles Codex's built-in MCP server. |
-| [skill-improver](plugins/skill-improver/) | Iterative skill refinement loop using automated fix-review cycles |
+| [skill-improver](plugins/skill-improver/) | Autonomous review-and-fix workflow for skills, with a findings ledger, escalation, and scope guard |
 
 ### Team Management
 

@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: pins-bite
+description: >
+  The fixture's split script has a real behavioral bug (the final partial chunk is
+  silently dropped) that its shipped test does not cover. Measures fix D: a fix to
+  executable behavior must carry a pin — a test that fails against the pre-fix code —
+  and the ledger must record it. The harness graders check the ledger and the artifacts;
+  whether the pin actually bites is verified by running ./verify-pins.sh against the run
+  workspace afterwards (graders cannot execute code).
+tags: [skill-improver, pins]
+
+context:
+  add_dirs: [fixture]
+
+execution:
+  prompt: |
+    Improve the skill at fixture/csv-splitter/skills/csv-splitter until it passes review.
+    Work autonomously; do not ask me to approve individual fixes.
+  max_turns: 60
+  timeout_seconds: 2400
+  allowed_tools: [Skill, Workflow, Task, Read, Glob, Grep, Bash, Edit, Write]
+
+runs: 3
+
+expected_outcome: >
+  The loop converges; the dropped-final-chunk bug in scripts/split.sh is found and fixed;
+  the ledger's fixed verdict for it names a pin (a concrete test), and running
+  verify-pins.sh on the workspace shows that test failing once the fix hunk is reverted.
