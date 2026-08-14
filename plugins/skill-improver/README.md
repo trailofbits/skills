@@ -10,8 +10,9 @@ Iteratively reviews and fixes Claude Code skill quality issues until they meet s
 
 ### /skill-improver \<SKILL_PATH\> [--max-iterations N]
 
-Start an improvement loop for a skill. Shipped as a skill (not a command), so
-Claude can also trigger it from natural language like "fix my skill".
+Start an improvement loop for a skill. Claude can also trigger it from natural
+language like "fix my skill". (Shipped as a skill rather than a command so it
+lists once in the skill index.)
 
 ```bash
 /skill-improver ./plugins/my-plugin/skills/my-skill

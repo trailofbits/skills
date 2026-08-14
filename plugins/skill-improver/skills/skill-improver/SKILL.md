@@ -21,7 +21,7 @@ The user provided: `$ARGUMENTS` (if empty, take the target skill from the conver
 
 **Skip this section on continuation.** A stop-hook prompt names an iteration and
 session ID — the session is already active, so go straight to the Core Loop.
-Running setup again would start a second, parallel session.
+The setup script refuses to start a second session for the same skill.
 
 ### Step 1: Resolve the skill path
 
@@ -39,6 +39,10 @@ Run the setup script with the resolved absolute path:
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/setup-skill-improver.sh" "<RESOLVED_SKILL_PATH>" [--max-iterations N]
 ```
+
+If `${CLAUDE_PLUGIN_ROOT}` is empty or not substituted (e.g. under Codex), locate
+the script instead: try `${CODEX_PLUGIN_ROOT}/scripts/setup-skill-improver.sh`, else
+`find ~/.claude ~/.codex . -path '*/plugins/skill-improver/scripts/setup-skill-improver.sh' -print -quit`.
 
 Add `--max-iterations N` only if the user specified it. The script writes the
 session state file that arms the stop hook; the loop then continues

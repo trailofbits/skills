@@ -4,12 +4,14 @@
 # `trash` comes from trash-cli/Homebrew and is absent on stock Linux distros.
 # Because every script runs under `set -e`, calling it used to abort the stop
 # hook on the completion path (so the loop could never terminate) and broke
-# /cancel-skill-improver. Each scenario runs with a curated stub PATH that
-# provably lacks `trash`, so the suite is hermetic on any machine.
+# /cancel-skill-improver. Scenarios run on a curated stub PATH — without
+# `trash`, with a working stub, and with a failing stub — so the suite is
+# hermetic on any machine. Also covers the setup script's refusal to arm a
+# second session for a skill that already has one.
 set -uo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-readonly EXPECTED_ASSERTIONS=8
+readonly EXPECTED_ASSERTIONS=14
 
 command -v jq >/dev/null 2>&1 || {
   echo "run_state_file_removal.sh: jq not found — required" >&2
@@ -34,6 +36,14 @@ contains() {
       echo "  FAIL: $3" >&2
       ;;
   esac
+}
+eq() {
+  if [ "$1" = "$2" ]; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1))
+    echo "  FAIL: $3 (expected '$2', got '$1')" >&2
+  fi
 }
 absent() {
   if [ ! -e "$1" ]; then
@@ -62,7 +72,7 @@ make_state_file() {
 session_id: "$SID"
 iteration: 2
 max_iterations: 20
-skill_path: "/tmp/some-skill"
+skill_path: "${1:-/tmp/some-skill}"
 skill_name: "some-skill"
 ---
 EOF
@@ -102,6 +112,31 @@ out=$(cd "$WORK" && PATH="$STUB" TRASH_LOG="$TRASH_LOG" \
 ok $? "cancel exits 0 with trash present"
 grep -q "skill-improver.$SID.local.md" "$TRASH_LOG" 2>/dev/null
 ok $? "trash received the state file"
+
+echo "remove_state_file falls back to rm when trash fails"
+make_state_file
+cat >"$STUB/trash" <<'EOF'
+#!/bin/bash
+echo "trash: simulated failure" >&2
+exit 1
+EOF
+chmod +x "$STUB/trash"
+out=$(cd "$WORK" && PATH="$STUB" "$PLUGIN_ROOT/scripts/cancel-skill-improver.sh" 2>&1)
+ok $? "cancel exits 0 when trash fails"
+contains "$out" "cancelled" "cancel prints confirmation despite failing trash"
+absent "$STATE_FILE" "state file removed via rm fallback"
+
+echo "setup refuses a second session for the same skill"
+mkdir -p "$WORK/target-skill"
+printf -- '---\nname: target-skill\n---\n' >"$WORK/target-skill/SKILL.md"
+make_state_file "$WORK/target-skill"
+setup_rc=0
+out=$(cd "$WORK" && PATH="$STUB" \
+  "$PLUGIN_ROOT/scripts/setup-skill-improver.sh" "$WORK/target-skill" 2>&1) || setup_rc=$?
+ok "$((setup_rc != 1))" "setup exits 1 while a session is active"
+contains "$out" "already targets" "setup names the conflicting session"
+count=$(find "$WORK/.claude" -name 'skill-improver.*.local.md' | wc -l)
+ok "$((count != 1))" "setup did not create a second state file"
 
 TOTAL=$((PASS + FAIL))
 if [ "$TOTAL" -ne "$EXPECTED_ASSERTIONS" ]; then
