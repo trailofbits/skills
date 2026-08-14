@@ -1,8 +1,0 @@
-{
-  "name": "pdf-extractor",
-  "version": "1.2.0",
-  "description": "Extracts text and tables from PDF files for downstream analysis.",
-  "author": {
-    "name": "Fixture Author"
-  }
-}

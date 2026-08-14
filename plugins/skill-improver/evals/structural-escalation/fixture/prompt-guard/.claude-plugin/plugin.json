@@ -1,8 +1,0 @@
-{
-  "name": "prompt-guard",
-  "version": "1.0.0",
-  "description": "Lints prompts before they reach downstream agents.",
-  "author": {
-    "name": "Fixture Author"
-  }
-}

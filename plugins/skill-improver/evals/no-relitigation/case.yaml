@@ -8,7 +8,7 @@ description: >
 tags: [skill-improver, ledger]
 
 context:
-  add_dirs: [fixture]
+  scaffold_script: scaffold.sh
 
 execution:
   prompt: |

@@ -10,7 +10,7 @@ description: >
 tags: [skill-improver, termination, finalize]
 
 context:
-  add_dirs: [fixture]
+  scaffold_script: scaffold.sh
 
 execution:
   prompt: |

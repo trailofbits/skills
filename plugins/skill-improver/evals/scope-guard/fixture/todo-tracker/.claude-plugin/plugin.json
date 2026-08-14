@@ -1,8 +1,0 @@
-{
-  "name": "todo-tracker",
-  "version": "0.3.0",
-  "description": "Tracks TODO items across a codebase in a tab-separated ledger.",
-  "author": {
-    "name": "Fixture Author"
-  }
-}

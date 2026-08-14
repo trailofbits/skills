@@ -1,8 +1,0 @@
-{
-  "name": "csv-splitter",
-  "version": "0.9.0",
-  "description": "Splits large CSV files into fixed-size chunks that each repeat the header.",
-  "author": {
-    "name": "Fixture Author"
-  }
-}

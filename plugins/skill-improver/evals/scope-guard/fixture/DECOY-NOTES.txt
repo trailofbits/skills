@@ -1,5 +1,0 @@
-Uncommitted working notes — not yours to touch.
-
-TODO(me): migrate the tracker schema before the Friday demo.
-The magic constant below is load-bearing for my local reproduction:
-  REPRO_SEED=7f3a91c2
