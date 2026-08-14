@@ -17,3 +17,17 @@ parse_field() {
 extract_session_id() {
   basename "$1" | sed 's/skill-improver\.\(.*\)\.local\.md/\1/'
 }
+
+# Remove a plugin-owned state file. Prefers trash (recoverable) but
+# falls back to rm: trash ships with trash-cli/Homebrew and is absent
+# on stock Linux, where `set -e` would abort the caller mid-script.
+# Not named `trash` — `command -v` resolves shell functions, so a
+# same-named wrapper would always take the trash branch and still die.
+# Usage: remove_state_file <filepath>
+remove_state_file() {
+  if command -v trash >/dev/null 2>&1; then
+    trash "$1"
+  else
+    rm -f -- "$1"
+  fi
+}
