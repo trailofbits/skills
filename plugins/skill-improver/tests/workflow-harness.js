@@ -255,6 +255,31 @@ const SCENARIOS = {
     ];
   },
 
+  // A blocking finding rejected as structurally unsatisfiable escalates to the user
+  // instead of converging past a broken promise.
+  "a structurally unsatisfiable demand escalates instead of converging": async (src) => {
+    const { out, calls, prompts } = await run(src, {
+      reviews: [REV([A, T])],
+      fixes: [
+        FIX(
+          [
+            V(A, "rejected", { structural: true, reason: "docs demand the impossible and are marked frozen" }),
+            V(T, "rejected", { reason: "documented deliberate" }),
+          ],
+          1,
+        ),
+      ],
+    });
+    return [
+      [out && out.escalation && out.escalation.type === "structural-rejection", "the structural rejection must escalate"],
+      [out && out.escalation.finding_ids.includes(fid(A)), "the unsatisfiable finding must be named"],
+      [out && !out.escalation.finding_ids.includes(fid(T)), "an ordinary rejection must not be swept into the escalation"],
+      [calls.filter((c) => c.startsWith("review:")).length === 1, "no further round may run — the user rules first"],
+      [out && out.converged === false, "a structural rejection is not convergence"],
+      [/structural=true/.test(prompts["fix:1"]), "the structural-flag contract must reach the fixer"],
+    ];
+  },
+
   // T4 — a finding "fixed" twice is a relocation, caught right after the second fix.
   "a re-fixed finding escalates as relocation, not at round N+2": async (src) => {
     const { out, calls } = await run(src, {
@@ -548,6 +573,7 @@ const MUTATIONS = [
   ["ignore a non-decreasing blocking count", (s) => s.replace("if (nonDecreasingOver3(countsHistory)) {", "if (false) {")],
   ["ignore a recurring finding", (s) => s.replace("} else if (recurringBlocking().length) {", "} else if (false) {")],
   ["ignore a re-fixed finding", (s) => s.replace("if (refixed().length) {", "if (false) {")],
+  ["converge past a structural rejection", (s) => s.replace("if (structural.length) {", "if (false) {")],
   ["treat a dead fixer as a clean round", (s) => s.replace("if (!fixed) {", "if (false) {")],
   ["continue past a scope violation", (s) => s.replace("if (violations.length) {", "if (false) {")],
   ["re-litigate rejected findings", (s) => s.replace("if (ex.status === 'rejected' && !raw.new_evidence) {", "if (false) {")],

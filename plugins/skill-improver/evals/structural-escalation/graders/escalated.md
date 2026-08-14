@@ -6,4 +6,4 @@ target:
 match: contains
 weight: 2
 ---
-"type": "(counts-non-decreasing|recurrence|relocation)"
+"type": "(counts-non-decreasing|recurrence|relocation|structural-rejection)"

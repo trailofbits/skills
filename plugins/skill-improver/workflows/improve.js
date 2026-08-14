@@ -232,6 +232,7 @@ const mergeReview = (round, review) => {
 const mergeVerdicts = (round, fixed, dispatchedIds) => {
   const tally = { fixed: 0, rejected: 0, deferred: 0 }
   const seen = new Set()
+  const structural = []
   for (const v of fixed.verdicts || []) {
     const f = ledger.findings[String(v.id).trim()]
     if (!f) continue
@@ -245,6 +246,10 @@ const mergeVerdicts = (round, fixed, dispatchedIds) => {
     } else if (v.verdict === 'rejected') {
       f.status = 'rejected'
       f.verdict_reason = clip(v.reason, 400)
+      if (v.structural && BLOCKING.has(f.severity)) {
+        f.structural = true
+        structural.push(f.id)
+      }
       tally.rejected++
     } else if (v.verdict === 'deferred') {
       if (BLOCKING.has(f.severity)) {
@@ -266,7 +271,7 @@ const mergeVerdicts = (round, fixed, dispatchedIds) => {
     failed: false,
     diff_file: fixed.diff_file || '',
   })
-  return unaddressed
+  return { unaddressed, structural }
 }
 
 // ---------------------------------------------------------------------------
@@ -364,6 +369,10 @@ const FIX_SCHEMA = {
           id: { type: 'string' },
           verdict: { type: 'string', enum: ['fixed', 'rejected', 'deferred'] },
           reason: { type: 'string', description: 'For rejected: why the finding is wrong or must not be fixed. For deferred: why it can wait.' },
+          structural: {
+            type: 'boolean',
+            description: 'With verdict "rejected": true when the finding is REAL but a documented, immutable demand makes it unsatisfiable. The loop escalates these to the user instead of converging past a broken promise.',
+          },
           pin: { type: 'string', description: 'The test or assertion that fails against the pre-fix code, or "none: prose-only change".' },
         },
       },
@@ -640,7 +649,7 @@ ${decisionBlock()}
 Non-negotiable rules:
 - Stay inside scope: ${SCOPE.join(', ')} (repo-relative, repo root \`${GIT_ROOT}\`). If a fix requires touching anything outside scope, do NOT make it — return verdict "rejected" with reason "requires out-of-scope change: <path>".
 - NEVER run \`git checkout --\`, \`git stash\`, \`git reset\`, \`git clean\`, or \`git commit\`. The tree holds uncommitted work that is not yours.
-- Return a verdict for EVERY finding listed: "fixed", "rejected" (with the reason the finding is wrong or must not be fixed), or "deferred" (minor/info only — a deferred blocker stays open).
+- Return a verdict for EVERY finding listed: "fixed", "rejected" (with the reason the finding is wrong or must not be fixed), or "deferred" (minor/info only — a deferred blocker stays open). When a rejection's reason is that the finding is REAL but a documented immutable demand makes it unsatisfiable, also set structural=true — the loop escalates those to the user instead of converging past a broken promise.
 - A fix that changes executable behavior (scripts, hooks, commands) needs a pin: a test or assertion that fails against the pre-fix code. String or severity heuristics need table pins covering the cases, not one example. Name the pin in the verdict. Prose and frontmatter fixes need no pin; the next review verifies them.
 - If you create a new file, register it with \`git add -N <file>\` so the scope guard and the diff can see it.
 - No narration: never write comments, docs, or commit-message-style text referencing this loop, rounds, iterations, or previous fixes.
@@ -664,8 +673,23 @@ Non-negotiable rules:
     log(notes[notes.length - 1])
   } else {
     RESULT.fix_rounds = round
-    const unaddressed = mergeVerdicts(round, fixed, dispatched.map((d) => d.id))
+    const { unaddressed, structural } = mergeVerdicts(round, fixed, dispatched.map((d) => d.id))
     if (unaddressed.length) log(`Round ${round} fix left ${unaddressed.length} finding(s) without a verdict: ${unaddressed.join(', ')}`)
+
+    if (structural.length) {
+      // A blocking finding rejected because the docs demand the impossible is not a
+      // clean bill: converging past it ships the broken promise. The user rules.
+      RESULT.escalation = buildEscalation(
+        'structural-rejection',
+        `Finding(s) ${structural.join(', ')} are real but were rejected as structurally unsatisfiable: the documentation demands something the implementation cannot deliver, and the demand is marked immutable.`,
+        structural,
+        round,
+      )
+      log(`ESCALATION (structural-rejection): ${RESULT.escalation.message}`)
+      finishResult()
+      await persistExit('escalation: structural-rejection')
+      break
+    }
 
     if (refixed().length) {
       RESULT.escalation = buildEscalation(

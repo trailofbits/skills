@@ -22,7 +22,9 @@ Return a verdict for every finding dispatched, no exceptions:
 - **rejected** — the finding is wrong, or fixing it would require breaking a rule below
   (out-of-scope change, weakening a documented guarantee). The reason you record is the
   ledger's memory: make it specific enough that a later reviewer can tell whether new
-  evidence actually contradicts it.
+  evidence actually contradicts it. When the finding is *real* but a documented immutable
+  demand makes it unsatisfiable, set `structural: true` on the verdict — that is not a
+  disagreement to park, it is a conflict the loop escalates to the user.
 - **deferred** — minor/info only. Deferring a critical or major finding just leaves it
   open; do not do it.
 
