@@ -1,7 +1,8 @@
 ---
 name: skill-improver
 description: "Iteratively reviews and fixes Claude Code skill quality issues until they meet standards. Runs automated fix-review cycles using the skill-reviewer agent. Use to fix skill quality issues, improve skill descriptions, run automated skill review loops, or iteratively refine a skill. Triggers on 'fix my skill', 'improve skill quality', 'skill improvement loop'. NOT for one-time reviews—use /skill-reviewer directly."
-allowed-tools: Task Read Edit Write Glob Grep
+argument-hint: "<SKILL_NAME_OR_PATH> [--max-iterations N]"
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/setup-skill-improver.sh:*) Task Read Edit Write Glob Grep
 ---
 
 # Skill Improvement Methodology
@@ -13,6 +14,39 @@ Iteratively improve a Claude Code skill using the skill-reviewer agent until it 
 Requires the `plugin-dev` plugin which provides the `skill-reviewer` agent.
 
 Verify it's enabled: run `/plugins` — `plugin-dev` should appear in the list. If missing, install from the Trail of Bits plugin repository.
+
+## Starting the Loop
+
+The user provided: `$ARGUMENTS` (if empty, take the target skill from the conversation).
+
+**Skip this section on continuation.** A stop-hook prompt names an iteration and
+session ID — the session is already active, so go straight to the Core Loop.
+The setup script refuses to start a second session for the same skill.
+
+### Step 1: Resolve the skill path
+
+1. If input ends with `/SKILL.md` and the file exists, use it directly
+2. If input is a directory containing `SKILL.md`, use that path
+3. Otherwise `Glob(pattern="**/SKILL.md")` and filter by skill name or path substring:
+   - **Multiple matches:** ask the user to choose
+   - **No matches:** report available skills
+   - **Single match:** proceed
+
+### Step 2: Initialize the session
+
+Run the setup script with the resolved absolute path:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/setup-skill-improver.sh" "<RESOLVED_SKILL_PATH>" [--max-iterations N]
+```
+
+If `${CLAUDE_PLUGIN_ROOT}` is empty or not substituted (e.g. under Codex), locate
+the script instead: try `${CODEX_PLUGIN_ROOT}/scripts/setup-skill-improver.sh`, else
+`find ~/.claude ~/.codex . -path '*/plugins/skill-improver/scripts/setup-skill-improver.sh' -print -quit`.
+
+Add `--max-iterations N` only if the user specified it. The script writes the
+session state file that arms the stop hook; the loop then continues
+automatically until completion.
 
 ## Core Loop
 
