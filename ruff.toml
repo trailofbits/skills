@@ -7,6 +7,11 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [lint.per-file-ignores]
 "**/tests/**/*.py" = ["F401", "SIM118"]
 "**/test_samples/**/*.py" = ["F", "E", "B"]
+# Eval fixtures are deliberately defective — the non-idempotent canonicalizer and
+# the assertion-free @given test are what the evals measure. Linting them clean
+# would delete the signal. The glob is evals*, so it covers evals-extra (harnesses
+# invoked by hand); with a bare `evals` ruff flags the fixture and fails the build.
+"**/evals*/fixture/**/*.py" = ["F", "E", "B", "SIM", "I"]
 # ct_analyzer has long opcode tables and string constants
 "**/ct_analyzer/analyzer.py" = ["E501"]
 "**/ct_analyzer/script_analyzers.py" = ["E501", "SIM102", "SIM108", "F841"]
