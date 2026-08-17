@@ -37,11 +37,19 @@ Defenses, in order:
    repo path reaches the agent.
 2. The answer key (graders, `case.yaml`) still ships inside the plugin directory the
    harness loads, so `check_contamination.py` scans every run's agent trace (kept via
-   `--keep-temp`) for grader filenames, `skill-improver/evals/` paths, and
-   `expected_outcome`, plus judge explanations for the path markers. It fails when it
-   has nothing to inspect.
+   `--keep-temp`) for grader filenames, `skill-improver/evals/` paths, and answer-key
+   content (`expected_outcome`, grader rubric phrasing), plus judge explanations for the
+   path markers. It fails when it has nothing to inspect.
 3. Its own tests (`test_check_contamination.py`, free, CI) prove each marker class is
    detected against a planted specimen.
+
+This is not hypothetical: in the first version-comparison run, the OLD plugin's SKILL.md
+walked its plugin root looking for its setup script, the file listing enumerated the
+grafted eval tree, and the gate flagged 10 of 15 baseline runs — grader filenames alone
+(`trap-name-kept`, `decoy-byte-identical`, `guarantee-byte-identical`) read as
+instructions. Version-comparison grafts therefore neutralize case-directory and grader
+filenames (the ablation runner does this itself) and gate with `--allow-listing`, which
+still fails on any actual content read.
 
 **Verify on the first paid run (not yet piloted):** these cases assume the eval harness
 exposes the `Workflow` tool listed in `allowed_tools` so the session can launch

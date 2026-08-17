@@ -25,10 +25,18 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-# Markers a judge could only echo if the AGENT quoted the answer key.
-PATH_MARKERS = (
-    "skill-improver/evals/",
+# A path into the eval tree. In a listing this leaks filenames, not content — real
+# contamination under readable grader names, harmless under neutralized ones, which is
+# what --allow-listing is for (see the ablation runner: old-version arms carry their own
+# plugin-root file searches, so a listing is unavoidable there and the graft neutralizes
+# the names instead).
+LISTING_MARKERS = ("skill-improver/evals/",)
+
+# Content that only exists inside the answer key: reading case.yaml or a grader body
+# puts these in the trace regardless of what the files are called.
+CONTENT_MARKERS = (
     "expected_outcome",
+    "Score PASS if",
 )
 
 # Grader filenames: legitimate in judge-side text, contamination in an agent trace.
@@ -103,9 +111,12 @@ def trace_text(run: dict) -> str:
 
 
 def main(argv: list[str]) -> int:
+    allow_listing = "--allow-listing" in argv
+    argv = [a for a in argv if a != "--allow-listing"]
     if len(argv) != 2:
-        print("usage: check_contamination.py <eval-result.json>", file=sys.stderr)
+        print("usage: check_contamination.py [--allow-listing] <eval-result.json>", file=sys.stderr)
         return 2
+    path_markers = CONTENT_MARKERS if allow_listing else LISTING_MARKERS + CONTENT_MARKERS
     result = json.loads(Path(argv[1]).read_text(encoding="utf-8"))
 
     runs = list(iter_runs(result))
@@ -119,13 +130,13 @@ def main(argv: list[str]) -> int:
         explanations = explanation_text(run)
         if explanations.strip():
             inspected_explanations += 1
-            hits = [m for m in PATH_MARKERS if m in explanations]
+            hits = [m for m in path_markers if m in explanations]
             if hits:
                 findings.append(f"{label} (judge text): {', '.join(hits)}")
         trace = trace_text(run)
         if trace.strip():
             inspected_traces += 1
-            hits = [m for m in PATH_MARKERS + GRADER_MARKERS if m in trace]
+            hits = [m for m in path_markers + GRADER_MARKERS if m in trace]
             if hits:
                 findings.append(f"{label} (agent trace): {', '.join(hits)}")
 

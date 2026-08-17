@@ -65,13 +65,31 @@ fi
 
 # Arm B: the old plugin, with THIS suite's cases grafted in (cases and graders are
 # harness-side, not plugin content, so both arms answer the same questions).
+#
+# Case directories and grader files get NEUTRAL names in the graft. Measured incident:
+# the old plugin's own SKILL.md walks its plugin root looking for its setup script, the
+# listing enumerated the grafted eval tree, and grader filenames alone read as
+# instructions (trap-name-kept, decoy-byte-identical, guarantee-byte-identical...) —
+# ten of fifteen baseline runs were contaminated. Real case names still come from each
+# case.yaml `name:` field, so reports are unaffected; reading a grader body or case.yaml
+# is still caught by the contamination gate's content markers.
 ARM_B="$OUT/arm-b-plugin"
 mkdir -p "$ARM_B"
 git -C "$REPO_ROOT" archive "$BASELINE_REF" plugins/skill-improver | tar -x -C "$ARM_B" --strip-components=1
 mkdir -p "$ARM_B/skill-improver/evals"
+i=0
 for c in "$HERE"/../*/; do
   name=$(basename "$c")
-  [ "$name" = "ablation" ] || [ "$name" = "results" ] || cp -R "$c" "$ARM_B/skill-improver/evals/$name"
+  { [ "$name" = "ablation" ] || [ "$name" = "results" ]; } && continue
+  i=$((i + 1))
+  dest="$ARM_B/skill-improver/evals/c$i"
+  cp -R "$c" "$dest"
+  rm -f "$dest/verify-pins.sh"
+  j=0
+  for g in "$dest"/graders/*.md; do
+    j=$((j + 1))
+    mv "$g" "$dest/graders/r$j.md"
+  done
 done
 cp "$HERE/../.gitignore" "$ARM_B/skill-improver/evals/.gitignore"
 
@@ -84,7 +102,8 @@ python3 "$HERE/../check_contamination.py" "$OUT/arm-a.json"
 
 echo "=== arm B ($EXPECT_VERSION @ $BASELINE_REF) ==="
 (cd "$ARM_B/skill-improver" && CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval . "${EVAL_ARGS[@]}" --json "$OUT/arm-b.json")
-python3 "$HERE/../check_contamination.py" "$OUT/arm-b.json"
+# --allow-listing: the old plugin's own file search lists the (neutralized) eval tree.
+python3 "$HERE/../check_contamination.py" --allow-listing "$OUT/arm-b.json"
 
 python3 "$HERE/scorecard.py" \
   --arm-a-json "$OUT/arm-a.json" --arm-a-results "$PLUGIN_DIR/evals/results" \

@@ -100,3 +100,32 @@ def test_trace_directory_is_scanned(tmp_path):
     run = {"graders": [{"name": "g", "explanation": "PASS"}], "tracePath": str(trace_dir)}
     proc = run_checker(tmp_path, make_result([run]))
     assert proc.returncode == 1
+
+
+def test_allow_listing_tolerates_the_path_but_not_content(tmp_path):
+    trace = tmp_path / "trace.jsonl"
+    trace.write_text("find /x/skill-improver/evals/ -type f", encoding="utf-8")
+    run = {"graders": [{"name": "g", "explanation": "PASS"}], "tracePath": str(trace)}
+    result = make_result([run])
+    p = tmp_path / "result.json"
+    p.write_text(json.dumps(result), encoding="utf-8")
+    strict = subprocess.run(
+        [sys.executable, str(SCRIPT), str(p)], capture_output=True, text=True, check=False
+    )
+    assert strict.returncode == 1  # a listing is contamination under readable names
+    relaxed = subprocess.run(
+        [sys.executable, str(SCRIPT), "--allow-listing", str(p)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert relaxed.returncode == 0, relaxed.stderr
+
+    trace.write_text("cat r3.md → Score PASS if ALL hold", encoding="utf-8")
+    read_body = subprocess.run(
+        [sys.executable, str(SCRIPT), "--allow-listing", str(p)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert read_body.returncode == 1  # reading a grader body is contamination in any mode
