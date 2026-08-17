@@ -775,7 +775,7 @@ if (RESULT.converged) {
     const finalize = await agent(
       `Finalize a converged improvement loop over the Claude Code skill at \`${SKILL}\`. The last review was clean; your job is to remove loop residue, not to improve anything further. Stay inside scope: ${SCOPE.join(', ')}.
 
-1. Strip session narration from every file in scope. Grep for these patterns (case-insensitive) and remove or rewrite each hit so the text describes the code as it is, with no history:
+1. Strip session narration from every file in scope. Grep ONLY inside the scope directories under \`${GIT_ROOT}\` — never the wider filesystem or this plugin's own install directory — for these patterns (case-insensitive) and remove or rewrite each hit so the text describes the code as it is, with no history:
    - \\b(round|iteration|pass) [0-9]\\b
    - previous(ly)? (fix|attempt|version|round)
    - (was|were) (added|moved|changed|renamed|removed) (here|to|from)
