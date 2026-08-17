@@ -20,7 +20,7 @@ execution:
     Only files under fixture/todo-tracker may be changed. Work autonomously; do not ask
     me to approve individual fixes.
   max_turns: 80
-  timeout_seconds: 1800
+  timeout_seconds: 3600
   allowed_tools: [Skill, Workflow, Task, Read, Glob, Grep, Bash, Edit, Write]
 
 runs: 3

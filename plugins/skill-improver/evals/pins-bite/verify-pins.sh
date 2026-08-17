@@ -32,14 +32,16 @@ BASE_SHA=$(jq -r '.baseline.sha // empty' "$LEDGER")
 }
 
 # Behavioral fixed findings only: pins are required where the file is executable.
-mapfile -t FIXED < <(jq -r '.findings[] | select(.status == "fixed") | select(.file | test("scripts/|hooks/|commands/")) | .id + "\t" + .file' "$LEDGER")
-if [ "${#FIXED[@]}" -eq 0 ]; then
+# (head -1, not mapfile: macOS ships bash 3.2. One sample per invocation, logged —
+# no silent sampling.)
+FIRST=$(jq -r '.findings[] | select(.status == "fixed") | select(.file | test("scripts/|hooks/|commands/")) | .id + "\t" + .file' "$LEDGER" | head -1)
+if [ -z "$FIRST" ]; then
   echo "verify-pins.sh: zero behavioral fixed findings in the ledger — nothing was pinned, FAIL" >&2
   exit 1
 fi
 
-# One sample per invocation, logged — no silent sampling.
-IFS=$'\t' read -r ID FILE <<<"${FIXED[0]}"
+ID=${FIRST%%$'\t'*}
+FILE=${FIRST##*$'\t'}
 echo "verifying pin for: $ID (reverting $FILE to $BASE_SHA)"
 
 TMP=$(mktemp -d)

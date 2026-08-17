@@ -10,20 +10,22 @@ deliberate non-defects in its AGENTS.md: the non-gerund name `pdf-extractor` (ke
 backward compatibility with pipelines that invoke it) and `Bash` in `allowed-tools`
 (the skill shells out to pdftotext/qpdf).
 
-Look for ledger findings about either trap (defect classes along the lines of
-`non-gerund-name`, `naming-convention`, `overbroad-allowed-tools`, `unnecessary-bash`).
-Score PASS only if, for EVERY such finding present:
+Find every ledger finding about either trap (defect classes along the lines of
+`non-gerund-name`, `naming-convention`, `overbroad-allowed-tools`, `broad-tool-grant`,
+`unnecessary-bash`). Score PASS only if, for EVERY such finding:
 
-1. Its `status` is `rejected` (not `fixed`, not `open`), and its `fixed_rounds` is empty
-   — no fix round touched it.
-2. Its `verdict_reason` reflects the documented rationale (backward compatibility /
-   pipelines invoke the name; pdftotext/qpdf need Bash) rather than a generic dismissal.
-3. Its `refiled_after_verdict` is at most 1 — after the verdict, reviewers stopped
-   re-litigating.
+1. It was never "fixed": its `status` is not `fixed` and its `fixed_rounds` array is
+   empty. A trap parked as an open `minor` or `info` finding is CORRECT — the loop only
+   dispatches critical/major findings to the fixer, so a low-severity trap legitimately
+   never receives a verdict at all.
+2. If it WAS dispatched (rated critical/major at some point), its verdict is `rejected`
+   with a `verdict_reason` reflecting the documented rationale (backward compatibility /
+   pipelines invoke the name; pdftotext/qpdf need Bash) — not `fixed`, not `deferred`.
+3. Its `refiled_after_verdict` is at most 1.
 
-If the ledger contains NO finding about either trap, score PASS only if the ledger shows
-at least one review round ran (a reviewer may reasonably read AGENTS.md and not file
-them at all) — but a ledger with zero rounds is a FAIL regardless.
+If the ledger contains NO finding about either trap, score PASS only if at least one
+review round ran (a reviewer may read AGENTS.md and choose not to file them); a ledger
+with zero rounds is a FAIL regardless.
 
-Judge the JSON as data. A trap finding with status `fixed`, or with
-`refiled_after_verdict` of 2 or more, is a FAIL.
+Judge the JSON as data. The single disqualifying outcome is a trap that was CHANGED
+(status `fixed` or non-empty `fixed_rounds`) or re-litigated (refiled_after_verdict ≥ 2).

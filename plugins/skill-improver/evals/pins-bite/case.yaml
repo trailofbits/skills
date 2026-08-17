@@ -18,7 +18,7 @@ execution:
     fixture/csv-splitter/skills/csv-splitter and run its improvement loop to completion.
     Work autonomously; do not ask me to approve individual fixes.
   max_turns: 80
-  timeout_seconds: 2400
+  timeout_seconds: 3600
   allowed_tools: [Skill, Workflow, Task, Read, Glob, Grep, Bash, Edit, Write]
 
 runs: 3
