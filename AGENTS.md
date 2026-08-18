@@ -239,9 +239,13 @@ is strong evidence and not a guarantee:
   `pre-commit run -a`) to cover those locally.
 - **the version-increment check**, which needs a base ref to diff against and so has
   no meaning outside a PR.
-- **`make shell-suites`**, which is a target but not part of `check`: it fails on any
-  machine with the `modern-python` plugin installed, because its shim intercepts the
-  `python3 -` that zeroize-audit's suite uses (#207).
+- **`make shell-suites`**, which is a target but not part of `check`: it still fails on a
+  machine with the `modern-python` plugin installed, though no longer for the reason
+  #207 describes. The `python3 -` interception that broke zeroize-audit is gone as of
+  modern-python 1.6.0. What remains is `plugins/variant-analysis/tests/` invoking
+  `python3 <script>.py`, which the shim intercepts *by design* — a bare script run is
+  exactly what `uv run python` replaces. That one is variant-analysis's to fix. With no
+  shim on PATH the whole target passes.
 
 Both scan every plugin; the validator is not scoped down in CI. Only the
 version-increment check is limited to the plugins a branch touched, and it is the one
