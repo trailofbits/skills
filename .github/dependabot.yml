@@ -32,6 +32,14 @@ updates:
       - /plugins/testing-handbook-skills/scripts
       - /plugins/trailmark/skills/slicing-code-context/scripts
       - /plugins/yara-authoring/skills/yara-rule-authoring/scripts
+    # supply-chain-risk-auditor's eval fixtures are deliberately stale manifests —
+    # requests==2.19.0 and flask==1.0.2 are the findings those cases assert on, so a
+    # bump would quietly turn a real eval into one nothing can fail. Nothing scans
+    # them today: the directories above are explicit, and the Cargo.toml and
+    # package.json fixtures have no matching ecosystem block at all. This is a guard
+    # against a later edit widening that list, not a fix for PRs already arriving.
+    exclude-paths:
+      - plugins/supply-chain-risk-auditor/evals/fixtures/**
     schedule:
       interval: weekly
     cooldown:
