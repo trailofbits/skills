@@ -39,7 +39,7 @@ updates:
     # package.json fixtures have no matching ecosystem block at all. This is a guard
     # against a later edit widening that list, not a fix for PRs already arriving.
     exclude-paths:
-      - /plugins/supply-chain-risk-auditor/evals/fixtures/**
+      - plugins/supply-chain-risk-auditor/evals/fixtures/**
     schedule:
       interval: weekly
     cooldown:
