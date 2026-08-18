@@ -255,9 +255,12 @@ zero-reference guard only arms on a full scan.
 Each of these fails the build. There is no value in checking any of it by hand:
 
 - `plugin.json` exists, parses, and has `name`, `description`, and a semver `version`
+- `plugin.json`'s `name` equals the plugin's directory name
 - Plugin directory name is kebab-case and ≤64 characters
 - Plugin has a `README.md` (exact case — `Readme.md` passes on macOS and fails on CI)
 - Registered in `.claude-plugin/marketplace.json`, the root `README.md`, and `CODEOWNERS`
+- The marketplace entry's `source` is exactly `./plugins/<name>` and its `description`
+  matches `plugin.json`
 - `version` matches between `plugin.json` and `marketplace.json`, **and** increases when
   you change a plugin — clients only pull an update when the number goes up, so a fix
   shipped without a bump reaches nobody. Apply the `no-version-bump` label for
@@ -269,9 +272,14 @@ Each of these fails the build. There is no value in checking any of it by hand:
   and never triggers. Quote any description containing a colon.
 - Agent files use `tools:`; skills and commands use `allowed-tools:`
 - `subagent_type` values are namespaced `<plugin>:<agent>` — a bare name is
-  unregistered and the dispatch fails at runtime
-- No hardcoded `/Users/…` or `/home/…` paths
+  unregistered and the dispatch fails at runtime, whether it names this plugin's own
+  agent, another plugin's, or nothing at all
+- No hardcoded `/Users/…` or `/home/…` paths, in any `.md`, `.py`, `.json`, `.sh`,
+  `.bats`, `.yml` or `.toml` file under `plugins/`. `*-shim.bats` is exempt because
+  those fixtures need literal paths, and `/path/to` and `/home/vscode` are treated as
+  placeholders rather than somebody's home directory.
 - No `.codex/`, `.opencode/`, `.agents/`, or `plugins/*/.codex-plugin/` sidecars
+- A committed `uv.lock` for every uv directory listed in `.github/dependabot.yml`
 - Both loadability checks pass under the real Claude Code and Codex CLIs
 
 Two more are reported as **warnings**, so they will not stop a merge and do still

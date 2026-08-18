@@ -80,44 +80,10 @@ jobs:
           print(f'All {skill_count} SKILL.md files have valid frontmatter')
           "
 
-      - name: Check for hardcoded paths
-        shell: bash
-        run: |
-          set -uo pipefail
-          echo "Checking for hardcoded user paths..."
-          # Shell, bats, yaml and toml were previously unscanned; test fixtures and
-          # install scripts are exactly where absolute paths tend to hide. The
-          # *-shim.bats exclusion covers gh-shim's /home/user/... fixtures.
-          INCLUDES=(--include='*.md' --include='*.py' --include='*.json'
-                    --include='*.sh' --include='*.bats' --include='*.yml'
-                    --include='*.toml')
-
-          # Prove the scan saw files before trusting a clean result. `if grep A |
-          # grep -v B` takes its status from the LAST command in the pipe, so a
-          # first-stage failure (renamed directory, a grep without -P) produced no
-          # output, exited 2, and printed "No hardcoded user paths found" while
-          # inspecting nothing — the same defect this PR exists to remove.
-          scanned=$(grep -rl '' plugins/ "${INCLUDES[@]}" | wc -l)
-          if [ "$scanned" -eq 0 ]; then
-            echo "ERROR: path scan matched no files at all — discovery is broken"
-            exit 1
-          fi
-          echo "Scanning $scanned file(s)"
-
-          hits=$(grep -rPn '(?<![a-zA-Z])(/home/[a-z]|/Users/[A-Z])' plugins/ \
-              "${INCLUDES[@]}" --exclude='*-shim.bats' || true)
-          rc=${PIPESTATUS[0]}
-          if [ "$rc" -gt 1 ]; then
-            echo "ERROR: grep failed with status $rc — the scan did not run"
-            exit 1
-          fi
-          hits=$(printf '%s\n' "$hits" | grep -v '/path/to' | grep -v '/home/vscode' || true)
-          if [ -n "$hits" ]; then
-            printf '%s\n' "$hits"
-            echo "ERROR: Found hardcoded user paths (see above)"
-            exit 1
-          fi
-          echo "No hardcoded user paths found"
+      # The hardcoded-path scan that used to live here is now find_hardcoded_paths() in
+      # validate_plugin_metadata.py, which this workflow already runs. Moving it there
+      # made it available to `make check` and to pre-commit, and dropped the dependency
+      # on `grep -P`, which BSD grep does not have.
 
       - name: Check for personal emails
         run: |
