@@ -71,7 +71,7 @@ The two cover different halves, and neither substitutes for the other:
 - **`evals/`** runs the real model against a real repository and grades the gate-1 analysis: does unpushed work stay in Keep, does every delete candidate name its evidence, does anything get deleted before the user answers. See [evals/README.md](evals/README.md).
 
 ```bash
-make eval-selftest   # free; proves the graders still fire. Part of `make check`
+make eval-self-tests  # free; proves the graders still fire. Part of `make check`
 make evals           # the real suite — costs API calls, opt-in only
 ```
 

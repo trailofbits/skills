@@ -2,7 +2,7 @@
 # Run the git-cleanup eval suite: every case in both arms, graded, with a Δ table.
 #
 # This costs real API calls. It is deliberately not part of `make check`; the cheap
-# proof that the graders still fire is `make eval-selftest`.
+# proof that the graders still fire is `make eval-self-tests`.
 #
 # Two surfaces are graded, and they are not interchangeable:
 #   - EXECUTED TOOL CALLS, extracted from the stream-json transcript. Answers "did it
@@ -17,6 +17,7 @@
 #
 # Usage: run-evals.sh [--case <id>] [--arm with|without] [--model <m>]
 #                     [--grader-model <m>] [--out <dir>] [--keep]
+#        run-evals.sh --self-test
 
 set -euo pipefail
 
@@ -64,6 +65,13 @@ while [ $# -gt 0 ]; do
     --keep)
       KEEP=1
       shift
+      ;;
+    # The repo-wide `make eval-self-tests` target discovers harnesses by grepping for
+    # this flag, so the free self-test has to be reachable from here rather than only
+    # from its own script. Handled before the `claude` dependency check below, because
+    # the self-test shims `claude` and must run on a machine without it.
+    --self-test)
+      exec bash "$SCRIPT_DIR/selftest/run-selftest.sh"
       ;;
     -h | --help)
       sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'

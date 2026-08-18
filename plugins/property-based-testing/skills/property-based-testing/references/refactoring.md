@@ -1,181 +1,120 @@
-# Refactoring for Property-Based Testing
+# Refactoring to Expose a Property
 
-Identify code that could be refactored to enable or improve property-based testing.
+"This code has no algebraic shape" is often a fact about how the code is *arranged*
+rather than about what it does. A function that mixes a pure calculation with a database
+write has a property; it just does not have a seam to assert it through. These are the
+rearrangements that expose one, strongest first.
 
-## Quick Reference
+Suggest the refactor, name the property it unlocks, and let the author decide. A change
+to production code to make a test possible is their call, not yours — the same rule that
+governs adding a PBT dependency at all.
 
-| Pattern | Problem | Solution | Properties Enabled |
-|---------|---------|----------|-------------------|
-| I/O mixed with logic | Can't test without mocks | Extract pure core | Multiple |
-| Encode without decode | No roundtrip possible | Add inverse operation | Roundtrip |
-| Hardcoded config | Can't test edge cases | Inject dependencies | Full coverage |
-| In-place mutation | Hard to verify before/after | Return new value | Comparison properties |
-| String building | Can't verify structure | Structured + render | Roundtrip |
-| Implicit invariants | Can't test constraints | Make explicit with validation | Invariant |
+## 1. Extract the pure core
 
-## Refactoring Patterns
-
-### 1. Extract Pure Core from Impure Functions (High Impact)
-
-**Pattern**: Functions that mix I/O with logic
+The highest-value one by a wide margin, and the reason most "untestable" code is
+testable. I/O at the edges, calculation in the middle, assert against the middle.
 
 ```python
-# BEFORE - hard to test
+# Before: the arithmetic is real but unreachable without a database
 def process_order(order_id: str) -> None:
-    order = db.fetch(order_id)           # I/O
-    discount = calculate_discount(order)  # Pure logic
-    total = apply_discount(order, discount)  # Pure logic
-    db.save(order_id, total)             # I/O
-
-# AFTER - pure core extracted
-def calculate_order_total(order: Order, rules: DiscountRules) -> Decimal:
-    """Pure function - easy to property test."""
-    discount = calculate_discount(order, rules)
-    return apply_discount(order, discount)
-
-def process_order(order_id: str) -> None:
-    """Thin I/O wrapper."""
     order = db.fetch(order_id)
-    total = calculate_order_total(order, get_discount_rules())
+    total = apply_discount(order, calculate_discount(order))
     db.save(order_id, total)
+
+# After: the pure core takes arguments and returns a value
+def order_total(order: Order, rules: DiscountRules) -> Decimal:
+    return apply_discount(order, calculate_discount(order, rules))
+
+def process_order(order_id: str) -> None:
+    order = db.fetch(order_id)
+    db.save(order_id, order_total(order, get_discount_rules()))
 ```
 
-**Detection**: `rg "def \w+\(" -A 20 | grep -E "(open\(|db\.|requests\.|fetch|save)"`
+`order_total` now supports invariants (never negative, never above the undiscounted
+total), monotonicity in the discount rate, and an oracle against a reference
+calculation. `process_order` keeps example tests with a mocked `db`, which is the right
+tool for a two-line wrapper.
 
-### 2. Add Missing Inverse Operations (High Impact)
+The same move applies to anything whose observable is a side effect: build the message,
+the request, the query object — then send it. Construction is testable; delivery is
+mocked.
 
-**Pattern**: One-way operations that should have pairs
+## 2. Add the missing inverse
+
+A one-way operation has no roundtrip by definition. Sometimes the inverse is worth
+having in production anyway, and sometimes it is worth having *only* for the test — say
+which.
 
 ```python
-# BEFORE - only encode
-def encode_message(msg: dict) -> bytes:
-    return msgpack.packb(msg)
-
-# AFTER - add decode for roundtrip testing
-def encode_message(msg: dict) -> bytes:
-    return msgpack.packb(msg)
-
-def decode_message(data: bytes) -> dict:
-    return msgpack.unpackb(data)
+def encode_message(msg: dict) -> bytes: ...
+def decode_message(data: bytes) -> dict: ...   # unlocks decode(encode(x)) == x
 ```
 
-**Detection**: Find encode without decode, serialize without deserialize
+Unlocks roundtrip, the strongest property in the catalog. Worth asking for even when the
+production code never decodes: a serializer nobody can read back is usually a latent
+bug, not a design.
 
-### 3. Replace Hardcoded Dependencies (Medium Impact)
+## 3. Structured representation plus a renderer
 
-**Pattern**: Functions using globals or hardcoded config
-
-```python
-# BEFORE
-def validate_input(data: str) -> bool:
-    return len(data) <= CONFIG.max_length
-
-# AFTER - dependencies injected
-def validate_input(data: str, max_length: int) -> bool:
-    return len(data) <= max_length
-```
-
-**Detection**: `rg "(CONFIG\.|SETTINGS\.|os\.environ)"`
-
-### 4. Return Values Instead of Mutating (Medium Impact)
-
-**Pattern**: Methods that mutate in place
+String building by concatenation has nothing to assert beyond "contains a substring".
+Split the value from its rendering and the inverse becomes available.
 
 ```python
-# BEFORE
-def sort_tasks(tasks: list[Task]) -> None:
-    tasks.sort(key=lambda t: t.priority)
-
-# AFTER - returns new list
-def sorted_tasks(tasks: list[Task]) -> list[Task]:
-    return sorted(tasks, key=lambda t: t.priority)
-```
-
-**Detection**: `rg "-> None:" -A 10 | grep -E "\.(sort|append|extend)"`
-
-### 5. Convert String Building to Structured + Render (Medium Impact)
-
-**Pattern**: Manual string concatenation
-
-```python
-# BEFORE
+# Before
 def build_query(table: str, filters: dict) -> str:
     q = f"SELECT * FROM {table}"
-    if filters:
-        q += " WHERE " + " AND ".join(...)
-    return q
+    ...
 
-# AFTER - structured representation
+# After
 @dataclass
 class Query:
     table: str
     filters: dict
 
-def render_query(q: Query) -> str: ...
-def parse_query(sql: str) -> Query: ...  # Add inverse!
+def render(q: Query) -> str: ...
+def parse(sql: str) -> Query: ...   # now render/parse is a roundtrip
 ```
 
-### 6. Add Validators/Generators for Predicates (Lower Impact)
+This is pattern 2 wearing different clothes, and it is where escaping bugs live: a
+roundtrip over generated filter values finds quoting errors that no hand-written example
+will.
 
-**Pattern**: `is_valid()` exists but no way to generate valid inputs
+## 4. Return a value instead of mutating
+
+An in-place mutation gives you nothing to compare against, because the input is gone by
+the time you want to assert on it.
 
 ```python
-# BEFORE
-def is_valid_email(s: str) -> bool:
-    return EMAIL_REGEX.match(s) is not None
-
-# AFTER - add generator
-@st.composite
-def valid_emails(draw):
-    local = draw(st.from_regex(r'[a-z][a-z0-9]{1,20}'))
-    domain = draw(st.sampled_from(['gmail.com', 'example.com']))
-    return f"{local}@{domain}"
+def sort_tasks(tasks: list[Task]) -> None: ...      # before/after comparison impossible
+def sorted_tasks(tasks: list[Task]) -> list[Task]:  # unlocks is_sorted, permutation,
+    ...                                             # idempotence, length preservation
 ```
 
-**Detection**: `rg "def is_\w+\(" --type py`
+If the mutating signature has to stay, a wrapper that copies and returns is enough for
+the test to have something to hold.
 
-### 7. Make Implicit Invariants Explicit (Lower Impact)
+## 5. Inject the dependency
 
-**Pattern**: Constraints in comments but not enforced
+A function reading a global, a module constant, or `os.environ` can only be tested at
+whatever those happen to be, so the edges of its input domain are unreachable.
 
 ```python
-# BEFORE - constraint only in docstring
-def allocate_buffer(size: int) -> bytes:
-    """Size must be positive and <= 1MB."""
-    return bytes(size)
-
-# AFTER - enforced
-MAX_BUFFER_SIZE = 1024 * 1024
-
-def allocate_buffer(size: int) -> bytes:
-    if not (0 < size <= MAX_BUFFER_SIZE):
-        raise ValueError(f"size must be in (0, {MAX_BUFFER_SIZE}]")
-    return bytes(size)
+def validate(data: str) -> bool:          return len(data) <= CONFIG.max_length
+def validate(data: str, max_len: int):    return len(data) <= max_len
 ```
 
-**Detection**: `rg "(must be|should be|always|never)" --type py`
+Parameterising the bound is what lets a generator drive `max_len` to 0, to 1, and to the
+maximum representable value — the boundaries where validators actually break.
 
-## Evaluation Criteria
+## When not to suggest this
 
-For each refactoring opportunity:
-
-| Factor | Questions |
-|--------|-----------|
-| Properties enabled | What tests become possible? Roundtrip > Idempotence > No crash |
-| Effort | Low/Medium/High - how much code change? |
-| Risk | Breaking changes? API impact? |
-| Backwards compatibility | Can old callers still work? |
-
-## Prioritization
-
-1. Strength of properties enabled (roundtrip > idempotence > no crash)
-2. Effort required (prefer low-effort wins)
-3. Risk level (prefer safe changes)
-
-## Red Flags
-
-- **Breaking the API without warning**: Flag breaking changes clearly and offer backwards-compatible alternatives
-- **Over-engineering**: Not every function needs to be perfectly testable - prioritize high-value code
-- **Ignoring existing tests**: Run existing tests after refactoring to verify behavior unchanged
-- **Missing the forest for the trees**: If a module needs wholesale restructuring, say so rather than suggesting 20 small changes
-- **Not considering effort vs value**: A complex refactoring enabling only "no crash" isn't worth it
+- **The property you would unlock is "no crash".** Restructuring production code to
+  enable the weakest property in the catalog is a bad trade. Say the code is a poor PBT
+  candidate and stop.
+- **The module needs wholesale restructuring.** Say that once, plainly. Twenty
+  individually-reasonable suggestions on one file is noise, and it reads as a rewrite
+  request rather than a testing recommendation.
+- **The refactor breaks a public API.** Flag it as breaking and offer the
+  backwards-compatible version, even when the clean version is obviously nicer.
+- **Existing tests cover the code.** Run them after any refactor and say you did.
+  "Enabled a property test and broke two example tests" is not progress.

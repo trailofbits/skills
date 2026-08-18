@@ -5,7 +5,7 @@ Measures whether `/git-cleanup` produces a **correct GATE 1 analysis** — the c
 ## Running
 
 ```sh
-make eval-selftest                      # free, no API calls, runs in `make check`
+make eval-self-tests                    # free, no API calls, runs in `make check`
 make evals                              # the real suite — COSTS API CALLS
 make evals ARGS='--case 01-mixed-repo'  # one case while iterating
 make evals ARGS='--case 01-mixed-repo --arm with --keep'

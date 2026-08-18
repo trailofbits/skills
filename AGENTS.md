@@ -227,8 +227,9 @@ See [API.md](references/API.md) for complete method documentation.
 make check
 ```
 
-That runs the validator self-test, ruff, shellcheck, shfmt, bats, the plugin
-Python suites, the plugin `*.test.mjs` suites, and the plugin validator.
+That runs the validator self-test, the eval-harness self-tests, ruff, shellcheck,
+shfmt, bats, the plugin Python suites, the plugin `*.test.mjs` suites, and the plugin
+validator.
 
 It needs `uv`, `shellcheck`, `shfmt`, `bats`, and `node` on PATH. `node` is the newest
 of those and the one most likely to be missing — without it `make check` stops at
@@ -266,7 +267,11 @@ Each of these fails the build. There is no value in checking any of it by hand:
   you change a plugin — clients only pull an update when the number goes up, so a fix
   shipped without a bump reaches nobody. Apply the `no-version-bump` label for
   typo-only changes and CI skips the check.
-- `SKILL.md` frontmatter parses and has `name` and `description`
+- `SKILL.md` has frontmatter, and no top-level value is an unquoted YAML scalar
+  containing `: ` or ` #`. Either one makes the whole block unparseable, and the
+  loader then drops *every* field and loads the skill with empty metadata — so a
+  skill whose `description:` line reads perfectly well ships with no description
+  and never triggers. Quote any description containing a colon.
 - Agent files use `tools:`; skills and commands use `allowed-tools:`
 - `subagent_type` values are namespaced `<plugin>:<agent>` — a bare name is
   unregistered and the dispatch fails at runtime
