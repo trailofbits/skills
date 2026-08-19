@@ -114,9 +114,9 @@ EOF
 chmod +x ./afl++
 ```
 
-The examples below use `docker` mode, apart from the system configuration commands that have to reach the host kernel. Swap in `host` to run any of them against an AFL++ installed on the machine itself; the wrapper passes everything after the mode argument through unchanged.
+The examples below use `docker` mode, apart from the system configuration commands that have to reach the host kernel. Swap in `host` to run any of them against an AFL++ installed on the machine itself. The wrapper joins everything after the mode argument into a single shell string, so quoting does not survive: an argument containing a space (`-x "my dict.dict"`) arrives word-split. Rename such files without spaces, or edit the wrapper for that run.
 
-The missing `-t` is deliberate. `docker run -ti` aborts with `the input device is not a TTY` whenever stdin is not a terminal, which covers CI jobs and anything an agent or script drives. `afl-fuzz` notices there is no terminal and prints plain status lines in place of the full-screen UI. A program that insists on a terminal, such as `watch`, has to run on the host side of the wrapper instead. `$$` expands to the wrapper's PID, so parallel instances get distinct container names rather than colliding on a single `afl_fuzzing`; `docker ps` shows which is which.
+The missing `-t` is deliberate. `docker run -ti` aborts with `the input device is not a TTY` whenever stdin is not a terminal, which covers CI jobs and anything an agent or script drives. `afl-fuzz` notices there is no terminal and prints plain status lines in place of the full-screen UI. A program that insists on a terminal, such as `watch`, has to run on the host side of the wrapper instead. `$$` expands to the wrapper's PID, so parallel instances get distinct container names rather than colliding on a single `afl_fuzzing`. `docker ps` truncates the COMMAND column, so every row looks alike; use `docker ps --no-trunc` to tell the instances apart before stopping one.
 
 **Security Warning:** The `afl-system-config` and `afl-persistent-config` scripts require root privileges and disable OS security features. Do not fuzz on production systems or your development environment. Use a dedicated VM instead.
 
@@ -264,7 +264,12 @@ After a campaign, minimize the corpus to keep only unique coverage:
 
 ### Interpreting Output
 
-The AFL++ UI shows real-time fuzzing statistics:
+AFL++ reports these statistics either way, but how you read them depends on the
+mode. The wrapper's `docker run -i` gives the container no TTY, so `afl-fuzz`
+drops the full-screen UI and writes plain status lines to the log instead — the
+fields below appear there, and in `state/<instance>/fuzzer_stats`. To get the
+interactive UI, run `host` mode in a terminal, or add `-t` to the wrapper for a
+run you are watching by hand.
 
 | Output | Meaning |
 |--------|---------|
@@ -388,15 +393,20 @@ AFL++ excels at multi-core fuzzing with two major advantages:
 Start the primary fuzzer (in background):
 
 ```bash
-./afl++ docker afl-fuzz -M primary -i seeds -o state -- ./fuzz 1>primary.log 2>primary.error &
+./afl++ docker afl-fuzz -M primary -i seeds -o state -- ./fuzz 1>primary.log 2>primary.error </dev/null &
 ```
 
 Start secondary fuzzers (as many as you have cores):
 
 ```bash
-./afl++ docker afl-fuzz -S secondary01 -i seeds -o state -- ./fuzz 1>secondary01.log 2>secondary01.error &
-./afl++ docker afl-fuzz -S secondary02 -i seeds -o state -- ./fuzz 1>secondary02.log 2>secondary02.error &
+./afl++ docker afl-fuzz -S secondary01 -i seeds -o state -- ./fuzz 1>secondary01.log 2>secondary01.error </dev/null &
+./afl++ docker afl-fuzz -S secondary02 -i seeds -o state -- ./fuzz 1>secondary02.log 2>secondary02.error </dev/null &
 ```
+
+The `</dev/null` is required, not decorative. `docker run -i` keeps the client
+reading its own stdin, and a backgrounded process that reads the terminal is sent
+`SIGTTIN`, whose default action stops it — so without the redirect these jobs show
+up as `Stopped` in `jobs` and never fuzz.
 
 ### Monitoring Multi-Core Campaigns
 
@@ -455,7 +465,7 @@ No special action is needed for compiling and linking the harness.
 To run a fuzzer instance with a CMPLOG instrumented fuzzing target, add `-c0` to the command like arguments:
 
 ```bash
-./afl++ docker afl-fuzz -c0 -S cmplog -i seeds -o state -- ./fuzz 1>secondary02.log 2>secondary02.error &
+./afl++ docker afl-fuzz -c0 -S cmplog -i seeds -o state -- ./fuzz 1>cmplog.log 2>cmplog.error </dev/null &
 ```
 
 ## Sanitizer Integration
