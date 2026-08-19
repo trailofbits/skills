@@ -186,10 +186,12 @@ If either diff command fails or writes an empty JSON file, stop and report the
 error instead of continuing to Phase 4.
 
 A `trailmark_diff.json` whose `nodes`, `edges`, and `entrypoints` arrays are all
-empty most often means the language was wrong. Confirm `--language` matches the
-target before reading that file as "no structural change": re-run the diff with
-the target's language named explicitly (`rust`, `solidity`, `python,rust`) and
-compare the two outputs.
+empty means either nothing changed structurally or both snapshots parsed to
+(near-)empty graphs. Decide which using Phase 2's graph summaries: if either
+snapshot's node count is zero or implausibly small for the target, the parse
+missed the code — name the language set explicitly (`rust`, `solidity`,
+`python,rust`) and re-run. Healthy node counts on both snapshots plus an empty
+diff is genuine structural stability.
 
 The native Trailmark diff contains:
 
@@ -302,8 +304,8 @@ Before delivering the report:
 
 - [ ] Both graphs built successfully (check summaries)
 - [ ] Pre-analysis ran on both snapshots
-- [ ] Native Trailmark diff computed and non-empty (`trailmark_diff.json`); if it
-      is empty, `--language` was confirmed against the target first
+- [ ] Native Trailmark diff computed (`trailmark_diff.json`); if it is empty,
+      both snapshots' Phase 2 node counts were non-zero, so empty means stable
 - [ ] Subgraph diff computed and non-empty (`subgraph_diff.json`)
 - [ ] All subgraph changes interpreted (tainted, blast radius, etc.)
 - [ ] Critical findings include evidence (node IDs, edge diffs)
