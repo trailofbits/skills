@@ -57,8 +57,6 @@ Read finding files from the working directory:
 
 Merge all findings into a single list. Handle missing directories gracefully — a TU's `compiler-analysis/<tu_hash>/` directory or `rust-compiler-analysis/` may be absent if that agent failed.
 
-Merge all findings into a single list. Handle missing directories gracefully — a TU's compiler-analysis directory may be absent if that agent failed.
-
 ### Step 2 — Apply Supersessions
 
 Read `superseded-findings.json` from:
