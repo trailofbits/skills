@@ -128,3 +128,43 @@ loop) on the same cases — see `ablation/README.md` for the metric table and it
 limitations before running it.
 
 Results land in `results/` (gitignored).
+
+## Measured results (2026-08, sonnet judge, 3 runs/case/arm, contamination gates clean)
+
+Three arms: this plugin (v2), main's 1.0.5, and the branch-baseline 1.1.0 — the old
+arms neutralized and gated with `--allow-listing`. Median [min–max] run score:
+
+| case | v2 | 1.0.5 | 1.1.0 |
+|---|---|---|---|
+| no-relitigation | **1.00** [0.88–1.00] | 0.50 | 0.50 |
+| pins-bite | **1.00** | 0.00 | 0.00 |
+| scope-guard | **1.00** [0.57–1.00] | 0.71 | 0.71 |
+| structural-escalation | **1.00** [0.75–1.00] | 0.12 [0.12–0.25] | 0.25 [0.12–0.25] |
+| termination-and-finalize | **1.00** [0.50–1.00] | 0.25 | 0.50 |
+
+Read it honestly, per grader class:
+
+- **Outcome graders** (fixture/final-message facts, fair cross-arm): the old versions
+  match v2 on no-relitigation and scope-guard, and lose on structural-escalation
+  (relocated the guarded check; v2 kept the frozen guarantee byte-identical 3/3 and
+  escalated) and termination-and-finalize (no version discipline; 1.0.5 presented
+  unfinished work as done). Both old arms fixed pins-bite's planted bug and even added
+  covering tests in 6/6 runs — raw fixing ability is not the difference.
+- **Artifact graders** (ledger, verdicts, metrics, recorded pins): v2 ≈ 1.00, old arms
+  0.00 by construction — v1 keeps no record, which is itself the finding: nothing about
+  a v1 run is machine-checkable afterwards. `verify-pins.sh` bit 3/3 on v2 workspaces
+  (recorded pins go red against reverted fixes).
+- **v1's mode of failure** was the handoff's catalog verbatim: its setup refused to arm
+  (plugin-dev absent), the session ran the loop inline — self-reviewed, self-fixed,
+  self-declared `<skill-improvement-complete>` in ~4 minutes with no escalation path.
+- **v2 arm-A loop metrics** (12/15 runs with metrics.json; the rest were episodes killed
+  at harness timeout): rounds_used median 2 (max 5), refiled_after_verdict 0/12,
+  version_bumps median 1 (max 1), out_of_scope_diff_bytes 0/12, narration_hits_final
+  0/12, converged 9/12, escalated 3/12. Two ledgers end on a fix round — both are
+  escalation-at-fix exits (`converged: false`, tree explicitly flagged unreviewed), not
+  completions.
+- **Known noise**: arm A's sub-1.00 minima are episode-timeout kills (the loop runs
+  10–35 min per episode and a continuation-after-escalation doubles that; timeouts are
+  now 3600s) and one judge call lost to a spend limit. Grader iteration history (two
+  rubrics corrected against ground truth, one llm check replaced by a proven regex) is
+  in this suite's git log.

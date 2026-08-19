@@ -3,6 +3,12 @@
 Runs the same eval cases against this plugin and against the last stop-hook version,
 checked out from git into a temporary marketplace. Paid, manual, never CI.
 
+**Measured 2026-08** (three arms — v2, main's 1.0.5, and 1.1.0 — run manually with this
+script's protocol): the scorecard and its honest reading live in the parent
+[README](../README.md), "Measured results". Headline: v2 medians 1.00 on all five cases;
+old arms 0.00–0.71, losing on escalation, version discipline, honest exits, and every
+artifact check, while matching v2 on raw defect-fixing.
+
 ```sh
 ./run.sh --baseline-ref <commit-with-v1.1.0> [--runs 3] [--case structural-escalation]
 ```
