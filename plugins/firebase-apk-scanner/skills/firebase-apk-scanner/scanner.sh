@@ -37,6 +37,7 @@ TOTAL_APKS=0
 VULNERABLE_APKS=0
 TOTAL_VULNS=0
 FAILED_APKS=0
+UNTESTED_APKS=0
 
 # Common Cloud Function names to enumerate
 COMMON_FUNCTIONS="addMessage sendMessage createUser deleteUser updateUser getUser getUsers login logout register signup signUp authenticate verify verifyEmail resetPassword changePassword sendNotification sendEmail processPayment createOrder getOrders updateOrder deleteOrder uploadFile getFile generateToken validateToken refreshToken getData setData syncData backup restore export import webhook callback api admin debug test healthcheck status createProfile updateProfile deleteProfile getProfile subscribe unsubscribe notify push analytics"
@@ -1058,6 +1059,17 @@ process_apk() {
   log_info "  API Keys: $key_count"
   log_info "  Function Names: $func_count"
 
+  # Every endpoint test below is guarded on one of these values, so with none of them
+  # there is nothing to probe. Reporting that as SECURE is indistinguishable from an
+  # APK whose endpoints were tested and found locked down.
+  if [ "$((db_count + proj_count + bucket_count + key_count + func_count))" -eq 0 ]; then
+    log_warning "No Firebase configuration found in $apk_name — nothing was tested"
+    log_warning "The app may not use Firebase, or the config may be obfuscated or packed."
+    echo "NO_CONFIG" >"${apk_result_dir}/status.txt"
+    UNTESTED_APKS=$((UNTESTED_APKS + 1))
+    return 0
+  fi
+
   local apk_vulnerable=false
   local apk_vulns=""
   local anonymous_token=""
@@ -1280,6 +1292,7 @@ generate_report() {
     echo "  \"total_apks\": $TOTAL_APKS,"
     echo "  \"vulnerable_apks\": $VULNERABLE_APKS,"
     echo "  \"failed_apks\": $FAILED_APKS,"
+    echo "  \"untested_apks\": $UNTESTED_APKS,"
     echo "  \"total_vulnerabilities\": $TOTAL_VULNS,"
     echo '  "results": ['
 
@@ -1418,12 +1431,17 @@ main() {
       "$YELLOW" "$FAILED_APKS" "$NC"
   fi
 
+  if [ "$UNTESTED_APKS" -gt 0 ]; then
+    printf 'No Firebase config: %s%d%s (nothing to probe, so these were not tested)\n' \
+      "$YELLOW" "$UNTESTED_APKS" "$NC"
+  fi
+
   echo ""
   echo "Results saved to: $OUTPUT_DIR"
 
   # An APK that never got tested must not be reported as a clean result.
-  if [ "$FAILED_APKS" -gt 0 ] && [ "$FAILED_APKS" -eq "$TOTAL_APKS" ]; then
-    log_error "Every APK failed to process; nothing was actually scanned."
+  if [ "$((FAILED_APKS + UNTESTED_APKS))" -eq "$TOTAL_APKS" ]; then
+    log_error "No APK was actually tested (all failed to process or carried no Firebase config)."
     exit 1
   fi
 }

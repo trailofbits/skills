@@ -97,11 +97,15 @@ Present findings in this format:
 | APKs Scanned | X |
 | Vulnerable | X |
 | Failed to scan | X |
+| No Firebase config | X |
 | Total Issues | X |
 
-Take "Failed to scan" from `failed_apks` in `scan_report.json`. A failed APK was
-never tested, so it is neither vulnerable nor clean — say so explicitly rather
-than letting it disappear into a "0 vulnerable" line.
+Take these from `failed_apks` and `untested_apks` in `scan_report.json`. Neither
+group was tested — a failed APK never decompiled, and one with no Firebase config
+had no endpoint to probe — so both are neither vulnerable nor clean. Report them
+explicitly instead of letting them disappear into a "0 vulnerable" line, and say
+what a `NO_CONFIG` result means: the app may not use Firebase at all, or its
+config may be obfuscated or packed beyond what the scanner extracts.
 
 ## Extracted Configuration
 
