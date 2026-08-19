@@ -161,6 +161,7 @@ fi
 log_step "Quality improvement: install type stubs/additional deps"
 
 # Python type stubs — install into target project's environment
+# allow-legacy-python: installs into the analysed project's environment, which may not be uv-managed.
 STUBS_INSTALLED=""
 for stub in types-requests types-PyYAML types-redis; do
   if pip install "$stub" 2>/dev/null; then
@@ -170,6 +171,7 @@ done
 log_result "Installed type stubs:$STUBS_INSTALLED"
 
 # Additional project dependencies
+# allow-legacy-python: the analysed project's own editable install.
 run_logged pip install -e . || log_result "WARNING: pip install -e . failed — extraction may stay incomplete"
 ```
 

@@ -38,7 +38,7 @@ Read `config_path` to load the merged config. Read `input_file` to load `sensiti
 ```bash
 FLAGS=()
 while IFS= read -r flag; do FLAGS+=("$flag"); done < <(
-  python {baseDir}/tools/extract_compile_flags.py \
+  uv run --no-project {baseDir}/tools/extract_compile_flags.py \
     --compile-db <compile_db> \
     --src <tu_source> --format lines)
 ```
@@ -102,7 +102,7 @@ Assembly evidence is mandatory for both findings — **never** emit from source 
 Skip if `enable_semantic_ir=false`.
 
 ```bash
-python {baseDir}/tools/analyze_ir_semantic.py \
+uv run --no-project {baseDir}/tools/analyze_ir_semantic.py \
   --ir {workdir}/compiler-analysis/{tu_hash}/<tu_hash>.O2.ll \
   --out ${workdir}/compiler-analysis/<tu_hash>/semantic-ir.json
 ```
@@ -120,7 +120,7 @@ python {baseDir}/tools/analyze_ir_semantic.py \
 Skip if `enable_cfg=false`.
 
 ```bash
-python {baseDir}/tools/analyze_cfg.py \
+uv run --no-project {baseDir}/tools/analyze_cfg.py \
   --src <tu_source> \
   --out ${workdir}/compiler-analysis/<tu_hash>/cfg-findings.json
 ```

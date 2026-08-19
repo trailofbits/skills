@@ -146,7 +146,7 @@ Before deployment, check strings against yarGen's goodware database:
 
 ```bash
 # Query strings against goodware database
-python db-lookup.py -f strings.txt
+uv run --no-project --with-requirements requirements.txt python db-lookup.py -f strings.txt
 ```
 
 Strings appearing in the database are likely to cause false positives.

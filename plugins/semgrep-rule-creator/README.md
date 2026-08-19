@@ -28,7 +28,7 @@ Use this skill when you need to:
 
 ## Prerequisites
 
-- [Semgrep](https://semgrep.dev/docs/getting-started/) installed (`pip install semgrep` or `brew install semgrep`)
+- [Semgrep](https://semgrep.dev/docs/getting-started/) installed (`uv tool install semgrep` or `brew install semgrep`)
 
 ## Installation
 

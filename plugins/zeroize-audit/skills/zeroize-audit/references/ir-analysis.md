@@ -27,7 +27,7 @@ mkdir -p /tmp/zeroize-audit/
 
 FLAGS=()
 while IFS= read -r flag; do FLAGS+=("$flag"); done < <(
-  python {baseDir}/tools/extract_compile_flags.py \
+  uv run --no-project {baseDir}/tools/extract_compile_flags.py \
     --compile-db build/compile_commands.json \
     --src src/crypto.c --format lines)
 
@@ -192,7 +192,7 @@ When a cleanup wrapper (e.g., `zeroize_key()`) is inlined into a caller, the wip
 # Emit IR for the caller — inlining happens here:
 FLAGS=()
 while IFS= read -r flag; do FLAGS+=("$flag"); done < <(
-  python {baseDir}/tools/extract_compile_flags.py \
+  uv run --no-project {baseDir}/tools/extract_compile_flags.py \
     --compile-db build/compile_commands.json --src src/crypto.c --format lines)
 
 {baseDir}/tools/emit_ir.sh \

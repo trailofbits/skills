@@ -28,7 +28,8 @@ Measures effectiveness by comparing mutation kill rates before and after.
 
 - **trailmark** installed — if `uv run trailmark` fails, run:
   ```bash
-  uv pip install trailmark
+  uv tool install trailmark
+# Python snippets: uv run --with trailmark python -   (a tool env is not importable)
   ```
 - At least one implementation of the target algorithm in a
   language with mutation testing support

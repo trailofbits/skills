@@ -293,7 +293,7 @@ For each reported finding, include the key body sections (Description / Code / D
 Do **not** hand-write SARIF JSON. After all primary finding frontmatter has `fp_verdict` and survivor frontmatter has `severity`, `attack_vector`, and `exploitability`, run:
 
 ```bash
-python3 "{sarif_generator_path}" "{output_dir}"
+uv run --no-project "{sarif_generator_path}" "{output_dir}"
 ```
 
 The generator reads `{output_dir}/context.md` and the canonical `findings-index.txt` when present (falling back to `findings/*.md` only if the index is absent), applies the same `severity_filter` used for `REPORT.md`, and includes survivor primaries (`TRUE_POSITIVE` / `LIKELY_TP`). A merged non-primary (`merged_into`) is normally excluded, **unless** its merge target did not survive (FP-rejected or missing) — then the merged finding is re-emitted (with a stderr note) so a real bug is never silently dropped because dedup pointed it at a later-rejected target. It writes `{output_dir}/REPORT.sarif`.

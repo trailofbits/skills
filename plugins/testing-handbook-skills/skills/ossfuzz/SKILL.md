@@ -45,11 +45,11 @@ OSS-Fuzz provides a simple CLI framework for building and starting harnesses or 
 | Task | Command |
 |------|---------|
 | Clone OSS-Fuzz | `git clone https://github.com/google/oss-fuzz` |
-| Build project image | `python3 infra/helper.py build_image --pull <project>` |
-| Build fuzzers with ASan | `python3 infra/helper.py build_fuzzers --sanitizer=address <project>` |
-| Run specific harness | `python3 infra/helper.py run_fuzzer <project> <harness>` |
-| Generate coverage report | `python3 infra/helper.py coverage <project>` |
-| Check helper.py options | `python3 infra/helper.py --help` |
+| Build project image | `uv run --no-project python infra/helper.py build_image --pull <project>` |
+| Build fuzzers with ASan | `uv run --no-project python infra/helper.py build_fuzzers --sanitizer=address <project>` |
+| Run specific harness | `uv run --no-project python infra/helper.py run_fuzzer <project> <harness>` |
+| Generate coverage report | `uv run --no-project python infra/helper.py coverage <project>` |
+| Check helper.py options | `uv run --no-project python infra/helper.py --help` |
 
 ## OSS-Fuzz Project Components
 
@@ -87,13 +87,13 @@ You don't need to host the whole OSS-Fuzz platform to use it. The helper script 
 ```bash
 git clone https://github.com/google/oss-fuzz
 cd oss-fuzz
-python3 infra/helper.py --help
+uv run --no-project python infra/helper.py --help
 ```
 
 ### Step 2: Build Project Image
 
 ```bash
-python3 infra/helper.py build_image --pull <project-name>
+uv run --no-project python infra/helper.py build_image --pull <project-name>
 ```
 
 This downloads and builds the base Docker image for the project.
@@ -101,7 +101,7 @@ This downloads and builds the base Docker image for the project.
 ### Step 3: Build Fuzzers with Sanitizers
 
 ```bash
-python3 infra/helper.py build_fuzzers --sanitizer=address <project-name>
+uv run --no-project python infra/helper.py build_fuzzers --sanitizer=address <project-name>
 ```
 
 **Sanitizer options:**
@@ -113,7 +113,7 @@ python3 infra/helper.py build_fuzzers --sanitizer=address <project-name>
 ### Step 4: Run the Fuzzer
 
 ```bash
-python3 infra/helper.py run_fuzzer <project-name> <harness-name> [<fuzzer-args>]
+uv run --no-project python infra/helper.py run_fuzzer <project-name> <harness-name> [<fuzzer-args>]
 ```
 
 The helper script automatically runs any missed steps if you skip them.
@@ -123,8 +123,8 @@ The helper script automatically runs any missed steps if you skip them.
 First, [install gsutil](https://cloud.google.com/storage/docs/gsutil_install) (skip gcloud initialization).
 
 ```bash
-python3 infra/helper.py build_fuzzers --sanitizer=coverage <project-name>
-python3 infra/helper.py coverage <project-name>
+uv run --no-project python infra/helper.py build_fuzzers --sanitizer=coverage <project-name>
+uv run --no-project python infra/helper.py coverage <project-name>
 ```
 
 Use `--no-corpus-download` to use only local corpus. The command generates and hosts a coverage report locally.
@@ -143,9 +143,9 @@ git clone https://github.com/google/oss-fuzz
 cd oss-fuzz
 
 # Build and run irssi fuzzer
-python3 infra/helper.py build_image --pull irssi
-python3 infra/helper.py build_fuzzers --sanitizer=address irssi
-python3 infra/helper.py run_fuzzer irssi irssi-fuzz
+uv run --no-project python infra/helper.py build_image --pull irssi
+uv run --no-project python infra/helper.py build_fuzzers --sanitizer=address irssi
+uv run --no-project python infra/helper.py run_fuzzer irssi irssi-fuzz
 ```
 
 **Expected Output:**
@@ -339,6 +339,7 @@ if __name__ == "__main__":
 
 **Build in build.sh:**
 ```bash
+# allow-legacy-python: build.sh runs inside the oss-fuzz container, where the shims are absent.
 pip3 install .
 for fuzzer in $(find $SRC -name 'fuzz_*.py'); do
   compile_python_fuzzer $fuzzer
