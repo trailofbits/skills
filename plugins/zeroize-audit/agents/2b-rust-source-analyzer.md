@@ -69,6 +69,8 @@ This detects:
 - `#[derive(Serialize)]` on sensitive type → `SECRET_COPY` (low)
 - No `zeroize` crate in `Cargo.toml` → `MISSING_SOURCE_ZEROIZE` (low)
 
+Section A of `{baseDir}/references/rust-zeroization-patterns.md` documents each of these as `A1`–`A12`, with a minimal reproducing snippet and the recommended fix. Read the entry for a pattern before writing its finding `detail`, and use its snippet to judge whether a flagged type really matches or is a false positive.
+
 If the script is missing or fails: write a status-bearing error object to the output file and continue:
 
 ```json
@@ -102,6 +104,8 @@ This detects:
 - `slice::from_raw_parts` → `SECRET_COPY` (medium)
 - `mem::take` → `MISSING_SOURCE_ZEROIZE` (medium)
 - async fn with secret-named local + `.await` → `NOT_ON_ALL_PATHS` (high)
+
+Section B of `{baseDir}/references/rust-zeroization-patterns.md` covers these as `B1`–`B10`. Each entry explains why the API defeats zeroization, which matters here because this scanner is token-based: it cannot tell `mem::take` used to steal a secret from `mem::take` used on an unrelated buffer.
 
 Findings without sensitive names in ±15 surrounding lines are downgraded to `needs_review`.
 

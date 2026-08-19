@@ -21,6 +21,19 @@ allowed-tools: Read Grep Glob Bash Write Task AskUserQuestion mcp__serena__activ
 
 ---
 
+## How to Run
+
+On a request like "audit this crate for secrets left in memory" or "check that this C library actually wipes its keys":
+
+1. **Collect inputs.** Map the request onto the Inputs table below (full schema: `{baseDir}/schemas/input.json`). `path` is required, plus at least one of `compile_db` (C/C++) or `cargo_manifest` (Rust); if neither is given or derivable from the repo, ask the user, because preflight stops the run without one. Leave all other fields at their defaults unless the user says otherwise.
+2. **Read the orchestrator prompt, `{baseDir}/prompts/task.md`**, substituting the collected inputs for its `{{placeholder}}` values. You act as the orchestrator it describes: it defines state recovery, the phase loop, early termination, and error handling. Read `{baseDir}/prompts/system.md` alongside it for the shared working-directory layout and the agent error protocol every phase depends on.
+3. **Execute its phase loop.** Run Phases 0-7 sequentially. Before each phase, read that phase's workflow file from `{baseDir}/workflows/phase-{N}-{name}.md` and follow its Preconditions, Instructions, State Update, and Error Handling sections. Each workflow specifies which agent to spawn via `Task` and with what parameters. Honor the per-phase skip conditions and the early-termination rules in task.md.
+4. **Return the report** (Phase 8, inline): read `{workdir}/report/final-report.md` and return its contents as the skill output.
+
+To resume an interrupted run: if a `workdir` is known from prior context, read `{workdir}/orchestrator-state.json` and continue from its `current_phase` instead of starting at Phase 0 (see the Recovery section of task.md).
+
+---
+
 ## Purpose
 Detect missing zeroization of sensitive data in source code and identify zeroization that is removed or weakened by compiler optimizations (e.g., dead-store elimination), with mandatory LLVM IR/asm evidence. Capabilities include:
 - Assembly-level analysis for register spills and stack retention
@@ -227,6 +240,8 @@ Analysis runs in two phases. For complete step-by-step guidance, see `{baseDir}/
 \* requires `enable_asm=true` (default)
 † requires `enable_semantic_ir=true`
 ‡ requires `enable_cfg=true`
+
+For Rust, `{baseDir}/references/rust-zeroization-patterns.md` catalogues the 40 named anti-patterns the tooling looks for, keyed to the script that detects each one: Section A for rustdoc-JSON semantics (`semantic_audit.py`), Section B for dangerous APIs (`find_dangerous_apis.py`), Section C for MIR/LLVM IR/assembly (`check_mir_patterns.py`, `check_llvm_patterns.py`, `check_rust_asm.py`), and Section D for patterns no current check detects. Read the relevant section when triaging a Rust finding, writing its fix recommendation, or deciding whether a hand-spotted pattern is already covered.
 
 ---
 

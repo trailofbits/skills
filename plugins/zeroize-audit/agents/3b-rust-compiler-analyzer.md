@@ -29,6 +29,10 @@ You receive these values from the orchestrator:
 
 Output directory: `{workdir}/rust-compiler-analysis/`
 
+Section C of `{baseDir}/references/rust-zeroization-patterns.md` documents every pattern the three scripts below match — `C-MIR1`–`C-MIR3` for Step 2, `C-IR1`–`C-IR5` for Step 4, `C-ASM1`–`C-ASM4` for Step 4b. Each entry gives a reproducing snippet, why source-level analysis is blind to the flaw, and a **Detection** line naming the exact compiler artifact that proves it. Read the entry for a pattern when a script reports it: that Detection line is the evidence the finding must carry, and checking the artifact against it is how you tell a genuine hit from a script matching a coincidental symbol name.
+
+Section D of the same file lists patterns no current script detects — `Arc`/`Rc` deferred drop, `repr(C)` padding bytes, `static`/`LazyLock` secrets, async cancellation, `Cow` clones, and `mem::swap`. A clean run does not rule these out. If the crate uses one, record it in `notes.md` as a coverage gap rather than leaving it unmentioned.
+
 ### Step 1 — MIR Emission
 
 Emit MIR (Mid-level Intermediate Representation) for the crate. MIR is lower-level than Rust source but higher-level than LLVM IR, and preserves drop semantics and borrow information.
