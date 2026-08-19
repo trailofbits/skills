@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
+  "name": "c-review hermetic bench cell",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspace/skills-repo,type=bind,readonly",
+  "workspaceFolder": "/workspace/skills-repo",
+  "mounts": [
+    "source=${localEnv:CREVIEW_CORPUS_TREE},target=/workspace/corpus,type=bind",
+    "source=${localEnv:CREVIEW_RUN_DIR},target=/workspace/run,type=bind"
+  ],
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/hermetic/.claude-hermetic"
+  },
+  "remoteEnv": {
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY:}",
+    "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN:}"
+  },
+  "remoteUser": "hermetic",
+  "postCreateCommand": "mkdir -p $CLAUDE_CONFIG_DIR && cp /workspace/skills-repo/tools/c-review-bench/devcontainer/hermetic-settings.json $CLAUDE_CONFIG_DIR/settings.json && claude plugin marketplace add /workspace/skills-repo && claude plugin install c-review@trailofbits"
+}

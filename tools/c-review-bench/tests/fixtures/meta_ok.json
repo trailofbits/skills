@@ -1,0 +1,8 @@
+{
+  "complete": true,
+  "agents": 1,
+  "tokens": 51234,
+  "wall_seconds": 640,
+  "model": "sonnet",
+  "notes": "fixture"
+}
