@@ -336,6 +336,7 @@ ct-check:
   stage: test
   script:
     - uv tool install .
+    - export PATH="$HOME/.local/bin:$PATH"
     - ct-analyzer --json src/crypto/*.c > ct-report.json
   artifacts:
     reports:

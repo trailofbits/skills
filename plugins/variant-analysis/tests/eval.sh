@@ -23,6 +23,11 @@
 
 set -euo pipefail
 
+command -v uv >/dev/null 2>&1 || {
+  echo "uv is required (https://docs.astral.sh/uv/)" >&2
+  exit 1
+}
+
 TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 GROUND_TRUTH="$TESTS_DIR/ground-truth.json"

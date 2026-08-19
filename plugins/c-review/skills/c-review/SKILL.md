@@ -93,6 +93,10 @@ After resolving `scope_subpath`, set `finding_scope_root="${scope_subpath:-.}"`.
 
 **Entry:** Phase 0 complete. **Exit:** `is_cpp`, `is_posix`, `is_windows` flags determined.
 
+First confirm `uv` is present (`command -v uv`) — every helper script in Phases 4-6 runs
+through it. If missing, **abort** and tell the user to install it (`brew install uv` or
+the official installer); nothing downstream can run without it.
+
 Probe within `${finding_scope_root:-.}` with the `Bash` commands below (non-empty output ⇒ flag true). The dedicated `Grep`/`Glob` tools are unavailable to this orchestrator because it holds `Bash` — use `grep`/`rg`/`find` via `Bash`. (If a probe regex uses `\s`/`\b` and your `grep` lacks GNU `\s` support, run it with `rg -uu` — which honors `\s` and still searches ignored files — or replace `\s`→`[[:space:]]` and drop `\b`. Widening is safe: a false-positive flag only adds a harmless worker, a missed match would skip a pass.):
 
 ```bash

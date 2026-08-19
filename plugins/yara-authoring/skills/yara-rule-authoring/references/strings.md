@@ -267,7 +267,7 @@ condition:
 yarGen extracts candidate strings, but you must validate:
 
 ```bash
-uv run --with-requirements requirements.txt python yarGen.py -m /path/to/samples --excludegood
+uv run --no-project --with-requirements requirements.txt python yarGen.py -m /path/to/samples --excludegood
 ```
 
 **Expert heuristic:** yarGen output needs 80% filtering. Most suggestions are:

@@ -95,7 +95,15 @@ HARDCODED_PATH_PLACEHOLDERS = ("/path/to", "/home/vscode", "/Users/Shared", "/Us
 # cannot run for anyone with that plugin installed. Unanchored, because violations hide
 # mid-line (markdown table cells, `run_logged pip install …`); the guards below carve out
 # the legitimate uses explicitly rather than under-detecting via an anchor.
+# `uv pip` first: its lines also contain `pip <sub>`, and first-hit-wins would otherwise
+# report them with pip's advice.
 LEGACY_PYTHON_PATTERNS = (
+    (
+        # Every `uv pip` subcommand is refused without a tool-managed flag, not just
+        # install; the allowed-flags guard below carves those out.
+        re.compile(r"\buv\s+pip\s+[a-z]"),
+        "uses the legacy `uv pip` interface; use `uv add`, `uv sync`, or `uv tool install`",
+    ),
     (
         # Leading short flags are stepped over (`python3 -u foo.py` is refused too),
         # except -c/-m, whose argument is not a script path.
@@ -103,19 +111,25 @@ LEGACY_PYTHON_PATTERNS = (
         "runs a script through the bare interpreter; use `uv run --no-project <script>`",
     ),
     (
-        re.compile(r"\bpip3?\s+install\b"),
+        # A script named by variable or path (`python3 "$MERGE"`, `python3 ./tool`) is
+        # refused just the same, with no `.py` token for the pattern above to see.
+        re.compile(r"""\bpython3?\s+(?:-(?![cm]\b)[A-Za-z]\S*\s+)*["'$./]"""),
+        "runs a script through the bare interpreter; use `uv run --no-project <script>`",
+    ),
+    (
+        # The shims refuse every pip/pipx subcommand via a catch-all arm, not only
+        # install. Named subcommands rather than `pip \w+` to keep prose FPs down.
+        re.compile(r"\bpip3?\s+(install|uninstall|freeze|download|list|show|check|wheel)\b"),
         "uses pip; use `uv run --with <pkg>` for a one-off, `uv add` in your own project, "
         "or `uv tool install <pkg>` for a CLI",
     ),
     (
-        re.compile(r"\bpython3?\s+-m\s+pip\b"),
-        "uses python -m pip; use `uv run --with <pkg>`, `uv add`, or `uv tool install`",
+        re.compile(r"\bpipx\s+(install|run|upgrade|uninstall|inject|list|ensurepath|reinstall)\b"),
+        "uses pipx; use `uv tool install <pkg>` or `uvx <pkg>`",
     ),
     (
-        # Every `uv pip` subcommand is refused without the tool-managed flags, not just
-        # install; the allowed-flags guard below carves those out.
-        re.compile(r"\buv\s+pip\s+[a-z]"),
-        "uses the legacy `uv pip` interface; use `uv add`, `uv sync`, or `uv tool install`",
+        re.compile(r"\bpython3?\s+-m\s+pip\b"),
+        "uses python -m pip; use `uv run --with <pkg>`, `uv add`, or `uv tool install`",
     ),
     (
         # A bare interpreter with only flags (`python3 --version`) is refused as well:
@@ -124,20 +138,23 @@ LEGACY_PYTHON_PATTERNS = (
         "invokes the bare interpreter; use `uv run python <flags>`",
     ),
 )
-# Prose that names a command in order to forbid it ("Do NOT run `pip install`").
+# Prose that names a command in order to forbid it ("Do NOT run `pip install`"). Tested
+# against the text BEFORE the match, so "Use `pip install x` instead of the tarball" — a
+# real instruction — is not exempted by its own trailing "instead of".
 LEGACY_PYTHON_PROHIBITIONS = ("do not run", "don't run", "do not use", "never run", "instead of")
 # `uv run --no-project python fuzz.py` contains a literal `python fuzz.py`; text already
 # introduced by a compliant `uv run` is the fix, not a violation.
 LEGACY_PYTHON_COMPLIANT_PREFIX = re.compile(r"uv\s+run\s+(?:--?[A-Za-z-]+(?:[= ]\S+)?\s+)*$")
-# A tool managing an environment it owns (prek installs hooks this way); the shim permits it.
-LEGACY_PYTHON_UV_PIP_ALLOWED = ("--project", "--directory", "--target", "-t ", "-t=")
+# A tool managing an environment it owns (prek installs hooks this way); the shim permits
+# it. Matched as whole flags after the command so `--target-dir` does not count.
+LEGACY_PYTHON_UV_PIP_ALLOWED = re.compile(r"\s(--project|--directory|--target|-t)([= ]|$)")
 # Exempts its code block up to the next blank line or fence, for commands that run where
 # the shims are absent (a container, a target project's own build). Must state a reason.
 LEGACY_PYTHON_ALLOW_MARKER = "allow-legacy-python:"
 
 # Floor for --self-test, set to the exact number of assertions the fixtures run. There is
 # no slack on purpose: dropping one has to be a deliberate edit here, not a silent loss.
-SELF_TEST_MINIMUM = 63
+SELF_TEST_MINIMUM = 71
 
 
 @dataclass
@@ -516,8 +533,8 @@ def find_legacy_python_invocations(repo_root: Path) -> tuple[list[str], int]:
             continue
         if path.is_relative_to(plugins_dir / "modern-python"):
             continue
-        # Markdown under evals*/tests quotes commands as the thing under test; shell
-        # suites there ARE commands, so only .md gets that exemption.
+        # .md and .py under evals*/tests quote commands as expectations under test;
+        # .sh there are commands, so shell keeps no exemption.
         if path.suffix in (".md", ".py") and any(
             part.startswith("evals") or part == "tests"
             for part in path.relative_to(plugins_dir).parts
@@ -542,25 +559,34 @@ def find_legacy_python_invocations(repo_root: Path) -> tuple[list[str], int]:
             if LEGACY_PYTHON_ALLOW_MARKER in line:
                 block_exempt = True
                 continue
-            lowered = line.lower()
-            if (
-                in_dockerfile
-                or block_exempt
-                or any(phrase in lowered for phrase in LEGACY_PYTHON_PROHIBITIONS)
-            ):
+            if in_dockerfile or block_exempt:
                 continue
 
+            # Every match is examined, not just the first: a compliant `uv run …` earlier
+            # on a line must not mask a refused command later on the same line.
+            hit = None
             for pattern, advice in LEGACY_PYTHON_PATTERNS:
-                match = pattern.search(line)
-                if not match:
-                    continue
-                if LEGACY_PYTHON_COMPLIANT_PREFIX.search(line[: match.start()]):
-                    continue
-                if "uv pip" in line and any(f in line for f in LEGACY_PYTHON_UV_PIP_ALLOWED):
-                    continue
+                for match in pattern.finditer(line):
+                    prefix = line[: match.start()]
+                    if LEGACY_PYTHON_COMPLIANT_PREFIX.search(prefix):
+                        continue
+                    # A `pip …` directly after `uv ` is part of a `uv pip` command,
+                    # whose verdict the uv-pip pattern above already delivered.
+                    if not match.group(0).startswith("uv") and re.search(r"\buv\s+$", prefix):
+                        continue
+                    if any(p in prefix.lower() for p in LEGACY_PYTHON_PROHIBITIONS):
+                        continue
+                    if "uv pip" in match.group(0) and LEGACY_PYTHON_UV_PIP_ALLOWED.search(
+                        line[match.start() :]
+                    ):
+                        continue
+                    hit = advice
+                    break
+                if hit:
+                    break
+            if hit:
                 rel = path.relative_to(repo_root)
-                errors.append(f"{rel}:{lineno} {advice} — found: {line.strip()[:70]}")
-                break
+                errors.append(f"{rel}:{lineno} {hit} — found: {line.strip()[:70]}")
 
     return errors, scanned
 
@@ -1231,7 +1257,7 @@ def _self_test_errors(ran: list[str]) -> None:
         _write(plugin / "skills" / "demo" / "devcontainer.md", "Workspace is /home/vscode/app.\n")
         _check(ran, "container image path is not a personal path", not _errors_for(root))
 
-    # The four refused forms must fire; the compliant and exempt forms must not.
+    # The refused forms must fire; the compliant and exempt forms must not.
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         plugin = _build_demo(root)
@@ -1245,6 +1271,21 @@ def _self_test_errors(ran: list[str]) -> None:
             ("uv pip install", "```bash\nuv pip install requests\n```\n"),
             ("uv pip non-install subcommand", "```bash\nuv pip list\n```\n"),
             ("python -m pip", "```bash\npython -m pip download requests\n```\n"),
+            ("pip non-install subcommand", "```bash\npip freeze\n```\n"),
+            ("pipx", "```bash\npipx install detect-secrets\n```\n"),
+            ("script named by a variable", '```bash\npython3 "$MERGE" out.sarif\n```\n'),
+            (
+                "compliant match masking a later violation",
+                "| a | `uv run python a.py` | `python3 b.py` |\n",
+            ),
+            (
+                "prohibition after the command, not before",
+                "Use `pip install semgrep` instead of the tarball.\n",
+            ),
+            (
+                "uv pip with a flag that is not tool-managed",
+                "```bash\nuv pip install --target-dir /x foo\n```\n",
+            ),
             ("usage string in a .py file", None),
             (
                 "marker scope ends at a blank line",
@@ -1266,7 +1307,7 @@ def _self_test_errors(ran: list[str]) -> None:
             _check(
                 ran,
                 f"legacy python invocation: {label}",
-                any("uv add" in e or "uv run" in e for e in _errors_for(root)),
+                any("uv add" in e or "uv run" in e or "uv tool" in e for e in _errors_for(root)),
             )
 
         for label, body in (
@@ -1279,6 +1320,11 @@ def _self_test_errors(ran: list[str]) -> None:
             ("python3 -m with a module", "```bash\npython3 -m json.tool data.json\n```\n"),
             ("uv pip with --directory", "```bash\nuv pip install --directory /tmp requests\n```\n"),
             ("uv pip with short -t", "```bash\nuv pip install -t /tmp requests\n```\n"),
+            (
+                "uv pip with the flag after the package",
+                "```bash\nuv pip install foo -t /tmp\n```\n",
+            ),
+            ("prohibition before the command", "Do NOT use `pip freeze` here.\n"),
             ("prose forbidding the command", "Do NOT run `pip install` here.\n"),
             ("dockerfile fence", "```dockerfile\nRUN pip install requests\n```\n"),
             (

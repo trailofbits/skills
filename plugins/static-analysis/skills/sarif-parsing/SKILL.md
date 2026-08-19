@@ -73,8 +73,8 @@ Tools report different paths (`/path/to/project/` vs `/github/workspace/`), so p
 | Use Case | Tool | Installation |
 |----------|------|--------------|
 | Quick CLI queries | jq | `brew install jq` / `apt install jq` |
-| Python scripting (simple) | pysarif | `uv run --with pysarif python …` |
-| Python scripting (advanced) | sarif-tools | `uv run --with sarif-tools python …` |
+| Python scripting (simple) | pysarif | `uv run --with pysarif python script.py` |
+| Python scripting (advanced) | sarif-tools | `uv run --with sarif-tools python script.py` |
 | .NET applications | SARIF SDK | NuGet package |
 | JavaScript/Node.js | sarif-js | npm package |
 | Go applications | garif | `go get github.com/chavacava/garif` |
@@ -390,7 +390,7 @@ npm install -g ajv-cli
 ajv validate -s sarif-schema-2.1.0.json -d results.sarif
 
 # Using Python jsonschema
-uv run --with jsonschema python validate_sarif.py
+uv run --with jsonschema python check_sarif.py   # any script importing jsonschema, e.g. below
 ```
 
 ```python

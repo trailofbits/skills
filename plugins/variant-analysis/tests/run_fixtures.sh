@@ -6,11 +6,14 @@
 # must stay cheap and must never call Claude. The eval that does call Claude is
 # eval.sh, deliberately named so discovery skips it.
 #
-# Invokes verify_fixtures.py as a file rather than piping to `python3 -`: the
-# modern-python plugin's shim intercepts stdin form and fails for reasons that
-# have nothing to do with the code under test (#207).
+# Helpers run through uv (their PEP 723 headers carry the metadata); uv is required.
 
 set -euo pipefail
+
+command -v uv >/dev/null 2>&1 || {
+  echo "uv is required (https://docs.astral.sh/uv/)" >&2
+  exit 1
+}
 
 TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 

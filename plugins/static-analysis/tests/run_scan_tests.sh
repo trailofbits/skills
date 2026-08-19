@@ -9,6 +9,11 @@
 # assertions execute than are written.
 set -uo pipefail
 
+command -v uv >/dev/null 2>&1 || {
+  echo "uv is required (https://docs.astral.sh/uv/)" >&2
+  exit 1
+}
+
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
 readonly EXPECTED_ASSERTIONS=78
