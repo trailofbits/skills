@@ -265,7 +265,7 @@ The markdown report (`final-report.md`) contains these sections:
 - **Findings**: Grouped by severity then confidence. Each finding includes location, object, all evidence (source/IR/ASM/CFG), compiler evidence details, and recommended fix
 - **Superseded Findings**: Source findings replaced by CFG-backed findings
 - **Confidence Gate Summary**: Downgrades applied and overrides rejected
-- **Analysis Coverage**: TUs analyzed, agent success/failure, features enabled
+- **Analysis Coverage**: TUs analyzed, agent success/failure, features enabled, and any Section D patterns the crate uses that no script audits
 - **Appendix: Evidence Files**: Mapping of finding IDs to evidence file paths
 
 ### Structured JSON

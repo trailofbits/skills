@@ -27,7 +27,7 @@ For each C/C++ TU in `{workdir}/source-analysis/tu-map.json`:
    }
    ```
 
-3. Spawn agent `3-tu-compiler-analyzer` via `Task` with:
+3. Spawn agent `zeroize-audit:3-tu-compiler-analyzer` via `Task` (`subagent_type: zeroize-audit:3-tu-compiler-analyzer`) with:
 
 | Parameter | Value |
 |---|---|
@@ -55,7 +55,7 @@ Skip if any of the following are true:
 - `sensitive-objects.json` is missing or empty
 - `sensitive-objects.json` has no Rust objects (IDs `SO-5NNN` / `SO-5000+`)
 
-Spawn agent `3b-rust-compiler-analyzer` via `Task` (after Wave 3 completes or is skipped):
+Spawn agent `zeroize-audit:3b-rust-compiler-analyzer` via `Task` (`subagent_type: zeroize-audit:3b-rust-compiler-analyzer`) (after Wave 3 completes or is skipped):
 
 | Parameter | Value |
 |---|---|

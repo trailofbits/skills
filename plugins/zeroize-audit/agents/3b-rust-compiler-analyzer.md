@@ -33,7 +33,7 @@ Section C of `{baseDir}/references/rust-zeroization-patterns.md` documents 12 of
 
 Section C is a subset, not an index. `check_mir_patterns.py` and `check_llvm_patterns.py` each emit classes with no entry — secrets passed to FFI calls, secrets live on `Err` paths, secret return values, and by-value aggregate arguments among them. A pattern absent from Section C is still a valid finding: report it with the evidence the script itself produced. Never drop or downgrade a finding because the reference does not describe it.
 
-Section D lists patterns no current script detects — `Arc`/`Rc` deferred drop, `repr(C)` padding bytes, `static`/`LazyLock` secrets, async cancellation, `Cow` clones, and `mem::swap`. A clean run does not rule these out. If the crate uses one, record it in `notes.md` as a coverage gap rather than leaving it unmentioned.
+Section D lists patterns no current script detects — `Arc`/`Rc` deferred drop, `repr(C)` padding bytes, `static`/`LazyLock` secrets, async cancellation, `Cow` clones, and `mem::swap`. A clean run does not rule these out. If the crate uses one, write it to `coverage-gaps.json` in your output directory, an array of `{"pattern": "<Section D id>", "where": "<file or symbol>", "why": "<what makes it unaudited>"}`. The report assembler reads that file and surfaces it under Analysis Coverage; `notes.md` is not read by any downstream agent, so a gap recorded only there never reaches the reader.
 
 ### Step 1 — MIR Emission
 
@@ -215,6 +215,7 @@ Write all output files to `{workdir}/rust-compiler-analysis/`:
 | `ir-findings.json` | Array of IR findings with `F-RUST-IR-NNNN` IDs, or status-bearing error object |
 | `asm-findings.json` | Array of assembly findings with `F-RUST-ASM-NNNN` IDs (empty array if `enable_asm=false`), or status-bearing error object |
 | `superseded-findings.json` | Source findings superseded by IR evidence |
+| `coverage-gaps.json` | Array of Section D patterns the crate uses that no script audits (empty array if none) |
 | `notes.md` | Steps executed, tool outputs, errors, relative paths to evidence files |
 
 ## Finding JSON Shape
