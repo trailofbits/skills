@@ -1,6 +1,7 @@
 ---
 name: adversarial-verification
-description: Verify a claim, idea, approach, design, or finding by dispatching two isolated sub-agents — an advocate (argues the claim is correct/best) and a skeptic (argues it is wrong/inferior) — then synthesize their arguments into a structured verdict. Counters sycophancy and agreement bias by forcing maximal disagreement before the caller commits. Use when making technical decisions ("should we use X or Y?"), verifying bug findings ("is this a real bug?"), reviewing system designs ("is this architecture sound?"), evaluating strategic claims, or whenever the caller suspects their own reasoning may be one-sided. Triggers on phrases like "verify this claim", "adversarial verification", "is this right?", "prove this is a real bug", "which approach is best", "stress-test this idea", "get a second opinion on", "argue against this", "devil's advocate", or whenever pattern-breaking from agreement is needed.
+description: Verify a claim, idea, approach, design, or finding by dispatching two isolated sub-agents — an advocate (argues the claim is correct/best) and a skeptic (argues it is wrong/inferior) — then synthesize their arguments into a structured verdict. Counters sycophancy and agreement bias by forcing maximal disagreement before the caller commits. Use when making technical decisions ("should we use X or Y?"), reviewing system designs ("is this architecture sound?"), verifying a non-security "X is real" claim such as a performance regression, evaluating strategic claims, or whenever the caller suspects their own reasoning may be one-sided. For deciding whether a security finding is a false positive, use fp-check instead. Triggers on phrases like "verify this claim", "adversarial verification", "is this right?", "which approach is best", "stress-test this idea", "get a second opinion on", "argue against this", or "devil's advocate".
+allowed-tools: Agent Read Grep Glob
 ---
 
 # Adversarial Verification
@@ -16,7 +17,7 @@ Dispatch two sub-agents with isolated context — one **advocate**, one **skepti
 ## When to Use
 
 - Choosing between 2+ technical approaches
-- Verifying a bug finding is real (not a false positive)
+- Verifying an "X is real" claim outside fp-check's scope — a performance regression, a reproducibility claim
 - Reviewing a design decision before commit
 - User asks "is this correct?" about a non-trivial claim
 - Any claim you're inclined to agree with by default — that's the tell
@@ -26,6 +27,8 @@ Dispatch two sub-agents with isolated context — one **advocate**, one **skepti
 - Simple factual lookup ("what version is X?")
 - Obvious syntax error fix
 - User has already made the decision and is executing
+- **Deciding whether a specific security finding is a true or false positive — use `fp-check` instead.** fp-check owns that job and does it properly: full data-flow tracing, exploitability analysis, and a TRUE POSITIVE / FALSE POSITIVE verdict. Proof mode's five-nulls-to-CONFIRMED/DISMISSED is the same verdict in different words, and when two skills match the same request the choice becomes a coin flip. Use proof mode only for "X is real" claims outside fp-check's scope — a performance regression, a reproducibility claim, a non-security assertion.
+- Triaging an incoming vulnerability report for whether it merits attention at all — `vulnerability-triage-brocards` applies a fixed rule set to that intake decision. The overlap is weaker (it filters what arrives; this skill stress-tests a claim you already care about), but "should we even look at this?" starts there.
 
 ## The Process
 
@@ -44,14 +47,16 @@ Two modes, chosen by the claim type:
 
 | Claim type | Mode | Details |
 |-----------|------|---------|
-| Bug finding / security claim | **Proof mode** | Structured N-proof hypotheses (e.g., P1-P5). See [references/proof-mode.md](references/proof-mode.md) |
+| "X is real" claim — reproducibility, regression, attribution | **Proof mode** | Structured N-proof hypotheses (e.g., P1-P5). See [references/proof-mode.md](references/proof-mode.md) |
 | Approach / design decision | **Decision mode** | Free-form arguments with evidence. See [references/decision-mode.md](references/decision-mode.md) |
 
 If unsure, default to decision mode.
 
 ### Step 3: Dispatch both agents in parallel
 
-Use the Agent tool with TWO tool calls in a SINGLE message (parallel dispatch). Each agent is a fresh context with no knowledge of the other.
+Use the Agent tool with TWO tool calls in a SINGLE message (parallel dispatch): one to `adversarial-verification:advocate`, one to `adversarial-verification:skeptic`. Each agent is a fresh context with no knowledge of the other.
+
+Both agents ship with read-only tools (Read, Grep, Glob, WebSearch), declared in the agent definitions rather than asked for in the prompt. "RESEARCH ONLY" in a prompt is a request an agent can talk itself out of; a `tools:` list is a constraint. Verification must not be able to modify the tree it is verifying — a skeptic testing "this doesn't reproduce in a clean environment" would otherwise be one edit away from changing the user's code during what was sold as a read-only check.
 
 Load prompt templates from [references/prompt-templates.md](references/prompt-templates.md). The templates enforce:
 - Each agent argues ONE side maximally, not balanced
@@ -68,12 +73,17 @@ After both agents return, produce a verdict table. For each significant point ra
 | Point | Advocate position | Skeptic position | Verdict |
 |-------|-------------------|------------------|---------|
 
-Verdict values:
-- **Survives** — one side's position held up; the other failed to counter it
-- **Weakens** — partially rebutted; position should be qualified
-- **Falls** — cleanly refuted by the other side
+Verdict values — the row holds both positions, so the verdict names the party that won it:
+- **Advocate wins** — the advocate's position held up; the skeptic's counter did not land
+- **Skeptic wins** — the skeptic's objection landed and the advocate did not answer it
+- **Split** — both landed partially; the surviving position needs a stated qualification
+- **No basis** — neither side brought evidence you can check. Record it as such or cut the point; do not invent a winner out of two speculations
 
-Then write a one-paragraph **recommendation**: which overall position won, which specific claims survived, and what the caller should actually do.
+Proof mode uses REFUTED / PROVED / UNCERTAIN instead, because its rows are null hypotheses and the skeptic is the side arguing them. The two vocabularies are not interchangeable — see [references/proof-mode.md](references/proof-mode.md).
+
+Read the verdict off the **evidence**, not off the label each agent gave itself. Both were instructed to argue one side, so their own verdict lines report assigned positions, not findings of fact.
+
+Then write a one-paragraph **recommendation**: which overall position won, which specific claims survived, and what the caller should actually do. The recommendation must commit to a direction even when individual rows came back unresolved.
 
 See [references/synthesis.md](references/synthesis.md) for the full synthesis template.
 
@@ -97,13 +107,15 @@ Do NOT dump the raw agent outputs unless the user asks. The verdict is the produ
 
 See [references/anti-patterns.md](references/anti-patterns.md) for full failure modes. The three most important:
 
-1. **False symmetry** — treating both sides as equally valid when one is clearly stronger. The verdict must pick a winner, not split the difference.
-2. **Hedged agents** — agents that softened their argument. If an agent returns a balanced view, re-dispatch with a stronger prompt. Real adversarial value requires real adversarial arguments.
+1. **False symmetry** — treating both sides as equally valid when one is clearly stronger. The *recommendation* must pick a direction, not split the difference. Individual rows may legitimately come back unresolved; a recommendation may not.
+2. **Hedged agents** — agents that softened their argument. If an agent returns a balanced view, re-dispatch once with a stronger prompt. If the retry hedges too, the question is undecidable on the available evidence — record **No basis** rather than dispatching again.
 3. **Shared context leakage** — mentioning the other agent's arguments in either prompt. This collapses independence. Each prompt must be written as if that agent is the only one you've asked.
 
 ## Examples
 
 ### Example A — approach decision (decision mode)
+
+Setup: a fuzzing project hunting for bugs in Rosetta 2, Apple's x86-to-ARM64 translator on macOS. YARPGen is an off-the-shelf random C program generator; the competing options are hand-written grammar-aware x86 mutation and a Cascade-style oracle. The team has no Intel hardware to use as a reference implementation.
 
 Claim: *"Using YARPGen to generate C programs is the fastest path to finding semantic translation bugs in Rosetta 2."*
 
@@ -111,11 +123,13 @@ Dispatch:
 - Advocate prompt: "Make the strongest case FOR this claim. Cite known bugs YARPGen would catch, expected exec/s, why compiler-emitted code is the right attack surface. Do not be balanced."
 - Skeptic prompt: "Make the strongest case AGAINST. YARPGen has no FP support, known Rosetta bugs are in FP/SIMD/implicit registers, oracle problem without Intel hardware. Do not be balanced."
 
-Result: verdict table shows skeptic's "no FP support" and "oracle problem" survive; advocate's "fastest to set up" survives. Recommendation: use YARPGen as complement, not primary strategy.
+Result: the verdict table gives **Skeptic wins** on FP coverage and on the oracle problem, **Advocate wins** on setup effort. Recommendation: use YARPGen as a complement, not the primary strategy.
 
-### Example B — bug verification (proof mode)
+### Example B — reproducibility claim (proof mode)
 
-Claim: *"FINDING-001 (pcmpestrm register allocator abort) is a real translation bug, not a false positive."*
+Setup: same project as Example A. The fuzzer hit a SIGABRT inside Rosetta's own translation library on an input using the `pcmpestrm` SSE 4.2 instruction, in a register-allocation routine. FINDING-001 is the project's label for that crash. The question here is reproducibility and attribution — is the crash real, and is it in the translator — not exploitability; a claim of the form "this is an exploitable vulnerability" belongs to `fp-check`.
+
+Claim: *"FINDING-001 (pcmpestrm register allocator abort) is a real translation bug."*
 
 Dispatch with 5 proofs, each tests one null hypothesis:
 - P1: "This is just normal input rejection (exit -302)."
@@ -124,9 +138,11 @@ Dispatch with 5 proofs, each tests one null hypothesis:
 - P4: "The input is unreachable in practice (no compiler emits it)."
 - P5: "Already fixed in a newer macOS."
 
-Skeptic tries to prove each null; advocate tries to refute each. If all 5 fail to prove = CONFIRMED bug.
+Skeptic tries to prove each null; advocate tries to refute each. CONFIRMED requires all 5 **affirmatively refuted** with evidence the caller can check — a null neither side managed to reach is UNCERTAIN, not refuted.
 
 ## Integration
+
+**Dispatches:** `adversarial-verification:advocate` and `adversarial-verification:skeptic` — the two read-only research agents this skill sends out in parallel in Step 3. These are the names a caller needs; a caller that wants only one side of a claim can dispatch either on its own.
 
 **Called by:**
 - User directly via explicit request

@@ -4,12 +4,13 @@ Prompts are the most important part of this skill. A weak prompt produces a hedg
 
 ## Table of contents
 
+- [Required elements](#required-elements)
 - [Template: Advocate (decision mode)](#template-advocate-decision-mode)
 - [Template: Skeptic (decision mode)](#template-skeptic-decision-mode)
 - [Template: Advocate (proof mode)](#template-advocate-proof-mode)
 - [Template: Skeptic (proof mode)](#template-skeptic-proof-mode)
-- [Required elements](#required-elements)
 - [How to fill in context](#how-to-fill-in-context)
+- [Re-dispatching on hedged agents](#re-dispatching-on-hedged-agents)
 
 ## Required elements
 
@@ -46,7 +47,7 @@ Relevant files to read: {FILE_PATHS}
 
 Be specific. Cite papers, CVEs, file:line references where possible.
 
-DO NOT BE BALANCED. Argue as hard as possible FOR the claim. The caller has a SEPARATE skeptic agent that will argue the other side; your job is to produce the strongest possible pro-claim argument, not a balanced view.
+DO NOT BE BALANCED. Argue as hard as possible FOR the claim. Your assignment is this one side: produce the strongest possible pro-claim argument. Weighing the case against the claim is explicitly not your job, and a balanced answer fails the assignment.
 ```
 
 ## Template: Skeptic (decision mode)
@@ -71,7 +72,7 @@ Relevant files to read: {FILE_PATHS}
 
 Be specific. Cite papers, CVEs, file:line references where possible.
 
-DO NOT BE BALANCED. Argue as hard as possible AGAINST the claim. The caller has a SEPARATE advocate agent that will argue for it; your job is to produce the strongest possible anti-claim argument, not a balanced view.
+DO NOT BE BALANCED. Argue as hard as possible AGAINST the claim. Your assignment is this one side: produce the strongest possible anti-claim argument. Weighing the case for the claim is explicitly not your job, and a balanced answer fails the assignment.
 ```
 
 ## Template: Advocate (proof mode)
@@ -99,7 +100,7 @@ For each P, provide:
 
 Relevant files to read: {FILE_PATHS}
 
-DO NOT BE BALANCED. Your job is to defend the finding. A skeptic is being run separately to argue the other side.
+DO NOT BE BALANCED. Your job is to defend the finding. Arguing for dismissal is explicitly not your remit, and a balanced answer fails the assignment.
 ```
 
 ## Template: Skeptic (proof mode)
@@ -127,7 +128,7 @@ For each P, provide:
 
 Relevant files to read: {FILE_PATHS}
 
-DO NOT BE BALANCED. Your job is to dismiss the finding if at all possible. An advocate is being run separately to defend it.
+DO NOT BE BALANCED. Your job is to dismiss the finding if at all possible. Building the case for the finding is explicitly not your remit, and a balanced answer fails the assignment.
 ```
 
 ## How to fill in context
@@ -148,6 +149,8 @@ Do NOT include:
 
 If an agent returns something like "I see merits on both sides" or "this is a nuanced question" or "both approaches have tradeoffs" — that is a failure. The prompt was too weak.
 
-Re-dispatch with stronger phrasing:
+Re-dispatch **once** with stronger phrasing. The retry is a fresh context with no memory of the hedged answer, so the added text has to be a standing instruction rather than a correction — "your previous response was too balanced" refers to something the receiving agent cannot see:
 
-> "Your previous response was too balanced. You are the ADVOCATE/SKEPTIC. Do not acknowledge merit in the opposing position. Do not hedge. Argue ONE side as hard as possible — the synthesis step happens separately. Return ONLY the strongest pro-{SIDE} argument. If you cannot make a strong case for your side, say so explicitly, but do not substitute a balanced view."
+> "You are the ADVOCATE/SKEPTIC. Do not acknowledge merit in the opposing position. Do not hedge. Argue ONE side as hard as possible — the synthesis step happens separately. Return ONLY the strongest pro-{SIDE} argument. If you cannot make a strong case for your side, say so explicitly and state what evidence is missing, but do not substitute a balanced view."
+
+One retry is the cap. If the second dispatch also comes back balanced, the question is probably undecidable on the evidence available — record the dimension as **No basis** and say what evidence would settle it, rather than dispatching a third time. An agent that honestly cannot make its case is reporting a fact about the evidence, not failing.

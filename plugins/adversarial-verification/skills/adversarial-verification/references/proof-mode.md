@@ -1,22 +1,23 @@
 # Proof Mode
 
-Use for bug findings, security claims, and any assertion of the form "X is real" or "X exists" or "X is a vulnerability."
+Use for any assertion of the form "X is real" or "X exists" — a crash that reproduces, a performance regression, a behavioral claim about a system.
 
 ## When to pick proof mode
 
-- "This crash is a real bug, not a false positive"
-- "This is exploitable"
-- "This vulnerability affects version N"
-- "This finding is valid"
+- "This crash reproduces, and it is in the component I think it is, not in my harness"
+- "This performance regression is real, not measurement noise"
 - "This behavior is a bug, not by design"
+- "This finding is valid" — where validity means the observation itself holds up
+
+**Not for false-positive verification of a security finding.** "Is this vulnerability real?" and "is this exploitable?" belong to `fp-check`, which does the data-flow tracing and exploitability analysis this skill does not. The five-nulls structure below produces the same CONFIRMED/DISMISSED shape as fp-check's TRUE POSITIVE / FALSE POSITIVE verdict, so running both on one finding is duplicated work with two ways to disagree. If the claim is about a vulnerability, stop here and use fp-check.
 
 If the claim is "X is the best approach," return to [SKILL.md](../SKILL.md) Step 2 and pick Decision mode instead.
 
 ## The structure: N null hypotheses
 
-Proof mode works by enumerating the **null hypotheses** — every way the finding could be wrong. The skeptic tries to prove each null; the advocate tries to refute each. If all null hypotheses fail to be proved, the finding is CONFIRMED.
+Proof mode works by enumerating the **null hypotheses** — every way the finding could be wrong. The skeptic tries to prove each null; the advocate tries to refute each. The finding is CONFIRMED only when every null is affirmatively refuted with evidence — a null that merely went unproved is an open question, not a dead one.
 
-Default set of 5 null hypotheses for security findings:
+Default set of 5 null hypotheses for a crash or fault finding:
 
 | # | Null hypothesis | What proves it |
 |---|----------------|----------------|
@@ -26,11 +27,13 @@ Default set of 5 null hypotheses for security findings:
 | P4 | The input is unreachable by a real attacker | Requires privileged access or an artificial construction |
 | P5 | Already fixed in a newer version | Crash doesn't reproduce on current release |
 
-Adapt the set to the claim. For non-security claims you might use different P values — e.g., for a performance regression claim: P1 = measurement noise, P2 = cold cache, P3 = unrelated background load, etc.
+Adapt the set to the claim. Other claim types need different P values — e.g., for a performance regression claim: P1 = measurement noise, P2 = cold cache, P3 = unrelated background load, etc.
 
 ## How advocate and skeptic interact in proof mode
 
-Both agents get the SAME list of null hypotheses. They argue the SAME Ps from opposite sides:
+Both agents get the SAME list of null hypotheses. They argue the SAME Ps from opposite sides.
+
+The worked example below and in [Structured output](#structured-output) is one finding throughout: a differential fuzzer running x86-64 programs under Rosetta 2 (Apple's x86-to-ARM64 translator on macOS) hit a SIGABRT inside the translator itself. `AllocTempGPRByIndex` is a register-allocation routine in the translator; exit `-302` is Rosetta's own input-rejection code, which a signal death is not.
 
 **Advocate (defends the finding):**
 - For each P, produces evidence REFUTING the null
@@ -46,11 +49,28 @@ Both agents get the SAME list of null hypotheses. They argue the SAME Ps from op
 
 ## Verdict rule for proof mode
 
+The verdict is the caller's, not either agent's. Each agent reports a label for every P — the advocate REFUTED or CANNOT REFUTE, the skeptic PROVED or CANNOT PROVE — but both were told to argue one side, so a label states the position that agent was *assigned*, not a finding of fact. Grade the evidence behind the label before you use it.
+
+**Step 1 — grade every label.** A label counts only if the caller can check what backs it: a file:line, a reproducer that actually ran, a log excerpt, a version tested, a citation. An assertion ("clearly a real bug", "this is obviously benign") backs nothing. Downgrade an ungraded REFUTED to CANNOT REFUTE, and an ungraded PROVED to CANNOT PROVE, then apply the table below. This grading pass is why synthesis is a separate step and not a tally of the two `Verdict:` fields.
+
+**Step 2 — resolve each P.** Exhaustive over the four state combinations the agents can return:
+
+| Advocate on P | Skeptic on P | Outcome for that P |
+|---------------|--------------|--------------------|
+| REFUTED, evidence graded | CANNOT PROVE | **REFUTED** — the null is dead |
+| REFUTED, evidence graded | PROVED, evidence graded | **UNCERTAIN** — both sides landed; the P is in dispute |
+| CANNOT REFUTE | PROVED, evidence graded | **PROVED** — the null stands |
+| CANNOT REFUTE | CANNOT PROVE | **UNCERTAIN** — neither side reached the question |
+
+**Step 3 — combine into the finding's verdict.**
+
 | Condition | Verdict |
 |-----------|---------|
-| All Ps REFUTED by advocate, NOT PROVED by skeptic | **CONFIRMED** — the finding is real |
-| Any P clearly PROVED by skeptic | **DISMISSED** — the finding is a false positive |
-| Any P in dispute (both sides plausible) | **UNCERTAIN** — gather more evidence for that specific P before committing |
+| Every P **REFUTED** | **CONFIRMED** — the finding is real |
+| Any P **PROVED** | **DISMISSED** — the finding is a false positive |
+| Any P **UNCERTAIN** | **UNCERTAIN** — close out that specific P before committing |
+
+**CANNOT REFUTE on any P caps the verdict at UNCERTAIN.** The fourth row of step 2 is the one that matters most in practice: no reproducer, no source access, budget exhausted — neither agent ever reached the question. That is not a null the advocate killed, and it must never read as CONFIRMED. Absence of evidence against a finding is not evidence for it, so a run that verified nothing has to end in a different verdict from a run that verified everything. This is the rule that makes those two runs look different.
 
 ## Structured output
 

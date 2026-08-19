@@ -81,9 +81,14 @@ Pick 3-5 that fit your claim:
 
 ## Synthesis for decision mode
 
-The verdict table should have one row per dimension. For each dimension, pick which side made the stronger argument and explain why.
+The verdict table should have one row per dimension. For each dimension, pick which side made the stronger argument and explain why. Because a row holds both positions, the verdict has to name the party, not just the outcome:
 
-Example verdict row:
+- **Advocate wins** — the advocate's position held; the skeptic's counter did not land
+- **Skeptic wins** — the skeptic's objection landed and the advocate did not answer it
+- **Split** — both landed partially; the winner needs a stated qualification
+- **No basis** — neither side brought checkable evidence on this dimension. Record it as such or cut the dimension; two speculations do not make a winner
+
+Example verdict row, from a debate about using a native ARM64 compile as the reference output for a translated x86 program:
 | Dimension | Advocate says | Skeptic says | Verdict |
 |-----------|---------------|--------------|---------|
 | Oracle correctness | Native ARM64 compile is a valid reference | Clang can miscompile; need Intel HW to disambiguate | **Skeptic wins** — advocate didn't address the compiler-bug-vs-translator-bug ambiguity. |
@@ -95,6 +100,11 @@ The **recommendation** paragraph should:
 
 ## Example: full decision-mode pass
 
+Setup: a differential fuzzer for Rosetta 2, Apple's x86-to-ARM64 translator on macOS. As it stands the fuzzer finds crashes only. Two candidate next steps are on the table:
+
+- **Track 2** — a persistent harness plus a fix to the output comparator. Days of work, roughly a 10x throughput gain on the existing fuzzer.
+- **Track 3** — an ARM64 execution harness, so translated output can actually be run and compared. Weeks of work, and it is what detecting semantic (wrong-answer) bugs requires.
+
 Claim: "Track 2 (persistent harness + comparator fix) is the best next step for the Rosetta 2 differential fuzzer."
 
 Advocate dimensions: speed gain (10x), unblocks semantic bug detection, low effort (days not weeks)
@@ -102,11 +112,11 @@ Advocate dimensions: speed gain (10x), unblocks semantic bug detection, low effo
 Skeptic dimensions: still no ARM64 execution, still only finds crashes, Track 3 has higher ceiling
 
 Verdict:
-| Dimension | Verdict |
-|-----------|---------|
-| Short-term speed | Advocate wins — 10x is 10x |
-| Semantic bug detection | Skeptic wins — Track 2 doesn't add ARM64 execution |
-| Long-term ceiling | Skeptic wins — Track 3 is required eventually |
-| Effort-to-value ratio | Advocate wins — Track 2 is days, Track 3 is weeks |
+| Dimension | Advocate says | Skeptic says | Verdict |
+|-----------|---------------|--------------|---------|
+| Short-term speed | Persistent harness is a 10x throughput gain | Does not contest the number | **Advocate wins** — 10x is 10x |
+| Semantic bug detection | The comparator fix unblocks it | Track 2 adds no ARM64 execution, so wrong-answer bugs stay invisible | **Skeptic wins** |
+| Long-term ceiling | Track 2 is the immediate unblock | Track 3 is required eventually regardless | **Skeptic wins** |
+| Effort-to-value ratio | Days, not weeks | The weeks Track 3 costs buy the higher ceiling | **Advocate wins** — Track 2 is days, Track 3 is weeks |
 
-Recommendation: Do Track 2 now because speed gain is real and blocking. Plan Track 3 as the next major work item.
+Recommendation: Do Track 2 now because the speed gain is real and blocking. Plan Track 3 as the next major work item — the skeptic's two wins are both about Track 3's ceiling, and neither is an argument for delaying Track 2.

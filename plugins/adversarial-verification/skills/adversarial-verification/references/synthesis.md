@@ -8,7 +8,7 @@ After both agents return, the caller produces the synthesis. This is where the a
 
 | Dimension | Advocate position | Skeptic position | Verdict |
 |-----------|-------------------|------------------|---------|
-| {dim 1} | {advocate claim} | {skeptic claim} | **Survives / Weakens / Falls** |
+| {dim 1} | {advocate claim} | {skeptic claim} | **Advocate wins / Skeptic wins / Split / No basis** |
 | {dim 2} | ... | ... | ... |
 
 ### For proof mode
@@ -20,10 +20,22 @@ After both agents return, the caller produces the synthesis. This is where the a
 
 ## Verdict values
 
-- **Survives** (or **REFUTED** in proof mode) — the side whose point held up. The counter-argument did not land.
-- **Weakens** — partial rebuttal; position needs qualification
-- **Falls** (or **PROVED** in proof mode) — the side whose point was cleanly defeated
-- **UNCERTAIN** (proof mode only) — both sides made plausible cases; more evidence needed
+Because each row holds BOTH positions, the verdict has to name the winner. "Survives" does not say whose point survived.
+
+**Decision mode:**
+
+- **Advocate wins** — the advocate's position on this dimension held up; the skeptic's counter did not land
+- **Skeptic wins** — the skeptic's objection landed and the advocate did not answer it
+- **Split** — both landed partially; the winning position survives only with a stated qualification
+- **No basis** — neither side brought checkable evidence on this dimension. Record it as such or cut the dimension; do not manufacture a winner from two speculations
+
+**Proof mode** uses a different vocabulary because the subject of the verdict is different. Rows are null hypotheses, and **the skeptic is the one arguing the nulls** — so the mapping inverts relative to what the words suggest:
+
+- **REFUTED** — the null is dead, which means the *skeptic's* point fell: advocate wins that row
+- **PROVED** — the null stands: skeptic wins that row, and the finding is dismissed
+- **UNCERTAIN** — the row is unresolved, either because both sides landed or because neither reached the question
+
+Do not mix the two vocabularies inside one table, and do not treat "Survives" and "REFUTED" as synonyms — they point at opposite parties.
 
 ## The recommendation paragraph
 
@@ -41,6 +53,8 @@ After the table, write ONE paragraph (3-5 sentences) that:
 
 ### Example 1 — decision mode (YARPGen claim)
 
+Setup: a differential fuzzing project targeting Rosetta 2, Apple's x86-to-ARM64 translator on macOS. YARPGen is an off-the-shelf random C program generator. The team already has a fuzzer that produces inputs but cannot execute them, and no Intel hardware to serve as a reference implementation. The question is whether generating C programs with YARPGen should be the primary bug-finding strategy.
+
 Claim: "YARPGen is the best primary strategy for finding Rosetta 2 semantic bugs."
 
 | Dimension | Advocate | Skeptic | Verdict |
@@ -56,6 +70,8 @@ Recommendation: **Skeptic wins.** YARPGen is a weak PRIMARY strategy because it 
 
 ### Example 2 — proof mode (FINDING-001)
 
+Setup: the fuzzer from Example 1 hit a SIGABRT inside `libRosettaAot.dylib` — Rosetta's translation library — on an input using the `pcmpestrm` SSE 4.2 string-compare instruction. `AllocTempGPRByIndex` is a register-allocation routine in that library; exit `-302` is Rosetta's own input-rejection code, which a signal death is not. FINDING-001 is the project's label for this crash.
+
 Claim: "FINDING-001 (pcmpestrm register allocator abort) is a real translation bug."
 
 | Null | Skeptic | Advocate | Outcome |
@@ -66,7 +82,7 @@ Claim: "FINDING-001 (pcmpestrm register allocator abort) is a real translation b
 | P4: unreachable input | Requires crafted OOB memory | Real compilers emit RIP-relative addressing; any OOB offset is reachable | **REFUTED** |
 | P5: already fixed | Untested on newer | Reproduces on macOS 26.4 (current) | **REFUTED** |
 
-Recommendation: **CONFIRMED.** All 5 null hypotheses refuted with reproducible evidence. The crash is a real translation-path register allocator exhaustion in `libRosettaAot.dylib`. Severity: Low-Medium (local DoS, controlled SIGABRT, not memory corruption). Report as finding; do not pursue as critical vuln.
+Recommendation: **CONFIRMED.** All 5 null hypotheses refuted with reproducible evidence. The crash is a real translation-path register allocator exhaustion in `libRosettaAot.dylib`, and its observed effect is a controlled SIGABRT — local denial of service, not memory corruption. Report as a finding; do not pursue as a critical vuln. Severity rating is out of scope for this skill, which produces a verdict and not a score: state the observed impact and let the caller's own severity process grade it.
 
 ## When the verdict is mixed
 
@@ -74,7 +90,8 @@ Sometimes the skeptic wins some dimensions and the advocate wins others. That's 
 
 - Pick the overall winner by weighing the most important dimensions for the caller's actual decision
 - List surviving opposing points as required qualifications or follow-up work
-- Not split the difference into "do neither" — pick a direction and note the caveats
+- Leave **No basis** rows out of the weighing — they carry no information — and list them as evidence the caller still needs
+- Not split the difference into "do neither" — pick a direction and note the caveats. This is where the refusal to fence-sit belongs: the recommendation must commit, even when individual rows could not be resolved
 
 ## When to re-run
 
@@ -84,4 +101,4 @@ Re-dispatch one or both agents if:
 - Both agents agreed on something you think is wrong
 - A key piece of evidence wasn't considered
 
-Re-run with a tighter prompt. Use the prompt template reference linked from [SKILL.md](../SKILL.md) Step 3.
+Re-run with a tighter prompt, **once**. If a second dispatch on the same question comes back the same way, the evidence is not there — record the dimension as **No basis** and name what would settle it, rather than dispatching again. Use the prompt template reference linked from [SKILL.md](../SKILL.md) Step 3.
