@@ -79,8 +79,33 @@ KEBAB_CASE_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 PLUGIN_NAME_MAX_LENGTH = 64
 SEMVER_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
 
-# Floor for --self-test. Raise it when you add fixtures; see the check in self_test().
-SELF_TEST_MINIMUM = 20
+# An absolute path to one developer's machine, which resolves nowhere for anybody else.
+# The lookbehind anchors to a path-segment boundary so a longer word ending in the same
+# letters does not match. Python's re supports lookbehind natively, which is the whole
+# reason this lives here rather than in the CI grep it replaces: `grep -P` is a GNU
+# extension and this repo's house rule is POSIX ERE, portable to BSD grep on macOS.
+#
+# Both branches accept either case. The version inherited from the CI step matched
+# `/Users/[A-Z]` only, so every conventionally-lowercase macOS account name — the
+# overwhelmingly common form, `/Users/alice`, and this repo's own `/Users/user` — went
+# undetected while the `/home/` branch caught its equivalents. The check missed the
+# thing it exists to find.
+HARDCODED_PATH_PATTERN = re.compile(r"(?<![a-zA-Z])(?:/home/[A-Za-z]|/Users/[A-Za-z])")
+# Shell, bats, yaml and toml included deliberately: test fixtures and install scripts
+# are exactly where absolute paths hide.
+HARDCODED_PATH_SUFFIXES = (".md", ".py", ".json", ".sh", ".bats", ".yml", ".toml")
+# The shim suites need literal /home/user paths to test what they exist to test.
+HARDCODED_PATH_EXEMPT_SUFFIX = "-shim.bats"
+# Placeholders, illustrative examples and shared system paths — none of them is an
+# individual's home directory. `/Users/Shared` is a real macOS system directory, and
+# `/Users/me` is the stand-in name c-review's docs use when showing that a path with a
+# space has to stay quoted. Both only need listing because the pattern above now accepts
+# lowercase; keep this list to forms that cannot be somebody's actual account.
+HARDCODED_PATH_PLACEHOLDERS = ("/path/to", "/home/vscode", "/Users/Shared", "/Users/me/")
+
+# Floor for --self-test, set to the exact number of assertions the fixtures run. There is
+# no slack on purpose: dropping one has to be a deliberate edit here, not a silent loss.
+SELF_TEST_MINIMUM = 45
 
 
 @dataclass
@@ -101,6 +126,7 @@ class ScanResult:
 
     findings: list[Finding] = field(default_factory=list)
     refs_checked: int = 0
+    paths_scanned: int = 0
 
     def add(self, plugin: str, message: str, severity: str = ERROR) -> None:
         self.findings.append(Finding(plugin, message, severity))
@@ -204,6 +230,14 @@ def skill_files(plugin_path: Path) -> list[Path]:
     return sorted(skills_dir.rglob("SKILL.md"))
 
 
+def command_files(plugin_path: Path) -> list[Path]:
+    """Markdown slash-command definitions at the plugin's own commands/ directory."""
+    commands_dir = plugin_path / "commands"
+    if not commands_dir.is_dir():
+        return []
+    return sorted(p for p in commands_dir.rglob("*.md") if p.is_file())
+
+
 # ---------------------------------------------------------------------------- errors
 
 
@@ -297,10 +331,10 @@ def validate_marketplace_entry(
     return errors
 
 
-def validate_agent_frontmatter(plugin_path: Path) -> list[str]:
-    """Agent files declare tools with `tools:`; skills use `allowed-tools:`.
+def validate_tools_frontmatter(plugin_path: Path) -> list[str]:
+    """Agent files declare tools with `tools:`; skills and commands use `allowed-tools:`.
 
-    The keys are inverted between the two file types and the loader silently ignores
+    The keys are inverted between the file types and the loader silently ignores
     the wrong one, so a restriction written the wrong way is not a restriction at all.
     """
     errors = []
@@ -323,6 +357,16 @@ def validate_agent_frontmatter(plugin_path: Path) -> list[str]:
         if frontmatter_has_key(block, AGENT_TOOLS_KEY):
             rel = skill.relative_to(plugin_path)
             errors.append(f"{rel} uses '{AGENT_TOOLS_KEY}:'; skills must use '{SKILL_TOOLS_KEY}:'")
+
+    for command in command_files(plugin_path):
+        block = extract_frontmatter(command.read_text(encoding="utf-8", errors="replace"))
+        if block is None:
+            continue
+        if frontmatter_has_key(block, AGENT_TOOLS_KEY):
+            rel = command.relative_to(plugin_path)
+            errors.append(
+                f"{rel} uses '{AGENT_TOOLS_KEY}:'; commands must use '{SKILL_TOOLS_KEY}:'"
+            )
 
     return errors
 
@@ -366,14 +410,19 @@ def validate_skill_frontmatter(plugin_path: Path) -> list[str]:
     return errors
 
 
-def validate_subagent_dispatch(plugin_path: Path, plugin_name: str) -> list[str]:
-    """subagent_type values referring to this plugin's agents must be namespaced.
+def validate_subagent_dispatch(
+    plugin_path: Path,
+    plugin_name: str,
+    agent_owners: dict[str, list[str]],
+) -> list[str]:
+    """Every bare subagent_type is a dispatch that fails at runtime.
 
-    A bare name is unregistered and the dispatch fails at runtime.
+    `agent_owners` maps an agent filename stem to the plugins defining it, across the
+    whole repo. Scoping this to the plugin's own agents would miss the two cases most
+    likely to ship: a bare name borrowed from another plugin, and a bare name for an
+    agent that no longer exists anywhere.
     """
     own_agents = {p.stem for p in agent_files(plugin_path)}
-    if not own_agents:
-        return []
 
     errors = []
     for path in sorted(plugin_path.rglob("*.md")) + sorted(plugin_path.rglob("*.sh")):
@@ -387,13 +436,56 @@ def validate_subagent_dispatch(plugin_path: Path, plugin_name: str) -> list[str]
                     continue
                 if value.startswith(("{", "$")):
                     continue
+                rel = path.relative_to(plugin_path)
                 if value in own_agents:
-                    rel = path.relative_to(plugin_path)
                     errors.append(
                         f"{rel}: subagent_type '{value}' is not namespaced; "
                         f"use '{plugin_name}:{value}'"
                     )
+                elif value in agent_owners:
+                    suggestion = " or ".join(
+                        f"'{owner}:{value}'" for owner in sorted(agent_owners[value])
+                    )
+                    errors.append(
+                        f"{rel}: subagent_type '{value}' is not namespaced; use {suggestion}"
+                    )
+                else:
+                    errors.append(
+                        f"{rel}: subagent_type '{value}' names no agent in this repo and is "
+                        f"not a builtin, so the dispatch fails at runtime"
+                    )
     return errors
+
+
+def find_hardcoded_paths(repo_root: Path) -> tuple[list[str], int]:
+    """Absolute paths into one developer's home directory, which nobody else has.
+
+    Returns the findings and the number of files scanned. The count is the caller's
+    anti-vacuity guard: a scan that inspected nothing must not report clean.
+    """
+    errors = []
+    scanned = 0
+
+    plugins_dir = repo_root / "plugins"
+    if not plugins_dir.is_dir():
+        return errors, scanned
+
+    for path in sorted(plugins_dir.rglob("*")):
+        if not path.is_file() or path.suffix not in HARDCODED_PATH_SUFFIXES:
+            continue
+        if path.name.endswith(HARDCODED_PATH_EXEMPT_SUFFIX):
+            continue
+        scanned += 1
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if not HARDCODED_PATH_PATTERN.search(line):
+                continue
+            if any(placeholder in line for placeholder in HARDCODED_PATH_PLACEHOLDERS):
+                continue
+            rel = path.relative_to(repo_root)
+            errors.append(f"{rel}:{lineno} hardcodes an absolute user path: {line.strip()[:80]}")
+
+    return errors, scanned
 
 
 def find_forbidden_sidecars(repo_root: Path) -> list[str]:
@@ -662,9 +754,23 @@ def validate_plugins(
     codeowners_plugins = parse_codeowners(repo_root / "CODEOWNERS")
     readme_plugins = parse_readme(repo_root / "README.md")
 
+    # Agents are addressed as `<plugin>:<agent>` from anywhere, so the registry has to be
+    # repo-wide and built before any single plugin is checked against it.
+    agent_owners: dict[str, list[str]] = {}
+    if plugins_dir.is_dir():
+        for plugin in sorted(plugins_dir.iterdir()):
+            if not plugin.is_dir():
+                continue
+            for agent in agent_files(plugin):
+                agent_owners.setdefault(agent.stem, []).append(plugin.name)
+
     for msg in find_forbidden_sidecars(repo_root):
         result.add("<repo>", msg)
     for msg in check_dependabot_lockfiles(repo_root):
+        result.add("<repo>", msg)
+
+    path_errors, result.paths_scanned = find_hardcoded_paths(repo_root)
+    for msg in path_errors:
         result.add("<repo>", msg)
 
     # Scoped to plugins this branch actually touched. Empty when there is no base ref
@@ -689,11 +795,11 @@ def validate_plugins(
             result.add(plugin_name, msg)
         for msg in validate_marketplace_entry(marketplace_plugins, plugin_data, plugin_name):
             result.add(plugin_name, msg)
-        for msg in validate_agent_frontmatter(plugin_path):
+        for msg in validate_tools_frontmatter(plugin_path):
             result.add(plugin_name, msg)
         for msg in validate_skill_frontmatter(plugin_path):
             result.add(plugin_name, msg)
-        for msg in validate_subagent_dispatch(plugin_path, plugin_name):
+        for msg in validate_subagent_dispatch(plugin_path, plugin_name, agent_owners):
             result.add(plugin_name, msg)
 
         if base_ref and plugin_name in version_check_scope:
@@ -777,11 +883,20 @@ def main(argv: list[str] | None = None) -> int:
         print("\n✗ reference extractor matched nothing across the whole repo — it is broken")
         return 1
 
+    # Same failure, different scan: a clean result here means nothing if the walk found
+    # no files to read, so prove discovery worked before trusting it.
+    if result.paths_scanned == 0:
+        print("\n✗ hardcoded-path scan matched no files at all — discovery is broken")
+        return 1
+
     errors = [f for f in result.findings if f.severity == ERROR]
     if errors:
         return 1
 
-    print(f"\n✓ no errors ({result.refs_checked} references resolved)")
+    print(
+        f"\n✓ no errors ({result.refs_checked} references resolved, "
+        f"{result.paths_scanned} files scanned for hardcoded paths)"
+    )
     return 0
 
 
@@ -904,6 +1019,100 @@ def _self_test_errors(ran: list[str]) -> None:
         skill = plugin / "skills" / "demo" / "SKILL.md"
         skill.write_text(skill.read_text() + '\nsubagent_type="Explore" is builtin.\n')
         _check(ran, "builtin subagent_type accepted", not _errors_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # `other` is built first so the second _build_demo leaves the marketplace, README
+        # and CODEOWNERS describing `demo`, which is the only plugin validated here.
+        root = Path(tmp)
+        other = _build_demo(root, "other")
+        _write(other / "agents" / "helper.md", "---\nname: helper\ntools:\n  - Read\n---\n")
+        plugin = _build_demo(root)
+        skill = plugin / "skills" / "demo" / "SKILL.md"
+        skill.write_text(skill.read_text() + '\nUse subagent_type="helper" here.\n')
+        _check(
+            ran,
+            "bare subagent_type borrowed from another plugin",
+            any("other:helper" in e for e in _errors_for(root)),
+        )
+        skill.write_text(skill.read_text().replace('"helper"', '"other:helper"'))
+        _check(ran, "cross-plugin namespaced subagent_type accepted", not _errors_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        skill = plugin / "skills" / "demo" / "SKILL.md"
+        skill.write_text(skill.read_text() + '\nUse subagent_type="ghost" here.\n')
+        _check(
+            ran,
+            "subagent_type naming no agent at all",
+            any("names no agent in this repo" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "commands" / "audit.md", "---\nname: audit\ntools: Read\n---\n\nRun it.\n")
+        _check(
+            ran,
+            "command using tools:",
+            any("commands must use 'allowed-tools:'" in e for e in _errors_for(root)),
+        )
+        _write(
+            plugin / "commands" / "audit.md",
+            "---\nname: audit\nallowed-tools: Read\n---\n\nRun it.\n",
+        )
+        _check(ran, "command using allowed-tools: accepted", not _errors_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "scripts" / "run.sh", "#!/usr/bin/env bash\ncd /Users/Someone/cc/skills\n")
+        _check(
+            ran,
+            "hardcoded /Users path",
+            any("hardcodes an absolute user path" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # The case the inherited pattern missed. macOS account names are lowercase by
+        # convention, so this is the form a real leaked path almost always takes.
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "scripts" / "run.sh", "#!/usr/bin/env bash\ncd /Users/alice/cc/skills\n")
+        _check(
+            ran,
+            "hardcoded lowercase /Users path",
+            any("hardcodes an absolute user path" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "skills" / "demo" / "shared.md", "Drop it in /Users/Shared/build.\n")
+        _check(ran, "macOS shared directory is not a personal path", not _errors_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "skills" / "demo" / "setup.md", "Run from /home/alice/work.\n")
+        _check(
+            ran,
+            "hardcoded /home path",
+            any("hardcodes an absolute user path" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        shim_suite = plugin / "hooks" / "shims" / "gh-shim.bats"
+        _write(shim_suite, "@test 'x' {\n  cd /home/user/repo\n}\n")
+        _check(ran, "shim suite exempt from path scan", not _errors_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "skills" / "demo" / "devcontainer.md", "Workspace is /home/vscode/app.\n")
+        _check(ran, "container image path is not a personal path", not _errors_for(root))
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

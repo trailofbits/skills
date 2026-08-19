@@ -1,4 +1,4 @@
-# Automated review on pull requests, in two tiers.
+# Automated review on pull requests.
 #
 # An organization-level ANTHROPIC_API_KEY is visible to this repository, so this
 # workflow is LIVE the moment it merges — it will start reviewing PRs immediately.
@@ -9,8 +9,11 @@
 # ever removed these jobs go quiet rather than red. A review workflow that fails on
 # every PR for want of a credential teaches people to ignore red checks.
 #
-# The deep tier needs a label that does not exist yet:
-#   gh label create deep-review -d "Run the xhigh adversarial review pass" -c B60205
+# One tier, deliberately. This was two — a cheap pass on every push and an xhigh
+# adversarial pass behind a `deep-review` label — and the split did not survive
+# contact: the label was never created, so the deep tier skipped 9 times and ran
+# zero, while every real review came from the cheap tier. Rather than wire up a
+# label to remember to apply, the default is now the strong review.
 #
 # Fork PRs get NO automated review. A `pull_request_target` variant was written and
 # then deleted: it checked out the fork tree and ran this repo's review script from
@@ -24,86 +27,30 @@ name: Claude Review
 
 on:
   pull_request:
-    # ready_for_review is load-bearing: the fast job skips drafts, so without it a
+    # ready_for_review is load-bearing: the job skips drafts, so without it a
     # draft-then-ready PR gets no event and no review at all.
-    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 # Granted per job rather than here. A workflow-level write grant applies to every job
 # including ones that never need it, which zizmor flags as excessive-permissions.
 permissions: {}
 
 concurrency:
-  # Keyed per tier, not per PR. Sharing one slot lets a routine push cancel an
-  # in-flight deep review — and GitHub will not re-fire `labeled` for a label that is
-  # already present, so the PR would sit labeled with no review, looking reviewed.
-  #
-  # Every `labeled` event gets its own key, including labels neither job cares about.
-  # Otherwise adding `dependencies` mid-review resolves to the `fast` key, cancels the
-  # running review, and then skips both jobs — leaving a cancelled check, no review,
-  # and no event that would re-trigger one until the next push.
-  group: >-
-    ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{
-    github.event.action == 'labeled'
-      && format('label-{0}', github.event.label.name)
-      || 'push' }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  fast:
-    name: Claude review (fast)
-    # Skips: label events (that is the deep job's trigger), drafts, bots, and forks.
-    # Forks are excluded: under `pull_request` they get a read-only token and could
-    # not post a comment anyway, and the privileged alternative is unsafe (above).
+  review:
+    name: Claude review
+    # Skips drafts, bots, and forks. Forks are excluded because under `pull_request`
+    # they get a read-only token and could not post a comment anyway, and the
+    # privileged alternative is unsafe (above).
     if: >-
-      github.event.action != 'labeled' &&
       github.event.pull_request.draft == false &&
       github.event.pull_request.user.type != 'Bot' &&
       github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      # read: check out the diff under review.
-      contents: read
-      # write: post the review as a PR comment. This is the whole point of the job —
-      # a run that cannot comment produces a green check and no review, which reads
-      # as "reviewed and clean".
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-      - name: Install Claude Code CLI  # zizmor: ignore[adhoc-packages]
-        if: env.ANTHROPIC_API_KEY != ''
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CLI_VERSION: "2.1.220"
-        run: |
-          npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
-            "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
-
-      - name: Review
-        if: env.ANTHROPIC_API_KEY != ''
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
-        run: |
-          export PATH="$RUNNER_TEMP/claude-cli/bin:$PATH"
-          .github/scripts/claude_review.sh fast
-
-  deep:
-    name: Claude review (deep)
-    # The fork exclusion is explicit rather than relying on secrets being
-    # unavailable to fork `pull_request` events, so changing the gating later cannot
-    # silently start running this against a fork with a read-only token.
-    if: >-
-      github.event.action == 'labeled' &&
-      github.event.label.name == 'deep-review' &&
-      github.event.pull_request.user.type != 'Bot' &&
-      github.event.pull_request.head.repo.fork == false
-    runs-on: ubuntu-latest
+    # xhigh on a large diff needs room. The old cheap tier ran in 20.
     timeout-minutes: 30
     permissions:
       # read: check out the diff under review.
@@ -119,17 +66,38 @@ jobs:
           # empty, which is indistinguishable from "nothing to find".
           fetch-depth: 0
           persist-credentials: false
-      - name: Install Claude Code CLI  # zizmor: ignore[adhoc-packages]
-        if: env.ANTHROPIC_API_KEY != ''
+
+      # The key is reduced to a boolean here so that no later step needs it in scope
+      # merely to test for it. `secrets` is not available in a step-level `if:`, so
+      # gating on presence otherwise means putting the secret in that step's `env:` —
+      # which for the install step below would run npm lifecycle scripts, from an
+      # unpinned version nobody chose, beside an org-wide credential.
+      - name: Check for API key
+        id: key
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CLI_VERSION: "2.1.220"
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "present=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "present=false" >>"$GITHUB_OUTPUT"
+            echo "ANTHROPIC_API_KEY is not visible here; skipping the review." >&2
+          fi
+
+      # Deliberately unpinned: the reviewer should get CLI fixes and features as they
+      # ship. The trade is that a bad release can change review behaviour with no
+      # commit here, so `claude_review.sh` logs the resolved version and model on every
+      # run — that is what makes a surprising review attributable afterwards. The model
+      # itself IS pinned, in that script; it is the larger lever on review quality.
+      # Note this step holds no secret, which is what makes @latest acceptable here.
+      - name: Install Claude Code CLI  # zizmor: ignore[adhoc-packages]
+        if: steps.key.outputs.present == 'true'
         run: |
           npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
-            "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+            "@anthropic-ai/claude-code@latest"
 
       - name: Review
-        if: env.ANTHROPIC_API_KEY != ''
+        if: steps.key.outputs.present == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -137,4 +105,4 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           export PATH="$RUNNER_TEMP/claude-cli/bin:$PATH"
-          .github/scripts/claude_review.sh deep
+          .github/scripts/claude_review.sh
