@@ -62,15 +62,15 @@ sudo apt install apktool curl jq unzip binutils
 ## Usage
 
 ```
-/firebase-scan ./app.apk
-/firebase-scan ./apks/
+/trailofbits:scan-apk ./app.apk
+/trailofbits:scan-apk ./apks/
 ```
 
 Or run the standalone script directly:
 
 ```bash
-./scanner.sh app.apk
-./scanner.sh ./apks/ --no-cleanup
+./skills/firebase-apk-scanner/scanner.sh app.apk
+./skills/firebase-apk-scanner/scanner.sh ./apks/ --no-cleanup
 ```
 
 ## Vulnerability Categories

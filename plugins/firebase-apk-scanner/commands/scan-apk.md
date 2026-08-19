@@ -9,6 +9,20 @@ allowed-tools: Bash Read Grep Glob
 
 **Arguments:** $ARGUMENTS
 
-Parse the APK path from arguments. If empty, ask for the path.
+Parse the APK file or directory from the arguments. If empty, ask the user for the path.
 
-Invoke the `firebase-apk-scanner` skill with the APK path for the full workflow.
+This command is the entry point for a Firebase APK scan. The `firebase-apk-scanner` skill
+sets `disable-model-invocation: true`, so it cannot be invoked as a skill from here. Read
+its workflow file and follow it directly.
+
+Confirm the skill's workflow and scanner are present:
+
+```bash
+ls "${CLAUDE_PLUGIN_ROOT}/skills/firebase-apk-scanner/SKILL.md" \
+   "${CLAUDE_PLUGIN_ROOT}/skills/firebase-apk-scanner/scanner.sh"
+```
+
+Then read `${CLAUDE_PLUGIN_ROOT}/skills/firebase-apk-scanner/SKILL.md` and carry out its
+workflow against the parsed path. Within that workflow, `{baseDir}` is
+`${CLAUDE_PLUGIN_ROOT}/skills/firebase-apk-scanner`, so `{baseDir}/scanner.sh` is the
+scanner script confirmed above.
