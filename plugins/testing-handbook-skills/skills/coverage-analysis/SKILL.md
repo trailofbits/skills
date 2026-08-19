@@ -214,6 +214,7 @@ llvm-cov show ./fuzz_exec \
 ```bash
 # Install gcovr (uv manages the isolated environment)
 uv tool install gcovr
+export PATH="$HOME/.local/bin:$PATH"   # uv's tool bin, if not already present
 
 # Generate report
 gcovr --gcov-executable "llvm-cov gcov" \

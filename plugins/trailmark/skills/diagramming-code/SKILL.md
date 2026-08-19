@@ -38,6 +38,7 @@ script.
 
 ```bash
 uv tool install trailmark
+# Python snippets: uv run --with trailmark python -   (a tool env is not importable)
 ```
 
 **DO NOT** fall back to hand-writing Mermaid from source code reading. The

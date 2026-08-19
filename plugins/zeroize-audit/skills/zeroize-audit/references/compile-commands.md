@@ -73,6 +73,7 @@ bear -- cargo build   # if cargo check is insufficient
 
 # Option 2: compiledb
 uv tool install compiledb
+# ensure uv's tool bin dir (~/.local/bin) is on PATH
 compiledb cargo build
 ```
 

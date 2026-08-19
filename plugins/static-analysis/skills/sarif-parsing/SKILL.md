@@ -70,7 +70,7 @@ Tools report different paths (`/path/to/project/` vs `/github/workspace/`), so p
 
 ## Tool Selection Guide
 
-| Use Case | Tool | Installation |
+| Use Case | Tool | Install / run |
 |----------|------|--------------|
 | Quick CLI queries | jq | `brew install jq` / `apt install jq` |
 | Python scripting (simple) | pysarif | `uv run --with pysarif python script.py` |
@@ -390,7 +390,7 @@ npm install -g ajv-cli
 ajv validate -s sarif-schema-2.1.0.json -d results.sarif
 
 # Using Python jsonschema
-uv run --with jsonschema python check_sarif.py   # any script importing jsonschema, e.g. below
+uv run --with jsonschema python your_script.py   # e.g. the function below
 ```
 
 ```python

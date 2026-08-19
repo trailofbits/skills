@@ -52,6 +52,7 @@ taint propagation changes, and privilege boundary modifications.
 
 ```bash
 uv tool install trailmark
+# Python snippets: uv run --with trailmark python -   (a tool env is not importable)
 ```
 
 **DO NOT** fall back to "manual comparison" or reading source files as a

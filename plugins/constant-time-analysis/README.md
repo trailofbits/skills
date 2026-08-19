@@ -323,6 +323,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv tool install .
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Check constant-time properties
         run: |

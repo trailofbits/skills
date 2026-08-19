@@ -122,7 +122,7 @@ When given a PDF:
 1. Check if JSON already exists (same directory as PDF, or ask user)
 2. If not, run extraction with verification:
    ```bash
-   uv run {baseDir}/scripts/extract_pdf.py --verify /path/to/file.pdf [output.json]
+   uv run --no-project {baseDir}/scripts/extract_pdf.py --verify /path/to/file.pdf [output.json]
    ```
 3. Visually confirm the verification summary matches the PDF
 4. Use the extracted JSON for interpretation
@@ -144,7 +144,7 @@ Vision may be used ONLY to verify extracted values look reasonable, NOT to extra
    - Check if user provided JSON path
 2. **If only PDF:** Run extraction script with `--verify` flag
    ```bash
-   uv run {baseDir}/scripts/extract_pdf.py --verify /path/to/file.pdf [output.json]
+   uv run --no-project {baseDir}/scripts/extract_pdf.py --verify /path/to/file.pdf [output.json]
    ```
 3. **If extraction fails:** Report error, do NOT fall back to vision
 

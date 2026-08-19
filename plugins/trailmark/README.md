@@ -46,6 +46,7 @@ gate v0.5 features on the version number, not `hasattr()`.
 
 ```bash
 uv tool install trailmark
+# Python snippets: uv run --with trailmark python -   (a tool env is not importable)
 ```
 
 ## Skills

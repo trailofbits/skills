@@ -54,6 +54,7 @@ also import an external binary-analysis graph JSON export via
 
 ```bash
 uv tool install trailmark
+# Python snippets: uv run --with trailmark python -   (a tool env is not importable)
 ```
 
 ## Version Gate

@@ -98,7 +98,7 @@ After resolving `scope_subpath`, set `finding_scope_root="${scope_subpath:-.}"`.
 
 **Entry:** Phase 0 complete. **Exit:** `has_unsafe`, `has_ffi`, `has_concurrency`, `has_async`, `has_packed_repr`, `has_fs_io` flags determined. Abort with a clear message if no `*.rs` files exist under `${finding_scope_root}`.
 
-First confirm `uv` is present (`command -v uv`) — every helper script in Phases 4-6 runs
+First confirm `uv` is present (`command -v uv`) — every helper script from Phase 4 onward runs
 through it. If missing, **abort** and tell the user to install it (`brew install uv` or
 the official installer); nothing downstream can run without it.
 

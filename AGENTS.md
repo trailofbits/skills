@@ -280,9 +280,11 @@ Each of these fails the build. There is no value in checking any of it by hand:
   placeholders rather than somebody's home directory.
 - No documented command uses a form the `modern-python` shims refuse: `python <script>`,
   `pip install`, `python -m pip`, or `uv pip install` without `--project`/`--directory`/
-  `--target`. Use `uv run --no-project <script>`, `uv add`, or `uv tool install`. Exempt:
-  prose forbidding the command, `dockerfile` fences, `plugins/modern-python/` itself, and
-  code blocks carrying an `allow-legacy-python: <reason>` comment.
+  `--target`/`-t`. Use `uv run --no-project <script>`, `uv run --with <pkg>`, `uv add`, or
+  `uv tool install`. Exempt: prose forbidding the command, `dockerfile` fences,
+  `plugins/modern-python/` itself, `.md`/`.py` under a `tests`/`evals*` directory (quoted
+  expectations), and code blocks carrying `allow-legacy-python: <reason>` — the reason is
+  required.
 - No `.codex/`, `.opencode/`, `.agents/`, or `plugins/*/.codex-plugin/` sidecars
 - A committed `uv.lock` for every uv directory listed in `.github/dependabot.yml`
 - Both loadability checks pass under the real Claude Code and Codex CLIs

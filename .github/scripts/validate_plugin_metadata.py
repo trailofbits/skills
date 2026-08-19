@@ -105,21 +105,27 @@ LEGACY_PYTHON_PATTERNS = (
         "uses the legacy `uv pip` interface; use `uv add`, `uv sync`, or `uv tool install`",
     ),
     (
-        # Leading short flags are stepped over (`python3 -u foo.py` is refused too),
-        # except -c/-m, whose argument is not a script path.
-        re.compile(r"\bpython3?\s+(?:-(?![cm]\b)[A-Za-z]\S*\s+)*(?!-)\S*\.py\b"),
+        # Leading flags are stepped over — long, short, and value-taking alike
+        # (`python3 -W ignore foo.py` is refused too) — except -c/-m, whose
+        # argument is not a script path. Values may not start with `-`, and
+        # backtracking releases a swallowed script name.
+        re.compile(
+            r"\bpython3?\s+(?:--?(?![cm]\b)[A-Za-z][\w-]*(?:[= ](?!-)\S+)?\s+)*(?!-)\S*\.py\b"
+        ),
         "runs a script through the bare interpreter; use `uv run --no-project <script>`",
     ),
     (
         # A script named by variable or path (`python3 "$MERGE"`, `python3 ./tool`) is
         # refused just the same, with no `.py` token for the pattern above to see.
-        re.compile(r"""\bpython3?\s+(?:-(?![cm]\b)[A-Za-z]\S*\s+)*["'$./]"""),
+        re.compile(r"""\bpython3?\s+(?:--?(?![cm]\b)[A-Za-z][\w-]*(?:[= ](?!-)\S+)?\s+)*["'$./]"""),
         "runs a script through the bare interpreter; use `uv run --no-project <script>`",
     ),
     (
-        # The shims refuse every pip/pipx subcommand via a catch-all arm, not only
-        # install. Named subcommands rather than `pip \w+` to keep prose FPs down.
-        re.compile(r"\bpip3?\s+(install|uninstall|freeze|download|list|show|check|wheel)\b"),
+        # The shims refuse every pip/pipx subcommand via a catch-all arm. Deliberately a
+        # named subset here, to keep prose false positives down; extend as instances appear.
+        re.compile(
+            r"\bpip3?\s+(install|uninstall|freeze|download|list|show|check|wheel|cache|config)\b"
+        ),
         "uses pip; use `uv run --with <pkg>` for a one-off, `uv add` in your own project, "
         "or `uv tool install <pkg>` for a CLI",
     ),
@@ -149,8 +155,12 @@ LEGACY_PYTHON_COMPLIANT_PREFIX = re.compile(r"uv\s+run\s+(?:--?[A-Za-z-]+(?:[= ]
 # it. Matched as whole flags after the command so `--target-dir` does not count.
 LEGACY_PYTHON_UV_PIP_ALLOWED = re.compile(r"\s(--project|--directory|--target|-t)([= ]|$)")
 # Exempts its code block up to the next blank line or fence, for commands that run where
-# the shims are absent (a container, a target project's own build). Must state a reason.
+# the shims are absent (a container, a target project's own build). A bare marker with no
+# reason does not exempt.
 LEGACY_PYTHON_ALLOW_MARKER = "allow-legacy-python:"
+LEGACY_PYTHON_ALLOW_RE = re.compile(r"allow-legacy-python:\s*\S")
+# Local trees accumulate these; CI never has them, so skipping keeps the two runs equal.
+SCAN_SKIP_DIRS = frozenset({".venv", "venv", "node_modules", "__pycache__", ".git", ".ruff_cache"})
 
 # Floor for --self-test, set to the exact number of assertions the fixtures run. There is
 # no slack on purpose: dropping one has to be a deliberate edit here, not a silent loss.
@@ -533,6 +543,8 @@ def find_legacy_python_invocations(repo_root: Path) -> tuple[list[str], int]:
             continue
         if path.is_relative_to(plugins_dir / "modern-python"):
             continue
+        if SCAN_SKIP_DIRS.intersection(path.parts):
+            continue
         # .md and .py under evals*/tests quote commands as expectations under test;
         # .sh there are commands, so shell keeps no exemption.
         if path.suffix in (".md", ".py") and any(
@@ -557,7 +569,7 @@ def find_legacy_python_invocations(repo_root: Path) -> tuple[list[str], int]:
                 block_exempt = False
                 continue
             if LEGACY_PYTHON_ALLOW_MARKER in line:
-                block_exempt = True
+                block_exempt = bool(LEGACY_PYTHON_ALLOW_RE.search(line))
                 continue
             if in_dockerfile or block_exempt:
                 continue
@@ -608,6 +620,8 @@ def find_hardcoded_paths(repo_root: Path) -> tuple[list[str], int]:
         if not path.is_file() or path.suffix not in HARDCODED_PATH_SUFFIXES:
             continue
         if path.name.endswith(HARDCODED_PATH_EXEMPT_SUFFIX):
+            continue
+        if SCAN_SKIP_DIRS.intersection(path.parts):
             continue
         scanned += 1
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -1273,6 +1287,12 @@ def _self_test_errors(ran: list[str]) -> None:
             ("python -m pip", "```bash\npython -m pip download requests\n```\n"),
             ("pip non-install subcommand", "```bash\npip freeze\n```\n"),
             ("pipx", "```bash\npipx install detect-secrets\n```\n"),
+            ("value-taking flag before the script", "```bash\npython3 -W ignore harness.py\n```\n"),
+            ("long flag before the script", "```bash\npython3 --verbose tool.py\n```\n"),
+            (
+                "allow-marker with no reason",
+                "```bash\n# allow-legacy-python:\npip install requests\n```\n",
+            ),
             ("script named by a variable", '```bash\npython3 "$MERGE" out.sarif\n```\n'),
             (
                 "compliant match masking a later violation",

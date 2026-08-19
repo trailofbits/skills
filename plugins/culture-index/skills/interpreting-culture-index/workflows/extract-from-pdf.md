@@ -14,7 +14,7 @@ Extract Culture Index profile data from a PDF file and convert to JSON format.
 Single command, no setup required:
 
 ```bash
-uv run {baseDir}/scripts/extract_pdf.py --verify /path/to/profile.pdf
+uv run --no-project {baseDir}/scripts/extract_pdf.py --verify /path/to/profile.pdf
 ```
 
 **Options:**
@@ -24,13 +24,13 @@ uv run {baseDir}/scripts/extract_pdf.py --verify /path/to/profile.pdf
 **Examples:**
 ```bash
 # Extract with verification (recommended)
-uv run {baseDir}/scripts/extract_pdf.py --verify profile.pdf
+uv run --no-project {baseDir}/scripts/extract_pdf.py --verify profile.pdf
 
 # Extract and save to file
-uv run {baseDir}/scripts/extract_pdf.py profile.pdf output.json
+uv run --no-project {baseDir}/scripts/extract_pdf.py profile.pdf output.json
 
 # Extract and pipe to jq
-uv run {baseDir}/scripts/extract_pdf.py profile.pdf | jq '.survey'
+uv run --no-project {baseDir}/scripts/extract_pdf.py profile.pdf | jq '.survey'
 ```
 
 ## What Happens

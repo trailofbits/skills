@@ -6,7 +6,7 @@
 # must stay cheap and must never call Claude. The eval that does call Claude is
 # eval.sh, deliberately named so discovery skips it.
 #
-# Helpers run through uv (their PEP 723 headers carry the metadata); uv is required.
+# Helpers are stdlib-only and run through uv, which supplies the interpreter; uv is required.
 
 set -euo pipefail
 
