@@ -144,9 +144,21 @@ def test_unmatched_rule_falls_back_to_sarif_default():
     assert find_rule({"ruleId": "r"}, run) is None
 
 
-def test_out_of_range_rule_index_falls_back_to_rule_id():
-    run = {"tool": {"driver": {"rules": [{"id": "r", "defaultConfiguration": {"level": "note"}}]}}}
-    assert resolve_level({"ruleId": "r", "ruleIndex": 9}, run) == "note"
+@pytest.mark.parametrize("index", [9, -1])
+def test_rule_index_outside_the_array_falls_back_to_rule_id(index):
+    """-1 is SARIF's "no rule", and it is the dangerous one: `$rules[-1]` in jq is the
+    last rule, so an unguarded index labels the result with that rule's severity."""
+    run = {
+        "tool": {
+            "driver": {
+                "rules": [
+                    {"id": "r", "defaultConfiguration": {"level": "note"}},
+                    {"id": "last", "defaultConfiguration": {"level": "error"}},
+                ]
+            }
+        }
+    }
+    assert resolve_level({"ruleId": "r", "ruleIndex": index}, run) == "note"
 
 
 # --- the documented jq gate ---------------------------------------------------------
@@ -172,6 +184,32 @@ def test_jq_and_python_resolution_agree():
 
 def test_skill_and_reference_publish_the_same_resolution():
     assert documented_level_fn(SKILL) == documented_level_fn(JQ_QUERIES)
+
+
+def test_documented_jq_does_not_read_the_last_rule_for_rule_index_minus_one(tmp_path):
+    """`$rules[-1]` is the last element in jq, so the documented guard has to reject it."""
+    sarif = {
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "t",
+                        "rules": [
+                            {"id": "r", "defaultConfiguration": {"level": "note"}},
+                            {"id": "last", "defaultConfiguration": {"level": "error"}},
+                        ],
+                    }
+                },
+                "results": [{"ruleId": "r", "ruleIndex": -1, "message": {"text": "m"}}],
+            }
+        ],
+    }
+    path = tmp_path / "minus-one.sarif"
+    path.write_text(json.dumps(sarif))
+    program = documented_level_fn(JQ_QUERIES) + ".runs[] as $run | $run.results[] | level($run)"
+    assert json.loads(jq(program, path)) == "note"
+    assert jq(documented_level_fn(JQ_QUERIES) + ERROR_GATE, path) == "0"
 
 
 def unresolved_severity(markdown: str) -> tuple[list[str], int]:

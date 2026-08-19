@@ -122,7 +122,8 @@ LEVEL_FN='
   def rule($run):
     . as $r
     | ($run.tool.driver.rules // []) as $rules
-    | (if ($r.ruleIndex | type) == "number" then $rules[$r.ruleIndex] else null end)
+    | (if ($r.ruleIndex | type) == "number" and $r.ruleIndex >= 0
+       then $rules[$r.ruleIndex] else null end)
       // first($rules[] | select(.id == $r.ruleId))
       // null;
   def level($run):
@@ -424,7 +425,8 @@ def validate_sarif(sarif_path: str, schema_path: str) -> bool:
       def rule($run):
         . as $r
         | ($run.tool.driver.rules // []) as $rules
-        | (if ($r.ruleIndex | type) == "number" then $rules[$r.ruleIndex] else null end)
+        | (if ($r.ruleIndex | type) == "number" and $r.ruleIndex >= 0
+           then $rules[$r.ruleIndex] else null end)
           // first($rules[] | select(.id == $r.ruleId))
           // null;
       def level($run):

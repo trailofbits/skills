@@ -19,7 +19,8 @@ LEVEL_FN='
   def rule($run):
     . as $r
     | ($run.tool.driver.rules // []) as $rules
-    | (if ($r.ruleIndex | type) == "number" then $rules[$r.ruleIndex] else null end)
+    | (if ($r.ruleIndex | type) == "number" and $r.ruleIndex >= 0
+       then $rules[$r.ruleIndex] else null end)
       // first($rules[] | select(.id == $r.ruleId))
       // null;
   def level($run):
@@ -37,7 +38,9 @@ jq "$LEVEL_FN"'[.runs[] as $run | $run.results[] | select(level($run) == "error"
 
 `kind` other than `"fail"` marks a pass/notApplicable record rather than a finding, and
 resolves to `"none"`. Without that clause a compliance tool's passing checks inherit
-their rule's `error` and fail the build.
+their rule's `error` and fail the build. The `>= 0` guard matters as much: SARIF writes
+`ruleIndex: -1` for "no rule", and `$rules[-1]` in jq is the *last* rule, so dropping it
+labels those results with whatever severity the final rule in the array happens to have.
 
 Two fixtures under `fixtures/` exercise both shapes: `codeql-no-level.sarif` (severity on
 the rules only) and `levels-on-results.sarif` (severity on the results). Each holds exactly
