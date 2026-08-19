@@ -212,10 +212,8 @@ llvm-cov show ./fuzz_exec \
 
 **GCC with gcovr:**
 ```bash
-# Install gcovr (via pip for latest version)
-python3 -m venv venv
-source venv/bin/activate
-pip3 install gcovr
+# Install gcovr (uv manages the isolated environment)
+uv tool install gcovr
 
 # Generate report
 gcovr --gcov-executable "llvm-cov gcov" \

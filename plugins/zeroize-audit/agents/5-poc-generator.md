@@ -229,7 +229,7 @@ Generate `{poc_output_dir}/Makefile` that builds all PoC targets:
 
 1. Extract per-TU compile flags using:
    ```bash
-   python {baseDir}/tools/extract_compile_flags.py \
+   uv run --no-project {baseDir}/tools/extract_compile_flags.py \
      --compile-db <compile_db> --src <source_file> --format lines
    ```
 

@@ -15,13 +15,13 @@ set -euo pipefail
 TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "→ variant-analysis fixtures"
-python3 "$TESTS_DIR/verify_fixtures.py"
+uv run --no-project "$TESTS_DIR/verify_fixtures.py"
 
 echo "→ grader self-test"
-python3 "$TESTS_DIR/score.py" --self-test
+uv run --no-project "$TESTS_DIR/score.py" --self-test
 
 echo "→ aggregator self-test"
-python3 "$TESTS_DIR/summarize.py" --self-test
+uv run --no-project "$TESTS_DIR/summarize.py" --self-test
 
 # The workflow is not standalone-valid JS in either module system: the runtime
 # executes it as an async function body (so top-level `return` is legal) and

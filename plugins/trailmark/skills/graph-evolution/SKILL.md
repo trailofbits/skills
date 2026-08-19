@@ -51,7 +51,7 @@ taint propagation changes, and privilege boundary modifications.
 **trailmark** must be installed. If `uv run trailmark` fails, run:
 
 ```bash
-uv pip install trailmark
+uv tool install trailmark
 ```
 
 **DO NOT** fall back to "manual comparison" or reading source files as a

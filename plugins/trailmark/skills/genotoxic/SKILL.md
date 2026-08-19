@@ -28,7 +28,7 @@ false positives, missing unit tests, and fuzzing targets.
 
 - **trailmark** installed — if `uv run trailmark` fails, run:
   ```bash
-  uv pip install trailmark
+  uv tool install trailmark
   ```
   **DO NOT** fall back to "manual verification" or "manual analysis"
   as a substitute for running trailmark. Install it first. If installation

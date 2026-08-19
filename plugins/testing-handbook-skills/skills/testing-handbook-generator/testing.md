@@ -12,7 +12,7 @@ Install from the scripts directory:
 
 ```bash
 cd plugins/testing-handbook-skills/scripts
-uv pip install .
+uv sync
 ```
 
 ### Optional Tools

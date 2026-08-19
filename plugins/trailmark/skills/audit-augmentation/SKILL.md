@@ -53,7 +53,7 @@ also import an external binary-analysis graph JSON export via
 **MANDATORY:** If `uv run trailmark` fails, install trailmark first:
 
 ```bash
-uv pip install trailmark
+uv tool install trailmark
 ```
 
 ## Version Gate

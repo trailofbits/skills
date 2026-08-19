@@ -45,7 +45,7 @@ gate v0.5 features on the version number, not `hasattr()`.
 [Trailmark](https://pypi.org/project/trailmark/) ([source](https://github.com/trailofbits/trailmark)) must be installed:
 
 ```bash
-uv pip install trailmark
+uv tool install trailmark
 ```
 
 ## Skills

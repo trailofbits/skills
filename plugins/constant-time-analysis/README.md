@@ -26,7 +26,7 @@ The infamous [KyberSlash](https://kyberslash.cr.yp.to/) attack demonstrated how 
 
 ```bash
 # Install
-uv pip install -e .
+uv sync
 
 # Analyze a C file
 ct-analyzer crypto.c
@@ -322,7 +322,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install -e .
+          uv sync
 
       - name: Check constant-time properties
         run: |
@@ -335,7 +335,7 @@ jobs:
 ct-check:
   stage: test
   script:
-    - uv pip install -e .
+    - uv sync
     - ct-analyzer --json src/crypto/*.c > ct-report.json
   artifacts:
     reports:
@@ -366,7 +366,7 @@ ct-check:
 ## Running Tests
 
 ```bash
-python3 ct_analyzer/tests/test_analyzer.py
+uv run python ct_analyzer/tests/test_analyzer.py
 ```
 
 ## References

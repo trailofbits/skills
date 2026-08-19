@@ -48,7 +48,7 @@ semantic metadata for security analysis.
 ModuleNotFoundError), install trailmark before doing anything else:
 
 ```bash
-uv pip install trailmark
+uv tool install trailmark
 ```
 
 **DO NOT** fall back to "manual verification", "manual analysis", or reading

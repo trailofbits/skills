@@ -127,7 +127,7 @@ When given a PDF:
 3. Visually confirm the verification summary matches the PDF
 4. Use the extracted JSON for interpretation
 
-**If uv is not installed:** Stop and instruct user to install it (`brew install uv` or `pip install uv`). Do NOT fall back to vision.
+**If uv is not installed:** Stop and instruct user to install it (`brew install uv` or `curl -LsSf https://astral.sh/uv/install.sh | sh`). Do NOT fall back to vision.
 
 **PDF Vision (Reference Only)**
 

@@ -5,7 +5,7 @@ Extract Culture Index profile data from a PDF file and convert to JSON format.
 ## Prerequisites
 
 **Required:**
-- `uv` - Install with `brew install uv` or `pip install uv`
+- `uv` - Install with `brew install uv` or `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - `poppler` - Install with `brew install poppler` (macOS) or `apt install poppler-utils` (Ubuntu)
 - `tesseract` - Install with `brew install tesseract` (macOS) or `apt install tesseract-ocr` (Ubuntu)
 

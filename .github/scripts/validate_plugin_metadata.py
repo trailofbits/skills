@@ -103,9 +103,51 @@ HARDCODED_PATH_EXEMPT_SUFFIX = "-shim.bats"
 # lowercase; keep this list to forms that cannot be somebody's actual account.
 HARDCODED_PATH_PLACEHOLDERS = ("/path/to", "/home/vscode", "/Users/Shared", "/Users/me/")
 
+# Invocations the modern-python plugin's PATH shims refuse. Any of these in a documented
+# command means the skill cannot run for anyone who has that plugin installed — which is
+# how thirteen plugins in this marketplace came to be broken by another plugin in it.
+#
+# Unanchored on purpose. Anchoring at line start missed the two places these actually hide:
+# a command inside a markdown table cell (`| Build image | `python3 infra/helper.py` |`) and
+# a call wrapped in a helper (`run_logged pip install -r requirements.txt`). Both are real
+# commands a reader copies or a script runs. The cost of matching broadly is the two guards
+# below, which are explicit and reviewable, rather than an anchor that silently under-detects.
+LEGACY_PYTHON_PATTERNS = (
+    (
+        re.compile(r"\bpython3?\s+(?!-)\S*\.py\b"),
+        "runs a script through the bare interpreter; use `uv run --no-project <script>`",
+    ),
+    (
+        re.compile(r"\bpip3?\s+install\b"),
+        "uses pip; use `uv add <pkg>` for a dependency or `uv tool install <pkg>` for a CLI",
+    ),
+    (
+        re.compile(r"\bpython3?\s+-m\s+pip\b"),
+        "uses python -m pip; use `uv add <pkg>` or `uv tool install <pkg>`",
+    ),
+    (
+        re.compile(r"\buv\s+pip\s+install\b"),
+        "uses the legacy `uv pip` interface; use `uv add`, `uv sync`, or `uv tool install`",
+    ),
+)
+# Prose that names a forbidden command in order to forbid it. trailmark's dispatch skills say
+# "Do NOT run `pip install`, `uv pip install`" and must keep saying exactly that.
+LEGACY_PYTHON_PROHIBITIONS = ("do not run", "don't run", "do not use", "never run", "instead of")
+# Because the patterns are unanchored, `uv run --no-project python fuzz.py` contains a literal
+# `python fuzz.py`. Matching text already introduced by a compliant `uv run` is the fix, not a
+# violation — without this the check flags the very form it tells you to use.
+LEGACY_PYTHON_COMPLIANT_PREFIX = re.compile(r"uv\s+run\s+(?:--?[A-Za-z-]+(?:[= ]\S+)?\s+)*$")
+# `uv pip` carrying one of these is a tool managing an environment it owns, which the shim
+# permits and which prek and similar tools legitimately need.
+LEGACY_PYTHON_UV_PIP_ALLOWED = ("--project", "--directory", "--target")
+# An escape hatch that must state a reason, for commands that genuinely run somewhere the
+# shim does not: inside a container, or as a target project's own build. Structural
+# `dockerfile` fences are detected instead and need no marker.
+LEGACY_PYTHON_ALLOW_MARKER = "allow-legacy-python:"
+
 # Floor for --self-test, set to the exact number of assertions the fixtures run. There is
 # no slack on purpose: dropping one has to be a deliberate edit here, not a silent loss.
-SELF_TEST_MINIMUM = 45
+SELF_TEST_MINIMUM = 56
 
 
 @dataclass
@@ -127,6 +169,7 @@ class ScanResult:
     findings: list[Finding] = field(default_factory=list)
     refs_checked: int = 0
     paths_scanned: int = 0
+    python_docs_scanned: int = 0
 
     def add(self, plugin: str, message: str, severity: str = ERROR) -> None:
         self.findings.append(Finding(plugin, message, severity))
@@ -457,6 +500,78 @@ def validate_subagent_dispatch(
     return errors
 
 
+def find_legacy_python_invocations(repo_root: Path) -> tuple[list[str], int]:
+    """Documented commands the modern-python shims refuse, so the skill cannot run.
+
+    Returns the findings and the number of files scanned; zero scanned is the caller's
+    anti-vacuity guard. `plugins/modern-python/` is exempt wholesale so it can keep
+    documenting the commands it intercepts.
+    """
+    errors: list[str] = []
+    scanned = 0
+
+    plugins_dir = repo_root / "plugins"
+    if not plugins_dir.is_dir():
+        return errors, scanned
+
+    # Shell scripts as well as markdown. Scanning only docs missed ten live invocations in
+    # `plugins/variant-analysis/tests/`, which is precisely what AGENTS.md recorded as the
+    # reason `make shell-suites` could not pass.
+    candidates = sorted(plugins_dir.rglob("*.md")) + sorted(plugins_dir.rglob("*.sh"))
+    for path in candidates:
+        if not path.is_file():
+            continue
+        if path.is_relative_to(plugins_dir / "modern-python"):
+            continue
+        # Eval graders and cases quote commands as the thing under test — a grader that
+        # checks the model "gives installation instructions (`pip install hypothesis`)" is
+        # describing an expectation, not issuing a command. Shell suites under tests/ ARE
+        # commands, so only markdown is exempt on that basis.
+        if path.suffix == ".md" and any(
+            part.startswith("evals") or part == "tests" for part in path.parts
+        ):
+            continue
+        scanned += 1
+
+        # A `dockerfile` fence runs in a container, where our PATH shims are not present.
+        in_dockerfile = False
+        # An allow-marker exempts the remainder of its block, which is what lets one marker
+        # cover a loop or an if-wrapper rather than needing one per line.
+        block_exempt = False
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        for lineno, line in enumerate(lines, 1):
+            fence = line.strip()
+            if fence.startswith("```"):
+                language = fence[3:].strip().lower()
+                in_dockerfile = language == "dockerfile" if language else False
+                block_exempt = False
+                continue
+            if LEGACY_PYTHON_ALLOW_MARKER in line:
+                block_exempt = True
+                continue
+            lowered = line.lower()
+            if (
+                in_dockerfile
+                or block_exempt
+                or any(phrase in lowered for phrase in LEGACY_PYTHON_PROHIBITIONS)
+            ):
+                continue
+
+            for pattern, advice in LEGACY_PYTHON_PATTERNS:
+                match = pattern.search(line)
+                if not match:
+                    continue
+                if LEGACY_PYTHON_COMPLIANT_PREFIX.search(line[: match.start()]):
+                    continue
+                if "uv pip" in line and any(f in line for f in LEGACY_PYTHON_UV_PIP_ALLOWED):
+                    continue
+                rel = path.relative_to(repo_root)
+                errors.append(f"{rel}:{lineno} {advice} — found: {line.strip()[:70]}")
+                break
+
+    return errors, scanned
+
+
 def find_hardcoded_paths(repo_root: Path) -> tuple[list[str], int]:
     """Absolute paths into one developer's home directory, which nobody else has.
 
@@ -769,6 +884,10 @@ def validate_plugins(
     for msg in check_dependabot_lockfiles(repo_root):
         result.add("<repo>", msg)
 
+    legacy_errors, result.python_docs_scanned = find_legacy_python_invocations(repo_root)
+    for msg in legacy_errors:
+        result.add("<repo>", msg)
+
     path_errors, result.paths_scanned = find_hardcoded_paths(repo_root)
     for msg in path_errors:
         result.add("<repo>", msg)
@@ -887,6 +1006,10 @@ def main(argv: list[str] | None = None) -> int:
     # no files to read, so prove discovery worked before trusting it.
     if result.paths_scanned == 0:
         print("\n✗ hardcoded-path scan matched no files at all — discovery is broken")
+        return 1
+
+    if result.python_docs_scanned == 0:
+        print("\n✗ legacy-python scan read no markdown at all — discovery is broken")
         return 1
 
     errors = [f for f in result.findings if f.severity == ERROR]
@@ -1113,6 +1236,44 @@ def _self_test_errors(ran: list[str]) -> None:
         plugin = _build_demo(root)
         _write(plugin / "skills" / "demo" / "devcontainer.md", "Workspace is /home/vscode/app.\n")
         _check(ran, "container image path is not a personal path", not _errors_for(root))
+
+    # The four forms modern-python's shims refuse, and the forms that must stay legal.
+    # Without these a documented command that no user can run reads as a clean repo.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        doc = plugin / "skills" / "demo" / "howto.md"
+
+        for label, body in (
+            ("bare interpreter on a script", "Run `python3 tools/x.py` first.\n"),
+            ("pip install", "```bash\npip install requests\n```\n"),
+            ("uv pip install", "```bash\nuv pip install requests\n```\n"),
+            ("python -m pip", "```bash\npython -m pip install requests\n```\n"),
+        ):
+            _write(doc, body)
+            _check(
+                ran,
+                f"legacy python invocation: {label}",
+                any("uv add" in e or "uv run" in e for e in _errors_for(root)),
+            )
+
+        for label, body in (
+            ("uv run --no-project", "```bash\nuv run --no-project tools/x.py\n```\n"),
+            (
+                "uv run --no-project python",
+                "```bash\nuv run --no-project python infra/helper.py b\n```\n",
+            ),
+            ("python3 -c", "```bash\npython3 -c 'print(1)'\n```\n"),
+            ("uv pip with --directory", "```bash\nuv pip install --directory /tmp requests\n```\n"),
+            ("prose forbidding the command", "Do NOT run `pip install` here.\n"),
+            ("dockerfile fence", "```dockerfile\nRUN pip install requests\n```\n"),
+            (
+                "allow-marker",
+                "```bash\n# allow-legacy-python: in a container\npip install requests\n```\n",
+            ),
+        ):
+            _write(doc, body)
+            _check(ran, f"legal python invocation accepted: {label}", not _errors_for(root))
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

@@ -67,4 +67,4 @@ git -C "$DEST" apply --check "$PATCH" || {
 git -C "$DEST" apply "$PATCH"
 
 echo "→ verifying"
-python3 "$TESTS_DIR/verify_fixtures.py"
+uv run --no-project "$TESTS_DIR/verify_fixtures.py"

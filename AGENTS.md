@@ -239,13 +239,11 @@ is strong evidence and not a guarantee:
   `pre-commit run -a`) to cover those locally.
 - **the version-increment check**, which needs a base ref to diff against and so has
   no meaning outside a PR.
-- **`make shell-suites`**, which is a target but not part of `check`: it still fails on a
-  machine with the `modern-python` plugin installed, though no longer for the reason
-  #207 describes. The `python3 -` interception that broke zeroize-audit is gone as of
-  modern-python 1.6.0. What remains is `plugins/variant-analysis/tests/` invoking
-  `python3 <script>.py`, which the shim intercepts *by design* — a bare script run is
-  exactly what `uv run python` replaces. That one is variant-analysis's to fix. With no
-  shim on PATH the whole target passes.
+- **`make shell-suites`**, which is a target but not part of `check`. It now passes with
+  modern-python installed: the `python3 -` interception that broke zeroize-audit went away
+  in 1.6.0, and `plugins/variant-analysis/tests/` no longer invokes `python3 <script>.py`.
+  It is still outside `check` because it is slow, not because it is broken. Note a machine
+  still on the 1.5.3 shim will fail it, since that version refuses `python3 -`.
 
 Both scan every plugin; the validator is not scoped down in CI. Only the
 version-increment check is limited to the plugins a branch touched, and it is the one
@@ -282,6 +280,14 @@ Each of these fails the build. There is no value in checking any of it by hand:
   `.bats`, `.yml` or `.toml` file under `plugins/`. `*-shim.bats` is exempt because
   those fixtures need literal paths, and `/path/to` and `/home/vscode` are treated as
   placeholders rather than somebody's home directory.
+- No documented command uses a Python invocation this marketplace's own `modern-python`
+  shims refuse: no `python <script>`, no `pip install`, no `python -m pip`, no `uv pip
+  install` without `--project`/`--directory`/`--target`. Use `uv run --no-project <script>`,
+  `uv add <pkg>` for a dependency, `uv tool install <pkg>` for a CLI. Thirteen plugins were
+  broken by another plugin in this repo before this was enforced. Exempt: prose that forbids
+  the command, `dockerfile` fences (a container has no shims), `plugins/modern-python/`
+  itself, and any block carrying an `allow-legacy-python: <reason>` comment — which is for
+  commands that genuinely run elsewhere, such as a target project's own build.
 - No `.codex/`, `.opencode/`, `.agents/`, or `plugins/*/.codex-plugin/` sidecars
 - A committed `uv.lock` for every uv directory listed in `.github/dependabot.yml`
 - Both loadability checks pass under the real Claude Code and Codex CLIs

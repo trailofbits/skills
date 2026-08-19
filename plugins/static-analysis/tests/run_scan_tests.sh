@@ -492,7 +492,7 @@ MERGE="$PLUGIN_ROOT/skills/semgrep/scripts/merge_sarif.py"
 printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"semgrep","rules":[]}},"results":[]}]}\n' \
   >"$FRAW/python-good.sarif"
 cp "$FRAW/python-good.sarif" "$FRAW/python-broken.sarif"
-MERGE_ERR=$(python3 "$MERGE" "$FRAW" "$WORK/filter/results.sarif" --important 2>&1 >/dev/null)
+MERGE_ERR=$(uv run --no-project "$MERGE" "$FRAW" "$WORK/filter/results.sarif" --important 2>&1 >/dev/null)
 ok "$([ -e "$WORK/filter/results.sarif" ] && echo 1 || echo 0)" \
   "the merge must write nothing while a scan is unfiltered"
 contains "$MERGE_ERR" "python-broken-important.json" \
