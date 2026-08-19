@@ -1,11 +1,16 @@
 # Language-Specific Guidance
 
+Commands below assume `$DB_NAME` and `$CODEQL_LANG` from the build-database workflow. They
+are written as `"$DB_NAME"` rather than a literal path on purpose: everything a run
+produces belongs under `$OUTPUT_DIR`, and a database in the working directory is invisible
+to the discovery step that looks there next time.
+
 ## No Build Required
 
 ### Python
 
 ```bash
-codeql database create codeql.db --language=python --source-root=.
+codeql database create "$DB_NAME" --language=python --source-root=.
 ```
 
 **Framework Support:**
@@ -23,7 +28,7 @@ codeql database create codeql.db --language=python --source-root=.
 ### JavaScript/TypeScript
 
 ```bash
-codeql database create codeql.db --language=javascript --source-root=.
+codeql database create "$DB_NAME" --language=javascript --source-root=.
 ```
 
 **Framework Support:**
@@ -38,28 +43,10 @@ codeql database create codeql.db --language=javascript --source-root=.
 | TypeScript not parsed | Ensure `tsconfig.json` is valid |
 | Monorepo issues | Use `--source-root` for specific package |
 
-### Go
-
-```bash
-codeql database create codeql.db --language=go --source-root=.
-```
-
-**Framework Support:**
-- net/http, Gin, Echo, Chi: Built-in models
-- gRPC: Partial support
-- Custom routers: May need data extensions
-
-**Common Issues:**
-| Issue | Fix |
-|-------|-----|
-| Missing dependencies | Run `go mod download` first |
-| Vendor directory | CodeQL handles automatically |
-| CGO code | Requires `--command='go build'` with CGO enabled |
-
 ### Ruby
 
 ```bash
-codeql database create codeql.db --language=ruby --source-root=.
+codeql database create "$DB_NAME" --language=ruby --source-root=.
 ```
 
 **Framework Support:**
@@ -75,26 +62,49 @@ codeql database create codeql.db --language=ruby --source-root=.
 
 ## Build Required
 
+### Go
+
+Compiled, and **rejects `--build-mode=none`** — autobuild or a manual command only. The
+command below looks build-free but runs autobuild, which invokes the Go toolchain; it
+fails if Go is absent or the module does not build, and there is no no-build fallback.
+
+```bash
+codeql database create "$DB_NAME" --language=go --source-root=.
+```
+
+**Framework Support:**
+- net/http, Gin, Echo, Chi: Built-in models
+- gRPC: Partial support
+- Custom routers: May need data extensions
+
+**Common Issues:**
+| Issue | Fix |
+|-------|-----|
+| Missing dependencies | Run `go mod download` first |
+| Vendor directory | CodeQL handles automatically |
+| CGO code | Requires `--command='go build'` with CGO enabled |
+| Build fails | Fix it. `--build-mode=none` is rejected for Go, so there is no fallback |
+
 ### C/C++
 
 ```bash
 # Make
-codeql database create codeql.db --language=cpp --command='make -j8'
+codeql database create "$DB_NAME" --language=cpp --command='make -j8'
 
 # CMake
-codeql database create codeql.db --language=cpp \
+codeql database create "$DB_NAME" --language=cpp \
   --source-root=/path/to/src \
   --command='cmake --build build'
 
 # Ninja
-codeql database create codeql.db --language=cpp \
+codeql database create "$DB_NAME" --language=cpp \
   --command='ninja -C build'
 ```
 
 **Build System Tips:**
 | Build System | Command |
 |--------------|---------|
-| Make | `make clean && make -j$(nproc)` |
+| Make | `make clean && make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"` |
 | CMake | `cmake -B build && cmake --build build` |
 | Meson | `meson setup build && ninja -C build` |
 | Bazel | `bazel build //...` |
@@ -110,10 +120,10 @@ codeql database create codeql.db --language=cpp \
 
 ```bash
 # Gradle
-codeql database create codeql.db --language=java --command='./gradlew build -x test'
+codeql database create "$DB_NAME" --language=java --command='./gradlew build -x test'
 
 # Maven
-codeql database create codeql.db --language=java --command='mvn compile -DskipTests'
+codeql database create "$DB_NAME" --language=java --command='mvn compile -DskipTests'
 ```
 
 **Framework Support:**
@@ -131,7 +141,7 @@ codeql database create codeql.db --language=java --command='mvn compile -DskipTe
 ### Rust
 
 ```bash
-codeql database create codeql.db --language=rust --command='cargo build'
+codeql database create "$DB_NAME" --language=rust --command='cargo build'
 ```
 
 **Common Issues:**
@@ -145,10 +155,10 @@ codeql database create codeql.db --language=rust --command='cargo build'
 
 ```bash
 # .NET Core
-codeql database create codeql.db --language=csharp --command='dotnet build'
+codeql database create "$DB_NAME" --language=csharp --command='dotnet build'
 
 # MSBuild
-codeql database create codeql.db --language=csharp --command='msbuild /t:rebuild'
+codeql database create "$DB_NAME" --language=csharp --command='msbuild /t:rebuild'
 ```
 
 **Framework Support:**
@@ -166,11 +176,11 @@ codeql database create codeql.db --language=csharp --command='msbuild /t:rebuild
 
 ```bash
 # Xcode project
-codeql database create codeql.db --language=swift \
+codeql database create "$DB_NAME" --language=swift \
   --command='xcodebuild -project MyApp.xcodeproj -scheme MyApp build'
 
 # Swift Package Manager
-codeql database create codeql.db --language=swift --command='swift build'
+codeql database create "$DB_NAME" --language=swift --command='swift build'
 ```
 
 **Requirements:**

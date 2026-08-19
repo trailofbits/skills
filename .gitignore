@@ -32,6 +32,11 @@ dist/
 build/
 *.egg-info/
 
+# `claude plugin eval` run artifacts: per-run scores, prompts, judge verdicts and
+# absolute trace paths from a machine that no longer exists. Regenerated on every
+# run and worth ~220KB per sweep, so they are output, not source.
+plugins/*/evals/results/
+
 # Local plugin cache
 .claude/
 

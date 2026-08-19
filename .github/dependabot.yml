@@ -21,7 +21,9 @@
 #
 # Python deps declared with PEP 723 inline metadata (the common pattern in this
 # repo, including .github/scripts/) have no Dependabot ecosystem at all and stay
-# manual. So do the pinned npm CLI versions in .github/workflows/validate.yml.
+# manual. So does the pinned Codex CLI in .github/workflows/validate.yml — the
+# Claude Code CLI beside it is deliberately unpinned instead, on the grounds that a
+# pin nobody bumps is worse than a break that announces itself.
 version: 2
 
 updates:
@@ -32,6 +34,14 @@ updates:
       - /plugins/testing-handbook-skills/scripts
       - /plugins/trailmark/skills/slicing-code-context/scripts
       - /plugins/yara-authoring/skills/yara-rule-authoring/scripts
+    # supply-chain-risk-auditor's eval fixtures are deliberately stale manifests —
+    # requests==2.19.0 and flask==1.0.2 are the findings those cases assert on, so a
+    # bump would quietly turn a real eval into one nothing can fail. Nothing scans
+    # them today: the directories above are explicit, and the Cargo.toml and
+    # package.json fixtures have no matching ecosystem block at all. This is a guard
+    # against a later edit widening that list, not a fix for PRs already arriving.
+    exclude-paths:
+      - plugins/supply-chain-risk-auditor/evals/fixtures/**
     schedule:
       interval: weekly
     cooldown:

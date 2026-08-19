@@ -1,0 +1,8 @@
+{
+  "name": "goal-prompt",
+  "version": "0.1.0",
+  "description": "Drafts copy-ready /goal commands for goal mode in Claude Code and Codex: verifiable completion conditions with stop bounds, normalized to a single line under the 4,000-character cap.",
+  "author": {
+    "name": "Paweł Płatek"
+  }
+}

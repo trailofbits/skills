@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: ungrounded-vague
+description: >
+  A vague draft with nothing in the fixture to ground it: no benchmark, no test suite, no stated metric.
+  The plugin's rule is to format what the user provided and flag the gaps. A bare "improve this goal"
+  answer typically invents a latency percentile, a threshold, and a benchmark command that does not exist —
+  a goal that terminates on a fabricated contract.
+tags: [no-invention]
+
+context:
+  scaffold_script: scaffold.sh
+
+execution:
+  prompt: |
+    Improve this goal: make checkout faster.
+    Give me the final /goal command to paste.
+  max_turns: 30
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Skill]
+
+runs: 2
+
+expected_outcome: >
+  A single-line /goal that stays close to what the user said, with no fabricated metric, threshold, or
+  verification command, followed by an explicit note telling the user what is missing (which metric and
+  threshold define "faster", how to verify it, a stop bound).
