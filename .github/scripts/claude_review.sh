@@ -26,9 +26,24 @@ TIER="${1:?usage: claude_review.sh <fast|deep>}"
 : "${PR_NUMBER:?PR_NUMBER is required}"
 : "${REPO:?REPO is required}"
 
+# The model is pinned explicitly. Left unset, `claude` resolves whatever the CLI
+# defaults to at run time, so the reviewer could change underneath this repository
+# with no commit and nothing in the logs would say which model had reviewed the diff.
+#
+# Both tiers now run opus at xhigh: every pull request gets the strongest review, not
+# only the ones somebody remembers to flag. What still separates them is scope — the
+# deep tier reads beyond the diff, gets git history and a longer budget, and its
+# prompt is adversarial. The `fast` name is left alone because it is the check name
+# branch protection matches on; it describes the trigger, not the effort.
 case "$TIER" in
-  fast) EFFORT="low" ;;
-  deep) EFFORT="xhigh" ;;
+  fast)
+    EFFORT="xhigh"
+    MODEL="opus"
+    ;;
+  deep)
+    EFFORT="xhigh"
+    MODEL="opus"
+    ;;
   *)
     echo "unknown tier: $TIER (expected fast or deep)" >&2
     exit 2
@@ -39,10 +54,25 @@ esac
 # command line: PR metadata is untrusted text and must never reach a shell.
 COMMON_PROMPT=$(
   cat <<'PROMPT'
+You cannot execute anything. There is no interpreter, no test runner and no general
+shell here — only the few read-only `gh` and `git` commands in your allowlist, plus
+Read, Grep and Glob. So do not describe a command, script or test run as something
+you ran, and never report output you did not receive from a tool call. Reasoning
+about what an input would do is exactly the job and needs no hedging: "reading the
+pattern, `/Users/alice` does not match it" is the right shape. "I verified this
+directly:" followed by an invented transcript is not, and it has happened on this
+repository three times — a Python snippet that could not compile, a pytest suite with
+a fabricated pass count, and a shell script nobody executed. Each conclusion was
+right and each proof was invented, which is worse than showing no proof, because a
+reader cannot tell the two apart.
+
 Report every issue you find, at every severity. Do not pre-filter, do not suppress
 low-confidence findings, and do not decide something is too minor to mention. Rank
 each finding P1 to P4 and let a human filter. A finding you withheld is worth
 nothing; a P4 that turns out not to matter costs one line.
+
+Rank on consequence, not on diff size. A one-character fault in a checker that makes
+it silently miss what it exists to catch is not a nit, however small the patch.
 
 For each finding give: file:line, one sentence on the defect, and a concrete failure
 scenario — the input or state that produces the wrong behaviour. If you cannot state
@@ -162,8 +192,11 @@ printf '%s\n' "$PROMPT" >"$PROMPT_FILE"
 # a reader sees a passing "Claude review" check and infers the diff was reviewed.
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-echo "Running $TIER review (effort=$EFFORT) on $REPO#$PR_NUMBER"
+# Model and CLI version go in the log because the CLI is deliberately unpinned: a run
+# is only attributable after the fact if it says what reviewed the diff.
+echo "Running $TIER review (model=$MODEL effort=$EFFORT cli=$(claude --version)) on $REPO#$PR_NUMBER"
 claude --print \
+  --model "$MODEL" \
   --effort "$EFFORT" \
   --allowedTools "$ALLOWED_TOOLS" \
   <"$PROMPT_FILE"

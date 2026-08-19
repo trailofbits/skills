@@ -128,15 +128,15 @@ jobs:
             python3 .github/scripts/validate_plugin_metadata.py --base-ref "$BASE_REF"
           fi
 
-      # Pinned rather than @latest: an unpinned install makes CI able to break with
-      # no commit, and zizmor flags it as adhoc-packages. Dependabot does not track
-      # these, so bump them by hand when a new CLI feature is needed.
+      # Unpinned on purpose. This step exists to prove the plugins load under the real
+      # CLI, and the version worth proving that against is the one users are actually
+      # running, not one frozen at the last manual bump. The cost is that a CLI release
+      # can turn this job red with no commit here — which, for a loadability check, is
+      # the signal rather than the noise. `claude --version` below records what ran.
       - name: Install Claude Code CLI  # zizmor: ignore[adhoc-packages]
-        env:
-          CLAUDE_CLI_VERSION: "2.1.220"
         run: |
           npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
-            "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+            "@anthropic-ai/claude-code@latest"
           echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/claude-cli/bin/claude" --version
 

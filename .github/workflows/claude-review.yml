@@ -73,14 +73,18 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+      # Deliberately unpinned: the reviewer should get CLI fixes and features as they
+      # ship. The trade is that a bad release can change review behaviour with no
+      # commit here, so `claude_review.sh` logs the resolved version and model on every
+      # run — that is what makes a surprising review attributable afterwards. The model
+      # itself IS pinned, in that script; it is the larger lever on review quality.
       - name: Install Claude Code CLI  # zizmor: ignore[adhoc-packages]
         if: env.ANTHROPIC_API_KEY != ''
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CLI_VERSION: "2.1.220"
         run: |
           npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
-            "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+            "@anthropic-ai/claude-code@latest"
 
       - name: Review
         if: env.ANTHROPIC_API_KEY != ''
@@ -119,14 +123,18 @@ jobs:
           # empty, which is indistinguishable from "nothing to find".
           fetch-depth: 0
           persist-credentials: false
+      # Deliberately unpinned: the reviewer should get CLI fixes and features as they
+      # ship. The trade is that a bad release can change review behaviour with no
+      # commit here, so `claude_review.sh` logs the resolved version and model on every
+      # run — that is what makes a surprising review attributable afterwards. The model
+      # itself IS pinned, in that script; it is the larger lever on review quality.
       - name: Install Claude Code CLI  # zizmor: ignore[adhoc-packages]
         if: env.ANTHROPIC_API_KEY != ''
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CLI_VERSION: "2.1.220"
         run: |
           npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
-            "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+            "@anthropic-ai/claude-code@latest"
 
       - name: Review
         if: env.ANTHROPIC_API_KEY != ''
