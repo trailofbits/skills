@@ -104,6 +104,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 
 | Plugin | Description |
 |--------|-------------|
+| [code-improver](plugins/code-improver/) | Autonomous review-and-fix workflow over skills, plugins, or a branch, with a pluggable reviewer, findings ledger, escalation, and scope guard |
 | [devcontainer-setup](plugins/devcontainer-setup/) | Create pre-configured devcontainers with Claude Code and language-specific tooling |
 | [gh-cli](plugins/gh-cli/) | Intercept GitHub URL fetches and redirect to the authenticated `gh` CLI |
 | [git-cleanup](plugins/git-cleanup/) | Safely clean up git worktrees and local branches with gated confirmation workflow |
@@ -113,7 +114,6 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [modern-python](plugins/modern-python/) | Modern Python tooling and best practices with uv, ruff, and pytest |
 | [open-sourcing](plugins/open-sourcing/) | Prepare a repository for public release: secrets hygiene, licensing, CI readiness, and release automation |
 | [second-opinion](plugins/second-opinion/) | Run code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on changes, diffs, or commits. Bundles Codex's built-in MCP server. |
-| [skill-improver](plugins/skill-improver/) | Autonomous review-and-fix workflow for skills, with a findings ledger, escalation, and scope guard |
 
 ### Team Management
 

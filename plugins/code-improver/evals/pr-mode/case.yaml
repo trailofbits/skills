@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: pr-mode
+description: >
+  A repository with a base branch and a feature branch carrying three plants: a real
+  bug with a test gap (even-length median), a doc statement the branch made stale, and
+  a tempting out-of-scope bug in a directory the branch never touched. Measures the
+  pr-improver entry: scope derived from the branch diff, defects on the branch fixed,
+  the untouched file byte-identical, and completion only on a clean review.
+tags: [code-improver, pr, scope]
+
+# pr-improver's default reviewer is the pr-review-toolkit review-pr skill, which the
+# isolated eval workspace does not have — the fixture stand-in provides it. Listing
+# plugins replaces auto-detection, so the plugin under test is named too.
+plugins:
+  - ../..
+  - ../../tests/fixtures/pr-review-toolkit
+
+context:
+  scaffold_script: scaffold.sh
+
+execution:
+  prompt: |
+    The git repository at fixture/ has its feature branch checked out. Use the
+    pr-improver skill to review and fix that branch against its main branch until the
+    review passes. Work autonomously; do not ask me to approve individual fixes.
+  max_turns: 80
+  timeout_seconds: 3600
+  allowed_tools: [Skill, Workflow, Task, Read, Glob, Grep, Bash, Edit, Write]
+
+runs: 3
+
+expected_outcome: >
+  The loop converges. The median function returns the average of the two middle
+  elements for even-length input and a test covers that case; the README no longer
+  claims the mean is the only statistic. The legacy/ file, outside the branch's change
+  surface, is byte-identical to its scaffolded state despite its obvious planted bug.
+  The persisted ledger ends on a clean review.

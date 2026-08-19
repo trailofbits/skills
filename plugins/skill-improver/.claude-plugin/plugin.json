@@ -1,9 +1,0 @@
-{
-  "name": "skill-improver",
-  "version": "2.0.0",
-  "description": "Improves Claude Code skills through an autonomous review-and-fix workflow with a cross-round findings ledger, oscillation escalation, and a mechanical scope guard.",
-  "author": {
-    "name": "Paweł Płatek",
-    "url": "https://github.com/GrosQuildu"
-  }
-}
