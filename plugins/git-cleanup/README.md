@@ -36,10 +36,10 @@ Invoke with `/git-cleanup` when you have accumulated many local branches and wor
 
 - Two confirmation gates (analysis review, then deletion confirmation), both in the main session
 - Safe delete (`git branch -d`) for branches git itself reports as merged; force delete (`git branch -D`) only for squash-merged and superseded branches, where git compares shas and cannot see that a squash carried the work across
-- Every squash-merged or superseded candidate must survive a skeptic tasked with finding a commit the claim cannot account for — tested against whatever the claim named, the default branch for a PR or commit and the superseding branch for a supersession. Refuted, unverified, missing a verdict, and lost-to-a-failed-agent all fall back to needs-review. `SAFE_TO_DELETE` is the one category that skips this: it rests on the survey's report of `git branch --merged`, and on `git branch -d` re-deriving the merge and refusing at execution time — which is why that category is pinned to `-d` and never `-D`
+- Every squash-merged or superseded candidate must survive a skeptic tasked with finding a commit the claim cannot account for — tested against whatever the claim named, the default branch for a PR or commit and the superseding branch for a supersession. Refuted, unverified, missing a verdict, and lost-to-a-failed-agent all fall back to needs-review. `SAFE_TO_DELETE` is the one category that skips this. It does not rest on `git branch -d` catching a mistake at execution time: `-d` accepts a branch merged into `HEAD` or into its own upstream, neither of which is "merged into the default branch". Instead each entry names its tip commit in its evidence, for a human to check at gate 1, and ships a `verifyWith` precondition — `git merge-base --is-ancestor 'refs/heads/<branch>' '<default>'` — which the main session runs immediately before the delete and skips the delete on failure. The precondition names the branch rather than the reported sha, so it cannot pass on a stale or transposed commit while the branch itself was never merged. The category is still pinned to `-d` and never `-D`
 - A `[gone]` remote is treated as a question, not an answer: the branch is investigated, and it only becomes a delete candidate once a specific PR or commit is named and that claim survives refutation
 - Blocks removal of worktrees with uncommitted changes
-- Never touches protected branches (main, master, develop, release/*) or the current branch — filtered by a regex in the script, not by instructions to a model
+- Never touches the current branch, or any long-lived integration or environment branch — `main`, `master`, `trunk`, `develop`, `dev`, `integration`, `staging`, `production`, `preprod`, `qa`, `uat`, `next`, `canary`, `stable` and `release/*`, `hotfix/*`, `support/*`, `maint*/*` among them, matched case-insensitively. Filtered by a regex in the script, not by instructions to a model: an agent can be talked out of a rule, a regex cannot
 
 ## Installation
 
@@ -112,8 +112,8 @@ Claude: GATE 2 — I will execute:
         # Worktrees holding branches being deleted (must come first)
         git worktree remove '../proj-auth'
 
-        # Merged (safe delete)
-        git branch -d 'fix/typo'
+        # Merged (safe delete, each guarded by its verifyWith precondition)
+        git merge-base --is-ancestor 'refs/heads/fix/typo' 'main' && git branch -d 'fix/typo'
 
         # Squash-merged and superseded (force delete)
         git branch -D 'feature/auth'

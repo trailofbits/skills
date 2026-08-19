@@ -193,9 +193,10 @@ evals:
 	@bash plugins/$(PLUGIN)/evals/run-evals.sh $(ARGS)
 
 ## validate: plugin metadata, structure, and cross-references
-# Scans every plugin. CI scopes to the plugins a PR touches, so local is a strict
-# superset and cannot pass where CI fails. Do not narrow it to match: the
-# zero-reference guard only arms on a full scan.
+# Scans every plugin, exactly as CI does — the validator is never scoped down there;
+# `--base-ref` only turns on the version-increment check, which is the one part limited
+# to the plugins a branch touched. Do not add a scoping flag here: the zero-reference
+# guard only arms on a full scan, so a narrowed run would disarm it.
 validate:
 	@echo "→ validate plugin metadata"
 	@uv run --no-project python3 .github/scripts/validate_plugin_metadata.py

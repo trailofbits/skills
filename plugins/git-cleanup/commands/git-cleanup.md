@@ -27,10 +27,17 @@ Workflow agents run in the background with no way to reach the user. Nothing des
 
 ## Phase 1: Run the Analysis Workflow
 
-Call the `Workflow` tool with `scriptPath` set to `${CLAUDE_PLUGIN_ROOT}/workflows/analyze-branches.js` and this as `args`:
+`${CLAUDE_PLUGIN_ROOT}` is set in the Bash tool's environment, not in this prompt's text — nothing expands it for you here. **Resolve it first**, in the same call that finds the repo root:
+
+```bash
+echo "$CLAUDE_PLUGIN_ROOT"
+git rev-parse --show-toplevel
+```
+
+Then call the `Workflow` tool with `scriptPath` set to `<that plugin root>/workflows/analyze-branches.js` and this as `args`, both values substituted rather than passed as the literal `${CLAUDE_PLUGIN_ROOT}`:
 
 ```json
-{ "repoPath": "<absolute path to the repo>", "pluginDir": "${CLAUDE_PLUGIN_ROOT}" }
+{ "repoPath": "<absolute path to the repo>", "pluginDir": "<that plugin root>" }
 ```
 
 This command being invoked is the opt-in that workflow needs.
@@ -48,6 +55,8 @@ It runs three phases — survey, investigate, refute — and returns:
 **Exit criteria:** you hold a result object, or the workflow threw.
 
 If it throws with "survey returned zero local branches", the inventory failed — say so and stop. Do not report a clean repository.
+
+If it throws about an unreadable `scriptPath`, the path did not resolve — most likely `$CLAUDE_PLUGIN_ROOT` was empty or reached the tool unexpanded. Check what the `echo` above printed, and if there is no usable plugin root, take the inline fallback below rather than aborting the run.
 
 **Fallback.** If the `Workflow` tool is unavailable, do the same analysis inline: read [merge-evidence.md](../references/merge-evidence.md), gather the state below, and apply the decision table in [Phase 2](#phase-2-check-the-workflows-work). It is slower and the refutation pass is on you, but the categories and the gates are identical.
 
@@ -163,7 +172,7 @@ I will execute:
 git worktree remove '../proj-auth'
 
 # Merged branches (safe delete, each guarded by its verifyWith precondition)
-git merge-base --is-ancestor abc1234 main && git branch -d 'fix/typo'
+git merge-base --is-ancestor 'refs/heads/fix/typo' 'main' && git branch -d 'fix/typo'
 
 # Squash-merged and superseded (force delete — work is in main via PRs)
 git branch -D 'feature/auth'
@@ -189,11 +198,11 @@ Keep the gate-2 order: every `git worktree remove` runs before the `git branch` 
 
 ```bash
 git worktree remove '../proj-auth'
-git merge-base --is-ancestor abc1234 main && git branch -d 'fix/typo'
+git merge-base --is-ancestor 'refs/heads/fix/typo' 'main' && git branch -d 'fix/typo'
 git branch -D 'feature/auth'
 ```
 
-**Run each `SAFE_TO_DELETE` candidate's `verifyWith` immediately before its delete, and skip the delete if it fails.** That category is the one that never went through the refutation pass, and `git branch -d` is not the backstop it looks like: it accepts a branch merged into `HEAD` *or* into its own upstream, so a branch level with its remote but never merged to the default branch deletes cleanly under `-d`. `git merge-base --is-ancestor <tip> <default>` tests the property actually being claimed. If it fails, report the branch as needing review instead of deleting it.
+**Run each `SAFE_TO_DELETE` candidate's `verifyWith` immediately before its delete, and skip the delete if it fails.** That category is the one that never went through the refutation pass, and `git branch -d` is not the backstop it looks like: it accepts a branch merged into `HEAD` *or* into its own upstream, so a branch level with its remote but never merged to the default branch deletes cleanly under `-d`. `verifyWith` tests the property actually being claimed — `git merge-base --is-ancestor 'refs/heads/<branch>' '<default>'`, naming the branch rather than the sha the survey reported, so it cannot pass on a row the survey joined wrongly. Run it as given rather than rebuilding it; it is already single-quoted for refnames that contain `$(...)`, backticks or `'`. If it fails, report the branch as needing review instead of deleting it.
 
 If a branch name itself contains a single quote, end the quoting around it: `'wip/it'\''s'`.
 

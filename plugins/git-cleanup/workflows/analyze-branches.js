@@ -79,6 +79,13 @@ const UNTRUSTED = [
 
 const fence = (body) => `<repo-data>\n${body}\n</repo-data>`
 
+// Single-quote a refname for the one place this workflow builds a shell command *for* the
+// model to paste (`verifyWith`). Branch names may legally contain `$(...)`, backticks, `;`
+// and `'` — only a space is refused — so double quotes would still substitute. The `'\''`
+// dance closes the quote, emits an escaped literal quote, and reopens: the same escape the
+// command file and the evidence reference demand of the agents.
+const sq = (ref) => `'${String(ref).replace(/'/g, "'\\''")}'`
+
 const READ_ONLY = [
   'HARD CONSTRAINT: you are read-only. Run only git commands that inspect state',
   '(log, branch --list, rev-list, show, status, merge-base, cherry, worktree list),',
@@ -317,13 +324,23 @@ for (const b of branches) {
     // under -d. So the claim is made checkable instead — the evidence names the tip
     // commit, and the command file guards the delete with `git merge-base --is-ancestor`,
     // which tests exactly the property claimed here.
-    const tip = String(b.lastCommit || '').split(/\s+/)[0] || '(unknown)'
+    //
+    // The precondition names `refs/heads/<branch>`, NOT the tip sha the survey reported.
+    // The agent joins `branch -vv` and `branch --merged` into one row itself, so a
+    // transposed or stale `lastCommit` could carry a sha that IS an ancestor of the
+    // default branch while the branch is not — and the check would pass on a branch it
+    // never examined. A refname cannot desynchronise from the branch it names. The sha
+    // stays in the evidence, where a human reads it, and out of the command, where a
+    // missing one would otherwise produce `--is-ancestor (unknown) main`: a bash syntax
+    // error rather than a legible refusal.
+    const tip = String(b.lastCommit || '').split(/\s+/)[0]
+    const named = tip ? `tip ${tip}` : 'tip commit not reported'
     settled.push({
       ...b,
       category: 'SAFE_TO_DELETE',
-      evidence: `tip ${tip} reported by git branch --merged as an ancestor of ${survey.defaultBranch}`,
+      evidence: `${named}; reported by git branch --merged as an ancestor of ${survey.defaultBranch}`,
       command: 'git branch -d',
-      verifyWith: `git merge-base --is-ancestor ${tip} ${survey.defaultBranch}`,
+      verifyWith: `git merge-base --is-ancestor ${sq(`refs/heads/${b.name}`)} ${sq(survey.defaultBranch)}`,
     })
   } else if (b.unpushedCommits > 0) {
     settled.push({ ...b, category: 'UNPUSHED_WORK', evidence: `${b.unpushedCommits} commits not on ${b.tracking}` })
@@ -357,8 +374,10 @@ const units = clusters.flatMap((c) => {
   const decide = c.filter((b) => pending.has(b.name))
   const siblings = c.filter((b) => !pending.has(b.name))
   if (decide.length === 0) return []
-  // A supersession claim needs the branch that superseded: that branch is live, so rank
-  // tracked siblings first and take the most recent of them.
+  // A supersession claim needs the branch that superseded, and that branch is still live,
+  // so rank tracked siblings ahead of untracked local leftovers. Tracked-ness is the whole
+  // key: the survey schema carries no commit date, so there is nothing to order by within
+  // each group, and the slice below is arbitrary among equals rather than newest-first.
   const ranked = [...siblings].sort((x, y) => Number(Boolean(y.tracking)) - Number(Boolean(x.tracking)))
   const context = ranked.slice(0, MAX_CONTEXT_PER_UNIT)
   if (siblings.length > context.length) {

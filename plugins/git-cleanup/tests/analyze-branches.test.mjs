@@ -86,7 +86,7 @@ const survey = {
 
 // Bump when you add an assertion. The check at the bottom is what makes a suite that
 // silently stopped running most of itself fail instead of reporting a pass.
-const EXPECTED_ASSERTIONS = 44
+const EXPECTED_ASSERTIONS = 47
 let ran = 0
 let failures = 0
 
@@ -499,9 +499,45 @@ const assert = (label, cond, extra = '') => {
     JSON.stringify(c.evidence),
   )
   assert(
-    'verifyWith tests ancestry in the default branch',
-    c.verifyWith === 'git merge-base --is-ancestor abc1234 main',
+    'verifyWith tests ancestry of the BRANCH, not the reported sha',
+    c.verifyWith === "git merge-base --is-ancestor 'refs/heads/fix/typo' 'main'",
     JSON.stringify(c.verifyWith),
+  )
+}
+
+// ---- case 13b: verifyWith stays a safe shell command for hostile refnames, and stays
+// buildable when the survey reports no tip commit at all. Both are execution-time
+// properties: the main session pastes this string into a shell verbatim.
+{
+  const { out } = await run({
+    survey: {
+      ...survey,
+      defaultBranch: 'main',
+      branches: [
+        b('main'),
+        b("evil$(id)", { merged: true, lastCommit: 'dead123 whatever' }),
+        b('quiet/branch', { merged: true, lastCommit: '' }),
+      ],
+    },
+    investigate: () => null,
+    refute: () => null,
+  })
+  const evil = out.deleteCandidates.find((x) => x.branch === "evil$(id)")
+  assert(
+    'a refname containing $(...) is single-quoted in verifyWith',
+    evil.verifyWith === "git merge-base --is-ancestor 'refs/heads/evil$(id)' 'main'",
+    JSON.stringify(evil.verifyWith),
+  )
+  const quiet = out.deleteCandidates.find((x) => x.branch === 'quiet/branch')
+  assert(
+    'a missing tip commit leaves verifyWith a valid command',
+    quiet.verifyWith === "git merge-base --is-ancestor 'refs/heads/quiet/branch' 'main'",
+    JSON.stringify(quiet.verifyWith),
+  )
+  assert(
+    'a missing tip commit is stated rather than rendered as (unknown)',
+    quiet.evidence.includes('tip commit not reported') && !quiet.evidence.includes('(unknown)'),
+    JSON.stringify(quiet.evidence),
   )
 }
 

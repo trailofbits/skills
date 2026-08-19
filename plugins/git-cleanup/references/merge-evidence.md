@@ -1,7 +1,7 @@
 # Merge Evidence Standard
 
 What counts as proof that a branch's work is already in the default branch, and what does not.
-The workflow's investigator and refuter agents both read this file; the skill's inline fallback path follows the same standard.
+The workflow's investigator and refuter agents both read this file; the command's inline fallback path follows the same standard.
 
 ## The asymmetry that sets the bar
 
@@ -13,7 +13,7 @@ Every rule below is calibrated to that: when the evidence is thin, the answer is
 
 | Category | Accepted evidence | Delete command |
 |----------|-------------------|----------------|
-| `SAFE_TO_DELETE` | The branch appears in `git branch --merged <default>`. Git proved it; nothing further is needed. | `git branch -d` |
+| `SAFE_TO_DELETE` | The branch appears in `git branch --merged <default>`. Report the tip commit alongside it: this is the one category that skips refutation, so the main session re-checks it with `git merge-base --is-ancestor` before deleting, and `git branch -d` is not itself that check — it also accepts a branch merged only into `HEAD` or into its own upstream. | `git branch -d` |
 | `SQUASH_MERGED` | A named commit or PR number in the default branch whose diff carries this branch's changes. | `git branch -D` |
 | `SUPERSEDED` | Either a named PR that merged the work, or a named newer branch that contains every commit of the older one. | `git branch -D` |
 | `REMOTE_GONE` | The upstream is `[gone]` and the work was not located in the default branch. | none — review |

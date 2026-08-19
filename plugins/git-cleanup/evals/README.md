@@ -115,7 +115,7 @@ If you add a case whose expected output is an absence, add the matching positive
 
 ## What this suite does not cover
 
-- **GATE 2 and the deletion path** — the exact commands, worktree-before-branch ordering, and the single-quoting rules in Phase 3. Covered by `tests/analyze-branches.test.mjs` and by review. A run here stops at the analysis. See the gate-2 warning above before adding a grader that seems to reach it.
+- **GATE 2 and the deletion path** — the exact commands, worktree-before-branch ordering, and the single-quoting rules in Phase 3. Covered by review only — `tests/analyze-branches.test.mjs` exercises the workflow's JS core and nothing in it reads the gate-2 prose. A run here stops at the analysis. See the gate-2 warning above before adding a grader that seems to reach it.
 - **The `SUPERSEDED` category.** `make-repo.sh --superseded` builds the state (`feature/api` carried forward into `feature/api-v2`), and the self-test asserts the fixture is correct, but no eval case exercises it yet. Adding one is the obvious next case: it is the category whose evidence is hardest to verify, since the proof lives in another branch rather than in main.
 - **Repeat runs.** Each case runs once per arm. Model output varies between runs — during development, two runs of the same arm on case 01 disagreed on two graders. Treat a single run as a sample, not a measurement, and re-run before concluding a change caused a regression.
 

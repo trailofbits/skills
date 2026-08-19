@@ -22,6 +22,17 @@ set -euo pipefail
 
 # Fixed identity and timestamps: the graders quote shas, so the shas have to be the
 # same on every machine and every run.
+#
+# The caller's own git config has to be shut out for that to hold, and for the fixture to
+# run at all. `eval-self-tests` is part of `make check`, so this executes on developer
+# machines: a global `commit.gpgsign = true` makes every commit here block on a passphrase
+# or fail outright, and `commit.template`, `core.hooksPath` or a global `user.name` shift
+# the shas the rubrics pin. GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM pointed at /dev/null
+# take the whole class out at once; hooksPath is set explicitly because a repo-local
+# hooks path would survive them.
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_SYSTEM=/dev/null
+export GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_DATE="2024-01-01T00:00:00+00:00"
 export GIT_COMMITTER_DATE="2024-01-01T00:00:00+00:00"
 export GIT_AUTHOR_NAME="Eval Fixture"
@@ -119,6 +130,11 @@ commit() { # <filename> <message>
 
 git init --quiet --bare -b main "$ORIGIN"
 git init --quiet -b main "$REPO"
+# Belt and braces alongside the GIT_CONFIG_* exports above: a hooksPath or a signing key
+# reaching this repo from anywhere still stops the commits below.
+git -C "$REPO" config core.hooksPath /dev/null
+git -C "$REPO" config commit.gpgsign false
+git -C "$REPO" config tag.gpgsign false
 
 commit README.md "initial commit"
 g remote add origin "$ORIGIN"
