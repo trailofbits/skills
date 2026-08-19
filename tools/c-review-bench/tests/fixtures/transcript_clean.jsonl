@@ -1,6 +1,0 @@
-{"type": "system", "subtype": "init", "tools": ["Bash", "Read", "Grep", "Glob", "WebFetch", "WebSearch", "Task"]}
-{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "The packet forbids WebFetch and WebSearch; I will not fetch anything from github.com."}]}}
-{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "Read", "input": {"file_path": "src/a.c"}}]}}
-{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t2", "name": "Bash", "input": {"command": "grep -rn curl src/ | head -5"}}]}}
-{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t3", "name": "Bash", "input": {"command": "cat wget-notes.txt; cc -fsyntax-only src/a.c"}}]}}
-{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t3", "content": "ok"}]}}

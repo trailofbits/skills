@@ -1,2 +1,0 @@
-{"type": "system", "subtype": "init", "tools": ["Bash"]}
-{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "git log --oneline -5"}}]}}

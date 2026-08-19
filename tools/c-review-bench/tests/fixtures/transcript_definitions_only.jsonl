@@ -1,2 +1,0 @@
-{"type": "system", "subtype": "init", "tools": ["Bash", "Read", "WebFetch", "WebSearch"]}
-{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "I considered WebFetch and decided against it. CVE-2022-25315 came to mind."}]}}
