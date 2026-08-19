@@ -6,7 +6,7 @@ None — this is the first phase.
 
 ## Instructions
 
-Spawn agent `zeroize-audit:0-preflight` via `Task` (`subagent_type: zeroize-audit:0-preflight`) with:
+Spawn agent `zeroize-audit:0-preflight` via `Task` (`subagent_type: "zeroize-audit:0-preflight"`) with:
 
 | Parameter | Value |
 |---|---|

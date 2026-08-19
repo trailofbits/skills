@@ -8,7 +8,7 @@
 
 ## Instructions
 
-Spawn agent `zeroize-audit:6-test-generator` via `Task` (`subagent_type: zeroize-audit:6-test-generator`) with:
+Spawn agent `zeroize-audit:6-test-generator` via `Task` (`subagent_type: "zeroize-audit:6-test-generator"`) with:
 
 | Parameter | Value |
 |---|---|

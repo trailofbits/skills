@@ -246,7 +246,7 @@ Table between Findings and Superseded Findings:
 - Agents that ran successfully vs. failed
 - Features enabled/disabled and their impact
 - Agent 5 (PoC generator) status: success / failed
-- Unaudited patterns from `coverage-gaps.json`: list each `pattern`, `where`, and `why`. If the file is absent or empty, say that no coverage gaps were reported. Never omit this line — its absence reads as full coverage.
+- Unaudited patterns: read `{workdir}/rust-compiler-analysis/coverage-gaps.json` here — Step 1 does not run in `final` mode, so this section must read it itself — and list each `pattern`, `where`, and `why`. If the file is absent or empty, say that no coverage gaps were reported. Never omit this line: its absence reads as full coverage.
 
 #### Appendix: Evidence Files
 - Table mapping finding IDs to evidence file paths (relative to workdir) for auditor reference
