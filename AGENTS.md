@@ -239,13 +239,9 @@ is strong evidence and not a guarantee:
   `pre-commit run -a`) to cover those locally.
 - **the version-increment check**, which needs a base ref to diff against and so has
   no meaning outside a PR.
-- **`make shell-suites`**, which is a target but not part of `check`: it still fails on a
-  machine with the `modern-python` plugin installed, though no longer for the reason
-  #207 describes. The `python3 -` interception that broke zeroize-audit is gone as of
-  modern-python 1.6.0. What remains is `plugins/variant-analysis/tests/` invoking
-  `python3 <script>.py`, which the shim intercepts *by design* — a bare script run is
-  exactly what `uv run python` replaces. That one is variant-analysis's to fix. With no
-  shim on PATH the whole target passes.
+- **`make shell-suites`**, a target but not part of `check` — slow, not broken. It passes
+  with modern-python ≥ 1.6.0 installed; the 1.5.3 shim still refuses the `python3 -` that
+  zeroize-audit's suite uses.
 
 Both scan every plugin; the validator is not scoped down in CI. Only the
 version-increment check is limited to the plugins a branch touched, and it is the one
@@ -282,6 +278,13 @@ Each of these fails the build. There is no value in checking any of it by hand:
   `.bats`, `.yml` or `.toml` file under `plugins/`. `*-shim.bats` is exempt because
   those fixtures need literal paths, and `/path/to` and `/home/vscode` are treated as
   placeholders rather than somebody's home directory.
+- No documented command uses a form the `modern-python` shims refuse: `python <script>`,
+  `pip install`, `python -m pip`, or `uv pip install` without `--project`/`--directory`/
+  `--target`/`-t`. Use `uv run --no-project <script>`, `uv run --with <pkg>`, `uv add`, or
+  `uv tool install`. Exempt: prose forbidding the command, `dockerfile` fences,
+  `plugins/modern-python/` itself, `.md`/`.py` under a `tests`/`evals*` directory (quoted
+  expectations), and code blocks carrying `allow-legacy-python: <reason>` — the reason is
+  required.
 - No `.codex/`, `.opencode/`, `.agents/`, or `plugins/*/.codex-plugin/` sidecars
 - A committed `uv.lock` for every uv directory listed in `.github/dependabot.yml`
 - Both loadability checks pass under the real Claude Code and Codex CLIs

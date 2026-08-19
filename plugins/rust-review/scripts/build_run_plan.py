@@ -21,7 +21,7 @@ file, or invalid flag combination — so the orchestrator can rely on its
 output without further validation.
 
 Usage:
-    python3 build_run_plan.py \\
+    uv run --no-project build_run_plan.py \\
         --plugin-root /abs/plugins/rust-review \\
         --output-dir /abs/.rust-review-results/<ts> \\
         --threat-model REMOTE \\

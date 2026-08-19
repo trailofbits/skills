@@ -6,22 +6,25 @@
 # must stay cheap and must never call Claude. The eval that does call Claude is
 # eval.sh, deliberately named so discovery skips it.
 #
-# Invokes verify_fixtures.py as a file rather than piping to `python3 -`: the
-# modern-python plugin's shim intercepts stdin form and fails for reasons that
-# have nothing to do with the code under test (#207).
+# Helpers are stdlib-only and run through uv, which supplies the interpreter; uv is required.
 
 set -euo pipefail
+
+command -v uv >/dev/null 2>&1 || {
+  echo "uv is required (https://docs.astral.sh/uv/)" >&2
+  exit 1
+}
 
 TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "→ variant-analysis fixtures"
-python3 "$TESTS_DIR/verify_fixtures.py"
+uv run --no-project "$TESTS_DIR/verify_fixtures.py"
 
 echo "→ grader self-test"
-python3 "$TESTS_DIR/score.py" --self-test
+uv run --no-project "$TESTS_DIR/score.py" --self-test
 
 echo "→ aggregator self-test"
-python3 "$TESTS_DIR/summarize.py" --self-test
+uv run --no-project "$TESTS_DIR/summarize.py" --self-test
 
 # The workflow is not standalone-valid JS in either module system: the runtime
 # executes it as an async function body (so top-level `return` is legal) and

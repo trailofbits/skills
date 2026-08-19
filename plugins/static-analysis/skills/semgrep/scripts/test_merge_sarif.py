@@ -123,7 +123,7 @@ def semgrep_bin() -> str:
     if not found:
         raise AssertionError(
             "semgrep is not installed, so the JSON/SARIF contract went unverified. "
-            "Install it (pip install semgrep) — this suite must not pass without it."
+            "Install it (uv tool install semgrep) — this suite must not pass without it."
         )
     return found
 

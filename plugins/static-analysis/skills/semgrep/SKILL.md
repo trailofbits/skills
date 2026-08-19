@@ -191,11 +191,11 @@ selection itself matters and you want to see and edit the list first.
 
 ```bash
 # run-all
-uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" \
+uv run --no-project {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" \
   --scans "$OUTPUT_DIR/scans.json"
 
 # important-only, once the JSON post-filter has run over every file in raw/
-uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" \
+uv run --no-project {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" \
   --important --scans "$OUTPUT_DIR/scans.json"
 ```
 

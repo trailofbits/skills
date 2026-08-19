@@ -75,7 +75,7 @@ print(json.dumps(detect_languages(sys.argv[1])))
 PY
 ```
 
-If the import fails, rerun the same snippet with `uv run python - "{args}"`.
+If the import fails, rerun the same snippet with `uv run --with trailmark python - "{args}"`.
 If the result is `[]`, report "Trailmark found no supported languages under
 target" and return.
 

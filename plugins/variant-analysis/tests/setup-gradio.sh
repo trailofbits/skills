@@ -16,6 +16,11 @@
 
 set -euo pipefail
 
+command -v uv >/dev/null 2>&1 || {
+  echo "uv is required (https://docs.astral.sh/uv/)" >&2
+  exit 1
+}
+
 TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="https://github.com/gradio-app/gradio.git"
 SHA="45c11d52e518a59ffaf1d688e13ceaafd7f1477c"
@@ -67,4 +72,4 @@ git -C "$DEST" apply --check "$PATCH" || {
 git -C "$DEST" apply "$PATCH"
 
 echo "→ verifying"
-python3 "$TESTS_DIR/verify_fixtures.py"
+uv run --no-project "$TESTS_DIR/verify_fixtures.py"

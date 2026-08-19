@@ -306,7 +306,7 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:
-        print("Usage: python sarif_helpers.py <sarif_file>")
+        print("Usage: uv run --no-project sarif_helpers.py <sarif_file>")
         sys.exit(1)
 
     sarif = load_sarif(sys.argv[1])

@@ -89,11 +89,9 @@ bats:
 	echo "$$files" | xargs bats
 
 ## shell-suites: run plugin shell regression suites (CI only, see note)
-# Deliberately NOT in `check`. zeroize-audit's suite pipes a script to `python3 -`,
-# which the modern-python plugin's shim intercepts and rejects, so this target fails
-# on any machine with that plugin installed — for reasons that have nothing to do
-# with the code under test. CI has no shims and runs it there. See the tracking
-# issue: #207.
+# Deliberately NOT in `check` because it is slow, not because it is broken: it passes
+# with modern-python >= 1.6.0 installed. A machine still on the 1.5.3 shim will fail
+# it, since that version refuses the `python3 -` zeroize-audit's suite uses (#207).
 #
 # find, not a glob: `**` needs globstar and degrades to `*` without it, so a suite
 # one directory deeper would stop running with no signal.

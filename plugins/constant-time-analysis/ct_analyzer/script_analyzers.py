@@ -1697,7 +1697,9 @@ class PythonAnalyzer(ScriptAnalyzer):
     }
 
     def __init__(self, python_path: str | None = None):
-        self.python_path = python_path or "python3"
+        # sys.executable, not "python3": the analyzer already runs under uv, and the
+        # modern-python shims refuse a bare `python3 --version` probe.
+        self.python_path = python_path or sys.executable or "python3"
 
     def is_available(self) -> bool:
         """Check if Python is available."""
