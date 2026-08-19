@@ -59,6 +59,13 @@ setup() {
   [[ "$output" != *"legacy interface"* ]]
 }
 
+# `uv pip install --help` documents `-t, --target <TARGET>`, so the short form has to be
+# exempt too — otherwise the same install is allowed or refused depending on spelling.
+@test "allows uv pip when the short -t names the target" {
+  run "$SHIM" pip install -t /tmp/nowhere --help
+  [[ "$output" != *"legacy interface"* ]]
+}
+
 @test "exits 127 with error when real uv is not found" {
   # Include /usr/bin for coreutils but exclude dirs with a real uv.
   # `run -127` declares the expected status, which is what this asserts; without it

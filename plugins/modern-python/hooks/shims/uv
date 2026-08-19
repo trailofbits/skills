@@ -13,7 +13,7 @@ uv_pip_is_tool_managed() {
   local arg
   for arg in "$@"; do
     case "$arg" in
-      --project | --project=* | --directory | --directory=* | --target | --target=*)
+      --project | --project=* | --directory | --directory=* | --target | --target=* | -t | -t=*)
         return 0
         ;;
     esac

@@ -55,9 +55,36 @@ if (($#)); then
   args="$(printf ' %q' "$@")"
 fi
 
-case "${1:-}" in
+# Find the mode selector, stepping over any interpreter flags in front of it. Reading
+# only $1 would make the decision depend on argument order: `python -u -c 'code'` means
+# exactly what `python -c 'code'` means, and refusing one while allowing the other is an
+# accident, not a rule. `-W`, `-X` and `--check-hash-based-pycs` take a separate value,
+# so they consume two slots; everything else beginning with `-` consumes one.
+mode=""
+argv=("$@")
+i=0
+while ((i < ${#argv[@]})); do
+  case "${argv[i]}" in
+    -c | -m | -)
+      mode="${argv[i]}"
+      break
+      ;;
+    -W | -X | --check-hash-based-pycs)
+      ((i += 2))
+      ;;
+    -*)
+      ((i += 1))
+      ;;
+    *)
+      # A script path. This is the case `uv run` exists to replace.
+      break
+      ;;
+  esac
+done
+
+case "$mode" in
   -m)
-    if [[ "${2:-}" == "pip" ]]; then
+    if [[ "${argv[i + 1]:-}" == "pip" ]]; then
       echo "ERROR: \`$cmd -m pip\` is not supported. Use:" >&2
       echo "  uv add <package>       # add a dependency" >&2
       echo "  uv remove <package>    # remove a dependency" >&2

@@ -100,6 +100,35 @@ real_python3_or_skip() {
   [[ "$output" == "6" ]]
 }
 
+# An interpreter flag before the mode selector must not change the decision: `-u -c` is
+# the same invocation as `-c`. Reading only $1 made the answer depend on argument order.
+
+@test "an interpreter flag before -c does not resurrect the refusal" {
+  real_python3_or_skip
+  run env PATH="$REAL_PATH" "$SHIM3" -u -c 'print(1+1)'
+  [[ $status -eq 0 ]]
+  [[ "$output" == "2" ]]
+}
+
+@test "a value-taking interpreter flag before -c is stepped over correctly" {
+  real_python3_or_skip
+  run env PATH="$REAL_PATH" "$SHIM3" -X utf8 -c 'print(1+1)'
+  [[ $status -eq 0 ]]
+  [[ "$output" == "2" ]]
+}
+
+@test "a flag before a script path still refuses" {
+  run "$SHIM3" -u script.py
+  [[ $status -ne 0 ]]
+  [[ "$output" == *"uv run python"* ]]
+}
+
+@test "a flag before -m pip still refuses" {
+  run "$SHIM3" -u -m pip install foo
+  [[ $status -ne 0 ]]
+  [[ "$output" == *"uv add"* ]]
+}
+
 @test "exits 127 with error when the real interpreter is not found" {
   # A PATH holding the shim and nothing else cannot test this: the shebang is
   # `/usr/bin/env bash`, so env exits 127 looking for bash and the shim never runs —
