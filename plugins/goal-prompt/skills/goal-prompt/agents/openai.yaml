@@ -1,0 +1,4 @@
+interface:
+  display_name: "Goal Prompt"
+  short_description: "Format copy-ready /goal commands"
+  default_prompt: "Use $goal-prompt to turn this task into a copy-ready /goal command."

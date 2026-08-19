@@ -26,6 +26,11 @@ WORKFLOW = PLUGIN_ROOT / "workflows" / "port-rule-to-languages.js"
 FAILURE_PATH_SUITE = TESTS_DIR / "workflow-failure-paths.test.mjs"
 NODE_SUITES = (TESTS_DIR / "workflow-functions.test.mjs", FAILURE_PATH_SUITE)
 
+# Floor for how many tests a node suite must report having run. Well below the 26 and 38
+# the two suites run today, so ordinary churn does not trip it, and well above the 1 that
+# node reports for a file containing no tests at all.
+MIN_NODE_SUITE_TESTS = 10
+
 SCRIPT = WORKFLOW.read_text(encoding="utf-8")
 
 AGENT_CALL_RE = re.compile(r"\bagent\(")
@@ -416,7 +421,12 @@ def node_test(suite: Path, script: Path | None = None) -> tuple[int, str]:
     if script:
         env["WORKFLOW_SCRIPT"] = str(script)
     completed = subprocess.run(
-        ["node", "--test", str(suite)],
+        # The reporter is pinned because callers below read `# pass N` out of this
+        # output. Node's default is version-dependent and not a TTY-independent
+        # contract: node 22 defaults to tap when stdout is not a terminal, node 23+
+        # defaults to spec, which prints `ℹ pass N` instead. Left unpinned, every
+        # assertion on that text fails on a newer node while CI stays green.
+        ["node", "--test", "--test-reporter=tap", str(suite)],
         capture_output=True,
         text=True,
         check=False,
@@ -433,7 +443,18 @@ def test_node_suites_pass(suite: Path) -> None:
     assert suite.is_file(), f"missing node suite at {suite}"
     code, output = node_test(suite)
     assert code == 0, f"node --test failed:\n{output}"
-    assert "# fail 0" in output, f"node --test reported failures:\n{output}"
+
+    # `# fail 0` only restated the exit code. What it could not see is a suite that
+    # stopped running its tests and passed anyway. Node makes that harder to detect
+    # than it looks: a file containing NO tests still reports `# tests 1 # pass 1`,
+    # counting the file itself, which is indistinguishable from a file holding one
+    # test. So a floor, not a non-zero check. These two suites run 26 and 38.
+    passed = re.search(r"^# pass (\d+)", output, re.MULTILINE)
+    assert passed, f"no TAP summary in output; did the reporter change?\n{output}"
+    assert int(passed.group(1)) >= MIN_NODE_SUITE_TESTS, (
+        f"{suite.name} ran only {passed.group(1)} tests, below the floor of "
+        f"{MIN_NODE_SUITE_TESTS} — the suite is not running what it used to:\n{output}"
+    )
 
 
 # Each mutation breaks one failure-handling behaviour the node suite claims to cover.

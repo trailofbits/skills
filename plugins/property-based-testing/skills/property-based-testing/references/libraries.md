@@ -1,130 +1,77 @@
 # PBT Libraries by Language
 
-## Quick Reference
+Match the project's existing choice. Introducing a second PBT library into a codebase
+that already has one is not worth the property you wanted to write.
 
-| Language | Library | Import/Setup |
-|----------|---------|--------------|
-| Python | Hypothesis | `from hypothesis import given, strategies as st` |
-| JavaScript/TypeScript | fast-check | `import fc from 'fast-check'` |
-| Rust | proptest | `use proptest::prelude::*` |
-| Go | rapid | `import "pgregory.net/rapid"` |
-| Java | jqwik | `@Property` annotations, `import net.jqwik.api.*` |
-| Scala | ScalaCheck | `import org.scalacheck._` |
-| C# | FsCheck | `using FsCheck; using FsCheck.Xunit;` |
-| Elixir | StreamData | `use ExUnitProperties` |
-| Haskell | QuickCheck | `import Test.QuickCheck` |
-| Clojure | test.check | `[clojure.test.check :as tc]` |
-| Ruby | PropCheck | `require 'prop_check'` |
-| Kotlin | Kotest | `io.kotest.property.*` |
-| Swift | SwiftCheck | `import SwiftCheck` ⚠️ unmaintained |
-| C++ | RapidCheck | `#include <rapidcheck.h>` |
+| Language | Default | Also in use |
+|---|---|---|
+| Python | Hypothesis | — |
+| TypeScript / JavaScript | fast-check | — |
+| Rust | proptest | quickcheck (simpler API, per-type shrinking) |
+| Go | rapid | gopter (ScalaCheck-style, more explicit) |
+| Java | jqwik | — |
+| Scala | ScalaCheck | — |
+| C# | FsCheck | — |
+| Elixir | StreamData | — |
+| Haskell | QuickCheck | Hedgehog (integrated shrinking, no type classes) |
+| Clojure | test.check | — |
+| Ruby | PropCheck | — |
+| Kotlin | Kotest | — |
+| C++ | RapidCheck | — |
+| Swift | SwiftCheck | unmaintained — check before recommending |
 
-### Alternatives
+Detect what a repo already uses before proposing anything:
 
-| Language | Alternative | Notes |
-|----------|-------------|-------|
-| Haskell | Hedgehog | Integrated shrinking, no type classes |
-| Rust | quickcheck | Simpler API, per-type shrinking |
-| Go | gopter | ScalaCheck-style, more explicit |
+```bash
+rg "from hypothesis import|fast-check|use proptest|pgregory.net/rapid|net.jqwik|echidna_|invariant_"
+```
 
-## Smart Contract Testing (EVM/Solidity)
+## Smart contracts (EVM / Solidity)
 
-| Tool | Type | Description |
-|------|------|-------------|
-| Echidna | Fuzzer | Property-based fuzzer for EVM contracts |
-| Medusa | Fuzzer | Next-gen fuzzer with parallel execution |
+This is where PBT earns the most, because contract state is adversarial and the input
+domain is every possible call sequence. Trail of Bits maintains both tools:
+
+- **Echidna** — property fuzzer, mature, the default choice.
+- **Medusa** — parallel execution, coverage-guided; faster on large contract suites.
+
+Two testing modes, and picking the wrong one is the usual mistake:
+
+**Property mode** — a function returning `bool` that must never become false.
 
 ```solidity
-// Echidna property example
-function echidna_balance_invariant() public returns (bool) {
-    return address(this).balance >= 0;
+// Echidna calls this after every transaction sequence.
+function echidna_total_matches_sum() public view returns (bool) {
+    return token.totalSupply() == trackedSum;
 }
 ```
 
-**Installation**:
-```bash
-# Echidna (via crytic toolchain)
-pip install crytic-compile
-# Download binary from https://github.com/crytic/echidna
+**Assertion mode** — an `assert` inside a function the fuzzer is allowed to call
+directly, for properties about a specific operation rather than global state.
 
-# Medusa
-go install github.com/crytic/medusa@latest
+```solidity
+function testDepositIncreasesBalance(uint256 amount) public {
+    uint256 before = vault.balanceOf(address(this));
+    vault.deposit(amount);
+    assert(vault.balanceOf(address(this)) >= before);
+}
 ```
 
-See [secure-contracts.com](https://secure-contracts.com) for tutorials.
+### Contract invariants worth asserting
 
-## Installation
+Solvency (`sum(balances) <= totalAssets`), supply conservation, access control (a
+non-owner call sequence never reaches an owner-only state change), monotonic
+counters, and round-trip on share/asset conversion (`convertToShares` then
+`convertToAssets` never returns more than you put in).
 
-**Python**:
-```bash
-pip install hypothesis
-```
+### Tautologies specific to Solidity
 
-**JavaScript/TypeScript**:
-```bash
-npm install fast-check
-```
+Type bounds are not properties. `uint256 x >= 0` is always true, and so is
+`address(this).balance >= 0` — the compiler guarantees it. Likewise a property that
+only reads state the fuzzer cannot reach is vacuous: if no call sequence can enter
+the branch, the invariant is never exercised. Check Echidna's coverage output rather
+than assuming.
 
-**Rust** (add to Cargo.toml):
-```toml
-[dev-dependencies]
-proptest = "1.0"
-# or for quickcheck:
-quickcheck = "1.0"
-```
+`echidna_` functions must be `view`/`pure` and take no arguments — a property that
+mutates state silently changes what it is testing.
 
-**Go**:
-```bash
-go get pgregory.net/rapid
-# or for gopter:
-go get github.com/leanovate/gopter
-```
-
-**Java** (Maven):
-```xml
-<dependency>
-  <groupId>net.jqwik</groupId>
-  <artifactId>jqwik</artifactId>
-  <version>1.9.3</version>
-  <scope>test</scope>
-</dependency>
-```
-
-**Clojure** (deps.edn):
-```clojure
-{:deps {org.clojure/test.check {:mvn/version "1.1.2"}}}
-```
-
-**Haskell**:
-```bash
-cabal install QuickCheck
-# or for Hedgehog:
-cabal install hedgehog
-```
-
-## Detecting Existing Usage
-
-Search for PBT library imports in the codebase:
-
-```bash
-# Python
-rg "from hypothesis import" --type py
-
-# JavaScript/TypeScript
-rg "from 'fast-check'" --type js --type ts
-
-# Rust
-rg "use proptest" --type rust
-
-# Go
-rg "pgregory.net/rapid" --type go
-
-# Java
-rg "@Property" --type java
-
-# Clojure
-rg "test.check" --type clojure
-
-# Solidity (Echidna)
-rg "echidna_" --glob "*.sol"
-```
+Tutorials: [secure-contracts.com](https://secure-contracts.com).
