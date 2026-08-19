@@ -128,15 +128,18 @@ jobs:
             python3 .github/scripts/validate_plugin_metadata.py --base-ref "$BASE_REF"
           fi
 
-      # Unpinned on purpose. This step exists to prove the plugins load under the real
-      # CLI, and the version worth proving that against is the one users are actually
-      # running, not one frozen at the last manual bump. The cost is that a CLI release
-      # can turn this job red with no commit here — which, for a loadability check, is
-      # the signal rather than the noise. `claude --version` below records what ran.
+      # Pinned rather than @latest, unlike the review workflow, and the difference is
+      # deliberate: `Validate plugins and skills` is a required check. An upstream
+      # release that renames a field in `plugin list --json` would redden every open
+      # PR at once, with no commit here to explain it, and block merges until someone
+      # diagnosed it. The review job can go red harmlessly; a merge gate cannot.
+      # Dependabot does not track these, so bump them by hand.
       - name: Install Claude Code CLI  # zizmor: ignore[adhoc-packages]
+        env:
+          CLAUDE_CLI_VERSION: "2.1.220"
         run: |
           npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
-            "@anthropic-ai/claude-code@latest"
+            "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
           echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/claude-cli/bin/claude" --version
 

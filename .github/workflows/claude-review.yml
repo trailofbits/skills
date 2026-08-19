@@ -67,21 +67,37 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # The key is reduced to a boolean here so that no later step needs it in scope
+      # merely to test for it. `secrets` is not available in a step-level `if:`, so
+      # gating on presence otherwise means putting the secret in that step's `env:` —
+      # which for the install step below would run npm lifecycle scripts, from an
+      # unpinned version nobody chose, beside an org-wide credential.
+      - name: Check for API key
+        id: key
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "present=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "present=false" >>"$GITHUB_OUTPUT"
+            echo "ANTHROPIC_API_KEY is not visible here; skipping the review." >&2
+          fi
+
       # Deliberately unpinned: the reviewer should get CLI fixes and features as they
       # ship. The trade is that a bad release can change review behaviour with no
       # commit here, so `claude_review.sh` logs the resolved version and model on every
       # run — that is what makes a surprising review attributable afterwards. The model
       # itself IS pinned, in that script; it is the larger lever on review quality.
+      # Note this step holds no secret, which is what makes @latest acceptable here.
       - name: Install Claude Code CLI  # zizmor: ignore[adhoc-packages]
-        if: env.ANTHROPIC_API_KEY != ''
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        if: steps.key.outputs.present == 'true'
         run: |
           npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
             "@anthropic-ai/claude-code@latest"
 
       - name: Review
-        if: env.ANTHROPIC_API_KEY != ''
+        if: steps.key.outputs.present == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

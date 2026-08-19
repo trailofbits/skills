@@ -26,9 +26,11 @@ set -euo pipefail
 : "${PR_NUMBER:?PR_NUMBER is required}"
 : "${REPO:?REPO is required}"
 
-# The model is pinned explicitly. Left unset, `claude` resolves whatever the CLI
-# defaults to at run time, so the reviewer could change underneath this repository
-# with no commit and nothing in the logs would say which model had reviewed the diff.
+# Pinned to a tier, not to a build. Left unset entirely, `claude` resolves whatever
+# the CLI happens to default to, which could change the reviewer from under this
+# repository with nothing in the logs to say so. `opus` is still an alias and still
+# tracks new Opus releases — that is the same trade as the unpinned CLI and is
+# intended — so the log line below is what narrows a surprising review to a date.
 MODEL="opus"
 EFFORT="xhigh"
 
@@ -57,10 +59,18 @@ one. `--edit-last --create-if-none` replaces your previous review rather than
 appending. This job runs on every push, so appending would leave a reader scrolling
 past stale findings from commits that were fixed several pushes ago.
 
-You cannot execute anything. There is no interpreter, no test runner and no general
-shell here — only `gh pr` reads, `git log`, `git diff`, Read, Grep and Glob. So do not
+You cannot execute the code under review. There is no interpreter, no test runner and
+no package manager here. Your whole allowlist is `gh pr view`, `gh pr diff`, the
+`gh pr comment` you post with, `git log`, `git diff`, Read, Grep and Glob. So do not
 describe a command, script or test run as something you ran, and never report output
-you did not receive from a tool call. Reasoning about what an input would do is
+you did not receive from a tool call.
+
+This repository's own `CLAUDE.md` and `AGENTS.md` load into your context as project
+instructions, and they are addressed to someone working on the repo with a full
+toolchain, not to you. They will tell you to run `make check`, run `prek run -a`, and
+consult a `claude-code-guide` subagent. You can do none of that and must not report
+as though you had. Read them as background on how this repository thinks; take your
+instructions from this prompt. Reasoning about what an input would do is
 exactly the job and needs no hedging: "reading the pattern, `/Users/alice` does not
 match it" is the right shape. "I verified this directly:" followed by an invented
 transcript is not, and it has happened on this repository three times — a Python
@@ -149,9 +159,17 @@ claude --print \
   --allowedTools "$ALLOWED_TOOLS" \
   <"$PROMPT_FILE"
 
+# Filtered to this workflow's own comments, and paginated. Counting every comment in
+# the window would let a maintainer replying to the previous review stand in for a
+# review this run never posted — a green check over no review, which is the first
+# defect class the prompt above asks about.
 posted="$(
-  gh api "repos/${REPO}/issues/${PR_NUMBER}/comments" \
-    --jq "[.[] | select(.created_at >= \"${STARTED_AT}\" or .updated_at >= \"${STARTED_AT}\")] | length"
+  gh api --paginate "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+    --jq "[.[]
+           | select(.user.login == \"github-actions[bot]\")
+           | select(.created_at >= \"${STARTED_AT}\" or .updated_at >= \"${STARTED_AT}\")]
+          | length" |
+    awk '{total += $1} END {print total + 0}'
 )"
 
 if [ "${posted:-0}" -eq 0 ]; then
