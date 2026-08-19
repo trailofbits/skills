@@ -6,8 +6,8 @@
 """Generate rust-review SARIF from finding frontmatter.
 
 Usage:
-    python3 generate_sarif.py /path/to/output_dir
-    python3 generate_sarif.py /path/to/output_dir --output /tmp/REPORT.sarif
+    uv run --no-project generate_sarif.py /path/to/output_dir
+    uv run --no-project generate_sarif.py /path/to/output_dir --output /tmp/REPORT.sarif
 """
 
 from __future__ import annotations

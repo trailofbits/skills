@@ -86,7 +86,7 @@ def main() -> int:
 
     if missing_python:
         print(f"\n  Python packages: {', '.join(missing_python)}", file=sys.stderr)
-        print("  Install with: uv pip install .", file=sys.stderr)
+        print("  Install with: uv sync (in the scripts directory)", file=sys.stderr)
 
     if missing_system:
         print(f"\n  System tools: {', '.join(missing_system)}", file=sys.stderr)

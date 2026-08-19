@@ -97,20 +97,31 @@ HARDCODED_PATH_PLACEHOLDERS = ("/path/to", "/home/vscode", "/Users/Shared", "/Us
 # the legitimate uses explicitly rather than under-detecting via an anchor.
 LEGACY_PYTHON_PATTERNS = (
     (
-        re.compile(r"\bpython3?\s+(?!-)\S*\.py\b"),
+        # Leading short flags are stepped over (`python3 -u foo.py` is refused too),
+        # except -c/-m, whose argument is not a script path.
+        re.compile(r"\bpython3?\s+(?:-(?![cm]\b)[A-Za-z]\S*\s+)*(?!-)\S*\.py\b"),
         "runs a script through the bare interpreter; use `uv run --no-project <script>`",
     ),
     (
         re.compile(r"\bpip3?\s+install\b"),
-        "uses pip; use `uv add <pkg>` for a dependency or `uv tool install <pkg>` for a CLI",
+        "uses pip; use `uv run --with <pkg>` for a one-off, `uv add` in your own project, "
+        "or `uv tool install <pkg>` for a CLI",
     ),
     (
         re.compile(r"\bpython3?\s+-m\s+pip\b"),
-        "uses python -m pip; use `uv add <pkg>` or `uv tool install <pkg>`",
+        "uses python -m pip; use `uv run --with <pkg>`, `uv add`, or `uv tool install`",
     ),
     (
-        re.compile(r"\buv\s+pip\s+install\b"),
+        # Every `uv pip` subcommand is refused without the tool-managed flags, not just
+        # install; the allowed-flags guard below carves those out.
+        re.compile(r"\buv\s+pip\s+[a-z]"),
         "uses the legacy `uv pip` interface; use `uv add`, `uv sync`, or `uv tool install`",
+    ),
+    (
+        # A bare interpreter with only flags (`python3 --version`) is refused as well:
+        # the shim finds no -c/-m/- selector and falls through to the refusal arm.
+        re.compile(r"\bpython3?\s+--?[A-Za-z][\w-]*\s*$"),
+        "invokes the bare interpreter; use `uv run python <flags>`",
     ),
 )
 # Prose that names a command in order to forbid it ("Do NOT run `pip install`").
@@ -119,14 +130,14 @@ LEGACY_PYTHON_PROHIBITIONS = ("do not run", "don't run", "do not use", "never ru
 # introduced by a compliant `uv run` is the fix, not a violation.
 LEGACY_PYTHON_COMPLIANT_PREFIX = re.compile(r"uv\s+run\s+(?:--?[A-Za-z-]+(?:[= ]\S+)?\s+)*$")
 # A tool managing an environment it owns (prek installs hooks this way); the shim permits it.
-LEGACY_PYTHON_UV_PIP_ALLOWED = ("--project", "--directory", "--target")
-# Exempts the rest of its code block, for commands that run where the shims are absent
-# (a container, a target project's own build). Must state a reason.
+LEGACY_PYTHON_UV_PIP_ALLOWED = ("--project", "--directory", "--target", "-t ", "-t=")
+# Exempts its code block up to the next blank line or fence, for commands that run where
+# the shims are absent (a container, a target project's own build). Must state a reason.
 LEGACY_PYTHON_ALLOW_MARKER = "allow-legacy-python:"
 
 # Floor for --self-test, set to the exact number of assertions the fixtures run. There is
 # no slack on purpose: dropping one has to be a deliberate edit here, not a silent loss.
-SELF_TEST_MINIMUM = 56
+SELF_TEST_MINIMUM = 63
 
 
 @dataclass
@@ -493,8 +504,13 @@ def find_legacy_python_invocations(repo_root: Path) -> tuple[list[str], int]:
     if not plugins_dir.is_dir():
         return errors, scanned
 
-    # .sh as well as .md: a docs-only sweep missed ten live invocations in test harnesses.
-    candidates = sorted(plugins_dir.rglob("*.md")) + sorted(plugins_dir.rglob("*.sh"))
+    # .sh and .py as well as .md: shell suites carried ten live invocations a docs-only
+    # sweep missed, and .py usage strings tell users to run refused commands.
+    candidates = (
+        sorted(plugins_dir.rglob("*.md"))
+        + sorted(plugins_dir.rglob("*.sh"))
+        + sorted(plugins_dir.rglob("*.py"))
+    )
     for path in candidates:
         if not path.is_file():
             continue
@@ -502,8 +518,9 @@ def find_legacy_python_invocations(repo_root: Path) -> tuple[list[str], int]:
             continue
         # Markdown under evals*/tests quotes commands as the thing under test; shell
         # suites there ARE commands, so only .md gets that exemption.
-        if path.suffix == ".md" and any(
-            part.startswith("evals") or part == "tests" for part in path.parts
+        if path.suffix in (".md", ".py") and any(
+            part.startswith("evals") or part == "tests"
+            for part in path.relative_to(plugins_dir).parts
         ):
             continue
         scanned += 1
@@ -517,6 +534,9 @@ def find_legacy_python_invocations(repo_root: Path) -> tuple[list[str], int]:
             if fence.startswith("```"):
                 language = fence[3:].strip().lower()
                 in_dockerfile = language == "dockerfile" if language else False
+                block_exempt = False
+                continue
+            if not line.strip():
                 block_exempt = False
                 continue
             if LEGACY_PYTHON_ALLOW_MARKER in line:
@@ -991,7 +1011,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         f"\n✓ no errors ({result.refs_checked} references resolved, "
-        f"{result.paths_scanned} files scanned for hardcoded paths)"
+        f"{result.paths_scanned} files scanned for hardcoded paths, "
+        f"{result.python_docs_scanned} for legacy python invocations)"
     )
     return 0
 
@@ -1218,10 +1239,29 @@ def _self_test_errors(ran: list[str]) -> None:
 
         for label, body in (
             ("bare interpreter on a script", "Run `python3 tools/x.py` first.\n"),
+            ("bare interpreter behind a flag", "```bash\npython3 -u tools/x.py\n```\n"),
+            ("bare interpreter, flags only", "```bash\npython3 --version\n```\n"),
             ("pip install", "```bash\npip install requests\n```\n"),
             ("uv pip install", "```bash\nuv pip install requests\n```\n"),
-            ("python -m pip", "```bash\npython -m pip install requests\n```\n"),
+            ("uv pip non-install subcommand", "```bash\nuv pip list\n```\n"),
+            ("python -m pip", "```bash\npython -m pip download requests\n```\n"),
+            ("usage string in a .py file", None),
+            (
+                "marker scope ends at a blank line",
+                "```bash\n# allow-legacy-python: x\n\npip install requests\n```\n",
+            ),
         ):
+            if body is None:
+                _write(doc, "clean\n")
+                script = plugin / "skills" / "demo" / "scripts" / "t.py"
+                _write(script, '"""Usage: python3 t.py"""\n')
+                _check(
+                    ran,
+                    f"legacy python invocation: {label}",
+                    any("uv run" in e for e in _errors_for(root)),
+                )
+                script.unlink()
+                continue
             _write(doc, body)
             _check(
                 ran,
@@ -1236,7 +1276,9 @@ def _self_test_errors(ran: list[str]) -> None:
                 "```bash\nuv run --no-project python infra/helper.py b\n```\n",
             ),
             ("python3 -c", "```bash\npython3 -c 'print(1)'\n```\n"),
+            ("python3 -m with a module", "```bash\npython3 -m json.tool data.json\n```\n"),
             ("uv pip with --directory", "```bash\nuv pip install --directory /tmp requests\n```\n"),
+            ("uv pip with short -t", "```bash\nuv pip install -t /tmp requests\n```\n"),
             ("prose forbidding the command", "Do NOT run `pip install` here.\n"),
             ("dockerfile fence", "```dockerfile\nRUN pip install requests\n```\n"),
             (

@@ -73,8 +73,8 @@ Tools report different paths (`/path/to/project/` vs `/github/workspace/`), so p
 | Use Case | Tool | Installation |
 |----------|------|--------------|
 | Quick CLI queries | jq | `brew install jq` / `apt install jq` |
-| Python scripting (simple) | pysarif | `uv add pysarif` |
-| Python scripting (advanced) | sarif-tools | `uv tool install sarif-tools` |
+| Python scripting (simple) | pysarif | `uv run --with pysarif python …` |
+| Python scripting (advanced) | sarif-tools | `uv run --with sarif-tools python …` |
 | .NET applications | SARIF SDK | NuGet package |
 | JavaScript/Node.js | sarif-js | npm package |
 | Go applications | garif | `go get github.com/chavacava/garif` |
@@ -370,7 +370,7 @@ def safe_get_location(result: dict) -> tuple[str, int]:
 For very large SARIF files (100MB+):
 
 ```python
-import ijson  # uv add ijson
+import ijson  # run via: uv run --with ijson
 
 def stream_results(sarif_path: str):
     """Stream results without loading entire file."""
@@ -390,7 +390,7 @@ npm install -g ajv-cli
 ajv validate -s sarif-schema-2.1.0.json -d results.sarif
 
 # Using Python jsonschema
-uv add jsonschema
+uv run --with jsonschema python validate_sarif.py
 ```
 
 ```python

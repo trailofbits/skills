@@ -171,6 +171,7 @@ done
 log_result "Installed type stubs:$STUBS_INSTALLED"
 
 # Additional project dependencies
+# allow-legacy-python: the analysed project's own editable install.
 run_logged pip install -e . || log_result "WARNING: pip install -e . failed — extraction may stay incomplete"
 ```
 

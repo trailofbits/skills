@@ -237,7 +237,9 @@ CBOR2_BUILD_C_EXTENSION=1 uv add --no-binary-package cbor2 'cbor2==5.6.4'
 ```
 
 The `--no-binary-package` flag ensures the C extension is compiled locally with
-instrumentation rather than pulled as a prebuilt wheel.
+instrumentation rather than pulled as a prebuilt wheel. Persist that choice with
+`no-binary-package = ["cbor2"]` under `[tool.uv]` in `pyproject.toml`, or a later
+`uv sync` can silently swap in an uninstrumented wheel.
 
 Create `cbor2-fuzz.py`:
 ```python

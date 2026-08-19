@@ -104,10 +104,10 @@ yarGen extracts candidate strings but generates legacy YARA syntax. Always valid
 
 ```bash
 # Basic extraction
-uv run --no-project python yarGen.py -m samples/ --excludegood -o candidate_rule.yar
+uv run --with-requirements requirements.txt python yarGen.py -m samples/ --excludegood -o candidate_rule.yar
 
 # Recommended flags
-uv run --no-project python yarGen.py -m samples/ \
+uv run --with-requirements requirements.txt python yarGen.py -m samples/ \
     --excludegood \           # Filter against known goodware strings
     -g /path/to/good/files \  # Add custom goodware
     --nosimple \              # Exclude simple strings
