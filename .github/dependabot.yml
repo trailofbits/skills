@@ -21,7 +21,9 @@
 #
 # Python deps declared with PEP 723 inline metadata (the common pattern in this
 # repo, including .github/scripts/) have no Dependabot ecosystem at all and stay
-# manual. So do the pinned npm CLI versions in .github/workflows/validate.yml.
+# manual. So does the pinned Codex CLI in .github/workflows/validate.yml — the
+# Claude Code CLI beside it is deliberately unpinned instead, on the grounds that a
+# pin nobody bumps is worse than a break that announces itself.
 version: 2
 
 updates:

@@ -128,18 +128,18 @@ jobs:
             python3 .github/scripts/validate_plugin_metadata.py --base-ref "$BASE_REF"
           fi
 
-      # Pinned rather than @latest, unlike the review workflow, and the difference is
-      # deliberate: `Validate plugins and skills` is a required check. An upstream
-      # release that renames a field in `plugin list --json` would redden every open
-      # PR at once, with no commit here to explain it, and block merges until someone
-      # diagnosed it. The review job can go red harmlessly; a merge gate cannot.
-      # Dependabot does not track these, so bump them by hand.
+      # Unpinned on purpose, and the consequence is accepted: this is a required check,
+      # so a Claude Code release that breaks plugin loading turns every open PR red at
+      # once, with no commit here to explain it. That is the intended trade. A pin
+      # nobody remembers to bump is worse — it drifts until the version CI proves
+      # against is one no user runs, which is the one thing this check exists to
+      # establish. Dependabot does not track npm CLIs installed this way, so the choice
+      # is a live version or a stale one, not a maintained one. `claude --version`
+      # below records what actually ran.
       - name: Install Claude Code CLI  # zizmor: ignore[adhoc-packages]
-        env:
-          CLAUDE_CLI_VERSION: "2.1.220"
         run: |
           npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
-            "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+            "@anthropic-ai/claude-code@latest"
           echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/claude-cli/bin/claude" --version
 
