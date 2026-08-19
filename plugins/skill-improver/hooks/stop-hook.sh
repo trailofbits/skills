@@ -63,7 +63,7 @@ SKILL_NAME=$(parse_field "$STATE_FILE" "skill_name")
 if [[ ! "$ITERATION" =~ ^[0-9]+$ ]] ||
   [[ ! "$MAX_ITERATIONS" =~ ^[0-9]+$ ]]; then
   echo "Warning: State file corrupted" >&2
-  trash "$STATE_FILE"
+  remove_state_file "$STATE_FILE"
   exit 0
 fi
 
@@ -78,7 +78,7 @@ if [[ "$ITERATION" -ge "$MAX_ITERATIONS" ]]; then
   echo "   Session: $SESSION_ID"
   echo "   Skill: $SKILL_NAME"
   echo "   Total iterations: $ITERATION"
-  trash "$STATE_FILE"
+  remove_state_file "$STATE_FILE"
   exit 0
 fi
 
@@ -110,7 +110,7 @@ if echo "$LAST_OUTPUT" | grep -qx '<skill-improvement-complete>'; then
   echo "   Session: $SESSION_ID"
   echo "   Skill: $SKILL_NAME"
   echo "   Total iterations: $ITERATION"
-  trash "$STATE_FILE"
+  remove_state_file "$STATE_FILE"
   exit 0
 fi
 
@@ -120,7 +120,7 @@ if echo "$LAST_OUTPUT" | grep -qiE \
   echo "Skill improver: skill-reviewer agent not available." >&2
   echo "   Session: $SESSION_ID" >&2
   echo "   Install the plugin-dev plugin and retry." >&2
-  trash "$STATE_FILE"
+  remove_state_file "$STATE_FILE"
   exit 0
 fi
 

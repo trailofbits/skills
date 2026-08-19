@@ -1,44 +1,52 @@
+# Two defects fixed here, both of which made this file quieter than it looked:
+#
+#   1. There was a `pip` entry at `/` with nothing to update — there is no root
+#      pyproject.toml and uv.lock is gitignored (.gitignore:18). Dependabot was
+#      resolving an empty manifest and reporting nothing, indefinitely.
+#   2. Two script directories carrying real dependencies were uncovered:
+#      trailmark's slicing-code-context (trailmark>=0.5,<0.6) and yara-authoring's
+#      rule scripts (yara-x>=0.10.0).
+#
+# Ecosystem is `uv`, not `pip`, per the house standard. Only directories with a
+# pyproject.toml that declares dependencies are listed — c-review/scripts,
+# rust-review/scripts and let-fate-decide's scripts have manifests but no runtime
+# deps, so there is nothing for Dependabot to resolve. Add them if that changes.
+#
+# EVERY directory here must carry a committed uv.lock. Without one, Dependabot has
+# nothing to pin and its only available action is raising the lower bound of an
+# already-open range — which changes nothing about what installs and only drops
+# support for older versions. That produced five no-op PRs (#208-#212, all closed)
+# the first time this config ran; the one directory that had a lockfile produced
+# none, because there was genuinely nothing to update.
+#
+# Python deps declared with PEP 723 inline metadata (the common pattern in this
+# repo, including .github/scripts/) have no Dependabot ecosystem at all and stay
+# manual. So do the pinned npm CLI versions in .github/workflows/validate.yml.
 version: 2
+
 updates:
-  - package-ecosystem: pip
-    directory: /
+  - package-ecosystem: uv
+    directories:
+      - /plugins/constant-time-analysis
+      - /plugins/culture-index/skills/interpreting-culture-index/scripts
+      - /plugins/testing-handbook-skills/scripts
+      - /plugins/trailmark/skills/slicing-code-context/scripts
+      - /plugins/yara-authoring/skills/yara-rule-authoring/scripts
     schedule:
       interval: weekly
     cooldown:
       default-days: 7
+    # One PR per week rather than five. Majors stay separate so they get their own
+    # CI run and their own read of the release notes.
     groups:
-      all:
-        patterns: ["*"]
-
-  - package-ecosystem: pip
-    directory: /plugins/constant-time-analysis
-    schedule:
-      interval: weekly
-    cooldown:
-      default-days: 7
-    groups:
-      all:
-        patterns: ["*"]
-
-  - package-ecosystem: pip
-    directory: /plugins/culture-index/skills/interpreting-culture-index/scripts
-    schedule:
-      interval: weekly
-    cooldown:
-      default-days: 7
-    groups:
-      all:
-        patterns: ["*"]
-
-  - package-ecosystem: pip
-    directory: /plugins/testing-handbook-skills/scripts
-    schedule:
-      interval: weekly
-    cooldown:
-      default-days: 7
-    groups:
-      all:
-        patterns: ["*"]
+      python-minor-patch:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: deps
+    labels:
+      - dependencies
 
   - package-ecosystem: github-actions
     directory: /
@@ -47,5 +55,11 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      all:
-        patterns: ["*"]
+      actions-minor-patch:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies

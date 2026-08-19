@@ -50,6 +50,19 @@ select src,
 
 The Concepts API differs significantly across languages. Use the correct template.
 
+**Java, C/C++, and C# need their own pack.** Those three have no unified Concepts module,
+so their queries import the language library directly and will not compile without a
+`qlpack.yml` beside them. Create it once, substituting the language, then run
+`codeql pack install` in the diagnostics directory before executing any query:
+
+```yaml
+# $DIAG_DIR/qlpack.yml — <lang> is java, cpp, or csharp
+name: custom/diagnostics
+version: 0.0.1
+dependencies:
+  codeql/<lang>-all: "*"
+```
+
 ### Concept Class Reference
 
 | Concept | Python | JavaScript | Go | Ruby |
@@ -190,17 +203,7 @@ select sink,
 
 ### Java
 
-Java lacks a unified Concepts module. Use language-specific sink classes. The diagnostics query needs its own `qlpack.yml` with a `codeql/java-all` dependency — create it alongside the `.ql` files:
-
-```yaml
-# $DIAG_DIR/qlpack.yml
-name: custom/diagnostics
-version: 0.0.1
-dependencies:
-  codeql/java-all: "*"
-```
-
-Then run `codeql pack install` in the diagnostics directory before executing queries.
+Per-vulnerability sink classes rather than Concepts. Needs the `codeql/java-all` pack above.
 
 ```ql
 /**
@@ -239,17 +242,7 @@ select sink,
 
 ### C / C++
 
-C++ uses a similar per-vulnerability-class pattern. Requires a `qlpack.yml` with `codeql/cpp-all` dependency (same approach as Java):
-
-```yaml
-# $DIAG_DIR/qlpack.yml
-name: custom/diagnostics
-version: 0.0.1
-dependencies:
-  codeql/cpp-all: "*"
-```
-
-Then run `codeql pack install` in the diagnostics directory before executing queries.
+Matches on called function names rather than sink classes. Needs the `codeql/cpp-all` pack above.
 
 ```ql
 /**
@@ -297,17 +290,7 @@ select sink,
 
 ### C\#
 
-C# uses per-vulnerability sink classes. Requires a `qlpack.yml` with `codeql/csharp-all` dependency:
-
-```yaml
-# $DIAG_DIR/qlpack.yml
-name: custom/diagnostics
-version: 0.0.1
-dependencies:
-  codeql/csharp-all: "*"
-```
-
-Then run `codeql pack install` in the diagnostics directory before executing queries.
+Per-vulnerability sink classes. Needs the `codeql/csharp-all` pack above.
 
 ```ql
 /**

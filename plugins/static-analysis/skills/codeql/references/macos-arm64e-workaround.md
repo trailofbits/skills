@@ -6,11 +6,17 @@ Methods for building CodeQL databases on macOS Apple Silicon when the `arm64e`/`
 
 The strategy is to use Homebrew-installed tools (plain `arm64`, not `arm64e`) so `libtrace.dylib` can be injected successfully. Try sub-methods in order:
 
+> Each sub-method sources `build_log.sh` itself. That defines the helpers, which are gone by
+> the next Bash call, and sets `pipefail`. These sub-methods branch on exit code 137, so
+> without `pipefail` they read tee's status instead of the build's.
+
 ## Sub-method 2m-a: Homebrew clang/gcc with multi-step tracing
 
 Trace only the compiler invocations individually, avoiding system tools (`/usr/bin/ar`, `/bin/mkdir`) that would be killed. This requires a multi-step build: init → trace each compiler call → finalize.
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "METHOD 2m-a: macOS arm64 — Homebrew compiler with multi-step tracing"
 
 # 1. Find Homebrew C/C++ compiler (arm64, not arm64e)
@@ -44,7 +50,7 @@ else
       MAKE_CMD="make"
     fi
     $MAKE_CMD clean 2>/dev/null || true
-    $MAKE_CMD CC="$BREW_CC" 2>&1 | tee -a "$LOG_FILE"
+    run_logged "$MAKE_CMD" CC="$BREW_CC"
 
     # 3. Extract compiler commands from the Makefile / build system
     #    Use make's dry-run mode to get the exact compiler invocations
@@ -57,8 +63,8 @@ else
       log_result "Could not extract compile commands from dry-run — skipping 2m-a"
     else
       # 4. Init database
-      codeql database init $DB_NAME --language=cpp --source-root=. --overwrite 2>&1 \
-        | tee -a "$LOG_FILE"
+      run_logged codeql database init "$DB_NAME" \
+        --language=cpp --source-root=. --overwrite
 
       # 5. Ensure build directories exist (outside tracer — avoids arm64e mkdir)
       $MAKE_CMD clean 2>/dev/null || true
@@ -70,8 +76,8 @@ else
       TRACE_OK=true
       while IFS= read -r cmd; do
         [ -z "$cmd" ] && continue
-        log_cmd "codeql database trace-command $DB_NAME -- $cmd"
-        if ! codeql database trace-command $DB_NAME -- $cmd 2>&1 | tee -a "$LOG_FILE"; then
+        # shellcheck disable=SC2086 # $cmd is a compiler invocation that must word-split
+        if ! run_logged codeql database trace-command "$DB_NAME" -- $cmd; then
           log_result "FAILED on: $cmd"
           TRACE_OK=false
           break
@@ -80,7 +86,7 @@ else
 
       if $TRACE_OK; then
         # 7. Finalize
-        codeql database finalize $DB_NAME 2>&1 | tee -a "$LOG_FILE"
+        run_logged codeql database finalize "$DB_NAME"
         if codeql resolve database -- "$DB_NAME" >/dev/null 2>&1; then
           log_result "SUCCESS (macOS arm64 multi-step)"
           # Done — skip to Step 4
@@ -98,6 +104,8 @@ fi
 Force the entire CodeQL pipeline to run under Rosetta, which uses the `x86_64` slice of both `libtrace.dylib` and system tools — no `arm64e` mismatch.
 
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "METHOD 2m-b: macOS arm64 — Rosetta x86_64 emulation"
 
 # Check if Rosetta is available
@@ -105,11 +113,10 @@ if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
   log_result "Rosetta not available — skipping 2m-b"
 else
   BUILD_CMD="<BUILD_CMD>"  # e.g. "make clean && make -j4"
-  CMD="arch -x86_64 codeql database create $DB_NAME --language=$CODEQL_LANG --source-root=. --command='$BUILD_CMD' --overwrite"
-  log_cmd "$CMD"
 
-  arch -x86_64 codeql database create $DB_NAME --language=$CODEQL_LANG --source-root=. \
-    --command="$BUILD_CMD" --overwrite 2>&1 | tee -a "$LOG_FILE"
+  run_logged arch -x86_64 codeql database create "$DB_NAME" \
+    --language="$CODEQL_LANG" --source-root=. \
+    --command="$BUILD_CMD" --overwrite
 
   if codeql resolve database -- "$DB_NAME" >/dev/null 2>&1; then
     log_result "SUCCESS (Rosetta x86_64)"
@@ -125,12 +132,16 @@ As a verification step, try the standard autobuild with the system compiler. Thi
 
 > **This sub-method is optional.** Skip it if arm64e incompatibility was already confirmed in Step 2a.
 
-```bash
-log_step "METHOD 2m-c: System compiler (expected to fail on arm64e)"
-CMD="codeql database create $DB_NAME --language=$CODEQL_LANG --source-root=. --overwrite"
-log_cmd "$CMD"
+> This sub-method reads `EXIT_CODE` directly, so sourcing the log helpers is not optional
+> here: without `pipefail` the value is always 0 and 137 is never seen.
 
-$CMD 2>&1 | tee -a "$LOG_FILE"
+```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
+log_step "METHOD 2m-c: System compiler (expected to fail on arm64e)"
+
+run_logged codeql database create "$DB_NAME" \
+  --language="$CODEQL_LANG" --source-root=. --overwrite
 
 EXIT_CODE=$?
 if [ $EXIT_CODE -eq 137 ] || [ $EXIT_CODE -eq 134 ]; then
@@ -166,14 +177,24 @@ AskUserQuestion:
 
 **If "Install arm64 tools and retry":**
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "Installing Homebrew arm64 toolchain"
-brew install llvm make 2>&1 | tee -a "$LOG_FILE"
+run_logged brew install llvm make || {
+  log_result "FAILED: brew install did not complete — do not retry 2m-a, it will fail identically"
+  exit 1
+}
 # Retry Sub-method 2m-a
 ```
 
 **If "Install Rosetta and retry":**
 ```bash
+. "{baseDir}/scripts/build_log.sh" || exit 1
+
 log_step "Installing Rosetta"
-softwareupdate --install-rosetta --agree-to-license 2>&1 | tee -a "$LOG_FILE"
+run_logged softwareupdate --install-rosetta --agree-to-license || {
+  log_result "FAILED: Rosetta did not install — do not retry 2m-b, it will fail identically"
+  exit 1
+}
 # Retry Sub-method 2m-b
 ```

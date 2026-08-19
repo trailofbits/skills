@@ -12,7 +12,7 @@ description: >
 
 Write detection rules that catch malware without drowning in false positives.
 
-> **This skill targets YARA-X**, the Rust-based successor to legacy YARA. YARA-X powers VirusTotal's production systems and is the recommended implementation. See [Migrating from Legacy YARA](#migrating-from-legacy-yara) if you have existing rules.
+**This skill targets YARA-X**, the Rust-based successor to legacy YARA — 5-10x faster regex, better errors, built-in formatter, stricter validation, new modules (crx, dex), 99% rule compatibility. It powers VirusTotal's production systems. Install with `brew install yara-x` or `cargo install yara-x`; the CLI is `yr`. See [Migrating from Legacy YARA](#migrating-from-legacy-yara) for existing rules.
 
 ## Core Principles
 
@@ -22,7 +22,7 @@ Write detection rules that catch malware without drowning in false positives.
 
 3. **Test against goodware before deployment** — A rule that fires on Windows system files is useless. Validate against VirusTotal's goodware corpus or your own clean file set.
 
-4. **Short-circuit with cheap checks first** — Put `filesize < 10MB and uint16(0) == 0x5A4D` before expensive string searches or module calls.
+4. **Short-circuit with cheap checks first** — `filesize` (instant), then magic bytes (nearly instant), then strings (cheap), then modules (expensive).
 
 5. **Metadata is documentation** — Future you (and your team) need to know what this catches, why, and where the sample came from.
 
@@ -35,8 +35,7 @@ Write detection rules that catch malware without drowning in false positives.
 - Debugging false positive issues
 - Preparing rules for production deployment
 - Migrating legacy YARA rules to YARA-X
-- Analyzing Chrome extensions (crx module)
-- Analyzing Android apps (dex module)
+- Analyzing Chrome extensions (crx module) or Android apps (dex module)
 
 ## When NOT to Use
 
@@ -46,14 +45,6 @@ Write detection rules that catch malware without drowning in false positives.
 - Memory forensics with Volatility → use memory forensics skills
 - Simple hash-based detection → just use hash lists
 
-## YARA-X Overview
-
-YARA-X is the Rust-based successor to legacy YARA: 5-10x faster regex, better errors, built-in formatter, stricter validation, new modules (crx, dex), 99% rule compatibility.
-
-**Install:** `brew install yara-x` (macOS) or `cargo install yara-x`
-
-**Essential commands:** `yr scan`, `yr check`, `yr fmt`, `yr dump`
-
 ## Platform Considerations
 
 YARA works on any file type. Adapt patterns to your target:
@@ -61,95 +52,174 @@ YARA works on any file type. Adapt patterns to your target:
 | Platform | Magic Bytes | Bad Strings | Good Strings |
 |----------|-------------|-------------|--------------|
 | **Windows PE** | `uint16(0) == 0x5A4D` | API names, Windows paths | Mutex names, PDB paths |
-| **macOS Mach-O** | `uint32(0) == 0xFEEDFACE` (32-bit), `0xFEEDFACF` (64-bit), `0xCAFEBABE` (universal) | Common Obj-C methods | Keylogger strings, persistence paths |
+| **macOS Mach-O** | `uint32(0) == 0xFEEDFACE` (32-bit), `0xFEEDFACF` (64-bit), `uint32be(0) == 0xCAFEBABE` (universal) | Common Obj-C methods | Keylogger strings, persistence paths |
 | **JavaScript/Node** | (none needed) | `require`, `fetch`, `axios` | Obfuscator signatures, eval+decode chains |
 | **npm/pip packages** | (none needed) | `postinstall`, `dependencies` | Suspicious package names, exfil URLs |
-| **Office docs** | `uint32(0) == 0x504B0304` | VBA keywords | Macro auto-exec, encoded payloads |
+| **Office docs** | `uint32(0) == 0x04034B50` | VBA keywords | Macro auto-exec, encoded payloads |
 | **VS Code extensions** | (none needed) | `vscode.workspace` | Uncommon activationEvents, hidden file access |
 | **Chrome extensions** | Use `crx` module | Common Chrome APIs | Permission abuse, manifest anomalies |
 | **Android apps** | Use `dex` module | Standard DEX structure | Obfuscated classes, suspicious permissions |
 
+> **`uintNN()` reads little-endian.** Write the constant as the bytes *reversed*, or use `uintNNbe()` and write them in file order. A ZIP/OOXML file starts with bytes `50 4B 03 04`, so it is `uint32(0) == 0x04034B50` — `uint32(0) == 0x504B0304` compiles cleanly and never matches anything. The same trap catches Mach-O universal binaries: on disk they are `CA FE BA BE`, so `uint32(0) == 0xCAFEBABE` is a dead branch; write `uint32be(0) == 0xCAFEBABE` or `uint32(0) == 0xBEBAFECA`. Verify with `yr scan` against one known-good sample before trusting any magic-byte check.
+
 ### macOS Malware Detection
 
-No dedicated Mach-O module exists yet. Use magic byte checks + string patterns:
+No dedicated Mach-O module exists yet — use magic bytes plus string patterns. Good indicators:
 
-**Magic bytes:**
-```yara
-// Mach-O 32-bit
-uint32(0) == 0xFEEDFACE
-// Mach-O 64-bit
-uint32(0) == 0xFEEDFACF
-// Universal binary (fat binary)
-uint32(0) == 0xCAFEBABE or uint32(0) == 0xBEBAFECA
-```
-
-**Good indicators for macOS malware:**
 - Keylogger artifacts: `CGEventTapCreate`, `kCGEventKeyDown`
 - SSH tunnel strings: `ssh -D`, `tunnel`, `socks`
 - Persistence paths: `~/Library/LaunchAgents`, `/Library/LaunchDaemons`
 - Credential theft: `security find-generic-password`, `keychain`
 
-**Example pattern from Airbnb BinaryAlert:**
 ```yara
+// Pattern from Airbnb BinaryAlert
 rule SUSP_Mac_ProtonRAT
 {
     strings:
-        // Library indicators
-        $lib1 = "SRWebSocket" ascii
+        $lib1 = "SRWebSocket" ascii          // Library indicators
         $lib2 = "SocketRocket" ascii
-
-        // Behavioral indicators
-        $behav1 = "SSH tunnel not launched" ascii
+        $behav1 = "SSH tunnel not launched" ascii   // Behavioral indicators
         $behav2 = "Keylogger" ascii
-
     condition:
-        (uint32(0) == 0xFEEDFACF or uint32(0) == 0xCAFEBABE) and
+        (uint32(0) == 0xFEEDFACF or uint32be(0) == 0xCAFEBABE) and
         any of ($lib*) and any of ($behav*)
 }
 ```
 
-### JavaScript Detection Decision Tree
+### JavaScript Detection
 
+| Target | Approach |
+|---|---|
+| npm package | `package.json` patterns, postinstall/preinstall hooks, exfil combination: fetch + env access + credential paths |
+| Chrome extension | `crx` module |
+| Other extension | Manifest patterns, background script behaviors |
+| Standalone JS | Obfuscation markers (eval+atob, fromCharCode chains), unique function/variable names, packed payloads |
+| Minified/webpack bundle | Unique strings that survive bundling (URLs, magic values); **avoid function names** — they get mangled |
+
+**Good JS strings:** Ethereum function selectors — `{ a9 05 9c bb }` (`transfer(address,uint256)`), `{ 70 a0 82 31 }` (`balanceOf(address)`); zero-width characters for steganography — `{ E2 80 8B E2 80 8C }`; obfuscator signatures — `_0x`, `var _0x`; specific C2 domains and webhook URLs.
+
+**Bad JS strings:** `require`, `fetch`, `axios` (too common); `Buffer`, `crypto` (legitimate uses everywhere); `process.env` alone (need specific env var names).
+
+## String Selection
+
+**Value ranking:** mutex names are gold, C2 paths silver, error messages bronze. Stack strings are almost always unique. If you need more than 6 strings, you're over-fitting.
+
+Reject a candidate string when any of these holds:
+
+| Test | Why it fails | Do instead |
+|---|---|---|
+| Under 4 bytes | No atom | Find a longer string |
+| Repeated bytes (`0000`, `9090`) | Weak atom | Add surrounding context |
+| API name (`VirtualAlloc`, `CreateRemoteThread`) | Every packer and installer calls it | Hex pattern of the call site plus a unique marker |
+| Appears in Windows system files | Guaranteed FPs | Find something family-specific |
+| Common path (`C:\Windows\`, `cmd.exe`) | Ubiquitous | Find malware-specific paths |
+| Appears in other malware families | Not identifying *this* family | Combine with a family-specific marker |
+
+Everything left — unique to this family — is what the rule should rest on.
+
+### Choosing a String Type
+
+| Need | Use |
+|---|---|
+| Exact ASCII/Unicode text | `$s = "MutexName" ascii wide` |
+| Specific byte sequence | `$h = { 4D 5A 90 00 }` |
+| Byte sequence with variation | Hex wildcards: `{ 4D 5A ?? ?? 50 45 }` |
+| Pattern with structure (URLs, paths) | Bounded regex: `/https:\/\/[a-z]{5,20}\.onion/` |
+| Unknown encoding (XOR, base64) | Modifier: `$s = "config" xor(0x00-0xFF)` |
+
+**Modifier discipline:** never use `nocase` or `wide` speculatively — only with confirmed evidence that case or encoding varies across samples. `nocase` doubles atom generation; `wide` doubles string matching. "If you don't have a clear reason for using those modifiers, don't do it" — Kaspersky Applied YARA.
+
+## Condition Design
+
+Order for short-circuit: `filesize <`, magic bytes, strings, modules. If the condition runs past 5 lines, split into multiple rules.
+
+### all of vs any of
+
+| Situation | Use |
+|---|---|
+| Strings are individually unique to the malware | `any of them` — each alone is suspicious |
+| Strings are common but the combination is suspicious | `all of them` — require the full pattern |
+| Strings have different confidence levels | Group: `all of ($core_*) and any of ($variant_*)` |
+| Seeing false positives | Tighten: `any` → `all`, add more required strings |
+
+**Lesson from production:** rules using `any of ($network_*)` where the strings included `fetch`, `axios`, and `http` matched virtually all web applications. Switching to require a credential path AND a network call AND an exfil destination eliminated the FPs.
+
+### Grouping by Confidence
+
+Different indicator types carry different weight — a C2 domain might be definitive while library imports need corroboration. Grouping by prefix lets you express graduated requirements:
+
+```yara
+strings:
+    $a1 = "SRWebSocket" ascii            // Category A: library indicators
+    $a2 = "SocketRocket" ascii
+    $b1 = "SSH tunnel" ascii             // Category B: behavioral
+    $b2 = "keylogger" ascii nocase
+    $c1 = /https:\/\/[a-z0-9]{8,16}\.onion/   // Category C: C2
+
+condition:
+    filesize < 10MB and
+    any of ($a*) and any of ($b*)        // Evidence from BOTH categories
 ```
-Writing a JavaScript rule?
-├─ npm package?
-│  ├─ Check package.json patterns
-│  ├─ Look for postinstall/preinstall hooks
-│  └─ Target exfil patterns: fetch + env access + credential paths
-├─ Browser extension?
-│  ├─ Chrome: Use crx module
-│  └─ Others: Target manifest patterns, background script behaviors
-├─ Standalone JS file?
-│  ├─ Look for obfuscation markers: eval+atob, fromCharCode chains
-│  ├─ Target unique function/variable names (often survive minification)
-│  └─ Check for packed/encoded payloads
-└─ Minified/webpack bundle?
-   ├─ Target unique strings that survive bundling (URLs, magic values)
-   └─ Avoid function names (will be mangled)
-```
 
-**JavaScript-specific good strings:**
-- Ethereum function selectors: `{ 70 a0 82 31 }` (transfer)
-- Zero-width characters (steganography): `{ E2 80 8B E2 80 8C }`
-- Obfuscator signatures: `_0x`, `var _0x`
-- Specific C2 patterns: domain names, webhook URLs
+### Modules vs Byte Checks
 
-**JavaScript-specific bad strings:**
-- `require`, `fetch`, `axios` — too common
-- `Buffer`, `crypto` — legitimate uses everywhere
-- `process.env` alone — need specific env var names
+| Need | Use |
+|---|---|
+| imphash, rich header, authenticode | PE module — too complex to replicate |
+| Magic bytes or simple offsets | `uint16`/`uint32` — faster, no module overhead |
+| Section names/sizes | PE module, but put the magic-byte filter FIRST |
+| Chrome extension permissions | `crx` module — string parsing is fragile |
+| LNK target paths | `lnk` module — the format is complex |
 
-## Essential Toolkit
+"Avoid the magic module — use explicit hex checks instead" — Neo23x0. Generalize it: if `uint32()` can do the job, don't load a module.
 
-| Tool | Purpose |
-|------|---------|
-| **yarGen** | Extract candidate strings: `yarGen.py -m samples/ --excludegood` → validate with `yr check` |
-| **FLOSS** | Extract obfuscated/stack strings: `floss sample.exe` (when yarGen fails) |
-| **yr CLI** | Validate: `yr check`, scan: `yr scan -s`, inspect: `yr dump -m pe` |
-| **signature-base** | Study quality examples |
-| **YARA-CI** | Goodware corpus testing before deployment |
+### Performance
 
-Master these five. Don't get distracted by tool catalogs.
+- **Regex must be anchored to a 4+ byte literal.** Without one it evaluates at *every* file offset — catastrophic. Write `/mshta\.exe http:\/\/.../`, not `/http:\/\/.../`. If you can't anchor, use a hex pattern with wildcards.
+- **Bound every regex quantifier** — `.{0,30}`, never `.*`. Unbounded regex is both a performance disaster and a memory explosion.
+- **Bound loops with filesize** — `filesize < 100KB and for all i in (1..#a) : ...`. Unbounded `#a` can reach thousands in large files.
+- **Prefer hex over regex** where the bytes are fixed.
+
+## Before Writing: Is the Sample Packed?
+
+| Signal | What to do |
+|---|---|
+| Entropy > 7.0 | Likely packed — find the unpacked layer first |
+| Few or no readable strings | Likely packed — use entropy, PE structure, or packer signatures |
+| UPX/MPRESS/custom packer detected | Target the unpacked payload OR detect the packer itself |
+| Readable strings available | Proceed with string-based detection |
+
+**Don't write rules against packed layers.** The packing changes; the payload doesn't.
+
+### When Strings Fail, Pivot to Structure
+
+If extraction returns only API names and generic paths:
+
+| Available signal | Use |
+|---|---|
+| High entropy sections | `math.entropy()` on specific sections |
+| Unusual import pattern | `pe.imphash()` for import-hash clustering |
+| PE structure anomalies | Section names, sizes, characteristics |
+| Metadata present | Version info, timestamps, resources |
+| Nothing unique | This sample may not be detectable with YARA alone |
+
+"One can try to use other file properties, such as metadata, entropy, import hashes or other data which stays constant." — Kaspersky Applied YARA Training
+
+## Debugging False Positives
+
+1. **Which string matched?** — `yr scan -s rule.yar false_positive.exe`
+2. **In a legitimate library?** — add a `not $fp_vendor_string` exclusion
+3. **A common development pattern?** — replace the string with something more specific
+4. **Multiple generic strings matching together?** — tighten to require all, plus a unique marker
+5. **Malware using a common technique?** — target its specific implementation details, not the technique
+
+### When to Abandon the Approach
+
+- **Extraction returns only API names and paths** → [pivot to structure](#when-strings-fail-pivot-to-structure)
+- **Can't find 3 unique strings** → probably packed; target the unpacked version or detect the packer
+- **Rule matches goodware** → 1-2 matches: investigate and tighten; 3-5: find different indicators; 6+: start over
+- **Performance is terrible after optimization** → architecture problem; split into focused rules or add strict pre-filters
+- **The description is hard to write** → the rule is too vague. If you can't explain what it catches, it catches too much
 
 ## Rationalizations to Reject
 
@@ -157,240 +227,51 @@ When you catch yourself thinking these, stop and reconsider.
 
 | Rationalization | Expert Response |
 |-----------------|-----------------|
-| "This generic string is unique enough" | Test against goodware first. Your intuition is wrong. |
-| "yarGen gave me these strings" | yarGen suggests, you validate. Check each one manually. |
-| "It works on my 10 samples" | 10 samples ≠ production. Use VirusTotal goodware corpus. |
+| "This generic string is unique enough" / "This hex pattern is unique" | Unique in one sample ≠ unique across the ecosystem. Test against goodware; your intuition is wrong. |
+| "yarGen gave me these strings" | yarGen suggests, you validate. Check each one manually — expect to discard 80%. |
+| "It works on my 10 samples" | 10 samples ≠ production. Use a goodware corpus. |
 | "One rule to catch all variants" | Causes FP floods. Target specific families. |
-| "I'll make it more specific if we get FPs" | Write tight rules upfront. FPs burn trust. |
-| "This hex pattern is unique" | Unique in one sample ≠ unique across malware ecosystem. |
-| "Performance doesn't matter" | One slow rule slows entire ruleset. Optimize atoms. |
-| "PEiD rules still work" | Obsolete. 32-bit packers aren't relevant. |
-| "I'll add more conditions later" | Weak rules deployed = damage done. |
+| "I'll make it more specific if we get FPs" / "I'll add more conditions later" | Write tight rules upfront. A weak rule deployed is damage done, and FPs burn trust. |
 | "This is just for hunting" | Hunting rules become detection rules. Same quality bar. |
-| "The API name makes it malicious" | Legitimate software uses same APIs. Need behavioral context. |
-| "any of them is fine for these common strings" | Common strings + any = FP flood. Use `any of` only for individually unique strings. |
-| "This regex is specific enough" | `/fetch.*token/` matches all auth code. Add exfil destination requirement. |
+| "The API name makes it malicious" | Legitimate software uses the same APIs. Need behavioral context. |
+| "`any of them` is fine for these common strings" | Common strings + `any` = FP flood. Use `any of` only for individually unique strings. |
+| "This regex is specific enough" | `/fetch.*token/` matches all auth code. Add an exfil destination requirement. |
+| "I'll use `.*` for flexibility" | Unbounded regex = performance disaster plus memory explosion. Use `.{0,30}`. |
 | "The JavaScript looks clean" | Attackers poison legitimate code with injects. Check for eval+decode chains. |
-| "I'll use .* for flexibility" | Unbounded regex = performance disaster + memory explosion. Use `.{0,30}`. |
-| "I'll use --relaxed-re-syntax everywhere" | Masks real bugs. Fix the regex instead of hiding problems. |
+| "Performance doesn't matter" | One slow rule slows the entire ruleset. Optimize atoms. |
+| "I'll use `--relaxed-re-syntax` everywhere" | Masks real bugs. Fix the regex instead of hiding the problem. |
+| "PEiD rules still work" | Obsolete. 32-bit packers aren't relevant. |
 
-## Decision Trees
+## Toolkit
 
-### Is This String Good Enough?
+| Tool | Purpose |
+|------|---------|
+| **yr CLI** | `yr check` (validate), `yr fmt` (format), `yr scan -s` (scan, show strings), `yr dump -m pe` (inspect structure) |
+| **yarGen** | Extract candidate strings: `yarGen.py -m samples/ --excludegood` |
+| **FLOSS** | Extract obfuscated/stack strings: `floss sample.exe` — when yarGen comes up empty |
+| **signature-base** | Study quality examples |
+| **YARA-CI** | Goodware corpus testing before deployment |
 
-```
-Is this string good enough?
-├─ Less than 4 bytes?
-│  └─ NO — find longer string
-├─ Contains repeated bytes (0000, 9090)?
-│  └─ NO — add surrounding context
-├─ Is an API name (VirtualAlloc, CreateRemoteThread)?
-│  └─ NO — use hex pattern of call site instead
-├─ Appears in Windows system files?
-│  └─ NO — too generic, find something unique
-├─ Is it a common path (C:\Windows\, cmd.exe)?
-│  └─ NO — find malware-specific paths
-├─ Unique to this malware family?
-│  └─ YES — use it
-└─ Appears in other malware too?
-   └─ MAYBE — combine with family-specific marker
-```
+Master these five. Don't get distracted by tool catalogs.
 
-### When to Use "all of" vs "any of"
+**Development cycle:**
 
-```
-Should I require all strings or allow any?
-├─ Strings are individually unique to malware?
-│  └─ any of them (each alone is suspicious)
-├─ Strings are common but combination is suspicious?
-│  └─ all of them (require the full pattern)
-├─ Strings have different confidence levels?
-│  └─ Group: all of ($core_*) and any of ($variant_*)
-└─ Seeing many false positives?
-   └─ Tighten: switch any → all, add more required strings
-```
-
-**Lesson from production:** Rules using `any of ($network_*)` where strings included "fetch", "axios", "http" matched virtually all web applications. Switching to require credential path AND network call AND exfil destination eliminated FPs.
-
-### When to Abandon a Rule Approach
-
-Stop and pivot when:
-
-- **yarGen returns only API names and paths** → See [When Strings Fail, Pivot to Structure](#when-strings-fail-pivot-to-structure)
-
-- **Can't find 3 unique strings** → Probably packed. Target the unpacked version or detect the packer.
-
-- **Rule matches goodware files** → Strings aren't unique enough. 1-2 matches = investigate and tighten; 3-5 matches = find different indicators; 6+ matches = start over.
-
-- **Performance is terrible even after optimization** → Architecture problem. Split into multiple focused rules or add strict pre-filters.
-
-- **Description is hard to write** → The rule is too vague. If you can't explain what it catches, it catches too much.
-
-### Debugging False Positives
-
-```
-FP Investigation Flow:
-│
-├─ 1. Which string matched?
-│     Run: yr scan -s rule.yar false_positive.exe
-│
-├─ 2. Is it in a legitimate library?
-│     └─ Add: not $fp_vendor_string exclusion
-│
-├─ 3. Is it a common development pattern?
-│     └─ Find more specific indicator, replace the string
-│
-├─ 4. Are multiple generic strings matching together?
-│     └─ Tighten to require all + add unique marker
-│
-└─ 5. Is the malware using common techniques?
-      └─ Target malware-specific implementation details, not the technique
-```
-
-### Hex vs Text vs Regex
-
-```
-What string type should I use?
-│
-├─ Exact ASCII/Unicode text?
-│  └─ TEXT: $s = "MutexName" ascii wide
-│
-├─ Specific byte sequence?
-│  └─ HEX: $h = { 4D 5A 90 00 }
-│
-├─ Byte sequence with variation?
-│  └─ HEX with wildcards: { 4D 5A ?? ?? 50 45 }
-│
-├─ Pattern with structure (URLs, paths)?
-│  └─ BOUNDED REGEX: /https:\/\/[a-z]{5,20}\.onion/
-│
-└─ Unknown encoding (XOR, base64)?
-   └─ TEXT with modifier: $s = "config" xor(0x00-0xFF)
-```
-
-### Is the Sample Packed? (Check First)
-
-Before writing any string-based rule:
-
-```
-Is the sample packed?
-├─ Entropy > 7.0?
-│  └─ Likely packed — find unpacked layer first
-├─ Few/no readable strings?
-│  └─ Likely packed — use entropy, PE structure, or packer signatures
-├─ UPX/MPRESS/custom packer detected?
-│  └─ Target the unpacked payload OR detect the packer itself
-└─ Readable strings available?
-   └─ Proceed with string-based detection
-```
-
-**Expert guidance:** Don't write rules against packed layers. The packing changes; the payload doesn't.
-
-### When Strings Fail, Pivot to Structure
-
-If yarGen returns only API names and generic paths:
-
-```
-String extraction failed — what now?
-├─ High entropy sections?
-│  └─ Use math.entropy() on specific sections
-├─ Unusual imports pattern?
-│  └─ Use pe.imphash() for import hash clustering
-├─ Consistent PE structure anomalies?
-│  └─ Target section names, sizes, characteristics
-├─ Metadata present?
-│  └─ Target version info, timestamps, resources
-└─ Nothing unique?
-   └─ This sample may not be detectable with YARA alone
-```
-
-**Expert guidance:** "One can try to use other file properties, such as metadata, entropy, import hashes or other data which stays constant." — Kaspersky Applied YARA Training
-
-## Expert Heuristics
-
-**String selection:** Mutex names are gold; C2 paths silver; error messages bronze. Stack strings are almost always unique. If you need >6 strings, you're over-fitting.
-
-**Condition design:** Start with `filesize <`, then magic bytes, then strings, then modules. If >5 lines, split into multiple rules.
-
-**Quality signals:** yarGen output needs 80% filtering. Rules matching <50% of variants are too narrow; matching goodware are too broad.
-
-**Modifier discipline:**
-- **Never use `nocase` or `wide` speculatively** — only when you have confirmed evidence the case/encoding varies in samples
-- `nocase` doubles atom generation; `wide` doubles string matching — both have real costs
-- "If you don't have a clear reason for using those modifiers, don't do it" — Kaspersky Applied YARA
-
-**Regex anchoring:**
-- Regex without a 4+ byte literal substring **evaluates at every file offset** — catastrophic performance
-- Always anchor regex to a distinctive literal: `/mshta\.exe http:\/\/.../` not `/http:\/\/.../`
-- If you can't anchor, consider hex pattern with wildcards instead
-
-**Loop discipline:**
-- Always bound loops with filesize: `filesize < 100KB and for all i in (1..#a) : ...`
-- Unbounded `#a` can be thousands in large files — exponential slowdown
-
-**YARA-X tips:** `$_unused` to suppress warnings; `private $s` to hide from output; `yr check` + `yr fmt` before every commit.
-
-### When to Use Modules vs. Byte Checks
-
-```
-Should I use a module or raw bytes?
-├─ Need imphash/rich header/authenticode?
-│  └─ Use PE module — too complex to replicate
-├─ Just checking magic bytes or simple offsets?
-│  └─ Use uint16/uint32 — faster, no module overhead
-├─ Checking section names/sizes?
-│  └─ PE module is cleaner, but add magic bytes filter FIRST
-├─ Checking Chrome extension permissions?
-│  └─ Use crx module — string parsing is fragile
-└─ Checking LNK target paths?
-   └─ Use lnk module — LNK format is complex
-```
-
-**Expert guidance:** "Avoid the magic module — use explicit hex checks instead" — Neo23x0. Apply this principle: if you can do it with uint32(), don't load a module.
-
-## YARA-X New Features
-
-Key additions from recent releases:
-
-- **Private patterns** (v1.3.0+): `private $helper = "pattern"` — matches but hidden from output
-- **Warning suppression** (v1.4.0+): `// suppress: slow_pattern` inline comments
-- **Numeric underscores** (v1.5.0+): `filesize < 10_000_000` for readability
-- **Built-in formatter**: `yr fmt rules/` to standardize formatting
-- **NDJSON output**: `yr scan --output-format ndjson` for tooling
-
-## YARA-X Tooling Workflow
-
-YARA-X provides diagnostic tools legacy YARA lacks:
-
-**Rule development cycle:**
 ```bash
-# 1. Write initial rule
-# 2. Check syntax with detailed errors
-yr check rule.yar
-
-# 3. Format consistently
-yr fmt -w rule.yar
-
-# 4. Dump module output to inspect file structure (no dummy rule needed)
-yr dump -m pe sample.exe --output-format yaml
-
-# 5. Scan with timing info
-time yr scan -s rule.yar corpus/
+yr check rule.yar                                   # syntax, with precise line numbers
+yr fmt -w rule.yar                                  # standardize formatting
+yr dump -m pe sample.exe --output-format yaml       # inspect structure, no dummy rule needed
+time yr scan -s rule.yar corpus/                    # scan with timing
 ```
 
-**When to use `yr dump`:**
-- Investigating what PE/ELF/Mach-O fields are available
-- Debugging why module conditions aren't matching
-- Exploring new modules (crx, lnk, dotnet) before writing rules
+Reach for `yr dump` when investigating which module fields are available, debugging why a module condition isn't matching, or exploring a new module (crx, lnk, dotnet) before writing against it. YARA-X error messages carry precise source locations — if `yr check` says line 15, the problem is on line 15.
 
-**YARA-X diagnostic advantage:** Error messages include precise source locations. If `yr check` points to line 15, the issue is actually on line 15 (unlike legacy YARA).
+**Version-gated features:** `private $helper = "pattern"` matches but stays out of output (v1.3.0+); `// suppress: slow_pattern` silences a specific warning inline (v1.4.0+); `filesize < 10_000_000` numeric underscores (v1.5.0+). `$_unused` also suppresses unused-string warnings.
 
 ## Chrome Extension Analysis (crx module)
 
-The `crx` module enables detection of malicious Chrome extensions. Requires YARA-X v1.5.0+ (basic), v1.11.0+ for `permhash()`.
+Requires YARA-X v1.5.0+, or v1.11.0+ for `permhash()`.
 
 **Key APIs:** `crx.is_crx`, `crx.permissions`, `crx.permhash()`
-
 **Red flags:** `nativeMessaging` + `downloads`, `debugger` permission, content scripts on `<all_urls>`
 
 ```yara
@@ -403,15 +284,14 @@ rule SUSP_CRX_HighRiskPerms {
 }
 ```
 
-See [crx-module.md](references/crx-module.md) for complete API reference, permission risk assessment, and example rules.
+See [crx-module.md](references/crx-module.md) for the full API, permission risk assessment, and example rules.
 
 ## Android DEX Analysis (dex module)
 
-The `dex` module enables detection of Android malware. Requires YARA-X v1.11.0+. **Not compatible with legacy YARA's dex module** — API is completely different.
+Requires YARA-X v1.11.0+. **Not compatible with legacy YARA's dex module** — the API is completely different.
 
 **Key APIs:** `dex.is_dex`, `dex.contains_class()`, `dex.contains_method()`, `dex.contains_string()`
-
-**Red flags:** Single-letter class names (obfuscation), `DexClassLoader` reflection, encrypted assets
+**Red flags:** single-letter class names (obfuscation), `DexClassLoader` reflection, encrypted assets
 
 ```yara
 import "dex"
@@ -423,20 +303,18 @@ rule SUSP_DEX_DynamicLoading {
 }
 ```
 
-See [dex-module.md](references/dex-module.md) for complete API reference, obfuscation detection, and example rules.
+See [dex-module.md](references/dex-module.md) for the full API, obfuscation detection, and example rules.
 
 ## Migrating from Legacy YARA
 
-YARA-X has 99% rule compatibility, but enforces stricter validation.
+99% rule compatibility, but stricter validation:
 
-**Quick migration:**
 ```bash
-yr check --relaxed-re-syntax rules/  # Identify issues
-# Fix each issue, then:
-yr check rules/  # Verify without relaxed mode
+yr check --relaxed-re-syntax rules/   # identify issues
+# fix each one, then verify without relaxed mode:
+yr check rules/
 ```
 
-**Common fixes:**
 | Issue | Legacy | YARA-X Fix |
 |-------|--------|------------|
 | Literal `{` in regex | `/{/` | `/\{/` |
@@ -445,27 +323,17 @@ yr check rules/  # Verify without relaxed mode
 | Negative indexing | `@a[-1]` | `@a[#a - 1]` |
 | Duplicate modifiers | Allowed | Remove duplicates |
 
-> **Note:** Use `--relaxed-re-syntax` only as a diagnostic tool. Fix issues rather than relying on relaxed mode.
+`--relaxed-re-syntax` is a diagnostic, not a destination. Fix the regex.
 
-## Quick Reference
-
-### Naming Convention
+## Naming and Metadata
 
 ```
-{CATEGORY}_{PLATFORM}_{FAMILY}_{VARIANT}_{DATE}
+{CATEGORY}_{PLATFORM}_{FAMILY}_{VARIANT}_{DATE}      e.g. MAL_Win_Emotet_Loader_Jan25
 ```
 
-**Common prefixes:** `MAL_` (malware), `HKTL_` (hacking tool), `WEBSHELL_`, `EXPL_`, `SUSP_` (suspicious), `GEN_` (generic)
+**Categories:** `MAL_` (malware), `HKTL_` (hacking tool), `WEBSHELL_`, `EXPL_`, `SUSP_` (suspicious), `GEN_` (generic). **Platforms:** `Win_`, `Lnx_`, `Mac_`, `Android_`, `CRX_`.
 
-**Platforms:** `Win_`, `Lnx_`, `Mac_`, `Android_`, `CRX_`
-
-**Example:** `MAL_Win_Emotet_Loader_Jan25`
-
-See [style-guide.md](references/style-guide.md) for full conventions, metadata requirements, and naming examples.
-
-### Required Metadata
-
-Every rule needs: `description` (starts with "Detects"), `author`, `reference`, `date`.
+Every rule needs `description` (starting with "Detects"), `author`, `reference`, and `date`:
 
 ```yara
 meta:
@@ -475,36 +343,30 @@ meta:
     date = "2025-01-29"
 ```
 
-### String Selection
-
-**Good:** Mutex names, PDB paths, C2 paths, stack strings, configuration markers
-**Bad:** API names, common executables, format specifiers, generic paths
-
-See [strings.md](references/strings.md) for the full decision tree and examples.
-
-### Condition Patterns
-
-**Order conditions for short-circuit:**
-1. `filesize < 10MB` (instant)
-2. `uint16(0) == 0x5A4D` (nearly instant)
-3. String matches (cheap)
-4. Module checks (expensive)
-
-See [performance.md](references/performance.md) for detailed optimization patterns.
+See [style-guide.md](references/style-guide.md) for full conventions.
 
 ## Workflow
 
-1. **Gather samples** — Multiple samples; single-sample rules are brittle
+1. **Gather samples** — multiple; single-sample rules are brittle
 2. **Extract candidates** — `yarGen -m samples/ --excludegood`
-3. **Validate quality** — Use decision tree; yarGen needs 80% filtering
-4. **Write initial rule** — Follow template with proper metadata
-5. **Lint and test** — `yr check`, `yr fmt`, linter script
+3. **Validate quality** — apply the [string selection](#string-selection) tests; expect to discard 80% of yarGen output
+4. **Write the rule** — proper metadata, cheap checks first
+5. **Lint and test** — `yr check`, `yr fmt`, the linter script
 6. **Goodware validation** — VirusTotal corpus or local clean files
-7. **Deploy** — Add to repo with full metadata, monitor for FPs
+7. **Deploy** — full metadata, then monitor for FPs
 
-See [testing.md](references/testing.md) for detailed validation workflow and FP investigation.
+Quality signals along the way: a rule matching under 50% of known variants is too narrow; one matching goodware is too broad.
 
-For a comprehensive step-by-step guide covering all phases from sample collection to deployment, see [rule-development.md](workflows/rule-development.md).
+**Reviewing a rule someone else wrote** — run both scripts before reading the rule by eye, and quote the codes they emit:
+
+```bash
+uv run {baseDir}/scripts/yara_lint.py suspect.yar      # style, metadata, YARA-X compatibility
+uv run {baseDir}/scripts/atom_analyzer.py suspect.yar  # atom quality per string
+```
+
+They catch the mechanical faults — short strings, FP-prone substrings, unbounded quantifiers, expensive terms ahead of cheap ones — so your attention goes to the judgement calls they cannot make: whether the strings identify *this* family, and whether the condition can fire on generic strings alone. Report findings by code (`E002`, `W009`) so the author can look each one up in [style-guide.md](references/style-guide.md).
+
+See [testing.md](references/testing.md) for the validation workflow and [rule-development.md](workflows/rule-development.md) for the full step-by-step guide.
 
 ## Common Mistakes
 
@@ -515,16 +377,37 @@ For a comprehensive step-by-step guide covering all phases from sample collectio
 | Missing file type filter | `pe.imports(...)` first | `uint16(0) == 0x5A4D and filesize < 10MB` first |
 | Short strings | `"abc"` (3 bytes) | `"abcdef"` (4+ bytes) |
 | Unescaped braces (YARA-X) | `/config{key}/` | `/config\{key\}/` |
+| Wrong-endian magic bytes | `uint32(0) == 0xCAFEBABE` | `uint32be(0) == 0xCAFEBABE` |
 
-## Performance Optimization
+## Quality Checklist
 
-**Quick wins:** Put `filesize` first, avoid `nocase`, bounded regex `{1,100}`, prefer hex over regex.
+Before deploying any rule:
 
-**Red flags:** Strings <4 bytes, unbounded regex (`.*`), modules without file-type filter.
+- [ ] Name follows `{CATEGORY}_{PLATFORM}_{FAMILY}_{VARIANT}_{DATE}`
+- [ ] Description starts with "Detects" and explains what/how
+- [ ] All required metadata present (author, reference, date)
+- [ ] Strings are unique — not API names, common paths, or format strings
+- [ ] All strings 4+ bytes with good atom potential
+- [ ] Base64 modifier only on strings with 3+ characters
+- [ ] Regex bounded, anchored to a literal, with `{` escaped
+- [ ] Condition starts with cheap checks (filesize, magic bytes)
+- [ ] Magic-byte constants verified against a known-good sample
+- [ ] Rule matches all target samples
+- [ ] Rule produces zero matches on the goodware corpus
+- [ ] `yr check` and `yr fmt --check` pass
+- [ ] Linter passes with no errors
+- [ ] Peer review completed
 
-See [performance.md](references/performance.md) for atom theory and optimization details.
+## Scripts
 
-## Reference Documents
+```bash
+uv run {baseDir}/scripts/yara_lint.py rule.yar      # validate style/metadata
+uv run {baseDir}/scripts/atom_analyzer.py rule.yar  # check string quality
+```
+
+See [README.md](../../README.md#scripts) for detailed script documentation.
+
+## Further Reading
 
 | Topic | Document |
 |-------|----------|
@@ -534,16 +417,9 @@ See [performance.md](references/performance.md) for atom theory and optimization
 | Testing and validation | [testing.md](references/testing.md) |
 | Chrome extension module (crx) | [crx-module.md](references/crx-module.md) |
 | Android DEX module (dex) | [dex-module.md](references/dex-module.md) |
-
-## Workflows
-
-| Topic | Document |
-|-------|----------|
 | Complete rule development process | [rule-development.md](workflows/rule-development.md) |
 
-## Example Rules
-
-The `examples/` directory contains real, attributed rules demonstrating best practices:
+The `examples/` directory holds real, attributed rules worth reading before writing your own:
 
 | Example | Demonstrates | Source |
 |---------|--------------|--------|
@@ -553,93 +429,8 @@ The `examples/` directory contains real, attributed rules demonstrating best pra
 | [SUSP_JS_Obfuscation_Jan25.yar](examples/SUSP_JS_Obfuscation_Jan25.yar) | JavaScript: obfuscator detection, density-based matching | imp0rtp3, Nils Kuhnert |
 | [SUSP_CRX_SuspiciousPermissions.yar](examples/SUSP_CRX_SuspiciousPermissions.yar) | Chrome extensions: crx module, permissions | Educational |
 
-## Scripts
+**Rule repositories to learn from:** [Neo23x0/signature-base](https://github.com/Neo23x0/signature-base) (17,000+ production rules), [elastic/protections-artifacts](https://github.com/elastic/protections-artifacts) (endpoint-tested), [imp0rtp3/js-yara-rules](https://github.com/imp0rtp3/js-yara-rules) (JavaScript), [InQuest/awesome-yara](https://github.com/InQuest/awesome-yara) (curated index).
 
-```bash
-uv run {baseDir}/scripts/yara_lint.py rule.yar      # Validate style/metadata
-uv run {baseDir}/scripts/atom_analyzer.py rule.yar  # Check string quality
-```
+**Guides:** [YARA Style Guide](https://github.com/Neo23x0/YARA-Style-Guide) and [YARA Performance Guidelines](https://github.com/Neo23x0/YARA-Performance-Guidelines) (Neo23x0), [YARA-X documentation](https://virustotal.github.io/yara-x/).
 
-See [README.md](../../README.md#scripts) for detailed script documentation.
-
-## Quality Checklist
-
-Before deploying any rule:
-
-- [ ] Name follows `{CATEGORY}_{PLATFORM}_{FAMILY}_{VARIANT}_{DATE}` format
-- [ ] Description starts with "Detects" and explains what/how
-- [ ] All required metadata present (author, reference, date)
-- [ ] Strings are unique (not API names, common paths, or format strings)
-- [ ] All strings have 4+ bytes with good atom potential
-- [ ] Base64 modifier only on strings with 3+ characters
-- [ ] Regex patterns have escaped `{` and valid escape sequences
-- [ ] Condition starts with cheap checks (filesize, magic bytes)
-- [ ] Rule matches all target samples
-- [ ] Rule produces zero matches on goodware corpus
-- [ ] `yr check` passes with no errors
-- [ ] `yr fmt --check` passes (consistent formatting)
-- [ ] Linter passes with no errors
-- [ ] Peer review completed
-
-## Resources
-
-### Quality YARA Rule Repositories
-
-Learn from production rules. These repositories contain well-tested, properly attributed rules:
-
-| Repository | Focus | Maintainer |
-|------------|-------|------------|
-| [Neo23x0/signature-base](https://github.com/Neo23x0/signature-base) | 17,000+ production rules, multi-platform | Florian Roth |
-| [Elastic/protections-artifacts](https://github.com/elastic/protections-artifacts) | 1,000+ endpoint-tested rules | Elastic Security |
-| [reversinglabs/reversinglabs-yara-rules](https://github.com/reversinglabs/reversinglabs-yara-rules) | Threat research rules | ReversingLabs |
-| [imp0rtp3/js-yara-rules](https://github.com/imp0rtp3/js-yara-rules) | JavaScript/browser malware | imp0rtp3 |
-| [InQuest/awesome-yara](https://github.com/InQuest/awesome-yara) | Curated index of resources | InQuest |
-
-### Style & Performance Guides
-
-| Guide | Purpose |
-|-------|---------|
-| [YARA Style Guide](https://github.com/Neo23x0/YARA-Style-Guide) | Naming conventions, metadata, string prefixes |
-| [YARA Performance Guidelines](https://github.com/Neo23x0/YARA-Performance-Guidelines) | Atom optimization, regex bounds |
-| [Kaspersky Applied YARA Training](https://yara.readthedocs.io/) | Expert techniques from production use |
-
-### Tools
-
-| Tool | Purpose |
-|------|---------|
-| [yarGen](https://github.com/Neo23x0/yarGen) | Extract candidate strings from samples |
-| [FLOSS](https://github.com/mandiant/flare-floss) | Extract obfuscated and stack strings |
-| [YARA-CI](https://yara-ci.cloud.virustotal.com/) | Automated goodware testing |
-| [YaraDbg](https://yaradbg.dev) | Web-based rule debugger |
-
-### macOS-Specific Resources
-
-| Resource | Purpose |
-|----------|---------|
-| Apple XProtect | Production macOS rules at `/System/Library/CoreServices/XProtect.bundle/` |
-| [objective-see](https://objective-see.org/) | macOS malware research and samples |
-| [macOS Security Tools](https://github.com/0xmachos/macos-security-tools) | Reference list |
-
-### Multi-Indicator Clustering Pattern
-
-Production rules often group indicators by type:
-
-```yara
-strings:
-    // Category A: Library indicators
-    $a1 = "SRWebSocket" ascii
-    $a2 = "SocketRocket" ascii
-
-    // Category B: Behavioral indicators
-    $b1 = "SSH tunnel" ascii
-    $b2 = "keylogger" ascii nocase
-
-    // Category C: C2 patterns
-    $c1 = /https:\/\/[a-z0-9]{8,16}\.onion/
-
-condition:
-    filesize < 10MB and
-    any of ($a*) and any of ($b*)  // Require evidence from BOTH categories
-```
-
-**Why this works:** Different indicator types have different confidence levels. A single C2 domain might be definitive, while you need multiple library imports to be confident. Grouping by `$a*`, `$b*`, `$c*` lets you express graduated requirements.
+**macOS specifics:** Apple's own production rules ship at `/System/Library/CoreServices/XProtect.bundle/`; [objective-see](https://objective-see.org/) publishes macOS malware research and samples.

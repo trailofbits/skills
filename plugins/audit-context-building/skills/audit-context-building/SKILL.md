@@ -1,302 +1,72 @@
 ---
 name: audit-context-building
-description: Enables ultra-granular, line-by-line code analysis to build deep architectural context before vulnerability or bug finding.
+description: Understand a codebase before looking for bugs in it - what each function assumes, what it guarantees, and what it depends on elsewhere. Use when starting an audit, threat model, or architecture review on unfamiliar code, and before any vulnerability-hunting pass.
+allowed-tools: Task Read Grep Glob
 ---
 
-# Deep Context Builder Skill (Ultra-Granular Pure Context Mode)
+# Audit Context Building
 
-## 1. Purpose
+Build understanding, not verdicts. This runs before anyone hunts for bugs, and feeds that work.
 
-This skill governs **how Claude thinks** during the context-building phase of an audit.
+## When to Use
 
-When active, Claude will:
-- Perform **line-by-line / block-by-block** code analysis by default.
-- Apply **First Principles**, **5 Whys**, and **5 Hows** at micro scale.
-- Continuously link insights → functions → modules → entire system.
-- Maintain a stable, explicit mental model that evolves with new evidence.
-- Identify invariants, assumptions, flows, and reasoning hazards.
+At the start of an audit, a threat model, or an architecture review, when the code is unfamiliar. Also when
+an earlier pass produced findings nobody could judge, because no one had mapped out how the system fits
+together.
 
-This skill defines a structured analysis format (see Example: Function Micro-Analysis below) and runs **before** the vulnerability-hunting phase.
+## When NOT to Use
 
----
+Do not name vulnerabilities, suggest fixes, write proofs-of-concept, or rate severity. Those belong to the
+hunting phase, which runs next and with the whole picture in hand. When the code counts on something and
+nothing checks it, record that plainly and move on — whether it matters is decided later.
 
-## 2. When to Use This Skill
+Not worth the tokens on code you already understand.
 
-Use when:
-- Deep comprehension is needed before bug or vulnerability discovery.
-- You want bottom-up understanding instead of high-level guessing.
-- Reducing hallucinations, contradictions, and context loss is critical.
-- Preparing for security auditing, architecture review, or threat modeling.
+## Do not analyze in this context
 
-Do **not** use for:
-- Vulnerability findings
-- Fix recommendations
-- Exploit reasoning
-- Severity/impact rating
+The analysis is long, and this context needs to survive to use it. Dispatch it:
 
----
+- **A codebase, or more than one function** — run `/audit-context-building:audit-context <path>`. It orients,
+  analyzes each function in its own subagent, and writes `audit-context/DOSSIER.md` plus one file per
+  function under `audit-context/functions/`. Only compact records return here.
+- **A single function** — dispatch the `audit-context-building:function-analyzer` agent at it. It writes its
+  prose to disk and returns a record.
 
-## 3. How This Skill Behaves
+Then work from what comes back: the index, the unenforced assumptions, the open questions. Read a function's
+file when you need its detail.
 
-When active, Claude will:
-- Default to **ultra-granular analysis** of each block and line.
-- Apply micro-level First Principles, 5 Whys, and 5 Hows.
-- Build and refine a persistent global mental model.
-- Update earlier assumptions when contradicted ("Earlier I thought X; now Y.").
-- Periodically anchor summaries to maintain stable context.
-- Avoid speculation; express uncertainty explicitly when needed.
+The workflow is what enforces this, not this text: a subagent bound to a return schema cannot return prose.
+Treat this section as routing, and route.
 
-Goal: **deep, accurate understanding**, not conclusions.
+## What comes back, and how to read it
 
----
+Each record lists what must always be true (with the line that shows it), what the function takes on faith
+(with whatever establishes it), which functions it calls and what it needs from each, and anything still
+unclear. The dossier adds the rules that span several functions, who can reach what, and where the
+complicated parts cluster.
 
-## Rationalizations (Do Not Skip)
+Two things matter more than the rest:
 
-| Rationalization | Why It's Wrong | Required Action |
-|-----------------|----------------|-----------------|
-| "I get the gist" | Gist-level understanding misses edge cases | Line-by-line analysis required |
-| "This function is simple" | Simple functions compose into complex bugs | Apply 5 Whys anyway |
-| "I'll remember this invariant" | You won't. Context degrades. | Write it down explicitly |
-| "External call is probably fine" | External = adversarial until proven otherwise | Jump into code or model as hostile |
-| "I can skip this helper" | Helpers contain assumptions that propagate | Trace the full call chain |
-| "This is taking too long" | Rushed context = hallucinated vulnerabilities later | Slow is fast |
+- **Assumptions marked `nothing found`.** The code counts on something being true and nothing anywhere makes
+  it true. This is the most useful thing to hand the hunting phase.
+- **The open questions.** An honest list of what is still unclear beats a confident answer that turns out to
+  be wrong. Carry them forward instead of closing them out.
 
----
+Where two records disagree, both are quoted rather than quietly reconciled. That is a fact about the code,
+not a flaw in the analysis.
 
-## 4. Phase 1 — Initial Orientation (Bottom-Up Scan)
+## The format
 
-Before deep analysis, Claude performs a minimal mapping:
+[ANALYSIS_FORMAT.md](resources/ANALYSIS_FORMAT.md) defines it, and
+[FUNCTION_MICRO_ANALYSIS_EXAMPLE.md](resources/FUNCTION_MICRO_ANALYSIS_EXAMPLE.md) works through examples in
+C and Solidity. Read them when extending this plugin or deciding whether a record can be trusted.
 
-1. Identify major modules/files/contracts.
-2. Note obvious public/external entrypoints.
-3. Identify likely actors (users, owners, relayers, oracles, other contracts).
-4. Identify important storage variables, dicts, state structs, or cells.
-5. Build a preliminary structure without assuming behavior.
+The format is the same whatever the target. What changes is what fills each slot, and what counts as a call
+you cannot see inside. [DOMAIN_NOTES.md](resources/DOMAIN_NOTES.md) maps that across smart contracts, C and
+C++, decompiled firmware, and web services — read it when the target is not plain source code.
 
-This establishes anchors for detailed analysis.
-
----
-
-## 5. Phase 2 — Ultra-Granular Function Analysis (Default Mode)
-
-Every non-trivial function receives full micro analysis.
-
-### 5.1 Per-Function Microstructure Checklist
-
-For each function:
-
-1. **Purpose**
-   - Why the function exists and its role in the system.
-
-2. **Inputs & Assumptions**
-   - Parameters and implicit inputs (state, sender, env).
-   - Preconditions and constraints.
-
-3. **Outputs & Effects**
-   - Return values.
-   - State/storage writes.
-   - Events/messages.
-   - External interactions.
-
-4. **Block-by-Block / Line-by-Line Analysis**
-   For each logical block:
-   - What it does.
-   - Why it appears here (ordering logic).
-   - What assumptions it relies on.
-   - What invariants it establishes or maintains.
-   - What later logic depends on it.
-
-   Apply per-block:
-   - **First Principles**
-   - **5 Whys**
-   - **5 Hows**
-
----
-
-### 5.2 Cross-Function & External Flow Analysis
-*(Full Integration of Jump-Into-External-Code Rule)*
-
-When encountering calls, **continue the same micro-first analysis across boundaries.**
-
-#### Internal Calls
-- Jump into the callee immediately.
-- Perform block-by-block analysis of relevant code.
-- Track flow of data, assumptions, and invariants:
-  caller → callee → return → caller.
-- Note if callee logic behaves differently in this specific call context.
-
-#### External Calls — Two Cases
-
-**Case A — External Call to a Contract Whose Code Exists in the Codebase**
-Treat as an internal call:
-- Jump into the target contract/function.
-- Continue block-by-block micro-analysis.
-- Propagate invariants and assumptions seamlessly.
-- Consider edge cases based on the *actual* code, not a black-box guess.
-
-**Case B — External Call Without Available Code (True External / Black Box)**
-Analyze as adversarial:
-- Describe payload/value/gas or parameters sent.
-- Identify assumptions about the target.
-- Consider all outcomes:
-  - revert
-  - incorrect/strange return values
-  - unexpected state changes
-  - misbehavior
-  - reentrancy (if applicable)
-
-#### Continuity Rule
-Treat the entire call chain as **one continuous execution flow**.
-Never reset context.
-All invariants, assumptions, and data dependencies must propagate across calls.
-
----
-
-### 5.3 Complete Analysis Example
-
-See [FUNCTION_MICRO_ANALYSIS_EXAMPLE.md](resources/FUNCTION_MICRO_ANALYSIS_EXAMPLE.md) for a complete walkthrough demonstrating:
-- Full micro-analysis of a DEX swap function
-- Application of First Principles, 5 Whys, and 5 Hows
-- Block-by-block analysis with invariants and assumptions
-- Cross-function dependency mapping
-- Risk analysis for external interactions
-
-This example demonstrates the level of depth and structure required for all analyzed functions.
-
----
-
-### 5.4 Output Requirements
-
-When performing ultra-granular analysis, Claude MUST structure output following the format defined in [OUTPUT_REQUIREMENTS.md](resources/OUTPUT_REQUIREMENTS.md).
-
-Key requirements:
-- **Purpose** (2-3 sentences minimum)
-- **Inputs & Assumptions** (all parameters, preconditions, trust assumptions)
-- **Outputs & Effects** (returns, state writes, external calls, events, postconditions)
-- **Block-by-Block Analysis** (What, Why here, Assumptions, First Principles/5 Whys/5 Hows)
-- **Cross-Function Dependencies** (internal calls, external calls with risk analysis, shared state)
-
-Quality thresholds:
-- Minimum 3 invariants per function
-- Minimum 5 assumptions documented
-- Minimum 3 risk considerations for external interactions
-- At least 1 First Principles application
-- At least 3 combined 5 Whys/5 Hows applications
-
----
-
-### 5.5 Completeness Checklist
-
-Before concluding micro-analysis of a function, verify against the [COMPLETENESS_CHECKLIST.md](resources/COMPLETENESS_CHECKLIST.md):
-
-- **Structural Completeness**: All required sections present (Purpose, Inputs, Outputs, Block-by-Block, Dependencies)
-- **Content Depth**: Minimum thresholds met (invariants, assumptions, risk analysis, First Principles)
-- **Continuity & Integration**: Cross-references, propagated assumptions, invariant couplings
-- **Anti-Hallucination**: Line number citations, no vague statements, evidence-based claims
-
-Analysis is complete when all checklist items are satisfied and no unresolved "unclear" items remain.
-
----
-
-## 6. Phase 3 — Global System Understanding
-
-After sufficient micro-analysis:
-
-1. **State & Invariant Reconstruction**
-   - Map reads/writes of each state variable.
-   - Derive multi-function and multi-module invariants.
-
-2. **Workflow Reconstruction**
-   - Identify end-to-end flows (deposit, withdraw, lifecycle, upgrades).
-   - Track how state transforms across these flows.
-   - Record assumptions that persist across steps.
-
-3. **Trust Boundary Mapping**
-   - Actor → entrypoint → behavior.
-   - Identify untrusted input paths.
-   - Privilege changes and implicit role expectations.
-
-4. **Complexity & Fragility Clustering**
-   - Functions with many assumptions.
-   - High branching logic.
-   - Multi-step dependencies.
-   - Coupled state changes across modules.
-
-These clusters help guide the vulnerability-hunting phase.
-
----
-
-## 7. Stability & Consistency Rules
-*(Anti-Hallucination, Anti-Contradiction)*
-
-Claude must:
-
-- **Never reshape evidence to fit earlier assumptions.**
-  When contradicted:
-  - Update the model.
-  - State the correction explicitly.
-
-- **Periodically anchor key facts**
-  Summarize core:
-  - invariants
-  - state relationships
-  - actor roles
-  - workflows
-
-- **Avoid vague guesses**
-  Use:
-  - "Unclear; need to inspect X."
-  instead of:
-  - "It probably…"
-
-- **Cross-reference constantly**
-  Connect new insights to previous state, flows, and invariants to maintain global coherence.
-
----
-
-## 8. Subagent Usage
-
-Claude may spawn subagents for:
-- Dense or complex functions.
-- Long data-flow or control-flow chains.
-- Cryptographic / mathematical logic.
-- Complex state machines.
-- Multi-module workflow reconstruction.
-
-Use the **`function-analyzer`** agent for per-function deep analysis.
-It follows the full microstructure checklist, cross-function flow
-rules, and quality thresholds defined in this skill, and enforces
-the pure-context-building constraint.
-
-Subagents must:
-- Follow the same micro-first rules.
-- Return summaries that Claude integrates into its global model.
-
----
-
-## 9. Relationship to Other Phases
-
-This skill runs **before**:
-- Vulnerability discovery
-- Classification / triage
-- Report writing
-- Impact modeling
-- Exploit reasoning
-
-It exists solely to build:
-- Deep understanding
-- Stable context
-- System-level clarity
-
----
-
-## 10. Non-Goals
-
-While active, Claude should NOT:
-- Identify vulnerabilities
-- Propose fixes
-- Generate proofs-of-concept
-- Model exploits
-- Assign severity or impact
-
-This is **pure context building** only.
+**The rule that matters most: follow the calls.** Whether a function is correct usually depends on something
+another function does, and you cannot see that from the caller alone. A limit looks enforced because the
+value came back from a function whose name suggests it was checked. So read the function being called, follow
+every path through it rather than only the one that succeeds, and say what makes each assumption true. When
+nothing does, use those words: `nothing found`. Every claim cites a line, or becomes an open question.
