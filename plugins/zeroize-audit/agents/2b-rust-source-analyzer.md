@@ -69,7 +69,9 @@ This detects:
 - `#[derive(Serialize)]` on sensitive type → `SECRET_COPY` (low)
 - No `zeroize` crate in `Cargo.toml` → `MISSING_SOURCE_ZEROIZE` (low)
 
-Section A of `{baseDir}/references/rust-zeroization-patterns.md` documents each of these as `A1`–`A12`, with a minimal reproducing snippet and the recommended fix. Read the entry for a pattern before writing its finding `detail`, and use its snippet to judge whether a flagged type really matches or is a false positive.
+Section A of `{baseDir}/references/rust-zeroization-patterns.md` documents most of these as `A1`–`A12`, each with a minimal reproducing snippet and the recommended fix. Read the entry for a pattern before writing its finding `detail`, and use its snippet to judge whether a flagged type really matches or is a false positive.
+
+The mapping is not one-to-one. The missing-`zeroize`-dependency check has no Section A entry, and `A6` (a `ManuallyDrop<T>` struct field) covers a pattern the list above does not name. Where a check has no entry, write the `detail` and the fix from that check's own output — borrowing a neighbouring entry's snippet produces a finding that describes the wrong flaw.
 
 If the script is missing or fails: write a status-bearing error object to the output file and continue:
 

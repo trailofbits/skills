@@ -295,5 +295,8 @@ Supported categories (C/C++ PoCs): `MISSING_SOURCE_ZEROIZE`, `OPTIMIZED_AWAY_ZER
 ## References
 
 - `skills/zeroize-audit/references/compile-commands.md`
+- `skills/zeroize-audit/references/detection-strategy.md`
 - `skills/zeroize-audit/references/ir-analysis.md`
 - `skills/zeroize-audit/references/mcp-analysis.md`
+- `skills/zeroize-audit/references/poc-generation.md`
+- `skills/zeroize-audit/references/rust-zeroization-patterns.md`

@@ -63,10 +63,10 @@ See `{baseDir}/schemas/input.json` for the full schema. Key fields:
 | `config` | no | — | YAML defining heuristics and approved wipes |
 | `opt_levels` | no | `["O0","O1","O2"]` | Optimization levels for IR comparison. O1 is the diagnostic level: if a wipe disappears at O1 it is simple DSE; O2 catches more aggressive eliminations. |
 | `languages` | no | `["c","cpp","rust"]` | Languages to analyze |
-| `max_tus` | no | — | Limit on translation units processed from compile DB |
+| `max_tus` | no | `50` | Limit on translation units processed from compile DB |
 | `mcp_mode` | no | `prefer` | `off`, `prefer`, or `require` — controls Serena MCP usage |
 | `mcp_required_for_advanced` | no | `true` | Downgrade `SECRET_COPY`, `MISSING_ON_ERROR_PATH`, and `NOT_DOMINATING_EXITS` to `needs_review` when MCP is unavailable |
-| `mcp_timeout_ms` | no | — | Timeout budget for MCP semantic queries |
+| `mcp_timeout_ms` | no | `10000` | Timeout budget for MCP semantic queries |
 | `poc_categories` | no | all 11 exploitable | Finding categories for which to generate PoCs. C/C++ findings: all 11 categories supported. Rust findings: only `MISSING_SOURCE_ZEROIZE`, `SECRET_COPY`, and `PARTIAL_WIPE` are supported; other Rust categories are marked `poc_supported=false`. |
 | `poc_output_dir` | no | `generated_pocs/` | Output directory for generated PoCs |
 | `enable_asm` | no | `true` | Enable assembly emission and analysis (Step 8); produces `STACK_RETENTION`, `REGISTER_SPILL`. Auto-disabled if `emit_asm.sh` is missing. |
@@ -241,7 +241,9 @@ Analysis runs in two phases. For complete step-by-step guidance, see `{baseDir}/
 † requires `enable_semantic_ir=true`
 ‡ requires `enable_cfg=true`
 
-For Rust, `{baseDir}/references/rust-zeroization-patterns.md` catalogues the 40 named anti-patterns the tooling looks for, keyed to the script that detects each one: Section A for rustdoc-JSON semantics (`semantic_audit.py`), Section B for dangerous APIs (`find_dangerous_apis.py`), Section C for MIR/LLVM IR/assembly (`check_mir_patterns.py`, `check_llvm_patterns.py`, `check_rust_asm.py`), and Section D for patterns no current check detects. Read the relevant section when triaging a Rust finding, writing its fix recommendation, or deciding whether a hand-spotted pattern is already covered.
+For Rust, `{baseDir}/references/rust-zeroization-patterns.md` catalogues 40 named anti-patterns, keyed to the script that detects each one: Section A for rustdoc-JSON semantics (`semantic_audit.py`), Section B for dangerous APIs (`find_dangerous_apis.py`), and Section C for MIR/LLVM IR/assembly (`check_mir_patterns.py`, `check_llvm_patterns.py`, `check_rust_asm.py`). Read the relevant section when triaging a Rust finding, writing its fix recommendation, or deciding whether a hand-spotted pattern is already covered.
+
+Two limits on how far that reference goes. The 34 entries in Sections A-C are what the scripts detect today; Section D's six are known gaps no script covers, so treat those as unaudited rather than clean. Sections A and C are also partial — the scripts emit some classes with no entry — so a finding that matches no catalogued pattern is still a finding, carrying whatever evidence the script produced.
 
 ---
 

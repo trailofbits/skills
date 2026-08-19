@@ -29,9 +29,11 @@ You receive these values from the orchestrator:
 
 Output directory: `{workdir}/rust-compiler-analysis/`
 
-Section C of `{baseDir}/references/rust-zeroization-patterns.md` documents every pattern the three scripts below match — `C-MIR1`–`C-MIR3` for Step 2, `C-IR1`–`C-IR5` for Step 4, `C-ASM1`–`C-ASM4` for Step 4b. Each entry gives a reproducing snippet, why source-level analysis is blind to the flaw, and a **Detection** line naming the exact compiler artifact that proves it. Read the entry for a pattern when a script reports it: that Detection line is the evidence the finding must carry, and checking the artifact against it is how you tell a genuine hit from a script matching a coincidental symbol name.
+Section C of `{baseDir}/references/rust-zeroization-patterns.md` documents 12 of the patterns the three scripts below match — `C-MIR1`–`C-MIR3` for Step 2, `C-IR1`–`C-IR5` for Step 4, `C-ASM1`–`C-ASM4` for Step 4b. Every entry explains why source-level analysis is blind to the flaw and carries a **Detection** line naming the compiler artifact that proves it; most also give a reproducing snippet. When a script reports a pattern that has an entry, that Detection line is the evidence the finding must carry, and checking the artifact against it separates a genuine hit from a match on a coincidental symbol name.
 
-Section D of the same file lists patterns no current script detects — `Arc`/`Rc` deferred drop, `repr(C)` padding bytes, `static`/`LazyLock` secrets, async cancellation, `Cow` clones, and `mem::swap`. A clean run does not rule these out. If the crate uses one, record it in `notes.md` as a coverage gap rather than leaving it unmentioned.
+Section C is a subset, not an index. `check_mir_patterns.py` and `check_llvm_patterns.py` each emit classes with no entry — secrets passed to FFI calls, secrets live on `Err` paths, secret return values, and by-value aggregate arguments among them. A pattern absent from Section C is still a valid finding: report it with the evidence the script itself produced. Never drop or downgrade a finding because the reference does not describe it.
+
+Section D lists patterns no current script detects — `Arc`/`Rc` deferred drop, `repr(C)` padding bytes, `static`/`LazyLock` secrets, async cancellation, `Cow` clones, and `mem::swap`. A clean run does not rule these out. If the crate uses one, record it in `notes.md` as a coverage gap rather than leaving it unmentioned.
 
 ### Step 1 — MIR Emission
 
