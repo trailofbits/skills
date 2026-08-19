@@ -20,31 +20,13 @@ With no `--threat-model` flag, CodeQL uses `remote` only (the `default` group). 
 
 Enable additional threat models with the `--threat-model` flag (singular, NOT `--threat-models`):
 
-```bash
-# Web service (default — remote only, no flag needed)
-codeql database analyze codeql.db \
-  -- results/suite.qls
-
-# CLI tool — local users can provide malicious input
-codeql database analyze codeql.db \
-  --threat-model local \
-  -- results/suite.qls
-
-# Container app reading env vars from untrusted orchestrator
-codeql database analyze codeql.db \
-  --threat-model local --threat-model environment \
-  -- results/suite.qls
-
-# Full coverage — audit mode for all input vectors
-codeql database analyze codeql.db \
-  --threat-model all \
-  -- results/suite.qls
-
-# Enable all except database (to reduce noise)
-codeql database analyze codeql.db \
-  --threat-model all --threat-model '!database' \
-  -- results/suite.qls
-```
+| Application | Flags to add to `codeql database analyze "$DB_NAME"` |
+|---|---|
+| Web service | none — `remote` is the default |
+| CLI tool, local users untrusted | `--threat-model local` |
+| Container reading env from an untrusted orchestrator | `--threat-model local --threat-model environment` |
+| Audit mode, every input vector | `--threat-model all` |
+| Everything except stored data, to cut noise | `--threat-model all --threat-model '!database'` |
 
 The `--threat-model` flag can be repeated. Each invocation adds (or removes with `!` prefix) a threat model group. The `remote` group is always enabled by default — use `--threat-model '!default'` to disable it (rare). The `all` group enables everything, and `!<name>` disables a specific model.
 

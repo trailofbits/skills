@@ -53,19 +53,19 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | Plugin | Description |
 |--------|-------------|
 | [agentic-actions-auditor](plugins/agentic-actions-auditor/) | Audit GitHub Actions workflows for AI agent security vulnerabilities |
-| [audit-context-building](plugins/audit-context-building/) | Build deep architectural context through ultra-granular code analysis |
+| [audit-context-building](plugins/audit-context-building/) | Understand a codebase before looking for bugs in it, one function at a time |
 | [burpsuite-project-parser](plugins/burpsuite-project-parser/) | Search and extract data from Burp Suite project files |
 | [c-review](plugins/c-review/) | Comprehensive C/C++ security review with clustered parallel workers and SARIF output |
 | [differential-review](plugins/differential-review/) | Security-focused differential review of code changes with git history analysis |
 | [dimensional-analysis](plugins/dimensional-analysis/) | Annotate codebases with dimensional analysis comments to detect unit mismatches and formula bugs |
 | [fp-check](plugins/fp-check/) | Systematic false positive verification for security bug analysis with mandatory gate reviews |
-| [insecure-defaults](plugins/insecure-defaults/) | Detect insecure default configurations, hardcoded credentials, and fail-open security patterns |
+| [insecure-defaults](plugins/insecure-defaults/) | Parallel audit workflow for fail-open insecure defaults, with a refuting verifier per candidate file |
 | [rust-review](plugins/rust-review/) | Comprehensive Rust security review covering safe/unsafe boundary, memory safety, concurrency, panic-DoS, FFI, and async runtime with SARIF output |
 | [semgrep-rule-creator](plugins/semgrep-rule-creator/) | Create and refine Semgrep rules for custom vulnerability detection |
 | [semgrep-rule-variant-creator](plugins/semgrep-rule-variant-creator/) | Port existing Semgrep rules to new target languages with test-driven validation |
 | [sharp-edges](plugins/sharp-edges/) | Identify error-prone APIs, dangerous configurations, and footgun designs |
 | [static-analysis](plugins/static-analysis/) | Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing |
-| [supply-chain-risk-auditor](plugins/supply-chain-risk-auditor/) | Audit supply-chain threat landscape of project dependencies |
+| [supply-chain-risk-auditor](plugins/supply-chain-risk-auditor/) | Audit npm, PyPI, and Go dependencies for version-matched advisories, abandoned upstreams, publisher concentration, and install scripts |
 | [testing-handbook-skills](plugins/testing-handbook-skills/) | Skills from the [Testing Handbook](https://appsec.guide): fuzzers, static analysis, sanitizers, coverage |
 | [trailmark](plugins/trailmark/) | Code graph analysis, bounded subagent context slicing, Mermaid diagrams, mutation testing triage, and protocol verification |
 | [variant-analysis](plugins/variant-analysis/) | Find similar vulnerabilities across codebases using pattern-based analysis |
@@ -85,14 +85,15 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [constant-time-analysis](plugins/constant-time-analysis/) | Detect compiler-induced timing side-channels in cryptographic code |
 | [mutation-testing](plugins/mutation-testing/) | Configure mewt/muton mutation testing campaigns — scope targets, tune timeouts, optimize long runs |
 | [property-based-testing](plugins/property-based-testing/) | Property-based testing guidance for multiple languages and smart contracts |
-| [spec-to-code-compliance](plugins/spec-to-code-compliance/) | Specification-to-code compliance checker for blockchain audits |
+| [spec-to-code-compliance](plugins/spec-to-code-compliance/) | Check code against the documentation that specifies it, across contracts, C/C++, services, and firmware |
+| [writing-lean-proofs](plugins/writing-lean-proofs/) | Write structured Lean 4 proofs and design Lean libraries following Mathlib conventions |
 | [zeroize-audit](plugins/zeroize-audit/) | Detect missing or compiler-eliminated zeroization of secrets in C/C++ and Rust |
 
 ### Reverse Engineering
 
 | Plugin | Description |
 |--------|-------------|
-| [dwarf-expert](plugins/dwarf-expert/) | Interact with and understand the DWARF debugging format |
+| [dwarf-expert](plugins/dwarf-expert/) | Analyze DWARF debug info: parse and search DIEs, verify integrity, write DWARF parsing code |
 
 ### Mobile Security
 
@@ -104,7 +105,6 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 
 | Plugin | Description |
 |--------|-------------|
-| [ask-questions-if-underspecified](plugins/ask-questions-if-underspecified/) | Clarify requirements before implementing |
 | [devcontainer-setup](plugins/devcontainer-setup/) | Create pre-configured devcontainers with Claude Code and language-specific tooling |
 | [gh-cli](plugins/gh-cli/) | Intercept GitHub URL fetches and redirect to the authenticated `gh` CLI |
 | [git-cleanup](plugins/git-cleanup/) | Safely clean up git worktrees and local branches with gated confirmation workflow |
@@ -112,10 +112,8 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [let-fate-decide](plugins/let-fate-decide/) | Draw Tarot cards using cryptographic randomness to add entropy to vague planning |
 | [modern-python](plugins/modern-python/) | Modern Python tooling and best practices with uv, ruff, and pytest |
 | [open-sourcing](plugins/open-sourcing/) | Prepare a repository for public release: secrets hygiene, licensing, CI readiness, and release automation |
-| [seatbelt-sandboxer](plugins/seatbelt-sandboxer/) | Generate minimal macOS Seatbelt sandbox configurations |
 | [second-opinion](plugins/second-opinion/) | Run code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on changes, diffs, or commits. Bundles Codex's built-in MCP server. |
 | [skill-improver](plugins/skill-improver/) | Iterative skill refinement loop using automated fix-review cycles |
-| [workflow-skill-design](plugins/workflow-skill-design/) | Design patterns for workflow-based Claude Code skills with review agent |
 
 ### Team Management
 
@@ -128,12 +126,6 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | Plugin | Description |
 |--------|-------------|
 | [claude-in-chrome-troubleshooting](plugins/claude-in-chrome-troubleshooting/) | Diagnose and fix Claude in Chrome MCP extension connectivity issues |
-
-### Infrastructure
-
-| Plugin | Description |
-|--------|-------------|
-| [debug-buttercup](plugins/debug-buttercup/) | Debug [Buttercup](https://github.com/trailofbits/buttercup) Kubernetes deployments |
 
 ## Trophy Case
 

@@ -10,20 +10,9 @@
   },
   "plugins": [
     {
-      "name": "ask-questions-if-underspecified",
-      "version": "1.0.2",
-      "description": "Clarify ambiguous requirements by asking questions before implementing. Only when invoked explicitly.",
-      "author": {
-        "name": "Kevin Valerio",
-        "email": "opensource@trailofbits.com",
-        "url": "https://github.com/trailofbits"
-      },
-      "source": "./plugins/ask-questions-if-underspecified"
-    },
-    {
       "name": "audit-context-building",
-      "description": "Build deep architectural context through ultra-granular code analysis before vulnerability hunting",
-      "version": "1.1.1",
+      "description": "Understand a codebase before looking for bugs in it. Reads it function by function, records what each one assumes and depends on, and saves the write-ups to files instead of filling up the conversation.",
+      "version": "2.0.0",
       "author": {
         "name": "Omar Inuwa"
       },
@@ -58,7 +47,7 @@
     },
     {
       "name": "constant-time-analysis",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "description": "Detect compiler-induced timing side-channels in cryptographic code",
       "author": {
         "name": "Scott Arciszewski",
@@ -74,16 +63,6 @@
         "name": "Dan Guido"
       },
       "source": "./plugins/culture-index"
-    },
-    {
-      "name": "debug-buttercup",
-      "version": "1.0.1",
-      "description": "Debug Buttercup Kubernetes deployments",
-      "author": {
-        "name": "Ronald Eytchison",
-        "email": "opensource@trailofbits.com"
-      },
-      "source": "./plugins/debug-buttercup"
     },
     {
       "name": "devcontainer-setup",
@@ -126,8 +105,8 @@
     },
     {
       "name": "dwarf-expert",
-      "description": "Interact with and understand the DWARF debugging format",
-      "version": "1.0.1",
+      "description": "Analyze DWARF debug information: parse and search DIEs with dwarfdump and readelf, verify debug info integrity, and write DWARF parsing code",
+      "version": "1.1.0",
       "author": {
         "name": "Evan Hellman",
         "email": "opensource@trailofbits.com"
@@ -177,7 +156,7 @@
     },
     {
       "name": "semgrep-rule-variant-creator",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "description": "Creates language variants of existing Semgrep rules with proper applicability analysis and test-driven validation",
       "author": {
         "name": "Maciej Domanski",
@@ -198,7 +177,7 @@
     },
     {
       "name": "static-analysis",
-      "version": "1.2.2",
+      "version": "1.3.1",
       "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
       "author": {
         "name": "Axel Mierczuk & Pawe\u0142 P\u0142atek"
@@ -207,8 +186,8 @@
     },
     {
       "name": "spec-to-code-compliance",
-      "description": "Specification-to-code compliance checker for blockchain audits with evidence-based alignment analysis",
-      "version": "1.1.1",
+      "description": "Check code against the documentation that specifies it: one agent per requirement, divergences refuted before they are reported, evidence cited to the line",
+      "version": "2.0.0",
       "author": {
         "name": "Omar Inuwa"
       },
@@ -235,7 +214,7 @@
     },
     {
       "name": "variant-analysis",
-      "version": "1.0.1",
+      "version": "2.0.1",
       "description": "Find similar vulnerabilities and bugs across codebases using pattern-based analysis",
       "author": {
         "name": "Axel Mierczuk"
@@ -273,7 +252,7 @@
     },
     {
       "name": "insecure-defaults",
-      "version": "1.0.1",
+      "version": "2.0.0",
       "description": "Detects insecure default configurations including hardcoded credentials, fallback secrets, weak authentication defaults, and dangerous values in production",
       "author": {
         "name": "Trail of Bits",
@@ -293,7 +272,7 @@
     },
     {
       "name": "yara-authoring",
-      "version": "2.0.1",
+      "version": "2.1.0",
       "description": "YARA-X detection rule authoring with linting and quality analysis",
       "author": {
         "name": "Trail of Bits",
@@ -314,31 +293,11 @@
       "source": "./plugins/git-cleanup"
     },
     {
-      "name": "workflow-skill-design",
-      "version": "1.0.2",
-      "description": "Teaches design patterns for workflow-based Claude Code skills and provides a review agent for auditing existing skills",
-      "author": {
-        "name": "Benjamin Samuels",
-        "email": "opensource@trailofbits.com",
-        "url": "https://github.com/trailofbits"
-      },
-      "source": "./plugins/workflow-skill-design"
-    },
-    {
-      "name": "seatbelt-sandboxer",
-      "version": "1.0.1",
-      "description": "Generate minimal macOS Seatbelt sandbox configurations for applications",
-      "author": {
-        "name": "Spencer Michaels"
-      },
-      "source": "./plugins/seatbelt-sandboxer"
-    },
-    {
       "name": "supply-chain-risk-auditor",
-      "version": "1.0.1",
-      "description": "Audit supply-chain threat landscape of project dependencies for exploitation or takeover risk",
+      "version": "2.0.0",
+      "description": "Audit a project's npm, PyPI, and Go dependencies for supply-chain risk: version-matched advisories for direct dependencies and the full lockfile tree, abandoned upstreams, npm publisher concentration, and install scripts",
       "author": {
-        "name": "Spencer Michaels"
+        "name": "Eric Quintero"
       },
       "source": "./plugins/supply-chain-risk-auditor"
     },
@@ -355,7 +314,7 @@
     },
     {
       "name": "let-fate-decide",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "description": "Draws the 12 Houses of the Zodiac Tarot spread using cryptographic randomness to add 100+ bits of entropy to vague or underspecified planning. Interprets the spread to guide next steps. Use when feeling lucky, invoking heart-of-the-cards energy, or when prompts are ambiguous.",
       "author": {
         "name": "Scott Arciszewski",
@@ -374,7 +333,7 @@
     },
     {
       "name": "skill-improver",
-      "version": "1.0.4",
+      "version": "1.1.0",
       "description": "Automatically reviews and fixes Claude Code skills through iterative refinement until they meet quality standards. Requires plugin-dev plugin.",
       "author": {
         "name": "Pawe\u0142 P\u0142atek",
@@ -434,6 +393,17 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/open-sourcing"
+    },
+    {
+      "name": "writing-lean-proofs",
+      "version": "0.1.0",
+      "description": "Structured Lean 4 proof writing and library design following Mathlib conventions",
+      "author": {
+        "name": "Fredrik Dahlgren",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/writing-lean-proofs"
     },
     {
       "name": "adversarial-verification",

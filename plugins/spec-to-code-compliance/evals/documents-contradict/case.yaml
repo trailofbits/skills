@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: documents-contradict
+description: >
+  Two documents specify the same system and disagree about it. SPEC.md §3.3 requires a 50 basis point fee on
+  redemption; README.md states redemption is free and that the 50 basis point fee is charged on deposit
+  instead, and says the change was deliberate. The code charges on redemption and not on deposit, so it matches
+  the spec and contradicts the README. The failure this case catches is checking against whichever document was
+  read first and reporting "fee implemented, matches §3.3" — a true statement that hides the actual problem,
+  which is that the client's two documents cannot both be right and the published README misdescribes the
+  behavior. No model default favours reconciling the documents, so the arms separate here.
+  Measured Δ 0.00: 1.00 with the plugin, 1.00 without it, in 5 and 4 turns respectively. The premise above —
+  that no model default favours reconciling the documents — did not survive measurement. With only three files
+  in scope Opus 5 reads both documents and reports the conflict unaided, so this case scores the model rather
+  than the skill. Kept as a regression guard, not as evidence of benefit. Making it discriminate means enough
+  documentation that reading all of it is a choice rather than the obvious first step.
+tags: [document-problems, multi-document, no-delta]
+
+context:
+  add_dirs: [fixture]
+
+execution:
+  prompt: |
+    The fixture directory has SPEC.md, README.md, and Vault.sol.
+
+    Check the redemption fee handling in the contract against the documentation and tell me where we stand.
+  max_turns: 30
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Write, Skill, Task]
+
+runs: 3
+
+expected_outcome: >
+  The response reports that SPEC.md and README.md contradict each other about where the fee is charged, that
+  the code follows SPEC.md, and that README.md is wrong about both redemption being free and deposits being
+  charged — raised as a finding against the documentation rather than resolved silently in favour of one
+  document.

@@ -58,7 +58,7 @@ if [[ -n "$SESSION_ID" ]]; then
 
   iter=$(parse_field "$STATE_FILE" "iteration")
   name=$(parse_field "$STATE_FILE" "skill_name")
-  trash "$STATE_FILE"
+  remove_state_file "$STATE_FILE"
   print_cancelled "$SESSION_ID" "$name" "$iter"
   exit 0
 fi
@@ -69,7 +69,7 @@ if [[ ${#ACTIVE_SESSIONS[@]} -eq 1 ]]; then
   sid=$(extract_session_id "$STATE_FILE")
   iter=$(parse_field "$STATE_FILE" "iteration")
   name=$(parse_field "$STATE_FILE" "skill_name")
-  trash "$STATE_FILE"
+  remove_state_file "$STATE_FILE"
   print_cancelled "$sid" "$name" "$iter"
 else
   echo "Multiple active skill-improver sessions found."

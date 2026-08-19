@@ -14,7 +14,7 @@
 
 | Complexity | Skill | What It Demonstrates |
 |------------|-------|---------------------|
-| **Basic** | [ask-questions-if-underspecified](plugins/ask-questions-if-underspecified/) | Minimal frontmatter, simple guidance |
+| **Basic** | [git-cleanup](plugins/git-cleanup/) | Single self-contained SKILL.md, `allowed-tools` scoping |
 | **Intermediate** | [constant-time-analysis](plugins/constant-time-analysis/) | Python package, references/, language-specific docs |
 | **Advanced** | [culture-index](plugins/culture-index/) | Scripts, workflows/, templates/, PDF extraction, multiple entry points |
 
@@ -68,17 +68,29 @@ plugins/
       plugin.json         # Plugin metadata (name, version, description, author)
     commands/             # Optional: slash commands
     agents/               # Optional: autonomous agents
+    workflows/            # Optional: dynamic workflows (*.js), ships as /<plugin>:<workflow>
+    evals/                # Optional: `claude plugin eval` cases + graders
     skills/               # Optional: knowledge/guidance
       <skill-name>/
         SKILL.md          # Entry point with frontmatter
         references/       # Optional: detailed docs
-        workflows/        # Optional: step-by-step guides
+        workflows/        # Optional: step-by-step guides (prose, not scripts)
         scripts/          # Optional: utility scripts
     hooks/                # Optional: event hooks
+    tests/                # Optional: run_*.sh suites (CI runs these — keep them free)
     README.md             # Plugin documentation
 ```
 
 **Important**: Component directories (`skills/`, `commands/`, `agents/`, `hooks/`) must be at the plugin root, NOT inside `.claude-plugin/`. Only `plugin.json` belongs in `.claude-plugin/`.
+
+**Two different `workflows/`.** A **dynamic workflow** is a JavaScript file at the *plugin
+root* under `workflows/`; it exports a `meta` object, orchestrates subagents in code, and
+ships through the marketplace as `/<plugin-name>:<workflow-name>` (from `meta.name`, not the
+filename). The older `skills/<skill>/workflows/` holds prose step-by-step guides. If a
+SKILL.md has "Phase 1", "for each finding", or "repeat until" sections, the plan belongs in
+a script at the plugin root, not in prose. See `plugins/variant-analysis/workflows/` for a
+worked example, and note that `${CLAUDE_PLUGIN_ROOT}` is **not** available inside a workflow
+script — it is not a hook, MCP, or LSP subprocess.
 
 ### Frontmatter
 
@@ -179,18 +191,6 @@ Prescriptiveness should match task risk:
 - **Strict for fragile tasks** - Security audits, crypto implementations, compliance checks need rigid step-by-step enforcement
 - **Flexible for variable tasks** - Code exploration, documentation, refactoring can offer options and judgment calls
 
-### Required Sections
-
-Every SKILL.md must include:
-
-```markdown
-## When to Use
-[Specific scenarios where this skill applies]
-
-## When NOT to Use
-[Scenarios where another approach is better]
-```
-
 ### Security Skills
 
 For audit/security skills, also include:
@@ -270,10 +270,10 @@ Each of these fails the build. There is no value in checking any of it by hand:
 - No `.codex/`, `.opencode/`, `.agents/`, or `plugins/*/.codex-plugin/` sidecars
 - Both loadability checks pass under the real Claude Code and Codex CLIs
 
-Three more are reported as **warnings**, so they will not stop a merge and do still
-need your eye: missing `## When to Use` / `## When NOT to Use`, `SKILL.md` over 500
-lines, and references that do not resolve. A dangling `references/setup.md` link 404s
-for every user of the skill, and CI will not stop you shipping it.
+Two more are reported as **warnings**, so they will not stop a merge and do still
+need your eye: `SKILL.md` over 500 lines, and references that do not resolve. A dangling
+`references/setup.md` link 404s for every user of the skill, and CI will not stop you
+shipping it.
 
 ### What no tool can check — this is the part that needs you
 

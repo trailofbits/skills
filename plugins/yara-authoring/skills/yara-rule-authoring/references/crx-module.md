@@ -2,7 +2,7 @@
 
 The `crx` module enables analysis of Chrome extension packages (CRX files). Use it to detect malicious extensions based on their declared permissions, manifest structure, and metadata.
 
-**Version requirements:** YARA-X v1.5.0+
+**Version requirements:** YARA-X v1.5.0+ for the module; `crx.permhash()` needs v1.11.0+.
 
 ## Module Import
 
@@ -47,6 +47,30 @@ import "crx"
 | `crx.optional_permissions` | Array of optional permissions | `for any perm in crx.optional_permissions` |
 | `crx.host_permissions` | Array of host patterns (MV3) | `for any host in crx.host_permissions` |
 | `crx.optional_host_permissions` | Array of optional host patterns | `for any host in crx.optional_host_permissions` |
+
+### Permission Hashing
+
+| Function | Type | Description |
+|----------|------|-------------|
+| `crx.permhash()` | string | Hash over the extension's declared permission set (v1.11.0+) |
+
+`permhash()` collapses a permission set into one value, so a family that keeps its
+manifest while rotating IDs and names still clusters:
+
+```yara
+import "crx"
+
+rule SUSP_CRX_KnownPermProfile
+{
+    condition:
+        crx.is_crx and
+        crx.permhash() == "0000000000000000000000000000000000000000000000000000000000000000"
+}
+```
+
+Use it for hunting and clustering, not as a standalone detection: two unrelated
+extensions asking for the same permissions hash identically. Get the value for a
+known sample with `yr dump -m crx sample.crx` rather than guessing it.
 
 ### Signature Verification
 

@@ -6,11 +6,13 @@ Iteratively reviews and fixes Claude Code skill quality issues until they meet s
 
 - **`plugin-dev` plugin** must be installed (provides `skill-reviewer` agent)
 
-## Commands
+## Usage
 
 ### /skill-improver \<SKILL_PATH\> [--max-iterations N]
 
-Start an improvement loop for a skill.
+Start an improvement loop for a skill. Claude can also trigger it from natural
+language like "fix my skill". (Shipped as a skill rather than a command so it
+lists once in the skill index.)
 
 ```bash
 /skill-improver ./plugins/my-plugin/skills/my-skill
@@ -36,4 +38,4 @@ See [SKILL.md](skills/skill-improver/SKILL.md) for detailed methodology and issu
 
 - **"subagent not found"**: Install the `plugin-dev` plugin
 - **Loop never completes**: Check state with `cat .claude/skill-improver.*.local.md`, cancel with `/cancel-skill-improver`
-- **Orphaned state files**: Remove with `trash .claude/skill-improver.*.local.md`
+- **Orphaned state files**: Remove with `rm -f .claude/skill-improver.*.local.md`

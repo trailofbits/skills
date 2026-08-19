@@ -77,7 +77,6 @@ FORBIDDEN_PLUGIN_SIDECARS = (".codex-plugin", ".opencode-plugin")
 SKILL_LINE_LIMIT = 500
 KEBAB_CASE_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 PLUGIN_NAME_MAX_LENGTH = 64
-REQUIRED_SKILL_SECTIONS = ("## When to Use", "## When NOT to Use")
 SEMVER_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
 
 # Floor for --self-test. Raise it when you add fixtures; see the check in self_test().
@@ -379,6 +378,53 @@ def find_forbidden_sidecars(repo_root: Path) -> list[str]:
     return errors
 
 
+def check_dependabot_lockfiles(repo_root: Path) -> list[str]:
+    """Every uv directory in dependabot.yml must carry a committed uv.lock.
+
+    Without one there is nothing to pin, so Dependabot's only available action is
+    raising the lower bound of an already-open range — which changes nothing about
+    what installs and only drops support for older versions. That produced five
+    no-op PRs the first time this config ran. Documenting the rule in a comment
+    left it unenforced; this makes it real.
+    """
+    config = repo_root / ".github" / "dependabot.yml"
+    if not config.exists():
+        return []
+
+    text = config.read_text()
+    # Read the `directories:` list belonging to the uv ecosystem block only. A bare
+    # search for `- /plugins/...` would also pick up any future ecosystem's paths.
+    uv_block = re.search(
+        r"^\s*-\s*package-ecosystem:\s*uv\s*$(.*?)(?=^\s*-\s*package-ecosystem:|\Z)",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    if not uv_block:
+        return []
+
+    listed = re.findall(r"^\s+-\s+(/plugins/\S+)\s*$", uv_block.group(1), re.MULTILINE)
+    if not listed:
+        # The block exists but no directories parsed out — the regex broke, or the
+        # block was emptied. Either way this checker just inspected zero items.
+        return [
+            "dependabot.yml has a uv ecosystem block but no directories parsed from it "
+            "— the lockfile check inspected nothing"
+        ]
+
+    errors = []
+    for rel in listed:
+        directory = repo_root / rel.lstrip("/")
+        if not directory.is_dir():
+            errors.append(f"dependabot.yml lists {rel}, which does not exist")
+        elif not (directory / "uv.lock").is_file():
+            errors.append(
+                f"dependabot.yml lists {rel} but it has no committed uv.lock; "
+                f"without one Dependabot can only raise version floors (run "
+                f"`cd {rel.lstrip('/')} && uv lock`)"
+            )
+    return errors
+
+
 def _git_show(repo_root: Path, ref: str, rel_path: str) -> str | None:
     """Contents of `rel_path` at `ref`, or None when it did not exist there."""
     result = subprocess.run(
@@ -485,19 +531,6 @@ def validate_version_increment(
 # -------------------------------------------------------------------------- warnings
 
 
-def check_required_sections(plugin_path: Path) -> list[str]:
-    """Skills should say when to use them and when not to."""
-    warnings = []
-    for skill in skill_files(plugin_path):
-        text = skill.read_text(encoding="utf-8", errors="replace")
-        rel = skill.relative_to(plugin_path)
-        for section in REQUIRED_SKILL_SECTIONS:
-            # Tolerate trailing words, e.g. "## When to Use This Skill".
-            if not re.search(rf"^{re.escape(section)}\b", text, re.MULTILINE):
-                warnings.append(f"{rel} missing '{section}' section")
-    return warnings
-
-
 def check_skill_length(plugin_path: Path) -> list[str]:
     """Long skills should be split into references/."""
     warnings = []
@@ -584,6 +617,8 @@ def validate_plugins(
 
     for msg in find_forbidden_sidecars(repo_root):
         result.add("<repo>", msg)
+    for msg in check_dependabot_lockfiles(repo_root):
+        result.add("<repo>", msg)
 
     # Scoped to plugins this branch actually touched. Empty when there is no base ref
     # (a push to main, or a local run), which switches the version check off entirely.
@@ -621,8 +656,6 @@ def validate_plugins(
         if plugin_name not in readme_plugins:
             result.add(plugin_name, "not found in README.md")
 
-        for msg in check_required_sections(plugin_path):
-            result.add(plugin_name, msg, WARNING)
         for msg in check_skill_length(plugin_path):
             result.add(plugin_name, msg, WARNING)
 
@@ -893,26 +926,6 @@ def _self_test_warnings(ran: list[str]) -> None:
         root = Path(tmp)
         plugin = _build_demo(root)
         skill = plugin / "skills" / "demo" / "SKILL.md"
-        skill.write_text(skill.read_text().replace("## When NOT to Use", "## Notes"))
-        warnings = _warnings_for(root)
-        _check(ran, "missing When NOT to Use", any("When NOT to Use" in w for w in warnings))
-        _check(ran, "required sections are warnings only", not _errors_for(root))
-
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        plugin = _build_demo(root)
-        skill = plugin / "skills" / "demo" / "SKILL.md"
-        skill.write_text(skill.read_text().replace("## When to Use", "## When to Use This Skill"))
-        _check(
-            ran,
-            "trailing words on section heading tolerated",
-            not any("When to Use" in w for w in _warnings_for(root)),
-        )
-
-    with tempfile.TemporaryDirectory() as tmp:
-        root = Path(tmp)
-        plugin = _build_demo(root)
-        skill = plugin / "skills" / "demo" / "SKILL.md"
         skill.write_text(skill.read_text() + "\n" + ("filler\n" * (SKILL_LINE_LIMIT + 5)))
         _check(ran, "oversize SKILL.md", any("over the 500" in w for w in _warnings_for(root)))
 
@@ -980,6 +993,32 @@ def _self_test_guards(ran: list[str]) -> None:
         _check(ran, "forbidden .agents tree", any(".agents" in e for e in _errors_for(root)))
 
     _check(ran, "makefile and CI pin the same ruff", _check_ruff_parity() is None)
+
+    # The dependabot lockfile rule, including the case where the checker itself
+    # parses nothing — the failure mode the rule exists to prevent, one level up.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        cfg = root / ".github" / "dependabot.yml"
+        body = (
+            "version: 2\nupdates:\n  - package-ecosystem: uv\n    directories:\n"
+            "      - /plugins/locked\n      - /plugins/unlocked\n"
+            "    schedule:\n      interval: weekly\n"
+            "  - package-ecosystem: github-actions\n    directory: /\n"
+            "    schedule:\n      interval: weekly\n"
+        )
+        _write(cfg, body)
+        _write(root / "plugins" / "locked" / "uv.lock", "version = 1\n")
+        (root / "plugins" / "unlocked").mkdir(parents=True)
+        errs = check_dependabot_lockfiles(root)
+        _check(ran, "missing uv.lock is reported", any("unlocked" in e for e in errs))
+        _check(ran, "present uv.lock is accepted", not any("/plugins/locked" in e for e in errs))
+
+        _write(cfg, body.replace("      - /plugins/locked\n      - /plugins/unlocked\n", ""))
+        _check(
+            ran,
+            "uv block parsing nothing is an error",
+            any("inspected nothing" in e for e in check_dependabot_lockfiles(root)),
+        )
 
     # The version check must apply only to plugins the branch touched. Without this
     # scoping it demanded a bump from every plugin in the repo on every PR — which is

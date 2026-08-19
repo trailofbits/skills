@@ -124,32 +124,32 @@ If the cheap check fails, expensive checks never run.
 | **PE files** | `filesize < 10MB and uint16(0) == 0x5A4D and ...` |
 | **JavaScript** | `filesize < 1MB and ...` (no magic bytes, JS files are text) |
 | **npm packages** | Check for `"name":` or `package.json` content first |
-| **Office docs (OOXML)** | `filesize < 50MB and uint32(0) == 0x504B0304 and ...` |
+| **Office docs (OOXML)** | `filesize < 50MB and uint32(0) == 0x04034B50 and ...` |
 | **Chrome extensions** | `crx.is_crx and ...` (use crx module) |
-| **Android apps** | `dex.header.magic == "dex\n" and ...` (use dex module) |
+| **Android apps** | `dex.is_dex and ...` (use dex module) |
 
-### Use `for..of` Efficiently
+> `uint32()` reads little-endian, so the OOXML constant is the `50 4B 03 04` header
+> byte-reversed. `dex.header.magic` is an **integer** — comparing it to `"dex\n"`
+> fails to compile with a type mismatch. Use `dex.is_dex`.
 
-```yara
-// SLOW: Checks all strings even after match
-any of them
+### Constrain Where a Match Counts
 
-// FAST: Short-circuits after first match
-for any of them : ( $ )
-
-// OPTIMIZED: With early exit
-for any i in (0..#s1) : ( @s1[i] < 1000 )
-```
-
-### Prefer `in` Over Position Calculations
+Positional constraints cut work at the verification stage — a header marker that
+must land in the first kilobyte does not need checking against hits deep in a
+100MB file:
 
 ```yara
-// SLOWER: Arithmetic
-$header at pe.entry_point + 100
-
-// FASTER: Range check
-$header in (pe.entry_point..pe.entry_point + 200)
+$marker in (0..1024)              // Bounded window
+$header at pe.entry_point         // Single offset — cheapest of the three
+$s in (pe.entry_point..pe.entry_point + 200)
 ```
+
+`at` is cheaper than `in`, and both are cheaper than an unconstrained match. Pick
+the tightest one the malware actually allows — a constraint that is too tight
+costs you detections, which is worse than the cycles it saves.
+
+> Note that `any of them` and `for any of them : ( $ )` are equivalent; YARA-X
+> short-circuits both. Rewriting one as the other buys nothing.
 
 ### Avoid Module Overhead When Possible
 

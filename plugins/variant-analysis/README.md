@@ -6,27 +6,30 @@ Find similar vulnerabilities and bugs across codebases using pattern-based analy
 
 ## When to Use
 
-Use this skill when you need to:
 - Hunt for bug variants after finding an initial vulnerability
 - Build CodeQL or Semgrep queries from a known bug pattern
 - Perform systematic code audits across large codebases
-- Analyze security vulnerabilities and find similar instances
 - Create reusable patterns for recurring vulnerability classes
 
 ## What It Does
 
-This skill provides a systematic five-step process for variant analysis:
-1. **Understand the original issue** - Identify root cause, conditions, and exploitability
-2. **Create an exact match** - Start with a pattern matching only the known bug
-3. **Identify abstraction points** - Determine what can be generalized
-4. **Iteratively generalize** - Expand patterns one element at a time
-5. **Analyze and triage** - Document and prioritize findings
+A five-step process: extract the root cause, write a pattern matching only the known bug,
+generalize it one element at a time, triage what it finds, and report.
 
-Includes:
+Each step has its own strategy reference under `skills/variant-analysis/references/`.
+
+## Entry Points
+
+| | Use when |
+|---|---|
+| `/variant-analysis:variants` | Workflow, for a large codebase or a root cause with many manifestations. Runs the steps across parallel subagents, one per expansion axis (generalizing variable names, function names, sink APIs, …), looping until the sweep stops finding anything new. Takes `bug`, `root`, `lang`, `out` as a JSON object, which Claude fills from the current context. Below ~40 source files (the primary language's, excluding vendored and fixture trees) it sweeps narrow and once, because fan-out buys nothing at that size. |
+| The `variant-analysis` skill | The knowledge behind the workflow, and the path for a narrow hunt you want to drive yourself — a handful of files, pasted snippets, or a candidate list to triage against a known root cause. Both fire on their own from a conversational "are there others like this?"; measured on a real codebase, Claude reaches for the workflow more often than the skill, so ask for the skill by name if you want to weigh in on each generalization. |
+
+## Included
+
 - Tool selection guidance (ripgrep, Semgrep, CodeQL)
-- Critical pitfalls to avoid (narrow scope, over-specific patterns)
-- Ready-to-use templates for CodeQL and Semgrep in Python, JavaScript, Java, Go, and C++
-- Detailed methodology documentation
+- Ready-to-use CodeQL and Semgrep templates for Python, JavaScript, Java, Go, and C++
+- A report template, and the pitfalls that most often cause hunts to miss variants
 
 ## Installation
 
@@ -36,6 +39,6 @@ Includes:
 
 ## Related Skills
 
-- `codeql` - Primary tool for deep interprocedural variant analysis
-- `semgrep` - Fast pattern matching for simpler variants
-- `sarif-parsing` - Process variant analysis results
+- `codeql` — deep interprocedural variant analysis
+- `semgrep` — fast pattern matching for simpler variants
+- `sarif-parsing` — process variant analysis results
