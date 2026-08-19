@@ -140,6 +140,15 @@ def test_kind_other_than_fail_is_none(kind):
     assert resolve_level({"ruleId": "r", "kind": "fail"}, run) == "error"
 
 
+@pytest.mark.parametrize("kind", [None, "fail"])
+def test_null_or_fail_kind_resolves_from_the_rule(kind):
+    """SARIF's `kind` defaults to "fail", and the jq gate coalesces null with `// "fail"`.
+    `.get("kind", "fail")` would instead read an explicit null and hide the error as
+    "none", so the resolver must coalesce null to "fail" to agree with the jq gate."""
+    run = {"tool": {"driver": {"rules": [{"id": "r", "defaultConfiguration": {"level": "error"}}]}}}
+    assert resolve_level({"ruleId": "r", "kind": kind}, run) == "error"
+
+
 def test_unmatched_rule_falls_back_to_sarif_default():
     run = {"tool": {"driver": {"name": "tool-with-no-rule-metadata"}}}
     assert resolve_level({"ruleId": "r"}, run) == "warning"

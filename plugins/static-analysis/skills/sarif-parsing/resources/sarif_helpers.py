@@ -121,7 +121,7 @@ def resolve_level(result: dict, run: dict) -> str:
     `invocations[].ruleConfigurationOverrides` can outrank the rule default; no tool in
     common use emits it, so this does not read it.
     """
-    if result.get("kind", "fail") != "fail":
+    if (result.get("kind") or "fail") != "fail":
         return "none"
 
     level = result.get("level")

@@ -165,15 +165,12 @@ for run in sarif.runs:
     tool_name = run.tool.driver.name
     print(f"Tool: {tool_name}")
 
-    # Rule defaults, for the results that carry no level of their own
-    rule_levels = {
-        r.id: getattr(r.default_configuration, "level", None)
-        for r in (run.tool.driver.rules or [])
-    }
-
     for result in run.results:
-        level = result.level or rule_levels.get(result.rule_id) or "warning"
-        print(f"  [{level}] {result.rule_id}: {result.message.text}")
+        # pysarif fills a missing result.level with "warning", so .level here is NOT the
+        # rule-inherited severity: a CodeQL error (no level on the result, severity on the
+        # rule) reads as "warning". Gate severity with Strategy 1's level() or with
+        # resolve_level() in resources/sarif_helpers.py, which resolve it from the rule.
+        print(f"  {result.rule_id}: {result.message.text}")
 
         if result.locations:
             loc = result.locations[0].physical_location
