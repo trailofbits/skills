@@ -5,10 +5,11 @@ Stress-test claims, designs, and bug findings by dispatching two isolated sub-ag
 ## When to Use
 
 - Choosing between competing technical approaches
-- Verifying a bug finding is real (not a false positive)
 - Reviewing a design decision before commit
 - Any claim you're inclined to agree with by default
 - Stress-testing your own reasoning when you suspect it may be one-sided
+
+Deciding whether a security finding is a true or false positive belongs to `fp-check`, which does the data-flow tracing and exploitability analysis this skill does not.
 
 ## What It Does
 
@@ -19,7 +20,7 @@ Counters sycophancy and single-agent agreement bias by forcing maximal disagreem
 | Mode | Claim type | Structure |
 |------|-----------|-----------|
 | **Decision mode** | "X is the best approach" | Free-form arguments organized by evaluation dimensions |
-| **Proof mode** | "X is a real bug/finding" | N null hypotheses — skeptic proves, advocate refutes |
+| **Proof mode** | "X is real" — a perf regression, a reproducibility claim, a non-security assertion | N null hypotheses — skeptic proves, advocate refutes |
 
 ## Installation
 

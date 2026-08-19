@@ -23,8 +23,8 @@ Default set of 5 null hypotheses for a crash or fault finding:
 |---|----------------|----------------|
 | P1 | This is normal error handling, not a crash | Exit code matches spec; stderr shows intentional rejection |
 | P2 | This is a harness artifact | Doesn't reproduce in a clean environment (different shell, fresh binary) |
-| P3 | This is a benign assertion | SIGABRT in validation code with no exploitability path |
-| P4 | The input is unreachable by a real attacker | Requires privileged access or an artificial construction |
+| P3 | This is a benign assertion | SIGABRT in validation code, on a path the program is designed to reject |
+| P4 | The input is unreachable in practice | Requires an artificial construction no real caller produces |
 | P5 | Already fixed in a newer version | Crash doesn't reproduce on current release |
 
 Adapt the set to the claim. Other claim types need different P values — e.g., for a performance regression claim: P1 = measurement noise, P2 = cold cache, P3 = unrelated background load, etc.
@@ -62,15 +62,15 @@ The verdict is the caller's, not either agent's. Each agent reports a label for 
 | CANNOT REFUTE | PROVED, evidence graded | **PROVED** — the null stands |
 | CANNOT REFUTE | CANNOT PROVE | **UNCERTAIN** — neither side reached the question |
 
-**Step 3 — combine into the finding's verdict.**
+**Step 3 — combine into the finding's verdict.** First matching row wins, top to bottom: a proved null kills the finding regardless of what else is unresolved.
 
 | Condition | Verdict |
 |-----------|---------|
-| Every P **REFUTED** | **CONFIRMED** — the finding is real |
 | Any P **PROVED** | **DISMISSED** — the finding is a false positive |
 | Any P **UNCERTAIN** | **UNCERTAIN** — close out that specific P before committing |
+| Every P **REFUTED** | **CONFIRMED** — the finding is real |
 
-**CANNOT REFUTE on any P caps the verdict at UNCERTAIN.** The fourth row of step 2 is the one that matters most in practice: no reproducer, no source access, budget exhausted — neither agent ever reached the question. That is not a null the advocate killed, and it must never read as CONFIRMED. Absence of evidence against a finding is not evidence for it, so a run that verified nothing has to end in a different verdict from a run that verified everything. This is the rule that makes those two runs look different.
+**CANNOT REFUTE on any P puts CONFIRMED out of reach.** The fourth row of step 2 is the one that matters most in practice: no reproducer, no source access, budget exhausted — neither agent ever reached the question. That is not a null the advocate killed, and it must never read as CONFIRMED. Absence of evidence against a finding is not evidence for it, so a run that verified nothing has to end in a different verdict from a run that verified everything. This is the rule that makes those two runs look different.
 
 ## Structured output
 

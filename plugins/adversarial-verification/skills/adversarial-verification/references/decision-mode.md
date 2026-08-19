@@ -89,7 +89,7 @@ The verdict table should have one row per dimension. For each dimension, pick wh
 - **No basis** — neither side brought checkable evidence on this dimension. Record it as such or cut the dimension; two speculations do not make a winner
 
 Example verdict row, from a debate about using a native ARM64 compile as the reference output for a translated x86 program:
-| Dimension | Advocate says | Skeptic says | Verdict |
+| Dimension | Advocate position | Skeptic position | Verdict |
 |-----------|---------------|--------------|---------|
 | Oracle correctness | Native ARM64 compile is a valid reference | Clang can miscompile; need Intel HW to disambiguate | **Skeptic wins** — advocate didn't address the compiler-bug-vs-translator-bug ambiguity. |
 
@@ -112,7 +112,7 @@ Advocate dimensions: speed gain (10x), unblocks semantic bug detection, low effo
 Skeptic dimensions: still no ARM64 execution, still only finds crashes, Track 3 has higher ceiling
 
 Verdict:
-| Dimension | Advocate says | Skeptic says | Verdict |
+| Dimension | Advocate position | Skeptic position | Verdict |
 |-----------|---------------|--------------|---------|
 | Short-term speed | Persistent harness is a 10x throughput gain | Does not contest the number | **Advocate wins** — 10x is 10x |
 | Semantic bug detection | The comparator fix unblocks it | Track 2 adds no ARM64 execution, so wrong-answer bugs stay invisible | **Skeptic wins** |

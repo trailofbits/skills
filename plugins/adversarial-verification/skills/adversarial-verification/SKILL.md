@@ -56,7 +56,7 @@ If unsure, default to decision mode.
 
 Use the Agent tool with TWO tool calls in a SINGLE message (parallel dispatch): one to `adversarial-verification:advocate`, one to `adversarial-verification:skeptic`. Each agent is a fresh context with no knowledge of the other.
 
-Both agents ship with read-only tools (Read, Grep, Glob, WebSearch), declared in the agent definitions rather than asked for in the prompt. "RESEARCH ONLY" in a prompt is a request an agent can talk itself out of; a `tools:` list is a constraint. Verification must not be able to modify the tree it is verifying — a skeptic testing "this doesn't reproduce in a clean environment" would otherwise be one edit away from changing the user's code during what was sold as a read-only check.
+Both agents ship with read-only tools (Read, Grep, Glob, WebSearch), declared in the agent definitions. The templates still open with "RESEARCH ONLY", but that line is a reminder, not the enforcement: a prompt marker is a request an agent can talk itself out of, while a `tools:` list is a constraint. Verification must not be able to modify the tree it is verifying — a skeptic testing "this doesn't reproduce in a clean environment" would otherwise be one edit away from changing the user's code during what was sold as a read-only check.
 
 Load prompt templates from [references/prompt-templates.md](references/prompt-templates.md). The templates enforce:
 - Each agent argues ONE side maximally, not balanced
@@ -108,7 +108,7 @@ Do NOT dump the raw agent outputs unless the user asks. The verdict is the produ
 See [references/anti-patterns.md](references/anti-patterns.md) for full failure modes. The three most important:
 
 1. **False symmetry** — treating both sides as equally valid when one is clearly stronger. The *recommendation* must pick a direction, not split the difference. Individual rows may legitimately come back unresolved; a recommendation may not.
-2. **Hedged agents** — agents that softened their argument. If an agent returns a balanced view, re-dispatch once with a stronger prompt. If the retry hedges too, the question is undecidable on the available evidence — record **No basis** rather than dispatching again.
+2. **Hedged agents** — agents that softened their argument. If an agent returns a balanced view, re-dispatch once with a stronger prompt. If the retry hedges too, the question is undecidable on the available evidence — record **No basis** (decision mode) or **UNCERTAIN** (proof mode) rather than dispatching again.
 3. **Shared context leakage** — mentioning the other agent's arguments in either prompt. This collapses independence. Each prompt must be written as if that agent is the only one you've asked.
 
 ## Examples

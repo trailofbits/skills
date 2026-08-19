@@ -82,7 +82,7 @@ Claim: "FINDING-001 (pcmpestrm register allocator abort) is a real translation b
 | P4: unreachable input | Requires crafted OOB memory | Real compilers emit RIP-relative addressing; any OOB offset is reachable | **REFUTED** |
 | P5: already fixed | Untested on newer | Reproduces on macOS 26.4 (current) | **REFUTED** |
 
-Recommendation: **CONFIRMED.** All 5 null hypotheses refuted with reproducible evidence. The crash is a real translation-path register allocator exhaustion in `libRosettaAot.dylib`, and its observed effect is a controlled SIGABRT — local denial of service, not memory corruption. Report as a finding; do not pursue as a critical vuln. Severity rating is out of scope for this skill, which produces a verdict and not a score: state the observed impact and let the caller's own severity process grade it.
+Recommendation: **CONFIRMED.** All 5 null hypotheses refuted with reproducible evidence. The crash is a real translation-path register allocator exhaustion in `libRosettaAot.dylib`, and its observed effect is a controlled SIGABRT — local denial of service, not memory corruption. Report as a finding with that observed impact stated. Severity rating is out of scope for this skill, which produces a verdict and not a score: state the observed impact and let the caller's own severity process grade it.
 
 ## When the verdict is mixed
 

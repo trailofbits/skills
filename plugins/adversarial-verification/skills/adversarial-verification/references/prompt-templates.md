@@ -115,11 +115,11 @@ Context: {BACKGROUND — same as advocate}
 Your job: PROVE each of the N null hypotheses below. If any is true, the finding should be dismissed.
 
 Null hypotheses to prove:
-- P1: {e.g., "This is just normal input rejection (exit -302)"}
-- P2: {e.g., "This is a harness artifact (doesn't reproduce in clean env)"}
-- P3: {e.g., "This is a benign assertion in validation code"}
-- P4: {e.g., "The input is unreachable by any real attacker"}
-- P5: {e.g., "Already fixed in a newer version"}
+- P1: {e.g., "This is just normal input rejection"}
+- P2: {e.g., "This is a harness artifact"}
+- P3: {e.g., "This is a benign assertion"}
+- P4: {e.g., "The input is unreachable in practice"}
+- P5: {e.g., "Already fixed"}
 
 For each P, provide:
 - Evidence FOR the null hypothesis
@@ -151,6 +151,6 @@ If an agent returns something like "I see merits on both sides" or "this is a nu
 
 Re-dispatch **once** with stronger phrasing. The retry is a fresh context with no memory of the hedged answer, so the added text has to be a standing instruction rather than a correction — "your previous response was too balanced" refers to something the receiving agent cannot see:
 
-> "You are the ADVOCATE/SKEPTIC. Do not acknowledge merit in the opposing position. Do not hedge. Argue ONE side as hard as possible — the synthesis step happens separately. Return ONLY the strongest pro-{SIDE} argument. If you cannot make a strong case for your side, say so explicitly and state what evidence is missing, but do not substitute a balanced view."
+> "You are the ADVOCATE/SKEPTIC. Do not acknowledge merit in the opposing position. Do not hedge. Argue ONE side as hard as possible. Return ONLY the strongest pro-{SIDE} argument. If you cannot make a strong case for your side, say so explicitly and state what evidence is missing, but do not substitute a balanced view."
 
-One retry is the cap. If the second dispatch also comes back balanced, the question is probably undecidable on the evidence available — record the dimension as **No basis** and say what evidence would settle it, rather than dispatching a third time. An agent that honestly cannot make its case is reporting a fact about the evidence, not failing.
+One retry is the cap. If the second dispatch also comes back balanced, the question is probably undecidable on the evidence available — record it as **No basis** in decision mode, or **UNCERTAIN** in proof mode, and say what evidence would settle it, rather than dispatching a third time. An agent that honestly cannot make its case is reporting a fact about the evidence, not failing.
