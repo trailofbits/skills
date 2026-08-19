@@ -51,6 +51,8 @@ NAIVE_GATE = '[.runs[].results[] | select(.level == "error")] | length'
 
 FENCE = re.compile(r"^```[a-z]*\n(.*?)^```", re.MULTILINE | re.DOTALL)
 LEVEL_FN = re.compile(r"LEVEL_FN='\n(.*?)'\n", re.DOTALL)
+# The GitHub Actions gate, which inlines its own copy of the resolver.
+CI_GATE = re.compile(r"HIGH_COUNT=\$\(jq '\n(.*?)\n\s*' results\.sarif\)", re.DOTALL)
 
 
 def results_of(sarif: dict) -> list[dict]:
@@ -184,6 +186,17 @@ def test_jq_and_python_resolution_agree():
 
 def test_skill_and_reference_publish_the_same_resolution():
     assert documented_level_fn(SKILL) == documented_level_fn(JQ_QUERIES)
+
+
+def test_the_github_actions_gate_runs_and_counts_the_inherited_error():
+    """The gate from issue #262, run as published. It inlines its own copy of the
+    resolver because a workflow step has no shell variable to paste into, so comparing
+    the LEVEL_FN blocks does not cover it."""
+    match = CI_GATE.search(SKILL.read_text())
+    assert match, "the GitHub Actions gate is no longer where this test reads it"
+    program = match.group(1)
+    assert jq(program, NO_LEVEL) == "1"
+    assert jq(program, WITH_LEVEL) == "1"
 
 
 def test_documented_jq_does_not_read_the_last_rule_for_rule_index_minus_one(tmp_path):
