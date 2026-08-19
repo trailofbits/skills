@@ -118,7 +118,9 @@ class Buffer {
 public:
     template <typename Self>
     auto&& operator[](this Self&& self, size_t i) {
-        return std::forward<Self>(self).data_[i];
+        // forward_like, not forward: vector::operator[] is not ref-qualified,
+        // so forwarding the object alone would drop the rvalue case
+        return std::forward_like<Self>(self.data_[i]);
     }
 };
 ```

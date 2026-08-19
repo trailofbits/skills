@@ -252,7 +252,8 @@ Suspendable functions for lazy computation and async I/O.
 - CPU-bound parallel work (coroutines cooperate, they don't parallelize)
 - Simple synchronous code (unnecessary complexity)
 - Reimplementing coroutine types (`generator`, `task`) that libraries already provide
-- Custom awaiters are fine when adapting async libraries to coroutines — that's often the only way to bridge callback-based APIs
+
+Custom awaiters are fine when adapting async libraries to coroutines — that's often the only way to bridge callback-based APIs.
 
 ### With std::generator (C++23)
 
