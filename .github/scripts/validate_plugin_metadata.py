@@ -84,18 +84,28 @@ SEMVER_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
 # letters does not match. Python's re supports lookbehind natively, which is the whole
 # reason this lives here rather than in the CI grep it replaces: `grep -P` is a GNU
 # extension and this repo's house rule is POSIX ERE, portable to BSD grep on macOS.
-HARDCODED_PATH_PATTERN = re.compile(r"(?<![a-zA-Z])(?:/home/[a-z]|/Users/[A-Z])")
+#
+# Both branches accept either case. The version inherited from the CI step matched
+# `/Users/[A-Z]` only, so every conventionally-lowercase macOS account name — the
+# overwhelmingly common form, `/Users/alice`, and this repo's own `/Users/user` — went
+# undetected while the `/home/` branch caught its equivalents. The check missed the
+# thing it exists to find.
+HARDCODED_PATH_PATTERN = re.compile(r"(?<![a-zA-Z])(?:/home/[A-Za-z]|/Users/[A-Za-z])")
 # Shell, bats, yaml and toml included deliberately: test fixtures and install scripts
 # are exactly where absolute paths hide.
 HARDCODED_PATH_SUFFIXES = (".md", ".py", ".json", ".sh", ".bats", ".yml", ".toml")
 # The shim suites need literal /home/user paths to test what they exist to test.
 HARDCODED_PATH_EXEMPT_SUFFIX = "-shim.bats"
-# Placeholders and container-image paths, not any individual's home directory.
-HARDCODED_PATH_PLACEHOLDERS = ("/path/to", "/home/vscode")
+# Placeholders, illustrative examples and shared system paths — none of them is an
+# individual's home directory. `/Users/Shared` is a real macOS system directory, and
+# `/Users/me` is the stand-in name c-review's docs use when showing that a path with a
+# space has to stay quoted. Both only need listing because the pattern above now accepts
+# lowercase; keep this list to forms that cannot be somebody's actual account.
+HARDCODED_PATH_PLACEHOLDERS = ("/path/to", "/home/vscode", "/Users/Shared", "/Users/me/")
 
 # Floor for --self-test, set to the exact number of assertions the fixtures run. There is
 # no slack on purpose: dropping one has to be a deliberate edit here, not a silent loss.
-SELF_TEST_MINIMUM = 43
+SELF_TEST_MINIMUM = 45
 
 
 @dataclass
@@ -1062,6 +1072,24 @@ def _self_test_errors(ran: list[str]) -> None:
             "hardcoded /Users path",
             any("hardcodes an absolute user path" in e for e in _errors_for(root)),
         )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # The case the inherited pattern missed. macOS account names are lowercase by
+        # convention, so this is the form a real leaked path almost always takes.
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "scripts" / "run.sh", "#!/usr/bin/env bash\ncd /Users/alice/cc/skills\n")
+        _check(
+            ran,
+            "hardcoded lowercase /Users path",
+            any("hardcodes an absolute user path" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "skills" / "demo" / "shared.md", "Drop it in /Users/Shared/build.\n")
+        _check(ran, "macOS shared directory is not a personal path", not _errors_for(root))
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
