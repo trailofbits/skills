@@ -161,8 +161,7 @@ fi
 log_step "Quality improvement: install type stubs/additional deps"
 
 # Python type stubs — install into target project's environment
-# allow-legacy-python: installs stubs and deps into the ANALYSED project's environment;
-# that project is arbitrary and may not be uv-managed.
+# allow-legacy-python: installs into the analysed project's environment, which may not be uv-managed.
 STUBS_INSTALLED=""
 for stub in types-requests types-PyYAML types-redis; do
   if pip install "$stub" 2>/dev/null; then

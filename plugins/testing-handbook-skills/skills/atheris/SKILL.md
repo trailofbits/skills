@@ -65,6 +65,7 @@ Atheris supports 32-bit and 64-bit Linux, and macOS. We recommend fuzzing on Lin
 ### Linux/macOS
 
 ```bash
+uv init --bare   # once, if the harness directory is not yet a uv project
 uv add atheris
 ```
 

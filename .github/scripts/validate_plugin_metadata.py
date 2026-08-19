@@ -79,39 +79,22 @@ KEBAB_CASE_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 PLUGIN_NAME_MAX_LENGTH = 64
 SEMVER_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
 
-# An absolute path to one developer's machine, which resolves nowhere for anybody else.
-# The lookbehind anchors to a path-segment boundary so a longer word ending in the same
-# letters does not match. Python's re supports lookbehind natively, which is the whole
-# reason this lives here rather than in the CI grep it replaces: `grep -P` is a GNU
-# extension and this repo's house rule is POSIX ERE, portable to BSD grep on macOS.
-#
-# Both branches accept either case. The version inherited from the CI step matched
-# `/Users/[A-Z]` only, so every conventionally-lowercase macOS account name — the
-# overwhelmingly common form, `/Users/alice`, and this repo's own `/Users/user` — went
-# undetected while the `/home/` branch caught its equivalents. The check missed the
-# thing it exists to find.
+# An absolute path into one developer's home directory. The lookbehind anchors to a
+# path-segment boundary. Both branches accept either case: macOS account names are
+# conventionally lowercase, and a /Users/[A-Z]-only match misses nearly all of them.
 HARDCODED_PATH_PATTERN = re.compile(r"(?<![a-zA-Z])(?:/home/[A-Za-z]|/Users/[A-Za-z])")
-# Shell, bats, yaml and toml included deliberately: test fixtures and install scripts
-# are exactly where absolute paths hide.
+# Test fixtures and install scripts are where absolute paths hide.
 HARDCODED_PATH_SUFFIXES = (".md", ".py", ".json", ".sh", ".bats", ".yml", ".toml")
-# The shim suites need literal /home/user paths to test what they exist to test.
+# The shim suites need literal /home/user paths.
 HARDCODED_PATH_EXEMPT_SUFFIX = "-shim.bats"
-# Placeholders, illustrative examples and shared system paths — none of them is an
-# individual's home directory. `/Users/Shared` is a real macOS system directory, and
-# `/Users/me` is the stand-in name c-review's docs use when showing that a path with a
-# space has to stay quoted. Both only need listing because the pattern above now accepts
-# lowercase; keep this list to forms that cannot be somebody's actual account.
+# Placeholders, illustrative examples (`/Users/me/` in c-review's docs) and shared system
+# paths — keep this list to forms that cannot be somebody's actual account.
 HARDCODED_PATH_PLACEHOLDERS = ("/path/to", "/home/vscode", "/Users/Shared", "/Users/me/")
 
-# Invocations the modern-python plugin's PATH shims refuse. Any of these in a documented
-# command means the skill cannot run for anyone who has that plugin installed — which is
-# how thirteen plugins in this marketplace came to be broken by another plugin in it.
-#
-# Unanchored on purpose. Anchoring at line start missed the two places these actually hide:
-# a command inside a markdown table cell (`| Build image | `python3 infra/helper.py` |`) and
-# a call wrapped in a helper (`run_logged pip install -r requirements.txt`). Both are real
-# commands a reader copies or a script runs. The cost of matching broadly is the two guards
-# below, which are explicit and reviewable, rather than an anchor that silently under-detects.
+# Documented commands the modern-python plugin's PATH shims refuse — a skill carrying one
+# cannot run for anyone with that plugin installed. Unanchored, because violations hide
+# mid-line (markdown table cells, `run_logged pip install …`); the guards below carve out
+# the legitimate uses explicitly rather than under-detecting via an anchor.
 LEGACY_PYTHON_PATTERNS = (
     (
         re.compile(r"\bpython3?\s+(?!-)\S*\.py\b"),
@@ -130,19 +113,15 @@ LEGACY_PYTHON_PATTERNS = (
         "uses the legacy `uv pip` interface; use `uv add`, `uv sync`, or `uv tool install`",
     ),
 )
-# Prose that names a forbidden command in order to forbid it. trailmark's dispatch skills say
-# "Do NOT run `pip install`, `uv pip install`" and must keep saying exactly that.
+# Prose that names a command in order to forbid it ("Do NOT run `pip install`").
 LEGACY_PYTHON_PROHIBITIONS = ("do not run", "don't run", "do not use", "never run", "instead of")
-# Because the patterns are unanchored, `uv run --no-project python fuzz.py` contains a literal
-# `python fuzz.py`. Matching text already introduced by a compliant `uv run` is the fix, not a
-# violation — without this the check flags the very form it tells you to use.
+# `uv run --no-project python fuzz.py` contains a literal `python fuzz.py`; text already
+# introduced by a compliant `uv run` is the fix, not a violation.
 LEGACY_PYTHON_COMPLIANT_PREFIX = re.compile(r"uv\s+run\s+(?:--?[A-Za-z-]+(?:[= ]\S+)?\s+)*$")
-# `uv pip` carrying one of these is a tool managing an environment it owns, which the shim
-# permits and which prek and similar tools legitimately need.
+# A tool managing an environment it owns (prek installs hooks this way); the shim permits it.
 LEGACY_PYTHON_UV_PIP_ALLOWED = ("--project", "--directory", "--target")
-# An escape hatch that must state a reason, for commands that genuinely run somewhere the
-# shim does not: inside a container, or as a target project's own build. Structural
-# `dockerfile` fences are detected instead and need no marker.
+# Exempts the rest of its code block, for commands that run where the shims are absent
+# (a container, a target project's own build). Must state a reason.
 LEGACY_PYTHON_ALLOW_MARKER = "allow-legacy-python:"
 
 # Floor for --self-test, set to the exact number of assertions the fixtures run. There is
@@ -514,29 +493,23 @@ def find_legacy_python_invocations(repo_root: Path) -> tuple[list[str], int]:
     if not plugins_dir.is_dir():
         return errors, scanned
 
-    # Shell scripts as well as markdown. Scanning only docs missed ten live invocations in
-    # `plugins/variant-analysis/tests/`, which is precisely what AGENTS.md recorded as the
-    # reason `make shell-suites` could not pass.
+    # .sh as well as .md: a docs-only sweep missed ten live invocations in test harnesses.
     candidates = sorted(plugins_dir.rglob("*.md")) + sorted(plugins_dir.rglob("*.sh"))
     for path in candidates:
         if not path.is_file():
             continue
         if path.is_relative_to(plugins_dir / "modern-python"):
             continue
-        # Eval graders and cases quote commands as the thing under test — a grader that
-        # checks the model "gives installation instructions (`pip install hypothesis`)" is
-        # describing an expectation, not issuing a command. Shell suites under tests/ ARE
-        # commands, so only markdown is exempt on that basis.
+        # Markdown under evals*/tests quotes commands as the thing under test; shell
+        # suites there ARE commands, so only .md gets that exemption.
         if path.suffix == ".md" and any(
             part.startswith("evals") or part == "tests" for part in path.parts
         ):
             continue
         scanned += 1
 
-        # A `dockerfile` fence runs in a container, where our PATH shims are not present.
+        # A `dockerfile` fence runs in a container, where the PATH shims are absent.
         in_dockerfile = False
-        # An allow-marker exempts the remainder of its block, which is what lets one marker
-        # cover a loop or an if-wrapper rather than needing one per line.
         block_exempt = False
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
         for lineno, line in enumerate(lines, 1):
@@ -1009,7 +982,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if result.python_docs_scanned == 0:
-        print("\n✗ legacy-python scan read no markdown at all — discovery is broken")
+        print("\n✗ legacy-python scan read no files at all — discovery is broken")
         return 1
 
     errors = [f for f in result.findings if f.severity == ERROR]
@@ -1237,8 +1210,7 @@ def _self_test_errors(ran: list[str]) -> None:
         _write(plugin / "skills" / "demo" / "devcontainer.md", "Workspace is /home/vscode/app.\n")
         _check(ran, "container image path is not a personal path", not _errors_for(root))
 
-    # The four forms modern-python's shims refuse, and the forms that must stay legal.
-    # Without these a documented command that no user can run reads as a clean repo.
+    # The four refused forms must fire; the compliant and exempt forms must not.
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         plugin = _build_demo(root)

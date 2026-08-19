@@ -283,8 +283,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
 **Build in build.sh:**
 ```bash
-# allow-legacy-python: build.sh runs inside the oss-fuzz base-builder container, where our
-# PATH shims are absent and pip is what the image provides.
 $CXX $CXXFLAGS -std=c++11 -I. \
     harness.cc -o $OUT/harness \
     $LIB_FUZZING_ENGINE ./libproject.a
@@ -341,8 +339,7 @@ if __name__ == "__main__":
 
 **Build in build.sh:**
 ```bash
-# allow-legacy-python: build.sh runs inside the oss-fuzz base-builder container, where our
-# PATH shims are absent and pip is what the image provides.
+# allow-legacy-python: build.sh runs inside the oss-fuzz container, where the shims are absent.
 pip3 install .
 for fuzzer in $(find $SRC -name 'fuzz_*.py'); do
   compile_python_fuzzer $fuzzer

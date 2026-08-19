@@ -41,9 +41,7 @@ log_step "Applying fix: install dependencies"
 FAILED_INSTALLS=()
 
 # Python — use target project's package manager (pip/uv/poetry)
-# allow-legacy-python: this installs the ANALYSED project's dependencies so CodeQL can
-# extract it. That project is arbitrary and may not be uv-managed, so substituting uv here
-# would change its build and risk an incomplete database.
+# allow-legacy-python: installs the analysed project's own deps; forcing uv could change its build.
 if [ -f requirements.txt ]; then
   run_logged pip install -r requirements.txt || FAILED_INSTALLS+=("pip install -r requirements.txt")
 fi
