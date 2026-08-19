@@ -2,7 +2,7 @@
 
 A Claude Code plugin marketplace from Trail of Bits providing skills to enhance AI-assisted security analysis, testing, and development workflows. Codex can load this marketplace through its Claude marketplace compatibility.
 
-> Also see: [claude-code-config](https://github.com/trailofbits/claude-code-config) · [skills-curated](https://github.com/trailofbits/skills-curated) · [claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) · [dropkit](https://github.com/trailofbits/dropkit)
+> Also see: [claude-code-config](https://github.com/trailofbits/claude-code-config) · [codex-config](https://github.com/trailofbits/codex-config) · [skills-curated](https://github.com/trailofbits/skills-curated) · [claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) · [dropkit](https://github.com/trailofbits/dropkit) · [coop](https://github.com/trailofbits/coop)
 
 ## Installation
 
@@ -107,6 +107,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [devcontainer-setup](plugins/devcontainer-setup/) | Create pre-configured devcontainers with Claude Code and language-specific tooling |
 | [gh-cli](plugins/gh-cli/) | Intercept GitHub URL fetches and redirect to the authenticated `gh` CLI |
 | [git-cleanup](plugins/git-cleanup/) | Safely clean up git worktrees and local branches: a dynamic workflow gathers merge evidence and tries to refute its own delete recommendations, behind gated confirmation |
+| [goal-prompt](plugins/goal-prompt/) | Draft `/goal` commands for goal mode in Claude Code and Codex — verifiable completion conditions formatted to a copy-ready single line |
 | [github-triage](plugins/github-triage/) | Triage open GitHub issues and PRs: merge ready bot/approved PRs, review unreviewed ones via subagents, close resolved issues with cited comments, cross-link pending fixes, and score the rest with local-only priority and change-size estimates |
 | [let-fate-decide](plugins/let-fate-decide/) | Draw Tarot cards using cryptographic randomness to add entropy to vague planning |
 | [modern-python](plugins/modern-python/) | Modern Python tooling and best practices with uv, ruff, and pytest |

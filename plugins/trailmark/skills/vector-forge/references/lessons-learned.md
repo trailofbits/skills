@@ -161,30 +161,16 @@ vectors immediately.
 mutation kill rates. They're a net for the implementations that
 will be written tomorrow, not just the ones that exist today.**
 
-## 14. Go's json.Marshal HTML-Escapes Characters in JSON Output
+## 14. Use Wycheproof's Vector Tooling
 
-Go's `json.Marshal` and `json.MarshalIndent` silently HTML-escape
-`>`, `<`, and `&` as `\u003e`, `\u003c`, `\u0026` in string values.
-This is the default behavior and applies to comment fields, notes,
-and any other string in the generated JSON.
+Wycheproof no longer relies on the Python `reformat_json.py` workflow.
+Its `vectorgen` tool accepts a small JSON envelope and adds, updates,
+or replaces vector data while handling `tcId` assignment,
+`numberOfTests`, canonical formatting, and schema validation.
 
-Wycheproof's `reformat_json.py` canonicalizes vector files and
-unescapes these sequences back to literal characters. The result:
-generated vectors fail the `reformat_json.py && git diff --exit-code`
-CI check immediately after generation.
-
-**Use `json.NewEncoder` with `SetEscapeHTML(false)` in every Go
-vector generator — never `json.Marshal` or `json.MarshalIndent`:**
-
-```go
-var buf bytes.Buffer
-enc := json.NewEncoder(&buf)
-enc.SetEscapeHTML(false)
-enc.SetIndent("", "  ")
-if err := enc.Encode(data); err != nil { ... }
-```
-
-This applies to any string that might contain `>`, `<`, or `&` —
-comments like "x >= field prime", notes with HTML, CVE descriptions,
-URLs, etc. The same bug will recur silently whenever a new comment
-or note uses these characters.
+**Use `vectorgen` instead of writing or reformatting complete vector
+files by hand. Go-based generators may call the programmatic
+`github.com/c2sp/wycheproof/vectorgen` API instead of invoking the
+CLI. Follow the upstream
+[vectorgen guide](https://github.com/C2SP/wycheproof/blob/main/doc/vectorgen.md)
+for current requirements, commands, envelope shapes, and validation.**
