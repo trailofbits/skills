@@ -80,44 +80,10 @@ jobs:
           print(f'All {skill_count} SKILL.md files have valid frontmatter')
           "
 
-      - name: Check for hardcoded paths
-        shell: bash
-        run: |
-          set -uo pipefail
-          echo "Checking for hardcoded user paths..."
-          # Shell, bats, yaml and toml were previously unscanned; test fixtures and
-          # install scripts are exactly where absolute paths tend to hide. The
-          # *-shim.bats exclusion covers gh-shim's /home/user/... fixtures.
-          INCLUDES=(--include='*.md' --include='*.py' --include='*.json'
-                    --include='*.sh' --include='*.bats' --include='*.yml'
-                    --include='*.toml')
-
-          # Prove the scan saw files before trusting a clean result. `if grep A |
-          # grep -v B` takes its status from the LAST command in the pipe, so a
-          # first-stage failure (renamed directory, a grep without -P) produced no
-          # output, exited 2, and printed "No hardcoded user paths found" while
-          # inspecting nothing — the same defect this PR exists to remove.
-          scanned=$(grep -rl '' plugins/ "${INCLUDES[@]}" | wc -l)
-          if [ "$scanned" -eq 0 ]; then
-            echo "ERROR: path scan matched no files at all — discovery is broken"
-            exit 1
-          fi
-          echo "Scanning $scanned file(s)"
-
-          hits=$(grep -rPn '(?<![a-zA-Z])(/home/[a-z]|/Users/[A-Z])' plugins/ \
-              "${INCLUDES[@]}" --exclude='*-shim.bats' || true)
-          rc=${PIPESTATUS[0]}
-          if [ "$rc" -gt 1 ]; then
-            echo "ERROR: grep failed with status $rc — the scan did not run"
-            exit 1
-          fi
-          hits=$(printf '%s\n' "$hits" | grep -v '/path/to' | grep -v '/home/vscode' || true)
-          if [ -n "$hits" ]; then
-            printf '%s\n' "$hits"
-            echo "ERROR: Found hardcoded user paths (see above)"
-            exit 1
-          fi
-          echo "No hardcoded user paths found"
+      # The hardcoded-path scan that used to live here is now find_hardcoded_paths() in
+      # validate_plugin_metadata.py, which this workflow already runs. Moving it there
+      # made it available to `make check` and to pre-commit, and dropped the dependency
+      # on `grep -P`, which BSD grep does not have.
 
       - name: Check for personal emails
         run: |
@@ -162,15 +128,18 @@ jobs:
             python3 .github/scripts/validate_plugin_metadata.py --base-ref "$BASE_REF"
           fi
 
-      # Pinned rather than @latest: an unpinned install makes CI able to break with
-      # no commit, and zizmor flags it as adhoc-packages. Dependabot does not track
-      # these, so bump them by hand when a new CLI feature is needed.
+      # Unpinned on purpose, and the consequence is accepted: this is a required check,
+      # so a Claude Code release that breaks plugin loading turns every open PR red at
+      # once, with no commit here to explain it. That is the intended trade. A pin
+      # nobody remembers to bump is worse — it drifts until the version CI proves
+      # against is one no user runs, which is the one thing this check exists to
+      # establish. Dependabot does not track npm CLIs installed this way, so the choice
+      # is a live version or a stale one, not a maintained one. `claude --version`
+      # below records what actually ran.
       - name: Install Claude Code CLI  # zizmor: ignore[adhoc-packages]
-        env:
-          CLAUDE_CLI_VERSION: "2.1.220"
         run: |
           npm install --global --prefix "$RUNNER_TEMP/claude-cli" \
-            "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+            "@anthropic-ai/claude-code@latest"
           echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/claude-cli/bin/claude" --version
 
