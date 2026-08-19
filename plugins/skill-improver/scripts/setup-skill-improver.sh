@@ -76,6 +76,21 @@ if [[ ! -f "$SKILL_FILE" ]]; then
   exit 1
 fi
 
+# One active session per skill: a mid-loop re-trigger must not fork a
+# second parallel loop on the same target (SKILL.md documents this refusal).
+shopt -s nullglob
+for existing in .claude/skill-improver.*.local.md; do
+  if [[ "$(parse_field "$existing" "skill_path")" == "$SKILL_DIR" ]]; then
+    sid=$(extract_session_id "$existing")
+    echo "Error: an active skill-improver session already targets $SKILL_DIR" >&2
+    echo "" >&2
+    echo "  Session: $sid" >&2
+    echo "  Cancel it first: /cancel-skill-improver $sid" >&2
+    exit 1
+  fi
+done
+shopt -u nullglob
+
 # Pre-flight: check that plugin-dev is installed (provides skill-reviewer).
 # Best-effort — the stop hook also detects missing skill-reviewer at runtime.
 PLUGIN_DEV_FOUND=false

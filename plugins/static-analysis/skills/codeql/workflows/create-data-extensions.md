@@ -2,19 +2,7 @@
 
 Generate data extension YAML files to improve CodeQL's data flow coverage for project-specific APIs. Runs after database build and before analysis.
 
-## Task System
-
-Create these tasks on workflow start:
-
-```
-TaskCreate: "Check for existing data extensions" (Step 1)
-TaskCreate: "Query known sources and sinks" (Step 2) - blockedBy: Step 1
-TaskCreate: "Identify missing sources and sinks" (Step 3) - blockedBy: Step 2
-TaskCreate: "Create data extension files" (Step 4) - blockedBy: Step 3
-TaskCreate: "Validate with re-analysis" (Step 5) - blockedBy: Step 4
-```
-
-### Early Exit Points
+## Early Exit Points
 
 | After Step | Condition | Action |
 |------------|-----------|--------|
@@ -62,22 +50,41 @@ Run custom QL queries against the database to enumerate all sources and sinks Co
 
 #### 2a: Select Database and Language
 
-A CodeQL database is a directory containing a `codeql-database.yml` marker file. `$DB_NAME` may already be set by the parent skill. If not, discover inside `$OUTPUT_DIR`.
+`$DB_NAME` may already be set by the parent skill. If not, discover with `find_databases.sh`,
+which filters candidates through `codeql resolve database`. Do not use a bare `find` for the
+marker file: `codeql database create` writes `codeql-database.yml` before the build finishes, so
+a run killed mid-build leaves one behind. Selecting it here makes `list-sources.ql` and
+`list-sinks.ql` return nothing, `sources.csv` and `sinks.csv` come back empty, and Step 3's
+"no missing models identified" early exit reports coverage as adequate for a database that was
+never finalized.
 
 ```bash
 if [ -z "$DB_NAME" ]; then
+  # Discovery and selection share a block: an array built in an earlier Bash call is gone by
+  # this one, and an empty FOUND_DBS reads as "no database".
+  # Command substitution, not `done < <(...)`: a process substitution discards the script's
+  # exit status, so exit 2 ("codeql not on this shell's PATH") would arrive as an empty list
+  # and be reported below as "No CodeQL database found".
+  if ! DB_LIST=$("{baseDir}/scripts/find_databases.sh" "${OUTPUT_DIR:-.}" .); then
+    echo "ERROR: database discovery failed — see the message above" >&2
+    exit 1
+  fi
+
   FOUND_DBS=()
-  while IFS= read -r yml; do
-    FOUND_DBS+=("$(dirname "$yml")")
-  done < <(find "$OUTPUT_DIR" -maxdepth 2 -name "codeql-database.yml" 2>/dev/null)
+  while IFS= read -r db; do
+    [ -n "$db" ] || continue
+    FOUND_DBS+=("$db")
+  done <<<"$DB_LIST"
 
   if [ ${#FOUND_DBS[@]} -eq 0 ]; then
     echo "ERROR: No CodeQL database found in $OUTPUT_DIR"; exit 1
   elif [ ${#FOUND_DBS[@]} -eq 1 ]; then
     DB_NAME="${FOUND_DBS[0]}"
   else
-    # Multiple databases — use AskUserQuestion to select
-    # SKIP if user already specified which database in their prompt
+    # Multiple databases. Use AskUserQuestion to select, or skip the prompt if the user
+    # already named one. The `:` is required: an else branch containing only comments is
+    # a bash syntax error and the block will not parse.
+    :
   fi
 fi
 

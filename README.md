@@ -2,7 +2,7 @@
 
 A Claude Code plugin marketplace from Trail of Bits providing skills to enhance AI-assisted security analysis, testing, and development workflows. Codex can load this marketplace through its Claude marketplace compatibility.
 
-> Also see: [claude-code-config](https://github.com/trailofbits/claude-code-config) · [skills-curated](https://github.com/trailofbits/skills-curated) · [claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) · [dropkit](https://github.com/trailofbits/dropkit)
+> Also see: [claude-code-config](https://github.com/trailofbits/claude-code-config) · [codex-config](https://github.com/trailofbits/codex-config) · [skills-curated](https://github.com/trailofbits/skills-curated) · [claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) · [dropkit](https://github.com/trailofbits/dropkit) · [coop](https://github.com/trailofbits/coop)
 
 ## Installation
 
@@ -65,7 +65,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [semgrep-rule-variant-creator](plugins/semgrep-rule-variant-creator/) | Port existing Semgrep rules to new target languages with test-driven validation |
 | [sharp-edges](plugins/sharp-edges/) | Identify error-prone APIs, dangerous configurations, and footgun designs |
 | [static-analysis](plugins/static-analysis/) | Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing |
-| [supply-chain-risk-auditor](plugins/supply-chain-risk-auditor/) | Audit supply-chain threat landscape of project dependencies |
+| [supply-chain-risk-auditor](plugins/supply-chain-risk-auditor/) | Audit npm, PyPI, and Go dependencies for version-matched advisories, abandoned upstreams, publisher concentration, and install scripts |
 | [testing-handbook-skills](plugins/testing-handbook-skills/) | Skills from the [Testing Handbook](https://appsec.guide): fuzzers, static analysis, sanitizers, coverage |
 | [trailmark](plugins/trailmark/) | Code graph analysis, bounded subagent context slicing, Mermaid diagrams, mutation testing triage, and protocol verification |
 | [variant-analysis](plugins/variant-analysis/) | Find similar vulnerabilities across codebases using pattern-based analysis |
@@ -83,7 +83,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 |--------|-------------|
 | [constant-time-analysis](plugins/constant-time-analysis/) | Detect compiler-induced timing side-channels in cryptographic code |
 | [mutation-testing](plugins/mutation-testing/) | Configure mewt/muton mutation testing campaigns — scope targets, tune timeouts, optimize long runs |
-| [property-based-testing](plugins/property-based-testing/) | Property-based testing guidance for multiple languages and smart contracts |
+| [property-based-testing](plugins/property-based-testing/) | Write, review, and triage property-based tests — Hypothesis, fast-check, proptest, and Echidna or Medusa for Solidity invariants |
 | [spec-to-code-compliance](plugins/spec-to-code-compliance/) | Check code against the documentation that specifies it, across contracts, C/C++, services, and firmware |
 | [writing-lean-proofs](plugins/writing-lean-proofs/) | Write structured Lean 4 proofs and design Lean libraries following Mathlib conventions |
 | [zeroize-audit](plugins/zeroize-audit/) | Detect missing or compiler-eliminated zeroization of secrets in C/C++ and Rust |
@@ -107,6 +107,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [devcontainer-setup](plugins/devcontainer-setup/) | Create pre-configured devcontainers with Claude Code and language-specific tooling |
 | [gh-cli](plugins/gh-cli/) | Intercept GitHub URL fetches and redirect to the authenticated `gh` CLI |
 | [git-cleanup](plugins/git-cleanup/) | Safely clean up git worktrees and local branches with gated confirmation workflow |
+| [goal-prompt](plugins/goal-prompt/) | Draft `/goal` commands for goal mode in Claude Code and Codex — verifiable completion conditions formatted to a copy-ready single line |
 | [github-triage](plugins/github-triage/) | Triage open GitHub issues and PRs: merge ready bot/approved PRs, review unreviewed ones via subagents, close resolved issues with cited comments, cross-link pending fixes, and score the rest with local-only priority and change-size estimates |
 | [let-fate-decide](plugins/let-fate-decide/) | Draw Tarot cards using cryptographic randomness to add entropy to vague planning |
 | [modern-python](plugins/modern-python/) | Modern Python tooling and best practices with uv, ruff, and pytest |

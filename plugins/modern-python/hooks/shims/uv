@@ -4,7 +4,24 @@ set -euo pipefail
 # PATH shim for uv — intercepts `uv pip` (legacy interface) and passes
 # everything else through to the real uv binary.
 
-if [[ "${1:-}" == "pip" ]]; then
+# Flags that mean a tool is building an environment it owns, rather than a person
+# managing this project's dependencies. `uv add` is not the right advice there: prek
+# installs every hook with `uv pip install --project / --directory <cache>`, and there
+# is no project to add to. Refusing it broke `git commit` in any repo whose hooks need
+# a Python environment, which is half of #207.
+uv_pip_is_tool_managed() {
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      --project | --project=* | --directory | --directory=* | --target | --target=* | -t | -t=*)
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+if [[ "${1:-}" == "pip" ]] && ! uv_pip_is_tool_managed "$@"; then
   echo "ERROR: \`uv pip\` is the legacy interface. Use instead:" >&2
   echo "  uv add <package>       # instead of uv pip install" >&2
   echo "  uv remove <package>    # instead of uv pip uninstall" >&2

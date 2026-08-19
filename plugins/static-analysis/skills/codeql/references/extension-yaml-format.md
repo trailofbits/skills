@@ -92,16 +92,8 @@ extensions:
       - ["myapp.shell", "Runner", false, "execute", "", "", "Argument[0]", "command-injection", "manual"]
 ```
 
-Example (Java — note `True` and `Argument[N]` for sink input):
-
-```yaml
-extensions:
-  - addsTo:
-      pack: codeql/java-all
-      extensible: sinkModel
-    data:
-      - ["com.myapp.db", "QueryRunner", True, "execute", "(String)", "", "Argument[0]", "sql-injection", "manual"]
-```
+Java sinks take the same `True`/signature conventions as the source example above, with
+`Argument[N]` for the input rather than `Parameter[N]`.
 
 ## Summary Models
 
@@ -130,8 +122,6 @@ extensions:
 ## Neutral Models
 
 Columns: `[package, type, name, signature, kind, provenance]` (6 columns, NOT the 10-column `summaryModel` format).
-
-Use `neutralModel` to explicitly block taint propagation through known-safe functions.
 
 Example:
 

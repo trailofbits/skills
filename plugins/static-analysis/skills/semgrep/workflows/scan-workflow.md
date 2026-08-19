@@ -45,10 +45,22 @@ else
   OUTPUT_DIR="${BASE}_${N}"
 fi
 mkdir -p "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results"
+
+# Absolute from here on. run-scans.sh rejects a relative path, and that rejection lands
+# *after* the user has passed the hard gate, so a path this skill generated itself would send
+# them back through approval.
+OUTPUT_DIR=$(cd "$OUTPUT_DIR" && pwd)
+# The -d test first: `cd ""` returns 0, so a TARGET that was never bound would pass a bare
+# `cd || exit` and silently resolve to the session's CWD, scanning whatever happens to be there.
+[ -n "$TARGET" ] && [ -d "$TARGET" ] || { echo "ERROR: TARGET is unset or not a directory"; exit 1; }
+TARGET=$(cd "$TARGET" && pwd)
 echo "Output directory: $OUTPUT_DIR"
+echo "Target: $TARGET"
 ```
 
-`$OUTPUT_DIR` is used by all subsequent steps. Pass its **absolute path** to scanner subagents. Scanners write raw output to `$OUTPUT_DIR/raw/`; merged/filtered results go to `$OUTPUT_DIR/results/`.
+Pass `$TARGET` and `$OUTPUT_DIR` to Step 4 exactly as resolved here. Do not re-derive either.
+
+`$OUTPUT_DIR` is used by all subsequent steps. Raw per-scan output goes to `$OUTPUT_DIR/raw/`; merged and filtered results go to `$OUTPUT_DIR/results/`.
 
 **Detect Pro availability** (requires Bash):
 
@@ -58,7 +70,10 @@ if ! command -v semgrep >/dev/null 2>&1; then
   exit 1
 fi
 semgrep --version
-semgrep --pro --validate --config p/default 2>/dev/null && echo "Pro: AVAILABLE" || echo "Pro: NOT AVAILABLE"
+# --metrics=off applies here too. This is the first semgrep invocation of the run and it
+# resolves p/default against the registry, so without the flag an audit phones home before
+# the user has approved anything. Principle 1 has no exceptions.
+semgrep --pro --validate --metrics=off --config p/default 2>/dev/null && echo "Pro: AVAILABLE" || echo "Pro: NOT AVAILABLE"
 ```
 
 **Detect languages** using Glob (not Bash). Run these patterns against the target directory and count matches:
@@ -148,6 +163,10 @@ Present plan to user with **explicit ruleset listing**:
 **Output directory:** $OUTPUT_DIR
 **Engine:** Semgrep Pro (cross-file analysis) | Semgrep OSS (single-file)
 **Scan mode:** Run all | Important only (security vulns, medium-high confidence/impact)
+[in important-only mode, add:] Note: important-only passes --severity WARNING --severity ERROR
+to every command, including the third-party repos. Trail of Bits / 0xdea / Decurity rules that
+ship with CLI severity INFO are dropped at scan time, before the metadata filter that would
+otherwise keep them. Choose "Run all" if you want those.
 
 ### Detected Languages/Technologies:
 - Python (1,234 files) - Django framework detected
@@ -200,78 +219,127 @@ Before marking Step 3 complete:
 - [ ] User given opportunity to modify rulesets
 - [ ] User explicitly approved (quote their confirmation)
 - [ ] **Final ruleset list captured for Step 4**
-- [ ] Agent type listed: `static-analysis:semgrep-scanner`
 
 ### Log Approved Rulesets
 
-After approval, write the approved rulesets to `$OUTPUT_DIR/rulesets.txt`:
+After approval, write the approved plan to `$OUTPUT_DIR/rulesets.json`. This is the same file
+Step 4 hands to the scanner: what the user approved and what runs are one artifact, so there is
+no second copy to transcribe and no way for the two to disagree.
+
+Fill in the plan that was just approved. Every value is an array, even a single ruleset:
 
 ```bash
-cat > "$OUTPUT_DIR/rulesets.txt" << RULESETS
-# Semgrep Scan — Approved Rulesets
-# Generated: $(date -Iseconds)
-# Scan mode: <run-all|important-only>
-
-## Rulesets:
-<one ruleset per line, e.g.:>
-p/security-audit
-p/secrets
-p/python
-p/django
-https://github.com/trailofbits/semgrep-rules
+cat > "$OUTPUT_DIR/rulesets.json" << 'RULESETS'
+{
+  "baseline": [<the always-on rulesets from Step 2>],
+  "<each detected language>": [<its approved rulesets>],
+  "third_party": [<approved repository URLs>]
+}
 RULESETS
 ```
 
+One key per language *detected in Step 1*, using the lowercase names from that step. A language
+key for a language the target does not contain scans nothing: its `--include` globs match no
+file, semgrep exits 0 with an empty result, and the report shows the ruleset with 0 findings
+exactly as it would for a ruleset that ran and found nothing. The script counts the files each
+scan opened and lists any that covered nothing under `coveredNothing` in `scans.json`, but
+getting the languages right here is what stops it happening.
+
+Repository URLs go under `third_party` and nowhere else. Registry identifiers like `p/python`
+go under a language key; a `https://…` there fails the identifier check and the script exits
+without scanning.
+
 ---
 
-## Step 4: Spawn Parallel Scan Tasks
+## Step 4: Run the Scans
 
 > **Entry:** Step 3 approved — user explicitly confirmed the plan.
-> **Exit:** All scan Tasks completed; result files exist in `$OUTPUT_DIR/raw/`.
+> **Exit:** `$OUTPUT_DIR/scans.json` exists; result files exist in `$OUTPUT_DIR/raw/`.
 
-**Use `$OUTPUT_DIR` resolved in Step 1.** It already exists; no need to create it again. Scanners write all output to `$OUTPUT_DIR/raw/`.
+Run the script against the plan Step 3 already wrote. One Bash call; there is no subagent in
+this step, and no second copy of the ruleset list to compose here.
 
-**Spawn N Tasks in a SINGLE message** (one per language category) using `subagent_type: static-analysis:semgrep-scanner`.
+```bash
+{baseDir}/scripts/run-scans.sh \
+  --target "$TARGET" \
+  --output-dir "$OUTPUT_DIR" \
+  --mode run-all \
+  --rulesets "$OUTPUT_DIR/rulesets.json"
+```
 
-Use the scanner task prompt template from [scanner-task-prompt.md](../references/scanner-task-prompt.md).
+Do not rewrite `rulesets.json` here. It is the plan the user approved at the Step 3 gate, and
+regenerating it at this point is how a ruleset nobody agreed to reaches the scanner. If it needs
+to change, go back to Step 3 and get the change approved.
 
-**Mode-dependent scanner flags:**
-- **Run all**: No additional flags
-- **Important only**: Add `--severity MEDIUM --severity HIGH --severity CRITICAL` to every `semgrep` command
+`--mode` is `run-all` or `important-only`. Add `--pro` only when Step 1
+printed `Pro: AVAILABLE`; it puts `--pro` on every command, so passing it without a licence
+fails every scan in the run. `--jobs N` sets how many semgrep processes run at once (default 4);
+semgrep holds the rules and the scanned ASTs in memory, so raising it on a large tree trades
+memory for wall-clock.
 
-**Example — 3 Language Scan (with approved rulesets):**
+Repository URLs go under `third_party` and nowhere else. A `https://…` under a language key
+fails the registry-identifier check and the script exits without scanning.
 
-Spawn these 3 Tasks in a SINGLE message:
+The script clones each third-party repo once, generates every `semgrep` command, and runs them
+in batches. `--metrics=off`, the `--include` scoping rule, `--exclude` for the output directory
+and the severity flags are all its job, not yours. It writes `$OUTPUT_DIR/scans.json`:
 
-1. **Task: Python Scanner** — Rulesets: p/python, p/django, p/security-audit, p/secrets, trailofbits → `$OUTPUT_DIR/raw/python-*.json`
-2. **Task: JavaScript Scanner** — Rulesets: p/javascript, p/react, p/nodejs, p/security-audit, p/secrets, trailofbits → `$OUTPUT_DIR/raw/js-*.json`
-3. **Task: Docker Scanner** — Rulesets: p/dockerfile → `$OUTPUT_DIR/raw/docker-*.json`
+| Field | Meaning |
+|-------|---------|
+| `scans` | Rulesets that ran, with `json`, `sarif`, `findings` and `filesScanned` for each. `findings` is counted from the JSON the scan wrote; `filesScanned` is how many files semgrep opened, or `-1` when it did not say |
+| `coveredNothing` | Rulesets that ran against zero files, because their `--include` globs matched nothing in the target. They report 0 findings exactly like a ruleset that ran and found nothing, so a plan naming a language the target does not contain reads as a clean audit. **Must be shown.** |
+| `failed` | Rulesets that ran and did not produce usable output, with the `json` and `sarif` paths they may have partly written, and the stderr excerpt. **Must be shown to the user.** |
+| `skipped` | Rulesets dropped before scanning, mostly repos that would not clone. **Must be shown.** |
+| `unscoped` | Languages with no `--include` globs, which ran against every file |
+| `alsoShared` | Rulesets dropped from a language because the same ruleset is already running unscoped over the whole target. Coverage is unaffected; report them so a per-ruleset accounting adds up |
+| `excludePattern` | Set when the output directory sits inside the target: the pattern passed as `--exclude` to every scan, or `""`. semgrep matches it anywhere in the tree, so `out` also drops `src/out/`. **Must be shown when non-empty.** |
+| `reposPath` | The clone directory Step 5 deletes |
 
-### Operational Notes
+**A non-zero exit means no scan succeeded.** The script exits 1 when `scans` is empty, so a run
+that produced nothing fails loudly rather than handing Step 5 an empty result to report as zero
+findings. Read the message, say that no scan ran, and stop; do not retry with adjusted
+arguments, because the approved plan is what produced them.
 
-- Always use **absolute paths** for `[TARGET]` — subagents can't resolve relative paths
-- Clone GitHub URL rulesets into `$OUTPUT_DIR/repos/` — never pass URLs directly to `--config` (semgrep's URL handling fails on repos with non-standard YAML)
-- Delete `$OUTPUT_DIR/repos/` after all scans complete
-- Run rulesets in parallel with `&` and `wait`, not sequentially
-- Use `--include="*.py"` for language-specific rulesets, but NOT for cross-language rulesets (p/security-audit, p/secrets, third-party repos)
+**If `failed` or `skipped` is non-empty**, carry both into the Step 5 report. A run that covered
+four of nine rulesets reads exactly like one that covered four of four unless you say otherwise.
 
 ---
 
 ## Step 5: Merge Results and Report
 
-> **Entry:** Step 4 complete — all scan Tasks finished.
-> **Exit:** `results.sarif` exists in `$OUTPUT_DIR/results/` and is valid JSON.
+> **Entry:** Step 4 complete — the workflow returned.
+> **Exit:** `results.sarif` exists in `$OUTPUT_DIR/results/` and is valid JSON; `repos/` deleted.
+
+Read the result with `jq` from `$OUTPUT_DIR/scans.json`. Every entry there was written after
+the script checked the exit code and confirmed both output files were non-empty, so the entries
+do not need re-verifying.
 
 **Important-only mode: Post-filter before merge.** Apply the filter from [scan-modes.md](../references/scan-modes.md) ("Filter All Result Files in a Directory" section) to each result JSON in `$OUTPUT_DIR/raw/`. The filter creates `*-important.json` files alongside the originals — the originals are preserved unmodified.
 
 **Generate merged SARIF** using the merge script. The resolved path is in SKILL.md's "Merge command" section — use that exact path:
 
 ```bash
-uv run {baseDir}/scripts/merge_sarif.py $OUTPUT_DIR/raw $OUTPUT_DIR/results/results.sarif
+# run-all
+uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" \
+  --scans "$OUTPUT_DIR/scans.json"
+
+# important-only, once the post-filter above has run over every file in raw/
+uv run {baseDir}/scripts/merge_sarif.py "$OUTPUT_DIR/raw" "$OUTPUT_DIR/results/results.sarif" \
+  --important --scans "$OUTPUT_DIR/scans.json"
 ```
 
 - **Run-all mode:** The script merges all `*.sarif` files from `$OUTPUT_DIR/raw/`.
-- **Important-only mode:** Run the post-filter first (creates `*-important.json` in `raw/`), then run the merge script. Raw SARIF files are unaffected by the JSON post-filter, so the merge operates on the unfiltered SARIF. For SARIF-level filtering, apply the jq post-filter from scan-modes.md to `$OUTPUT_DIR/results/results.sarif` after merge.
+- **Important-only mode:** `--important` is not optional. The JSON post-filter does not touch the
+  SARIF files the merge reads, so without that flag `results.sarif` keeps every finding the mode
+  exists to exclude while the JSON side is correctly filtered, and the Total findings counted from
+  it is the run-all total.
+
+  Do **not** try to run the jq filter from scan-modes.md against a `.sarif` file. It reads
+  `.results[].extra.metadata`, which SARIF does not have — there is no top-level `.results` at
+  all — so it exits with `Cannot iterate over null` and, if redirected over its own input,
+  truncates the merged SARIF to nothing. `--important` matches findings across the two formats on
+  `(rule, file, line)`, the same key the merge dedups on, and fails rather than filtering if any
+  scan in `raw/` has no `*-important.json` beside it.
 
 **Verify merged SARIF is valid:**
 
@@ -281,6 +349,14 @@ python -c "import json; d=json.load(open('$OUTPUT_DIR/results/results.sarif')); 
 
 If verification fails, the merge script produced invalid output — investigate before reporting.
 
+**Delete the cloned rulesets** once the merge has succeeded. The workflow clones each
+third-party repo into `repos/` and leaves it there for the scanners; this is the only place
+the deletion happens, and nothing that reads it is still running by now.
+
+```bash
+[ -n "$OUTPUT_DIR" ] && rm -rf "$OUTPUT_DIR/repos"
+```
+
 **Report to user:**
 
 ```
@@ -288,7 +364,8 @@ If verification fails, the merge script produced invalid output — investigate 
 
 **Scanned:** 1,804 files
 **Rulesets used:** 9 (including Trail of Bits)
-**Total findings:** 156
+**Total findings:** 156   [count this from results.sarif, never by summing scans[].findings:
+one finding flagged by two rulesets is one row in the merge and two in that sum]
 
 ### By Severity:
 - ERROR: 5
@@ -302,10 +379,43 @@ If verification fails, the merge script produced invalid output — investigate 
 - Insecure configuration: 12
 - Code quality: 8
 
+### Did Not Run:
+[omit this section only when failed and skipped are both empty]
+- Skipped: <ruleset> — <reason from the workflow>
+- Failed: <ruleset> — <error from the workflow>
+
+### Also Covered Unscoped:
+[omit when alsoShared is empty]
+- <ruleset> — already running over the whole target from the baseline, so it was not scanned
+  again under <language>. Coverage is unaffected; this is why the ruleset count and the scan
+  count differ
+
+### Ran Unscoped:
+[omit when unscoped is empty]
+- <language> — no --include map, so its rulesets ran against every file
+
+### Covered Nothing:
+[omit when coveredNothing is empty]
+- <language>/<ruleset> — matched no file in the target, so it reports 0 findings without having
+  looked at anything. Check the plan against the languages Step 1 detected: this is what a
+  ruleset for a language the target does not contain looks like
+
+### Missing From The Merge:
+[omit when the merge printed no "unparseable:" line]
+- <file> — the scan succeeded and is counted in scans.json, but its SARIF could not be parsed,
+  so its findings are not in results.sarif. The total below is short by that scan's `findings`
+  count from scans.json
+
+### Excluded From Every Scan:
+[omit when excludePattern is empty]
+- <excludePattern> — the output directory sits inside the target, so this pattern was excluded
+  from every scan. semgrep matches it anywhere in the tree, so any other directory with that
+  name was skipped too. Move the output directory outside the target to scan those files
+
 Results written to:
 - $OUTPUT_DIR/results/results.sarif (merged SARIF)
 - $OUTPUT_DIR/raw/ (per-scan raw results, unfiltered)
-- $OUTPUT_DIR/rulesets.txt (approved rulesets)
+- $OUTPUT_DIR/rulesets.json (the approved plan, as passed to the scanner)
 ```
 
 **Verify** before reporting: confirm `results.sarif` exists and is valid JSON.

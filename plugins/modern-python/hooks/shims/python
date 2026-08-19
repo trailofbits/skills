@@ -1,9 +1,43 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# PATH shim for python/python3 — intercepts bare invocations and
-# suggests the uv equivalent.  Works for both names via $0.
-cmd="$(basename "$0")"
+# PATH shim for python/python3 — intercepts the invocations `uv run` replaces and
+# passes the rest through to the real interpreter.  Works for both names via $0.
+#
+# Parameter expansion rather than basename/dirname on purpose: this shim has to work
+# when PATH holds nothing but its own directory, which is exactly the case where it
+# must report that no real interpreter was found. Shelling out to coreutils there
+# fails first, with a confusing error about basename.
+cmd="${0##*/}"
+
+# What is intercepted, and what is not (#207):
+#
+# `python` and `python script.py` are what `uv run` exists to replace — they resolve a
+# script against a project's dependencies, and running them bare gets the system
+# interpreter with none of them.
+#
+# `-c`, `-m` and `-` are not that. They read a program from the command line, a module
+# already on the path, or stdin, and none of them resolves a script's dependencies.
+# `uv run python3 -` is also not a drop-in replacement inside a pipeline, so redirecting
+# it there broke real scripts — zeroize-audit's smoke test among them.
+#
+# `-m pip` stays intercepted: that IS package management, and it is the foot-gun.
+
+# Hand off to the real interpreter, skipping this shim's directory in PATH.
+exec_real() {
+  local shim_dir path_entries dir resolved
+  shim_dir="$(cd "${0%/*}" && pwd)"
+  IFS=: read -ra path_entries <<<"${PATH:-}"
+  for dir in "${path_entries[@]}"; do
+    resolved="$(cd "$dir" 2>/dev/null && pwd)" || continue
+    [[ "$resolved" == "$shim_dir" ]] && continue
+    if [[ -x "$dir/$cmd" ]]; then
+      exec "$dir/$cmd" "$@"
+    fi
+  done
+  echo "ERROR: real $cmd binary not found on PATH" >&2
+  exit 127
+}
 
 # Canonical rationale for the suggestion's shape (the README,
 # setup-shims.sh, and python-shim.bats point here):
@@ -15,31 +49,54 @@ cmd="$(basename "$0")"
 # to this shim.
 #
 # Arguments are requoted with %q so the suggestion stays runnable when they
-# contain spaces or shell metacharacters (e.g. -c 'print(1+1)').
+# contain spaces or shell metacharacters.
 args=""
 if (($#)); then
   args="$(printf ' %q' "$@")"
 fi
 
-case "${1:-}" in
+# Find the mode selector, stepping over any interpreter flags in front of it. Reading
+# only $1 would make the decision depend on argument order: `python -u -c 'code'` means
+# exactly what `python -c 'code'` means, and refusing one while allowing the other is an
+# accident, not a rule. `-W`, `-X` and `--check-hash-based-pycs` take a separate value,
+# so they consume two slots; everything else beginning with `-` consumes one.
+mode=""
+argv=("$@")
+i=0
+while ((i < ${#argv[@]})); do
+  case "${argv[i]}" in
+    -c | -m | -)
+      mode="${argv[i]}"
+      break
+      ;;
+    -W | -X | --check-hash-based-pycs)
+      ((i += 2))
+      ;;
+    -*)
+      ((i += 1))
+      ;;
+    *)
+      # A script path. This is the case `uv run` exists to replace.
+      break
+      ;;
+  esac
+done
+
+case "$mode" in
   -m)
-    case "${2:-}" in
-      pip)
-        echo "ERROR: \`$cmd -m pip\` is not supported. Use:" >&2
-        echo "  uv add <package>       # add a dependency" >&2
-        echo "  uv remove <package>    # remove a dependency" >&2
-        ;;
-      *)
-        if (($# < 2)); then
-          args=" -m <module>"
-        fi
-        echo "ERROR: Use \`uv run python$args\` instead of \`$cmd$args\`" >&2
-        ;;
-    esac
+    if [[ "${argv[i + 1]:-}" == "pip" ]]; then
+      echo "ERROR: \`$cmd -m pip\` is not supported. Use:" >&2
+      echo "  uv add <package>       # add a dependency" >&2
+      echo "  uv remove <package>    # remove a dependency" >&2
+      exit 1
+    fi
+    exec_real "$@"
+    ;;
+  -c | -)
+    exec_real "$@"
     ;;
   *)
     echo "ERROR: Use \`uv run python$args\` instead of \`$cmd$args\`" >&2
+    exit 1
     ;;
 esac
-
-exit 1
