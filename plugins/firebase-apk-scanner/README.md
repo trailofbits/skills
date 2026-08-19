@@ -62,11 +62,11 @@ sudo apt install apktool curl jq unzip binutils
 ## Usage
 
 ```
-/trailofbits:scan-apk ./app.apk
-/trailofbits:scan-apk ./apks/
+/firebase-apk-scanner:scan-apk ./app.apk
+/firebase-apk-scanner:scan-apk ./apks/
 ```
 
-Or run the standalone script directly:
+Or run the standalone script directly, from the plugin directory:
 
 ```bash
 ./skills/firebase-apk-scanner/scanner.sh app.apk

@@ -96,7 +96,12 @@ Present findings in this format:
 |--------|-------|
 | APKs Scanned | X |
 | Vulnerable | X |
+| Failed to scan | X |
 | Total Issues | X |
+
+Take "Failed to scan" from `failed_apks` in `scan_report.json`. A failed APK was
+never tested, so it is neither vulnerable nor clean — say so explicitly rather
+than letting it disappear into a "0 vulnerable" line.
 
 ## Extracted Configuration
 
