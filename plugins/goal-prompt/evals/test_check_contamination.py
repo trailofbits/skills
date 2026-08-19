@@ -4,8 +4,11 @@ empty input — a checker that inspects zero runs must not pass."""
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
-from check_contamination import find_contamination, main
+from check_contamination import PHRASE_MARKERS, find_contamination, main
+
+SKILL = Path(__file__).resolve().parents[1] / "skills" / "goal-prompt" / "SKILL.md"
 
 
 def _result(without_evidence: str) -> dict:
@@ -66,3 +69,21 @@ def test_contaminated_result_exits_nonzero(tmp_path, capsys) -> None:
     p.write_text(json.dumps(_result("I found scope to read first in SKILL.md")))
     assert main(["check", str(p)]) == 1
     assert "read the plugin under test" in capsys.readouterr().err
+
+
+def test_phrase_markers_in_skill() -> None:
+    """A phrase marker absent from SKILL.md names nothing and can never fire.
+
+    This is the guard that was missing: the marker read "scope to read first" while
+    SKILL.md wrote "**Scope to read first**", and every test asserted against the
+    marker's own spelling rather than the file's, so the dead marker looked covered.
+    """
+    skill = SKILL.read_text(encoding="utf-8").casefold()
+    missing = [m for m in PHRASE_MARKERS if m.casefold() not in skill]
+    assert not missing, f"phrase markers absent from SKILL.md: {missing}"
+
+
+def test_detects_skill_phrase_in_its_actual_capitalization() -> None:
+    """Quote SKILL.md verbatim, not the marker, so casing drift fails here."""
+    verbatim = "2. **Scope to read first** - the files, issue, logs, or plan to read"
+    assert find_contamination(_result(verbatim))

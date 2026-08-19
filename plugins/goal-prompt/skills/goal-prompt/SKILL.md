@@ -43,7 +43,7 @@ Collapse audit goals to one terminating criterion, such as identifying, triggeri
 
 ## Format
 
-Run `python3 {baseDir}/scripts/format_goal_prompt.py --fenced` on the draft (file or stdin). It collapses whitespace to one line, strips `/goal` prefixes, quotes, and fences, warns on a missing stop clause, and rejects output over 4,000 characters — shorten or move detail to a file and rerun.
+Run `uv run --no-project {baseDir}/scripts/format_goal_prompt.py --fenced` on the draft (file or stdin). It collapses whitespace to one line, strips `/goal` prefixes, quotes, and fences, warns on a missing stop clause, and rejects output over 4,000 characters — shorten or move detail to a file and rerun.
 
 Return exactly one fenced `text` block, one line:
 

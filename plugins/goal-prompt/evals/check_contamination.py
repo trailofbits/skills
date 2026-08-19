@@ -17,15 +17,24 @@ import json
 import sys
 from pathlib import Path
 
-# Phrases authored in SKILL.md that a model does not produce independently,
-# plus paths that only exist inside this repository.
-MARKERS = (
+# Paths and filenames that exist only inside this repository. A baseline citing one
+# has been reading the tree; they are not expected to appear in SKILL.md prose.
+PATH_MARKERS = (
     "plugins/goal-prompt",
     "format_goal_prompt.py",
+)
+
+# Phrases authored in SKILL.md that a model does not produce independently. Matching is
+# case-insensitive: SKILL.md writes "**Scope to read first**", so the lowercase marker
+# below never fired against the very text it names. `test_phrase_markers_in_skill`
+# fails if one of these drifts out of SKILL.md again.
+PHRASE_MARKERS = (
     "terminates on the wrong contract",
     "scope to read first",
     "weaken, skip, or edit",
 )
+
+MARKERS = PATH_MARKERS + PHRASE_MARKERS
 
 
 def baseline_texts(result: dict) -> list[tuple[str, str]]:
@@ -42,7 +51,8 @@ def baseline_texts(result: dict) -> list[tuple[str, str]]:
 def find_contamination(result: dict) -> list[str]:
     findings = []
     for label, text in baseline_texts(result):
-        hits = [m for m in MARKERS if m in text]
+        haystack = text.casefold()
+        hits = [m for m in MARKERS if m.casefold() in haystack]
         if hits:
             findings.append(f"{label}: {', '.join(hits)}")
     return findings

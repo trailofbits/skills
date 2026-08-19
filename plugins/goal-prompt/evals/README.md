@@ -7,7 +7,7 @@ unassisted model.
 ```sh
 claude plugin eval plugins/goal-prompt --ablation with-without --scaffold \
   --allow-tools Bash Write --judge-model sonnet --json result.json
-python3 plugins/goal-prompt/evals/check_contamination.py result.json
+uv run --no-project plugins/goal-prompt/evals/check_contamination.py result.json
 ```
 
 - `--scaffold` runs each case's `scaffold.sh`, which generates the fixture inside the eval's temp directory.
