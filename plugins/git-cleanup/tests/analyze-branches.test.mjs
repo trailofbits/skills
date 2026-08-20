@@ -86,7 +86,7 @@ const survey = {
 
 // Bump when you add an assertion. The check at the bottom is what makes a suite that
 // silently stopped running most of itself fail instead of reporting a pass.
-const EXPECTED_ASSERTIONS = 47
+const EXPECTED_ASSERTIONS = 61
 let ran = 0
 let failures = 0
 
@@ -121,7 +121,19 @@ const assert = (label, cond, extra = '') => {
   })
 
   const names = (l) => l.map((x) => x.branch).sort()
-  assert('protected + current excluded', !JSON.stringify(out).includes('release/1.0'))
+  // Excluded from ANALYSIS, not from the report: a protected branch must never be a
+  // delete candidate and must never be silently absent either.
+  assert(
+    'protected branches are excluded from every delete path',
+    !out.deleteCandidates.some((c) => c.branch === 'release/1.0') &&
+      !out.needsReview.some((c) => c.branch === 'release/1.0'),
+    JSON.stringify(names(out.deleteCandidates)),
+  )
+  assert(
+    'protected branches are still reported, under keep/PROTECTED',
+    out.keep.some((k) => k.branch === 'release/1.0' && k.category === 'PROTECTED'),
+    JSON.stringify(out.keep.filter((k) => k.category === 'PROTECTED')),
+  )
   assert(
     'delete candidates',
     JSON.stringify(names(out.deleteCandidates)) ===
@@ -135,9 +147,16 @@ const assert = (label, cond, extra = '') => {
   )
   assert('needsReview', JSON.stringify(names(out.needsReview)) === JSON.stringify(['experiment/old']))
   assert(
-    'keep',
-    JSON.stringify(names(out.keep)) === JSON.stringify(['solo/local', 'synced/thing', 'wip/thing']),
+    'keep, analyzed entries',
+    JSON.stringify(names(out.keep.filter((k) => k.category !== 'PROTECTED'))) ===
+      JSON.stringify(['solo/local', 'synced/thing', 'wip/thing']),
     JSON.stringify(names(out.keep)),
+  )
+  assert(
+    'keep, protected entries',
+    JSON.stringify(names(out.keep.filter((k) => k.category === 'PROTECTED'))) ===
+      JSON.stringify(['develop', 'main', 'master', 'release/1.0']),
+    JSON.stringify(names(out.keep.filter((k) => k.category === 'PROTECTED'))),
   )
   assert('dirty worktree preserved', out.worktrees[0].dirty === true)
   assert('nothing unanalyzed', out.unanalyzed.length === 0, JSON.stringify(out.unanalyzed))
@@ -345,10 +364,113 @@ const assert = (label, cond, extra = '') => {
   const listed = [...out.deleteCandidates, ...out.needsReview, ...out.keep].map((x) => x.branch)
   assert(
     'default branch named trunk is never a delete candidate',
-    !listed.includes('trunk') && !out.unanalyzed.includes('trunk'),
+    !out.deleteCandidates.some((c) => c.branch === 'trunk') &&
+      !out.needsReview.some((c) => c.branch === 'trunk') &&
+      !out.unanalyzed.includes('trunk'),
     JSON.stringify(listed),
   )
+  assert(
+    'the default branch is reported as protected rather than omitted',
+    out.keep.some((k) => k.branch === 'trunk' && k.category === 'PROTECTED'),
+    JSON.stringify(out.keep),
+  )
   assert('other merged branches still reported', out.deleteCandidates.length === 1)
+}
+
+// ---- case 7b: a fully qualified defaultBranch still protects the trunk
+// `git symbolic-ref refs/remotes/origin/HEAD` prints `refs/remotes/origin/mainline`, not
+// `mainline`. Before normalization the name comparison missed and the repo's own default
+// branch reached deleteCandidates with a verifyWith that returns 0.
+{
+  for (const reported of ['refs/remotes/origin/mainline', 'origin/mainline', 'mainline']) {
+    const { out } = await run({
+      survey: {
+        ...survey,
+        defaultBranch: reported,
+        currentBranch: 'refs/heads/feature/wip',
+        branches: [b('mainline', { merged: true }), b('feature/wip'), b('fix/typo', { merged: true })],
+      },
+      investigate: () => null,
+      refute: () => null,
+    })
+    assert(
+      `defaultBranch reported as "${reported}" protects the trunk`,
+      !out.deleteCandidates.some((c) => c.branch === 'mainline') &&
+        out.keep.some((k) => k.branch === 'mainline' && k.category === 'PROTECTED'),
+      JSON.stringify(out.deleteCandidates.map((c) => c.branch)),
+    )
+    assert(
+      `verifyWith names the short default for "${reported}"`,
+      out.deleteCandidates[0].verifyWith === "git merge-base --is-ancestor 'refs/heads/fix/typo' 'mainline'",
+      JSON.stringify(out.deleteCandidates[0].verifyWith),
+    )
+  }
+  const { out } = await run({
+    survey: {
+      ...survey,
+      defaultBranch: 'main',
+      currentBranch: 'refs/heads/feature/wip',
+      branches: [b('main'), b('feature/wip', { merged: true }), b('fix/typo', { merged: true })],
+    },
+    investigate: () => null,
+    refute: () => null,
+  })
+  assert(
+    'a fully qualified currentBranch is still recognized as checked out',
+    !out.deleteCandidates.some((c) => c.branch === 'feature/wip') &&
+      out.keep.some((k) => k.branch === 'feature/wip' && k.category === 'PROTECTED'),
+    JSON.stringify(out.deleteCandidates.map((c) => c.branch)),
+  )
+}
+
+// ---- case 7c: a protected branch carrying unpushed work is reported, not swallowed
+// It used to land in no output array at all, so Safety Rule 7 had nothing to fire on.
+{
+  const { out, logs } = await run({
+    survey: {
+      ...survey,
+      branches: [
+        b('main'),
+        b('staging', { tracking: 'origin/staging', unpushedCommits: 7 }),
+        b('fix/typo', { merged: true }),
+      ],
+    },
+    investigate: () => null,
+    refute: () => null,
+  })
+  const entry = out.keep.find((k) => k.branch === 'staging')
+  assert(
+    'a protected branch with unpushed work appears in keep',
+    entry !== undefined && entry.category === 'PROTECTED',
+    JSON.stringify(out.keep),
+  )
+  assert(
+    'its evidence names the unpushed count',
+    entry.evidence.includes('7 commits not on origin/staging'),
+    JSON.stringify(entry.evidence),
+  )
+  assert(
+    'unpushed work on a protected branch is logged',
+    logs.some((l) => l.includes('unpushed commits: staging')),
+    JSON.stringify(logs),
+  )
+}
+
+// ---- case 7d: the trimmed names are analyzable again
+{
+  const { out } = await run({
+    survey: {
+      ...survey,
+      branches: [b('main'), b('test', { merged: true }), b('demo', { merged: true }), b('sandbox', { merged: true })],
+    },
+    investigate: () => null,
+    refute: () => null,
+  })
+  assert(
+    'test/demo/sandbox are no longer force-protected',
+    JSON.stringify(out.deleteCandidates.map((c) => c.branch).sort()) === JSON.stringify(['demo', 'sandbox', 'test']),
+    JSON.stringify(out.deleteCandidates.map((c) => c.branch)),
+  )
 }
 
 // ---- case 8: a verdict for another investigator's branch is rejected
@@ -384,7 +506,7 @@ const assert = (label, cond, extra = '') => {
   assert('bare `feature` spawns no investigators', labels.length === 1, JSON.stringify(labels))
   assert(
     'local-only siblings stay in keep',
-    out.keep.length === 5 && out.unanalyzed.length === 0,
+    out.keep.filter((k) => k.category !== 'PROTECTED').length === 5 && out.unanalyzed.length === 0,
     JSON.stringify({ keep: out.keep.map((k) => k.branch), unanalyzed: out.unanalyzed }),
   )
 }

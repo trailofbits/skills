@@ -20,8 +20,14 @@ export const meta = {
 // during a branch-protection change or a repo migration, at which point the [gone]
 // path recommends `git branch -D` on `production`. Names are matched case-insensitively
 // because `Staging` and `staging` are the same branch to everyone except a regex.
+//
+// `test`, `testing`, `demo`, `sandbox`, `latest` and `default` were here and are not any
+// more. They are not environment branches in the sense above; they are exactly the
+// throwaway local names this tool exists to clean up, and protecting them made it refuse
+// its own job. Over-protection is not free just because it fails in the safe direction:
+// a branch that can never be deleted here has to be deleted by hand.
 const PROTECTED =
-  /^(main|master|trunk|default|develop|dev|devel|integration|staging|stage|production|prod|preprod|qa|uat|test|testing|sandbox|demo|next|canary|latest|stable|release[/-].*|hotfix[/-].*|support[/-].*|maint(enance)?[/-].*)$/i
+  /^(main|master|trunk|develop|dev|devel|integration|staging|stage|production|prod|preprod|qa|uat|next|canary|stable|release[/-].*|hotfix[/-].*|support[/-].*|maint(enance)?[/-].*)$/i
 
 // Verdicts that put a branch on the deletion list, and therefore must survive a
 // refutation pass before the user ever sees them.
@@ -101,8 +107,16 @@ const SURVEY_SCHEMA = {
   required: ['defaultBranch', 'currentBranch', 'branches', 'worktrees', 'mergeLog'],
   additionalProperties: false,
   properties: {
-    defaultBranch: { type: 'string' },
-    currentBranch: { type: 'string' },
+    defaultBranch: {
+      type: 'string',
+      description:
+        'short local name of the default branch, e.g. "main" or "mainline" — not ' +
+        '"origin/main" and not "refs/remotes/origin/main"',
+    },
+    currentBranch: {
+      type: 'string',
+      description: 'short name of the branch checked out in the main working tree, e.g. "main"',
+    },
     branches: {
       type: 'array',
       items: {
@@ -230,7 +244,7 @@ const survey = await agent(
     '',
     'Run, in order:',
     '  git -C REPO fetch --prune            # required — see the allowance in the constraint above',
-    '  git -C REPO symbolic-ref refs/remotes/origin/HEAD   # default branch; fall back to main',
+    '  git -C REPO symbolic-ref --short refs/remotes/origin/HEAD   # default branch; fall back to main',
     '  git -C REPO branch -vv               # tracking info, [gone] markers',
     '  git -C REPO branch --merged DEFAULT  # branches git can already prove are merged',
     '  git -C REPO worktree list --porcelain',
@@ -266,16 +280,52 @@ if (!survey.branches || survey.branches.length === 0) {
   throw new Error('survey returned zero local branches — the inventory failed rather than finding a clean repo')
 }
 
+// `git symbolic-ref refs/remotes/origin/HEAD` prints a fully qualified remote ref —
+// `refs/remotes/origin/mainline` — while `git branch -vv` prints short local names. The
+// survey carries both, so without normalizing here the equality below never fires and a
+// repo whose default branch is not one of the PROTECTED names sees its own trunk on the
+// delete list: `git branch --merged refs/remotes/origin/mainline` still lists `mainline`,
+// so nothing downstream contradicts it and `verifyWith` returns 0 as well. Real default
+// names this reaches: mainline, development, bare `release`, unstable, primary, live,
+// gh-pages, edge, upstream. `currentBranch` gets the same treatment — it fails safe today
+// only because `git branch -d` refuses the checked-out branch, which is luck, not design.
+//
+// The command file's inline fallback already did this (`symbolic-ref --short`, then
+// `${default_branch#origin/}`); the two analysis paths simply disagreed.
+const localName = (ref) =>
+  String(ref || '')
+    .replace(/^refs\/heads\//, '')
+    .replace(/^refs\/remotes\/[^/]+\//, '')
+    .replace(/^origin\//, '')
+
+survey.defaultBranch = localName(survey.defaultBranch)
+survey.currentBranch = localName(survey.currentBranch)
+
 // The default branch is protected whatever it is called: `git branch --merged trunk`
 // lists `trunk` itself, so a repo not using one of the conventional names would
 // otherwise see its own trunk recommended for deletion.
-const isProtected = (name) =>
-  PROTECTED.test(name) || name === survey.defaultBranch || name === survey.currentBranch
+const protectionOf = (name) => {
+  if (name === survey.currentBranch) return 'checked out in the main working tree'
+  if (name === survey.defaultBranch) return 'the default branch'
+  if (PROTECTED.test(name)) return 'a long-lived integration or environment branch'
+  return ''
+}
+const isProtected = (name) => protectionOf(name) !== ''
 
+// Excluded from analysis, NOT from the report. Never deletable and never mentioned are
+// different guarantees, and the second one is a quietly incomplete picture: a `staging`
+// branch carrying unpushed commits used to vanish from every output array, so Safety
+// Rule 7 — unanalyzed branches must be shown — had nothing to fire on. They travel to
+// report() and come back under `keep` with category PROTECTED.
+const protectedBranches = survey.branches.filter((b) => isProtected(b.name))
 const branches = survey.branches.filter((b) => !isProtected(b.name))
 log(
-  `${survey.branches.length} local branches; ${survey.branches.length - branches.length} protected or checked out, ${branches.length} in scope`,
+  `${survey.branches.length} local branches; ${protectedBranches.length} protected or checked out (reported, not analyzed), ${branches.length} in scope`,
 )
+const withUnpushed = protectedBranches.filter((b) => b.unpushedCommits > 0).map((b) => b.name)
+if (withUnpushed.length > 0) {
+  log(`protected branches carrying unpushed commits: ${withUnpushed.join(', ')}`)
+}
 
 // ------------------------------------------------------- deterministic triage
 
@@ -616,11 +666,24 @@ function report(decided, checked, unanalyzed = []) {
       lastCommit: b.lastCommit,
       uniqueCommits: b.uniqueCommits,
     })),
-    keep: pick('UNPUSHED_WORK', 'LOCAL_WORK', 'SYNCED_WITH_REMOTE').map((b) => ({
-      branch: b.name,
-      category: b.category,
-      evidence: b.evidence,
-    })),
+    keep: [
+      ...pick('UNPUSHED_WORK', 'LOCAL_WORK', 'SYNCED_WITH_REMOTE').map((b) => ({
+        branch: b.name,
+        category: b.category,
+        evidence: b.evidence,
+      })),
+      // Filtered out before triage, so they carry no category of their own — but they
+      // must appear somewhere. The evidence names the unpushed count when there is one:
+      // that is the fact a reader of this report would most want about a protected
+      // branch, and the reason silence here was the wrong default.
+      ...protectedBranches.map((b) => ({
+        branch: b.name,
+        category: 'PROTECTED',
+        evidence:
+          `excluded from analysis: ${protectionOf(b.name)}` +
+          (b.unpushedCommits > 0 ? `; ${b.unpushedCommits} commits not on ${b.tracking}` : ''),
+      })),
+    ],
     worktrees: survey.worktrees.map((w) => ({
       ...w,
       branch: shortRef(w.branch),

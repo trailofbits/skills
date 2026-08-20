@@ -48,7 +48,7 @@ It runs three phases — survey, investigate, refute — and returns:
 |-------|---------|
 | `deleteCandidates` | Recommended deletions. Each carries `evidence`, the exact `command` (`-d` or `-D`), `worktreePath` when a worktree holds the branch, `group` for related-branch display, and `verifyWith` on `SAFE_TO_DELETE` entries. |
 | `needsReview` | Remote gone, work not found in the default branch. Never recommend these. |
-| `keep` | Unpushed, local-only, or synced with a live remote. |
+| `keep` | Unpushed, local-only, or synced with a live remote — plus `PROTECTED` entries, excluded from analysis but still reported. |
 | `worktrees` | Path, branch, `dirty`, `dirtyFiles`, and whether the branch is stale. |
 | `unanalyzed` | Branches no verdict came back for. **Must be shown to the user.** |
 
@@ -80,7 +80,7 @@ git log --oneline "$default_branch" | grep -iE "#[0-9]+" | head -40
 The workflow reports evidence so you can audit it, not so you can forward it unread. Before building the gate-1 table:
 
 1. **Every `deleteCandidate` names specific evidence** — a PR number, a commit sha, or a superseding branch. "Similar name", "looks stale", or an empty evidence string is not a delete recommendation. Move it to needs-review. `SAFE_TO_DELETE` entries satisfy this by naming the tip commit; they also carry `verifyWith`, which phase 3 runs before deleting.
-2. **No protected branch appears anywhere.** The script filters long-lived integration and environment names (`main`, `master`, `develop`, `staging`, `production`, `release/*`, `hotfix/*`, and similar), plus the repository's actual default branch and the current branch, programmatically. If one surfaces regardless, drop it and say so.
+2. **No protected branch is a delete candidate.** The script filters long-lived integration and environment names (`main`, `master`, `develop`, `dev`, `staging`, `production`, `qa`, `uat`, `release/*`, `hotfix/*`, and similar), plus the repository's actual default branch and the current branch, programmatically. They do still appear — under `keep` with category `PROTECTED`, and with their unpushed count when they have one. That is deliberate: excluded from analysis is not the same as absent from the report, and a `staging` branch carrying unpushed commits must not vanish. If one reaches `deleteCandidates` or `needsReview` regardless, drop it and say so.
 3. **`unanalyzed` is empty, or you list it.** A partial run must not read as a complete one.
 4. **Dirty worktrees are flagged**, whatever their branch's category.
 
