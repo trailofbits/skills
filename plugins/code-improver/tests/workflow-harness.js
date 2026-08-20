@@ -73,6 +73,8 @@ const F = (file, line, cls, severity, extra = {}) => ({
 });
 const fid = (f) => `${f.file}:${f.line}:${f.class}`;
 const REV = (findings = [], verified = []) => ({ findings, verified_fixed: verified, summary: "s" });
+const DIRECT = (findings = [], verified = []) => ({ mode: "direct", findings, verified_fixed: verified, summary: "s", agents: [] });
+const DISPATCH = (agents, summary = "dispatching specialists") => ({ mode: "dispatch", findings: [], verified_fixed: [], summary, agents });
 const FIX = (verdicts, round = 1) => ({ verdicts, diff_file: `fixes-round-${round}.diff`, notes: "" });
 const V = (f, verdict, extra = {}) => ({
   id: typeof f === "string" ? f : fid(f),
@@ -99,6 +101,7 @@ async function run(src, opts = {}) {
     reviews = [],
     fixes = [],
     scopes = [],
+    specialists = [],
     finalScope,
     finalize = FINALIZE_OK,
   } = opts;
@@ -109,6 +112,7 @@ async function run(src, opts = {}) {
   let ri = 0;
   let fi = 0;
   let si = 0;
+  let spi = 0;
   const agent = async (prompt, o = {}) => {
     const label = o.label || "?";
     calls.push(label);
@@ -124,6 +128,12 @@ async function run(src, opts = {}) {
     if (label.startsWith("fix:")) {
       if (fi >= fixes.length) throw new Error(`unscripted fix at ${label}`);
       return fixes[fi++];
+    }
+    if (label.startsWith("specialist:")) {
+      if (spi >= specialists.length) throw new Error(`unscripted specialist at ${label}`);
+      const s = specialists[spi++];
+      if (s && s.__throw) throw new Error(s.__throw);
+      return s;
     }
     if (label.startsWith("scope:")) return si < scopes.length ? scopes[si++] : CLEAN_SCOPE;
     if (label === "final-scope") return finalScope === undefined ? CLEAN_SCOPE : finalScope;
@@ -454,6 +464,96 @@ const SCENARIOS = {
     ];
   },
 
+  // Reviewer skills that orchestrate specialists: the wrapper cannot spawn agents, so
+  // it returns the dispatches and the loop trampolines them.
+  "a skill reviewer's dispatch plan is executed and merged": async (src) => {
+    const wave = DISPATCH([
+      { agentType: "review-panel:naming-auditor", prompt: "audit naming of the target", label: "naming" },
+      { agentType: "review-panel:todo-auditor", prompt: "audit todo markers", label: "todo" },
+    ]);
+    const { out, calls, prompts, agentOpts } = await run(src, {
+      args: { target: SKILL, reviewer: RV_SKILL },
+      reviews: [wave, DIRECT([A]), DIRECT([], [fid(A)])],
+      fixes: [FIX([V(A, "fixed")], 1)],
+      specialists: ["naming report: clean", "todo report: FIXME at line 3"],
+    });
+    const cont = prompts["review:1.2"];
+    return [
+      [/mode "dispatch"/.test(prompts["review:1"]), "the trampoline contract must reach the wave-0 reviewer"],
+      [calls.includes("specialist:1.1.naming") && calls.includes("specialist:1.1.todo"), "both planned specialists must be dispatched"],
+      [agentOpts["specialist:1.1.naming"].agentType === "review-panel:naming-auditor", "the specialist must run as the planned agent type"],
+      [prompts["specialist:1.1.todo"] === "audit todo markers", "the planned prompt must reach the specialist verbatim"],
+      [/todo report: FIXME at line 3/.test(cont), "the specialist reports must reach the continuation"],
+      [/new_evidence=true/.test(cont), "the ledger discipline must reach the continuation"],
+      [/wave\(s\) remain/.test(cont), "the continuation must know its remaining wave budget"],
+      [calls.includes("fix:1"), "the merged findings must be dispatched to the fixer"],
+      [out && out.converged === true, "the trampolined round must still converge"],
+    ];
+  },
+
+  "a reviewer that never finishes its waves is capped and halts": async (src) => {
+    const w = () => DISPATCH([{ agentType: "x:y", prompt: "p", label: "l" }]);
+    const { out, calls } = await run(src, {
+      args: { target: SKILL, reviewer: RV_SKILL },
+      reviews: [w(), w(), w(), w()],
+      specialists: ["r1", "r2", "r3"],
+    });
+    return [
+      [out && out.halted === "reviewer-failed", "an unfinished trampoline must halt, not converge"],
+      [out && out.notes.some((n) => /wave cap/.test(n)), "the halt must name the wave cap"],
+      [calls.filter((c) => c.startsWith("specialist:")).length === 3, "exactly the capped number of waves may run"],
+      [!calls.some((c) => c.startsWith("fix:")), "no fix may run on an incomplete review"],
+      [calls.includes("persist"), "the halt must persist the ledger"],
+    ];
+  },
+
+  "an unresolvable planned specialist halts instead of degrading": async (src) => {
+    const { out, calls } = await run(src, {
+      args: { target: SKILL, reviewer: RV_SKILL },
+      reviews: [DISPATCH([{ agentType: "ghost:aud", prompt: "p", label: "g" }])],
+      specialists: [{ __throw: "agent({agentType}): agent type 'ghost:aud' not found. Available agents: ..." }],
+    });
+    return [
+      [out && out.halted === "reviewer-unavailable", "a missing specialist is a missing reviewer dependency"],
+      [out && out.notes.some((n) => /ghost:aud/.test(n)), "the halt must name the unresolvable agent type"],
+      [!calls.includes("review:1.2"), "no continuation may run on a partial wave"],
+      [!calls.some((c) => c.startsWith("fix:")), "no fix may run"],
+    ];
+  },
+
+  "a dead specialist is reported to the continuation, not dropped": async (src) => {
+    const { out, prompts } = await run(src, {
+      args: { target: SKILL, reviewer: RV_SKILL },
+      reviews: [
+        DISPATCH([
+          { agentType: "a:b", prompt: "p1", label: "one" },
+          { agentType: "c:d", prompt: "p2", label: "two" },
+        ]),
+        DIRECT(),
+      ],
+      specialists: ["fine report", null],
+    });
+    const cont = prompts["review:1.2"];
+    return [
+      [/SPECIALIST FAILED: returned nothing/.test(cont), "the dead specialist must be named as failed"],
+      [/fine report/.test(cont), "the surviving report must still be delivered"],
+      [out && out.converged === true, "the round must still be able to finish"],
+    ];
+  },
+
+  "an empty dispatch wave halts instead of converging on nothing": async (src) => {
+    const { out, calls } = await run(src, {
+      args: { target: SKILL, reviewer: RV_SKILL },
+      reviews: [DISPATCH([])],
+    });
+    return [
+      [out && out.halted === "reviewer-failed", "a dispatch with no agents is an unfinishable review"],
+      [out && out.notes.some((n) => /empty agent list/.test(n)), "the halt must say why"],
+      [!calls.some((c) => c.startsWith("specialist:")), "nothing may be dispatched"],
+      [out && out.converged === false, "an empty wave must never read as a clean review"],
+    ];
+  },
+
   // Finalize is data-driven (§ finalize args): plugin detection and caller opt-outs.
   "finalize sections follow the finalize config": async (src) => {
     const plugin = await run(src, {
@@ -694,6 +794,11 @@ const MUTATIONS = [
   ["skip the baseline reviewer probe step", (s) => s.replace("const SKILL_PROBE_STEP =\n  REVIEWER.kind === 'skill'", "const SKILL_PROBE_STEP =\n  false")],
   ["ignore the caller's finalize opt-outs", (s) => s.replace("version_bump: FIN_ARGS.version_bump === undefined ? !!baseline.plugin_version : !!FIN_ARGS.version_bump,", "version_bump: true,")],
   ["drop the reviewer requirement", (s) => s.replace("if (\n  !REVIEWER ||", "if (\n  false && (\n  !REVIEWER ||").replace("!REVIEWER.name.trim()\n) {", "!REVIEWER.name.trim())\n) {")],
+  ["treat a dispatch plan as a finished review", (s) => s.replace("while (review && review.mode === 'dispatch' && !trampolineHalted) {", "while (false) {")],
+  ["lift the specialist wave cap", (s) => s.replace("if (wave > MAX_DISPATCH_WAVES) {", "if (false) {")],
+  ["swallow an unresolvable planned specialist", (s) => s.replace("if (unresolvable) {", "if (false) {")],
+  ["hide specialist failures from the merge", (s) => s.replace("`SPECIALIST FAILED: ${(r && r.error) || 'returned nothing'}`", "'report unavailable'")],
+  ["converge on an empty specialist dispatch", (s) => s.replace("if (!requested.length) {", "if (false) {")],
   ["drop the one-bump rule from finalize", (s) => s.replace("Exactly one version bump.", "Version handling:")],
   ["keep stale round numbers on ledger reload", (s) => s.replace("rounds_seen: [],", "rounds_seen: f.rounds_seen || [],")],
   ["keep stale fix rounds on ledger reload", (s) => s.replace("fixed_rounds: [],\n      fixed_prior", "fixed_rounds: f.fixed_rounds || [],\n      fixed_prior")],

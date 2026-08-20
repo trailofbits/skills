@@ -1,7 +1,7 @@
 # Eval suite for `code-improver`
 
-Seven cases: one per guarantee the loop makes, plus the reviewer-dependency halt and
-PR mode. Paid and manual — never CI.
+Eight cases: one per guarantee the loop makes, plus the reviewer-dependency halt, PR
+mode, and the specialist-dispatch trampoline. Paid and manual — never CI.
 
 ```sh
 CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval . --judge-model sonnet \
@@ -83,6 +83,7 @@ Expect the LLM rubrics to need the usual two or three calibration pilots.
 | `pins-bite` | Behavioral fixes carry pins that fail against pre-fix code (D) | `bug-fixed-with-a-pin` + `verify-pins.sh` |
 | `reviewer-unavailable` | A missing reviewer halts loudly with the install note; nothing is edited, no inline review | `fixture-byte-identical` + `halted-reviewer-unavailable` |
 | `pr-mode` | pr-improver scopes to the branch diff; on-branch defects fixed, untouched files survive | `legacy-byte-identical` + `median-test-covers-even` |
+| `deep-reviewer` | A reviewer skill's specialist dispatches are executed by the loop (trampoline), not flattened away | `*-codeword-in-ledger` — each codeword rule lives only in one specialist's definition |
 
 ### The gate case
 

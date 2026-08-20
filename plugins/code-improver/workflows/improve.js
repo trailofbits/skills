@@ -381,6 +381,40 @@ const REVIEW_SCHEMA = {
   },
 }
 
+// Reviewer skills may orchestrate specialist agents. Workflow subagents cannot spawn
+// subagents (the runtime strips the Agent tool at depth 1), so the wrapper returns the
+// dispatches it would have made and the loop executes them — a trampoline.
+const MAX_DISPATCH_WAVES = 3
+const MAX_AGENTS_PER_WAVE = 8
+
+const SKILL_REVIEW_SCHEMA = {
+  type: 'object',
+  required: ['mode', 'findings', 'verified_fixed', 'summary', 'agents'],
+  properties: {
+    mode: {
+      type: 'string',
+      enum: ['direct', 'dispatch'],
+      description: '"direct": the review is finished and findings carry it. "dispatch": run the specialist agents listed in `agents` and continue this review with their reports.',
+    },
+    findings: REVIEW_SCHEMA.properties.findings,
+    verified_fixed: REVIEW_SCHEMA.properties.verified_fixed,
+    summary: { type: 'string' },
+    agents: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['agentType', 'prompt', 'label'],
+        properties: {
+          agentType: { type: 'string', description: 'Namespaced subagent type exactly as the skill names it, e.g. pr-review-toolkit:code-reviewer.' },
+          prompt: { type: 'string', description: 'The full, self-contained prompt the skill prescribes for this specialist: include the target path, the scope, and what to report.' },
+          label: { type: 'string', description: 'Short kebab-case label for progress display.' },
+        },
+      },
+      description: 'With mode "dispatch": one entry per specialist the skill prescribes. Empty with mode "direct".',
+    },
+  },
+}
+
 const FIX_SCHEMA = {
   type: 'object',
   required: ['verdicts', 'diff_file', 'notes'],
@@ -633,7 +667,8 @@ for (let round = 1; round <= MAX_FIX_ROUNDS + 1 && !done; round++) {
 
   const reviewerLeadIn =
     REVIEWER.kind === 'skill'
-      ? `You perform the review by invoking the Skill tool with skill="${REVIEWER_NAME}" FIRST and applying the review that skill prescribes to the target. If the Skill invocation fails or the skill is unavailable, do NOT review anything yourself: return zero findings, an empty verified_fixed, and a summary that begins exactly with "REVIEWER-UNAVAILABLE:" followed by the error you saw.`
+      ? `You perform the review by invoking the Skill tool with skill="${REVIEWER_NAME}" FIRST and applying the review that skill prescribes to the target. If the Skill invocation fails or the skill is unavailable, do NOT review anything yourself: return zero findings, an empty verified_fixed, and a summary that begins exactly with "REVIEWER-UNAVAILABLE:" followed by the error you saw.
+If the skill prescribes launching specialist review agents (Task dispatches), you cannot spawn them yourself — the loop runs them for you: return mode "dispatch" with one entry per specialist (agentType = the namespaced subagent type the skill names; prompt = the full, self-contained prompt you would give it, including the target path, the scope, and what to report; label = a short kebab-case tag). Their reports come back to you in a continuation. With mode "dispatch", leave findings empty and make summary a one-line status — the reporting contract below applies to the final "direct" return. If the skill needs no specialists, perform the review yourself and return mode "direct".`
       : `You are dispatched as the \`${REVIEWER_NAME}\` agent: apply your own review standards to the target.`
 
   await persistLedger(`persist:${round}`)
@@ -654,7 +689,7 @@ The ledger above is the authoritative cross-round memory. Apply it:
 - Reuse the exact ledger id when re-reporting any known finding, even when its line has shifted.
 
 Now review the target and report EVERY defect the review surfaces, each with a severity attached — including minor and informational ones. Map the reviewer's native severity scale onto critical|major|minor|info. Do not withhold or pre-filter low-severity findings; filtering happens at the ledger verdict, once, not in your report. Do not edit or fix anything — you perform no writes at all.`,
-      { schema: REVIEW_SCHEMA, label: finalRound ? 'final-review' : `review:${round}`, phase: finalRound ? 'Final review' : 'Review', ...(REVIEWER.kind === 'agent' ? { agentType: REVIEWER_NAME } : {}) },
+      { schema: REVIEWER.kind === 'skill' ? SKILL_REVIEW_SCHEMA : REVIEW_SCHEMA, label: finalRound ? 'final-review' : `review:${round}`, phase: finalRound ? 'Final review' : 'Review', ...(REVIEWER.kind === 'agent' ? { agentType: REVIEWER_NAME } : {}) },
     )
   } catch (e) {
     // An unresolvable agentType throws at dispatch, before any tokens are spent.
@@ -669,6 +704,87 @@ Now review the target and report EVERY defect the review surfaces, each with a s
     await reviewerUnavailable(clip(review.summary, 300))
     break
   }
+
+  // Trampoline: the wrapper cannot spawn agents, so it hands the loop the dispatches
+  // the reviewer skill prescribes; the loop runs each wave and continues the review
+  // with the reports until the wrapper finishes with mode "direct".
+  let trampolineHalted = false
+  if (REVIEWER.kind === 'skill') {
+    let wave = 0
+    while (review && review.mode === 'dispatch' && !trampolineHalted) {
+      wave++
+      if (wave > MAX_DISPATCH_WAVES) {
+        RESULT.halted = 'reviewer-failed'
+        notes.push(`The round-${round} reviewer requested a specialist wave beyond the ${MAX_DISPATCH_WAVES}-wave cap without finishing its review. The round is incomplete; re-run to continue from the persisted ledger.`)
+        log(notes[notes.length - 1])
+        finishResult()
+        await persistExit('halted: reviewer exceeded the specialist wave cap')
+        trampolineHalted = true
+        break
+      }
+      const requested = Array.isArray(review.agents) ? review.agents : []
+      if (!requested.length) {
+        RESULT.halted = 'reviewer-failed'
+        notes.push(`The round-${round} reviewer returned mode "dispatch" with an empty agent list — an unfinishable review. Re-run to continue from the persisted ledger.`)
+        log(notes[notes.length - 1])
+        finishResult()
+        await persistExit('halted: empty specialist dispatch')
+        trampolineHalted = true
+        break
+      }
+      const plan = requested.slice(0, MAX_AGENTS_PER_WAVE)
+      if (requested.length > plan.length) {
+        log(`Round ${round} wave ${wave}: ${requested.length - plan.length} specialist request(s) dropped over the ${MAX_AGENTS_PER_WAVE}-agent cap`)
+      }
+      log(`Round ${round} wave ${wave}: dispatching ${plan.length} specialist(s): ${plan.map((s) => s.agentType).join(', ')}`)
+      const reports = await parallel(
+        plan.map((s, i) => () =>
+          agent(String(s.prompt || ''), {
+            label: `specialist:${round}.${wave}.${normClass(s.label || s.agentType || String(i))}`,
+            phase: finalRound ? 'Final review' : 'Review',
+            agentType: String(s.agentType || ''),
+          })
+            .then((r) => ({ ok: r !== null && r !== undefined, report: r, error: '' }))
+            .catch((e) => ({ ok: false, report: null, error: String((e && e.message) || e) })),
+        ),
+      )
+      const unresolvable = reports.find((r) => r && /agent type .* not found/i.test(r.error))
+      if (unresolvable) {
+        const which = plan[reports.indexOf(unresolvable)]
+        await reviewerUnavailable(`its planned specialist \`${which.agentType}\` did not resolve: ${clip(unresolvable.error, 200)}`)
+        trampolineHalted = true
+        break
+      }
+      const reportBlock = plan
+        .map((s, i) => {
+          const r = reports[i]
+          const body = r && r.ok ? clip(r.report, 20000) : `SPECIALIST FAILED: ${(r && r.error) || 'returned nothing'}`
+          return `### ${s.label || s.agentType} (${s.agentType})\n${body}`
+        })
+        .join('\n\n')
+      review = await agent(
+        `Review round ${round}, continuation after specialist wave ${wave}, of an automated improvement loop over the target at \`${TARGET}\`. A previous stage invoked the installed skill \`${REVIEWER_NAME}\` and requested the specialist dispatches below; the loop ran them. Invoke the Skill tool with skill="${REVIEWER_NAME}" first if you need the review methodology it prescribes.
+${REVIEWER_NOTES ? `\nReviewer configuration notes from the caller: ${REVIEWER_NOTES}\n` : ''}
+${ledgerBlock()}
+
+Scope (repo-relative globs; the loop only changes files inside them): ${SCOPE.join(', ')}
+${decisionBlock()}
+Specialist reports:
+
+${reportBlock}
+
+Either request another specialist wave (mode "dispatch"; ${MAX_DISPATCH_WAVES - wave} wave(s) remain — a report marked SPECIALIST FAILED may be re-requested) or finish the round with mode "direct": consolidate the specialist reports and your own verification into findings, applying the ledger discipline:
+- Findings with status "fixed" and verified=false: verify each fix by reading the current code. Return the ids that genuinely hold in verified_fixed. A fix that does not hold is re-filed under its exact ledger id.
+- Findings with status "rejected": do NOT re-file them unless you have genuinely NEW evidence that the recorded verdict_reason does not cover. If you do, re-file under the same id with new_evidence=true and the new evidence in \`evidence\`.
+- Findings with status "deferred" are parked; do not re-file them at the same severity.
+- Reuse the exact ledger id when re-reporting any known finding, even when its line has shifted.
+
+Report EVERY defect the review surfaced, each with a severity mapped onto critical|major|minor|info. Do not withhold or pre-filter low-severity findings; filtering happens at the ledger verdict, once, not in your report. Do not edit or fix anything — you perform no writes at all.`,
+        { schema: SKILL_REVIEW_SCHEMA, label: `review:${round}.${wave + 1}`, phase: finalRound ? 'Final review' : 'Review' },
+      )
+    }
+  }
+  if (trampolineHalted) break
 
   if (!review) {
     RESULT.halted = 'reviewer-failed'

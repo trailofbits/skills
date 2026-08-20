@@ -70,6 +70,10 @@ GRADER_MARKERS = (
     "legacy-byte-identical",
     "stale-doc-updated",
     "honest-final-message",
+    "todo-codeword-in-ledger",
+    "xray-codeword-in-ledger",
+    "todo-codeword-removed",
+    "xray-codeword-removed",
 )
 
 MAX_TRACE_BYTES = 50_000_000

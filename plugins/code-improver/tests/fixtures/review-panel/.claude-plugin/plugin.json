@@ -1,0 +1,8 @@
+{
+  "name": "review-panel",
+  "version": "0.0.1",
+  "description": "Eval-only reviewer that orchestrates specialist subagents: provides the panel-review skill plus two auditor agents, so cases can prove the improvement loop executes a reviewer skill's dispatch plan instead of flattening it into one context.",
+  "author": {
+    "name": "Fixture Author"
+  }
+}

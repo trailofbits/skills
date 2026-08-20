@@ -51,6 +51,11 @@ first.
   reviewer and exits with `halted: "reviewer-unavailable"` and the install instruction
   when it does not resolve. An inline imitation of the review has none of the
   guarantees above, so the loop refuses to substitute one.
+- **Reviewer skills that orchestrate specialists keep their specialists.** Workflow
+  agents cannot spawn subagents, so the review wrapper returns the dispatches its skill
+  prescribes and the loop executes them (up to 3 waves of 8 agents), feeding the
+  reports back until the review finishes. A specialist that does not resolve halts the
+  run like any missing reviewer; a failed one is reported to the merge, never dropped.
 
 ## Requirements
 
