@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["tree-sitter>=0.23", "tree-sitter-c>=0.23", "tree-sitter-cpp>=0.23"]
+# # Exact pins, not ranges: the coverage gate's site populations are counted by these
+# # grammars, and a grammar release that renames a node type silently shrinks the
+# # denominator — the gate recomputes through the same parser, so it agrees with itself.
+# # Dependabot has no PEP 723 ecosystem (.github/dependabot.yml); bump all four headers
+# # (three scripts + test_enumerate_units.py's ATTACH_SCRIPT) together, by hand.
+# dependencies = ["tree-sitter==0.26.0", "tree-sitter-c==0.24.2", "tree-sitter-cpp==0.23.4"]
 # ///
 """Enumerate review units and their countable site populations for c-review.
 

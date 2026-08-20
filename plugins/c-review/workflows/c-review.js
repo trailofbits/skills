@@ -1,5 +1,9 @@
 export const meta = {
-  name: 'c-review',
+  // NOT 'c-review': the skill is already `/c-review:c-review`, and a workflow with the
+  // same meta.name claims the identical command — whichever loses resolution becomes
+  // unreachable, and the workflow run bare has no args and throws. SKILL.md dispatches
+  // this file by scriptPath, so the name here is only the marketplace command.
+  name: 'audit',
   description:
     'C/C++ security review: location-partitioned reading over a generated unit list, a per-unit x per-question ledger, a shared-state invariant audit, a bounded class sweep, and deterministic artifacts',
   whenToUse:
@@ -155,6 +159,18 @@ const INVARIANT_AUDIT = optional('invariantAudit', 'boolean') === true
 // dispatch count). Also passed to enumerate_units.py as --agent-max, so a pinned
 // `reviewAgents` above 14 is not clamped away by the enumerator's default.
 const AGENT_MAX = Math.max(14, REVIEW_AGENTS || 0)
+
+// Paths the enumerator skips, each becoming a repeated `--exclude`. The enumerator
+// aborts naming `--exclude` as the remedy — a symlink resolving outside the scope root,
+// an unreadable directory — so the remedy must be reachable from here, not only by
+// running the enumerator by hand.
+const EXCLUDE = ARGS.exclude === undefined || ARGS.exclude === null ? [] : ARGS.exclude
+if (!Array.isArray(EXCLUDE) || EXCLUDE.some((e) => typeof e !== 'string' || e === '')) {
+  throw new Error(
+    'c-review: args.exclude must be an array of non-empty strings, got ' +
+      JSON.stringify(ARGS.exclude) + '. Each entry becomes an --exclude operand.'
+  )
+}
 
 const PARTS_DIR = OUTPUT_DIR + '/parts'
 const SCRIPTS = PLUGIN_ROOT + '/scripts'
@@ -943,12 +959,16 @@ function scopeBlock() {
 
 function detectPrompt(gateableClasses) {
   const cmd =
-    'uv run ' + shq(SCRIPTS + '/enumerate_units.py') +
+    // `--no-project`: the cwd is the AUDITED tree, and a C library with Python bindings
+    // commonly carries a pyproject.toml — without the flag uv installs that project
+    // first, and its resolution failure aborts Detect. PEP 723 inline deps still install.
+    'uv run --no-project ' + shq(SCRIPTS + '/enumerate_units.py') +
     ' --root ' + shq(SCOPE) +
     ' --out-dir ' + shq(OUTPUT_DIR) +
     ' --max-unit-lines ' + MAX_UNIT_LINES +
     ' --lines-per-agent ' + LINES_PER_AGENT +
     ' --agent-max ' + AGENT_MAX +
+    EXCLUDE_FLAGS +
     (REVIEW_AGENTS ? ' --agents ' + REVIEW_AGENTS : '')
 
   return [
@@ -1296,7 +1316,9 @@ function severityBlock() {
 }
 function assemblePrompt(expected, complete, external, groupsAttempted, groupsFailed, failures) {
   const parts = [
-    'uv run ' + shq(SCRIPTS + '/assemble_findings.py'),
+    // `--no-project` for the same reason as the detect command: the cwd is the audited
+    // tree, whose own pyproject.toml must not be installed before the assembler runs.
+    'uv run --no-project ' + shq(SCRIPTS + '/assemble_findings.py'),
     '--run-dir ' + shq(OUTPUT_DIR),
     '--threat-model ' + shq(THREAT_MODEL),
     '--severity-filter ' + shq(SEVERITY_FILTER),
@@ -1367,6 +1389,12 @@ function assemblePrompt(expected, complete, external, groupsAttempted, groupsFai
 function shq(value) {
   return "'" + String(value).replace(/'/g, "'\\''") + "'"
 }
+
+// Pre-quoted `--exclude` flags for the detect command, built here — after `shq` — because
+// the command builder splices this string verbatim and every element must already be
+// quoted. test_workflow_args.py scans the command regions for unquoted operands and
+// allowlists this name on the strength of the `shq` below.
+const EXCLUDE_FLAGS = EXCLUDE.map((e) => ' --exclude ' + shq(e)).join('')
 
 // An assignment id becomes a shell word, an `--expect ID=COUNT` operand and a part-file
 // stem: an `=` mis-splits the expectation, a `/` or `..` escapes the parts directory.

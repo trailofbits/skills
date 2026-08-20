@@ -103,7 +103,7 @@ Workflow({
 omitted, the workflow tells the assembler no absolute root is known and a finding filed as
 `/repo/expat/lib/xmlparse.c` stops merging with the same bug filed as `xmlparse.c`.
 
-Five further arguments are optional. Omitted, each takes its default; passed with the
+Six further arguments are optional. Omitted, each takes its default; passed with the
 wrong TYPE, the workflow throws with the field name rather than defaulting. Pass them
 only when the user asks or when running an evaluation:
 
@@ -113,6 +113,7 @@ only when the user asks or when running an evaluation:
 | `linesPerAgent` | `1500` | Source lines per review agent. **A no-op on a small tree** — `--agent-min` (default 4) floors the derived count, so two very different values can produce identical assignments. Use `reviewAgents` to pin the fan-out |
 | `reviewAgents` | derived | Pins the review fan-out, subject to the same floor as the derived count: both are clamped to 4–14, and an explicit value above 14 raises the cap to itself. A value below 4 is raised to 4, and a trailing slice too small to be worth an agent is folded into its neighbour, so the final count can come out one lower than asked |
 | `invariantAudit` | `false` | Adds the shared-state invariant audit to the sweep. A whole extra agent; turn it on for state-machine-heavy targets |
+| `exclude` | `[]` | Array of globs or substrings the unit enumerator skips (each becomes a repeated `--exclude`). Use when enumeration aborts naming a path it cannot own — a symlink resolving outside the scope root, an unreadable directory — and the excluded paths land in the enumerator's totals as a visible coverage hole, not silence |
 | `benchmarkMode` | `false` | **Eval-only.** Adds an external-source declaration to reviewer prompts and two schema fields. Changes no finding; leave it off for a real audit |
 
 The workflow validates its own arguments and throws with a named field if one is
@@ -155,7 +156,7 @@ result that means the run was partial:
 Hand re-assembly, when `artifactsWritten` is false:
 
 ```
-uv run <plugin_root>/scripts/assemble_findings.py --run-dir <output_dir> \
+uv run --no-project <plugin_root>/scripts/assemble_findings.py --run-dir <output_dir> \
   --threat-model <MODEL> --severity-filter <FILTER> --no-judge \
   --scope <finding_scope_root> --context-roots <context_roots> \
   --worker-model <worker_model> \

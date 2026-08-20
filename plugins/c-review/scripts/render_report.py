@@ -66,6 +66,15 @@ MD_BLOCK_START = re.compile(r"^(\s{0,3})(#|>|<|```|~~~|-+\s*$|=+\s*$|\*{3,}\s*$|
 # forge an Impact label above the genuine one.
 MD_BOLD_LABEL = re.compile(r"^(\s{0,3})((?:\*{2,3}[^*]+\*{2,3}|_{2,3}[^_]+_{2,3})\s*$)")
 
+# Mid-line raw HTML. MD_BLOCK_START guards only column 0, but CommonMark INLINE HTML needs
+# no column: `ok <h2>CRITICAL (99)</h2>` renders a live heading mid-paragraph, and a
+# terminated `<!-- … -->` hides everything between the arrows. Only `<` opening a tag,
+# comment, declaration or processing instruction is escaped — `\<` renders as a literal
+# `<` — so prose comparisons (`a < b`) are untouched. Inside a backtick span the backslash
+# would show, which is why `_code` bypasses this: its callers wrap the value in backticks,
+# where HTML is already inert.
+MD_INLINE_HTML = re.compile(r"<(?=[A-Za-z/!?])")
+
 
 def _flag(value: Any) -> str:
     """Render a JSON boolean as JSON writes it, not as Python repr's it.
@@ -94,7 +103,11 @@ def _section(title: str, body: Any) -> list[str]:
     if not text:
         return []
     safe = "\n".join(
-        MD_BOLD_LABEL.sub(r"\1\\\2", MD_BLOCK_START.sub(r"\1\\\2", line))
+        # Inline HTML first: a line-leading `<h2>` becomes `\<h2>`, which MD_BLOCK_START's
+        # `<` alternation then has nothing left to match — one escape, not two.
+        MD_BOLD_LABEL.sub(
+            r"\1\\\2", MD_BLOCK_START.sub(r"\1\\\2", MD_INLINE_HTML.sub(r"\\<", line))
+        )
         for line in text.splitlines()
     )
     return [f"**{title}**", "", safe, ""]
@@ -105,19 +118,22 @@ def _inline(value: Any) -> str:
 
     A newline in `fp_rationale` or `severity_rationale` breaks out of its bullet and the
     rest renders as document-level Markdown — an injected `## CRITICAL (99)` heading is
-    indistinguishable from a real one.
+    indistinguishable from a real one. Inline HTML is escaped for the same reason: these
+    values render bare, where `<h2>` is live.
     """
-    return " ".join(str(value).split())
+    return MD_INLINE_HTML.sub(r"\\<", " ".join(str(value).split()))
 
 
 def _code(value: Any) -> str:
     """One line for a value the caller wraps in backticks.
 
-    `_inline` collapses newlines and leaves backticks live, so a `file` of ``x` **BOLD** `y``
-    closes the code span and renders the middle as emphasis. Nothing inside a path, a
-    function name or a bug class needs a backtick.
+    Collapses like `_inline` but skips its HTML escape — inside a code span HTML is
+    already inert and the backslash would render, turning a C++ `foo<T>` into `foo\\<T>`.
+    Backticks are stripped, not escaped: a `file` of ``x` **BOLD** `y`` otherwise closes
+    the code span and renders the middle as emphasis. Nothing inside a path, a function
+    name or a bug class needs a backtick.
     """
-    return _inline(value).replace("`", "")
+    return " ".join(str(value).split()).replace("`", "")
 
 
 def _items(value: Any) -> list[str]:

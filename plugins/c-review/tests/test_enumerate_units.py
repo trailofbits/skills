@@ -425,7 +425,9 @@ BIG_C = _big_c()
 ATTACH_SCRIPT = """
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["tree-sitter>=0.23", "tree-sitter-c>=0.23", "tree-sitter-cpp>=0.23"]
+# # Pinned to the versions the shipped scripts pin, so the reparse here counts sites with
+# # the same grammars the gate uses — see enumerate_units.py's header.
+# dependencies = ["tree-sitter==0.26.0", "tree-sitter-c==0.24.2", "tree-sitter-cpp==0.23.4"]
 # ///
 import json, sys
 sys.path.insert(0, sys.argv[1])

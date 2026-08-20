@@ -169,6 +169,11 @@ def test_shq_survives_an_embedded_single_quote_and_a_command_substitution(tmp_pa
         # assembler as a `--scope-abs` operand nothing starts with, silently halving the
         # spellings both sides fold.
         ("findingScopeRootAbs", ["/a"]),
+        # A bare string would iterate as characters if coerced; each entry becomes an
+        # `--exclude` shell operand, so the element type is load-bearing too.
+        ("exclude", "src/generated"),
+        ("exclude", [1]),
+        ("exclude", [""]),
     ],
 )
 def test_a_wrong_typed_optional_arg_is_refused_not_silently_defaulted(key, value, tmp_path):
@@ -310,8 +315,25 @@ def test_no_producing_prompt_offers_a_shell_fallback():
 
 
 # Operands that are integers `bounded()` has already range-checked, so they cannot carry a
-# shell metacharacter. Everything else interpolated into a command must go through `shq`.
-UNQUOTED_NUMERIC_OPERANDS = {"MAX_UNIT_LINES", "LINES_PER_AGENT", "AGENT_MAX", "REVIEW_AGENTS"}
+# shell metacharacter, plus EXCLUDE_FLAGS, whose every element went through `shq` where the
+# string was built — test_exclude_flags_are_shell_quoted_where_they_are_built holds that.
+UNQUOTED_NUMERIC_OPERANDS = {
+    "MAX_UNIT_LINES",
+    "LINES_PER_AGENT",
+    "AGENT_MAX",
+    "REVIEW_AGENTS",
+    "EXCLUDE_FLAGS",
+}
+
+
+def test_exclude_flags_are_shell_quoted_where_they_are_built():
+    """EXCLUDE_FLAGS is spliced verbatim into the detect command, so the shq scan above
+    allowlists the name — which is only sound while every element is quoted at the build
+    site. An entry of `src'; echo PWNED; #` otherwise reaches the shell live."""
+    src = WORKFLOW.read_text(encoding="utf-8")
+    build = re.search(r"^const EXCLUDE_FLAGS = .*$", src, re.M)
+    assert build, "no `const EXCLUDE_FLAGS` in the workflow — the builder moved"
+    assert "shq(" in build.group(0), build.group(0)
 
 
 def _command_regions(src: str) -> list[tuple[str, str]]:

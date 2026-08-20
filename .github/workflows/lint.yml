@@ -149,9 +149,14 @@ jobs:
           # sys.path) preserves the sibling imports these suites rely on, and
           # --import-mode=importlib keeps c-review and rust-review from colliding on
           # their identically-named test_split.py.
+          #
+          # evals*/fixture is excluded, in step with the Makefile's python-tests target:
+          # those files are deliberately defective sample code a skill's eval measures
+          # against — property-based-testing's fixture raises FailedHealthCheck by design.
           set -uo pipefail
           mapfile -t dirs < <(
             find plugins -type f \( -name 'test_*.py' -o -name '*_test.py' \) \
+              -not -path '*/evals*/fixture/*' \
               -exec dirname {} \; | sort -u
           )
           if [ "${#dirs[@]}" -eq 0 ]; then

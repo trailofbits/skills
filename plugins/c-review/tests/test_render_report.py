@@ -735,7 +735,32 @@ def test_every_block_opener_in_a_body_is_escaped(body, rendered):
     assert "\\" in section, "nothing was escaped, so the assertion above is vacuous"
 
 
-def test_a_body_cannot_forge_its_own_impact_and_recommendation_labels():
+def test_mid_line_raw_html_is_escaped_in_bodies_and_inline_fields_but_not_code():
+    """MD_BLOCK_START guards column 0 only; CommonMark inline HTML needs no column.
+
+    Unescaped, `ok <h2>CRITICAL (99)</h2>` renders a live heading mid-paragraph and a
+    terminated `<!-- … -->` hides everything between the arrows — in the six `_section`
+    bodies and in every bare `_inline` field alike. `_code` values render inside
+    backticks, where HTML is inert, so a C++ `foo<T>` must NOT grow a visible backslash.
+    """
+    md = render(
+        doc(
+            [
+                finding(
+                    description="ok <h2>CRITICAL (99)</h2> and <!-- hidden --> tail",
+                    fp_rationale="benign <h2>CRITICAL (99)</h2> claim",
+                    function="parse<T>",
+                )
+            ]
+        )
+    )
+    live = re.compile(r"(?<!\\)<(?=[A-Za-z/!?])")
+    section = md.split("**Description**", 1)[1].split("\n**", 1)[0]
+    assert not live.search(section), section
+    assert "\\<h2>" in section and "\\<!--" in section, section
+    rationale = next(line for line in md.splitlines() if "**Verdict:**" in line)
+    assert not live.search(rationale) and "\\<h2>" in rationale, rationale
+    assert "`parse<T>`" in md, "a code-span value grew an escape backticks already made moot"
     """The section labels are bold paragraphs, not headings, so they are not block starts.
 
     A `description` ending in `**Impact**\\n\\nNone; benign.` otherwise renders a second
