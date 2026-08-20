@@ -14,13 +14,16 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
+# What a result's severity is when neither the result nor its rule states one.
+SARIF_DEFAULT_LEVEL = "warning"
+
 
 @dataclass
 class Finding:
     """Structured representation of a SARIF result."""
 
     rule_id: str
-    level: str
+    level: str  # resolved by resolve_level(), not read from result.level
     message: str
     file_path: str | None = None
     start_line: int | None = None
@@ -81,6 +84,59 @@ def safe_get(data: dict, *keys, default: Any = None) -> Any:
     return data if data != {} else default
 
 
+def find_rule(result: dict, run: dict) -> dict | None:
+    """Find the rule definition a result was produced by.
+
+    Joins on `ruleIndex` first (the cheap, unambiguous key CodeQL populates) and falls
+    back to matching `ruleId` against `runs[].tool.driver.rules[].id`, which is all
+    Semgrep and most other tools give you.
+    """
+    rules = safe_get(run, "tool", "driver", "rules", default=[]) or []
+    index = result.get("ruleIndex")
+    if isinstance(index, int) and not isinstance(index, bool) and 0 <= index < len(rules):
+        return rules[index]
+
+    rule_id = result.get("ruleId")
+    if rule_id:
+        for rule in rules:
+            if rule.get("id") == rule_id:
+                return rule
+    return None
+
+
+def resolve_level(result: dict, run: dict) -> str:
+    """Resolve a result's effective severity, per SARIF 2.1.0 section 3.27.10.
+
+    `result.level` is optional, and CodeQL routinely omits it: severity lives on the
+    rule as `defaultConfiguration.level`, and the result inherits it. Reading
+    `result.level` directly therefore scores an entire CodeQL run as clean, which is
+    why a severity gate written that way exits 0 on a repo full of errors.
+
+    Resolution order:
+      1. `kind` other than "fail" (a pass/informational/notApplicable record) is "none"
+      2. `result.level` when present
+      3. the matched rule's `defaultConfiguration.level`
+      4. "warning", the SARIF default
+
+    `invocations[].ruleConfigurationOverrides` can outrank the rule default; no tool in
+    common use emits it, so this does not read it.
+    """
+    if (result.get("kind") or "fail") != "fail":
+        return "none"
+
+    level = result.get("level")
+    if level:
+        return level
+
+    rule = find_rule(result, run)
+    if rule:
+        rule_level = safe_get(rule, "defaultConfiguration", "level")
+        if rule_level:
+            return rule_level
+
+    return SARIF_DEFAULT_LEVEL
+
+
 def extract_location(result: dict) -> tuple[str | None, int | None, int | None]:
     """Extract file path, start line, and end line from result."""
     loc = safe_get(result, "locations", 0, default={})
@@ -112,6 +168,7 @@ def extract_findings(sarif: dict) -> list[Finding]:
         loc = safe_get(result, "locations", 0, default={})
         phys = loc.get("physicalLocation", {})
         region = phys.get("region", {})
+        rule = find_rule(result, run)
 
         # Get fingerprint
         fp = None
@@ -123,7 +180,7 @@ def extract_findings(sarif: dict) -> list[Finding]:
         findings.append(
             Finding(
                 rule_id=result.get("ruleId", "unknown"),
-                level=result.get("level", "warning"),
+                level=resolve_level(result, run),
                 message=safe_get(result, "message", "text", default=""),
                 file_path=file_path,
                 start_line=start_line,
@@ -132,6 +189,7 @@ def extract_findings(sarif: dict) -> list[Finding]:
                 end_column=region.get("endColumn"),
                 fingerprint=fp,
                 tool_name=tool_name,
+                rule_name=rule.get("name") if rule else None,
                 raw=result,
             )
         )
@@ -194,13 +252,24 @@ def count_by_rule(findings: list[Finding]) -> dict[str, int]:
 
 
 def compute_fingerprint(result: dict, include_message: bool = True) -> str:
-    """Compute stable fingerprint from result data."""
+    """Compute stable fingerprint from result data.
+
+    The whole normalized path goes into the hash, directory included. Hashing the
+    basename alone gave `src/auth/login.py:42` and `src/admin/login.py:42` one
+    fingerprint under the same rule, so `deduplicate()` and `diff_findings()` threw
+    away the second finding and called the file fixed.
+
+    The cost is that runs reporting different absolute prefixes for the same file
+    (`/github/workspace/src/a.py` vs `/builds/proj/src/a.py`) no longer match. Make the
+    URIs repo-relative before fingerprinting when comparing across environments; a
+    collision that hides a finding is the worse failure.
+    """
     components = [result.get("ruleId", "")]
 
     file_path, start_line, _ = extract_location(result)
     if file_path:
-        # Use only filename, not full path (more stable across environments)
-        components.append(Path(file_path).name)
+        # POSIX separators so a fingerprint computed on Windows matches one from CI.
+        components.append(Path(normalize_path(file_path)).as_posix())
     if start_line:
         components.append(str(start_line))
     if include_message:
