@@ -7,7 +7,7 @@ mode, and the specialist-dispatch trampoline. Paid and manual — never CI.
 CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval . --judge-model sonnet \
   --scaffold --keep-temp --no-publish --json results/run.json \
   --allow-tools Bash Write Edit Workflow Task
-python3 check_contamination.py results/run.json
+uv run --no-project check_contamination.py results/run.json
 ```
 
 - **`CLAUDE_CODE_WALNUT_SPIRE=1`** is required while `plugin eval` is in early access.

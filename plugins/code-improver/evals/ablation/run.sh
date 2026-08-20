@@ -41,7 +41,7 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$BASELINE_REF" ] || usage
 
-for tool in claude git jq python3; do
+for tool in claude git jq uv; do
   command -v "$tool" >/dev/null 2>&1 || {
     echo "run.sh: $tool not found" >&2
     exit 1
@@ -105,14 +105,14 @@ EVAL_ARGS=(--runs "$RUNS" --judge-model "$JUDGE" --scaffold --keep-temp --no-pub
 
 echo "=== arm A (v2, this tree) ==="
 (cd "$PLUGIN_DIR" && CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval . "${EVAL_ARGS[@]}" --json "$OUT/arm-a.json")
-python3 "$HERE/../check_contamination.py" "$OUT/arm-a.json"
+uv run --no-project "$HERE/../check_contamination.py" "$OUT/arm-a.json"
 
 echo "=== arm B ($EXPECT_VERSION @ $BASELINE_REF) ==="
 (cd "$ARM_B/skill-improver" && CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval . "${EVAL_ARGS[@]}" --json "$OUT/arm-b.json")
 # --allow-listing: the old plugin's own file search lists the (neutralized) eval tree.
-python3 "$HERE/../check_contamination.py" --allow-listing "$OUT/arm-b.json"
+uv run --no-project "$HERE/../check_contamination.py" --allow-listing "$OUT/arm-b.json"
 
-python3 "$HERE/scorecard.py" \
+uv run --no-project "$HERE/scorecard.py" \
   --arm-a-json "$OUT/arm-a.json" --arm-a-results "$PLUGIN_DIR/evals/results" \
   --arm-b-json "$OUT/arm-b.json" --arm-b-results "$ARM_B/skill-improver/evals/results" \
   --collector "$PLUGIN_DIR/scripts/collect_metrics.py" |
