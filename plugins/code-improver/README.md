@@ -1,19 +1,19 @@
 # Code Improver Plugin
 
-Improves a code target through an autonomous review→fix loop,
+Improves a code target through an autonomous review→fix loop.
 `/code-improver:improve` — a dynamic workflow that dispatches a **pluggable reviewer**
 (any installed skill or agent) and the plugin's own fixer agent until a review comes
-back with zero critical/major findings, then strips its own residue and exits. The
-plugin ships no reviewer of its own: review expertise comes from the reviewer you name,
-and an unavailable reviewer halts the run loudly instead of improvising.
+back with zero critical/major findings or the loop starts oscillating.
+
+The plugin's finall pass strips its own residue (loop narration, stale docs, version churn).
 
 ## Usage
 
 Three entry skills wire the loop to a target kind:
 
 ```
-/skill-improver ./plugins/my-plugin/skills/my-skill    # reviewer: plugin-dev:skill-reviewer
-/pr-improver main                                      # reviewer: a PR-review skill, scope from the branch diff
+/skill-improver ./plugins/my-plugin/skills/my-skill    # reviewer: plugin-dev:skill-reviewer agent
+/pr-improver branch-name                               # reviewer: pr-review-toolkit:review-pr skill
 /code-improver ./src --reviewer my-plugin:my-reviewer --scope 'src/**'
 ```
 
@@ -23,9 +23,6 @@ Stop it at any time by stopping the workflow task; every round persists its stat
 first.
 
 ## What the loop guarantees
-
-Each of these exists because a manually-run review/fix loop was observed failing without
-it:
 
 - **Completion means a clean review.** The loop can only end on a review with zero
   blocking findings. At the round cap it runs one final review-only round and, if that
@@ -57,12 +54,13 @@ it:
 
 ## Requirements
 
-- **Claude Code with dynamic-workflow support** — the loop is a workflow script; under
-  Codex the plugin's skills load but the loop is unavailable.
+- **Claude Code with dynamic-workflow support** — the loop is a workflow script. Other
+  clients (e.g. Codex) are not supported: the skills may still load through marketplace
+  compatibility, but the loop is unavailable.
 - **A reviewer.** The `skill-improver` entry needs the `plugin-dev` plugin
   (`claude-plugins-official` marketplace); `pr-improver`'s default needs
   `pr-review-toolkit`; the generic `code-improver` entry uses whatever skill or agent
-  you name. A missing reviewer is a loud halt, not a degraded run.
+  you name. A missing reviewer is a loud halt.
 - **A git repository.** The scope guard and fix verification diff against a baseline
   commit. If the target is not in a repository, the run initializes one (with an
   explicit `code-improver-baseline` identity) and says so loudly.
