@@ -2,7 +2,7 @@
 name: code-improver
 description: "Runs an autonomous review-and-fix improvement loop over any code target — a skill, plugin, module, or directory — using a reviewer the user names: any installed skill or agent. Keeps a cross-round findings ledger, escalates when fixes stop converging, and guards scope mechanically. Use when asked to 'improve this code until review passes', 'run an improvement loop with <reviewer>', or to iterate review-and-fix with a specific reviewer. For skills prefer the skill-improver entry; for a branch prefer pr-improver."
 argument-hint: "<TARGET_PATH> --reviewer <agent-or-skill-name> --scope <globs> [--max-rounds N]"
-allowed-tools: Glob Read Workflow
+allowed-tools: Bash Glob Read TaskOutput TaskStop Workflow
 ---
 
 # Code Improver

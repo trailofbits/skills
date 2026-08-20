@@ -522,15 +522,34 @@ log(`Scope: ${SCOPE.join(', ')} | baseline ${BASE_SHA.slice(0, 12)} | artifacts:
 // ---------------------------------------------------------------------------
 // Prompt fragments
 // ---------------------------------------------------------------------------
-// The ledger is persisted as step 0 of every reviewer/fixer prompt, so an
-// interrupt at any point leaves at most one round un-persisted on disk (the
-// journal still has it). Exits with no next agent persist explicitly.
+// The ledger is persisted by a dedicated agent before every review dispatch —
+// the pluggable reviewer may lack the Write tool — and as step 0 of every fixer
+// prompt, so an interrupt at any point leaves at most one round un-persisted on
+// disk (the journal still has it). Exits with no next agent persist explicitly.
 const persistBlock = () =>
   `STEP 0 — before anything else, persist the ledger for interrupt safety: use the Write tool to write the following JSON verbatim (no edits, no reformatting) to \`${LEDGER_PATH}\`:
 
 \`\`\`json
 ${JSON.stringify(ledger, null, 2)}
 \`\`\``
+
+const ledgerBlock = () =>
+  `The ledger below is already persisted to \`${LEDGER_PATH}\`; it is read-only context — do not write it:
+
+\`\`\`json
+${JSON.stringify(ledger, null, 2)}
+\`\`\``
+
+const persistLedger = async (label) => {
+  await agent(
+    `Persist the ledger of an improvement loop for interrupt safety: use the Write tool to write the following JSON verbatim (no edits, no reformatting) to \`${LEDGER_PATH}\`. Write that one file and nothing else.
+
+\`\`\`json
+${JSON.stringify(ledger, null, 2)}
+\`\`\``,
+    { label, effort: 'low' },
+  )
+}
 
 const decisionBlock = () =>
   ledger.decisions.length
@@ -617,12 +636,14 @@ for (let round = 1; round <= MAX_FIX_ROUNDS + 1 && !done; round++) {
       ? `You perform the review by invoking the Skill tool with skill="${REVIEWER_NAME}" FIRST and applying the review that skill prescribes to the target. If the Skill invocation fails or the skill is unavailable, do NOT review anything yourself: return zero findings, an empty verified_fixed, and a summary that begins exactly with "REVIEWER-UNAVAILABLE:" followed by the error you saw.`
       : `You are dispatched as the \`${REVIEWER_NAME}\` agent: apply your own review standards to the target.`
 
+  await persistLedger(`persist:${round}`)
+
   let review
   try {
     review = await agent(
       `Review round ${round}${finalRound ? ' — FINAL. This is a review-only round: no fix will follow, so report the true state.' : ''} of an automated improvement loop over the target at \`${TARGET}\`. ${reviewerLeadIn}
 ${REVIEWER_NOTES ? `\nReviewer configuration notes from the caller: ${REVIEWER_NOTES}\n` : ''}
-${persistBlock()}
+${ledgerBlock()}
 
 Scope (repo-relative globs; the loop only changes files inside them): ${SCOPE.join(', ')}
 ${decisionBlock()}
@@ -632,7 +653,7 @@ The ledger above is the authoritative cross-round memory. Apply it:
 - Findings with status "deferred" are parked; do not re-file them at the same severity.
 - Reuse the exact ledger id when re-reporting any known finding, even when its line has shifted.
 
-Now review the target and report EVERY defect the review surfaces, each with a severity attached — including minor and informational ones. Map the reviewer's native severity scale onto critical|major|minor|info. Do not withhold or pre-filter low-severity findings; filtering happens at the ledger verdict, once, not in your report. Do not edit or fix anything: writing the ledger JSON in STEP 0 is the only write you perform.`,
+Now review the target and report EVERY defect the review surfaces, each with a severity attached — including minor and informational ones. Map the reviewer's native severity scale onto critical|major|minor|info. Do not withhold or pre-filter low-severity findings; filtering happens at the ledger verdict, once, not in your report. Do not edit or fix anything — you perform no writes at all.`,
       { schema: REVIEW_SCHEMA, label: finalRound ? 'final-review' : `review:${round}`, phase: finalRound ? 'Final review' : 'Review', ...(REVIEWER.kind === 'agent' ? { agentType: REVIEWER_NAME } : {}) },
     )
   } catch (e) {

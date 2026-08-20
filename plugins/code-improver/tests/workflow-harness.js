@@ -127,7 +127,7 @@ async function run(src, opts = {}) {
     }
     if (label.startsWith("scope:")) return si < scopes.length ? scopes[si++] : CLEAN_SCOPE;
     if (label === "final-scope") return finalScope === undefined ? CLEAN_SCOPE : finalScope;
-    if (label === "persist") return "persisted";
+    if (label === "persist" || label.startsWith("persist:")) return "persisted";
     if (label === "finalize") return finalize;
     throw new Error(`unexpected agent label: ${label}`);
   };
@@ -313,7 +313,7 @@ const SCENARIOS = {
       [out && out.fixer_failed_rounds.length === 1 && out.fixer_failed_rounds[0] === 1, "the result must flag the failed round"],
       [failedRound && failedRound.failed === true && failedRound.verdicts.fixed === 0, "the ledger must record the round as failed with zero fixes"],
       [calls[i + 1] === "scope:1", "the scope guard must still run over a dead fixer's partial edits"],
-      [calls[i + 2] === "review:2", "the next action after a dead fixer must be a review, not another fix"],
+      [calls.slice(i + 2).filter((c) => c.startsWith("review:") || c.startsWith("fix:"))[0] === "review:2", "the next action after a dead fixer must be a review, not another fix"],
       [out && out.notes.some((n) => /died/.test(n)), "the result must say the fixer died"],
       [out && out.converged === true, "the loop must still be able to converge afterwards"],
     ];
@@ -372,17 +372,22 @@ const SCENARIOS = {
     ];
   },
 
-  // The reviewer contract: persistence, ledger discipline, report-everything.
-  "the reviewer prompt carries persistence and the ledger discipline": async (src) => {
-    const { prompts, agentOpts } = await run(src, {
+  // The reviewer contract: pre-dispatch persistence, ledger discipline, report-everything.
+  "the ledger is persisted before each review and the reviewer never writes": async (src) => {
+    const { calls, prompts, agentOpts } = await run(src, {
       reviews: [REV([A]), REV([], [fid(A)])],
       fixes: [FIX([V(A, "fixed")], 1)],
     });
     const p = prompts["review:1"];
+    const pp = prompts["persist:1"];
     return [
-      [/STEP 0 — before anything else, persist the ledger/.test(p), "the review must persist the ledger before anything else"],
-      [p.includes("/work/.code-improver/demo/ledger.json"), "the persist step must name the ledger path"],
-      [/verbatim/.test(p), "the persist step must forbid reformatting"],
+      [calls.indexOf("persist:1") !== -1 && calls.indexOf("persist:1") < calls.indexOf("review:1"), "the ledger must be persisted before the first review dispatch"],
+      [calls.indexOf("persist:2") !== -1 && calls.indexOf("persist:2") < calls.indexOf("review:2"), "the ledger must be persisted before every later review dispatch"],
+      [pp && pp.includes("/work/.code-improver/demo/ledger.json") && /verbatim/.test(pp), "the persist agent must be given the ledger path and forbidden to reformat"],
+      [pp && fences(pp)[0] && fences(pp)[0].findings !== undefined, "the persist agent must be given the full ledger"],
+      [!/Write tool/.test(p) && !/STEP 0/.test(p), "the reviewer must not be asked to write — it may be read-only"],
+      [p.includes("/work/.code-improver/demo/ledger.json"), "the reviewer must be told where the ledger lives"],
+      [fences(p)[0] && fences(p)[0].findings !== undefined, "the ledger must reach the reviewer as context"],
       [/Do not withhold or pre-filter low-severity findings/.test(p), "the reviewer must be told to report everything"],
       [/new_evidence=true/.test(p), "the re-file discipline must reach the reviewer"],
       [/verified_fixed/.test(p), "the fix-verification duty must reach the reviewer"],
@@ -483,6 +488,7 @@ const SCENARIOS = {
     });
     const p = prompts["fix:1"];
     return [
+      [/STEP 0 — before anything else, persist the ledger/.test(p), "the fixer must persist the post-review ledger before editing"],
       [/NEVER run `git checkout --`, `git stash`, `git reset`, `git clean`, or `git commit`/.test(p), "the git prohibitions must reach the fixer"],
       [/fails against the pre-fix code/.test(p), "the pin requirement must reach the fixer"],
       [p.includes("plugins/demo/**"), "the scope globs must reach the fixer"],
@@ -676,7 +682,8 @@ const MUTATIONS = [
   ["continue past a scope violation", (s) => s.replace("if (violations.length) {", "if (false) {")],
   ["re-litigate rejected findings", (s) => s.replace("if (ex.status === 'rejected' && !raw.new_evidence) {", "if (false) {")],
   ["complete with unregistered new files", (s) => s.replace("} else if (newUntracked.length) {", "} else if (false) {")],
-  ["stop persisting the ledger before each round", (s) => s.replace("STEP 0 — before anything else, persist the ledger", "Context: the ledger")],
+  ["stop persisting the ledger before each fix", (s) => s.replace("STEP 0 — before anything else, persist the ledger", "Context: the ledger")],
+  ["skip the pre-review ledger persist", (s) => s.replace("await persistLedger(`persist:${round}`)", "void 0")],
   ["drop the git prohibitions from the fixer contract", (s) => s.replace(/- NEVER run \\`git checkout --\\`.*\n/, "")],
   ["let the reviewer pre-filter", (s) => s.replace("Do not withhold or pre-filter low-severity findings", "Use judgement about which findings to report")],
   ["dispatch the reviewer without its agent type", (s) => s.replace("...(REVIEWER.kind === 'agent' ? { agentType: REVIEWER_NAME } : {})", "...{}")],
