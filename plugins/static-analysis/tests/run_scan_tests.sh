@@ -16,7 +16,7 @@ command -v uv >/dev/null 2>&1 || {
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
-readonly EXPECTED_ASSERTIONS=78
+readonly EXPECTED_ASSERTIONS=84
 
 command -v jq >/dev/null 2>&1 || {
   echo "run_scan_tests.sh: jq not found — required" >&2
@@ -310,6 +310,29 @@ eq "$(jq '.scans | length' "$WORK/o3/scans.json")" "0" "a scan that exited 7 mus
 eq "$(jq '.failed | length' "$WORK/o3/scans.json")" "1" "a scan that exited 7 must be reported as failed"
 contains "$(jq -r '.failed[0].json' "$WORK/o3/scans.json")" "raw/python-python.json" \
   "a failed entry must carry the paths it may have partly written"
+
+# Exit 2 is the case this differs on. semgrep returns 2 both for a bad argument, where it
+# writes nothing, and for a run where SOME rules failed to compile while the rest completed
+# and wrote full output. The first must fail; the second must be kept and marked partial,
+# because discarding it throws away a complete result set over rules that were never going
+# to run.
+export STUB_RC=2 STUB_RESULTS='{"a":1},{"b":2},{"c":3}'
+rc=$(run_real "$ONE" "$WORK/o2b")
+eq "$(jq '.scans | length' "$WORK/o2b/scans.json")" "1" \
+  "exit 2 with complete output must be kept, not discarded"
+eq "$(jq -r '.scans[0].findings' "$WORK/o2b/scans.json")" "3" \
+  "the findings of a partial scan must still be counted"
+eq "$(jq -r '.scans[0].partial' "$WORK/o2b/scans.json")" "true" \
+  "a scan kept despite exit 2 must be flagged partial, not reported as clean"
+eq "$(jq '.failed | length' "$WORK/o2b/scans.json")" "0" "a partial scan must not also be failed"
+
+# Exit 2 that wrote nothing is a bad argument: no scan happened, so it must still fail.
+export STUB_RC=2 STUB_WRITE=0
+rc=$(run_real "$ONE" "$WORK/o2c")
+eq "$(jq '.scans | length' "$WORK/o2c/scans.json")" "0" \
+  "exit 2 with no output must not be treated as a partial success"
+eq "$(jq '.failed | length' "$WORK/o2c/scans.json")" "1" "exit 2 with no output must be reported as failed"
+unset STUB_WRITE
 
 # Exit 0 with no output file is the case the exit code alone cannot catch.
 export STUB_RC=0 STUB_WRITE=0
