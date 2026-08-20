@@ -1,0 +1,9 @@
+{
+  "name": "code-improver",
+  "version": "1.0.0",
+  "description": "Improves code targets — skills, plugins, or a branch's changes — through an autonomous review-and-fix workflow with a pluggable reviewer (any installed skill or agent), a cross-round findings ledger, oscillation escalation, and a mechanical scope guard.",
+  "author": {
+    "name": "Paweł Płatek",
+    "url": "https://github.com/GrosQuildu"
+  }
+}
