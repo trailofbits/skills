@@ -12,8 +12,8 @@ Comprehensive reference of legacy C++ patterns and their modern replacements. Ea
 | Raw shared `T*` | `std::shared_ptr<T>` via `std::make_shared` | C++11 | Reference-counted lifetime; thread-safe refcount |
 | C arrays `int arr[N]` | `std::array<int, N>` | C++11 | Value semantics, `.size()`, no decay to pointer |
 | `malloc`/`free` | Containers or smart pointers | C++11 | Type-safe, exception-safe, RAII |
-| `memcpy(dst, src, n)` | `std::copy(src, src+n, dst)` or container assignment | C++11 | Type-safe, works with non-trivial types |
-| `memset(buf, 0, n)` | Value initialization or `std::fill` | C++11 | No risk of zeroing non-trivially-constructible types |
+| `memcpy(dst, src, n)` | `std::copy(src, src+n, dst)` or container assignment | C++98 | Type-safe, works with non-trivial types |
+| `memset(buf, 0, n)` | Value initialization or `std::fill` | C++98 | No risk of zeroing non-trivially-constructible types |
 | Pointer + length parameter pairs | `std::span<T>` | C++20 | Carries size, bounds-checkable with hardened mode |
 | `const char*` for non-owning strings | `std::string_view` | C++17 | Carries length, no null-terminator assumption |
 | Nullable `T*` for optional values | `std::optional<T>` | C++17 | Explicit intent, no null dereference risk |
@@ -22,13 +22,13 @@ Comprehensive reference of legacy C++ patterns and their modern replacements. Ea
 
 | Avoid | Use Instead | Standard | Why |
 |-------|-------------|----------|-----|
-| C-style cast `(int)x` | `static_cast<int>(x)` | C++11 | Explicit intent, greppable, won't silently reinterpret |
+| C-style cast `(int)x` | `static_cast<int>(x)` | C++98 | Explicit intent, greppable, won't silently reinterpret |
 | `reinterpret_cast` for type punning | `std::bit_cast<T>(x)` | C++20 | Defined behavior, `constexpr`-compatible |
 | `union` for variants | `std::variant<A, B, C>` | C++17 | Type-safe access via `std::visit`, no silent UB |
 | `void*` type erasure | `std::any`, `std::variant`, or templates | C++17 | Type-safe, no manual casting |
 | Plain `enum` | `enum class` | C++11 | Scoped, no implicit int conversion |
 | `NULL` or `0` | `nullptr` | C++11 | Unambiguous null pointer, no overload confusion |
-| Implicit single-arg constructors | Mark `explicit` | C++11 | Prevents surprising implicit conversions |
+| Implicit single-arg constructors | Mark `explicit` | C++98 | Prevents surprising implicit conversions |
 | Unchecked return values | `[[nodiscard]]` | C++17 | Compiler warns when return value is ignored |
 | `= delete` without message | `= delete("reason")` | C++26 | Documents why the overload is forbidden |
 

@@ -125,8 +125,8 @@ void process(int* data, size_t len);
 // AFTER: carries size, bounds-checkable
 void process(std::span<int> data) {
     for (auto& val : data) { /* safe iteration */ }
-    data[0];    // unchecked (fast)
-    data.at(0); // bounds-checked with hardened libc++
+    data[0];    // unchecked by default; bounds-checked under hardened libc++
+                // (_LIBCPP_HARDENING_MODE). span has no .at() until C++26.
 }
 
 // Works with any contiguous container
