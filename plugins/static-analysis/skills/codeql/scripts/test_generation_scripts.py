@@ -160,6 +160,7 @@ def _fake_uv(directory: Path) -> Path:
     """
     directory.mkdir(parents=True, exist_ok=True)
     script = directory / "uv"
+    # allow-legacy-python: a test stub standing in for uv itself, run with a controlled PATH.
     script.write_text(
         "#!/bin/sh\n"
         '[ "$1" = "run" ] && shift\n'

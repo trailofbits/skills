@@ -44,12 +44,15 @@ semantic metadata for security analysis.
 
 ## Installation
 
-**MANDATORY:** If `uv run trailmark` fails (command not found, import error,
-ModuleNotFoundError), install trailmark before doing anything else:
+**MANDATORY:** If `trailmark` is not found, install the CLI before doing anything else:
 
 ```bash
-uv pip install trailmark
+uv tool install trailmark
 ```
+
+A tool install provides the CLI only — it does not make `import trailmark` resolvable.
+Run the Python snippets in this skill with `uv run --with trailmark python -`; that, not
+installation, is the fix for an import error or ModuleNotFoundError in a snippet.
 
 **DO NOT** fall back to "manual verification", "manual analysis", or reading
 source files by hand as a substitute for running trailmark. The tool must be
@@ -141,7 +144,7 @@ uv run trailmark analyze --language auto --complexity 10 {targetDir}
 
 # Entrypoint inventory and structural diff (v0.2-safe)
 uv run trailmark entrypoints --language auto {targetDir}
-uv run trailmark diff --repo {repoDir} main HEAD --json
+uv run trailmark diff --language auto --repo {repoDir} main HEAD --json
 
 # Version report (0.2.2+)
 uv run trailmark --version

@@ -42,7 +42,7 @@ Run this step **before** correctness validation so that resolved types, aliases,
 - For each sensitive object and wipe call, resolve symbol definitions using `find_symbol` (by name, with `include_body: true` for type details) and collect cross-file references using `find_referencing_symbols`.
 - Trace callers and cleanup paths using `find_referencing_symbols` on wipe wrapper functions. For outgoing calls, read the function body from `find_symbol` output and resolve called symbols.
 - Use `get_symbols_overview` to get a high-level view of symbols in a file when exploring unfamiliar TUs.
-- Normalize all MCP output: `python {baseDir}/tools/mcp/normalize_mcp_evidence.py`.
+- Normalize all MCP output: `uv run --no-project {baseDir}/tools/mcp/normalize_mcp_evidence.py`.
 
 Prioritize `find_symbol` queries by sensitive-object name first, then wipe wrapper names. Score confidence: name match alone → `needs_review`; name + type resolved → `likely`; name + type + call chain confirmed → `confirmed`.
 
@@ -84,7 +84,7 @@ For each TU containing sensitive objects:
 ```bash
 FLAGS=()
 while IFS= read -r flag; do FLAGS+=("$flag"); done < <(
-  python {baseDir}/tools/extract_compile_flags.py \
+  uv run --no-project {baseDir}/tools/extract_compile_flags.py \
     --compile-db <compile_db> --src <file> --format lines)
 
 {baseDir}/tools/emit_ir.sh --src <file> \
@@ -177,7 +177,7 @@ Output a `Makefile` in `{baseDir}/generated_tests/` that builds and runs all tes
 Generate proof-of-concept C programs for all findings regardless of confidence. Each PoC exits 0 (exploitable) or 1 (not exploitable):
 
 ```bash
-python {baseDir}/tools/generate_poc.py \
+uv run --no-project {baseDir}/tools/generate_poc.py \
   --findings <findings_json> \
   --compile-db <compile_db> \
   --out <poc_output_dir> \

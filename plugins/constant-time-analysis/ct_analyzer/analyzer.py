@@ -13,20 +13,20 @@ across multiple architectures (x86_64, arm64, arm, riscv64, etc.) to detect
 instructions that could leak timing information about secret data.
 
 Usage:
-    python ct_analyzer/analyzer.py [options] <source_file>
+    uv run ct-analyzer [options] <source_file>
 
 Examples:
     # Analyze a C file with default settings (clang, native arch)
-    python ct_analyzer/analyzer.py crypto.c
+    uv run ct-analyzer crypto.c
 
     # Analyze with specific compiler and optimization level
-    python ct_analyzer/analyzer.py --compiler gcc --opt-level O2 crypto.c
+    uv run ct-analyzer --compiler gcc --opt-level O2 crypto.c
 
     # Analyze a Go file for arm64
-    python ct_analyzer/analyzer.py --arch arm64 crypto.go
+    uv run ct-analyzer --arch arm64 crypto.go
 
     # Analyze with warnings enabled (shows conditional branches)
-    python ct_analyzer/analyzer.py --warnings crypto.c
+    uv run ct-analyzer --warnings crypto.c
 """
 
 import argparse

@@ -138,7 +138,8 @@ def _extract_text_from_region(img_rgb: np.ndarray, region: tuple[int, int, int, 
         if "pytesseract not installed" not in str(_extraction_warnings):
             _extraction_warnings.append(
                 "pytesseract not installed - text extraction disabled. "
-                "Install with: pip install pytesseract && brew install tesseract"
+                "pytesseract is declared in scripts/pyproject.toml — run via uv run "
+                "--project on that directory; brew install tesseract for the binary"
             )
         return ""
 

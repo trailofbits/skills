@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: grounded-migration
+description: >
+  A migration draft with the proving command discoverable in the fixture (package.json declares the test
+  script). The plugin should return one single-line /goal with an observable end state, the fixture's real
+  test command, gate protection, and a stop clause. A bare "improve this goal" answer typically returns a
+  multiline rewrite with an activity-shaped objective and no termination contract.
+tags: [formatting, grounding]
+
+context:
+  scaffold_script: scaffold.sh
+
+execution:
+  prompt: |
+    Improve this goal: migrate our code off legacyAuth() to auth.verify(), tests should still pass.
+    Give me the final /goal command to paste.
+  max_turns: 30
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Skill]
+
+runs: 2
+
+expected_outcome: >
+  Exactly one fenced text block whose content is a single line starting with /goal, under 4,000 characters.
+  The line states an observable end state for the legacyAuth migration, names the fixture's actual test
+  command (npm test) as proof with output shown, protects the checks from being weakened, and carries a stop
+  bound or blocked clause.

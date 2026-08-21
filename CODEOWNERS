@@ -19,6 +19,7 @@
 /plugins/fp-check/ @ahpaleus @dguido @kz-tob
 /plugins/gh-cli/ @Ninja3047 @dguido @kz-tob
 /plugins/git-cleanup/ @hbrodin @dguido @kz-tob
+/plugins/goal-prompt/ @GrosQuildu @dguido
 /plugins/github-triage/ @ESultanik @dguido @kz-tob
 /plugins/insecure-defaults/ @thomas-chauchefoin-tob @dguido @kz-tob
 /plugins/let-fate-decide/ @tob-scott-a @dguido @kz-tob

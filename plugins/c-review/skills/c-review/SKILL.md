@@ -47,7 +47,7 @@ Output directory contains: `context.md`, `plan.json`, `worker-prompts/`, `findin
 2. **Codex** — `${CODEX_PLUGIN_ROOT}` (set it the same way if that var is present and resolves the marker).
 3. **Fallback search** — covers Codex installs under `~/.codex`, Claude installs under `~/.claude`, and a local checkout / repo run: `Bash: find ~/.claude ~/.codex . -path '*/plugins/c-review/prompts/clusters/buffer-write-sinks.md' -print -quit 2>/dev/null`. Take the match and strip the trailing `/prompts/clusters/buffer-write-sinks.md` to get the root (the home dirs are searched before `.` so an installed copy wins over any vendored copy in the audited repo).
 
-Set `C_REVIEW_PLUGIN_ROOT` to the resolved root. If all three fail, **abort** with a message naming the roots searched — do not enter Phase 4 with an empty variable (every `python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/..."` call would fail with a confusing path error).
+Set `C_REVIEW_PLUGIN_ROOT` to the resolved root. If all three fail, **abort** with a message naming the roots searched — do not enter Phase 4 with an empty variable (every `uv run --no-project "${C_REVIEW_PLUGIN_ROOT}/scripts/..."` call would fail with a confusing path error).
 
 **Scope convention:** keep two scopes separate throughout the run:
 
@@ -92,6 +92,10 @@ After resolving `scope_subpath`, set `finding_scope_root="${scope_subpath:-.}"`.
 ### Phase 1: Prerequisites
 
 **Entry:** Phase 0 complete. **Exit:** `is_cpp`, `is_posix`, `is_windows` flags determined.
+
+First confirm `uv` is present (`command -v uv`) — every helper script from Phase 4 onward runs
+through it. If missing, **abort** and tell the user to install it (`brew install uv` or
+the official installer); nothing downstream can run without it.
 
 Probe within `${finding_scope_root:-.}` with the `Bash` commands below (non-empty output ⇒ flag true). The dedicated `Grep`/`Glob` tools are unavailable to this orchestrator because it holds `Bash` — use `grep`/`rg`/`find` via `Bash`. (If a probe regex uses `\s`/`\b` and your `grep` lacks GNU `\s` support, run it with `rg -uu` — which honors `\s` and still searches ignored files — or replace `\s`→`[[:space:]]` and drop `\b`. Widening is safe: a false-positive flag only adds a harmless worker, a missed match would skip a pass.):
 
@@ -149,7 +153,7 @@ Write `${output_dir}/context.md` with: YAML frontmatter (`threat_model`, `severi
 Selection, filtering, path resolution, and spawn-prompt rendering are **delegated to the script** to prevent the "orchestrator paraphrases the spawn template and drops fields" failure mode:
 
 ```bash
-python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/build_run_plan.py" \
+uv run --no-project "${C_REVIEW_PLUGIN_ROOT}/scripts/build_run_plan.py" \
   --plugin-root "${C_REVIEW_PLUGIN_ROOT}" --output-dir "${output_dir}" \
   --threat-model "${threat_model}" --severity-filter "${severity_filter}" \
   --scope-subpath "${finding_scope_root:-.}" --context-roots "${context_roots:-.}" \
@@ -254,21 +258,21 @@ Then re-spawn each `pending` retryable with `attempt <= 2` in one parallel block
 For every provisional `complete:` cluster, validate the worker-owned shard, coverage file, coverage rows, filed IDs, and claimed finding count against `plan.json` before marking the task completed. Run one command per completed worker, or one command with repeated flags for all provisional completions:
 
 ```bash
-python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
+uv run --no-project "${C_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
   --worker worker-N --claimed-count worker-N=<claimed_count_from_complete_line>
 ```
 
 Grouped claimed-count values are valid:
 
 ```bash
-python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
+uv run --no-project "${C_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
   --claimed-count worker-1=0 worker-2=3
 ```
 
 Repeated `--claimed-count` flags are also valid:
 
 ```bash
-python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
+uv run --no-project "${C_REVIEW_PLUGIN_ROOT}/scripts/validate_artifacts.py" "${output_dir}/plan.json" \
   --claimed-count worker-1=0 --claimed-count worker-2=3
 ```
 
@@ -337,7 +341,7 @@ Each judge's full protocol is its system prompt (`agents/c-review-{dedup,fp}-jud
 **Entry:** fp-judge returned, or the run aborted early. **Exit:** `${output_dir}/REPORT.sarif` and `${output_dir}/REPORT.md` both exist.
 
 ```bash
-test -d "${output_dir}/findings" && python3 "${C_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py" "${output_dir}"
+test -d "${output_dir}/findings" && uv run --no-project "${C_REVIEW_PLUGIN_ROOT}/scripts/generate_sarif.py" "${output_dir}"
 ```
 
 Run the SARIF generator unconditionally whenever `findings/` exists — it is idempotent (full overwrite), emits `results: []` for zero-survivor runs, and handles partial runs (findings without `fp_verdict` are emitted as `LIKELY_TP`, **exempt from the `severity_filter`** since their severity was never judge-validated, and marked `unjudged: true` / `severity_validated: false` with an `[UNVALIDATED SEVERITY — not judged]` message prefix — so an inferred severity guess can never silently drop them under a `medium`/`high` filter). Always overwriting protects against an fp-judge that crashed mid-write and left a corrupt `REPORT.sarif` on disk.

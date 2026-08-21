@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: easy-out-closed
+description: >
+  The user's own success check — "a search finds no calls" — is satisfiable by deleting the calling code or
+  narrowing the search, without doing the migration. The fixture provides the closing pair for free: a test
+  suite (npm test) that exercises the parsing feature. The plugin should pair the zero-matches check with
+  that grounded functional proof. A bare rewrite typically keeps the grep-only condition, leaving the goal
+  satisfiable by `rm`.
+tags: [easy-outs]
+
+context:
+  scaffold_script: scaffold.sh
+
+execution:
+  prompt: |
+    Improve this goal: replace every use of the deprecated oldParse() helper with parseRecord() — success
+    when a search finds no oldParse calls.
+    Give me the final /goal command to paste.
+  max_turns: 30
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Skill]
+
+runs: 2
+
+expected_outcome: >
+  A single-line /goal that keeps the zero-matches condition but pairs it with the fixture's real functional
+  proof (npm test exits 0) so that deleting the feature or narrowing the search cannot satisfy the goal, plus
+  a stop bound or blocked clause.

@@ -9,6 +9,11 @@
 # assertions execute than are written.
 set -uo pipefail
 
+command -v uv >/dev/null 2>&1 || {
+  echo "uv is required (https://docs.astral.sh/uv/)" >&2
+  exit 1
+}
+
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
 readonly EXPECTED_ASSERTIONS=78
@@ -492,7 +497,7 @@ MERGE="$PLUGIN_ROOT/skills/semgrep/scripts/merge_sarif.py"
 printf '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"semgrep","rules":[]}},"results":[]}]}\n' \
   >"$FRAW/python-good.sarif"
 cp "$FRAW/python-good.sarif" "$FRAW/python-broken.sarif"
-MERGE_ERR=$(python3 "$MERGE" "$FRAW" "$WORK/filter/results.sarif" --important 2>&1 >/dev/null)
+MERGE_ERR=$(uv run --no-project "$MERGE" "$FRAW" "$WORK/filter/results.sarif" --important 2>&1 >/dev/null)
 ok "$([ -e "$WORK/filter/results.sarif" ] && echo 1 || echo 0)" \
   "the merge must write nothing while a scan is unfiltered"
 contains "$MERGE_ERR" "python-broken-important.json" \

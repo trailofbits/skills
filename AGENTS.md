@@ -239,9 +239,9 @@ is strong evidence and not a guarantee:
   `pre-commit run -a`) to cover those locally.
 - **the version-increment check**, which needs a base ref to diff against and so has
   no meaning outside a PR.
-- **`make shell-suites`**, which is a target but not part of `check`: it fails on any
-  machine with the `modern-python` plugin installed, because its shim intercepts the
-  `python3 -` that zeroize-audit's suite uses (#207).
+- **`make shell-suites`**, a target but not part of `check` — slow, not broken. It passes
+  with modern-python ≥ 1.6.0 installed; the 1.5.3 shim still refuses the `python3 -` that
+  zeroize-audit's suite uses.
 
 Both scan every plugin; the validator is not scoped down in CI. Only the
 version-increment check is limited to the plugins a branch touched, and it is the one
@@ -255,19 +255,38 @@ zero-reference guard only arms on a full scan.
 Each of these fails the build. There is no value in checking any of it by hand:
 
 - `plugin.json` exists, parses, and has `name`, `description`, and a semver `version`
+- `plugin.json`'s `name` equals the plugin's directory name
 - Plugin directory name is kebab-case and ≤64 characters
 - Plugin has a `README.md` (exact case — `Readme.md` passes on macOS and fails on CI)
 - Registered in `.claude-plugin/marketplace.json`, the root `README.md`, and `CODEOWNERS`
+- The marketplace entry's `source` is exactly `./plugins/<name>` and its `description`
+  matches `plugin.json`
 - `version` matches between `plugin.json` and `marketplace.json`, **and** increases when
   you change a plugin — clients only pull an update when the number goes up, so a fix
   shipped without a bump reaches nobody. Apply the `no-version-bump` label for
   typo-only changes and CI skips the check.
-- `SKILL.md` frontmatter parses and has `name` and `description`
+- `SKILL.md` has frontmatter, and no top-level value is an unquoted YAML scalar
+  containing `: ` or ` #`. Either one makes the whole block unparseable, and the
+  loader then drops *every* field and loads the skill with empty metadata — so a
+  skill whose `description:` line reads perfectly well ships with no description
+  and never triggers. Quote any description containing a colon.
 - Agent files use `tools:`; skills and commands use `allowed-tools:`
 - `subagent_type` values are namespaced `<plugin>:<agent>` — a bare name is
-  unregistered and the dispatch fails at runtime
-- No hardcoded `/Users/…` or `/home/…` paths
+  unregistered and the dispatch fails at runtime, whether it names this plugin's own
+  agent, another plugin's, or nothing at all
+- No hardcoded `/Users/…` or `/home/…` paths, in any `.md`, `.py`, `.json`, `.sh`,
+  `.bats`, `.yml` or `.toml` file under `plugins/`. `*-shim.bats` is exempt because
+  those fixtures need literal paths, and `/path/to` and `/home/vscode` are treated as
+  placeholders rather than somebody's home directory.
+- No documented command uses a form the `modern-python` shims refuse: `python <script>`,
+  `pip install`, `python -m pip`, or `uv pip install` without `--project`/`--directory`/
+  `--target`/`-t`. Use `uv run --no-project <script>`, `uv run --with <pkg>`, `uv add`, or
+  `uv tool install`. Exempt: prose forbidding the command, `dockerfile` fences,
+  `plugins/modern-python/` itself, `.md`/`.py` under a `tests`/`evals*` directory (quoted
+  expectations), and code blocks carrying `allow-legacy-python: <reason>` — the reason is
+  required.
 - No `.codex/`, `.opencode/`, `.agents/`, or `plugins/*/.codex-plugin/` sidecars
+- A committed `uv.lock` for every uv directory listed in `.github/dependabot.yml`
 - Both loadability checks pass under the real Claude Code and Codex CLIs
 
 Two more are reported as **warnings**, so they will not stop a merge and do still

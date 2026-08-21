@@ -47,7 +47,8 @@ sarifLog
     │   └── extensions[] (plugins)
     ├── results[] (findings)
     │   ├── ruleId
-    │   ├── level (error/warning/note)
+    │   ├── ruleIndex (index into tool.driver.rules[])
+    │   ├── level (OPTIONAL, inherited from the rule when absent)
     │   ├── message.text
     │   ├── locations[]
     │   │   └── physicalLocation
@@ -57,6 +58,27 @@ sarifLog
     │   └── partialFingerprints{}
     └── artifacts[] (scanned files metadata)
 ```
+
+### Severity Is Not Always on the Result
+
+`result.level` is optional. CodeQL omits it on every result and records severity on the
+rule as `defaultConfiguration.level`, which the result inherits. Read `result.level`
+directly and a CodeQL run scores as clean however many errors it found, which is how a
+severity gate ends up exiting 0 on a failing repo.
+
+Resolve severity in this order (SARIF 2.1.0 section 3.27.10):
+
+1. `kind` other than `"fail"` (a pass/notApplicable record), so `"none"`
+2. `result.level`, when present
+3. the matched rule's `defaultConfiguration.level`, joining `ruleIndex` into
+   `runs[].tool.driver.rules[]`, or matching `ruleId` against `rules[].id` when the tool
+   omits `ruleIndex`
+4. `"warning"`, the SARIF default
+
+Every severity query in this skill starts from that resolution. In jq it is the
+`LEVEL_FN` definition in [{baseDir}/resources/jq-queries.md]({baseDir}/resources/jq-queries.md);
+in Python it is `resolve_level(result, run)` in
+[{baseDir}/resources/sarif_helpers.py]({baseDir}/resources/sarif_helpers.py).
 
 ### Why Fingerprinting Matters
 
@@ -70,11 +92,11 @@ Tools report different paths (`/path/to/project/` vs `/github/workspace/`), so p
 
 ## Tool Selection Guide
 
-| Use Case | Tool | Installation |
+| Use Case | Tool | Install / run |
 |----------|------|--------------|
 | Quick CLI queries | jq | `brew install jq` / `apt install jq` |
-| Python scripting (simple) | pysarif | `pip install pysarif` |
-| Python scripting (advanced) | sarif-tools | `pip install sarif-tools` |
+| Python scripting (simple) | pysarif | `uv run --with pysarif python script.py` |
+| Python scripting (advanced) | sarif-tools | `uv run --with sarif-tools python script.py` |
 | .NET applications | SARIF SDK | NuGet package |
 | JavaScript/Node.js | sarif-js | npm package |
 | Go applications | garif | `go get github.com/chavacava/garif` |
@@ -94,8 +116,24 @@ jq '[.runs[].results[]] | length' results.sarif
 # List all rule IDs triggered
 jq '[.runs[].results[].ruleId] | unique' results.sarif
 
+# Severity resolution, needed by every query below that filters on level.
+# See resources/jq-queries.md for the annotated version.
+LEVEL_FN='
+  def rule($run):
+    . as $r
+    | ($run.tool.driver.rules // []) as $rules
+    | (if ($r.ruleIndex | type) == "number" and $r.ruleIndex >= 0
+       then $rules[$r.ruleIndex] else null end)
+      // first($rules[] | select(.id == $r.ruleId))
+      // null;
+  def level($run):
+    . as $r
+    | if ($r.kind // "fail") != "fail" then "none"
+      else ($r.level // rule($run).defaultConfiguration.level // "warning") end;
+'
+
 # Extract errors only
-jq '.runs[].results[] | select(.level == "error")' results.sarif
+jq "$LEVEL_FN"'.runs[] as $run | $run.results[] | select(level($run) == "error")' results.sarif
 
 # Get findings with file locations
 jq '.runs[].results[] | {
@@ -106,7 +144,7 @@ jq '.runs[].results[] | {
 }' results.sarif
 
 # Filter by severity and get count per rule
-jq '[.runs[].results[] | select(.level == "error")] | group_by(.ruleId) | map({rule: .[0].ruleId, count: length})' results.sarif
+jq "$LEVEL_FN"'[.runs[] as $run | $run.results[] | select(level($run) == "error")] | group_by(.ruleId) | map({rule: .[0].ruleId, count: length})' results.sarif
 
 # Extract findings for a specific file
 jq --arg file "src/auth.py" '.runs[].results[] | select(.locations[].physicalLocation.artifactLocation.uri | contains($file))' results.sarif
@@ -128,7 +166,11 @@ for run in sarif.runs:
     print(f"Tool: {tool_name}")
 
     for result in run.results:
-        print(f"  [{result.level}] {result.rule_id}: {result.message.text}")
+        # pysarif fills a missing result.level with "warning", so .level here is NOT the
+        # rule-inherited severity: a CodeQL error (no level on the result, severity on the
+        # rule) reads as "warning". Gate severity with Strategy 1's level() or with
+        # resolve_level() in resources/sarif_helpers.py, which resolve it from the rule.
+        print(f"  {result.rule_id}: {result.message.text}")
 
         if result.locations:
             loc = result.locations[0].physical_location
@@ -161,9 +203,11 @@ report = sarif_data.get_report()
 errors = report.get_issue_type_histogram_for_severity("error")
 warnings = report.get_issue_type_histogram_for_severity("warning")
 
-# Filter results
-high_severity = [r for r in sarif_data.get_results()
-                 if r.get("level") == "error"]
+# Filter by severity. sarif-tools hands back raw result dicts, and a result's level may
+# live on its rule, so resolve it against the run instead of reading r["level"].
+from sarif_helpers import extract_findings, filter_by_level, load_sarif
+
+high_severity = filter_by_level(extract_findings(load_sarif("results.sarif")), "error")
 ```
 
 **sarif-tools CLI commands:**
@@ -192,7 +236,8 @@ When combining results from multiple tools:
 
 ```python
 import json
-from pathlib import Path
+
+from sarif_helpers import deduplicate, extract_findings
 
 def aggregate_sarif_files(sarif_paths: list[str]) -> dict:
     """Combine multiple SARIF files into one."""
@@ -209,112 +254,59 @@ def aggregate_sarif_files(sarif_paths: list[str]) -> dict:
 
     return aggregated
 
-def deduplicate_results(sarif: dict) -> dict:
-    """Remove duplicate findings based on fingerprints."""
-    seen_fingerprints = set()
-
-    for run in sarif["runs"]:
-        unique_results = []
-        for result in run.get("results", []):
-            # Use partialFingerprints or create key from location
-            fp = None
-            if result.get("partialFingerprints"):
-                fp = tuple(sorted(result["partialFingerprints"].items()))
-            elif result.get("fingerprints"):
-                fp = tuple(sorted(result["fingerprints"].items()))
-            else:
-                # Fallback: create fingerprint from rule + location
-                loc = result.get("locations", [{}])[0]
-                phys = loc.get("physicalLocation", {})
-                fp = (
-                    result.get("ruleId"),
-                    phys.get("artifactLocation", {}).get("uri"),
-                    phys.get("region", {}).get("startLine")
-                )
-
-            if fp not in seen_fingerprints:
-                seen_fingerprints.add(fp)
-                unique_results.append(result)
-
-        run["results"] = unique_results
-
-    return sarif
+unique = deduplicate(extract_findings(aggregate_sarif_files(["tool1.sarif", "tool2.sarif"])))
 ```
+
+`deduplicate()` prefers whatever `fingerprints` or `partialFingerprints` the tool supplied
+and falls back to hashing rule ID, the whole normalized path, line, and message. Keep the
+directory in that key: the same rule at the same line in `auth/login.py` and
+`admin/login.py` is two findings, and a basename-only key throws one of them away.
 
 ## Strategy 5: Extracting Actionable Data
 
+`resources/sarif_helpers.py` covers this with the standard library alone.
+`extract_findings()` returns `Finding` objects whose severity is already resolved, and
+`filter_by_level()`, `sort_by_severity()`, `deduplicate()` and `diff_findings()` consume
+those:
+
 ```python
-import json
-from dataclasses import dataclass
-from typing import Optional
+from sarif_helpers import extract_findings, filter_by_level, load_sarif, sort_by_severity
 
-@dataclass
-class Finding:
-    rule_id: str
-    level: str
-    message: str
-    file_path: Optional[str]
-    start_line: Optional[int]
-    end_line: Optional[int]
-    fingerprint: Optional[str]
-
-def extract_findings(sarif_path: str) -> list[Finding]:
-    """Extract structured findings from SARIF file."""
-    with open(sarif_path) as f:
-        sarif = json.load(f)
-
-    findings = []
-    for run in sarif.get("runs", []):
-        for result in run.get("results", []):
-            loc = result.get("locations", [{}])[0]
-            phys = loc.get("physicalLocation", {})
-            region = phys.get("region", {})
-
-            findings.append(Finding(
-                rule_id=result.get("ruleId", "unknown"),
-                level=result.get("level", "warning"),
-                message=result.get("message", {}).get("text", ""),
-                file_path=phys.get("artifactLocation", {}).get("uri"),
-                start_line=region.get("startLine"),
-                end_line=region.get("endLine"),
-                fingerprint=next(iter(result.get("partialFingerprints", {}).values()), None)
-            ))
-
-    return findings
-
-# Filter and prioritize
-def prioritize_findings(findings: list[Finding]) -> list[Finding]:
-    """Sort findings by severity."""
-    severity_order = {"error": 0, "warning": 1, "note": 2, "none": 3}
-    return sorted(findings, key=lambda f: severity_order.get(f.level, 99))
+findings = sort_by_severity(extract_findings(load_sarif("results.sarif")))
+for f in filter_by_level(findings, "error"):
+    print(f"{f.file_path}:{f.start_line} [{f.level}] {f.rule_id}: {f.message}")
 ```
+
+Writing your own extractor, severity is the part that goes wrong silently:
+
+```python
+def resolve_level(result: dict, run: dict) -> str:
+    """Severity of a result: its own level, else its rule's default, else "warning"."""
+    if result.get("kind", "fail") != "fail":
+        return "none"
+    if result.get("level"):
+        return result["level"]
+
+    rules = run.get("tool", {}).get("driver", {}).get("rules", [])
+    index = result.get("ruleIndex")
+    rule = rules[index] if isinstance(index, int) and 0 <= index < len(rules) else next(
+        (r for r in rules if r.get("id") == result.get("ruleId")), {}
+    )
+    return rule.get("defaultConfiguration", {}).get("level") or "warning"
+```
+
+Results carry `ruleIndex` on some tools and only `ruleId` on others, so a resolver that
+joins one way alone silently returns the default for every result the other kind of tool
+produces.
 
 ## Common Pitfalls and Solutions
 
 ### 1. Path Normalization Issues
 
-Different tools report paths differently (absolute, relative, URI-encoded):
-
-```python
-from urllib.parse import unquote
-from pathlib import Path
-
-def normalize_path(uri: str, base_path: str = "") -> str:
-    """Normalize SARIF artifact URI to consistent path."""
-    # Remove file:// prefix if present
-    if uri.startswith("file://"):
-        uri = uri[7:]
-
-    # URL decode
-    uri = unquote(uri)
-
-    # Handle relative paths
-    if not Path(uri).is_absolute() and base_path:
-        uri = str(Path(base_path) / uri)
-
-    # Normalize separators
-    return str(Path(uri))
-```
+Different tools report paths differently (absolute, relative, URI-encoded), so
+`file:///src/a%20b.py` and `src/a b.py` can be the same file. Strip the `file://` scheme,
+percent-decode, resolve against a base path, and normalize separators before comparing or
+hashing anything: `normalize_path()` in `resources/sarif_helpers.py` does all four.
 
 ### 2. Fingerprint Mismatch Across Runs
 
@@ -370,7 +362,7 @@ def safe_get_location(result: dict) -> tuple[str, int]:
 For very large SARIF files (100MB+):
 
 ```python
-import ijson  # pip install ijson
+import ijson  # run via: uv run --with ijson
 
 def stream_results(sarif_path: str):
     """Stream results without loading entire file."""
@@ -390,7 +382,7 @@ npm install -g ajv-cli
 ajv validate -s sarif-schema-2.1.0.json -d results.sarif
 
 # Using Python jsonschema
-pip install jsonschema
+uv run --with jsonschema python your_script.py   # e.g. the function below
 ```
 
 ```python
@@ -424,7 +416,22 @@ def validate_sarif(sarif_path: str, schema_path: str) -> bool:
 
 - name: Check for high severity
   run: |
-    HIGH_COUNT=$(jq '[.runs[].results[] | select(.level == "error")] | length' results.sarif)
+    # select(.level == "error") counts zero on CodeQL output, which records severity on
+    # the rule instead. Resolve the level or the gate passes on a repo full of errors.
+    HIGH_COUNT=$(jq '
+      def rule($run):
+        . as $r
+        | ($run.tool.driver.rules // []) as $rules
+        | (if ($r.ruleIndex | type) == "number" and $r.ruleIndex >= 0
+           then $rules[$r.ruleIndex] else null end)
+          // first($rules[] | select(.id == $r.ruleId))
+          // null;
+      def level($run):
+        . as $r
+        | if ($r.kind // "fail") != "fail" then "none"
+          else ($r.level // rule($run).defaultConfiguration.level // "warning") end;
+      [.runs[] as $run | $run.results[] | select(level($run) == "error")] | length
+    ' results.sarif)
     if [ "$HIGH_COUNT" -gt 0 ]; then
       echo "Found $HIGH_COUNT high severity issues"
       exit 1
@@ -451,22 +458,29 @@ def check_for_regressions(baseline: str, current: str) -> int:
 ## Key Principles
 
 1. **Validate first**: Check SARIF structure before processing
-2. **Handle optionals**: Many fields are optional; use defensive access
-3. **Normalize paths**: Tools report paths differently; normalize early
-4. **Fingerprint wisely**: Combine multiple strategies for stable deduplication
-5. **Stream large files**: Use ijson or similar for 100MB+ files
-6. **Aggregate thoughtfully**: Preserve tool metadata when combining files
+2. **Resolve severity, never read `result.level`**: it is optional, and CodeQL always omits it
+3. **Handle optionals**: Many fields are optional; use defensive access
+4. **Normalize paths**: Tools report paths differently; normalize early
+5. **Fingerprint wisely**: Combine multiple strategies for stable deduplication
+6. **Stream large files**: Use ijson or similar for 100MB+ files
+7. **Aggregate thoughtfully**: Preserve tool metadata when combining files
 
 ## Skill Resources
 
 For ready-to-use query templates, see [{baseDir}/resources/jq-queries.md]({baseDir}/resources/jq-queries.md):
 - 40+ jq queries for common SARIF operations
+- `LEVEL_FN` - the severity resolution every filtering query starts from
 - Severity filtering, rule extraction, aggregation patterns
 
 For Python utilities, see [{baseDir}/resources/sarif_helpers.py]({baseDir}/resources/sarif_helpers.py):
+- `resolve_level()` - Severity from the result or the rule it inherits from
 - `normalize_path()` - Handle tool-specific path formats
-- `compute_fingerprint()` - Stable fingerprinting ignoring paths
-- `deduplicate_results()` - Remove duplicates across runs
+- `compute_fingerprint()` - Rule, normalized path, line, and message
+- `deduplicate()` - Remove duplicates across runs
+
+Two SARIF fixtures live in [{baseDir}/resources/fixtures]({baseDir}/resources/fixtures),
+one with severity on the rules only and one with severity on the results. Each contains
+exactly one error, so a gate can be checked against a known answer before it is trusted.
 
 ## Reference Links
 

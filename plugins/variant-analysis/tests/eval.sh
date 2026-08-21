@@ -23,6 +23,11 @@
 
 set -euo pipefail
 
+command -v uv >/dev/null 2>&1 || {
+  echo "uv is required (https://docs.astral.sh/uv/)" >&2
+  exit 1
+}
+
 TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_DIR="$(cd "$TESTS_DIR/.." && pwd)"
 GROUND_TRUTH="$TESTS_DIR/ground-truth.json"
@@ -127,7 +132,7 @@ echo "eval output: $OUT_DIR"
 echo
 
 # Fail fast if the fixtures drifted — otherwise the whole run measures nothing.
-python3 "$TESTS_DIR/verify_fixtures.py" >"$OUT_DIR/fixtures.log" 2>&1 || {
+uv run --no-project "$TESTS_DIR/verify_fixtures.py" >"$OUT_DIR/fixtures.log" 2>&1 || {
   echo "fixture verification failed; see $OUT_DIR/fixtures.log" >&2
   exit 1
 }
@@ -206,7 +211,7 @@ for name in $CODEBASES; do
 
       # Did the run mutate the codebase it was auditing? Silent drift would make
       # every later run in this sweep grade against different code.
-      if ! python3 "$TESTS_DIR/verify_fixtures.py" >"$work/fixture-after.log" 2>&1; then
+      if ! uv run --no-project "$TESTS_DIR/verify_fixtures.py" >"$work/fixture-after.log" 2>&1; then
         echo "FIXTURE DRIFTED after this run — see $work/fixture-after.log" >&2
         echo "  restore with: ./setup-gradio.sh --force" >&2
         exit 1
@@ -222,7 +227,7 @@ for name in $CODEBASES; do
 
       set +e
       # shellcheck disable=SC2086  # $STRICT_FLAG is a bare flag or empty, by design
-      python3 "$TESTS_DIR/score.py" \
+      uv run --no-project "$TESTS_DIR/score.py" \
         --report "$work/REPORT.md" \
         --codebase "$name" \
         --ground-truth "$GROUND_TRUTH" \
@@ -258,9 +263,9 @@ echo "=== summary ==="
 # reporting where the artifacts landed.
 set +e
 if [ "$HAS_WORKFLOW" -eq 1 ]; then
-  python3 "$TESTS_DIR/summarize.py" "$SUMMARY"
+  uv run --no-project "$TESTS_DIR/summarize.py" "$SUMMARY"
 else
-  python3 "$TESTS_DIR/summarize.py" --baseline-only "$SUMMARY"
+  uv run --no-project "$TESTS_DIR/summarize.py" --baseline-only "$SUMMARY"
 fi
 rc=$?
 set -e

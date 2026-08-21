@@ -5,7 +5,7 @@
 """Merge SARIF files into a single consolidated output.
 
 Usage:
-    uv run merge_sarif.py RAW_DIR OUTPUT_FILE [--important] [--scans scans.json]
+    uv run --no-project merge_sarif.py RAW_DIR OUTPUT_FILE [--important] [--scans scans.json]
 
 Reads *.sarif files from RAW_DIR (e.g., $OUTPUT_DIR/raw), produces
 OUTPUT_FILE (e.g., $OUTPUT_DIR/results/results.sarif) containing all

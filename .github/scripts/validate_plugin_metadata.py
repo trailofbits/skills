@@ -79,8 +79,92 @@ KEBAB_CASE_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 PLUGIN_NAME_MAX_LENGTH = 64
 SEMVER_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)")
 
-# Floor for --self-test. Raise it when you add fixtures; see the check in self_test().
-SELF_TEST_MINIMUM = 20
+# An absolute path into one developer's home directory. The lookbehind anchors to a
+# path-segment boundary. Both branches accept either case: macOS account names are
+# conventionally lowercase, and a /Users/[A-Z]-only match misses nearly all of them.
+HARDCODED_PATH_PATTERN = re.compile(r"(?<![a-zA-Z])(?:/home/[A-Za-z]|/Users/[A-Za-z])")
+# Test fixtures and install scripts are where absolute paths hide.
+HARDCODED_PATH_SUFFIXES = (".md", ".py", ".json", ".sh", ".bats", ".yml", ".toml")
+# The shim suites need literal /home/user paths.
+HARDCODED_PATH_EXEMPT_SUFFIX = "-shim.bats"
+# Placeholders, illustrative examples (`/Users/me/` in c-review's docs) and shared system
+# paths — keep this list to forms that cannot be somebody's actual account.
+HARDCODED_PATH_PLACEHOLDERS = ("/path/to", "/home/vscode", "/Users/Shared", "/Users/me/")
+
+# Documented commands the modern-python plugin's PATH shims refuse — a skill carrying one
+# cannot run for anyone with that plugin installed. Unanchored, because violations hide
+# mid-line (markdown table cells, `run_logged pip install …`); the guards below carve out
+# the legitimate uses explicitly rather than under-detecting via an anchor.
+# `uv pip` first: its lines also contain `pip <sub>`, and first-hit-wins would otherwise
+# report them with pip's advice.
+LEGACY_PYTHON_PATTERNS = (
+    (
+        # Every `uv pip` subcommand is refused without a tool-managed flag, not just
+        # install; the allowed-flags guard below carves those out.
+        re.compile(r"\buv\s+pip\s+[a-z]"),
+        "uses the legacy `uv pip` interface; use `uv add`, `uv sync`, or `uv tool install`",
+    ),
+    (
+        # Leading flags are stepped over — long, short, and value-taking alike
+        # (`python3 -W ignore foo.py` is refused too) — except -c/-m, whose
+        # argument is not a script path. Values may not start with `-`, and
+        # backtracking releases a swallowed script name.
+        re.compile(
+            r"\bpython3?\s+(?:--?(?![cm]\b)[A-Za-z][\w-]*(?:[= ](?!-)\S+)?\s+)*(?!-)\S*\.py\b"
+        ),
+        "runs a script through the bare interpreter; use `uv run --no-project <script>`",
+    ),
+    (
+        # A script named by variable or path (`python3 "$MERGE"`, `python3 ./tool`) is
+        # refused just the same, with no `.py` token for the pattern above to see.
+        re.compile(r"""\bpython3?\s+(?:--?(?![cm]\b)[A-Za-z][\w-]*(?:[= ](?!-)\S+)?\s+)*["'$./]"""),
+        "runs a script through the bare interpreter; use `uv run --no-project <script>`",
+    ),
+    (
+        # The shims refuse every pip/pipx subcommand via a catch-all arm. Deliberately a
+        # named subset here, to keep prose false positives down; extend as instances appear.
+        re.compile(
+            r"\bpip3?\s+(install|uninstall|freeze|download|list|show|check|wheel|cache|config)\b"
+        ),
+        "uses pip; use `uv run --with <pkg>` for a one-off, `uv add` in your own project, "
+        "or `uv tool install <pkg>` for a CLI",
+    ),
+    (
+        re.compile(r"\bpipx\s+(install|run|upgrade|uninstall|inject|list|ensurepath|reinstall)\b"),
+        "uses pipx; use `uv tool install <pkg>` or `uvx <pkg>`",
+    ),
+    (
+        re.compile(r"\bpython3?\s+-m\s+pip\b"),
+        "uses python -m pip; use `uv run --with <pkg>`, `uv add`, or `uv tool install`",
+    ),
+    (
+        # A bare interpreter with only flags (`python3 --version`) is refused as well:
+        # the shim finds no -c/-m/- selector and falls through to the refusal arm.
+        re.compile(r"\bpython3?\s+--?[A-Za-z][\w-]*\s*$"),
+        "invokes the bare interpreter; use `uv run python <flags>`",
+    ),
+)
+# Prose that names a command in order to forbid it ("Do NOT run `pip install`"). Tested
+# against the text BEFORE the match, so "Use `pip install x` instead of the tarball" — a
+# real instruction — is not exempted by its own trailing "instead of".
+LEGACY_PYTHON_PROHIBITIONS = ("do not run", "don't run", "do not use", "never run", "instead of")
+# `uv run --no-project python fuzz.py` contains a literal `python fuzz.py`; text already
+# introduced by a compliant `uv run` is the fix, not a violation.
+LEGACY_PYTHON_COMPLIANT_PREFIX = re.compile(r"uv\s+run\s+(?:--?[A-Za-z-]+(?:[= ]\S+)?\s+)*$")
+# A tool managing an environment it owns (prek installs hooks this way); the shim permits
+# it. Matched as whole flags after the command so `--target-dir` does not count.
+LEGACY_PYTHON_UV_PIP_ALLOWED = re.compile(r"\s(--project|--directory|--target|-t)([= ]|$)")
+# Exempts its code block up to the next blank line or fence, for commands that run where
+# the shims are absent (a container, a target project's own build). A bare marker with no
+# reason does not exempt.
+LEGACY_PYTHON_ALLOW_MARKER = "allow-legacy-python:"
+LEGACY_PYTHON_ALLOW_RE = re.compile(r"allow-legacy-python:\s*\S")
+# Local trees accumulate these; CI never has them, so skipping keeps the two runs equal.
+SCAN_SKIP_DIRS = frozenset({".venv", "venv", "node_modules", "__pycache__", ".git", ".ruff_cache"})
+
+# Floor for --self-test, set to the exact number of assertions the fixtures run. There is
+# no slack on purpose: dropping one has to be a deliberate edit here, not a silent loss.
+SELF_TEST_MINIMUM = 71
 
 
 @dataclass
@@ -101,6 +185,8 @@ class ScanResult:
 
     findings: list[Finding] = field(default_factory=list)
     refs_checked: int = 0
+    paths_scanned: int = 0
+    python_docs_scanned: int = 0
 
     def add(self, plugin: str, message: str, severity: str = ERROR) -> None:
         self.findings.append(Finding(plugin, message, severity))
@@ -204,6 +290,14 @@ def skill_files(plugin_path: Path) -> list[Path]:
     return sorted(skills_dir.rglob("SKILL.md"))
 
 
+def command_files(plugin_path: Path) -> list[Path]:
+    """Markdown slash-command definitions at the plugin's own commands/ directory."""
+    commands_dir = plugin_path / "commands"
+    if not commands_dir.is_dir():
+        return []
+    return sorted(p for p in commands_dir.rglob("*.md") if p.is_file())
+
+
 # ---------------------------------------------------------------------------- errors
 
 
@@ -297,10 +391,10 @@ def validate_marketplace_entry(
     return errors
 
 
-def validate_agent_frontmatter(plugin_path: Path) -> list[str]:
-    """Agent files declare tools with `tools:`; skills use `allowed-tools:`.
+def validate_tools_frontmatter(plugin_path: Path) -> list[str]:
+    """Agent files declare tools with `tools:`; skills and commands use `allowed-tools:`.
 
-    The keys are inverted between the two file types and the loader silently ignores
+    The keys are inverted between the file types and the loader silently ignores
     the wrong one, so a restriction written the wrong way is not a restriction at all.
     """
     errors = []
@@ -324,17 +418,71 @@ def validate_agent_frontmatter(plugin_path: Path) -> list[str]:
             rel = skill.relative_to(plugin_path)
             errors.append(f"{rel} uses '{AGENT_TOOLS_KEY}:'; skills must use '{SKILL_TOOLS_KEY}:'")
 
+    for command in command_files(plugin_path):
+        block = extract_frontmatter(command.read_text(encoding="utf-8", errors="replace"))
+        if block is None:
+            continue
+        if frontmatter_has_key(block, AGENT_TOOLS_KEY):
+            rel = command.relative_to(plugin_path)
+            errors.append(
+                f"{rel} uses '{AGENT_TOOLS_KEY}:'; commands must use '{SKILL_TOOLS_KEY}:'"
+            )
+
     return errors
 
 
-def validate_subagent_dispatch(plugin_path: Path, plugin_name: str) -> list[str]:
-    """subagent_type values referring to this plugin's agents must be namespaced.
+def validate_skill_frontmatter(plugin_path: Path) -> list[str]:
+    """Top-level frontmatter values must survive a YAML parse.
 
-    A bare name is unregistered and the dispatch fails at runtime.
+    A plain (unquoted) YAML scalar cannot contain ": " — that parses as a nested
+    mapping — nor " #", which starts a comment. Either one makes the whole block
+    unparseable, and the loader then drops *every* field and loads the skill with
+    empty metadata. Nothing about the file looks wrong: a presence check still sees
+    `description:` on line 3 and reports it clean, so the skill ships with no
+    description and simply never triggers.
+    """
+    errors = []
+
+    for skill in skill_files(plugin_path):
+        block = extract_frontmatter(skill.read_text(encoding="utf-8", errors="replace"))
+        if block is None:
+            errors.append(f"{skill.relative_to(plugin_path)}: has no YAML frontmatter")
+            continue
+
+        for line in block.splitlines():
+            match = re.match(r"^([A-Za-z0-9_-]+)\s*:\s*(\S.*?)\s*$", line)
+            if not match:
+                continue
+            key, value = match.group(1), match.group(2)
+            # Quotes, block scalars, flow collections and YAML indicators are all
+            # parsed by rules other than the plain-scalar ones below.
+            if value[0] in "\"'|>[{&*!%@`":
+                continue
+            for token, human in ((": ", "': '"), (" #", "' #'")):
+                if token in value:
+                    errors.append(
+                        f"{skill.relative_to(plugin_path)}: '{key}' is an unquoted YAML "
+                        f"scalar containing {human}, so the frontmatter does not parse and "
+                        f"the skill loads with no metadata at all — wrap the value in quotes"
+                    )
+                    break
+
+    return errors
+
+
+def validate_subagent_dispatch(
+    plugin_path: Path,
+    plugin_name: str,
+    agent_owners: dict[str, list[str]],
+) -> list[str]:
+    """Every bare subagent_type is a dispatch that fails at runtime.
+
+    `agent_owners` maps an agent filename stem to the plugins defining it, across the
+    whole repo. Scoping this to the plugin's own agents would miss the two cases most
+    likely to ship: a bare name borrowed from another plugin, and a bare name for an
+    agent that no longer exists anywhere.
     """
     own_agents = {p.stem for p in agent_files(plugin_path)}
-    if not own_agents:
-        return []
 
     errors = []
     for path in sorted(plugin_path.rglob("*.md")) + sorted(plugin_path.rglob("*.sh")):
@@ -348,13 +496,144 @@ def validate_subagent_dispatch(plugin_path: Path, plugin_name: str) -> list[str]
                     continue
                 if value.startswith(("{", "$")):
                     continue
+                rel = path.relative_to(plugin_path)
                 if value in own_agents:
-                    rel = path.relative_to(plugin_path)
                     errors.append(
                         f"{rel}: subagent_type '{value}' is not namespaced; "
                         f"use '{plugin_name}:{value}'"
                     )
+                elif value in agent_owners:
+                    suggestion = " or ".join(
+                        f"'{owner}:{value}'" for owner in sorted(agent_owners[value])
+                    )
+                    errors.append(
+                        f"{rel}: subagent_type '{value}' is not namespaced; use {suggestion}"
+                    )
+                else:
+                    errors.append(
+                        f"{rel}: subagent_type '{value}' names no agent in this repo and is "
+                        f"not a builtin, so the dispatch fails at runtime"
+                    )
     return errors
+
+
+def find_legacy_python_invocations(repo_root: Path) -> tuple[list[str], int]:
+    """Documented commands the modern-python shims refuse, so the skill cannot run.
+
+    Returns the findings and the number of files scanned; zero scanned is the caller's
+    anti-vacuity guard. `plugins/modern-python/` is exempt wholesale so it can keep
+    documenting the commands it intercepts.
+    """
+    errors: list[str] = []
+    scanned = 0
+
+    plugins_dir = repo_root / "plugins"
+    if not plugins_dir.is_dir():
+        return errors, scanned
+
+    # .sh and .py as well as .md: shell suites carried ten live invocations a docs-only
+    # sweep missed, and .py usage strings tell users to run refused commands.
+    candidates = (
+        sorted(plugins_dir.rglob("*.md"))
+        + sorted(plugins_dir.rglob("*.sh"))
+        + sorted(plugins_dir.rglob("*.py"))
+    )
+    for path in candidates:
+        if not path.is_file():
+            continue
+        if path.is_relative_to(plugins_dir / "modern-python"):
+            continue
+        if SCAN_SKIP_DIRS.intersection(path.parts):
+            continue
+        # .md and .py under evals*/tests quote commands as expectations under test;
+        # .sh there are commands, so shell keeps no exemption.
+        if path.suffix in (".md", ".py") and any(
+            part.startswith("evals") or part == "tests"
+            for part in path.relative_to(plugins_dir).parts
+        ):
+            continue
+        scanned += 1
+
+        # A `dockerfile` fence runs in a container, where the PATH shims are absent.
+        in_dockerfile = False
+        block_exempt = False
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        for lineno, line in enumerate(lines, 1):
+            fence = line.strip()
+            if fence.startswith("```"):
+                language = fence[3:].strip().lower()
+                in_dockerfile = language == "dockerfile" if language else False
+                block_exempt = False
+                continue
+            if not line.strip():
+                block_exempt = False
+                continue
+            if LEGACY_PYTHON_ALLOW_MARKER in line:
+                block_exempt = bool(LEGACY_PYTHON_ALLOW_RE.search(line))
+                continue
+            if in_dockerfile or block_exempt:
+                continue
+
+            # Every match is examined, not just the first: a compliant `uv run …` earlier
+            # on a line must not mask a refused command later on the same line.
+            hit = None
+            for pattern, advice in LEGACY_PYTHON_PATTERNS:
+                for match in pattern.finditer(line):
+                    prefix = line[: match.start()]
+                    if LEGACY_PYTHON_COMPLIANT_PREFIX.search(prefix):
+                        continue
+                    # A `pip …` directly after `uv ` is part of a `uv pip` command,
+                    # whose verdict the uv-pip pattern above already delivered.
+                    if not match.group(0).startswith("uv") and re.search(r"\buv\s+$", prefix):
+                        continue
+                    if any(p in prefix.lower() for p in LEGACY_PYTHON_PROHIBITIONS):
+                        continue
+                    if "uv pip" in match.group(0) and LEGACY_PYTHON_UV_PIP_ALLOWED.search(
+                        line[match.start() :]
+                    ):
+                        continue
+                    hit = advice
+                    break
+                if hit:
+                    break
+            if hit:
+                rel = path.relative_to(repo_root)
+                errors.append(f"{rel}:{lineno} {hit} — found: {line.strip()[:70]}")
+
+    return errors, scanned
+
+
+def find_hardcoded_paths(repo_root: Path) -> tuple[list[str], int]:
+    """Absolute paths into one developer's home directory, which nobody else has.
+
+    Returns the findings and the number of files scanned. The count is the caller's
+    anti-vacuity guard: a scan that inspected nothing must not report clean.
+    """
+    errors = []
+    scanned = 0
+
+    plugins_dir = repo_root / "plugins"
+    if not plugins_dir.is_dir():
+        return errors, scanned
+
+    for path in sorted(plugins_dir.rglob("*")):
+        if not path.is_file() or path.suffix not in HARDCODED_PATH_SUFFIXES:
+            continue
+        if path.name.endswith(HARDCODED_PATH_EXEMPT_SUFFIX):
+            continue
+        if SCAN_SKIP_DIRS.intersection(path.parts):
+            continue
+        scanned += 1
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if not HARDCODED_PATH_PATTERN.search(line):
+                continue
+            if any(placeholder in line for placeholder in HARDCODED_PATH_PLACEHOLDERS):
+                continue
+            rel = path.relative_to(repo_root)
+            errors.append(f"{rel}:{lineno} hardcodes an absolute user path: {line.strip()[:80]}")
+
+    return errors, scanned
 
 
 def find_forbidden_sidecars(repo_root: Path) -> list[str]:
@@ -570,7 +849,15 @@ def validate_reference_links(plugin_path: Path) -> tuple[list[str], int]:
     warnings: list[str] = []
     checked = 0
 
-    files = [p for p in plugin_path.rglob("*.md") if p.is_file() and "evals" not in p.parts]
+    # Any evals* directory is skipped: its .md files are labelled eval queries, not
+    # documentation, and they carry frontmatter rather than references. The prefix match
+    # covers "evals-extra" (harnesses invoked by hand rather than by `make check`) as
+    # well as "evals" — a bare equality check silently starts scanning them.
+    files = [
+        p
+        for p in plugin_path.rglob("*.md")
+        if p.is_file() and not any(part.startswith("evals") for part in p.parts)
+    ]
     if not files:
         return warnings, checked
 
@@ -615,9 +902,27 @@ def validate_plugins(
     codeowners_plugins = parse_codeowners(repo_root / "CODEOWNERS")
     readme_plugins = parse_readme(repo_root / "README.md")
 
+    # Agents are addressed as `<plugin>:<agent>` from anywhere, so the registry has to be
+    # repo-wide and built before any single plugin is checked against it.
+    agent_owners: dict[str, list[str]] = {}
+    if plugins_dir.is_dir():
+        for plugin in sorted(plugins_dir.iterdir()):
+            if not plugin.is_dir():
+                continue
+            for agent in agent_files(plugin):
+                agent_owners.setdefault(agent.stem, []).append(plugin.name)
+
     for msg in find_forbidden_sidecars(repo_root):
         result.add("<repo>", msg)
     for msg in check_dependabot_lockfiles(repo_root):
+        result.add("<repo>", msg)
+
+    legacy_errors, result.python_docs_scanned = find_legacy_python_invocations(repo_root)
+    for msg in legacy_errors:
+        result.add("<repo>", msg)
+
+    path_errors, result.paths_scanned = find_hardcoded_paths(repo_root)
+    for msg in path_errors:
         result.add("<repo>", msg)
 
     # Scoped to plugins this branch actually touched. Empty when there is no base ref
@@ -642,9 +947,11 @@ def validate_plugins(
             result.add(plugin_name, msg)
         for msg in validate_marketplace_entry(marketplace_plugins, plugin_data, plugin_name):
             result.add(plugin_name, msg)
-        for msg in validate_agent_frontmatter(plugin_path):
+        for msg in validate_tools_frontmatter(plugin_path):
             result.add(plugin_name, msg)
-        for msg in validate_subagent_dispatch(plugin_path, plugin_name):
+        for msg in validate_skill_frontmatter(plugin_path):
+            result.add(plugin_name, msg)
+        for msg in validate_subagent_dispatch(plugin_path, plugin_name, agent_owners):
             result.add(plugin_name, msg)
 
         if base_ref and plugin_name in version_check_scope:
@@ -728,11 +1035,25 @@ def main(argv: list[str] | None = None) -> int:
         print("\n✗ reference extractor matched nothing across the whole repo — it is broken")
         return 1
 
+    # Same failure, different scan: a clean result here means nothing if the walk found
+    # no files to read, so prove discovery worked before trusting it.
+    if result.paths_scanned == 0:
+        print("\n✗ hardcoded-path scan matched no files at all — discovery is broken")
+        return 1
+
+    if result.python_docs_scanned == 0:
+        print("\n✗ legacy-python scan read no files at all — discovery is broken")
+        return 1
+
     errors = [f for f in result.findings if f.severity == ERROR]
     if errors:
         return 1
 
-    print(f"\n✓ no errors ({result.refs_checked} references resolved)")
+    print(
+        f"\n✓ no errors ({result.refs_checked} references resolved, "
+        f"{result.paths_scanned} files scanned for hardcoded paths, "
+        f"{result.python_docs_scanned} for legacy python invocations)"
+    )
     return 0
 
 
@@ -855,6 +1176,203 @@ def _self_test_errors(ran: list[str]) -> None:
         skill = plugin / "skills" / "demo" / "SKILL.md"
         skill.write_text(skill.read_text() + '\nsubagent_type="Explore" is builtin.\n')
         _check(ran, "builtin subagent_type accepted", not _errors_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # `other` is built first so the second _build_demo leaves the marketplace, README
+        # and CODEOWNERS describing `demo`, which is the only plugin validated here.
+        root = Path(tmp)
+        other = _build_demo(root, "other")
+        _write(other / "agents" / "helper.md", "---\nname: helper\ntools:\n  - Read\n---\n")
+        plugin = _build_demo(root)
+        skill = plugin / "skills" / "demo" / "SKILL.md"
+        skill.write_text(skill.read_text() + '\nUse subagent_type="helper" here.\n')
+        _check(
+            ran,
+            "bare subagent_type borrowed from another plugin",
+            any("other:helper" in e for e in _errors_for(root)),
+        )
+        skill.write_text(skill.read_text().replace('"helper"', '"other:helper"'))
+        _check(ran, "cross-plugin namespaced subagent_type accepted", not _errors_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        skill = plugin / "skills" / "demo" / "SKILL.md"
+        skill.write_text(skill.read_text() + '\nUse subagent_type="ghost" here.\n')
+        _check(
+            ran,
+            "subagent_type naming no agent at all",
+            any("names no agent in this repo" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "commands" / "audit.md", "---\nname: audit\ntools: Read\n---\n\nRun it.\n")
+        _check(
+            ran,
+            "command using tools:",
+            any("commands must use 'allowed-tools:'" in e for e in _errors_for(root)),
+        )
+        _write(
+            plugin / "commands" / "audit.md",
+            "---\nname: audit\nallowed-tools: Read\n---\n\nRun it.\n",
+        )
+        _check(ran, "command using allowed-tools: accepted", not _errors_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "scripts" / "run.sh", "#!/usr/bin/env bash\ncd /Users/Someone/cc/skills\n")
+        _check(
+            ran,
+            "hardcoded /Users path",
+            any("hardcodes an absolute user path" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # The case the inherited pattern missed. macOS account names are lowercase by
+        # convention, so this is the form a real leaked path almost always takes.
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "scripts" / "run.sh", "#!/usr/bin/env bash\ncd /Users/alice/cc/skills\n")
+        _check(
+            ran,
+            "hardcoded lowercase /Users path",
+            any("hardcodes an absolute user path" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "skills" / "demo" / "shared.md", "Drop it in /Users/Shared/build.\n")
+        _check(ran, "macOS shared directory is not a personal path", not _errors_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "skills" / "demo" / "setup.md", "Run from /home/alice/work.\n")
+        _check(
+            ran,
+            "hardcoded /home path",
+            any("hardcodes an absolute user path" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        shim_suite = plugin / "hooks" / "shims" / "gh-shim.bats"
+        _write(shim_suite, "@test 'x' {\n  cd /home/user/repo\n}\n")
+        _check(ran, "shim suite exempt from path scan", not _errors_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "skills" / "demo" / "devcontainer.md", "Workspace is /home/vscode/app.\n")
+        _check(ran, "container image path is not a personal path", not _errors_for(root))
+
+    # The refused forms must fire; the compliant and exempt forms must not.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        doc = plugin / "skills" / "demo" / "howto.md"
+
+        for label, body in (
+            ("bare interpreter on a script", "Run `python3 tools/x.py` first.\n"),
+            ("bare interpreter behind a flag", "```bash\npython3 -u tools/x.py\n```\n"),
+            ("bare interpreter, flags only", "```bash\npython3 --version\n```\n"),
+            ("pip install", "```bash\npip install requests\n```\n"),
+            ("uv pip install", "```bash\nuv pip install requests\n```\n"),
+            ("uv pip non-install subcommand", "```bash\nuv pip list\n```\n"),
+            ("python -m pip", "```bash\npython -m pip download requests\n```\n"),
+            ("pip non-install subcommand", "```bash\npip freeze\n```\n"),
+            ("pipx", "```bash\npipx install detect-secrets\n```\n"),
+            ("value-taking flag before the script", "```bash\npython3 -W ignore harness.py\n```\n"),
+            ("long flag before the script", "```bash\npython3 --verbose tool.py\n```\n"),
+            (
+                "allow-marker with no reason",
+                "```bash\n# allow-legacy-python:\npip install requests\n```\n",
+            ),
+            ("script named by a variable", '```bash\npython3 "$MERGE" out.sarif\n```\n'),
+            (
+                "compliant match masking a later violation",
+                "| a | `uv run python a.py` | `python3 b.py` |\n",
+            ),
+            (
+                "prohibition after the command, not before",
+                "Use `pip install semgrep` instead of the tarball.\n",
+            ),
+            (
+                "uv pip with a flag that is not tool-managed",
+                "```bash\nuv pip install --target-dir /x foo\n```\n",
+            ),
+            ("usage string in a .py file", None),
+            (
+                "marker scope ends at a blank line",
+                "```bash\n# allow-legacy-python: x\n\npip install requests\n```\n",
+            ),
+        ):
+            if body is None:
+                _write(doc, "clean\n")
+                script = plugin / "skills" / "demo" / "scripts" / "t.py"
+                _write(script, '"""Usage: python3 t.py"""\n')
+                _check(
+                    ran,
+                    f"legacy python invocation: {label}",
+                    any("uv run" in e for e in _errors_for(root)),
+                )
+                script.unlink()
+                continue
+            _write(doc, body)
+            _check(
+                ran,
+                f"legacy python invocation: {label}",
+                any("uv add" in e or "uv run" in e or "uv tool" in e for e in _errors_for(root)),
+            )
+
+        for label, body in (
+            ("uv run --no-project", "```bash\nuv run --no-project tools/x.py\n```\n"),
+            (
+                "uv run --no-project python",
+                "```bash\nuv run --no-project python infra/helper.py b\n```\n",
+            ),
+            ("python3 -c", "```bash\npython3 -c 'print(1)'\n```\n"),
+            ("python3 -m with a module", "```bash\npython3 -m json.tool data.json\n```\n"),
+            ("uv pip with --directory", "```bash\nuv pip install --directory /tmp requests\n```\n"),
+            ("uv pip with short -t", "```bash\nuv pip install -t /tmp requests\n```\n"),
+            (
+                "uv pip with the flag after the package",
+                "```bash\nuv pip install foo -t /tmp\n```\n",
+            ),
+            ("prohibition before the command", "Do NOT use `pip freeze` here.\n"),
+            ("prose forbidding the command", "Do NOT run `pip install` here.\n"),
+            ("dockerfile fence", "```dockerfile\nRUN pip install requests\n```\n"),
+            (
+                "allow-marker",
+                "```bash\n# allow-legacy-python: in a container\npip install requests\n```\n",
+            ),
+        ):
+            _write(doc, body)
+            _check(ran, f"legal python invocation accepted: {label}", not _errors_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        skill = plugin / "skills" / "demo" / "SKILL.md"
+        _write(skill, "---\nname: demo\ndescription: Use when: parsing files\n---\n\nBody\n")
+        _check(
+            ran,
+            "unquoted description with a colon",
+            any("does not parse" in e for e in _errors_for(root)),
+        )
+        _write(skill, "---\nname: demo\ndescription: Handles a # sign\n---\n\nBody\n")
+        _check(
+            ran,
+            "unquoted description with a comment marker",
+            any("does not parse" in e for e in _errors_for(root)),
+        )
+        _write(skill, '---\nname: demo\ndescription: "Use when: parsing files"\n---\n\nBody\n')
+        _check(ran, "quoted description with a colon accepted", not _errors_for(root))
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

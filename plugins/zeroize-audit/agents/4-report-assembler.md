@@ -74,7 +74,7 @@ For each supersession:
 Apply the confidence gating rules from the SKILL.md. Optionally use the mechanical enforcer:
 
 ```bash
-python {baseDir}/tools/mcp/apply_confidence_gates.py \
+uv run --no-project {baseDir}/tools/mcp/apply_confidence_gates.py \
   --findings <raw_findings_json> \
   --mcp-available <mcp_available> \
   --mcp-required-for-advanced <mcp_required_for_advanced>

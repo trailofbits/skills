@@ -63,7 +63,7 @@ From the collected results, build:
 Pipe all raw MCP output through the normalizer:
 
 ```bash
-python {baseDir}/tools/mcp/normalize_mcp_evidence.py \
+uv run --no-project {baseDir}/tools/mcp/normalize_mcp_evidence.py \
   --input <raw_results> \
   --output <workdir>/mcp-evidence/symbols.json
 ```

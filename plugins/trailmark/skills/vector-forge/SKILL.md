@@ -28,7 +28,8 @@ Measures effectiveness by comparing mutation kill rates before and after.
 
 - **trailmark** installed — if `uv run trailmark` fails, run:
   ```bash
-  uv pip install trailmark
+  uv tool install trailmark
+# Python snippets: uv run --with trailmark python -   (a tool env is not importable)
   ```
 - At least one implementation of the target algorithm in a
   language with mutation testing support
@@ -372,18 +373,17 @@ with `tcId`, `comment`, `result`, `flags`). See
 [references/vector-patterns.md](references/vector-patterns.md)
 for the full schema.
 
-**JSON encoding:** Wycheproof canonicalizes vectors with
-`reformat_json.py`, which unescapes HTML entities. Generate vectors
-with literal characters, not HTML-escaped sequences:
-
-- **Go:** Use `json.NewEncoder` + `enc.SetEscapeHTML(false)` —
-  never `json.Marshal`/`json.MarshalIndent`, which silently escape
-  `>` → `\u003e`, `<` → `\u003c`, `&` → `\u0026`
-- **Python:** `json.dumps` is safe by default
-- **Node.js:** `JSON.stringify` is safe by default
+**Wycheproof contributions:** Use Wycheproof's `vectorgen` tool rather
+than formatting vector files directly. Supply the generated changes as an
+envelope. The `vectorgen` tool can add, update, or replace vectors while
+handling `tcId` assignment, test counts, canonical formatting, and schema
+validation. Go-based generators can avoid the `vectorgen` CLI tool and instead
+call the programmatic `github.com/c2sp/wycheproof/vectorgen` API.
 
 See [references/lessons-learned.md](references/lessons-learned.md)
-§14 for details.
+§14 and the upstream
+[vectorgen guide](https://github.com/C2SP/wycheproof/blob/main/doc/vectorgen.md)
+for the current workflow and commands.
 
 ---
 

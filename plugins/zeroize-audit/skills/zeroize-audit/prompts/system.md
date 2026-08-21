@@ -114,7 +114,7 @@ Agent `4-report-assembler` is invoked twice during a run:
 
 Quick check:
 ```bash
-which clang uvx python3   # C/C++
+which clang uv uvx python3   # C/C++
 cargo +nightly --version  # Rust
 uv --version              # Rust Python scripts
 ```
