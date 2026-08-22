@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: prompt-expression
+description: >
+  The most common vector in a 60-workflow corpus of real agentic CI, and the one zizmor does not
+  see. triage.yml interpolates github.event.issue.title and .body straight into a Claude Code
+  prompt on an issues trigger. Running zizmor over this fixture reports artipacked and nothing
+  else; all 12 template-injection findings in the corpus pointed at run: steps, never at a prompt.
+  build.yml is in the same directory with no agent, so a report that audits it is padding.
+tags: [agentic, injection, vector-b]
+
+context:
+  add_dirs: [fixture]
+
+execution:
+  prompt: |
+    Have a look at the workflows in the fixture directory before we turn this repo's
+    automation back on. Anything here worry you?
+  max_turns: 30
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Skill, Task, Bash]
+
+runs: 3
+
+expected_outcome: >
+  The report identifies that attacker-controlled issue title and body are interpolated into the
+  Claude Code prompt in triage.yml, connects that to the issues trigger being open to any
+  GitHub user, and does not present build.yml as a finding.

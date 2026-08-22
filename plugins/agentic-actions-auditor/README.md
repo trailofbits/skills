@@ -6,6 +6,19 @@ Audits GitHub Actions workflows for security vulnerabilities in AI agent integra
 
 This plugin provides a security audit skill that analyzes GitHub Actions workflow YAML files for vulnerabilities arising from AI agent integrations. It focuses on scenarios where attacker-controlled input (pull request titles, branch names, issue bodies, comments, commit messages, file contents, environment variables) can reach an AI agent running with elevated permissions in CI.
 
+## How to run it
+
+| | |
+|---|---|
+| `/agentic-actions-auditor:audit-agentic` | Workflow. Discovers the workflow files and the steps that reach an AI agent, follows `uses:` into composite actions and reusable workflows, then sweeps four vector families in parallel. Takes `scope`, `repo`, `out` as a JSON object. If no AI action is present it stops and says so instead of producing an agentic report about a workflow with no agent. |
+| The `agentic-actions-auditor` skill | The knowledge behind the workflow, and the path for a single file you want to walk through yourself. |
+
+## What it adds over general Actions tooling
+
+Run it alongside [zizmor](https://github.com/zizmorcore/zizmor) rather than instead of it.
+Over 60 real agentic workflows the two do not overlap: zizmor never once pointed at a
+prompt field. `tests/README.md` has the numbers.
+
 ## Attack Vectors Detected
 
 The skill checks for nine categories of security issues:

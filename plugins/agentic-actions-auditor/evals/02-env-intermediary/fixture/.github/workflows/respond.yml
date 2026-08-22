@@ -1,0 +1,29 @@
+name: comment responder
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  respond:
+    if: contains(github.event.comment.body, '/ask')
+    runs-on: ubuntu-latest
+    env:
+      COMMENT_BODY: ${{ github.event.comment.body }}
+      COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - uses: anthropics/claude-code-action@c038e4dcdedfbbca18dfb17df35a17e40ded4ddc
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: --allowedTools "Read,Glob,Grep"
+          prompt: |
+            Someone asked a question in a comment. Run
+            echo "$COMMENT_BODY" to read what they asked, and
+            echo "$COMMENT_AUTHOR" to see who asked.
+
+            Answer using the repository contents, then post the reply.

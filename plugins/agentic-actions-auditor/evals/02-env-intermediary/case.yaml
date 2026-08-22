@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: env-intermediary
+description: >
+  Vector A, which the skill's own reference calls the most commonly missed. respond.yml has zero
+  expressions in the prompt: the comment body reaches the job through env: and the prompt tells the
+  agent to echo "$COMMENT_BODY". A reviewer grepping the prompt for ${{ }} sees nothing. This
+  vector did not occur in the 60-workflow corpus, so the case is coverage rather than a claim
+  about frequency; zizmor reports only artipacked on the fixture.
+tags: [agentic, injection, vector-a, coverage]
+
+context:
+  add_dirs: [fixture]
+
+execution:
+  prompt: |
+    We use this workflow to answer questions people leave in comments. Someone asked whether
+    it is safe to leave enabled. What do you think?
+  max_turns: 30
+  timeout_seconds: 900
+  allowed_tools: [Read, Glob, Grep, Skill, Task, Bash]
+
+runs: 3
+
+expected_outcome: >
+  The report traces github.event.comment.body through the env: block to the prompt's instruction
+  to echo "$COMMENT_BODY", and states that the agent therefore receives attacker text even though
+  the prompt contains no expressions.
