@@ -88,8 +88,9 @@ The workflow returns a structured result. Report it honestly — the distinction
   non-decreasing counts, or a fix relocating a problem). Relay the escalation message and
   finding ids to the user: this needs a design decision, not more rounds.
 - **`halted`** — a guard fired (scope violation, unregistered new files, a dead or
-  unavailable reviewer). Relay the paths in `violations`/`new_untracked_files` and the
-  notes.
+  unavailable reviewer, or a finalize pass whose own edits failed the check that follows
+  it). Relay the paths in `violations`/`new_untracked_files`, the sites in
+  `finalize_regressions`, and the notes.
 - **`notes`** always travel with the result — surface them; they include loud warnings
   such as "a git repository was initialized".
 

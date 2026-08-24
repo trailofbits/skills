@@ -88,8 +88,9 @@ The workflow returns a structured result. Report it honestly — the distinction
   non-decreasing counts, or a fix relocating a problem). Relay the escalation message and
   finding ids to the user: this needs a design decision, not more rounds.
 - **`halted`** — a guard fired (scope violation, unregistered new files, a dead or
-  unavailable reviewer). Relay the paths in `violations`/`new_untracked_files` and the
-  notes.
+  unavailable reviewer, or a finalize pass whose own edits failed the check that follows
+  it). Relay the paths in `violations`/`new_untracked_files`, the sites in
+  `finalize_regressions`, and the notes.
 - **`notes`** always travel with the result — surface them; they include loud warnings
   such as "a git repository was initialized".
 
@@ -112,12 +113,16 @@ to the last round and a re-run resumes from it.
 
 - **Fix verification** — the next review verifies every fix; fixes to executable
   behavior carry pins that fail against the pre-fix code.
-- **Scope** — a mechanical git-diff check after every fix round halts on any
-  out-of-scope change; completion also requires no unregistered new files in scope.
+- **Scope** — a mechanical git-diff check after every fix round, and after the finalize
+  pass, halts on any out-of-scope change; completion also requires no unregistered new
+  files in scope.
 - **Report everything** — reviewers report all findings with severity; filtering happens
   once, at the ledger verdict, and rejections are not re-litigated without new evidence.
 - **Finalize** — before completion the loop strips narration comments, collapses version
-  churn to exactly one bump, and runs a docs-match-code pass.
+  churn to exactly one bump (in `plugin.json` and the marketplace entry that repeats it),
+  and runs a docs-match-code pass. Those edits land after the last review, so a check
+  reads them: an over-eager narration strip or a false docs claim halts with
+  `finalize-regression` instead of passing as done.
 
 ## When NOT to use
 

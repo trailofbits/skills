@@ -3,7 +3,7 @@
 export const meta = {
   name: 'improve',
   description:
-    'Review→fix loop over a code target (skill, plugin, PR branch) with a pluggable reviewer: cross-round findings ledger, oscillation escalation, mechanical scope guard, guaranteed final clean review, finalize pass',
+    'Review→fix loop over a code target (skill, plugin, PR branch) with a pluggable reviewer: cross-round findings ledger, oscillation escalation, mechanical scope guard, guaranteed final clean review, checked finalize pass',
   whenToUse:
     'Invoked by the code-improver entry skills to run the improvement loop. Pass args as a JSON OBJECT, not prose: {"target": "/abs/path/to/target-dir", "reviewer": {"kind": "agent"|"skill", "name": "<plugin>:<agent-or-skill>", "notes": "..."}, "out": "...", "scope": ["repo/relative/glob/**"], "maxRounds": 5, "pluginRoot": "/abs/path/to/code-improver-plugin", "finalize": {"version_bump": true, "narration_strip": true, "docs_pass": true}, "decision": "..."}. target and reviewer are required; the reviewer must be an installed agent or skill — there is no bundled fallback, and an unavailable reviewer halts the run loudly. out, scope, finalize, and pluginRoot are resolved by the baseline phase when omitted. decision carries the user\'s answer to a prior escalation; a continued run reloads the on-disk ledger, so findings and verdicts survive across runs even though rounds restart.',
   phases: [
@@ -11,7 +11,7 @@ export const meta = {
     { title: 'Review', detail: 'The configured reviewer reports everything with severity; the ledger verdict filters, once' },
     { title: 'Fix', detail: 'Fixer addresses blocking findings, one verdict per finding, then a scope check' },
     { title: 'Final review', detail: 'Completion requires the last action to be a review with zero blocking findings' },
-    { title: 'Finalize', detail: 'Strip loop narration, exactly one version bump, metrics' },
+    { title: 'Finalize', detail: 'Strip loop narration, exactly one version bump, then scope- and regression-check the pass itself, metrics' },
   ],
 }
 
@@ -330,13 +330,14 @@ const buildEscalation = (type, message, ids, round) => {
 // ---------------------------------------------------------------------------
 const BASELINE_SCHEMA = {
   type: 'object',
-  required: ['ok', 'error', 'target_dir', 'plugin_dir', 'plugin_version', 'git_root', 'git_initialized', 'head_sha', 'untracked', 'out_dir', 'out_rel', 'prior_ledger_json', 'metrics_script', 'default_scope', 'reviewer_available', 'reviewer_probe'],
+  required: ['ok', 'error', 'target_dir', 'plugin_dir', 'plugin_version', 'marketplace_file', 'git_root', 'git_initialized', 'head_sha', 'untracked', 'out_dir', 'out_rel', 'prior_ledger_json', 'metrics_script', 'default_scope', 'reviewer_available', 'reviewer_probe'],
   properties: {
     ok: { type: 'boolean' },
     error: { type: 'string', description: 'Why the baseline could not be established; empty when ok.' },
     target_dir: { type: 'string', description: 'Absolute path to the verified target directory.' },
     plugin_dir: { type: 'string', description: 'Absolute path to the enclosing plugin (has .claude-plugin/plugin.json), or empty.' },
     plugin_version: { type: 'string', description: 'The version field of the enclosing plugin.json, or empty.' },
+    marketplace_file: { type: 'string', description: 'Repo-relative path of the marketplace manifest that carries this plugin\'s version, or empty.' },
     git_root: { type: 'string', description: 'Absolute path of the repository root covering the target.' },
     git_initialized: { type: 'boolean', description: 'True if this run created the repository.' },
     head_sha: { type: 'string' },
@@ -452,12 +453,37 @@ const SCOPE_SCHEMA = {
 
 const FINALIZE_SCHEMA = {
   type: 'object',
-  required: ['narration_sites_removed', 'version', 'metrics_ok', 'notes'],
+  required: ['narration_sites_removed', 'version', 'notes'],
   properties: {
     narration_sites_removed: { type: 'integer' },
     version: { type: 'string', description: 'The plugin version after finalize, or empty when the target is not a plugin.' },
-    metrics_ok: { type: 'boolean' },
     notes: { type: 'string' },
+  },
+}
+
+// Finalize edits the tree after the last review and the last scope check, so its own
+// output is checked here — mechanically for scope, by reading for regressions — before
+// the run is allowed to report convergence.
+const FINALIZE_CHECK_SCHEMA = {
+  type: 'object',
+  required: ['changed', 'untracked', 'regressions', 'metrics_ok'],
+  properties: {
+    changed: SCOPE_SCHEMA.properties.changed,
+    untracked: SCOPE_SCHEMA.properties.untracked,
+    regressions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['file', 'line', 'why'],
+        properties: {
+          file: { type: 'string', description: 'Repo-relative path of the finalize edit that must not stand.' },
+          line: { type: 'integer' },
+          why: { type: 'string', description: 'What the edit broke, concretely: the content it rewrote, the statement it made false, the version it got wrong.' },
+        },
+      },
+      description: 'Empty only when every finalize edit was read and is sound.',
+    },
+    metrics_ok: { type: 'boolean' },
   },
 }
 
@@ -482,7 +508,7 @@ const baseline = await agent(
 
 1. Verify the target: the directory \`${TARGET}\` must exist and be non-empty. If it does not, report ok=false with the error.
 
-2. Find the enclosing plugin: walk up from the target directory looking for \`.claude-plugin/plugin.json\`. Report its directory and its "version" field, or empty strings if there is none.
+2. Find the enclosing plugin: walk up from the target directory looking for \`.claude-plugin/plugin.json\`. Report its directory and its "version" field, or empty strings if there is none. When there is a plugin, also find the manifest that repeats its version: look for \`.claude-plugin/marketplace.json\` at the root of the repository containing the target (step 3 resolves that root) and, if it exists and holds an entry whose "source" names this plugin's directory, report that file's path relative to the repository root as marketplace_file. Empty string if there is no such file or no entry for this plugin.
 
 3. Establish the git baseline: run \`git -C ${TARGET} rev-parse --show-toplevel\`. If the target is NOT inside a git repository, initialize one — the loop's scope guard and fix verification depend on a diffable baseline:
    - Choose the root: the current working directory if the target path is under it, otherwise the plugin directory (or the target's parent).
@@ -534,7 +560,7 @@ if (!baseline.metrics_script) {
   log(notes[notes.length - 1])
 }
 
-const SCOPE = Array.isArray(A.scope) && A.scope.length ? A.scope.map(String) : baseline.default_scope || []
+const SCOPE = Array.isArray(A.scope) && A.scope.length ? A.scope.map(String) : [...(baseline.default_scope || [])]
 if (!SCOPE.length) throw new Error('no scope: pass args.scope or let the baseline derive one from the plugin directory')
 
 // Finalize is data-driven: "exactly one version bump" only means something when the
@@ -545,11 +571,36 @@ const FINALIZE = {
   narration_strip: FIN_ARGS.narration_strip === undefined ? true : !!FIN_ARGS.narration_strip,
   docs_pass: FIN_ARGS.docs_pass === undefined ? true : !!FIN_ARGS.docs_pass,
 }
+// A plugin's version lives in two files: plugin.json and the marketplace entry that
+// repeats it. The manifest sits at the repository root, outside the target's plugin
+// directory, so a bump the scope cannot reach leaves the two disagreeing — which the
+// repository's own metadata validator rejects. Widen the scope instead of shipping that.
+const MARKETPLACE_FILE = baseline.marketplace_file ? String(baseline.marketplace_file) : ''
+if (FINALIZE.version_bump && MARKETPLACE_FILE && !inScope(MARKETPLACE_FILE, SCOPE.map(globToRegex))) {
+  SCOPE.push(MARKETPLACE_FILE)
+  notes.push(`Scope extended with ${MARKETPLACE_FILE}: it repeats the plugin version, so the one bump must land there too or plugin.json and the marketplace entry disagree.`)
+  log(notes[notes.length - 1])
+}
+
 const SCOPE_REGEXES = SCOPE.map(globToRegex)
 ledger.scope = SCOPE
 ledger.baseline = { sha: BASE_SHA, git_root: GIT_ROOT }
 loadPriorLedger(baseline.prior_ledger_json, notes)
 const baselineUntracked = new Set(baseline.untracked || [])
+
+// The run's own artifact directory is not a violation, and neither is a file that was
+// already untracked when the run started.
+const isArtifact = (p) => OUT_REL && (p === OUT_REL || p.startsWith(`${OUT_REL}/`))
+const outOfScopePaths = (rep) => [
+  ...((rep && rep.changed) || []).filter((p) => !inScope(p, SCOPE_REGEXES) && !isArtifact(p)),
+  ...((rep && rep.untracked) || []).filter(
+    (p) => !inScope(p, SCOPE_REGEXES) && !isArtifact(p) && !baselineUntracked.has(p),
+  ),
+]
+const newUntrackedInScope = (rep) =>
+  ((rep && rep.untracked) || []).filter(
+    (p) => inScope(p, SCOPE_REGEXES) && !isArtifact(p) && !baselineUntracked.has(p),
+  )
 
 log(`Scope: ${SCOPE.join(', ')} | baseline ${BASE_SHA.slice(0, 12)} | artifacts: ${OUT}`)
 
@@ -623,6 +674,7 @@ const RESULT = {
   halted: '',
   escalation: null,
   violations: [],
+  finalize_regressions: [],
   rounds_run: 0,
   fix_rounds: 0,
   fixer_failed_rounds: [],
@@ -642,6 +694,11 @@ const finishResult = () => {
   ).length
   return RESULT
 }
+
+// The wrapper's no-improvisation sentinel. Every reviewer return passes through this —
+// the first one and every trampoline continuation — because a continuation that lost its
+// skill returns an empty review that would otherwise read as a clean bill of health.
+const unavailableSentinel = (r) => /^REVIEWER-UNAVAILABLE:/.test((r && r.summary) || '')
 
 const reviewerUnavailable = async (evidence) => {
   RESULT.halted = 'reviewer-unavailable'
@@ -700,7 +757,7 @@ Now review the target and report EVERY defect the review surfaces, each with a s
     throw e
   }
 
-  if (review && /^REVIEWER-UNAVAILABLE:/.test(review.summary || '')) {
+  if (unavailableSentinel(review)) {
     await reviewerUnavailable(clip(review.summary, 300))
     break
   }
@@ -763,7 +820,7 @@ Now review the target and report EVERY defect the review surfaces, each with a s
         })
         .join('\n\n')
       review = await agent(
-        `Review round ${round}, continuation after specialist wave ${wave}, of an automated improvement loop over the target at \`${TARGET}\`. A previous stage invoked the installed skill \`${REVIEWER_NAME}\` and requested the specialist dispatches below; the loop ran them. Invoke the Skill tool with skill="${REVIEWER_NAME}" first if you need the review methodology it prescribes.
+        `Review round ${round}, continuation after specialist wave ${wave}, of an automated improvement loop over the target at \`${TARGET}\`. A previous stage invoked the installed skill \`${REVIEWER_NAME}\` and requested the specialist dispatches below; the loop ran them. Invoke the Skill tool with skill="${REVIEWER_NAME}" first if you need the review methodology it prescribes. If that Skill invocation fails or the skill is unavailable, do NOT review anything yourself and do NOT consolidate the reports without it: return mode "direct", zero findings, an empty verified_fixed, and a summary that begins exactly with "REVIEWER-UNAVAILABLE:" followed by the error you saw. The loop halts on that sentinel; an empty review without it reads as a clean bill of health.
 ${REVIEWER_NOTES ? `\nReviewer configuration notes from the caller: ${REVIEWER_NOTES}\n` : ''}
 ${ledgerBlock()}
 
@@ -782,6 +839,11 @@ Either request another specialist wave (mode "dispatch"; ${MAX_DISPATCH_WAVES - 
 Report EVERY defect the review surfaced, each with a severity mapped onto critical|major|minor|info. Do not withhold or pre-filter low-severity findings; filtering happens at the ledger verdict, once, not in your report. Do not edit or fix anything — you perform no writes at all.`,
         { schema: SKILL_REVIEW_SCHEMA, label: `review:${round}.${wave + 1}`, phase: finalRound ? 'Final review' : 'Review' },
       )
+      if (unavailableSentinel(review)) {
+        await reviewerUnavailable(clip(review.summary, 300))
+        trampolineHalted = true
+        break
+      }
     }
   }
   if (trampolineHalted) break
@@ -934,11 +996,7 @@ Non-negotiable rules:
     await persistExit('halted: scope check failed')
     break
   }
-  const isArtifact = (p) => OUT_REL && (p === OUT_REL || p.startsWith(`${OUT_REL}/`))
-  const violations = [
-    ...(scopeRep.changed || []).filter((p) => !inScope(p, SCOPE_REGEXES) && !isArtifact(p)),
-    ...(scopeRep.untracked || []).filter((p) => !inScope(p, SCOPE_REGEXES) && !isArtifact(p) && !baselineUntracked.has(p)),
-  ]
+  const violations = outOfScopePaths(scopeRep)
   if (violations.length) {
     RESULT.halted = 'scope-violation'
     RESULT.violations = violations
@@ -957,16 +1015,16 @@ if (RESULT.converged) {
   // Completion requires no unregistered new files in scope: an untracked file that
   // tests silently depend on is work one `git clean` away from destruction.
   const finalScope = await agent(
-    `Report the current change surface of the git repository at \`${GIT_ROOT}\`. Run exactly these two commands and return their output verbatim as lists of repo-relative paths — do not filter, fix, or interpret anything:
+    `Report the current change surface of the git repository at \`${GIT_ROOT}\`, then snapshot it. Run exactly these three commands; return the first two commands' output verbatim as lists of repo-relative paths — do not filter, fix, or interpret anything:
 
   git -C "${GIT_ROOT}" diff --name-only ${BASE_SHA}
-  git -C "${GIT_ROOT}" ls-files --others --exclude-standard`,
+  git -C "${GIT_ROOT}" ls-files --others --exclude-standard
+  git -C "${GIT_ROOT}" diff ${BASE_SHA} > "${OUT}/pre-finalize.diff"
+
+The third command writes the snapshot the finalize check diffs against; run it last and report nothing about it.`,
     { schema: SCOPE_SCHEMA, label: 'final-scope', phase: 'Finalize', effort: 'low' },
   )
-  const isArtifact = (p) => OUT_REL && (p === OUT_REL || p.startsWith(`${OUT_REL}/`))
-  const newUntracked = ((finalScope && finalScope.untracked) || []).filter(
-    (p) => inScope(p, SCOPE_REGEXES) && !isArtifact(p) && !baselineUntracked.has(p),
-  )
+  const newUntracked = newUntrackedInScope(finalScope)
   if (!finalScope) {
     RESULT.converged = false
     RESULT.halted = 'scope-check-failed'
@@ -997,43 +1055,110 @@ if (RESULT.converged) {
       steps.push('Narration stripping is disabled for this run; return narration_sites_removed as 0.')
     }
     if (FINALIZE.version_bump) {
-      steps.push(`Exactly one version bump. The baseline plugin version was \`${baseline.plugin_version || '(not recorded)'}\`. The plugin.json inside scope (and any marketplace entry inside scope) must now read exactly one increment above the baseline — one bump for the whole loop, whatever the rounds did. Collapse multiple bumps; add the single bump if none happened. Return the resulting version.`)
+      steps.push(`Exactly one version bump. The baseline plugin version was \`${baseline.plugin_version || '(not recorded)'}\`. The plugin.json inside scope must now read exactly one increment above the baseline — one bump for the whole loop, whatever the rounds did. Collapse multiple bumps; add the single bump if none happened. Return the resulting version.${MARKETPLACE_FILE ? ` \`${MARKETPLACE_FILE}\` repeats this plugin's version and is in scope: set its entry for this plugin to the identical new version. A plugin.json and a marketplace entry that disagree fail the repository's metadata validator, so half a bump is worse than none.` : ''}`)
     } else {
       steps.push('Version handling is disabled for this run (the target is not a plugin or the caller opted out). Return version as an empty string and do not touch any version field.')
     }
     if (FINALIZE.docs_pass) {
       steps.push('Docs-match-code pass: read the documentation files in scope (README, SKILL.md, and the like) and fix any statement the loop\'s changes made false. Change nothing else.')
     }
-    steps.push(`Write the ledger: write the following JSON verbatim to \`${LEDGER_PATH}\`, and render a short human-readable \`${OUT}/ledger.md\` from it (findings table: id, severity, status, verdict reason; one row per finding; rounds summary underneath):
+    steps.push(`LAST STEP, after all edits: snapshot what you changed so the check can read it:
+
+  git -C "${GIT_ROOT}" diff ${BASE_SHA} > "${OUT}/post-finalize.diff"`)
+    const finalize = await agent(
+      `Finalize a converged improvement loop over the target at \`${TARGET}\`. The last review was clean; your job is to remove loop residue, not to improve anything further. Stay inside scope: ${SCOPE.join(', ')}. Your edits are the only ones in this run no reviewer has seen, so a scope check and a regression check run over them after you finish: rewriting content that only looked like loop residue fails the run. When a hit is arguable, leave it.
+
+The run's ledger, for context only — the check that follows you writes it to \`${LEDGER_PATH}\`, so do not write it yourself:
 
 \`\`\`json
 ${JSON.stringify(ledger, null, 2)}
-\`\`\``)
-    steps.push(
-      baseline.metrics_script
-        ? `Run the metrics collector and report metrics_ok:\n\n  ${metricsCommand()}`
-        : 'No metrics collector was found; return metrics_ok=false.',
-    )
-    const finalize = await agent(
-      `Finalize a converged improvement loop over the target at \`${TARGET}\`. The last review was clean; your job is to remove loop residue, not to improve anything further. Stay inside scope: ${SCOPE.join(', ')}.
+\`\`\`
 
 ${steps.map((s, i) => `${i + 1}. ${s}`).join('\n\n')}`,
       { schema: FINALIZE_SCHEMA, label: 'finalize', phase: 'Finalize' },
     )
     if (!finalize) {
-      notes.push('The finalize agent died. The tree is converged and reviewed, but loop residue (narration, version bumps) may remain and no metrics were collected.')
+      notes.push('The finalize agent died; the tree may hold partial finalize edits. The check below runs over them anyway — nobody vouches for a dead agent\'s work.')
       log(notes[notes.length - 1])
     } else {
       ledger.finalize = {
         narration_sites_removed: finalize.narration_sites_removed,
         version: finalize.version,
-        metrics_ok: finalize.metrics_ok,
         notes: clip(finalize.notes, 500),
       }
-      if (baseline.metrics_script && !finalize.metrics_ok) {
-        notes.push('collect_metrics.py FAILED — metrics.json is missing or stale. The run artifacts are incomplete; see finalize notes in the ledger.')
-        log(notes[notes.length - 1])
-      }
+    }
+
+    // Finalize is the last agent to touch the tree, so its edits are the only ones no
+    // reviewer and no scope guard has seen. Check them before the run reports success,
+    // and write the run's final artifacts from here — after finalize's own outcome is
+    // known, so the ledger on disk records it.
+    const versionRule = FINALIZE.version_bump
+      ? `\n   - a version that is not exactly one increment above the baseline \`${baseline.plugin_version || '(not recorded)'}\`${MARKETPLACE_FILE ? `, or a \`${MARKETPLACE_FILE}\` entry for this plugin that does not match plugin.json exactly` : ''}`
+      : '\n   - any change to a version field: version handling was disabled for this run'
+    const check = await agent(
+      `The finalize pass of an automated improvement loop has just edited the repository at \`${GIT_ROOT}\` (target \`${TARGET}\`, scope ${SCOPE.join(', ')}). Verify those edits and write the run's final artifacts. You fix nothing and improve nothing: you report.
+
+1. Change surface — run exactly these two commands and return their output verbatim as lists of repo-relative paths:
+
+  git -C "${GIT_ROOT}" diff --name-only ${BASE_SHA}
+  git -C "${GIT_ROOT}" ls-files --others --exclude-standard
+
+2. Read what finalize changed:
+
+  diff -u "${OUT}/pre-finalize.diff" "${OUT}/post-finalize.diff"
+
+  Both files are cumulative diffs against the baseline commit, taken before and after the pass, so their difference is exactly the finalize edits. \`diff\` exits 1 when the files differ, which is the expected case here — not an error. If \`${OUT}/post-finalize.diff\` is missing, the pass died before snapshotting: diff \`${OUT}/pre-finalize.diff\` against \`git -C "${GIT_ROOT}" diff ${BASE_SHA}\` instead. Then read the current content around every site it touched — the diff says what changed, the file says whether the result is right.
+
+3. Report as \`regressions\` every finalize edit that must not stand, one entry per site with its file, line, and why:
+   - legitimate content rewritten or deleted as loop narration: "round 2 of the tournament", "pass 1 of the parser", "iteration 3" in a documented algorithm, a changelog entry that predates this run
+   - a documentation statement the pass made false, or a claim it added that the code does not support${versionRule}
+   - anything outside the finalize mandate (narration strip, the version bump, docs-match-code): finalize may not refactor, re-fix, or otherwise improve the target
+   An empty list means you read the finalize edits and they are all sound. This is the only check these edits get, and the run reports success on your word.
+
+4. Write the ledger: write the following JSON verbatim (no edits, no reformatting) to \`${LEDGER_PATH}\`, and render a short human-readable \`${OUT}/ledger.md\` from it (findings table: id, severity, status, verdict reason; one row per finding; rounds summary underneath):
+
+\`\`\`json
+${JSON.stringify(ledger, null, 2)}
+\`\`\`
+
+5. ${baseline.metrics_script ? `Run the metrics collector and report metrics_ok:\n\n  ${metricsCommand()}` : 'No metrics collector was found; return metrics_ok=false.'}`,
+      { schema: FINALIZE_CHECK_SCHEMA, label: 'finalize-check', phase: 'Finalize' },
+    )
+
+    const checkViolations = outOfScopePaths(check)
+    const checkUntracked = newUntrackedInScope(check)
+    const checkRegressions = ((check && check.regressions) || []).map((r) => ({
+      file: normFile(r.file),
+      line: r.line | 0,
+      why: clip(r.why, 300),
+    }))
+    if (!check) {
+      RESULT.converged = false
+      RESULT.halted = 'finalize-check-failed'
+      notes.push('The finalize check returned nothing. The finalize pass edited the tree and no scope check or review has seen those edits, so completion cannot be certified. Inspect the diff against the baseline and re-run.')
+      log(notes[notes.length - 1])
+      finishResult()
+      await persistExit('halted: finalize check failed')
+    } else if (checkViolations.length || checkUntracked.length) {
+      RESULT.converged = false
+      RESULT.halted = checkViolations.length ? 'scope-violation' : 'untracked-files-in-scope'
+      RESULT.violations = checkViolations
+      RESULT.new_untracked_files = checkUntracked
+      notes.push(`NOT COMPLETE: the finalize pass left ${[checkViolations.length ? `out-of-scope change(s) ${checkViolations.join(', ')}` : '', checkUntracked.length ? `unregistered new file(s) in scope ${checkUntracked.join(', ')}` : ''].filter(Boolean).join(' and ')}. Nothing was reverted; inspect, revert or widen args.scope, then re-run.`)
+      log(notes[notes.length - 1])
+      finishResult()
+      await persistExit('halted: finalize left the tree outside scope')
+    } else if (checkRegressions.length) {
+      RESULT.converged = false
+      RESULT.halted = 'finalize-regression'
+      RESULT.finalize_regressions = checkRegressions
+      notes.push(`NOT COMPLETE: the finalize pass introduced ${checkRegressions.length} regression(s) the loop will not certify: ${checkRegressions.map((r) => `${r.file}:${r.line} — ${r.why}`).join('; ')}. The edits stand in the tree; revert the named sites (or re-run with narration_strip/docs_pass disabled) and re-run.`)
+      log(notes[notes.length - 1])
+      finishResult()
+      await persistExit('halted: finalize regression')
+    } else if (baseline.metrics_script && !check.metrics_ok) {
+      notes.push('collect_metrics.py FAILED — metrics.json is missing or stale. The run artifacts are incomplete; the ledger is still on disk.')
+      log(notes[notes.length - 1])
     }
   }
 }

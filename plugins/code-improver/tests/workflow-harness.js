@@ -45,6 +45,7 @@ const BASELINE = {
   target_dir: SKILL,
   plugin_dir: "/repo/plugins/demo",
   plugin_version: "1.0.0",
+  marketplace_file: "",
   git_root: "/repo",
   git_initialized: false,
   head_sha: "abc123def456",
@@ -58,7 +59,8 @@ const BASELINE = {
   reviewer_probe: "",
 };
 const CLEAN_SCOPE = { changed: ["plugins/demo/skills/demo/SKILL.md"], untracked: [] };
-const FINALIZE_OK = { narration_sites_removed: 0, version: "1.0.1", metrics_ok: true, notes: "" };
+const FINALIZE_OK = { narration_sites_removed: 0, version: "1.0.1", notes: "" };
+const CHECK_OK = { ...CLEAN_SCOPE, regressions: [], metrics_ok: true };
 
 // Finding / reply builders. Ids follow the workflow's `<file>:<line>:<class>` shape.
 const F = (file, line, cls, severity, extra = {}) => ({
@@ -104,6 +106,7 @@ async function run(src, opts = {}) {
     specialists = [],
     finalScope,
     finalize = FINALIZE_OK,
+    finalizeCheck,
   } = opts;
   const calls = [];
   const prompts = {};
@@ -139,6 +142,7 @@ async function run(src, opts = {}) {
     if (label === "final-scope") return finalScope === undefined ? CLEAN_SCOPE : finalScope;
     if (label === "persist" || label.startsWith("persist:")) return "persisted";
     if (label === "finalize") return finalize;
+    if (label === "finalize-check") return finalizeCheck === undefined ? CHECK_OK : finalizeCheck;
     throw new Error(`unexpected agent label: ${label}`);
   };
   const parallel = async (thunks) => Promise.all(thunks.map((t) => Promise.resolve().then(t).catch(() => null)));
@@ -192,6 +196,8 @@ const SCENARIOS = {
       [out && out.open_minor_count === 1, "the un-dispatched minor finding must survive in the result"],
       [last && last.type === "review" && last.open.critical + last.open.major === 0, "the ledger's last entry must be the clean review"],
       [calls.indexOf("final-scope") < calls.indexOf("finalize"), "the untracked-files check must run before finalize"],
+      [calls.indexOf("finalize") < calls.indexOf("finalize-check"), "finalize's own edits must be checked after it runs"],
+      [calls[calls.length - 1] === "finalize-check", "no agent may touch the tree after the finalize check"],
       [ledger.findings[fid(A)].status === "fixed" && ledger.findings[fid(A)].verified === true, "the verified fix must be recorded as verified"],
     ];
   },
@@ -464,6 +470,27 @@ const SCENARIOS = {
     ];
   },
 
+  // The sentinel is checked on every reviewer return, not just the first: a continuation
+  // that lost its skill returns an empty review that would read as a clean bill.
+  "a continuation that lost its skill does not improvise": async (src) => {
+    const { out, calls, prompts } = await run(src, {
+      args: { target: SKILL, reviewer: RV_SKILL },
+      reviews: [
+        DISPATCH([{ agentType: "review-panel:todo-auditor", prompt: "audit todo markers", label: "todo" }]),
+        { mode: "direct", findings: [], verified_fixed: [], summary: "REVIEWER-UNAVAILABLE: Skill tool returned an error", agents: [] },
+      ],
+      specialists: ["todo report: clean"],
+    });
+    return [
+      [out && out.halted === "reviewer-unavailable", "a continuation sentinel must halt the run"],
+      [out && out.converged === false, "an empty continuation must never read as a clean review"],
+      [!calls.some((c) => c.startsWith("fix:")), "a sentinel continuation must never reach the fixer"],
+      [!calls.includes("finalize"), "nothing may be finalized on a halted run"],
+      [calls.includes("persist"), "the halt must persist the ledger"],
+      [/REVIEWER-UNAVAILABLE:/.test(prompts["review:1.2"]), "the continuation must carry the sentinel contract"],
+    ];
+  },
+
   // Reviewer skills that orchestrate specialists: the wrapper cannot spawn agents, so
   // it returns the dispatches and the loop trampolines them.
   "a skill reviewer's dispatch plan is executed and merged": async (src) => {
@@ -721,15 +748,112 @@ const SCENARIOS = {
       fixes: [FIX([V(A, "fixed")], 1)],
     });
     const p = withMetrics.prompts.finalize;
+    const c = withMetrics.prompts["finalize-check"];
     return [
       [/Exactly one version bump/.test(p), "the one-bump rule must reach finalize"],
       [p.includes("`1.0.0`"), "the baseline version must be named so the bump is checkable"],
       [/narration/.test(p), "the narration strip must reach finalize"],
-      [p.includes("/plug/scripts/collect_metrics.py"), "the resolved collector path must be used"],
-      [/--tokens 12345/.test(p), "the spent-token count must reach the collector"],
-      [/ledger\.md/.test(p), "the human-readable ledger must be rendered"],
-      [/No metrics collector was found/.test(noMetrics.prompts.finalize), "a missing collector must be loud, not silent"],
+      [p.includes("post-finalize.diff"), "finalize must snapshot its own edits for the check"],
+      [c.includes("/plug/scripts/collect_metrics.py"), "the resolved collector path must be used"],
+      [/--tokens 12345/.test(c), "the spent-token count must reach the collector"],
+      [/ledger\.md/.test(c), "the human-readable ledger must be rendered"],
+      [fences(c)[0] && fences(c)[0].finalize !== undefined, "the ledger written last must record finalize's own outcome"],
+      [/No metrics collector was found/.test(noMetrics.prompts["finalize-check"]), "a missing collector must be loud, not silent"],
       [noMetrics.out.notes.some((n) => /collect_metrics/.test(n)), "the missing collector must reach the result notes"],
+    ];
+  },
+
+  // Finalize edits the tree after the last review and the last scope check, so the
+  // pass is itself scope-checked and read before the run may report success.
+  "the finalize pass is checked before the run reports success": async (src) => {
+    const clean = await run(src, {
+      reviews: [REV([A]), REV([], [fid(A)])],
+      fixes: [FIX([V(A, "fixed")], 1)],
+    });
+    const regressed = await run(src, {
+      reviews: [REV([A]), REV([], [fid(A)])],
+      fixes: [FIX([V(A, "fixed")], 1)],
+      finalizeCheck: {
+        ...CLEAN_SCOPE,
+        regressions: [{ file: "plugins/demo/README.md", line: 12, why: 'rewrote "round 2 of the tournament", which is documented content' }],
+        metrics_ok: true,
+      },
+    });
+    const outOfScope = await run(src, {
+      reviews: [REV([A]), REV([], [fid(A)])],
+      fixes: [FIX([V(A, "fixed")], 1)],
+      finalizeCheck: { changed: [...CLEAN_SCOPE.changed, "plugins/other/thing.md"], untracked: [], regressions: [], metrics_ok: true },
+    });
+    const newFile = await run(src, {
+      reviews: [REV([A]), REV([], [fid(A)])],
+      fixes: [FIX([V(A, "fixed")], 1)],
+      finalizeCheck: { changed: CLEAN_SCOPE.changed, untracked: ["plugins/demo/notes.md"], regressions: [], metrics_ok: true },
+    });
+    const dead = await run(src, {
+      reviews: [REV([A]), REV([], [fid(A)])],
+      fixes: [FIX([V(A, "fixed")], 1)],
+      finalizeCheck: null,
+    });
+    const c = clean.prompts["finalize-check"];
+    return [
+      [clean.out && clean.out.converged === true, "a clean finalize check still converges"],
+      [/pre-finalize\.diff/.test(clean.prompts["final-scope"]), "the pre-finalize snapshot must be taken before the pass"],
+      [/pre-finalize\.diff/.test(c) && /post-finalize\.diff/.test(c), "the check must be pointed at both snapshots"],
+      [/regressions/.test(c) && /round 2 of the tournament/.test(c), "the check must be told what a narration-strip regression looks like"],
+      [regressed.out && regressed.out.converged === false, "a finalize regression must not report convergence"],
+      [regressed.out && regressed.out.halted === "finalize-regression", "the result must say why"],
+      [regressed.out && regressed.out.finalize_regressions.some((r) => r.file === "plugins/demo/README.md"), "the regressed site must be named in the result"],
+      [regressed.calls.includes("persist"), "a failed finalize check must persist the honest ledger"],
+      [outOfScope.out && outOfScope.out.converged === false && outOfScope.out.halted === "scope-violation", "an out-of-scope finalize edit must halt like any other"],
+      [outOfScope.out && outOfScope.out.violations.includes("plugins/other/thing.md"), "the out-of-scope path must be named"],
+      [newFile.out && newFile.out.converged === false && newFile.out.halted === "untracked-files-in-scope", "an unregistered file finalize created must block completion"],
+      [dead.out && dead.out.converged === false && dead.out.halted === "finalize-check-failed", "an unchecked finalize pass must not certify the run"],
+      [dead.calls.includes("persist"), "a dead check must still persist the ledger"],
+    ];
+  },
+
+  // A dead finalize leaves partial edits: they get checked, not waved through.
+  "a dead finalize is still checked, and the ledger still lands": async (src) => {
+    const { out, calls, prompts } = await run(src, {
+      reviews: [REV([A]), REV([], [fid(A)])],
+      fixes: [FIX([V(A, "fixed")], 1)],
+      finalize: null,
+    });
+    const ledger = fences(prompts["finalize-check"])[0];
+    return [
+      [calls.includes("finalize-check"), "a dead finalize's partial edits must still be checked"],
+      [out && out.notes.some((n) => /finalize agent died/.test(n)), "the death must reach the result notes"],
+      [ledger && ledger.result && ledger.result.converged === true, "the ledger written last must carry the run result"],
+      [/post-finalize\.diff\` is missing/.test(prompts["finalize-check"]), "the check must know what to do without the snapshot"],
+      [out && out.converged === true, "a checked-clean tree still converges"],
+    ];
+  },
+
+  // A plugin's version lives in two files; a bump the scope cannot reach ships a mismatch.
+  "the version bump reaches the marketplace entry": async (src) => {
+    const MK = ".claude-plugin/marketplace.json";
+    const withMk = await run(src, {
+      baseline: { ...BASELINE, marketplace_file: MK },
+      reviews: [REV([A]), REV([], [fid(A)])],
+      fixes: [FIX([V(A, "fixed")], 1)],
+      scopes: [{ changed: [...CLEAN_SCOPE.changed, MK], untracked: [] }],
+      finalizeCheck: { changed: [...CLEAN_SCOPE.changed, MK], untracked: [], regressions: [], metrics_ok: true },
+    });
+    const optedOut = await run(src, {
+      args: { target: SKILL, reviewer: RV, finalize: { version_bump: false } },
+      baseline: { ...BASELINE, marketplace_file: MK },
+      reviews: [REV([A]), REV([], [fid(A)])],
+      fixes: [FIX([V(A, "fixed")], 1)],
+    });
+    return [
+      [withMk.out && withMk.out.converged === true, "editing the marketplace entry must not read as a scope violation"],
+      [withMk.prompts["fix:1"].includes(MK), "the widened scope must reach the fixer"],
+      [withMk.prompts.finalize.includes(MK), "finalize must be told to bump the marketplace entry too"],
+      [withMk.out && withMk.out.notes.some((n) => n.includes(MK)), "widening the scope must be said out loud"],
+      [withMk.prompts["finalize-check"].includes(MK), "the check must verify the two versions agree"],
+      [!optedOut.prompts.finalize.includes(MK), "no version bump means no marketplace edit"],
+      [!optedOut.out.notes.some((n) => n.includes(MK)), "and no widened scope"],
+      [!withMk.prompts.finalize.includes("any marketplace entry inside scope"), "the bump must name the file, not hope one is in scope"],
     ];
   },
 
@@ -789,7 +913,8 @@ const MUTATIONS = [
   ["dispatch the reviewer without its agent type", (s) => s.replace("...(REVIEWER.kind === 'agent' ? { agentType: REVIEWER_NAME } : {})", "...{}")],
   ["improvise when the reviewer skill is missing", (s) => s.replace("if (REVIEWER.kind === 'skill' && !baseline.reviewer_available) {", "if (false) {")],
   ["swallow an unresolvable reviewer agent", (s) => s.replace("if (/agent type .* not found/i.test(e.message || '')) {", "if (false) {")],
-  ["let the wrapper's failure sentinel pass as a review", (s) => s.replace("if (review && /^REVIEWER-UNAVAILABLE:/.test(review.summary || '')) {", "if (false) {")],
+  ["let the wrapper's failure sentinel pass as a review", (s) => s.replace("/^REVIEWER-UNAVAILABLE:/.test((r && r.summary) || '')", "false")],
+  ["check the sentinel only on the first reviewer return", (s) => s.replace("      if (unavailableSentinel(review)) {\n        await reviewerUnavailable(clip(review.summary, 300))\n        trampolineHalted = true", "      if (false) {\n        await reviewerUnavailable(clip(review.summary, 300))\n        trampolineHalted = true")],
   ["force every reviewer through the agent path", (s) => s.replace("const reviewerLeadIn =\n    REVIEWER.kind === 'skill'", "const reviewerLeadIn =\n    false")],
   ["skip the baseline reviewer probe step", (s) => s.replace("const SKILL_PROBE_STEP =\n  REVIEWER.kind === 'skill'", "const SKILL_PROBE_STEP =\n  false")],
   ["ignore the caller's finalize opt-outs", (s) => s.replace("version_bump: FIN_ARGS.version_bump === undefined ? !!baseline.plugin_version : !!FIN_ARGS.version_bump,", "version_bump: true,")],
@@ -804,6 +929,12 @@ const MUTATIONS = [
   ["keep stale fix rounds on ledger reload", (s) => s.replace("fixed_rounds: [],\n      fixed_prior", "fixed_rounds: f.fixed_rounds || [],\n      fixed_prior")],
   ["strip the artifact-directory exemption", (s) => s.replace("const isArtifact = (p) => OUT_REL && (p === OUT_REL || p.startsWith(`${OUT_REL}/`))", "const isArtifact = () => false")],
   ["let every path match the scope", (s) => s.replace("return new RegExp(`^${esc}$`)", "return /^/")],
+  ["certify a finalize pass nobody checked", (s) => s.replace("if (!check) {", "if (false) {")],
+  ["accept finalize regressions", (s) => s.replace("} else if (checkRegressions.length) {", "} else if (false) {")],
+  ["let finalize edit outside scope", (s) => s.replace("} else if (checkViolations.length || checkUntracked.length) {", "} else if (false) {")],
+  ["snapshot nothing for the finalize check", (s) => s.replace('git -C "${GIT_ROOT}" diff ${BASE_SHA} > "${OUT}/post-finalize.diff"', "true")],
+  ["bump plugin.json without the marketplace entry", (s) => s.replace("SCOPE.push(MARKETPLACE_FILE)", "void 0")],
+  ["leave the marketplace bump to chance", (s) => s.replace("` \\`${MARKETPLACE_FILE}\\` repeats this plugin's version", "` (and any marketplace entry inside scope)")],
 ];
 
 (async () => {
