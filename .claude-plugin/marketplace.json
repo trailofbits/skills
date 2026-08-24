@@ -195,7 +195,7 @@
     },
     {
       "name": "testing-handbook-skills",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "Skills from the Trail of Bits Application Security Testing Handbook (appsec.guide)",
       "author": {
         "name": "Pawe\u0142 P\u0142atek"

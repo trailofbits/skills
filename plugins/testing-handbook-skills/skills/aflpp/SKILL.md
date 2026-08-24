@@ -97,11 +97,11 @@ case "$1" in
         ;;
     docker)
         shift
-        /usr/bin/env docker run -ti \
+        /usr/bin/env docker run -i \
             --privileged \
             -v ./:/src \
             --rm \
-            --name afl_fuzzing \
+            --name "afl_fuzzing_$$" \
             "aflplusplus/aflplusplus:$AFL_VERSION" \
             bash -c "cd /src && bash -c \"$*\""
         ;;
@@ -114,6 +114,10 @@ EOF
 chmod +x ./afl++
 ```
 
+The examples below use `docker` mode, apart from the system configuration commands that have to reach the host kernel. Swap in `host` to run any of them against an AFL++ installed on the machine itself. The wrapper joins everything after the mode argument into a single shell string, so quoting does not survive: an argument containing a space (`-x "my dict.dict"`) arrives word-split. Rename such files without spaces, or edit the wrapper for that run.
+
+The missing `-t` is deliberate. `docker run -ti` aborts with `the input device is not a TTY` whenever stdin is not a terminal, which covers CI jobs and anything an agent or script drives. `afl-fuzz` notices there is no terminal and prints plain status lines in place of the full-screen UI. A program that insists on a terminal, such as `watch`, has to run on the host side of the wrapper instead. `$$` expands to the wrapper's PID, so parallel instances get distinct container names rather than colliding on a single `afl_fuzzing`. `docker ps` truncates the COMMAND column, so every row looks alike; use `docker ps --no-trunc` to tell the instances apart before stopping one.
+
 **Security Warning:** The `afl-system-config` and `afl-persistent-config` scripts require root privileges and disable OS security features. Do not fuzz on production systems or your development environment. Use a dedicated VM instead.
 
 ### System Configuration
@@ -121,8 +125,10 @@ chmod +x ./afl++
 Run after each reboot for up to 15% more executions per second:
 
 ```bash
-./afl++ <host/docker> afl-system-config
+./afl++ host afl-system-config
 ```
+
+`afl-system-config` tunes the kernel it runs against, so run it on the machine that hosts the campaign. `./afl++ docker afl-system-config` reaches the same settings through the wrapper's `--privileged` container, which is the only route when AFL++ is installed via Docker alone.
 
 For maximum performance, disable kernel security mitigations (requires grub bootloader, not supported in Docker):
 
@@ -130,7 +136,7 @@ For maximum performance, disable kernel security mitigations (requires grub boot
 ./afl++ host afl-persistent-config
 update-grub
 reboot
-./afl++ <host/docker> afl-system-config
+./afl++ host afl-system-config
 ```
 
 Verify with `cat /proc/cmdline` - output should include `mitigations=off`.
@@ -184,13 +190,13 @@ Choose your compilation mode:
 ### Basic Compilation (LLVM mode)
 
 ```bash
-./afl++ <host/docker> afl-clang-fast++ -DNO_MAIN=1 -O2 -fsanitize=fuzzer harness.cc main.cc -o fuzz
+./afl++ docker afl-clang-fast++ -DNO_MAIN=1 -O2 -fsanitize=fuzzer harness.cc main.cc -o fuzz
 ```
 
 ### GCC Compilation
 
 ```bash
-./afl++ <host/docker> afl-g++-fast -DNO_MAIN=1 -O2 -fsanitize=fuzzer harness.cc main.cc -o fuzz
+./afl++ docker afl-g++-fast -DNO_MAIN=1 -O2 -fsanitize=fuzzer harness.cc main.cc -o fuzz
 ```
 
 **Important:** GCC version must match the version used to compile the AFL++ GCC plugin.
@@ -198,7 +204,7 @@ Choose your compilation mode:
 ### With Sanitizers
 
 ```bash
-./afl++ <host/docker> AFL_USE_ASAN=1 afl-clang-fast++ -DNO_MAIN=1 -O2 -fsanitize=fuzzer harness.cc main.cc -o fuzz
+./afl++ docker AFL_USE_ASAN=1 afl-clang-fast++ -DNO_MAIN=1 -O2 -fsanitize=fuzzer harness.cc main.cc -o fuzz
 ```
 
 > **See Also:** For detailed sanitizer configuration, common issues, and advanced flags,
@@ -236,7 +242,7 @@ For real projects, gather representative inputs:
 After a campaign, minimize the corpus to keep only unique coverage:
 
 ```bash
-./afl++ <host/docker> afl-cmin -i out/default/queue -o minimized_corpus -- ./fuzz
+./afl++ docker afl-cmin -i out/default/queue -o minimized_corpus -- ./fuzz
 ```
 
 > **See Also:** For corpus creation strategies, dictionaries, and seed selection,
@@ -247,18 +253,23 @@ After a campaign, minimize the corpus to keep only unique coverage:
 ### Basic Run
 
 ```bash
-./afl++ <host/docker> afl-fuzz -i seeds -o out -- ./fuzz
+./afl++ docker afl-fuzz -i seeds -o out -- ./fuzz
 ```
 
 ### Setting Environment Variables
 
 ```bash
-./afl++ <host/docker> AFL_FAST_CAL=1 afl-fuzz -i seeds -o out -- ./fuzz
+./afl++ docker AFL_FAST_CAL=1 afl-fuzz -i seeds -o out -- ./fuzz
 ```
 
 ### Interpreting Output
 
-The AFL++ UI shows real-time fuzzing statistics:
+AFL++ reports these statistics either way, but how you read them depends on the
+mode. The wrapper's `docker run -i` gives the container no TTY, so `afl-fuzz`
+drops the full-screen UI and writes plain status lines to the log instead — the
+fields below appear there, and in `state/<instance>/fuzzer_stats`. To get the
+interactive UI, run `host` mode in a terminal, or add `-t` to the wrapper for a
+run you are watching by hand.
 
 | Output | Meaning |
 |--------|---------|
@@ -288,20 +299,21 @@ out/default/
 View live campaign statistics:
 
 ```bash
-./afl++ <host/docker> afl-whatsup out
+./afl++ docker afl-whatsup out
 ```
 
-Create coverage plots:
+Create coverage plots. The `aflplusplus` image already ships `gnuplot-nox`; in host mode, install gnuplot first with `apt install gnuplot`.
 
 ```bash
-apt install gnuplot
-./afl++ <host/docker> afl-plot out/default out_graph/
+./afl++ docker afl-plot out/default out_graph/
 ```
 
 ### Re-executing Test Cases
 
+Pass one of the filenames from `out/default/crashes/`:
+
 ```bash
-./afl++ <host/docker> ./fuzz out/default/crashes/<test_case>
+./afl++ docker ./fuzz out/default/crashes/id:000000,sig:06,src:000002,time:286,execs:13105,op:havoc,rep:4
 ```
 
 ### Fuzzer Options
@@ -381,15 +393,20 @@ AFL++ excels at multi-core fuzzing with two major advantages:
 Start the primary fuzzer (in background):
 
 ```bash
-./afl++ <host/docker> afl-fuzz -M primary -i seeds -o state -- ./fuzz 1>primary.log 2>primary.error &
+./afl++ docker afl-fuzz -M primary -i seeds -o state -- ./fuzz 1>primary.log 2>primary.error </dev/null &
 ```
 
 Start secondary fuzzers (as many as you have cores):
 
 ```bash
-./afl++ <host/docker> afl-fuzz -S secondary01 -i seeds -o state -- ./fuzz 1>secondary01.log 2>secondary01.error &
-./afl++ <host/docker> afl-fuzz -S secondary02 -i seeds -o state -- ./fuzz 1>secondary02.log 2>secondary02.error &
+./afl++ docker afl-fuzz -S secondary01 -i seeds -o state -- ./fuzz 1>secondary01.log 2>secondary01.error </dev/null &
+./afl++ docker afl-fuzz -S secondary02 -i seeds -o state -- ./fuzz 1>secondary02.log 2>secondary02.error </dev/null &
 ```
+
+The `</dev/null` is required, not decorative. `docker run -i` keeps the client
+reading its own stdin, and a backgrounded process that reads the terminal is sent
+`SIGTTIN`, whose default action stops it — so without the redirect these jobs show
+up as `Stopped` in `jobs` and never fuzz.
 
 ### Monitoring Multi-Core Campaigns
 
@@ -399,10 +416,10 @@ List all running jobs:
 jobs
 ```
 
-View live statistics (updates every second):
+View live statistics. `watch` needs a terminal that `docker run -i` does not give it, so wrap the whole invocation instead of running `watch` inside the container. Every tick starts a container, which is why the interval is 5 seconds rather than 1:
 
 ```bash
-./afl++ <host/docker> watch -n1 --color afl-whatsup state/
+watch -n5 --color ./afl++ docker afl-whatsup state/
 ```
 
 ### Stopping All Fuzzers
@@ -420,7 +437,7 @@ AFL++ automatically tracks coverage through edge instrumentation. Coverage infor
 Use `afl-plot` to visualize coverage over time:
 
 ```bash
-./afl++ <host/docker> afl-plot out/default out_graph/
+./afl++ docker afl-plot out/default out_graph/
 ```
 
 ### Improving Coverage
@@ -440,7 +457,7 @@ To enable it, the fuzz target needs to be instrumented for it.
 Before building the fuzzing target set the environment variable:
 
 ```bash
-./afl++ <host/docker> AFL_LLVM_CMPLOG=1 make
+./afl++ docker AFL_LLVM_CMPLOG=1 make
 ```
 
 No special action is needed for compiling and linking the harness.
@@ -448,7 +465,7 @@ No special action is needed for compiling and linking the harness.
 To run a fuzzer instance with a CMPLOG instrumented fuzzing target, add `-c0` to the command like arguments:
 
 ```bash
-./afl++ <host/docker> afl-fuzz -c0 -S cmplog -i seeds -o state -- ./fuzz 1>secondary02.log 2>secondary02.error &
+./afl++ docker afl-fuzz -c0 -S cmplog -i seeds -o state -- ./fuzz 1>cmplog.log 2>cmplog.error </dev/null &
 ```
 
 ## Sanitizer Integration
@@ -458,7 +475,7 @@ Sanitizers are essential for finding memory corruption bugs that don't cause imm
 ### AddressSanitizer (ASan)
 
 ```bash
-./afl++ <host/docker> AFL_USE_ASAN=1 afl-clang-fast++ -DNO_MAIN=1 -O2 -fsanitize=fuzzer harness.cc main.cc -o fuzz
+./afl++ docker AFL_USE_ASAN=1 afl-clang-fast++ -DNO_MAIN=1 -O2 -fsanitize=fuzzer harness.cc main.cc -o fuzz
 ```
 
 **Note:** Memory limit (`-m`) is not supported with ASan due to 20TB virtual memory reservation.
@@ -466,7 +483,7 @@ Sanitizers are essential for finding memory corruption bugs that don't cause imm
 ### UndefinedBehaviorSanitizer (UBSan)
 
 ```bash
-./afl++ <host/docker> AFL_USE_UBSAN=1 afl-clang-fast++ -DNO_MAIN=1 -O2 -fsanitize=fuzzer,undefined harness.cc main.cc -o fuzz
+./afl++ docker AFL_USE_UBSAN=1 afl-clang-fast++ -DNO_MAIN=1 -O2 -fsanitize=fuzzer,undefined harness.cc main.cc -o fuzz
 ```
 
 ### Common Sanitizer Issues
@@ -497,8 +514,8 @@ Sanitizers are essential for finding memory corruption bugs that don't cause imm
 AFL++ can fuzz programs reading from stdin without a libFuzzer harness:
 
 ```bash
-./afl++ <host/docker> afl-clang-fast++ -O2 main_stdin.c -o fuzz_stdin
-./afl++ <host/docker> afl-fuzz -i seeds -o out -- ./fuzz_stdin
+./afl++ docker afl-clang-fast++ -O2 main_stdin.c -o fuzz_stdin
+./afl++ docker afl-fuzz -i seeds -o out -- ./fuzz_stdin
 ```
 
 This is slower than persistent mode but requires no harness code.
@@ -508,8 +525,8 @@ This is slower than persistent mode but requires no harness code.
 For programs that read files, use `@@` placeholder:
 
 ```bash
-./afl++ <host/docker> afl-clang-fast++ -O2 main_file.c -o fuzz_file
-./afl++ <host/docker> afl-fuzz -i seeds -o out -- ./fuzz_file @@
+./afl++ docker afl-clang-fast++ -O2 main_file.c -o fuzz_file
+./afl++ docker afl-fuzz -i seeds -o out -- ./fuzz_file @@
 ```
 
 For better performance, use `fmemopen` to create file descriptors from memory.
@@ -563,8 +580,8 @@ curl -O https://raw.githubusercontent.com/AFLplusplus/AFLplusplus/stable/utils/a
 Compile and run:
 
 ```bash
-./afl++ <host/docker> afl-clang-fast++ -O2 main_arg.c -o fuzz_arg
-./afl++ <host/docker> afl-fuzz -i seeds -o out -- ./fuzz_arg
+./afl++ docker afl-clang-fast++ -O2 main_arg.c -o fuzz_arg
+./afl++ docker afl-fuzz -i seeds -o out -- ./fuzz_arg
 ```
 
 ### Performance Tuning
