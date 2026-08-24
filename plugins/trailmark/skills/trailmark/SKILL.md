@@ -144,7 +144,7 @@ uv run trailmark analyze --language auto --complexity 10 {targetDir}
 
 # Entrypoint inventory and structural diff (v0.2-safe)
 uv run trailmark entrypoints --language auto {targetDir}
-uv run trailmark diff --repo {repoDir} main HEAD --json
+uv run trailmark diff --language auto --repo {repoDir} main HEAD --json
 
 # Version report (0.2.2+)
 uv run trailmark --version
