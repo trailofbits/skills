@@ -20,7 +20,7 @@ Write agent inputs to `{workdir}/agent-inputs/mcp-resolver.json`:
 }
 ```
 
-Spawn agent `1-mcp-resolver` via `Task` with:
+Spawn agent `zeroize-audit:1-mcp-resolver` via `Task` (`subagent_type: "zeroize-audit:1-mcp-resolver"`) with:
 
 | Parameter | Value |
 |---|---|
@@ -49,7 +49,7 @@ Write agent inputs to `{workdir}/agent-inputs/source-analyzer.json`:
 }
 ```
 
-Spawn agent `2-source-analyzer` via `Task` **in the same message as Wave 2b** (parallel launch):
+Spawn agent `zeroize-audit:2-source-analyzer` via `Task` (`subagent_type: "zeroize-audit:2-source-analyzer"`) **in the same message as Wave 2b** (parallel launch):
 
 | Parameter | Value |
 |---|---|
@@ -66,7 +66,7 @@ Spawn agent `2-source-analyzer` via `Task` **in the same message as Wave 2b** (p
 
 Skip if `language_mode=c`.
 
-Spawn agent `2b-rust-source-analyzer` via `Task` **in the same message as Wave 2a** (parallel launch):
+Spawn agent `zeroize-audit:2b-rust-source-analyzer` via `Task` (`subagent_type: "zeroize-audit:2b-rust-source-analyzer"`) **in the same message as Wave 2a** (parallel launch):
 
 | Parameter | Value |
 |---|---|

@@ -105,6 +105,13 @@ jobs:
         # having rather than one to hold off: a parser moving behind Pro is the failure that
         # plugin exists to catch.
         run: python3 -m pip install pytest semgrep
+      - name: Install uv
+        # c-review's scripts are PEP 723 and run under `uv run`; its parser tests
+        # fail rather than skip when uv is missing, on purpose — a skipped parser
+        # test leaves half of enumerate_units.py unexercised while the suite is green.
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Install toolchain dependencies
         # constant-time-analysis tests cross-compile C to aarch64 via
         # `clang --target=aarch64-unknown-linux-gnu`. Without the cross
@@ -143,14 +150,9 @@ jobs:
           # --import-mode=importlib keeps c-review and rust-review from colliding on
           # their identically-named test_split.py.
           #
-          # evals*/fixture is excluded, and this find must stay in step with the
-          # python-tests target in the Makefile — they are two copies of the same
-          # discovery. Those fixture files are deliberately defective sample code an
-          # eval measures against, so they are meant to fail: property-based-testing
-          # ships a vacuous `assume()` test that raises FailedHealthCheck by design,
-          # and its fixture imports hypothesis, which CI does not install. The
-          # wildcard covers 'evals-extra' too. The zero-discovery guard below stays
-          # armed, so this cannot silently empty the run.
+          # evals*/fixture is excluded, in step with the Makefile's python-tests target:
+          # those files are deliberately defective sample code a skill's eval measures
+          # against — property-based-testing's fixture raises FailedHealthCheck by design.
           set -uo pipefail
           mapfile -t dirs < <(
             find plugins -type f \( -name 'test_*.py' -o -name '*_test.py' \) \
@@ -170,4 +172,49 @@ jobs:
             echo "::endgroup::"
           done
           echo "Ran ${#dirs[@]} test directory/ies"
+          exit "$failed"
+
+  js-tests:
+    name: JS tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Discover and run plugin JS test suites
+        shell: bash
+        run: |
+          # Same shape as the Python and shell discovery above, and for the same
+          # reason: an empty result is a failure, not a pass. These suites assert
+          # that a branch-deleting workflow fails closed, so a discovery glob that
+          # silently matches nothing is worse than having no suite at all.
+          #
+          # The second guard covers execution rather than discovery. `node <file>`
+          # exits 0 on a file that asserted nothing — the shape the Python job's
+          # comment above describes — so each suite must report at least one
+          # passing assertion. Two formats count, because the repo has two kinds
+          # of suite and a guard that only knew one would fail an honest suite for
+          # using the other convention:
+          #   `<mark> pass <n>`        node:test (semgrep-rule-variant-creator)
+          #   `<n> assertions passed`  hand-rolled (git-cleanup)
+          # The mark is multi-byte, so the pattern must not anchor on `^.` — that
+          # matches a single byte in the C locale and would reject an honest suite.
+          set -uo pipefail
+          mapfile -d '' suites < <(find plugins -type f -name '*.test.mjs' -print0)
+          if [ "${#suites[@]}" -eq 0 ]; then
+            echo "ERROR: no .test.mjs suites found — discovery is broken"
+            exit 1
+          fi
+          failed=0
+          for s in "${suites[@]}"; do
+            echo "::group::$s"
+            if out=$(node "$s" 2>&1); then :; else failed=1; fi
+            echo "$out"
+            if ! grep -qE '(^[1-9][0-9]* assertions passed$|^[^0-9]*[[:space:]]pass [1-9][0-9]*$)' <<<"$out"; then
+              echo "ERROR: $s reported no passing assertions — it ran nothing"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          echo "Ran ${#suites[@]} JS suite(s)"
           exit "$failed"
