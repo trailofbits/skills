@@ -21,6 +21,19 @@ allowed-tools: Read Grep Glob Bash Write Task AskUserQuestion mcp__serena__activ
 
 ---
 
+## How to Run
+
+On a request like "audit this crate for secrets left in memory" or "check that this C library actually wipes its keys":
+
+1. **Collect inputs.** Map the request onto the Inputs table below (full schema: `{baseDir}/schemas/input.json`). `path` is required, plus at least one of `compile_db` (C/C++) or `cargo_manifest` (Rust); if neither is given or derivable from the repo, ask the user, because preflight stops the run without one. Leave all other fields at their defaults unless the user says otherwise.
+2. **Read the orchestrator prompt, `{baseDir}/prompts/task.md`**, substituting the collected inputs for its `{{placeholder}}` values. You act as the orchestrator it describes: it defines state recovery, the phase loop, early termination, and error handling. Read `{baseDir}/prompts/system.md` alongside it for the shared working-directory layout and the agent error protocol every phase depends on.
+3. **Execute its phase loop.** Run Phases 0-7 sequentially. Before each phase, read that phase's workflow file from `{baseDir}/workflows/phase-{N}-{name}.md` and follow its Preconditions, Instructions, State Update, and Error Handling sections. Each workflow specifies which agent to spawn via `Task` and with what parameters. Honor the per-phase skip conditions and the early-termination rules in task.md.
+4. **Return the report** (Phase 8, inline): read `{workdir}/report/final-report.md` and return its contents as the skill output.
+
+To resume an interrupted run: if a `workdir` is known from prior context, read `{workdir}/orchestrator-state.json` and continue from its `current_phase` instead of starting at Phase 0 (see the Recovery section of task.md).
+
+---
+
 ## Purpose
 Detect missing zeroization of sensitive data in source code and identify zeroization that is removed or weakened by compiler optimizations (e.g., dead-store elimination), with mandatory LLVM IR/asm evidence. Capabilities include:
 - Assembly-level analysis for register spills and stack retention
@@ -50,10 +63,10 @@ See `{baseDir}/schemas/input.json` for the full schema. Key fields:
 | `config` | no | — | YAML defining heuristics and approved wipes |
 | `opt_levels` | no | `["O0","O1","O2"]` | Optimization levels for IR comparison. O1 is the diagnostic level: if a wipe disappears at O1 it is simple DSE; O2 catches more aggressive eliminations. |
 | `languages` | no | `["c","cpp","rust"]` | Languages to analyze |
-| `max_tus` | no | — | Limit on translation units processed from compile DB |
+| `max_tus` | no | `50` | Limit on translation units processed from compile DB |
 | `mcp_mode` | no | `prefer` | `off`, `prefer`, or `require` — controls Serena MCP usage |
 | `mcp_required_for_advanced` | no | `true` | Downgrade `SECRET_COPY`, `MISSING_ON_ERROR_PATH`, and `NOT_DOMINATING_EXITS` to `needs_review` when MCP is unavailable |
-| `mcp_timeout_ms` | no | — | Timeout budget for MCP semantic queries |
+| `mcp_timeout_ms` | no | `10000` | Timeout budget for MCP semantic queries |
 | `poc_categories` | no | all 11 exploitable | Finding categories for which to generate PoCs. C/C++ findings: all 11 categories supported. Rust findings: only `MISSING_SOURCE_ZEROIZE`, `SECRET_COPY`, and `PARTIAL_WIPE` are supported; other Rust categories are marked `poc_supported=false`. |
 | `poc_output_dir` | no | `generated_pocs/` | Output directory for generated PoCs |
 | `enable_asm` | no | `true` | Enable assembly emission and analysis (Step 8); produces `STACK_RETENTION`, `REGISTER_SPILL`. Auto-disabled if `emit_asm.sh` is missing. |
@@ -228,6 +241,10 @@ Analysis runs in two phases. For complete step-by-step guidance, see `{baseDir}/
 † requires `enable_semantic_ir=true`
 ‡ requires `enable_cfg=true`
 
+For Rust, `{baseDir}/references/rust-zeroization-patterns.md` catalogues 40 named anti-patterns, keyed to the script that detects each one: Section A for rustdoc-JSON semantics (`semantic_audit.py`), Section B for dangerous APIs (`find_dangerous_apis.py`), and Section C for MIR/LLVM IR/assembly (`check_mir_patterns.py`, `check_llvm_patterns.py`, `check_rust_asm.py`). Read the relevant section when triaging a Rust finding, writing its fix recommendation, or deciding whether a hand-spotted pattern is already covered.
+
+Two limits on how far that reference goes. The 34 entries in Sections A-C are what the scripts detect today; Section D's six are known gaps no script covers, so treat those as unaudited rather than clean. Sections A and C are also partial — the scripts emit some classes with no entry — so a finding that matches no catalogued pattern is still a finding, carrying whatever evidence the script produced.
+
 ---
 
 
@@ -248,7 +265,7 @@ The markdown report (`final-report.md`) contains these sections:
 - **Findings**: Grouped by severity then confidence. Each finding includes location, object, all evidence (source/IR/ASM/CFG), compiler evidence details, and recommended fix
 - **Superseded Findings**: Source findings replaced by CFG-backed findings
 - **Confidence Gate Summary**: Downgrades applied and overrides rejected
-- **Analysis Coverage**: TUs analyzed, agent success/failure, features enabled
+- **Analysis Coverage**: TUs analyzed, agent success/failure, features enabled, and any Section D patterns the crate uses that no script audits
 - **Appendix: Evidence Files**: Mapping of finding IDs to evidence file paths
 
 ### Structured JSON

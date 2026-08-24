@@ -228,6 +228,15 @@ _No findings were superseded in this run._
 | Agent 5 (PoC generator) | success / failed |
 | Agent 6 (test generator) | success / skipped / failed |
 
+### Unaudited Patterns
+
+Patterns from `coverage-gaps.json` that no script detects. A clean report above does not
+rule these out. State "none reported" when the file is empty, and never drop this section.
+
+| Pattern | Where | Why it is unaudited |
+|---|---|---|
+| D3 | `src/keys.rs:44` | `static LazyLock<MasterKey>` never dropped, so no zeroize path exists to check |
+
 ---
 
 ## Appendix: Evidence Files

@@ -227,8 +227,13 @@ See [API.md](references/API.md) for complete method documentation.
 make check
 ```
 
-That runs the validator self-test, ruff, shellcheck, shfmt, bats, the plugin
-Python suites, and the plugin validator.
+That runs the validator self-test, the eval-harness self-tests, ruff, shellcheck,
+shfmt, bats, the plugin Python suites, the plugin `*.test.mjs` suites, and the plugin
+validator.
+
+It needs `uv`, `shellcheck`, `shfmt`, `bats`, and `node` on PATH. `node` is the newest
+of those and the one most likely to be missing — without it `make check` stops at
+`js-tests` with a bare `node: command not found`.
 
 It is most of CI, not all of it. Three things run only in CI, so a green `make check`
 is strong evidence and not a guarantee:

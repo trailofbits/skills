@@ -29,6 +29,12 @@ You receive these values from the orchestrator:
 
 Output directory: `{workdir}/rust-compiler-analysis/`
 
+Section C of `{baseDir}/references/rust-zeroization-patterns.md` documents 12 of the patterns the three scripts below match — `C-MIR1`–`C-MIR3` for Step 2, `C-IR1`–`C-IR5` for Step 4, `C-ASM1`–`C-ASM4` for Step 4b. Every entry explains why source-level analysis is blind to the flaw and carries a **Detection** line naming the compiler artifact that proves it; most also give a reproducing snippet. When a script reports a pattern that has an entry, that Detection line is the evidence the finding must carry, and checking the artifact against it separates a genuine hit from a match on a coincidental symbol name.
+
+Section C is a subset, not an index. `check_mir_patterns.py` and `check_llvm_patterns.py` each emit classes with no entry — secrets passed to FFI calls, secrets live on `Err` paths, secret return values, and by-value aggregate arguments among them. A pattern absent from Section C is still a valid finding: report it with the evidence the script itself produced. Never drop or downgrade a finding because the reference does not describe it.
+
+Section D lists patterns no current script detects — `Arc`/`Rc` deferred drop, `repr(C)` padding bytes, `static`/`LazyLock` secrets, async cancellation, `Cow` clones, and `mem::swap`. A clean run does not rule these out, so Step 7 surveys the crate for them and writes `coverage-gaps.json`. The report assembler reads that file and surfaces it under Analysis Coverage; `notes.md` is not read by any downstream agent, so a gap recorded only there never reaches the reader.
+
 ### Step 1 — MIR Emission
 
 Emit MIR (Mid-level Intermediate Representation) for the crate. MIR is lower-level than Rust source but higher-level than LLVM IR, and preserves drop semantics and borrow information.
@@ -191,7 +197,25 @@ Write `{workdir}/rust-compiler-analysis/superseded-findings.json`:
 ]
 ```
 
-### Step 6 — Cleanup
+### Step 6 — Section D Coverage Survey
+
+No script detects the Section D patterns, so survey the crate source directly and write
+`coverage-gaps.json`. Grep `<rust_crate_root>/src` for each marker, then keep only the hits
+that touch a type named in `sensitive-objects.json` or matching the config's sensitive
+patterns:
+
+| Pattern | Grep for |
+|---|---|
+| D1 `Arc`/`Rc` deferred drop | `Arc<`, `Rc<` |
+| D2 `repr(C)` padding | `#[repr(C)]`, `#[repr(C, packed)]` |
+| D3 `static`/`LazyLock` secrets | `static `, `LazyLock`, `OnceLock`, `lazy_static!` |
+| D4 async cancellation | `async fn`, `.await`, `select!` |
+| D5 `Cow` clones | `Cow<` |
+| D6 `mem::swap` | `mem::swap`, `mem::replace` |
+
+Write an array of `{"pattern": "<D id>", "where": "<file:line or symbol>", "why": "<what makes it unaudited>"}`, or `[]` when the survey found nothing. Always write the file — an absent file is indistinguishable from a survey that ran and found nothing, and the report says "no coverage gaps" either way.
+
+### Step 7 — Cleanup
 
 Remove temporary IR and assembly files from the crate's target directory that were created during this run (the `.ll` and `.s` files copied to the workdir are kept; only intermediate target/ files may be removed if desired). Do not delete the `target/` directory itself.
 
@@ -209,6 +233,7 @@ Write all output files to `{workdir}/rust-compiler-analysis/`:
 | `ir-findings.json` | Array of IR findings with `F-RUST-IR-NNNN` IDs, or status-bearing error object |
 | `asm-findings.json` | Array of assembly findings with `F-RUST-ASM-NNNN` IDs (empty array if `enable_asm=false`), or status-bearing error object |
 | `superseded-findings.json` | Source findings superseded by IR evidence |
+| `coverage-gaps.json` | Array of Section D patterns the crate uses that no script audits (empty array if none) |
 | `notes.md` | Steps executed, tool outputs, errors, relative paths to evidence files |
 
 ## Finding JSON Shape
@@ -260,6 +285,7 @@ Sequential numbering within this agent run. Zero-padded to 4 digits.
 - **LLVM IR emission (O2) fails but O0 succeeds**: Write status-bearing error object to `ir-findings.json`. Skip Step 4.
 - **check_llvm_patterns.py missing or fails**: Write status-bearing error object to `ir-findings.json`. Continue.
 - **Always write `mir-findings.json` and `ir-findings.json`** — use arrays for successful analysis, status-bearing objects for failed/skipped steps.
+- **Always write `coverage-gaps.json`** — `[]` when the Step 6 survey found nothing. An absent file reads as full coverage in the report.
 - **Always write `notes.md`** summarizing what was done, what failed, and why.
 
 ## Hard Evidence Requirements

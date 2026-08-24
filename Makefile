@@ -11,10 +11,11 @@ RUFF_VERSION := 0.14.13
 
 .DEFAULT_GOAL := check
 .NOTPARALLEL:
-.PHONY: check self-test eval-self-tests lint shell bats shell-suites python-tests validate fix help
+.PHONY: check self-test eval-self-tests lint shell bats shell-suites python-tests \
+	js-tests evals validate fix help
 
 ## check: most of what CI runs (this is the one you want)
-check: self-test eval-self-tests lint shell bats python-tests validate
+check: self-test eval-self-tests lint shell bats python-tests js-tests validate
 	@echo ""
 	@echo "✓ check passed — most of CI, but not the loadability checks, the"
 	@echo "  version-increment check, or the non-ruff pre-commit hooks."
@@ -69,10 +70,15 @@ lint:
 ## shell: shellcheck + shfmt over every shell script
 # plugins/ AND .github/scripts/ — globbing only plugins/ left the repo's own scripts
 # unchecked locally, which is where they are most likely to be edited.
+#
+# No --severity filter, deliberately. The pre-commit hook CI runs is plain
+# `shellcheck -x`, so a --severity=warning here hides every info-level finding that
+# will still fail the Lint job — SC1091 (unresolvable `source`) most of all, which is
+# exactly the class a local run should catch. That gap shipped a red build once.
 shell:
 	@echo "→ shellcheck"
 	@find plugins .github/scripts -name '*.sh' -type f \
-		-exec shellcheck --severity=warning -x {} +
+		-exec shellcheck -x {} +
 	@echo "→ shfmt"
 	@find plugins .github/scripts -name '*.sh' -type f -exec shfmt -i 2 -ci -d {} +
 
@@ -134,10 +140,61 @@ python-tests:
 	echo "  ran $$ran test director(ies)"; \
 	exit $$failed
 
+## js-tests: node suites a plugin ships as *.test.mjs
+# Two guards, because discovery and execution fail independently. An empty glob is a
+# failure, as in python-tests. And `node <file>` runs a file that asserts nothing just
+# as happily as one that asserts everything — the same shape python-tests moved away
+# from — so each suite must also report at least one passing assertion.
+#
+# Two report formats count, because the repo has two kinds of suite and a guard that
+# only knew one would fail an honest suite for using the other convention:
+#   `<mark> pass <n>`        — node:test, as semgrep-rule-variant-creator writes them
+#   `<n> assertions passed`  — a hand-rolled suite, as git-cleanup writes them
+# A suite that stops running its own body stops emitting either line.
+#
+# The node:test branch is deliberately byte-agnostic about the leading mark. That mark
+# is a multi-byte character, and this recipe runs under /bin/sh in whatever locale the
+# machine has; `^.` matches one BYTE in the C locale, so anchoring on it passes locally
+# and fails in CI.
+js-tests:
+	@echo "→ js tests"
+	@files=$$(find plugins -type f -name '*.test.mjs' | sort); \
+	if [ -z "$$files" ]; then \
+		echo "  ✗ no .test.mjs files found — discovery is broken"; \
+		exit 1; \
+	fi; \
+	failed=0; ran=0; \
+	for f in $$files; do \
+		echo "  → $$f"; \
+		out=$$(node "$$f" 2>&1) || failed=1; \
+		echo "$$out"; \
+		if ! echo "$$out" | grep -qE '(^[1-9][0-9]* assertions passed$$|^[^0-9]*[[:space:]]pass [1-9][0-9]*$$)'; then \
+			echo "  ✗ $$f reported no passing assertions — it ran nothing"; \
+			failed=1; \
+		fi; \
+		ran=$$((ran + 1)); \
+	done; \
+	echo "  ran $$ran js suite(s)"; \
+	exit $$failed
+
+## evals: run a plugin's eval suite against the real model (COSTS API CALLS)
+# Deliberately NOT in `check` and not in CI. Pass PLUGIN=<name> to pick the suite, and
+# ARGS='--case 01-mixed-repo --arm with' to narrow a run while iterating.
+PLUGIN ?= git-cleanup
+ARGS ?=
+evals:
+	@if [ ! -x plugins/$(PLUGIN)/evals/run-evals.sh ]; then \
+		echo "✗ plugins/$(PLUGIN)/evals/run-evals.sh not found or not executable"; \
+		exit 1; \
+	fi
+	@echo "→ evals: $(PLUGIN) (this makes real API calls)"
+	@bash plugins/$(PLUGIN)/evals/run-evals.sh $(ARGS)
+
 ## validate: plugin metadata, structure, and cross-references
-# Scans every plugin. CI scopes to the plugins a PR touches, so local is a strict
-# superset and cannot pass where CI fails. Do not narrow it to match: the
-# zero-reference guard only arms on a full scan.
+# Scans every plugin, exactly as CI does — the validator is never scoped down there;
+# `--base-ref` only turns on the version-increment check, which is the one part limited
+# to the plugins a branch touched. Do not add a scoping flag here: the zero-reference
+# guard only arms on a full scan, so a narrowed run would disarm it.
 validate:
 	@echo "→ validate plugin metadata"
 	@uv run --no-project python3 .github/scripts/validate_plugin_metadata.py

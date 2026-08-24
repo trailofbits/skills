@@ -43,6 +43,7 @@ taint propagation changes, and privilege boundary modifications.
 | "Low-severity structural changes can be ignored" | INFO-level changes (dead code removal) can mask removed security checks | Classify every change, review removals for replaced functionality |
 | "One snapshot's graph is enough for comparison" | Single-snapshot analysis can't detect evolution — you need both before and after | Always build and export both graphs |
 | "Tool isn't installed, I'll compare manually" | Manual comparison misses what graph analysis catches | Install trailmark first |
+| "The diff came back empty, so nothing changed structurally" | `trailmark diff` defaults `--language` to `python` and exits 0 with empty arrays on any other target, so an empty diff reads identically whether the code is unchanged or the language was wrong | Pass `--language` explicitly and re-run before concluding no change |
 
 ---
 
@@ -164,19 +165,33 @@ Run **both**:
 1. Trailmark's native structural diff for nodes, edges, and entrypoints
 2. The plugin's `graph_diff.py` helper for subgraph membership changes
 
-Using the same `work_dir` from Phase 2:
+Use the same `work_dir` from Phase 2, and pass the same `--language` value Phase 2
+built with. `trailmark diff` defaults that flag to `python`, so on any other
+target the default exits 0 and writes empty arrays rather than reporting a
+mismatch.
 
 ```bash
-trailmark diff --json "{before_dir}" "{after_dir}" > "{work_dir}/trailmark_diff.json" || \
-  uv run trailmark diff --json "{before_dir}" "{after_dir}" > "{work_dir}/trailmark_diff.json"
+trailmark diff --json --language auto "{before_dir}" "{after_dir}" > "{work_dir}/trailmark_diff.json" || \
+  uv run trailmark diff --json --language auto "{before_dir}" "{after_dir}" > "{work_dir}/trailmark_diff.json"
 
 uv run {baseDir}/scripts/graph_diff.py \
     --before "{before_json}" \
     --after "{after_json}" > "{work_dir}/subgraph_diff.json"
 ```
 
+If Phase 2 needed an explicit language or a comma-separated list instead of
+`auto`, use that same value here.
+
 If either diff command fails or writes an empty JSON file, stop and report the
 error instead of continuing to Phase 4.
+
+A `trailmark_diff.json` whose `nodes`, `edges`, and `entrypoints` arrays are all
+empty means either nothing changed structurally or both snapshots parsed to
+(near-)empty graphs. Decide which using Phase 2's graph summaries: if either
+snapshot's node count is zero or implausibly small for the target, the parse
+missed the code — name the language set explicitly (`rust`, `solidity`,
+`python,rust`) and re-run. Healthy node counts on both snapshots plus an empty
+diff is genuine structural stability.
 
 The native Trailmark diff contains:
 
@@ -249,9 +264,19 @@ git worktree remove "{after_dir}"
 ## Diff Reference
 
 ```
-trailmark diff --json BEFORE AFTER
+trailmark diff --json --language auto BEFORE AFTER
 uv run {baseDir}/scripts/graph_diff.py [OPTIONS]
 ```
+
+`trailmark diff --language` defaults to `python`. On a target in any other
+language that default still exits 0, emitting well-formed JSON with empty
+`nodes`, `edges`, and `entrypoints` arrays, so always pass the flag: `auto`
+detects and merges every supported language found under the target, and a single
+name (`rust`, `solidity`) or comma-separated list (`python,rust`) pins an
+explicit set. `auto` fails loudly with `No supported languages detected under
+<path>` when a snapshot holds nothing it can parse, which is the outcome you
+want. Confirm the language first; only then can an empty diff count as evidence
+that nothing changed.
 
 Use `trailmark diff` for:
 - Node/edge changes
@@ -279,7 +304,8 @@ Before delivering the report:
 
 - [ ] Both graphs built successfully (check summaries)
 - [ ] Pre-analysis ran on both snapshots
-- [ ] Native Trailmark diff computed and non-empty (`trailmark_diff.json`)
+- [ ] Native Trailmark diff computed (`trailmark_diff.json`); if it is empty,
+      both snapshots' Phase 2 node counts were non-zero, so empty means stable
 - [ ] Subgraph diff computed and non-empty (`subgraph_diff.json`)
 - [ ] All subgraph changes interpreted (tainted, blast radius, etc.)
 - [ ] Critical findings include evidence (node IDs, edge diffs)

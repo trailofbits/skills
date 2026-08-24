@@ -42,6 +42,7 @@ Use this plugin when you need to:
 
 ### SARIF Parsing
 - Understand SARIF 2.1.0 structure
+- Resolve a result's severity from the rule it inherits it from, which CodeQL relies on
 - Quick analysis using jq for CLI queries
 - Python scripting with pysarif and sarif-tools
 - Aggregate and deduplicate results from multiple files
