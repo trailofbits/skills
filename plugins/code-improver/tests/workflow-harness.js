@@ -50,6 +50,7 @@ const BASELINE = {
   git_initialized: false,
   head_sha: "abc123def456",
   untracked: [],
+  untracked_digests: [],
   out_dir: "/work/.code-improver/demo",
   out_rel: "",
   prior_ledger_json: "",
@@ -224,6 +225,33 @@ const SCENARIOS = {
     ];
   },
 
+  // The reviewer is told to re-report under the exact ledger id, so the id it returns is
+  // what matches: two findings of one class in one file defeat the coarse fallback.
+  "a rejected finding re-reported at a shifted line is matched by its id": async (src) => {
+    const T1 = F("plugins/demo/skills/demo/SKILL.md", 10, "second-person-voice", "major");
+    const T2 = F("plugins/demo/skills/demo/SKILL.md", 40, "second-person-voice", "major");
+    const shifted = (f, line) => ({ ...f, line });
+    const { out, calls, prompts } = await run(src, {
+      reviews: [
+        REV([A, T1, T2]),
+        REV([shifted(T1, 12), shifted(T2, 42)], [fid(A)]),
+      ],
+      fixes: [
+        FIX([V(A, "fixed"), V(T1, "rejected", { reason: "documented deliberate: the fixture's voice is quoted from a spec" }), V(T2, "rejected", { reason: "documented deliberate: same spec quote" })], 1),
+      ],
+    });
+    const ledger = fences(prompts.finalize)[0];
+    return [
+      [out && out.converged === true, "the run must converge — nothing was left open"],
+      [calls.filter((c) => c.startsWith("fix:")).length === 1, "no second fix round may be spent re-litigating the rejections"],
+      [Object.keys(ledger.findings).length === 3, "a shifted re-report must not spawn duplicate findings"],
+      [ledger.findings[fid(T1)] && ledger.findings[fid(T1)].status === "rejected", "the first rejection must stand"],
+      [ledger.findings[fid(T2)] && ledger.findings[fid(T2)].status === "rejected", "the second rejection must stand"],
+      [ledger.findings[fid(T1)] && ledger.findings[fid(T1)].refiled_after_verdict === 1, "the re-file must be counted against the right finding"],
+      [ledger.findings[fid(T2)] && ledger.findings[fid(T2)].refiled_after_verdict === 1, "and against the other one too"],
+    ];
+  },
+
   // T2 — the cap ends on a review-only round and exits loudly.
   "the cap dispatches one final review-only round and exits loudly": async (src) => {
     const A2 = F("plugins/demo/skills/demo/SKILL.md", 7, "invalid-frontmatter", "critical");
@@ -372,6 +400,48 @@ const SCENARIOS = {
       [blocked.out && blocked.out.new_untracked_files.includes(newFile), "the file must be named"],
       [!blocked.calls.includes("finalize"), "finalize must not run on a blocked completion"],
       [preexisting.out && preexisting.out.converged === true, "a file untracked since the baseline must not block completion"],
+    ];
+  },
+
+  // `git diff` cannot see what happens to a file git does not track, so out-of-scope
+  // untracked files are guarded by content hash instead.
+  "an out-of-scope untracked file is guarded by its content": async (src) => {
+    const DECOY = "DECOY-NOTES.txt";
+    const digest = (sha) => ({ untracked_digests: [{ path: DECOY, sha }] });
+    const guarded = { ...BASELINE, untracked: [DECOY], ...digest("aaa111") };
+    const round = (scope) => ({
+      baseline: guarded,
+      reviews: [REV([A]), REV([], [fid(A)])],
+      fixes: [FIX([V(A, "fixed")], 1)],
+      scopes: [scope],
+      finalizeCheck: { ...CHECK_OK, untracked: [DECOY], ...digest("aaa111") },
+    });
+    const intact = await run(src, round({ ...CLEAN_SCOPE, untracked: [DECOY], ...digest("aaa111") }));
+    const rewritten = await run(src, round({ ...CLEAN_SCOPE, untracked: [DECOY], ...digest("bbb222") }));
+    const deleted = await run(src, round({ ...CLEAN_SCOPE, untracked: [], ...digest("MISSING") }));
+    const silent = await run(src, round({ ...CLEAN_SCOPE, untracked: [DECOY] }));
+    const atFinalize = await run(src, {
+      ...round({ ...CLEAN_SCOPE, untracked: [DECOY], ...digest("aaa111") }),
+      finalizeCheck: { ...CHECK_OK, untracked: [DECOY], ...digest("ccc333") },
+    });
+    const unhashed = await run(src, {
+      baseline: { ...BASELINE, untracked: [DECOY] },
+      reviews: [REV([A]), REV([], [fid(A)])],
+      fixes: [FIX([V(A, "fixed")], 1)],
+    });
+    const named = (r, what) => r.out && r.out.violations.some((v) => v.includes(DECOY) && v.includes(what));
+    return [
+      [intact.out && intact.out.converged === true, "an untouched guarded file must not halt the run"],
+      [intact.prompts["scope:1"].includes(`hash-object -- "${DECOY}"`), "the guard must ask for the hash every round"],
+      [intact.prompts["finalize-check"].includes(`hash-object -- "${DECOY}"`), "and again after finalize"],
+      [rewritten.out && rewritten.out.halted === "scope-violation", "a rewritten out-of-scope untracked file must halt the loop"],
+      [named(rewritten, "modified"), "the violation must name the file and what happened"],
+      [deleted.out && deleted.out.halted === "scope-violation" && named(deleted, "deleted"), "a deleted one must halt too — it vanishes from every diff"],
+      [silent.out && silent.out.halted === "scope-violation" && named(silent, "unverified"), "a hash the check never reported must not read as unchanged"],
+      [atFinalize.out && atFinalize.out.converged === false && atFinalize.out.halted === "scope-violation", "the finalize pass is guarded the same way"],
+      [unhashed.out && unhashed.out.converged === true, "a file with no baseline hash cannot be guarded, so it cannot halt"],
+      [unhashed.out && unhashed.out.notes.some((n) => n.includes(DECOY) && /cannot be guarded/.test(n)), "but the gap must be said out loud"],
+      [!unhashed.prompts["scope:1"].includes("hash-object"), "and nothing unguardable may be asked about"],
     ];
   },
 
@@ -755,6 +825,8 @@ const SCENARIOS = {
       [/narration/.test(p), "the narration strip must reach finalize"],
       [p.includes("post-finalize.diff"), "finalize must snapshot its own edits for the check"],
       [c.includes("/plug/scripts/collect_metrics.py"), "the resolved collector path must be used"],
+      [/uv run --no-project "/.test(c), "the collector must be invoked the way the modern-python shims allow"],
+      [!/python3 "/.test(c), "a bare `python3 <script>` is refused by the shims and collects nothing"],
       [/--tokens 12345/.test(c), "the spent-token count must reach the collector"],
       [/ledger\.md/.test(c), "the human-readable ledger must be rendered"],
       [fences(c)[0] && fences(c)[0].finalize !== undefined, "the ledger written last must record finalize's own outcome"],
@@ -934,6 +1006,13 @@ const MUTATIONS = [
   ["let finalize edit outside scope", (s) => s.replace("} else if (checkViolations.length || checkUntracked.length) {", "} else if (false) {")],
   ["snapshot nothing for the finalize check", (s) => s.replace('git -C "${GIT_ROOT}" diff ${BASE_SHA} > "${OUT}/post-finalize.diff"', "true")],
   ["bump plugin.json without the marketplace entry", (s) => s.replace("SCOPE.push(MARKETPLACE_FILE)", "void 0")],
+  ["ignore the ledger id the reviewer returns", (s) => s.replace("if (given && ledger.findings[given]) return ledger.findings[given]", "if (false) return null")],
+  ["merge two same-class findings into one", (s) => s.replace("(x) => x.coarse === ck && !(x.rounds_seen || []).includes(round),", "(x) => x.coarse === ck,")],
+  ["call the metrics collector the way the shims refuse", (s) => s.replace('`uv run --no-project "${baseline.metrics_script}"', '`python3 "${baseline.metrics_script}"')],
+  ["ignore a tampered out-of-scope untracked file", (s) => s.replace(", ...tamperedUntracked(scopeRep)]", "]")],
+  ["read an unverified guarded file as unchanged", (s) => s.replace("if (now === undefined) bad.push(", "if (false) bad.push(")],
+  ["stop asking for the guarded hashes", (s) => s.replace("const guardedCommands = GUARDED_UNTRACKED.length", "const guardedCommands = 0")],
+  ["let finalize touch a guarded untracked file", (s) => s.replace("...(check ? tamperedUntracked(check) : [])", "...[]")],
   ["leave the marketplace bump to chance", (s) => s.replace("` \\`${MARKETPLACE_FILE}\\` repeats this plugin's version", "` (and any marketplace entry inside scope)")],
 ];
 

@@ -2,7 +2,7 @@
 name: pr-improver
 description: "Runs an autonomous review-and-fix improvement loop over the current branch's changes until a PR review comes back clean, scoped mechanically to the directories the branch touched. Reviews are performed by an installed PR-review skill (default: pr-review-toolkit's review-pr). Use to fix review findings on a branch before opening or updating a pull request ('clean up this branch', 'fix this PR until review passes', 'run review-and-fix on my changes'). NOT for a one-time review — run the PR-review skill directly."
 argument-hint: "[BASE_BRANCH] [--reviewer <skill-or-agent>] [--max-rounds N]"
-allowed-tools: Bash Glob Read Workflow
+allowed-tools: Bash Glob Read TaskOutput TaskStop Workflow
 ---
 
 # PR Improver
@@ -30,10 +30,26 @@ conversation).
    repo-relative directory glob `<dir>/**` (`**` at the repo root only if files at the
    root changed), then deduplicate and drop globs covered by another.
 
-### 2. Invoke the workflow
+### 2. Resolve the loop script
 
-Run the `improve` workflow (Workflow tool, `{name: "code-improver:improve"}`) with args
-as a JSON object:
+The loop is the dynamic workflow `workflows/improve.js` in this plugin. Launch it by
+path: `scriptPath` takes a resolved absolute path, and the Workflow tool's `name` resolves
+built-in and project workflows, so a marketplace-installed one may not answer to
+`code-improver:improve`. Try in order, first hit wins — the home directories come before
+`.` so an installed copy beats a checkout of this marketplace:
+
+1. `Bash: ls -d -- "${CLAUDE_PLUGIN_ROOT}/workflows/improve.js"`
+2. `Bash: ls -d -- "${CODEX_PLUGIN_ROOT}/workflows/improve.js"` (if that variable is set instead)
+3. `Bash: find ~/.claude ~/.codex . -maxdepth 7 -path '*/code-improver/workflows/improve.js' -print -quit 2>/dev/null`
+
+Use the path exactly as printed. Its plugin directory — the path with
+`/workflows/improve.js` removed — is `pluginRoot`. If all three come back empty, try
+`{name: "code-improver:improve"}` once; if that is unavailable too, stop and say the loop
+could not be located. Do not assemble a path by hand and do not improvise the loop.
+
+### 3. Invoke the workflow
+
+Run it with the Workflow tool, `{scriptPath: "<the path from step 2>", args: {...}}`:
 
 ```json
 {
@@ -44,7 +60,7 @@ as a JSON object:
     "notes": "Review the working tree's changes against <base> as a pull request: correctness, tests, error handling, and the review dimensions the skill prescribes."
   },
   "scope": ["<derived-dir-glob>/**"],
-  "pluginRoot": "${CLAUDE_PLUGIN_ROOT}",
+  "pluginRoot": "<the plugin directory from step 2>",
   "maxRounds": 5
 }
 ```
@@ -52,8 +68,8 @@ as a JSON object:
 - `reviewer` — the default above requires the `pr-review-toolkit` plugin. When the user
   names a different PR reviewer (skill or agent), use it, with kind set accordingly.
 - `maxRounds` only if the user asked for a different cap.
-- `pluginRoot` lets the run find its metrics collector; if the placeholder above was not
-  substituted, omit the key — the workflow searches for itself.
+- `pluginRoot` lets the run find its metrics collector; omit the key only if step 2 fell
+  through to the workflow name — the workflow then searches for itself.
 - `finalize` defaults are right for PRs: no version bump unless the branch sits inside a
   plugin, narration strip and docs pass on.
 - `decision` only on continuation (below).

@@ -168,11 +168,21 @@ const loadPriorLedger = (rawJson, notes) => {
   notes.push(`Loaded prior ledger: ${Object.keys(ledger.findings).length} findings carried over.`)
 }
 
-const findExisting = (raw) => {
+// The reviewer is told to re-report a known finding under its exact ledger id, so that id
+// is the first thing consulted: recomputing `file:line:class` misses every finding whose
+// line shifted, and the loop then re-dispatches findings it already ruled on. The coarse
+// key is the rescue for a reviewer that recomputed the id anyway — but only an entry this
+// review has not already claimed can be the match, because two findings of one class in
+// one file are two findings, not one that moved.
+const findExisting = (raw, round) => {
+  const given = String(raw.id || '').trim()
+  if (given && ledger.findings[given]) return ledger.findings[given]
   const id = findingId(raw)
   if (ledger.findings[id]) return ledger.findings[id]
   const ck = coarseKey(raw)
-  const matches = Object.values(ledger.findings).filter((x) => x.coarse === ck)
+  const matches = Object.values(ledger.findings).filter(
+    (x) => x.coarse === ck && !(x.rounds_seen || []).includes(round),
+  )
   return matches.length === 1 ? matches[0] : null
 }
 
@@ -193,7 +203,7 @@ const mergeReview = (round, review) => {
     if (f && f.status === 'fixed') f.verified = true
   }
   for (const raw of review.findings || []) {
-    const ex = findExisting(raw)
+    const ex = findExisting(raw, round)
     if (!ex) {
       const id = findingId(raw)
       ledger.findings[id] = {
@@ -330,7 +340,7 @@ const buildEscalation = (type, message, ids, round) => {
 // ---------------------------------------------------------------------------
 const BASELINE_SCHEMA = {
   type: 'object',
-  required: ['ok', 'error', 'target_dir', 'plugin_dir', 'plugin_version', 'marketplace_file', 'git_root', 'git_initialized', 'head_sha', 'untracked', 'out_dir', 'out_rel', 'prior_ledger_json', 'metrics_script', 'default_scope', 'reviewer_available', 'reviewer_probe'],
+  required: ['ok', 'error', 'target_dir', 'plugin_dir', 'plugin_version', 'marketplace_file', 'git_root', 'git_initialized', 'head_sha', 'untracked', 'untracked_digests', 'out_dir', 'out_rel', 'prior_ledger_json', 'metrics_script', 'default_scope', 'reviewer_available', 'reviewer_probe'],
   properties: {
     ok: { type: 'boolean' },
     error: { type: 'string', description: 'Why the baseline could not be established; empty when ok.' },
@@ -342,6 +352,18 @@ const BASELINE_SCHEMA = {
     git_initialized: { type: 'boolean', description: 'True if this run created the repository.' },
     head_sha: { type: 'string' },
     untracked: { type: 'array', items: { type: 'string' }, description: 'git ls-files --others --exclude-standard, repo-relative.' },
+    untracked_digests: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['path', 'sha'],
+        properties: {
+          path: { type: 'string', description: 'One of the untracked paths, verbatim.' },
+          sha: { type: 'string', description: 'What `git hash-object` printed for it.' },
+        },
+      },
+      description: 'One entry per path in untracked: the content hash the loop guards it against.',
+    },
     out_dir: { type: 'string', description: 'Absolute path of the created artifact directory.' },
     out_rel: { type: 'string', description: 'out_dir relative to git_root, or empty if outside the repo.' },
     prior_ledger_json: { type: 'string', description: 'Raw contents of <out_dir>/ledger.json if it exists, else empty.' },
@@ -448,6 +470,18 @@ const SCOPE_SCHEMA = {
   properties: {
     changed: { type: 'array', items: { type: 'string' }, description: 'git diff --name-only <baseline>, repo-relative, verbatim.' },
     untracked: { type: 'array', items: { type: 'string' }, description: 'git ls-files --others --exclude-standard, repo-relative, verbatim.' },
+    untracked_digests: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['path', 'sha'],
+        properties: {
+          path: { type: 'string', description: 'The guarded path, exactly as the prompt listed it.' },
+          sha: { type: 'string', description: 'What `git hash-object` printed, or exactly "MISSING" when the file is gone.' },
+        },
+      },
+      description: 'One entry per guarded path the prompt lists — every one, even when unchanged. Omitting a path reads as an unverified file, not as a clean one.',
+    },
   },
 }
 
@@ -470,6 +504,7 @@ const FINALIZE_CHECK_SCHEMA = {
   properties: {
     changed: SCOPE_SCHEMA.properties.changed,
     untracked: SCOPE_SCHEMA.properties.untracked,
+    untracked_digests: SCOPE_SCHEMA.properties.untracked_digests,
     regressions: {
       type: 'array',
       items: {
@@ -516,7 +551,11 @@ const baseline = await agent(
      \`git -c user.name='code-improver-baseline' -c user.email='code-improver@trailofbits.com' commit\` (after \`git add -A\`).
    - Report git_initialized=true. This is loud on purpose: the caller must tell the user a repository was created.
 
-4. Record the snapshot: HEAD sha (\`git rev-parse HEAD\`) and the untracked files (\`git ls-files --others --exclude-standard\`).
+4. Record the snapshot: HEAD sha (\`git rev-parse HEAD\`) and the untracked files (\`git ls-files --others --exclude-standard\`). Untracked files are in no commit and no index, so \`git diff\` can never show what happens to them — hash each one so the loop can tell:
+
+  git -C "<git_root>" ls-files --others --exclude-standard | while IFS= read -r p; do printf '%s %s\\n' "$(git -C "<git_root>" hash-object -- "$p")" "$p"; done
+
+  Report one untracked_digests entry per line: sha first, then the path.
 
 5. Create the artifact directory: \`mkdir -p ${A.out ? `"${A.out}"` : '"$PWD/.code-improver/<target-directory-name>"'}\` and report its absolute path as out_dir, plus its path relative to git_root as out_rel (empty if outside the repo).
 
@@ -602,6 +641,44 @@ const newUntrackedInScope = (rep) =>
     (p) => inScope(p, SCOPE_REGEXES) && !isArtifact(p) && !baselineUntracked.has(p),
   )
 
+// A file that was untracked at the baseline is in no commit and no index, so `git diff`
+// shows nothing when it is rewritten and nothing when it is deleted: the change surface
+// alone cannot guard it. Out-of-scope ones are guarded by content instead — the baseline
+// hash against the hash the check reports.
+const MAX_GUARDED_UNTRACKED = 50
+const baselineDigest = new Map(
+  (baseline.untracked_digests || []).map((d) => [normFile(d && d.path), String((d && d.sha) || '').trim()]),
+)
+const guardable = [...baselineUntracked].filter((p) => !inScope(p, SCOPE_REGEXES) && !isArtifact(p)).sort()
+const GUARDED_UNTRACKED = guardable.filter((p) => baselineDigest.has(p)).slice(0, MAX_GUARDED_UNTRACKED)
+const unguarded = guardable.filter((p) => !GUARDED_UNTRACKED.includes(p))
+if (unguarded.length) {
+  notes.push(
+    `${unguarded.length} out-of-scope untracked file(s) cannot be guarded by content ` +
+      `(${unguarded.slice(0, 5).join(', ')}${unguarded.length > 5 ? ', …' : ''}): the baseline reported no hash for them, or there are more than ${MAX_GUARDED_UNTRACKED}. ` +
+      `A fixer that rewrites one of those leaves no trace in \`git diff\`; check them by hand if they matter.`,
+  )
+  log(notes[notes.length - 1])
+}
+
+// Listed in every surface report so the check has the same view the guard does.
+const guardedCommands = GUARDED_UNTRACKED.length
+  ? `\n${GUARDED_UNTRACKED.map((p) => `  git -C "${GIT_ROOT}" hash-object -- "${p}" || echo MISSING`).join('\n')}\n\nReport the hash commands as untracked_digests — one entry per path above, every one of them, with sha set to what the command printed ("MISSING" when the file is gone). These files are outside scope and must not have changed.`
+  : ''
+
+const tamperedUntracked = (rep) => {
+  const reported = new Map(
+    ((rep && rep.untracked_digests) || []).map((d) => [normFile(d && d.path), String((d && d.sha) || '').trim()]),
+  )
+  const bad = []
+  for (const p of GUARDED_UNTRACKED) {
+    const now = reported.get(p)
+    if (now === undefined) bad.push(`${p} (unverified: the check reported no hash for it)`)
+    else if (now !== baselineDigest.get(p)) bad.push(`${p} (${/^MISSING$/i.test(now) ? 'deleted' : 'modified'})`)
+  }
+  return bad
+}
+
 log(`Scope: ${SCOPE.join(', ')} | baseline ${BASE_SHA.slice(0, 12)} | artifacts: ${OUT}`)
 
 // ---------------------------------------------------------------------------
@@ -641,9 +718,12 @@ const decisionBlock = () =>
     ? `\nThe user has ruled on prior escalations, most recent last: ${JSON.stringify(ledger.decisions)}. These rulings are binding; judge related findings under them.\n`
     : ''
 
+// `uv run --no-project`, never `python3 <script>`: the modern-python shims refuse a
+// script path outright, so that form silently produces no metrics.json for anyone who
+// has that plugin installed. The collector is pure stdlib, so no project is needed.
 const metricsCommand = () =>
   baseline.metrics_script
-    ? `python3 "${baseline.metrics_script}" --ledger "${LEDGER_PATH}" --repo "${GIT_ROOT}" --baseline-sha ${BASE_SHA} --diff-dir "${OUT}" --out "${OUT}/metrics.json" --tokens ${budget.spent()} ${SCOPE.map((g) => `--scope '${g}'`).join(' ')}`
+    ? `uv run --no-project "${baseline.metrics_script}" --ledger "${LEDGER_PATH}" --repo "${GIT_ROOT}" --baseline-sha ${BASE_SHA} --diff-dir "${OUT}" --out "${OUT}/metrics.json" --tokens ${budget.spent()} ${SCOPE.map((g) => `--scope '${g}'`).join(' ')}`
     : ''
 
 const persistExit = async (label) => {
@@ -922,7 +1002,7 @@ ${JSON.stringify(dispatched, null, 2)}
 \`\`\`
 ${decisionBlock()}
 Non-negotiable rules:
-- Stay inside scope: ${SCOPE.join(', ')} (repo-relative, repo root \`${GIT_ROOT}\`). If a fix requires touching anything outside scope, do NOT make it — return verdict "rejected" with reason "requires out-of-scope change: <path>".
+- Stay inside scope: ${SCOPE.join(', ')} (repo-relative, repo root \`${GIT_ROOT}\`). If a fix requires touching anything outside scope, do NOT make it — return verdict "rejected" with reason "requires out-of-scope change: <path>". Files git does not track are in scope or out of it like any other: the guard holds a content hash of the out-of-scope ones, so deleting or rewriting one is a violation, not an invisible edit.
 - NEVER run \`git checkout --\`, \`git stash\`, \`git reset\`, \`git clean\`, or \`git commit\`. The tree holds uncommitted work that is not yours.
 - Return a verdict for EVERY finding listed: "fixed", "rejected" (with the reason the finding is wrong or must not be fixed), or "deferred" (minor/info only — a deferred blocker stays open). When a rejection's reason is that the finding is REAL but a documented immutable demand makes it unsatisfiable, also set structural=true — the loop escalates those to the user instead of converging past a broken promise.
 - A fix that changes executable behavior (scripts, hooks, commands) needs a pin: a test or assertion that fails against the pre-fix code. String or severity heuristics need table pins covering the cases, not one example. Name the pin in the verdict. Prose and frontmatter fixes need no pin; the next review verifies them.
@@ -983,10 +1063,10 @@ Non-negotiable rules:
   // Mechanical scope guard (fix E) — runs even when the fixer died, since partial
   // edits are exactly the ones nobody vouches for.
   const scopeRep = await agent(
-    `Report the current change surface of the git repository at \`${GIT_ROOT}\`. Run exactly these two commands and return their output verbatim as lists of repo-relative paths — do not filter, fix, or interpret anything:
+    `Report the current change surface of the git repository at \`${GIT_ROOT}\`. Run exactly these commands and return their output verbatim as lists of repo-relative paths — do not filter, fix, or interpret anything:
 
   git -C "${GIT_ROOT}" diff --name-only ${BASE_SHA}
-  git -C "${GIT_ROOT}" ls-files --others --exclude-standard`,
+  git -C "${GIT_ROOT}" ls-files --others --exclude-standard${guardedCommands}`,
     { schema: SCOPE_SCHEMA, label: `scope:${round}`, phase: 'Fix', effort: 'low' },
   )
   if (!scopeRep) {
@@ -996,7 +1076,7 @@ Non-negotiable rules:
     await persistExit('halted: scope check failed')
     break
   }
-  const violations = outOfScopePaths(scopeRep)
+  const violations = [...outOfScopePaths(scopeRep), ...tamperedUntracked(scopeRep)]
   if (violations.length) {
     RESULT.halted = 'scope-violation'
     RESULT.violations = violations
@@ -1098,10 +1178,10 @@ ${steps.map((s, i) => `${i + 1}. ${s}`).join('\n\n')}`,
     const check = await agent(
       `The finalize pass of an automated improvement loop has just edited the repository at \`${GIT_ROOT}\` (target \`${TARGET}\`, scope ${SCOPE.join(', ')}). Verify those edits and write the run's final artifacts. You fix nothing and improve nothing: you report.
 
-1. Change surface — run exactly these two commands and return their output verbatim as lists of repo-relative paths:
+1. Change surface — run exactly these commands and return their output verbatim as lists of repo-relative paths:
 
   git -C "${GIT_ROOT}" diff --name-only ${BASE_SHA}
-  git -C "${GIT_ROOT}" ls-files --others --exclude-standard
+  git -C "${GIT_ROOT}" ls-files --others --exclude-standard${guardedCommands}
 
 2. Read what finalize changed:
 
@@ -1125,7 +1205,7 @@ ${JSON.stringify(ledger, null, 2)}
       { schema: FINALIZE_CHECK_SCHEMA, label: 'finalize-check', phase: 'Finalize' },
     )
 
-    const checkViolations = outOfScopePaths(check)
+    const checkViolations = [...outOfScopePaths(check), ...(check ? tamperedUntracked(check) : [])]
     const checkUntracked = newUntrackedInScope(check)
     const checkRegressions = ((check && check.regressions) || []).map((r) => ({
       file: normFile(r.file),

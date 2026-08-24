@@ -31,24 +31,40 @@ The user provided: `$ARGUMENTS` (if empty, take the details from the conversatio
    explicitly; if the user did not give one, propose the target directory
    (`<repo-relative-target>/**`) and confirm before launching.
 
-### 2. Invoke the workflow
+### 2. Resolve the loop script
 
-Run the `improve` workflow (Workflow tool, `{name: "code-improver:improve"}`) with args
-as a JSON object:
+The loop is the dynamic workflow `workflows/improve.js` in this plugin. Launch it by
+path: `scriptPath` takes a resolved absolute path, and the Workflow tool's `name` resolves
+built-in and project workflows, so a marketplace-installed one may not answer to
+`code-improver:improve`. Try in order, first hit wins — the home directories come before
+`.` so an installed copy beats a checkout of this marketplace:
+
+1. `Bash: ls -d -- "${CLAUDE_PLUGIN_ROOT}/workflows/improve.js"`
+2. `Bash: ls -d -- "${CODEX_PLUGIN_ROOT}/workflows/improve.js"` (if that variable is set instead)
+3. `Bash: find ~/.claude ~/.codex . -maxdepth 7 -path '*/code-improver/workflows/improve.js' -print -quit 2>/dev/null`
+
+Use the path exactly as printed. Its plugin directory — the path with
+`/workflows/improve.js` removed — is `pluginRoot`. If all three come back empty, try
+`{name: "code-improver:improve"}` once; if that is unavailable too, stop and say the loop
+could not be located. Do not assemble a path by hand and do not improvise the loop.
+
+### 3. Invoke the workflow
+
+Run it with the Workflow tool, `{scriptPath: "<the path from step 2>", args: {...}}`:
 
 ```json
 {
   "target": "<absolute target path>",
   "reviewer": { "kind": "agent|skill", "name": "<namespaced-name>", "notes": "<what the reviewer should know about the target>" },
   "scope": ["<repo-relative-glob>/**"],
-  "pluginRoot": "${CLAUDE_PLUGIN_ROOT}",
+  "pluginRoot": "<the plugin directory from step 2>",
   "maxRounds": 5
 }
 ```
 
 - `maxRounds` only if the user asked for a different cap.
-- `pluginRoot` lets the run find its metrics collector; if the placeholder above was not
-  substituted, omit the key — the workflow searches for itself.
+- `pluginRoot` lets the run find its metrics collector; omit the key only if step 2 fell
+  through to the workflow name — the workflow then searches for itself.
 - `finalize` (`{"version_bump": bool, "narration_strip": bool, "docs_pass": bool}`) only
   to override the defaults: version bump when the target sits inside a plugin, narration
   strip and docs pass always.

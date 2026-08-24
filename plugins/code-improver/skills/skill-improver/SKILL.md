@@ -27,10 +27,26 @@ The user provided: `$ARGUMENTS` (if empty, take the target skill from the conver
    - **No matches:** report the available skills
    - **Single match:** proceed
 
-### 2. Invoke the workflow
+### 2. Resolve the loop script
 
-Run the `improve` workflow (Workflow tool, `{name: "code-improver:improve"}`; installed
-as `/code-improver:improve`) with args as a JSON object:
+The loop is the dynamic workflow `workflows/improve.js` in this plugin. Launch it by
+path: `scriptPath` takes a resolved absolute path, and the Workflow tool's `name` resolves
+built-in and project workflows, so a marketplace-installed one may not answer to
+`code-improver:improve`. Try in order, first hit wins — the home directories come before
+`.` so an installed copy beats a checkout of this marketplace:
+
+1. `Bash: ls -d -- "${CLAUDE_PLUGIN_ROOT}/workflows/improve.js"`
+2. `Bash: ls -d -- "${CODEX_PLUGIN_ROOT}/workflows/improve.js"` (if that variable is set instead)
+3. `Bash: find ~/.claude ~/.codex . -maxdepth 7 -path '*/code-improver/workflows/improve.js' -print -quit 2>/dev/null`
+
+Use the path exactly as printed. Its plugin directory — the path with
+`/workflows/improve.js` removed — is `pluginRoot`. If all three come back empty, try
+`{name: "code-improver:improve"}` once; if that is unavailable too, stop and say the loop
+could not be located. Do not assemble a path by hand and do not improvise the loop.
+
+### 3. Invoke the workflow
+
+Run it with the Workflow tool, `{scriptPath: "<the path from step 2>", args: {...}}`:
 
 ```json
 {
@@ -40,14 +56,14 @@ as `/code-improver:improve`) with args as a JSON object:
     "name": "plugin-dev:skill-reviewer",
     "notes": "The target is a Claude Code skill directory; review it as a skill (frontmatter, triggering description, progressive disclosure, referenced files)."
   },
-  "pluginRoot": "${CLAUDE_PLUGIN_ROOT}",
+  "pluginRoot": "<the plugin directory from step 2>",
   "maxRounds": 5
 }
 ```
 
 - `maxRounds` only if the user asked for a different cap (`--max-rounds N`).
-- `pluginRoot` lets the run find its metrics collector; if the placeholder above was not
-  substituted, omit the key — the workflow searches for itself.
+- `pluginRoot` lets the run find its metrics collector; omit the key only if step 2 fell
+  through to the workflow name — the workflow then searches for itself.
 - `scope` (repo-relative globs) only if the user restricted or widened what the loop may
   touch; by default the workflow scopes to the skill's plugin directory.
 - `decision` only on continuation (below).
@@ -114,8 +130,9 @@ to the last round and a re-run resumes from it.
 - **Fix verification** — the next review verifies every fix; fixes to executable
   behavior carry pins that fail against the pre-fix code.
 - **Scope** — a mechanical git-diff check after every fix round, and after the finalize
-  pass, halts on any out-of-scope change; completion also requires no unregistered new
-  files in scope.
+  pass, halts on any out-of-scope change; out-of-scope files git does not track are
+  guarded by content hash, since no diff would show them; completion also requires no
+  unregistered new files in scope.
 - **Report everything** — reviewers report all findings with severity; filtering happens
   once, at the ledger verdict, and rejections are not re-litigated without new evidence.
 - **Finalize** — before completion the loop strips narration comments, collapses version

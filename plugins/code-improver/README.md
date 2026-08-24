@@ -13,9 +13,9 @@ and is itself scope-checked and read for regressions before the run reports succ
 Three entry skills wire the loop to a target kind:
 
 ```
-/skill-improver ./plugins/my-plugin/skills/my-skill    # reviewer: plugin-dev:skill-reviewer agent
-/pr-improver branch-name                               # reviewer: pr-review-toolkit:review-pr skill
-/code-improver ./src --reviewer my-plugin:my-reviewer --scope 'src/**'
+/code-improver:skill-improver ./plugins/my-plugin/skills/my-skill   # reviewer: plugin-dev:skill-reviewer agent
+/code-improver:pr-improver main                                     # base branch; reviewer: pr-review-toolkit:review-pr skill
+/code-improver:code-improver ./src --reviewer my-plugin:my-reviewer --scope 'src/**'
 ```
 
 Natural language works too ("fix my skill", "clean up this branch until review
@@ -44,9 +44,13 @@ first.
   carrying the user's decision (`decision` arg) plus the reloaded ledger.
 - **A mechanical scope guard runs after every fix round and after finalize.** `git diff`
   against the baseline snapshot, matched against the declared scope globs: any
-  out-of-scope change *inside the repository* halts the loop on the spot. Completion
-  additionally requires no unregistered new files in scope. The fixer contract bans
-  `git checkout --` / `git stash` / `git reset` / `git commit` outright.
+  out-of-scope change *inside the repository* halts the loop on the spot. `git diff`
+  cannot see a file git does not track, so out-of-scope untracked files are guarded by
+  content instead — the baseline hashes each one (up to 50; the rest are named in the
+  run's notes as unguarded) and a hash that moved, a file that vanished, or a hash the
+  check failed to report all count as violations. Completion additionally requires no
+  unregistered new files in scope. The fixer contract bans `git checkout --` /
+  `git stash` / `git reset` / `git commit` outright.
 - **Fixes carry pins and the next review verifies them.** Behavior-changing fixes need a
   test that fails against the pre-fix code; nothing self-verifies.
 - **A finalize pass removes loop residue, then answers for it.** Session narration is

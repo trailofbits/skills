@@ -56,10 +56,10 @@ git -C "$TMP" show "$BASE_SHA:$FILE" >"$TMP/$FILE" 2>/dev/null ||
 
 SUITE="$TMP/fixture/$NAME/tests/run_split.sh"
 [ -f "$SUITE" ] || SUITE=$(find "$TMP/fixture" -name 'run_*.sh' -path '*/tests/*' | head -1)
-[ -n "$SUITE" ] && [ -f "$SUITE" ] || {
+if [ ! -f "$SUITE" ]; then
   echo "verify-pins.sh: no test suite found under $TMP/fixture" >&2
   exit 1
-}
+fi
 
 echo "running $SUITE against the reverted tree — it must FAIL"
 if bash "$SUITE"; then
