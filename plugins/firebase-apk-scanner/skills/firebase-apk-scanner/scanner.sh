@@ -6,16 +6,18 @@
 
 set -uo pipefail
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
+# Colors for output. ANSI-C quoting so these hold real ESC bytes: they are passed as
+# printf arguments as well as embedded in format strings, and a literal \033 in an
+# argument prints as the four characters rather than setting the color.
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+BLUE=$'\033[0;34m'
 # CYAN intentionally unused but kept for consistency with other color definitions
 # shellcheck disable=SC2034
-CYAN='\033[0;36m'
-MAGENTA='\033[0;35m'
-NC='\033[0m'
+CYAN=$'\033[0;36m'
+MAGENTA=$'\033[0;35m'
+NC=$'\033[0m'
 
 # Configuration
 TIMEOUT_SECONDS=10
@@ -34,6 +36,8 @@ JSON_REPORT="${OUTPUT_DIR}/scan_report.json"
 TOTAL_APKS=0
 VULNERABLE_APKS=0
 TOTAL_VULNS=0
+FAILED_APKS=0
+UNTESTED_APKS=0
 
 # Common Cloud Function names to enumerate
 COMMON_FUNCTIONS="addMessage sendMessage createUser deleteUser updateUser getUser getUsers login logout register signup signUp authenticate verify verifyEmail resetPassword changePassword sendNotification sendEmail processPayment createOrder getOrders updateOrder deleteOrder uploadFile getFile generateToken validateToken refreshToken getData setData syncData backup restore export import webhook callback api admin debug test healthcheck status createProfile updateProfile deleteProfile getProfile subscribe unsubscribe notify push analytics"
@@ -1008,6 +1012,7 @@ process_apk() {
   if ! apktool d -f -o "$apk_decompiled" "$apk_path" >/dev/null 2>&1; then
     log_error "Failed to decompile: $apk_path"
     echo "DECOMPILE_FAILED" >"${apk_result_dir}/status.txt"
+    FAILED_APKS=$((FAILED_APKS + 1))
     return 1
   fi
 
@@ -1021,6 +1026,7 @@ process_apk() {
   if [ ! -f "$config_file" ]; then
     log_error "Failed to create config file"
     echo "CONFIG_FAILED" >"${apk_result_dir}/status.txt"
+    FAILED_APKS=$((FAILED_APKS + 1))
     return 1
   fi
 
@@ -1052,6 +1058,17 @@ process_apk() {
   log_info "  Storage Buckets: $bucket_count"
   log_info "  API Keys: $key_count"
   log_info "  Function Names: $func_count"
+
+  # Every endpoint test below is guarded on one of these values, so with none of them
+  # there is nothing to probe. Reporting that as SECURE is indistinguishable from an
+  # APK whose endpoints were tested and found locked down.
+  if [ "$((db_count + proj_count + bucket_count + key_count + func_count))" -eq 0 ]; then
+    log_warning "No Firebase configuration found in $apk_name — nothing was tested"
+    log_warning "The app may not use Firebase, or the config may be obfuscated or packed."
+    echo "NO_CONFIG" >"${apk_result_dir}/status.txt"
+    UNTESTED_APKS=$((UNTESTED_APKS + 1))
+    return 0
+  fi
 
   local apk_vulnerable=false
   local apk_vulns=""
@@ -1274,6 +1291,8 @@ generate_report() {
     echo "  \"scanner_version\": \"1.0\","
     echo "  \"total_apks\": $TOTAL_APKS,"
     echo "  \"vulnerable_apks\": $VULNERABLE_APKS,"
+    echo "  \"failed_apks\": $FAILED_APKS,"
+    echo "  \"untested_apks\": $UNTESTED_APKS,"
     echo "  \"total_vulnerabilities\": $TOTAL_VULNS,"
     echo '  "results": ['
 
@@ -1368,10 +1387,16 @@ main() {
 
   if [ -d "$target" ]; then
     log_info "Scanning directory: $target"
-    for apk in "$target"/*.apk; do
+    for apk in "$target"/*.apk "$target"/*.APK; do
       [ -f "$apk" ] || continue
       process_apk "$apk"
     done
+
+    if [ "$TOTAL_APKS" -eq 0 ]; then
+      log_error "No .apk files found in: $target"
+      log_error "A scan that inspected nothing is not a clean scan."
+      exit 1
+    fi
   elif [ -f "$target" ]; then
     log_info "Scanning single APK: $target"
     process_apk "$target"
@@ -1401,8 +1426,24 @@ main() {
     printf 'Vulnerable: %s0%s\n' "$GREEN" "$NC"
   fi
 
+  if [ "$FAILED_APKS" -gt 0 ]; then
+    printf 'Failed to scan: %s%d%s (not tested, so "0 vulnerable" says nothing about these)\n' \
+      "$YELLOW" "$FAILED_APKS" "$NC"
+  fi
+
+  if [ "$UNTESTED_APKS" -gt 0 ]; then
+    printf 'No Firebase config: %s%d%s (nothing to probe, so these were not tested)\n' \
+      "$YELLOW" "$UNTESTED_APKS" "$NC"
+  fi
+
   echo ""
   echo "Results saved to: $OUTPUT_DIR"
+
+  # An APK that never got tested must not be reported as a clean result.
+  if [ "$((FAILED_APKS + UNTESTED_APKS))" -eq "$TOTAL_APKS" ]; then
+    log_error "No APK was actually tested (all failed to process or carried no Firebase config)."
+    exit 1
+  fi
 }
 
 main "$@"
