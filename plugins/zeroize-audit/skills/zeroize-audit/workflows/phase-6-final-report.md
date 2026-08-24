@@ -6,7 +6,7 @@
 
 ## Instructions
 
-Spawn agent `4-report-assembler` via `Task` with:
+Spawn agent `zeroize-audit:4-report-assembler` via `Task` (`subagent_type: "zeroize-audit:4-report-assembler"`) with:
 
 | Parameter | Value |
 |---|---|

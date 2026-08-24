@@ -27,7 +27,7 @@ For each C/C++ TU in `{workdir}/source-analysis/tu-map.json`:
    }
    ```
 
-3. Spawn agent `3-tu-compiler-analyzer` via `Task` with:
+3. Spawn agent `zeroize-audit:3-tu-compiler-analyzer` via `Task` (`subagent_type: "zeroize-audit:3-tu-compiler-analyzer"`) with:
 
 | Parameter | Value |
 |---|---|
@@ -55,7 +55,7 @@ Skip if any of the following are true:
 - `sensitive-objects.json` is missing or empty
 - `sensitive-objects.json` has no Rust objects (IDs `SO-5NNN` / `SO-5000+`)
 
-Spawn agent `3b-rust-compiler-analyzer` via `Task` (after Wave 3 completes or is skipped):
+Spawn agent `zeroize-audit:3b-rust-compiler-analyzer` via `Task` (`subagent_type: "zeroize-audit:3b-rust-compiler-analyzer"`) (after Wave 3 completes or is skipped):
 
 | Parameter | Value |
 |---|---|
@@ -105,11 +105,13 @@ uv run {baseDir}/tools/scripts/check_rust_asm.py \
 
 If assembly tools are missing, write `[]` to `asm-findings.json`.
 
+**Step D — Section D coverage survey:** no script covers these patterns, so the agent greps the crate source for them (its Step 6 lists the markers) and writes `coverage-gaps.json` — `[]` when nothing is found. The report's Analysis Coverage section reads that file; without it a crate using an unaudited pattern is indistinguishable from one that has none.
+
 IR finding IDs: `F-RUST-IR-NNNN`. MIR finding IDs: `F-RUST-MIR-NNNN`. Assembly finding IDs: `F-RUST-ASM-NNNN`.
 
 Write `{workdir}/rust-compiler-analysis/notes.md` summarizing all steps, any failures, and key observations.
 
-**After Wave 3R completes**: Verify `mir-findings.json`, `ir-findings.json`, and `asm-findings.json` exist under `{workdir}/rust-compiler-analysis/`. Log if missing, continue.
+**After Wave 3R completes**: Verify `mir-findings.json`, `ir-findings.json`, `asm-findings.json`, and `coverage-gaps.json` exist under `{workdir}/rust-compiler-analysis/`. Log if missing, continue.
 
 ## State Update
 

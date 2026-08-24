@@ -220,7 +220,7 @@ uv run trailmark analyze --language python,rust --complexity 8 {targetDir}
 uv run trailmark entrypoints --language auto {targetDir}
 
 # Structural diff between two refs or directories
-uv run trailmark diff --repo {repoDir} main HEAD --json
+uv run trailmark diff --language auto --repo {repoDir} main HEAD --json
 
 # v0.4+: native diagram
 uv run trailmark diagram -t {targetDir} -T call-graph -f main --depth 2
