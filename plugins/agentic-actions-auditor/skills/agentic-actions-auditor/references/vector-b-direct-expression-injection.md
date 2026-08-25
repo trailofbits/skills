@@ -33,6 +33,7 @@ The expression is resolved before any step code executes. The AI action receives
 `${{ github.event.* }}` expressions inside any text-accepting field of an AI action step:
 
 - `with.prompt` -- the primary prompt field (all actions)
+- `with.direct_prompt`, `with.override_prompt` -- the same field on pre-v1 Claude Code Action workflows
 - `with.system-prompt` -- system prompt (GitHub AI Inference)
 - `with.prompt-file` -- if it resolves to an attacker-controlled path (Codex, AI Inference)
 - `with.claude_args` -- may embed expressions as inline instructions (Claude Code Action)
