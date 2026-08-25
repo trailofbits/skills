@@ -28,6 +28,14 @@ This skill performs comprehensive security review of code changes:
 /plugin install trailofbits/skills/plugins/differential-review
 ```
 
+## Components
+
+| Component | Name | Purpose |
+|---|---|---|
+| Skill | `differential-review` | The review itself — Pre-Analysis plus Phases 0–6, described below |
+| Command | `/differential-review:diff-review` | Entry point taking `<pr-url\|commit-sha\|diff-path> [--baseline <ref>]` |
+| Agent | `adversarial-modeler` | Phase 5 only. Dispatched for HIGH RISK changes to build concrete exploit paths and rate exploitability |
+
 ## Documentation Structure
 
 This skill uses a **modular documentation architecture** for token efficiency and progressive disclosure:

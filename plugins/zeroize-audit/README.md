@@ -114,6 +114,7 @@ Phase 8: Orchestrator — Return final-report.md
 
 | Agent | Phase | Purpose | Output Directory |
 |---|---|---|---|
+| `0-preflight` | 0 | Validate prerequisites, merge config, enumerate TUs, create the run directory. Gates everything after it — if a critical check fails, the run stops here | run root |
 | `1-mcp-resolver` | 1, Wave 1 | Resolve symbols/types via Serena MCP (C/C++ only) | `mcp-evidence/` |
 | `2-source-analyzer` | 1, Wave 2a | Sensitive objects, wipes, data-flow/heap (C/C++) | `source-analysis/` |
 | `2b-rust-source-analyzer` | 1, Wave 2b | Rustdoc JSON trait analysis + dangerous API grep | `source-analysis/` |
@@ -121,6 +122,8 @@ Phase 8: Orchestrator — Return final-report.md
 | `3b-rust-compiler-analyzer` | 2, Wave 3R | Crate-level MIR + LLVM IR analysis (Rust) | `rust-compiler-analysis/` |
 | `4-report-assembler` | 3+6, Wave 4+6 | Collect findings, confidence gating; merge PoC results (invoked twice: interim + final) | `report/` |
 | `5-poc-generator` | 4, Wave 5 | Generate proof-of-concept programs (C/C++ findings only) | `poc/` |
+| `5b-poc-validator` | 4, Wave 5a | Compile and run every PoC | `poc/` |
+| `5c-poc-verifier` | 4, Wave 5b | Check each PoC actually proves the finding it claims, by reading the PoC, the finding, and the original source | `poc/` |
 | `6-test-generator` | 7, Wave 7 | Generate runtime validation test harnesses (optional) | `tests/` |
 
 Agents write persistent finding files to a shared working directory (`/tmp/zeroize-audit-{run_id}/`) with namespaced IDs to prevent collisions during parallel execution.

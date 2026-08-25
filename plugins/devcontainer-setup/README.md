@@ -16,6 +16,9 @@ Create pre-configured devcontainers with Claude Code and language-specific tooli
 
 Tell Claude to "set up a devcontainer" or "add devcontainer support" in your project.
 
+The plugin ships one skill, `devcontainer-setup`, which those phrases trigger. Invoke it
+directly with `/devcontainer-setup:devcontainer-setup`.
+
 The skill will:
 1. Detect your project's language stack
 2. Generate `.devcontainer/` configuration files
