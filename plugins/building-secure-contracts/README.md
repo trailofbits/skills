@@ -24,7 +24,7 @@ This plugin provides 11 specialized skills for smart contract security across mu
 Platform-specific vulnerability detection based on Trail of Bits' [Not So Smart Contracts](https://github.com/crytic/not-so-smart-contracts) repository.
 
 ### Algorand Vulnerability Scanner
-**Skill:** `/algorand-vulnerability-scanner`
+**Skill:** `/building-secure-contracts:algorand-vulnerability-scanner`
 
 Scans Algorand/TEAL codebases for 11 vulnerability patterns including:
 - Rekeying vulnerabilities
@@ -35,7 +35,7 @@ Scans Algorand/TEAL codebases for 11 vulnerability patterns including:
 - And 6 more patterns
 
 ### Cairo Vulnerability Scanner
-**Skill:** `/cairo-vulnerability-scanner`
+**Skill:** `/building-secure-contracts:cairo-vulnerability-scanner`
 
 Analyzes StarkNet/Cairo smart contracts for 6 vulnerability patterns:
 - Arithmetic overflow/underflow
@@ -45,7 +45,7 @@ Analyzes StarkNet/Cairo smart contracts for 6 vulnerability patterns:
 - And 2 more patterns
 
 ### Cosmos Vulnerability Scanner
-**Skill:** `/cosmos-vulnerability-scanner`
+**Skill:** `/building-secure-contracts:cosmos-vulnerability-scanner`
 
 Detects security issues in Cosmos SDK modules for 9 patterns:
 - Undelegation time validation
@@ -55,7 +55,7 @@ Detects security issues in Cosmos SDK modules for 9 patterns:
 - And 5 more patterns
 
 ### Solana Vulnerability Scanner
-**Skill:** `/solana-vulnerability-scanner`
+**Skill:** `/building-secure-contracts:solana-vulnerability-scanner`
 
 Scans Solana/Anchor programs for 6 critical vulnerabilities:
 - Arbitrary CPI
@@ -65,7 +65,7 @@ Scans Solana/Anchor programs for 6 critical vulnerabilities:
 - And 2 more patterns
 
 ### Substrate Vulnerability Scanner
-**Skill:** `/substrate-vulnerability-scanner`
+**Skill:** `/building-secure-contracts:substrate-vulnerability-scanner`
 
 Analyzes Substrate pallets for 7 security issues:
 - BadOrigin handling
@@ -75,7 +75,7 @@ Analyzes Substrate pallets for 7 security issues:
 - And 3 more patterns
 
 ### TON Vulnerability Scanner
-**Skill:** `/ton-vulnerability-scanner`
+**Skill:** `/building-secure-contracts:ton-vulnerability-scanner`
 
 Detects vulnerabilities in TON smart contracts for 3 patterns:
 - Replay protection
@@ -89,7 +89,7 @@ Detects vulnerabilities in TON smart contracts for 3 patterns:
 Based on Trail of Bits' [Development Guidelines](https://github.com/crytic/building-secure-contracts/tree/master/development-guidelines).
 
 ### Audit Prep Assistant
-**Skill:** `/audit-prep-assistant`
+**Skill:** `/building-secure-contracts:audit-prep-assistant`
 
 Prepare your codebase for security reviews with a comprehensive checklist:
 1. **Set review goals** - Define objectives and concerns
@@ -100,7 +100,7 @@ Prepare your codebase for security reviews with a comprehensive checklist:
 **Use this:** 1-2 weeks before your audit to maximize review effectiveness.
 
 ### Code Maturity Assessor
-**Skill:** `/code-maturity-assessor`
+**Skill:** `/building-secure-contracts:code-maturity-assessor`
 
 Systematic code maturity evaluation using Trail of Bits' 9-category framework:
 - Arithmetic safety
@@ -113,10 +113,10 @@ Systematic code maturity evaluation using Trail of Bits' 9-category framework:
 - Low-level manipulation
 - Testing and verification
 
-**Output:** Professional maturity scorecard with evidence-based ratings and improvement roadmap.
+**Output:** Maturity scorecard with evidence-based ratings and a priority-ordered improvement roadmap.
 
 ### Guidelines Advisor
-**Skill:** `/guidelines-advisor`
+**Skill:** `/building-secure-contracts:guidelines-advisor`
 
 Comprehensive development best practices advisor covering:
 - **Documentation & Specifications** - Generate system descriptions and architectural diagrams
@@ -130,7 +130,7 @@ Comprehensive development best practices advisor covering:
 **Use this:** Throughout development for architectural and implementation guidance.
 
 ### Secure Workflow Guide
-**Skill:** `/secure-workflow-guide`
+**Skill:** `/building-secure-contracts:secure-workflow-guide`
 
 Interactive 5-step secure development workflow:
 1. **Known Security Issues** - Run Slither with 70+ detectors
@@ -142,7 +142,7 @@ Interactive 5-step secure development workflow:
 **Use this:** On every check-in or before deployment for continuous security validation.
 
 ### Token Integration Analyzer
-**Skill:** `/token-integration-analyzer`
+**Skill:** `/building-secure-contracts:token-integration-analyzer`
 
 Comprehensive token security analysis for both implementations and integrations:
 - **ERC20/ERC721 Conformity** - Validate standard compliance
@@ -179,28 +179,28 @@ building-secure-contracts/
 ## Example Workflows
 
 ### Pre-Audit Preparation
-1. Run `/secure-workflow-guide` to ensure clean Slither report
-2. Use `/code-maturity-assessor` to evaluate overall maturity
-3. Run `/audit-prep-assistant` to prepare documentation and checklist
+1. Run `/building-secure-contracts:secure-workflow-guide` to ensure clean Slither report
+2. Use `/building-secure-contracts:code-maturity-assessor` to evaluate overall maturity
+3. Run `/building-secure-contracts:audit-prep-assistant` to prepare documentation and checklist
 4. Share prepared package with auditors
 
 ### Platform-Specific Security Review
 1. Run appropriate vulnerability scanner for your platform
-2. Use `/guidelines-advisor` for implementation best practices
-3. Run `/secure-workflow-guide` for comprehensive security checks
+2. Use `/building-secure-contracts:guidelines-advisor` for implementation best practices
+3. Run `/building-secure-contracts:secure-workflow-guide` for comprehensive security checks
 4. Address findings and re-scan
 
 ### Token Development/Integration
-1. Run `/token-integration-analyzer` for conformity and weird patterns
-2. Use `/guidelines-advisor` for token-specific best practices
-3. Run `/secure-workflow-guide` for complete validation
+1. Run `/building-secure-contracts:token-integration-analyzer` for conformity and weird patterns
+2. Use `/building-secure-contracts:guidelines-advisor` for token-specific best practices
+3. Run `/building-secure-contracts:secure-workflow-guide` for complete validation
 4. Deploy with confidence
 
 ### Continuous Security
-1. Run `/secure-workflow-guide` on every check-in
+1. Run `/building-secure-contracts:secure-workflow-guide` on every check-in
 2. Use platform scanner for vulnerability detection
-3. Monitor code maturity with `/code-maturity-assessor`
-4. Maintain documentation with `/guidelines-advisor`
+3. Monitor code maturity with `/building-secure-contracts:code-maturity-assessor`
+4. Maintain documentation with `/building-secure-contracts:guidelines-advisor`
 
 ---
 
