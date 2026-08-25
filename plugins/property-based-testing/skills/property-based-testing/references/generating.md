@@ -1,204 +1,79 @@
 # Generating Property-Based Tests
 
-How to create complete, runnable property-based tests.
+Writing the `@given` decorator is the easy part. These are the decisions that make
+the difference between a suite that finds bugs and one that just runs.
 
-## Process
+## Put constraints in the strategy, not in `assume()`
 
-### 1. Analyze Target Function
-
-- Read function signature, types, and docstrings
-- Understand input types and constraints
-- Identify output type and expected behavior
-- Note preconditions or invariants
-- Check existing example-based tests as hints
-
-### 2. Design Input Strategies
-
-Create appropriate generator strategies for each input parameter.
-
-**Principles**:
-- Build constraints INTO the strategy, not via `assume()`
-- Use realistic size limits to prevent slow tests
-- Match real-world constraints
-
-### 3. Identify Applicable Properties
-
-| Property | When to Use | Test Pattern |
-|----------|-------------|--------------|
-| Roundtrip | encode/decode pairs | `assert decode(encode(x)) == x` |
-| Idempotence | normalization, sorting | `assert f(f(x)) == f(x)` |
-| Invariant | any transformation | `assert invariant(f(x))` |
-| No exception | all functions (weak) | Function completes without raising |
-| Type preservation | typed functions | `assert isinstance(f(x), ExpectedType)` |
-| Length preservation | collections | `assert len(f(xs)) == len(xs)` |
-| Element preservation | sorting, shuffling | `assert set(f(xs)) == set(xs)` |
-| Ordering | sorting | `assert all(f(xs)[i] <= f(xs)[i+1] ...)` |
-| Oracle | when reference exists | `assert f(x) == reference_impl(x)` |
-| Commutativity | binary ops | `assert f(a, b) == f(b, a)` |
-
-### 4. Generate Test Code
-
-Create test functions with:
-- Clear docstrings explaining what each property verifies
-- Appropriate `@settings` for the context
-- `@example` decorators for critical edge cases
-
-### 5. Include Edge Cases
-
-Always add explicit examples:
-```python
-@example([])           # Empty
-@example([1])          # Single element
-@example([1, 1, 1])    # Duplicates
-@example("")           # Empty string
-@example(0)            # Zero
-@example(-1)           # Negative
-```
-
-## Settings Recommendations
+This is the single highest-value habit. `assume()` discards inputs after generation,
+so a filter that rejects most candidates wastes the budget and eventually trips
+Hypothesis's exhausted-filter guard — which surfaces as a warning nobody reads.
 
 ```python
-# Development (fast feedback)
-@settings(max_examples=10)
+# Slow, and mostly discards
+@given(st.integers())
+def test_positive(x):
+    assume(x > 0)
+    ...
 
-# CI (thorough)
-@settings(max_examples=200)
-
-# Nightly/Release (exhaustive)
-@settings(max_examples=1000, deadline=None)
+# Generates only what you want
+@given(st.integers(min_value=1))
+def test_positive(x):
+    ...
 ```
 
-## Example Test Patterns
+Reserve `assume()` for conditions you genuinely cannot express as a generator — a
+relationship between two already-generated values, usually.
 
-### Roundtrip (Encode/Decode)
+Build compound inputs with `st.builds`, and derive dependent fields with
+`st.composite` or `.flatmap` rather than generating independently and filtering:
 
 ```python
-@given(valid_messages())
-def test_roundtrip(msg):
-    """Encoding then decoding returns original."""
-    assert decode(encode(msg)) == msg
+@st.composite
+def sized_list_and_index(draw):
+    xs = draw(st.lists(st.integers(), min_size=1))
+    i = draw(st.integers(min_value=0, max_value=len(xs) - 1))
+    return xs, i
 ```
 
-### Idempotence
+## Pin the edge cases you already know about
 
-```python
-@given(st.text())
-def test_normalize_idempotent(s):
-    """Normalizing twice equals normalizing once."""
-    assert normalize(normalize(s)) == normalize(s)
-```
-
-### Sorting Properties
+Random generation finds boundaries eventually; `@example` finds them on every run and
+documents that you thought about them.
 
 ```python
 @given(st.lists(st.integers()))
 @example([])
 @example([1])
 @example([1, 1, 1])
-def test_sort(xs):
-    result = sort(xs)
-    # Length preserved
-    assert len(result) == len(xs)
-    # Elements preserved
-    assert sorted(result) == sorted(xs)
-    # Ordered
-    assert all(result[i] <= result[i+1] for i in range(len(result)-1))
-    # Idempotent
-    assert sort(result) == result
+def test_sort(xs): ...
 ```
 
-### Validator + Normalizer
+Empty, single-element, all-duplicates, zero, negative, and the maximum representable
+value are the ones that recur.
+
+## Settings
+
+Defaults (100 examples, 200ms deadline) are wrong at both ends of the workflow:
 
 ```python
-@given(valid_inputs())
-def test_normalized_is_valid(x):
-    """Normalized inputs pass validation."""
-    assert is_valid(normalize(x))
+@settings(max_examples=10)                      # local iteration
+@settings(max_examples=200)                     # CI
+@settings(max_examples=1000, deadline=None)     # nightly
 ```
 
-## Complete Example (Python/Hypothesis)
+Set `deadline=None` for anything doing real work — the default deadline turns a slow
+machine into a failing test, and that flake gets the whole suite deleted.
 
-```python
-"""Property-based tests for message_codec module."""
-from hypothesis import given, strategies as st, settings, example
-import pytest
+## Determinism as a property
 
-from myapp.codec import encode_message, decode_message, Message, DecodeError
+`f(x) == f(x)` is a tautology for a pure function and a real test for anything else.
+Serializers over dicts or sets, anything involving hashing, iteration order, or time —
+those can and do return different output for the same input. Assert it where a broken
+implementation could falsify it, and not otherwise.
 
-# Custom strategy for Message objects
-messages = st.builds(
-    Message,
-    id=st.uuids(),
-    content=st.text(max_size=1000),
-    priority=st.integers(min_value=1, max_value=10),
-    tags=st.lists(st.text(max_size=50), max_size=20),
-)
+## Testing the error path
 
-
-class TestMessageCodecProperties:
-    """Property-based tests for message encoding/decoding."""
-
-    @given(messages)
-    def test_roundtrip(self, msg: Message):
-        """Encoding then decoding returns the original message."""
-        encoded = encode_message(msg)
-        decoded = decode_message(encoded)
-        assert decoded == msg
-
-    @given(messages)
-    def test_encode_deterministic(self, msg: Message):
-        """Same message always encodes to same bytes."""
-        assert encode_message(msg) == encode_message(msg)
-
-    @given(messages)
-    def test_encoded_is_bytes(self, msg: Message):
-        """Encoding produces bytes."""
-        assert isinstance(encode_message(msg), bytes)
-
-    @given(st.binary())
-    def test_decode_invalid_raises_or_succeeds(self, data: bytes):
-        """Random bytes either decode or raise DecodeError."""
-        try:
-            decode_message(data)
-        except DecodeError:
-            pass  # Expected for invalid input
-```
-
-## Running Tests
-
-```bash
-# Run all property tests
-pytest test_file.py -v
-
-# Run with more examples (CI)
-pytest test_file.py --hypothesis-seed=0 -v
-
-# Run with statistics
-pytest test_file.py --hypothesis-show-statistics
-```
-
-## Checklist Before Finishing
-
-- [ ] Tests are not tautological (don't reimplement the function)
-- [ ] At least one strong property (not just "no crash")
-- [ ] Edge cases covered with `@example` decorators
-- [ ] Strategy constraints are realistic, not over-filtered
-- [ ] Settings appropriate for context (dev vs CI)
-- [ ] Docstrings explain what each property verifies
-- [ ] Tests actually run and pass (or fail for expected reasons)
-
-## Red Flags
-
-- **Reimplementing the function**: If your assertion contains the same logic as the function under test, you've written a tautology
-  ```python
-  # BAD - this tests nothing
-  assert add(a, b) == a + b
-  ```
-- **Only testing "no crash"**: This is the weakest property - always look for stronger ones first
-- **Overly constrained strategies**: If you're using multiple `assume()` calls, redesign the strategy instead
-- **Missing edge cases**: No `@example` decorators for empty, single-element, or boundary values
-- **No settings**: Missing `@settings` for CI - tests may be too slow or not thorough enough
-
-## When Tests Fail
-
-See [{baseDir}/references/interpreting-failures.md]({baseDir}/references/interpreting-failures.md) for how to interpret failures and determine if they represent genuine bugs vs test errors vs ambiguous specifications.
+`st.binary()` against a decoder is worth writing: the contract is usually "raises
+`DecodeError` or succeeds, never `IndexError`, never hangs". Catch only the documented
+exception and let everything else fail the test.

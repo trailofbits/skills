@@ -159,7 +159,7 @@ Arguments:
 Before using any MCP results in confidence scoring or finding emission, normalize:
 
 ```bash
-python {baseDir}/tools/mcp/normalize_mcp_evidence.py \
+uv run --no-project {baseDir}/tools/mcp/normalize_mcp_evidence.py \
   --input /tmp/raw_mcp_results.json \
   --output /tmp/normalized_mcp_results.json
 ```
@@ -211,7 +211,7 @@ Apply downgrades after all evidence is collected, not during querying. Do not su
 After collecting all MCP evidence and running IR/ASM/CFG analysis, apply confidence gates mechanically:
 
 ```bash
-python {baseDir}/tools/mcp/apply_confidence_gates.py \
+uv run --no-project {baseDir}/tools/mcp/apply_confidence_gates.py \
   --input /tmp/raw-report.json \
   --out /tmp/final-report.json \
   --mcp-available \

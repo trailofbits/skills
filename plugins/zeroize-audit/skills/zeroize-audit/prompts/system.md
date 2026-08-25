@@ -39,6 +39,7 @@ Each run creates a working directory at `/tmp/zeroize-audit-{run_id}/` with the 
     mir-findings.json                # F-RUST-MIR-NNNN IDs
     ir-findings.json                 # F-RUST-IR-NNNN IDs
     asm-findings.json                # F-RUST-ASM-NNNN IDs (empty array if enable_asm=false)
+    coverage-gaps.json               # Section D patterns no script audits (empty array if none)
     notes.md
   compiler-analysis/
     {tu_hash}/
@@ -114,7 +115,7 @@ Agent `4-report-assembler` is invoked twice during a run:
 
 Quick check:
 ```bash
-which clang uvx python3   # C/C++
+which clang uv uvx python3   # C/C++
 cargo +nightly --version  # Rust
 uv --version              # Rust Python scripts
 ```

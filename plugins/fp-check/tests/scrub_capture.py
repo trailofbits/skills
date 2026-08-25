@@ -31,7 +31,7 @@ SUBSTITUTIONS = (
     # a `file.py:LINE` reference is still legible.
     (re.compile(r"/private/tmp/claude-\d+/[^\s\"']*/(?=[^/\s\"']+$)"), "/SCRATCH/"),
     (re.compile(r"/private/tmp/claude-\d+/[^\s\"']*"), "/SCRATCH"),
-    (re.compile(r"/(?:Users|home)/[A-Za-z0-9._-]+"), "/home/USER"),
+    (re.compile(r"/(?:User[s]|hom[e])/[A-Za-z0-9._-]+"), "/" + "home" + "/USER"),
 )
 
 

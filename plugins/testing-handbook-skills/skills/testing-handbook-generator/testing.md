@@ -8,12 +8,8 @@ Required tools for validation:
 
 ### Python Dependencies
 
-Install from the scripts directory:
-
-```bash
-cd plugins/testing-handbook-skills/scripts
-uv pip install .
-```
+None to install: the scripts carry PEP 723 inline metadata, so `uv run scripts/<name>.py`
+resolves everything on first use.
 
 ### Optional Tools
 

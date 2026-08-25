@@ -26,7 +26,7 @@ The infamous [KyberSlash](https://kyberslash.cr.yp.to/) attack demonstrated how 
 
 ```bash
 # Install
-uv pip install -e .
+uv tool install .
 
 # Analyze a C file
 ct-analyzer crypto.c
@@ -135,9 +135,11 @@ PHP analysis uses either the VLD extension (recommended) or opcache debug output
 
 ```bash
 # Install VLD extension (recommended)
-# Query latest version from PECL
-VLD_VERSION=$(curl -s https://pecl.php.net/package/vld | grep -oP 'vld-\K[0-9.]+(?=\.tgz)' | head -1)
-pecl install channel://pecl.php.net/vld-${VLD_VERSION}
+# Query latest version from PECL. POSIX ERE, not `grep -P`: PCRE mode is a GNU
+# extension that stock macOS grep rejects, leaving VLD_VERSION empty.
+VLD_VERSION=$(curl -fsS https://pecl.php.net/package/vld |
+  grep -oE 'vld-[0-9]+(\.[0-9]+)*\.tgz' | head -1 | sed -E 's/^vld-//; s/\.tgz$//')
+[ -n "$VLD_VERSION" ] && pecl install channel://pecl.php.net/vld-${VLD_VERSION}
 
 # Or build from source (if PECL fails)
 git clone https://github.com/derickr/vld.git && cd vld
@@ -193,7 +195,7 @@ Python analysis uses the built-in `dis` module to analyze CPython bytecode.
 **Requirements:**
 ```bash
 # Python 3.x required (built-in dis module)
-python3 --version
+uv run python --version
 ```
 
 ### Ruby Analysis
@@ -322,7 +324,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install -e .
+          uv tool install .
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Check constant-time properties
         run: |
@@ -335,7 +338,8 @@ jobs:
 ct-check:
   stage: test
   script:
-    - uv pip install -e .
+    - uv tool install .
+    - export PATH="$HOME/.local/bin:$PATH"
     - ct-analyzer --json src/crypto/*.c > ct-report.json
   artifacts:
     reports:
@@ -366,7 +370,7 @@ ct-check:
 ## Running Tests
 
 ```bash
-python3 ct_analyzer/tests/test_analyzer.py
+uv run python ct_analyzer/tests/test_analyzer.py
 ```
 
 ## References

@@ -11,7 +11,7 @@ flags suitable for single-file LLVM IR or assembly emission via clang. Output
 and dependency-generation flags are stripped.
 
 Usage:
-  python extract_compile_flags.py \\
+  uv run --no-project extract_compile_flags.py \\
     --compile-db compile_commands.json \\
     --src path/to/file.c \\
     [--format shell|json|lines] \\
@@ -20,13 +20,13 @@ Usage:
   # Recommended: capture as a bash array (works in both bash and zsh):
   FLAGS=()
   while IFS= read -r flag; do FLAGS+=("$flag"); done < <(
-    python {baseDir}/tools/extract_compile_flags.py \\
+    uv run --no-project {baseDir}/tools/extract_compile_flags.py \\
       --compile-db build/compile_commands.json \\
       --src src/crypto.c --format lines)
   {baseDir}/tools/emit_ir.sh --src src/crypto.c --out /tmp/out.ll --opt O2 -- "${FLAGS[@]}"
 
   # Get as JSON list:
-  python {baseDir}/tools/extract_compile_flags.py \\
+  uv run --no-project {baseDir}/tools/extract_compile_flags.py \\
     --compile-db build/compile_commands.json \\
     --src src/crypto.c \\
     --format json

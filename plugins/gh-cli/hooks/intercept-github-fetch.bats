@@ -220,3 +220,70 @@ load test_helper
   assert_suggestion_contains "Do NOT use"
   assert_suggestion_contains "base64-decode file contents"
 }
+
+# =============================================================================
+# MCP fetch tools: `urls` array input
+# =============================================================================
+
+@test "fetch: exits silently on empty urls array" {
+  run bash -c 'echo "{\"tool_input\":{\"urls\":[]}}" | '"'$FETCH_HOOK'"
+  assert_allow
+}
+
+@test "fetch: allows a urls array of non-GitHub URLs" {
+  run_fetch_hook_urls "https://pypi.org/project/requests/" "https://dev.to/some-article"
+  assert_allow
+}
+
+@test "fetch: denies a single-element urls array" {
+  run_fetch_hook_urls "https://github.com/j178/prek"
+  assert_deny
+  assert_suggestion_contains "gh repo view j178/prek"
+}
+
+@test "fetch: single-element urls array omits the URL prefix" {
+  run_fetch_hook_urls "https://github.com/j178/prek"
+  assert_deny
+  assert_suggestion_starts_with "Use "
+}
+
+@test "fetch: denies a batch when only one URL is GitHub" {
+  run_fetch_hook_urls "https://pypi.org/project/requests/" "https://github.com/astral-sh/uv"
+  assert_deny
+  assert_suggestion_contains "gh repo view astral-sh/uv"
+}
+
+@test "fetch: batched denial labels the offending URL" {
+  run_fetch_hook_urls "https://pypi.org/project/requests/" "https://github.com/astral-sh/uv"
+  assert_deny
+  assert_suggestion_contains "https://github.com/astral-sh/uv: Use "
+}
+
+@test "fetch: batched denial reports every offending URL" {
+  run_fetch_hook_urls "https://github.com/owner/repo/blob/main/x.js" "https://api.github.com/repos/owner/repo/issues"
+  assert_deny
+  assert_suggestion_contains "gh repo clone owner/repo"
+  assert_suggestion_contains "gh issue list --repo owner/repo"
+}
+
+@test "fetch: url and urls in the same payload are both checked" {
+  run bash -c 'jq -n '"'"'{"tool_input":{"url":"https://example.com","urls":["https://gist.github.com/user/abc123"]}}'"'"' | '"'$FETCH_HOOK'"
+  assert_deny
+  assert_suggestion_contains "gh gist view"
+}
+
+@test "fetch: checks a string-valued urls field" {
+  run bash -c 'echo "{\"tool_input\":{\"urls\":\"https://github.com/owner/repo\"}}" | '"'$FETCH_HOOK'"
+  assert_deny
+  assert_suggestion_contains "gh repo view owner/repo"
+}
+
+@test "fetch: allows a non-GitHub string-valued urls field" {
+  run bash -c 'echo "{\"tool_input\":{\"urls\":\"https://pypi.org/project/requests/\"}}" | '"'$FETCH_HOOK'"
+  assert_allow
+}
+
+@test "fetch: ignores non-string entries in urls" {
+  run bash -c 'jq -n '"'"'{"tool_input":{"urls":[null,42,""]}}'"'"' | '"'$FETCH_HOOK'"
+  assert_allow
+}

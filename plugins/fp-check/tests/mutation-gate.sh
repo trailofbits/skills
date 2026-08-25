@@ -1033,7 +1033,7 @@ run_mutation "the Principle 5 re-check loses its symbol argument" "L2" \
 
 # The Make target stages under a plugins/ tree because the target's `find` is
 # cwd-relative. mktemp under $SANDBOX/.. keeps it inside $WORK for the trap.
-MAKE_WORKFLOW_TESTS='tree=$(mktemp -d "$SANDBOX/../tree.XXXXXX") && mkdir -p "$tree/plugins" && cp -R "$SANDBOX" "$tree/plugins/fp-check" && cd "$tree" && make -f "$REPO/Makefile" workflow-tests'
+MAKE_WORKFLOW_TESTS='tree=$(mktemp -d "$SANDBOX/../tree.XXXXXX") && mkdir -p "$tree/plugins" && cp -R "$SANDBOX" "$tree/plugins/fp-check" && cd "$tree" && make -f "$REPO/Makefile" js-tests'
 
 run_mutation "every .test.mjs is emptied, so node --test asserts nothing" "L2" \
   'for f in "$SANDBOX"/tests/*.test.mjs; do printf "// emptied\n" >"$f"; done' \

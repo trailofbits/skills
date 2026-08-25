@@ -13,7 +13,7 @@ Layer 4 eval cost money.
 
 ```bash
 make check                                       # layers 1-3, what CI runs
-make workflow-tests                              # just the node --test half
+make js-tests                                    # just the node test half
 node --test plugins/fp-check/tests/*.test.mjs
 bats plugins/fp-check/tests/poc-lint.bats        # needs bats-core installed
 bash plugins/fp-check/tests/mutation-gate.sh     # not in CI; see "The gate"

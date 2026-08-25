@@ -1,0 +1,8 @@
+{
+  "name": "pr-review-toolkit",
+  "version": "0.0.1",
+  "description": "Eval-only stand-in for the pr-review-toolkit plugin: provides a review-pr skill so cases exercising the pr-improver entry can run inside the isolated eval workspace, where the real plugin is not installed.",
+  "author": {
+    "name": "Fixture Author"
+  }
+}

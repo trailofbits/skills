@@ -83,15 +83,39 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.13"
-      - name: Install pytest
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        # semgrep-rule-variant-creator runs its workflow script through node: the parse check,
+        # the schema validation, both .test.mjs suites and the whole mutation battery. They were
+        # relying on the runner image happening to ship node, so a change to that image would
+        # have taken the only checks that execute the script rather than read it. A guard in the
+        # suite turns that into a failure rather than a skip; this makes it not happen.
+        with:
+          node-version: "22"
+      - name: Install pytest, semgrep, PyYAML, and jsonschema
         # The rust-review / c-review test files are pytest-based.
         #
-        # pyyaml and jsonschema are required, not nice-to-have: fp-check's suite
-        # imports `yaml` at module scope to read its eval cases and `jsonschema`
-        # to validate the schemas its workflow scripts declare. Without them
-        # those files raise during collection rather than failing informatively.
-        # Keep in step with the Makefile's python-tests target.
-        run: python3 -m pip install pytest pyyaml jsonschema
+        # semgrep grades semgrep-rule-variant-creator's golden variant fixtures, which are
+        # otherwise checked only structurally: its grader skips when semgrep is absent, so
+        # without this the end-to-end evidence never runs anywhere but a contributor's laptop.
+        #
+        # Unpinned, like pytest above. Dependabot watches uv lockfiles and action SHAs, so a
+        # version written here would be invisible to it and would sit unchanged indefinitely —
+        # and a job grading against a years-stale semgrep looks like coverage while being worth
+        # less than none. A release that stops grading those two rules is also a result worth
+        # having rather than one to hold off: a parser moving behind Pro is the failure that
+        # plugin exists to catch.
+        #
+        # PyYAML and jsonschema are required by fp-check's suite at collection time
+        # to load eval cases and validate workflow schemas. Keep this list in step
+        # with the Makefile's python-tests target.
+        run: python3 -m pip install pytest semgrep pyyaml jsonschema
+      - name: Install uv
+        # c-review's scripts are PEP 723 and run under `uv run`; its parser tests
+        # fail rather than skip when uv is missing, on purpose — a skipped parser
+        # test leaves half of enumerate_units.py unexercised while the suite is green.
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Install toolchain dependencies
         # constant-time-analysis tests cross-compile C to aarch64 via
         # `clang --target=aarch64-unknown-linux-gnu`. Without the cross
@@ -129,9 +153,14 @@ jobs:
           # sys.path) preserves the sibling imports these suites rely on, and
           # --import-mode=importlib keeps c-review and rust-review from colliding on
           # their identically-named test_split.py.
+          #
+          # evals*/fixture is excluded, in step with the Makefile's python-tests target:
+          # those files are deliberately defective sample code a skill's eval measures
+          # against — property-based-testing's fixture raises FailedHealthCheck by design.
           set -uo pipefail
           mapfile -t dirs < <(
             find plugins -type f \( -name 'test_*.py' -o -name '*_test.py' \) \
+              -not -path '*/evals*/fixture/*' \
               -exec dirname {} \; | sort -u
           )
           if [ "${#dirs[@]}" -eq 0 ]; then
@@ -149,24 +178,17 @@ jobs:
           echo "Ran ${#dirs[@]} test directory/ies"
           exit "$failed"
 
-  workflow-tests:
-    name: Workflow logic tests
+  js-tests:
+    name: JS tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
         with:
           node-version: "22"
-      - name: Run workflow logic tests
-        # Mirrors the Makefile's workflow-tests target; keep the two in step. The
-        # Python contract layer runs in the python-tests job above — this job
-        # exists for the *.test.mjs logic/wiring layer, which nothing else runs,
-        # and for the guard that a plugin shipping workflows/ has tests at all.
-        #
-        # `node --test` exits 0 on a file with no test() calls and reports it as
-        # one passing test named after its path, so the TAP output is parsed
-        # rather than trusted: a file surfacing as its own top-level entry
-        # asserted nothing and fails the build by name.
-        run: make workflow-tests
+      - name: Discover and run plugin JS test suites
+        # Keep CI and local discovery identical, including the guard that a plugin
+        # shipping workflows/ also ships a logic/wiring harness (or records debt).
+        run: make js-tests

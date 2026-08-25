@@ -186,7 +186,8 @@ for i in $(seq 1 "$RUNS"); do
     continue
   fi
 
-  python3 "$HERE/scrub_capture.py" "$RUN_DIR/run.stream.jsonl" "$RUN_DIR/run.journal.jsonl"
+  uv run --no-project "$HERE/scrub_capture.py" \
+    "$RUN_DIR/run.stream.jsonl" "$RUN_DIR/run.journal.jsonl"
   cat >"$RUN_DIR/run.meta.json" <<JSON
 {
   "cli_version": "$CLI_VERSION",

@@ -65,7 +65,7 @@ to make it refuse instead.
 ## Testing
 
 ```bash
-make workflow-tests                              # node --test, the Layer 2 suites
+make js-tests                                    # node suites, including Layer 2
 cd plugins/fp-check && uv run --no-project --with pytest --with pyyaml \
   --with jsonschema python -m pytest tests -q
 bats plugins/fp-check/tests/poc-lint.bats

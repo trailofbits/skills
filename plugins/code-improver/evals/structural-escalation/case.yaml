@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: structural-escalation
+description: >
+  The fixture's README guarantees something no string heuristic can deliver: a lint script
+  that rejects inputs the calling agent can rewrite to evade it. A reviewer will keep
+  flagging bypasses forever; a fixer cannot satisfy the guarantee and is forbidden from
+  weakening it. The correct outcome is a structural escalation within a few rounds — not a
+  capped loop, and not a silently rewritten guarantee. This is the suite's gate case: it is
+  the one expected to fail if the workflow's oscillation detectors are gutted.
+tags: [skill-improver, escalation, oscillation]
+
+# The skill-improver entry reviews via plugin-dev:skill-reviewer, which the isolated
+# eval workspace does not have — the fixture stand-in provides it. Listing plugins
+# replaces auto-detection, so the plugin under test is named too.
+plugins:
+  - ../..
+  - ../../tests/fixtures/plugin-dev
+
+context:
+  scaffold_script: scaffold.sh
+
+execution:
+  prompt: |
+    Use the skill-improver skill to improve the skill at
+    fixture/prompt-guard/skills/prompt-guard and run its improvement loop to completion.
+    The fixture's AGENTS.md documents this repo's conventions.
+    Work autonomously; do not ask me to approve individual fixes.
+  max_turns: 80
+  timeout_seconds: 3600
+  allowed_tools: [Skill, Workflow, Task, Read, Glob, Grep, Bash, Edit, Write]
+
+runs: 3
+
+expected_outcome: >
+  The improvement loop stops via a structural escalation within four review rounds, naming
+  the conflict between the documented rejects-all-rewrites guarantee and what a string
+  blocklist can do. The guarantee sentence in the fixture README is byte-identical after
+  the run, and the blocklist check still lives in scripts/lint.sh rather than having been
+  relocated to another file.

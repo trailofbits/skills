@@ -72,7 +72,8 @@ bear -- cargo check
 bear -- cargo build   # if cargo check is insufficient
 
 # Option 2: compiledb
-pip install compiledb
+uv tool install compiledb
+# ensure uv's tool bin dir (~/.local/bin) is on PATH
 compiledb cargo build
 ```
 
@@ -106,7 +107,7 @@ mkdir -p /tmp/zeroize-audit/
 # Step 1: Extract build-relevant flags for the TU (as a bash array)
 FLAGS=()
 while IFS= read -r flag; do FLAGS+=("$flag"); done < <(
-  python {baseDir}/tools/extract_compile_flags.py \
+  uv run --no-project {baseDir}/tools/extract_compile_flags.py \
     --compile-db /path/to/build/compile_commands.json \
     --src /path/to/src/crypto.c --format lines)
 

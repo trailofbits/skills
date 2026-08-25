@@ -10,6 +10,21 @@ repeated as prose.
 
 ---
 
+## Negative proofs after a Stage 1 refusal
+
+Demonstrating that a guard **rejects** the payload is evidence for a refutation,
+not a PoC for the reported finding. It is optional because Stage 1 already
+decided the verdict, and it stays within four boundaries:
+
+- Drive the **entry point**. Calling the sink directly is still an exploit and
+  only shows that the sink is dangerous in isolation.
+- Assert the refusal, so the proof fails if the payload reaches the sink.
+- Do not place it beside confirmed-vulnerability or exploit framing.
+- If it unexpectedly reaches the sink, re-dispatch Stage 1 with that new fact;
+  do not report from the negative proof alone.
+
+---
+
 ## 1. Reimplementation — the failure that invalidates everything
 
 > This rule is what `poc-lint.sh` calls **Principle 5**, and the linter can only

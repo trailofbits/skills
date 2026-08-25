@@ -258,7 +258,7 @@ tools/diff_rust_mir.sh /tmp/crate.O0.mir /tmp/crate.O2.mir
 ```bash
 FLAGS=()
 while IFS= read -r flag; do FLAGS+=("$flag"); done < <(
-  python tools/extract_compile_flags.py \
+  uv run --no-project tools/extract_compile_flags.py \
     --compile-db build/compile_commands.json --src src/crypto.c --format lines)
 tools/emit_ir.sh --src src/crypto.c --out /tmp/crypto.O0.ll --opt O0 -- "${FLAGS[@]}"
 tools/emit_ir.sh --src src/crypto.c --out /tmp/crypto.O2.ll --opt O2 -- "${FLAGS[@]}"
@@ -295,5 +295,8 @@ Supported categories (C/C++ PoCs): `MISSING_SOURCE_ZEROIZE`, `OPTIMIZED_AWAY_ZER
 ## References
 
 - `skills/zeroize-audit/references/compile-commands.md`
+- `skills/zeroize-audit/references/detection-strategy.md`
 - `skills/zeroize-audit/references/ir-analysis.md`
 - `skills/zeroize-audit/references/mcp-analysis.md`
+- `skills/zeroize-audit/references/poc-generation.md`
+- `skills/zeroize-audit/references/rust-zeroization-patterns.md`

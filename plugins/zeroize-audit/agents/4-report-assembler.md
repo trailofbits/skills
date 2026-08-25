@@ -50,13 +50,12 @@ Read finding files from the working directory:
    - `asm-findings.json`
    - `cfg-findings.json`
    - `semantic-ir.json`
-4. **Sensitive objects**: `{workdir}/source-analysis/sensitive-objects.json`
-5. **MCP status**: `{workdir}/mcp-evidence/status.json` (if exists)
-6. **Preflight metadata**: `{workdir}/preflight.json`
+4. **Coverage gaps**: `{workdir}/rust-compiler-analysis/coverage-gaps.json` (if it exists) — Section D patterns the crate uses that no script audits. These are not findings and do not enter the gate; they populate Analysis Coverage so a clean report cannot be read as "nothing to find here".
+5. **Sensitive objects**: `{workdir}/source-analysis/sensitive-objects.json`
+6. **MCP status**: `{workdir}/mcp-evidence/status.json` (if exists)
+7. **Preflight metadata**: `{workdir}/preflight.json`
 
 Merge all findings into a single list. Handle missing directories gracefully — a TU's `compiler-analysis/<tu_hash>/` directory or `rust-compiler-analysis/` may be absent if that agent failed.
-
-Merge all findings into a single list. Handle missing directories gracefully — a TU's compiler-analysis directory may be absent if that agent failed.
 
 ### Step 2 — Apply Supersessions
 
@@ -74,7 +73,7 @@ For each supersession:
 Apply the confidence gating rules from the SKILL.md. Optionally use the mechanical enforcer:
 
 ```bash
-python {baseDir}/tools/mcp/apply_confidence_gates.py \
+uv run --no-project {baseDir}/tools/mcp/apply_confidence_gates.py \
   --findings <raw_findings_json> \
   --mcp-available <mcp_available> \
   --mcp-required-for-advanced <mcp_required_for_advanced>
@@ -247,6 +246,7 @@ Table between Findings and Superseded Findings:
 - Agents that ran successfully vs. failed
 - Features enabled/disabled and their impact
 - Agent 5 (PoC generator) status: success / failed
+- Unaudited patterns: read `{workdir}/rust-compiler-analysis/coverage-gaps.json` here — Step 1 does not run in `final` mode, so this section must read it itself — and list each `pattern`, `where`, and `why`. If the file is absent or empty, say that no coverage gaps were reported. Never omit this line: its absence reads as full coverage.
 
 #### Appendix: Evidence Files
 - Table mapping finding IDs to evidence file paths (relative to workdir) for auditor reference

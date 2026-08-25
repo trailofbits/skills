@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: termination-and-finalize
+description: >
+  Defects fixable in about two rounds, plus planted session-narration comments the
+  finalize phase must strip and a version that must be bumped exactly once. Measures the
+  termination invariant (the ledger's last entry is a clean review) and the finalize
+  residue removal. The planted narration strings are asserted by not_contains graders;
+  they demonstrably exist in the fixture (see this suite's README), so a zero cannot come
+  from grepping nothing.
+tags: [skill-improver, termination, finalize]
+
+# The skill-improver entry reviews via plugin-dev:skill-reviewer, which the isolated
+# eval workspace does not have — the fixture stand-in provides it. Listing plugins
+# replaces auto-detection, so the plugin under test is named too.
+plugins:
+  - ../..
+  - ../../tests/fixtures/plugin-dev
+
+context:
+  scaffold_script: scaffold.sh
+
+execution:
+  prompt: |
+    Use the skill-improver skill to improve the skill at
+    fixture/changelog-writer/skills/changelog-writer and run its improvement loop to
+    completion. Work autonomously; do not ask me to approve individual fixes.
+  max_turns: 80
+  timeout_seconds: 3600
+  allowed_tools: [Skill, Workflow, Task, Read, Glob, Grep, Bash, Edit, Write]
+
+runs: 3
+
+expected_outcome: >
+  The loop converges with the ledger's last round entry being a review with zero
+  critical/major findings. The planted narration ("round 3 moved this section here",
+  "iteration 2 restored it") is gone from SKILL.md and scripts/render.sh. plugin.json
+  reads exactly one increment above 1.0.0. If a run instead hits the cap, its final
+  response plainly says it did not converge and lists the open findings.

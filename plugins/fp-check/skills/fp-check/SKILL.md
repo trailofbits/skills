@@ -33,20 +33,6 @@ narrow or correct what Stage 1 returned.
 The gates in each stage are **code**, not instructions: a workflow script returns
 a status you cannot talk it out of.
 
-## When to Use
-
-- "Is this bug real?", "is this a true positive?", "is this a false positive?"
-- "Verify this finding", "check if this is exploitable"
-- "Is this already fixed?", "is this in scope for their bounty?"
-- Filtering findings from a scanner or an agentic discovery run before human review
-
-## When NOT to Use
-
-- Finding or hunting for bugs ("find bugs", "audit this code") — this verifies a
-  finding you already have
-- General code review for style, performance, or maintainability
-- When the user explicitly asks for a quick look without verification
-
 ## Step 0: Ask the two questions, then restate the claim
 
 **Ask both questions before Stage 1 runs**, not between stages. The user should
@@ -327,27 +313,14 @@ could not run; both are answered by closing the gap and re-running Stage 1.
 
 ### A negative PoC is legitimate; an exploit is not
 
-Demonstrating that the guard **rejects** the payload is different work from
-demonstrating the bug, and worth doing when the refusal is what the reporter
-disputes. Optional — Stage 1 already decided the verdict — and bounded:
-
-- It drives the **entry point**. A harness calling the sink directly is an exploit
-  whatever the file is named, and only shows the sink is dangerous in isolation,
-  which was never in question.
-- Its assertion is the refusal — the payload is rejected, the route has no caller,
-  the digests compare in constant time — so it **fails** if the payload ever
-  reaches the sink.
-- Never call it a PoC for the finding or place it beside a confirmed-vulnerability
-  framing. It is evidence for the refutation.
-- If it unexpectedly *does* reach the sink, that is a new fact for Stage 1, not a
-  licence to report. Re-dispatch with it as a layer.
+A negative proof may drive the entry point and assert that the guard rejects the
+payload; it never calls the sink or carries exploit framing. The full boundaries
+are in [poc-anti-patterns.md]({baseDir}/references/poc-anti-patterns.md).
 
 ### If you dispatched Stage 3 anyway
 
-It returns `BLOCKED` carrying `settledBy` — the Stage 1 status that settled it —
-and a `deliverable`. That `BLOCKED` is **not** a NEEDS MORE INFO: nothing is
-missing, and re-dispatching buys the same refusal twice. Report per the table
-above.
+It returns `BLOCKED` carrying `settledBy` and a `deliverable`. Nothing is missing,
+so re-dispatching buys the same refusal twice; report per the table above.
 
 ## Completion Gate
 

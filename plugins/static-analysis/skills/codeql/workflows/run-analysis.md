@@ -8,34 +8,20 @@ Two modes control analysis scope. Both use all installed packs — the differenc
 
 | Mode | Description | Suite Reference |
 |------|-------------|-----------------|
-| **Run all** | All queries from all installed packs via `security-and-quality` + `security-experimental` suites | [run-all-suite.md](../references/run-all-suite.md) |
+| **Run all** | The `security-and-quality` + `security-experimental` suites from every installed pack. Not literally every query in the packs — see [run-all-suite.md](../references/run-all-suite.md) | [run-all-suite.md](../references/run-all-suite.md) |
 | **Important only** | Security queries filtered by precision and security-severity threshold | [important-only-suite.md](../references/important-only-suite.md) |
 
 > **WARNING:** Do NOT pass pack names directly to `codeql database analyze` (e.g., `-- codeql/cpp-queries`). Each pack's `defaultSuiteFile` silently applies strict filters and can produce zero results. Always use an explicit suite reference.
 
 ---
 
-## Task System
+## The one gate
 
-Create these tasks on workflow start:
+Ask once, in Step 3, and present everything the run depends on together: scan mode, query
+packs, model packs, and threat model.
 
-```
-TaskCreate: "Select database and detect language" (Step 1)
-TaskCreate: "Select scan mode, check additional packs" (Step 2) - blockedBy: Step 1
-TaskCreate: "Select query packs, model packs, and threat models" (Step 3) - blockedBy: Step 2
-TaskCreate: "Execute analysis" (Step 4) - blockedBy: Step 3
-TaskCreate: "Process and report results" (Step 5) - blockedBy: Step 4
-```
-
-### Gates
-
-| Task | Gate Type | Cannot Proceed Until |
-|------|-----------|---------------------|
-| Step 2a | **SOFT GATE** | User selects scan mode. Skip only if user said "run all" or "important only" verbatim. |
-| Step 3a | **HARD GATE** | User confirms query pack selection. Always ask — no auto-skip. |
-| Step 3c | **HARD GATE** | User selects threat model. Always ask — no auto-skip. |
-
-**Auto-skip rules are per-gate.** Each gate documents its own skip condition. Choosing "full scan" or "run all" satisfies the scan mode gate (2a) but does not satisfy pack confirmation (3a) or threat model selection (3c).
+Let the user change any part, then proceed. If the user already specified something in
+their prompt, show it as chosen rather than asking again.
 
 ---
 
@@ -48,66 +34,72 @@ TaskCreate: "Process and report results" (Step 5) - blockedBy: Step 4
 
 **If `$DB_NAME` is already set** (parent skill handled database selection): validate it and proceed.
 
-**If `$DB_NAME` is not set:** discover databases by looking for `codeql-database.yml` marker files. Search inside `$OUTPUT_DIR` first, then fall back to the project root (top-level and one subdirectory deep).
+**If `$DB_NAME` is not set:** discover databases with `find_databases.sh`, which filters
+candidates through `codeql resolve database` so a marker file left behind by a failed
+build cannot be selected as though it were a database.
 
 ```bash
-# Skip discovery if DB_NAME was already resolved by parent skill
-if [ -z "$DB_NAME" ]; then
-  # Discover databases inside OUTPUT_DIR
-  FOUND_DBS=()
-  while IFS= read -r yml; do
-    FOUND_DBS+=("$(dirname "$yml")")
-  done < <(find "$OUTPUT_DIR" -maxdepth 2 -name "codeql-database.yml" 2>/dev/null)
-
-  # Fallback: search project root (top-level and one subdir deep)
-  if [ ${#FOUND_DBS[@]} -eq 0 ]; then
-    while IFS= read -r yml; do
-      FOUND_DBS+=("$(dirname "$yml")")
-    done < <(find . -maxdepth 3 -name "codeql-database.yml" -not -path "*/\.*" 2>/dev/null)
+# Discovery and selection must share a block: an array built in an earlier Bash call is
+# gone by this one, and an empty FOUND_DBS reads as "no database" for a project that has
+# one. The script is what SKILL.md's Database Discovery section calls too, so the search
+# depth and the validity filter are defined once.
+if [ -z "${DB_NAME:-}" ]; then
+  # Command substitution, not `done < <(...)`: a process substitution discards the script's
+  # exit status, so exit 2 ("codeql not on this shell's PATH" — a fresh shell each block,
+  # so the preflight's PATH does not carry) would arrive here as an empty list and be
+  # reported as "No CodeQL database found" for a project that has several.
+  if ! DB_LIST=$("{baseDir}/scripts/find_databases.sh" "${OUTPUT_DIR:-.}" .); then
+    echo "ERROR: database discovery failed — see the message above" >&2
+    exit 1
   fi
 
-  if [ ${#FOUND_DBS[@]} -eq 0 ]; then
-    echo "ERROR: No CodeQL database found in $OUTPUT_DIR or project root"
+  FOUND_DBS=()
+  while IFS= read -r db; do
+    [ -n "$db" ] || continue
+    FOUND_DBS+=("$db")
+  done <<<"$DB_LIST"
+
+  if [ "${#FOUND_DBS[@]}" -eq 0 ]; then
+    echo "ERROR: No CodeQL database found in $OUTPUT_DIR or project root" >&2
     exit 1
-  elif [ ${#FOUND_DBS[@]} -eq 1 ]; then
+  elif [ "${#FOUND_DBS[@]}" -eq 1 ]; then
     DB_NAME="${FOUND_DBS[0]}"
   else
-    # Multiple databases found — present to user
-    # Use AskUserQuestion with each DB's path and language
-    # SKIP if user already specified which database in their prompt
+    # More than one: select with AskUserQuestion, at most four options — the three most
+    # recent plus "Build a new database", the rest named in the prompt text. Skip the
+    # prompt when the user already said which database to use.
+    #
+    # DB_NAME stays unset here on purpose, and the check below turns that into an error.
+    # Falling through to FOUND_DBS[0] would analyse whichever database `find` happened to
+    # return first — a different language or a stale build, chosen without the user ever
+    # being told there was a choice. The `:` is required: an else branch of only comments
+    # is a bash syntax error.
+    :
   fi
+fi
+
+if [ -z "${DB_NAME:-}" ]; then
+  echo "ERROR: more than one database found. Ask which one, then re-run this block with DB_NAME set." >&2
+  exit 1
 fi
 
 CODEQL_LANG=$(codeql resolve database --format=json -- "$DB_NAME" | jq -r '.languages[0]')
 echo "Using: $DB_NAME (language: $CODEQL_LANG)"
 ```
 
-**When multiple databases are found**, use `AskUserQuestion` to let user select — list each database with its path and language. **Skip `AskUserQuestion` if the user already specified which database to use in their prompt.**
-
-If multi-language database, ask which language to analyze.
+If the database holds more than one language, ask which to analyze.
 
 ---
 
-### Step 2: Select Scan Mode, Check Additional Packs
+### Step 2: Gather What the Run Depends On
 
 **Entry:** Step 1 complete (`DB_NAME` and `CODEQL_LANG` set)
-**Exit:** Scan mode selected; all available packs (official, ToB, community) checked for installation status; model packs detected
+**Exit:** Scan mode, installed packs, and model packs determined. Nothing presented to the user yet.
 
-#### 2a: Select Scan Mode
+Collect everything here and present it as one plan in Step 3. Default the scan mode to
+**run all** unless the user's prompt says otherwise.
 
-**Skip only if user said "run all" or "important only" in their prompt.** "Full scan", "scan", or "analyze" do NOT count — ask.
-
-```
-header: "Scan Mode"
-question: "Which scan mode should be used?"
-options:
-  - label: "Run all (Recommended)"
-    description: "Maximum coverage — all queries from all installed packs"
-  - label: "Important only"
-    description: "Security vulnerabilities only — medium-high precision, security-severity threshold"
-```
-
-#### 2b: Query Packs
+#### 2a: Query Packs
 
 For each pack available for the detected language (see [ruleset-catalog.md](../references/ruleset-catalog.md)):
 
@@ -123,7 +115,7 @@ For each pack available for the detected language (see [ruleset-catalog.md](../r
 
 Check if installed (`codeql resolve qlpacks | grep -i "<PACK_NAME>"`). If not, ask user to install or ignore.
 
-#### 2c: Detect Model Packs
+#### 2b: Detect Model Packs
 
 Search three locations for data extension model packs:
 1. **In-repo model packs** — `qlpack.yml`/`codeql-pack.yml` with `dataExtensions`
@@ -134,52 +126,39 @@ Record all detected packs for Step 3.
 
 ---
 
-### Step 3: Select Query Packs and Model Packs
+### Step 3: Confirm the Plan
 
-**Entry:** Step 2 complete (scan mode, pack availability, and model packs all determined)
-**Exit:** User confirmed query packs, model packs, and threat model selection; all flags built (`THREAT_MODEL_FLAG`, `MODEL_PACK_FLAGS`, `ADDITIONAL_PACK_FLAGS`)
+**Entry:** Step 2 complete (mode, pack availability, and model packs all determined)
+**Exit:** User confirmed; flag arrays built (`THREAT_MODEL_FLAGS`, `MODEL_PACK_FLAGS`, `ADDITIONAL_PACK_FLAGS`)
 
-> **CHECKPOINT** — Present available packs to user for confirmation.
-> **Always ask. Do not auto-skip.**
+Present the whole plan in one `AskUserQuestion`, defaults filled in, and let the user
+change any part before proceeding:
 
-#### 3a: Confirm Query Packs
+```
+## CodeQL Analysis Plan
 
-**Important-only mode:** Inform user all installed packs included with filtering. Proceed to 3b.
+**Database:** $DB_NAME (language: $CODEQL_LANG)
+**Scan mode:** Run all | Important only
+**Query packs:** <installed packs — official, Trail of Bits, Community>
+**Model packs:** <detected packs, or "None">
+**Threat model:** Remote only (default) | + Local | All sources
 
-**Run-all mode:** Use `AskUserQuestion` to confirm "Use all" or "Select individually". Always ask — the user needs to see which packs will run.
+Change anything, or say proceed.
+```
 
-#### 3b: Select Model Packs (if any detected)
+Defaults, all overridable: **run all**, every installed pack, every detected model pack,
+and **remote-only** threat models. Remote-only matches CodeQL's default. Widen it for CLI
+tools, file parsers, and config readers, where the sources are `local` rather than
+`remote`. See [threat-models.md](../references/threat-models.md).
 
-**Skip if no model packs detected in Step 2c.**
+Build the flags from the answer as arrays: `THREAT_MODEL_FLAGS=()` for remote-only,
+`THREAT_MODEL_FLAGS=(--threat-model local)`, and so on. See Step 4 for why arrays rather
+than strings.
 
-Use `AskUserQuestion`: "Use all (Recommended)" / "Select individually" / "Skip".
-
-**Notes:**
+**Model pack flags:**
 - In-repo standalone extensions (`.yml`) are auto-discovered — pass source directory via `--additional-packs`
 - In-repo model packs (with `qlpack.yml`) need parent directory via `--additional-packs`
 - Installed model packs use `--model-packs`
-
-#### 3c: Select Threat Models
-
-Threat models control which input sources CodeQL treats as tainted. See [threat-models.md](../references/threat-models.md).
-
-**Always ask.** Do not default to "remote only" without user confirmation. Use `AskUserQuestion`:
-
-```
-header: "Threat Models"
-question: "Which input sources should CodeQL treat as tainted?"
-options:
-  - label: "Remote only (Recommended)"
-    description: "Default — HTTP requests, network input"
-  - label: "Remote + Local"
-    description: "Add CLI args, local files"
-  - label: "All sources"
-    description: "Remote, local, environment, database, file"
-  - label: "Custom"
-    description: "Select specific threat models individually"
-```
-
-Build the flag: `THREAT_MODEL_FLAG=""` (remote only needs no flag), `--threat-model local`, etc.
 
 ---
 
@@ -218,29 +197,68 @@ RULESETS
 **Run-all mode:** Generate the custom `.qls` suite using the template in [run-all-suite.md](../references/run-all-suite.md).
 
 ```bash
+set -euo pipefail
+
 RAW_DIR="$OUTPUT_DIR/raw"
 RESULTS_DIR="$OUTPUT_DIR/results"
 mkdir -p "$RAW_DIR" "$RESULTS_DIR"
-SUITE_FILE="$RAW_DIR/<mode>.qls"
+# SCAN_MODE is "run-all" or "important-only", chosen in Step 3.
+SUITE_FILE="$RAW_DIR/${SCAN_MODE}.qls"
+```
 
-# Verify suite resolves correctly before running
-codeql resolve queries "$SUITE_FILE" | wc -l
+The generation scripts above end by running `verify_query_suite.py`, so a suite produced
+here is already checked. **Run it explicitly only if the suite came from somewhere else** —
+reused from a previous run, or hand-edited:
+
+```bash
+uv run {baseDir}/scripts/verify_query_suite.py "$SUITE_FILE"
 ```
 
 #### Run analysis
 
 Output goes to `$RAW_DIR/results.sarif` (unfiltered). The final results are produced in Step 5.
 
+Build the optional flags as **arrays**, not strings. A quoted empty string becomes an
+empty argument that CodeQL rejects, and leaving a string unquoted so it can be empty also
+lets `$DB_NAME` split on spaces. An array expands to nothing when empty and to each
+element intact otherwise.
+
+Expand them as `"${ARRAY[@]+"${ARRAY[@]}"}"`, not `"${ARRAY[@]}"`. Before bash 4.4 an
+empty array under `set -u` is an unbound variable, so on macOS's `/bin/bash` 3.2 the plain
+form aborts with `THREAT_MODEL_FLAGS[@]: unbound variable` before CodeQL runs — for the
+documented default, a user who selected no threat models and no model packs.
+
+**Declare the three arrays and the scalars in this block, filled in with the choices from
+Step 3.** Nothing survives from Step 3 — see
+[Each Bash call is a fresh shell](../SKILL.md#each-bash-call-is-a-fresh-shell). Leaving an
+array empty is correct only when Step 3 selected nothing for it.
+
 ```bash
-codeql database analyze $DB_NAME \
+set -euo pipefail
+
+DB_NAME="${DB_NAME:?set this to the database selected in Step 1}"
+RAW_DIR="${RAW_DIR:-$OUTPUT_DIR/raw}"
+SUITE_FILE="${SUITE_FILE:?set this to the .qls written in Step 2}"
+mkdir -p "$RAW_DIR"
+
+# Fill these from the Step 3 answers. Empty means "the user chose none".
+THREAT_MODEL_FLAGS=()        # e.g. (--threat-model local --threat-model environment)
+MODEL_PACK_FLAGS=()          # e.g. (--model-packs myorg/java-models)
+ADDITIONAL_PACK_FLAGS=()     # e.g. (--additional-packs ./codeql-extensions)
+
+codeql database analyze "$DB_NAME" \
   --format=sarif-latest \
   --output="$RAW_DIR/results.sarif" \
   --threads=0 \
-  $THREAT_MODEL_FLAG \
-  $MODEL_PACK_FLAGS \
-  $ADDITIONAL_PACK_FLAGS \
+  ${THREAT_MODEL_FLAGS[@]+"${THREAT_MODEL_FLAGS[@]}"} \
+  ${MODEL_PACK_FLAGS[@]+"${MODEL_PACK_FLAGS[@]}"} \
+  ${ADDITIONAL_PACK_FLAGS[@]+"${ADDITIONAL_PACK_FLAGS[@]}"} \
   -- "$SUITE_FILE"
 ```
+
+`set -e` matters here: a failed analysis (out of memory, an unresolvable model pack) leaves
+`raw/results.sarif` truncated or absent, and without it Step 5 copies that file forward and
+the report prints "Total findings: 0" for a scan that never completed.
 
 **Flag reference for model packs:**
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # /// script
-# requires-python = ">=3.9"
+# requires-python = ">=3.10"
 # dependencies = ["pyyaml>=6.0"]
 # ///
 """
@@ -11,7 +11,7 @@ data that should have been zeroized. PoCs exit 0 when the secret persists
 (exploitable) and exit 1 when the data has been wiped (not exploitable).
 
 Usage:
-  python generate_poc.py \\
+  uv run --no-project generate_poc.py \\
     --findings <findings.json> \\
     --compile-db <compile_commands.json> \\
     --out <output_dir> \\
@@ -83,7 +83,9 @@ def _load_config(config_path: str | None) -> dict[str, Any]:
         return {}
     path = Path(config_path)
     if yaml is None:
-        sys.stderr.write("Error: --config requires pyyaml. Install with: pip install pyyaml\n")
+        sys.stderr.write(
+            "Error: --config requires pyyaml. run via uv run --no-project, which provides pyyaml\n"
+        )
         sys.exit(1)
     if not path.exists():
         sys.stderr.write(f"Error: config file not found: {path}\n")

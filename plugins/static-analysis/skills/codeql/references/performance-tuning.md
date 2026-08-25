@@ -1,64 +1,31 @@
 # Performance Tuning
 
-## Memory Configuration
+## Memory, Threads, and Timeouts
 
-### CODEQL_RAM Environment Variable
+All three are set on `codeql database analyze "$DB_NAME"`. `CODEQL_RAM` is an environment
+variable in MB; the other two are flags.
 
-Control maximum heap memory (in MB):
-
-```bash
-# 48GB for large codebases
-CODEQL_RAM=48000 codeql database analyze codeql.db ...
-
-# 16GB for medium codebases
-CODEQL_RAM=16000 codeql database analyze codeql.db ...
-```
-
-**Guidelines:**
-| Codebase Size | Recommended RAM |
-|---------------|-----------------|
-| Small (<100K LOC) | 4-8 GB |
-| Medium (100K-1M LOC) | 8-16 GB |
-| Large (1M+ LOC) | 32-64 GB |
-
-## Thread Configuration
-
-### Analysis Threads
-
-```bash
-# Use all available cores
-codeql database analyze codeql.db --threads=0 ...
-
-# Use specific number
-codeql database analyze codeql.db --threads=8 ...
-```
-
-**Note:** `--threads=0` uses all available cores. For shared machines, use explicit count.
-
-## Query-Level Timeouts
-
-Prevent individual queries from running indefinitely:
-
-```bash
-# Set per-query timeout (in milliseconds)
-codeql database analyze codeql.db --timeout=600000 ...
-```
-
-A 10-minute timeout (`600000`) catches runaway queries without killing legitimate complex analysis. Taint-tracking queries on large codebases may need longer.
+| Setting | Value | When |
+|---------|-------|------|
+| `CODEQL_RAM` | `4000`–`8000` | Small codebase, under 100K LoC |
+| | `8000`–`16000` | Medium, 100K–1M LoC |
+| | `32000`–`64000` | Large, 1M+ LoC |
+| `--threads` | `0` | Use every core — the default choice |
+| | `8` | Shared machine; leave headroom for other work |
+| `--timeout` | `600000` | Milliseconds. Ten minutes catches a runaway query without killing legitimate deep taint tracking |
 
 ## Evaluator Diagnostics
 
-When analysis is slow, use `--evaluator-log` to identify which queries consume the most time:
+When analysis is slow, `--evaluator-log` identifies which queries consume the time:
 
 ```bash
-codeql database analyze codeql.db \
-  --evaluator-log=evaluator.log \
+codeql database analyze "$DB_NAME" \
+  --evaluator-log="$OUTPUT_DIR/evaluator.log" \
   --format=sarif-latest \
-  --output=results.sarif \
-  -- codeql/python-queries:codeql-suites/python-security-extended.qls
+  --output="$OUTPUT_DIR/raw/results.sarif" \
+  -- "$SUITE_FILE"
 
-# Summarize the log
-codeql generate log-summary evaluator.log --format=text
+codeql generate log-summary "$OUTPUT_DIR/evaluator.log" --format=text
 ```
 
 The summary shows per-query timing and tuple counts. Queries producing millions of tuples are likely the bottleneck.
@@ -75,7 +42,7 @@ Check available space before starting:
 
 ```bash
 df -h .
-du -sh codeql_*.db 2>/dev/null
+du -sh "$OUTPUT_DIR"/*.db 2>/dev/null
 ```
 
 ## Caching Behavior
@@ -96,7 +63,7 @@ CodeQL caches query evaluation results inside the database directory. Subsequent
 
 ```bash
 # Clear evaluation cache
-codeql database cleanup codeql_1.db
+codeql database cleanup "$DB_NAME"
 ```
 
 ## Troubleshooting Performance

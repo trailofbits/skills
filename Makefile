@@ -3,7 +3,7 @@
 # being trustworthy and everyone goes back to pushing and waiting.
 #
 # CI jobs covered: Lint (pre-commit: ruff, shellcheck, shfmt), Shell (bats),
-# Python tests, Workflow tests, and Validate plugins and skills.
+# Python tests, JS tests, and Validate plugins and skills.
 #
 # RUFF_VERSION must match the ruff-pre-commit rev in .pre-commit-config.yaml. The
 # validator self-test asserts that; bump both together.
@@ -11,10 +11,11 @@ RUFF_VERSION := 0.14.13
 
 .DEFAULT_GOAL := check
 .NOTPARALLEL:
-.PHONY: check self-test lint shell bats shell-suites python-tests workflow-tests validate fix help
+.PHONY: check self-test eval-self-tests lint shell bats shell-suites python-tests \
+	js-tests evals validate fix help
 
 ## check: most of what CI runs (this is the one you want)
-check: self-test lint shell bats python-tests workflow-tests validate
+check: self-test eval-self-tests lint shell bats python-tests js-tests validate
 	@echo ""
 	@echo "✓ check passed — most of CI, but not the loadability checks, the"
 	@echo "  version-increment check, or the non-ruff pre-commit hooks."
@@ -26,6 +27,39 @@ self-test:
 	@echo "→ validator self-test"
 	@uv run --no-project python3 .github/scripts/validate_plugin_metadata.py --self-test
 
+## eval-self-tests: prove each plugin's eval harness still measures what it claims
+# Same reasoning as the target above, applied to evals rather than validators. An
+# eval that has stopped discriminating reports a passing skill forever.
+#
+# Discovered rather than listed, so a new plugin's evals are covered the day they
+# land. Only scripts advertising --self-test are invoked: running a trigger eval for
+# real costs dozens of Claude sessions, so this must never shell out to one blindly.
+# Zero found is a failure — these guards are why an eval result can be trusted.
+#
+# The glob is 'evals*', not 'evals', so it also covers 'evals-extra' — harnesses whose
+# real sweeps are too slow or too expensive to belong in any automated run and are
+# invoked by hand. Their --self-test is still free and still the thing that proves the
+# harness discriminates, so it stays in `check` even though the sweep never runs here.
+#
+# Run under `uv run`, which puts a real interpreter ahead of the modern-python
+# plugin's `python3` shim (#207). Discovery is repo-wide, so a bare `python3` in any
+# one plugin's harness would fail the whole build. Harnesses should still call uv
+# themselves — that is what makes them runnable by hand, which is how sweeps are run.
+eval-self-tests:
+	@echo "→ eval self-tests"
+	@scripts=$$(find plugins -type f -path '*/evals*/*.sh' \
+		-exec grep -l -- '--self-test' {} \; | sort); \
+	if [ -z "$$scripts" ]; then \
+		echo "  ✗ no eval self-tests found — discovery is broken"; \
+		exit 1; \
+	fi; \
+	for s in $$scripts; do \
+		echo "  → $$s"; \
+		uv run --no-project bash "$$s" --self-test >/dev/null \
+			|| { echo "  ✗ $$s failed"; exit 1; }; \
+	done; \
+	echo "  ran $$(printf '%s\n' $$scripts | wc -l | tr -d ' ') eval self-test(s)"
+
 ## lint: ruff check + format, pinned to the version CI uses
 lint:
 	@echo "→ ruff check"
@@ -36,10 +70,15 @@ lint:
 ## shell: shellcheck + shfmt over every shell script
 # plugins/ AND .github/scripts/ — globbing only plugins/ left the repo's own scripts
 # unchecked locally, which is where they are most likely to be edited.
+#
+# No --severity filter, deliberately. The pre-commit hook CI runs is plain
+# `shellcheck -x`, so a --severity=warning here hides every info-level finding that
+# will still fail the Lint job — SC1091 (unresolvable `source`) most of all, which is
+# exactly the class a local run should catch. That gap shipped a red build once.
 shell:
 	@echo "→ shellcheck"
 	@find plugins .github/scripts -name '*.sh' -type f \
-		-exec shellcheck --severity=warning -x {} +
+		-exec shellcheck -x {} +
 	@echo "→ shfmt"
 	@find plugins .github/scripts -name '*.sh' -type f -exec shfmt -i 2 -ci -d {} +
 
@@ -56,11 +95,9 @@ bats:
 	echo "$$files" | xargs bats
 
 ## shell-suites: run plugin shell regression suites (CI only, see note)
-# Deliberately NOT in `check`. zeroize-audit's suite pipes a script to `python3 -`,
-# which the modern-python plugin's shim intercepts and rejects, so this target fails
-# on any machine with that plugin installed — for reasons that have nothing to do
-# with the code under test. CI has no shims and runs it there. See the tracking
-# issue: #207.
+# Deliberately NOT in `check` because it is slow, not because it is broken: it passes
+# with modern-python >= 1.6.0 installed. A machine still on the 1.5.3 shim will fail
+# it, since that version refuses the `python3 -` zeroize-audit's suite uses (#207).
 #
 # find, not a glob: `**` needs globstar and degrades to `*` without it, so a suite
 # one directory deeper would stop running with no signal.
@@ -85,9 +122,17 @@ shell-suites:
 # during collection rather than failing informatively, and a collection error in
 # one directory is easy to read as "nothing to run here". Keep this list in step
 # with the CI job's pip install.
+#
+# evals*/fixture is excluded: those files are deliberately defective sample code
+# that a skill's eval measures against, so they are meant to fail — property-based-
+# testing's fixture ships a vacuous `assume()` test that raises FailedHealthCheck by
+# design. The glob covers 'evals-extra' as well, and it has to: drop the wildcard and
+# pytest collects that fixture and fails the build. The zero-discovery guard below
+# stays armed, so this cannot silently empty the run.
 python-tests:
 	@echo "→ python tests"
 	@dirs=$$(find plugins -type f \( -name 'test_*.py' -o -name '*_test.py' \) \
+		-not -path '*/evals*/fixture/*' \
 		-exec dirname {} \; | sort -u); \
 	if [ -z "$$dirs" ]; then \
 		echo "  ✗ no Python test files found — discovery is broken"; \
@@ -103,110 +148,92 @@ python-tests:
 	echo "  ran $$ran test director(ies)"; \
 	exit $$failed
 
-## workflow-tests: logic tests for dynamic-workflow plugins, plus the missing-tests guard
-##
-## Free: no model, no API key. `python-tests` above already runs the contract
-## layer (a plugin's `tests/test_*.py`), so this target exists for the two things
-## it cannot do: run `node --test` over the `*.test.mjs` logic/wiring layer, and
-## fail a plugin that ships `workflows/` with no tests at all.
-##
-## Both halves must assert that they asserted something. pytest does so on its
-## own (exit 5, "no tests collected"); `node --test` does NOT — it exits 0 on a
-## file containing no test() calls and, worse, reports that file as ONE PASSING
-## TEST named after its path. So a plain "test count > 0" check is satisfied by
-## five empty files reporting five passes. The TAP reporter is parsed instead:
-## any file that surfaces as its own top-level entry ran nothing and fails by name.
-##
-## `set -e` is load-bearing. The recipe is ONE shell invocation with `;` between
-## stages, so make reports the status of the LAST command; without it a failing
-## node stage followed by a passing one exits 0.
-
-# Plugins that ship workflows/ without logic tests. This is recorded DEBT, not an
-# exemption: whatever tests they do have still run, only the missing-category
-# check is downgraded to a warning. A plugin NOT named here that ships
-# workflows/ with no *.test.mjs fails the build, which is the point.
+## js-tests: node suites a plugin ships as *.test.mjs
+# Three guards, because workflow coverage, discovery, and execution fail independently.
+# Every dynamic-workflow plugin needs a logic/wiring harness unless it is recorded as
+# existing debt below. An empty JS glob is a failure, as in python-tests. And
+# `node <file>` runs a file that asserts nothing just as happily as one that asserts
+# everything — the same shape python-tests moved away from — so each suite must also
+# report at least one passing assertion.
 #
-# All four were merged before this target existed and have no tests/ directory at
-# all. Removing a name from this list is how that debt gets paid.
+# Two report formats count, because the repo has two kinds of suite and a guard that
+# only knew one would fail an honest suite for using the other convention:
+#   `<mark> pass <n>`        — node:test, as semgrep-rule-variant-creator writes them
+#   `<n> assertions passed`  — a hand-rolled suite, as git-cleanup writes them
+# A suite that stops running its own body stops emitting either line.
+#
+# The node:test branch is deliberately byte-agnostic about the leading mark. That mark
+# is a multi-byte character, and this recipe runs under /bin/sh in whatever locale the
+# machine has; `^.` matches one BYTE in the C locale, so anchoring on it passes locally
+# and fails in CI.
 WORKFLOW_TESTS_DEBT := audit-context-building insecure-defaults spec-to-code-compliance variant-analysis
 
-workflow-tests:
-	@echo "→ workflow logic tests"
-	@set -e; \
-	dirs=$$(find plugins -mindepth 2 -maxdepth 2 -type d -name workflows); \
-	if [ -z "$$dirs" ]; then \
-		echo "✗ no plugins/*/workflows/ directory found, so this target — whose entire" >&2; \
-		echo "  purpose is running their tests — would have reported success having run" >&2; \
-		echo "  none. -mindepth/-maxdepth 2 is load-bearing and fragile: several plugins" >&2; \
-		echo "  use the unrelated skills/<skill>/workflows/ convention, and dynamic-workflow" >&2; \
-		echo "  placement is early-access surface. If it has moved, fix the find above." >&2; \
+js-tests:
+	@echo "→ js tests"
+	@workflow_dirs=$$(find plugins -mindepth 2 -maxdepth 2 -type d -name workflows); \
+	if [ -z "$$workflow_dirs" ]; then \
+		echo "  ✗ no plugins/*/workflows/ directories found — discovery is broken"; \
 		exit 1; \
 	fi; \
-	ran=0; \
-	for d in $$dirs; do \
-		plugin=$$(dirname $$d); \
-		name=$$(basename $$plugin); \
-		mjs=$$(find $$plugin/tests -maxdepth 1 -name '*.test.mjs' 2>/dev/null || true); \
-		known_debt=0; \
-		for known in $(WORKFLOW_TESTS_DEBT); do \
-			if [ "$$name" = "$$known" ]; then known_debt=1; fi; \
-		done; \
-		if [ -z "$$mjs" ]; then \
+	for d in $$workflow_dirs; do \
+		plugin=$${d%/workflows}; \
+		name=$${plugin#plugins/}; \
+		harnesses=""; \
+		if [ -d "$$plugin/tests" ]; then \
+			harnesses=$$(find "$$plugin/tests" -maxdepth 1 -type f \
+				\( -name '*.test.mjs' -o -name 'test_workflow*.py' \
+				-o -name 'run_workflow_tests.sh' \)); \
+		fi; \
+		if [ -z "$$harnesses" ]; then \
+			known_debt=0; \
+			for known in $(WORKFLOW_TESTS_DEBT); do \
+				if [ "$$name" = "$$known" ]; then known_debt=1; fi; \
+			done; \
 			if [ "$$known_debt" -eq 1 ]; then \
-				echo "  ⚠ $$plugin: ships workflows/ with no logic tests (known debt, see WORKFLOW_TESTS_DEBT)"; \
+				echo "  ⚠ $$plugin has no workflow logic harness (known debt)"; \
 			else \
-				echo "✗ $$plugin ships workflows/ but has no *.test.mjs logic tests" >&2; \
-				echo "  A schema-and-shape contract test cannot tell you whether a gate's" >&2; \
-				echo "  answer is ever read. Add tests/ or add the plugin to" >&2; \
-				echo "  WORKFLOW_TESTS_DEBT with a reason." >&2; \
+				echo "  ✗ $$plugin ships workflows/ but has no workflow logic harness"; \
 				exit 1; \
 			fi; \
-			continue; \
 		fi; \
-		echo "  $$plugin: node --test $$(echo $$mjs | wc -w | tr -d ' ') file(s)"; \
-		tap=$$(mktemp); \
-		if ! node --test --test-reporter=tap $$mjs >"$$tap" 2>&1; then \
-			sed 's/^/    /' "$$tap" >&2; rm -f "$$tap"; \
-			echo "✗ $$plugin: node --test failed" >&2; exit 1; \
+	done; \
+	files=$$(find plugins -type f -name '*.test.mjs' | sort); \
+	if [ -z "$$files" ]; then \
+		echo "  ✗ no .test.mjs files found — discovery is broken"; \
+		exit 1; \
+	fi; \
+	failed=0; ran=0; \
+	for f in $$files; do \
+		echo "  → $$f"; \
+		out=$$(node "$$f" 2>&1) || failed=1; \
+		echo "$$out"; \
+		if ! echo "$$out" | grep -qE '(^[1-9][0-9]* assertions passed$$|^[^0-9]*[[:space:]]pass [1-9][0-9]*$$)'; then \
+			echo "  ✗ $$f reported no passing assertions — it ran nothing"; \
+			failed=1; \
 		fi; \
-		total=$$(sed -n 's/^# tests \([0-9][0-9]*\)$$/\1/p' "$$tap" | tail -1); \
-		names=$$(sed -n 's/^ok [0-9][0-9]* - //p' "$$tap"); \
-		bare=""; \
-		for f in $$mjs; do \
-			if printf '%s\n' "$$names" | grep -Fxq "$$f"; then bare="$$bare $$f"; fi; \
-		done; \
-		if [ -n "$$bare" ]; then \
-			rm -f "$$tap"; \
-			echo "✗ $$plugin: these files declared no test():$$bare" >&2; \
-			echo "  node reports such a file as one passing test named after itself and" >&2; \
-			echo "  exits 0, so the suite would go green having asserted nothing." >&2; \
-			exit 1; \
-		fi; \
-		case "$$total" in \
-			'' | *[!0-9]*) \
-				rm -f "$$tap"; \
-				echo "✗ $$plugin: no '# tests N' line in node's TAP output, so the test" >&2; \
-				echo "  count could not be read and a zero-assertion run would pass." >&2; \
-				echo "  node's reporter format has changed; fix the parse in the Makefile." >&2; \
-				exit 1;; \
-		esac; \
-		if [ "$$total" -eq 0 ]; then \
-			rm -f "$$tap"; \
-			echo "✗ $$plugin: node --test ran 0 tests" >&2; exit 1; \
-		fi; \
-		rm -f "$$tap"; \
-		echo "    $$total test(s) passed"; \
 		ran=$$((ran + 1)); \
 	done; \
-	if [ "$$ran" -eq 0 ]; then \
-		echo "⚠ every plugin shipping workflows/ is on WORKFLOW_TESTS_DEBT, so no logic"; \
-		echo "  test ran. That is the recorded state, not a discovery failure."; \
+	echo "  ran $$ran js suite(s)"; \
+	exit $$failed
+
+## evals: run a plugin's eval suite against the real model (COSTS API CALLS)
+# Deliberately NOT in `check` and not in CI. Pass PLUGIN=<name> to pick the suite, and
+# ARGS='--case 01-mixed-repo --arm with' to narrow a run while iterating.
+PLUGIN ?= git-cleanup
+ARGS ?=
+evals:
+	@if [ ! -x plugins/$(PLUGIN)/evals/run-evals.sh ]; then \
+		echo "✗ plugins/$(PLUGIN)/evals/run-evals.sh not found or not executable"; \
+		exit 1; \
 	fi
+	@echo "→ evals: $(PLUGIN) (this makes real API calls)"
+	@bash plugins/$(PLUGIN)/evals/run-evals.sh $(ARGS)
 
 ## validate: plugin metadata, structure, and cross-references
-# Scans every plugin. CI scopes to the plugins a PR touches, so local is a strict
-# superset and cannot pass where CI fails. Do not narrow it to match: the
-# zero-reference guard only arms on a full scan.
+# Scans every plugin, exactly as CI does — the validator is never scoped down there;
+# `--base-ref` only turns on the version-increment check, which is the one part limited
+# to the plugins a branch touched. Do not add a scoping flag here: the zero-reference
+# guard only arms on a full scan, so a narrowed run would disarm it.
 validate:
 	@echo "→ validate plugin metadata"
 	@uv run --no-project python3 .github/scripts/validate_plugin_metadata.py
