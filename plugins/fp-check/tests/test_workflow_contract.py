@@ -552,6 +552,12 @@ GATE_FIELD_CONTRACTS = [
     # discarded whole. It is pinned rather than exempt now, and HISTORY_SCHEMA
     # requires it.
     ("triage-static.js", "upstreamFixStands", "HISTORY_SCHEMA", ("historyVerdict",), set()),
+    # `fixed` moved out of `upstreamFixStands` and into `fixedAnswer` when the
+    # answer started being canonicalised, and the row above grades only the
+    # fields the function it names dereferences. Without this row the pin on the
+    # one field the retraction actually turns on would have quietly left the
+    # table while every assertion stayed green.
+    ("triage-static.js", "fixedAnswer", "HISTORY_SCHEMA", ("historyVerdict",), set()),
     ("triage-static.js", "decideVerdict", "VERDICT_SCHEMA", ("result",), set()),
     # The brocard pre-gate and its BROCARD_SCHEMA row are gone as of 2.0.0. The
     # four tests are guidance in references/dismissal-grounds.md now, read by the
@@ -1048,6 +1054,46 @@ def test_the_findings_cap_default_matches_max_findings():
     assert const.group(1) == default.group(1), (
         f"MAX_FINDINGS is {const.group(1)} but missingArgs defaults maxFindings to "
         f"{default.group(1)}; the arg gate and the dispatch cap disagree"
+    )
+
+
+def test_the_batch_verdict_allowlist_matches_what_stage_1_returns():
+    """`accountFindings` files a sub-result as verified only on a NAMED status.
+
+    Non-blankness counted `BLOCKED` as a verdict, and `BLOCKED` is this codebase's
+    own word for an analysis that did not run — so a batch whose every child
+    refused came back `BATCH_TRIAGED`, "3 of 3 finding(s) verified; 0 unverified",
+    with the zero-verdict guard unable to fire because the ledger was full.
+
+    Pinned in BOTH directions, so a new Stage 1 verdict cannot be added without
+    landing here, and `BLOCKED` cannot creep back in.
+    """
+    # Comment-stripped, not fully stripped: the statuses ARE string literals, so
+    # the full stripper would blank the thing being compared.
+    static_src = strip_comments((WORKFLOW_DIR / "triage-static.js").read_text())
+    returned = set(re.findall(r"status:\s*'([A-Z_]+)'", static_src))
+    # PROCEED is decideGate's internal sentinel, never returned to a caller — the
+    # terminal-reason scan above excludes it the same way.
+    returned.discard("PROCEED")
+    assert returned, "triage-static returns no status literals; refusing to report success"
+    assert "BLOCKED" in returned, (
+        "triage-static no longer returns BLOCKED, so the premise of this pin is stale"
+    )
+
+    batch_src = strip_comments((WORKFLOW_DIR / "triage-batch.js").read_text())
+    # `\n\s*\]` because VERDICT_STATUSES lives INSIDE accountFindings — the unit
+    # tests extract that function and evaluate it alone, where a module-level
+    # const is a ReferenceError — so its closing bracket is indented.
+    listing = re.search(r"const VERDICT_STATUSES = \[[\s\S]*?\n\s*\]", batch_src)
+    assert listing, "triage-batch's VERDICT_STATUSES not found; this pin is stale"
+    allowed = set(re.findall(r"'([A-Z_]+)'", listing.group(0)))
+    assert allowed, "VERDICT_STATUSES is empty; every sub-result would read as unverified"
+
+    assert allowed == returned - {"BLOCKED"}, (
+        f"triage-batch accepts {sorted(allowed - returned)} that triage-static never returns, "
+        f"and rejects {sorted(returned - {'BLOCKED'} - allowed)} that it does. A verdict missing "
+        f"from the allowlist is reported as unverified; BLOCKED present in it is an analysis that "
+        f"never ran reported as a verdict."
     )
 
 

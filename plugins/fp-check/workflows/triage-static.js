@@ -219,6 +219,40 @@ const VERDICT_SCHEMA = {
   },
 }
 
+// Pure. A declaration that the path has no validation on it must NAME A FILE THAT
+// WAS READ. Non-blankness was the whole test, so `n/a` cleared checkpoint 2.2's
+// "or confirmed none exist", `decideGate`'s zero-layer guard passed on it, and
+// Stage 1 reached TRUE_POSITIVE at High having dispatched zero layer agents —
+// with the affirmative counter-check on the layer fan-out vacuous at zero
+// against zero, so no code path in the stage established reachability at all. The
+// same value then reached the impact and gate prompts as "What was read, and what
+// was not found: n/a", which reads as a completed audit.
+//
+// This is not a new demand: SKILL.md, references/checkpoints.md and
+// references/evidence-templates.md all already say "naming the files and
+// functions you read". Only the validator disagreed with them. It is also the
+// falsifiable half of the claim — a reviewer can open `billing/charge.py` and see
+// whether it validates the rate, and cannot open `n/a`.
+//
+// A DENYLIST of stand-ins was refused for the reason `citedReference` refuses one
+// for advisory IDs: it only knows the placeholders someone thought of, and `x`,
+// `-`, `unknown` and `see above` are each one keystroke away. A length or
+// word-count floor was refused because it admits "I looked everywhere and did not
+// find anything" while rejecting a terse true declaration.
+//
+// `typeof !== 'string'` rather than `String(value || '')`: an ARRAY of filenames
+// coerces to `charge.py` and would clear a rule about naming files, and
+// args.test.mjs pins `['charge.py']` as a non-declaration. `{2,}` before the dot
+// so `e.g.` and `i.e.` in prose are not read as filenames. Matched ANYWHERE in
+// the string, exactly as `citedReference` matches: a declaration is free text,
+// and anchoring would reject every real sentence.
+function auditedSearch(value) {
+  if (typeof value !== 'string') return null
+  const named = new RegExp('(^|[^0-9a-z._-])[0-9a-z_-]{2,}[.][0-9a-z]{1,8}([^0-9a-z]|$)', 'i')
+  const text = value.trim()
+  return named.test(text) ? text : null
+}
+
 // Pure. Reject an arg shape this script does not understand BEFORE spending
 // agents on it. Every field named here is interpolated into a prompt below, so a
 // missing one reaches an agent as the literal text 'undefined' and it spends a
@@ -232,12 +266,33 @@ const VERDICT_SCHEMA = {
 // test_the_layer_cap_default_matches_max_layers pins the two together.
 function missingArgs(a, maxLayers = 4) {
   const missing = []
-  const need = (path, value) => {
-    // Whitespace is missing. `finding.summary = '   '` satisfies a `!== ''`
-    // check and then reaches every prompt as blank space, which is the
-    // `undefined` failure this validator exists to stop wearing a different hat.
+  // Whitespace is missing. `finding.summary = '   '` satisfies a `!== ''` check
+  // and then reaches every prompt as blank space, which is the `undefined`
+  // failure this validator exists to stop wearing a different hat.
+  //
+  // The TYPE is checked for the same reason the blank is. Presence alone let
+  // `finding.bugClass = {cwe: 89}` and `layers[i].name = {fn: 'validate'}` clear
+  // this validator and reach six prompts as the literal text `[object Object]` —
+  // the agent LABEL became `layer:[object Object]` — and the run still returned
+  // TRUE_POSITIVE, from a layer agent told to inspect "[object Object] at
+  // [object Object]". `baseDir` was worse: `[]`, `[null]` and `['']` are none of
+  // undefined, null or a blank string, so they cleared here AND stringified to ''
+  // in the shape guard below, which skips on a falsy `base` — zero problems
+  // reported, every `${baseDir}/references/` read resolving under a bare
+  // `/references/`, and five agents answering from memory behind a verdict that
+  // looks complete.
+  //
+  // `kind` exists for one call site: an integer whose range is graded elsewhere.
+  // Demanding a string there would reject every well-formed envelope.
+  const need = (path, value, kind = 'string') => {
     const blank = typeof value === 'string' && value.trim() === ''
-    if (value === undefined || value === null || blank) missing.push(path)
+    if (value === undefined || value === null || blank) {
+      missing.push(path)
+      return
+    }
+    if (kind === 'string' && typeof value !== 'string') {
+      missing.push(`${path} (must be a string; a value of type ${typeof value} interpolates as '${String(value)}')`)
+    }
   }
   const finding = (a && a.finding) || {}
   const entry = (a && a.entryPoint) || {}
@@ -263,13 +318,25 @@ function missingArgs(a, maxLayers = 4) {
   // rather than risk mis-lexing one (test_a_regex_literal_is_rejected_rather_than_mis_lexed).
   // One here turns that suite red on unmutated code, and its mutation gate proves
   // nothing from a baseline that is already red.
-  // `String(...)`, not a `typeof === 'string'` test. A non-string baseDir clears
-  // `need` — it is neither undefined, null nor a blank string — and then reads as
-  // '' here, which skips the shape check below entirely and lets every reference
-  // path become '[object Object]/references/...'.
+  // Still `String(... ?? '')` and not a `typeof` test, but no longer for the
+  // reason it used to give: `need` now rejects a non-string baseDir one line
+  // above. It is load-bearing for an ABSENT one — `undefined.trim()` would throw
+  // out of the validator and kill the run with no BLOCKED result at all, which is
+  // the worst shape this plugin can fail in.
+  //
+  // Separators are normalised and a drive letter counts as absolute because the
+  // leading-slash test rejected the only value that WORKS on native Windows.
+  // `C:\\Users\\...\\skills\\fp-check` failed both halves, the stage returned
+  // BLOCKED, and the only path that then satisfied this guard was a POSIX-shaped
+  // path that does not exist — so the guard manufactured the very failure it was
+  // written to prevent, one case further down. A UNC path normalises to
+  // `//server/share/...` and passes on the leading slash; `skills\\fp-check`
+  // normalises to a relative path and is still refused.
   const base = String((a && a.baseDir) ?? '').trim()
-  const withoutSlash = base.endsWith('/') ? base.slice(0, -1) : base
-  const shaped = withoutSlash.startsWith('/') && withoutSlash.endsWith('/skills/fp-check')
+  const slashed = base.split('\\').join('/')
+  const withoutSlash = slashed.endsWith('/') ? slashed.slice(0, -1) : slashed
+  const absolute = withoutSlash.startsWith('/') || new RegExp('^[A-Za-z]:/').test(withoutSlash)
+  const shaped = absolute && withoutSlash.endsWith('/skills/fp-check')
   if (base && !shaped) {
     missing.push(
       `baseDir (must be the skill directory's ABSOLUTE path, ending in skills/fp-check; got '${base}'. Copy it from an expanded reference link rather than reconstructing it — the working directory is the TARGET repo and has no references/ in it)`,
@@ -297,9 +364,11 @@ function missingArgs(a, maxLayers = 4) {
   // the agent answers YES anyway. That instruction is a prompt, and a prompt is
   // not an enforcement mechanism.
   need('scope', a && a.scope)
-  if (a && a.scope !== undefined && a.scope !== null && typeof a.scope !== 'string') {
-    missing.push('scope (must be a string; an object interpolates as [object Object])')
-  }
+  // The bespoke string-type guard that used to sit here is gone: `need` makes the
+  // same decision one line above, for every field rather than for this one.
+  // Keeping it meant reporting one field twice, and — worse — a reader seeing a
+  // type guard on `scope` alone could reasonably infer the other nine were
+  // covered by something. They were not.
   // `.entries()` on a non-array throws out of the validator, so a wrong shape
   // would kill the run instead of being reported.
   const layers = a && a.layers
@@ -322,9 +391,10 @@ function missingArgs(a, maxLayers = 4) {
   // an affirmative, auditable statement of what was read and what was not found —
   // the same shape as `sourcesRead`, `searched` and `coverage` elsewhere in this
   // plugin, where a null result is acceptable precisely because it says where it
-  // looked. A blank string does not satisfy it, and neither does its absence.
+  // looked. A blank string does not satisfy it, neither does its absence, and
+  // neither does `n/a` — `auditedSearch` demands it name a file that was read.
   const searched = a && a.layersSearched
-  const declaredNone = typeof searched === 'string' && searched.trim() !== ''
+  const declaredNone = auditedSearch(searched) !== null
   if (layers === undefined || layers === null || (Array.isArray(layers) && layers.length === 0)) {
     if (!declaredNone) {
       missing.push(
@@ -332,10 +402,12 @@ function missingArgs(a, maxLayers = 4) {
       )
     }
   } else if (searched !== undefined && searched !== null && !declaredNone) {
-    // Present but blank, alongside real layers. Reported rather than ignored: a
-    // blank field that is silently dropped reads downstream as a field that was
-    // answered, so the fallback it should have triggered never fires.
-    missing.push('layersSearched (present but empty; omit it or say what was read)')
+    // Present but not a declaration, alongside real layers. Reported rather than
+    // ignored: a field that is silently dropped reads downstream as a field that
+    // was answered, so the fallback it should have triggered never fires. The
+    // message no longer says "empty", because this branch now fires on `n/a` too
+    // and calling that empty is the same class of lie.
+    missing.push('layersSearched (present but names nothing that was read; omit it, or name the files you read)')
   }
   // Reject an over-long list HERE rather than after dispatching. Failing closed
   // is only worth anything if it happens before the spend.
@@ -348,8 +420,12 @@ function missingArgs(a, maxLayers = 4) {
     missing.push('layers (must be an array)')
   } else {
     for (const [i, layer] of (Array.isArray(layers) ? layers : []).entries()) {
-      if (!layer || !layer.name) missing.push(`layers[${i}].name`)
-      if (!layer || !layer.location) missing.push(`layers[${i}].location`)
+      // Through `need`, so a layer whose name is an object is refused rather
+      // than dispatched: bare truthiness let one through as the agent LABEL
+      // `layer:[object Object]`. `layer && layer.name` keeps a null item pushing
+      // the bare path, which is what the message reads best as.
+      need(`layers[${i}].name`, layer && layer.name)
+      need(`layers[${i}].location`, layer && layer.location)
     }
   }
   const route = a && a.route
@@ -371,10 +447,10 @@ function missingArgs(a, maxLayers = 4) {
 //
 // An explicit `route` wins: the user asking for full verification is one of
 // fp-check's own escalation criteria.
-// Matched with `includes` on a lowercased string rather than with a regex: the
-// contract scanner refuses to lex a regex literal in code position, deliberately,
-// because reading one wrong blanks the rest of the file and every check below it
-// goes green. A keyword list is also easier to extend than an alternation.
+// Built with `new RegExp` from a string rather than a regex literal: the contract
+// scanner refuses to lex a literal in code position, deliberately, because
+// reading one wrong blanks the rest of the file and every check below it goes
+// green. A keyword list is still easier to extend than an alternation.
 //
 // The list is inline rather than hoisted: the tests extract this function and
 // evaluate it alone, where a free variable is a ReferenceError.
@@ -433,10 +509,34 @@ function selectRoute(a) {
     // a wrong DoS report.
     'denial of service',
     'dos',
+    // Spelled out because the word-start anchor below will not find 'dos' inside
+    // 'DDoS' or 'ReDoS', which is how most of each arrive written. Both are the
+    // standard spelling of their class and neither appears anywhere in the
+    // references, so no pin would have caught the drop to the standard route —
+    // where a ReDoS finding, which IS an algorithmic-complexity DoS, never
+    // reaches the math-bounds agent the Route table escalates it for.
+    'ddos',
+    'redos',
     'algorithmic complexity',
     'resource exhaustion',
   ]
-  if (escalates.some((k) => bugClass.includes(k))) return 'deep'
+  // Anchored to a WORD START, in a copy of both sides where every run of
+  // non-alphanumerics is one space. As raw substrings these keywords escalated on
+  // letters sitting inside another word: 'race' fired on 'stack trace',
+  // 'traceback' and 'grace period', so an information-disclosure finding —
+  // standard in the Route table of references/bug-class-verification.md — bought
+  // the deep route, where any one of the three proof agents returning nothing is
+  // BLOCKED and a race-feasibility proof answers a question the finding never
+  // asked.
+  //
+  // Only the START is anchored. 'data races', 'deadlocks' and 'atomicity' are the
+  // same bug as the spelling in the list, 'concurren' is in it as a deliberate
+  // prefix, and anchoring the end drops all of them. Normalising the keyword
+  // through the same split is what keeps the hyphenated entries matching
+  // 'out of bounds' and 'use_after_free' too.
+  const words = (s) => s.split(new RegExp('[^a-z0-9]+')).filter(Boolean).join(' ')
+  const spaced = ` ${words(bugClass)} `
+  if (escalates.some((k) => spaced.includes(` ${words(k)}`))) return 'deep'
   if (a && a.crossComponent === true) return 'deep'
   if (a && a.ambiguous === true) return 'deep'
   return 'standard'
@@ -756,9 +856,9 @@ function citedReference(value) {
   // Matched ANYWHERE in the string, bounded by non-identifier characters, rather
   // than split on whitespace with each token anchored. Anchoring rejects every
   // ordinary wrapper a citation arrives in: `openssl/openssl#12345` — the
-  // canonical cross-repo form — `torvalds/linux@a1b2c3d`, a backticked sha,
-  // `<https://...>`, a markdown link, and `PR 4521`. A rejection here is not
-  // harmless in either direction: Stage 1
+  // canonical cross-repo form, and the one a fix in an upstream dependency takes —
+  // `torvalds/linux@a1b2c3d`, a backticked sha, `<https://...>`, a markdown link,
+  // and `PR 4521`. A rejection here is not harmless in either direction: Stage 1
   // writes a note saying no reference was given and reports an already-fixed bug
   // as live, and Stage 3 turns a genuine retraction into NEEDS_MORE_INFO.
   //
@@ -772,16 +872,20 @@ function citedReference(value) {
     [
       // a commit sha, alone or qualified by the repo it belongs to
       bound + '[0-9a-f]{7,40}([^0-9a-z]|$)',
-      // #412, and owner/repo#412
-      '[0-9a-z._-]*#[0-9]+',
+      // #412, owner/repo#412, and GitLab's merge-request form !412 — the same
+      // shorthand with the other sigil, and the only thing a fix that landed in a
+      // GitLab MR has to cite. In the shared class rather than a branch of its
+      // own so `group/project!412` is reached the way `openssl/openssl#12345`
+      // already is.
+      '[0-9a-z._-]*[#!][0-9]+',
       // Advisory IDs, recognised by REGISTRY NAME rather than by shape. Every
-      // shape rule mis-classifies in both directions: "one hyphen and a digit"
-      // makes `internal-fix-2` and `fixed in a post-2020 refactor` advisory IDs
-      // and retracts live findings, "the last segment ends in a digit" throws out
-      // roughly one real GHSA ID in twenty, and "every segment is four or more
-      // characters" throws out `PYSEC-2021-19`, `OSV-2021-9`, `DSA-4879-1` and
-      // `USN-5678-1` — writing "no reference given" over a correct citation and
-      // reporting a fixed bug as live. A shape cannot tell
+      // available shape rule mis-classifies in both directions: "one hyphen and
+      // a digit" makes `internal-fix-2` and `fixed in a post-2020 refactor`
+      // advisory IDs and retracts live findings; "the last segment ends in a
+      // digit" throws out roughly one real GHSA ID in twenty; "every segment is
+      // four or more characters" throws out `PYSEC-2021-19`, `OSV-2021-9`,
+      // `DSA-4879-1` and `USN-5678-1` — writing "no reference given" over a
+      // correct citation and reporting a fixed bug as live. A shape cannot tell
       // an ID from an English phrase because registries did not agree on one. An
       // allowlist is honest about what it knows: a name it has never heard of is
       // not silently promoted, and a name it has is matched against that
@@ -798,14 +902,45 @@ function citedReference(value) {
       // bulletin number — which is what separates the ID from the prose: `go` is
       // in the list, and `go-to-market-2` still fails because `to` is not a
       // number.
-      bound + '(cve|rustsec|pysec|osv|go|dsa|usn|dla|zdi|mal|alsa|elsa|talos)[-:][0-9]+[-:][0-9a-z]+',
-      // v3, v2.3.1, 2.3.1. The trailing lookahead refuses a version that is part
-      // of a FILENAME: `src/handlers/auth-v2.go:118` is the bare file:line
-      // challenge 4's own prompt names as a non-citation, and without the
-      // lookahead the `v2` inside it satisfies a consuming boundary group.
-      bound + '(v[0-9]+([.][0-9]+)*|[0-9]+([.][0-9]+){2,})(?![0-9a-z]|[.][a-z])',
-      // PR 4521, issue #1234, release 3, gh-1234.
-      bound + '(pr|pull|issues?|bug|ticket|gh|release)[ #-]+[0-9]+',
+      //
+      // The list is INCOMPLETE by construction, and every name missing from it is
+      // the false REJECT this comment already names. It shipped carrying `alsa`
+      // and `elsa` — the AlmaLinux and Oracle REBUILDS of a Red Hat erratum —
+      // without `rhsa`, the original both rebuild, and refused `MFSA-2021-24` and
+      // `SUSE-SU-2021:1234` outright, so bugs those advisories had already fixed
+      // were reported as live. A name it still has not heard of is not silently
+      // promoted; what makes that survivable is the note in
+      // `downgradeUnreferencedFix`, which quotes the string it was handed instead
+      // of claiming nothing was offered. SUSE numbers a two-letter advisory KIND
+      // (`SU` security, `RU` recommended) before the year, so it needs `[a-z]{2}`
+      // where the others need nothing, and `openSUSE` is a registry name rather
+      // than a prefix on one — the `open` is inside the group because `bound`
+      // refuses to reach `suse` through the `n`.
+      //
+      // One physical line, and that is load-bearing rather than a style choice:
+      // mutation-gate.sh's "the registry allowlist reverts to a shape rule"
+      // mutant matches `bound + '(cve|` and its whole alternation with a single
+      // pattern, and a wrapped form makes that mutation a no-op the gate scores
+      // as SURVIVED.
+      bound + '(cve|rustsec|pysec|osv|go|dsa|usn|dla|zdi|mal|alsa|elsa|talos|rhsa|rhba|cesa|glsa|mfsa|mgasa|fedora|asa|ssa|vmsa|icsa|(open)?suse-[a-z]{2})[-:][0-9]+[-:][0-9a-z]+',
+      // v3, v2.3.1, 2.3.1. The trailing lookahead refuses a version that some
+      // other component hangs off: a FILENAME (`src/handlers/auth-v2.go:118`)
+      // and equally a PATH SEGMENT (`api/v1/handlers.go:40`), both of which are
+      // the bare file:line challenge 4's own prompt names as a NON-citation, and
+      // without the lookahead the `v1` inside satisfies a consuming boundary
+      // group. `[.][0-9a-z]`, not `[.][a-z]`, because the branch BACKTRACKS:
+      // refusing `v1.2` in `api/v1.2/x.go` only makes the engine retry `v1`,
+      // whose next character is a `.` followed by a DIGIT. A separator is
+      // refused only AFTER the version, never before it — `refs/tags/v1.4.0` and
+      // `release/v1.4.0` reach a real release tag through a `/`. FOUR
+      // backslashes, not two: the string literal halves them, and with two the
+      // `\]` escapes the closing bracket, the class runs on, and `api/v1/`,
+      // `a/b/v10/c.ts:3` and the Windows path quietly come back — a slip the
+      // NOT_CITATIONS table below is the fixture for.
+      bound + '(v[0-9]+([.][0-9]+)*|[0-9]+([.][0-9]+){2,})(?![0-9a-z/\\\\]|[.][0-9a-z])',
+      // PR 4521, issue #1234, release 3, gh-1234, bpo-40501 — the last a
+      // two-token tracker ID that no other branch here could reach.
+      bound + '(pr|pull|issues?|bug|bpo|ticket|gh|release)[ #-]+[0-9]+',
       // pull/882 and issues/1234, which is how GitHub shorthand is written. The
       // keyword may NOT be reached through a path separator, and that is the
       // whole difference between this branch and the one above it: with `/` in
@@ -813,6 +948,11 @@ function citedReference(value) {
       // are both citations, contradicting this function's own rule that a bare
       // `file:line` is not one. Inside a full URL the `https?://` branch already
       // matches, so nothing is lost by refusing the path form here.
+      //
+      // Deliberately NOT the same keyword list as the branch above: `bpo` is
+      // there and not here because `bpo/40501` is not a form anyone writes, and
+      // two adjacent near-identical lists invite a future "sync" that would
+      // admit it.
       '(^|[^0-9a-z/])(pr|pull|issues?|bug|ticket|gh|release)/[0-9]+',
       'https?://[^ ]',
     ].join('|'),
@@ -822,12 +962,38 @@ function citedReference(value) {
   return forms.test(ref) ? ref : null
 }
 
+// Pure. `fixed` canonicalised, because case and whitespace are not meaning and
+// `enum` is advisory to the runtime validator. A case-exact compare turned OFF
+// the retraction and its compensating downgrade at once — one predicate gates
+// both — so `fixed: 'Yes'` with a real commit sha shipped an already-fixed bug
+// as TRUE_POSITIVE, and `reference` reaches no prompt on that path, so no agent
+// downstream could catch it either.
+//
+// The fallback is UNCERTAIN rather than a looser match, and that is the whole
+// point of the exactness: `YES` is the answer that RETRACTS a finding, so
+// anything this cannot read falls to the side that keeps analysing.
+// `YES, in the unstable branch only` is refused for that reason rather than
+// matched on its first word.
+//
+// `typeof !== 'string'` rather than coercing, for the reason `auditedSearch`
+// refuses to coerce one field up, and here the cost is higher: `String(...)` read
+// `['YES']` and any object with a `toString` as the retraction, so a `fixed` that
+// arrived as an ARRAY — which `type` being advisory makes reachable — took a live
+// finding out terminally as ALREADY_FIXED. An off-TYPE answer is no more readable
+// than an off-enum one and falls to the same side.
+function fixedAnswer(historyVerdict) {
+  const raw = historyVerdict && historyVerdict.fixed
+  if (typeof raw !== 'string') return 'UNCERTAIN'
+  const answer = raw.trim().toUpperCase()
+  return answer === 'YES' || answer === 'NO' ? answer : 'UNCERTAIN'
+}
+
 // `fixed: YES` with no CITED reference is NOT a retraction. Schema `required`
 // checks presence, not content, so `reference: ''` validates; and an
 // unreferenced retraction is the one failure mode that silently discards a real
 // finding rather than merely reporting a false one.
 function upstreamFixStands(historyVerdict) {
-  if (!historyVerdict || historyVerdict.fixed !== 'YES') return null
+  if (!historyVerdict || fixedAnswer(historyVerdict) !== 'YES') return null
   const ref = citedReference(historyVerdict.reference)
   if (!ref) return null
   // `!== true`, not `=== false`. Only an affirmative "this fix is complete"
@@ -845,17 +1011,39 @@ function upstreamFixStands(historyVerdict) {
   }
 }
 
-// Pure. The downgrade the history prompt promises, performed. Applied once, at
-// the assignment, so `history.fixed` is the same value everywhere it is read —
-// the impact prompt's inconclusive branch, the gate prompt, and the payload Stage
-// 3 forwards to its already-fixed challenge. The note rides on `searched` because
-// that is the field printed beside `fixed` in both prompts.
+// Pure. The downgrade the history prompt promises, performed, and the single
+// place `fixed` is canonicalised. Applied once, at the assignment, so
+// `history.fixed` is the same value everywhere it is read — the impact prompt's
+// inconclusive branch, the gate prompt, and the payload Stage 3 forwards to its
+// already-fixed challenge. The note rides on `searched` because that is the
+// field printed beside `fixed` in both prompts.
+//
+// The canonical answer is returned on EVERY path, not only the downgraded one:
+// returning the verdict untouched left `Yes` and `MAYBE` to reach both prompts
+// as the agent typed them, where the impact prompt's `=== 'UNCERTAIN'` branch
+// fires for neither and the reader is left to assume the search came back clean.
+//
+// Two ways to fail the citation test, two notes, because they need different
+// work from the reader. `upstreamFixStands` returns null both when `reference`
+// was blank and when it held something `citedReference` did not recognise, and
+// one note over both asserted that no reference was given whenever one was —
+// which is what it wrote for every registry the allowlist had not heard of.
+// `reference` is interpolated into no prompt of its own, so that note is the
+// only channel it has: the string it would take to check the claim by hand was
+// exactly the string the note threw away, and the gate agent — the one party
+// able to catch the mistake — was told there was nothing to check.
 function downgradeUnreferencedFix(historyVerdict) {
-  if (!historyVerdict || historyVerdict.fixed !== 'YES' || upstreamFixStands(historyVerdict)) return historyVerdict
+  if (!historyVerdict) return historyVerdict
+  const answer = fixedAnswer(historyVerdict)
+  if (answer !== 'YES' || upstreamFixStands(historyVerdict)) return { ...historyVerdict, fixed: answer }
+  const given = String(historyVerdict.reference || '').trim()
+  const why = given
+    ? `reported fixed: YES citing "${given}", which citedReference does not recognise as a commit, PR, issue or advisory — check it by hand rather than reading this as nothing having been offered`
+    : 'reported fixed: YES with no commit, PR, issue or advisory reference'
   return {
     ...historyVerdict,
     fixed: 'UNCERTAIN',
-    searched: `${String(historyVerdict.searched || '').trim() || 'nothing recorded'} (the agent reported fixed: YES with no commit, PR, issue or advisory reference, so it is UNCERTAIN: a retraction has to point at something)`,
+    searched: `${String(historyVerdict.searched || '').trim() || 'nothing recorded'} (the agent ${why}, so it is UNCERTAIN: a retraction has to point at something)`,
   }
 }
 
@@ -872,13 +1060,13 @@ function decideGate(verdicts, recoveryVerdict, threatVerdict, historyVerdict, at
   // matches nothing and the function falls through to PROCEED having inspected
   // nothing.
   //
-  // The declaration is what tells the two apart, and it is read the same way the
-  // arg validator reads it — an affirmative, non-blank statement of what was read.
-  // Anything else, including a forgotten `layers` field, is still the vacuous pass
-  // and still BLOCKED. This is the checkpoint's own "or confirmed none exist",
-  // which is unreachable unless there is a way to say it other than inventing a
-  // layer.
-  const declaredNone = typeof layersSearched === 'string' && layersSearched.trim() !== ''
+  // The declaration is what tells the two apart, and it is read through the same
+  // `auditedSearch` the arg validator reads it through — a statement naming a file
+  // that was read. Anything else, including a forgotten `layers` field and a
+  // placeholder such as `n/a`, is still the vacuous pass and still BLOCKED. This
+  // is the checkpoint's own "or confirmed none exist", which is unreachable unless
+  // there is a way to say it other than inventing a layer.
+  const declaredNone = auditedSearch(layersSearched) !== null
   if (attemptedLayers === 0 && !declaredNone) {
     return {
       status: 'BLOCKED',
@@ -1178,7 +1366,7 @@ finding specifically has to establish.`,
 // `impact` object verbatim, so a cap applied after them hands the orchestrator
 // the agent's own uncapped `severity` on every finding that exits at either one,
 // with no correction and no note. The second of those exits fires PRECISELY when
-// the root cause is integration or external with the precondition unstated, which
+// the root cause is anything but internal with the precondition unstated, which
 // is the most likely non-passing outcome for exactly the findings the cap exists
 // to bound.
 //
@@ -1204,10 +1392,24 @@ const severityFields = { severity: capped.severity, severityCorrection: capped.n
 // verdict, because "could not establish" is not "does not exist".
 if (!impact || impact.result !== 'VERIFIED') {
   const stated = impact ? impact.result : 'missing'
-  const reason = impact
-    ? String(impact.evidence || '').trim() || `impact agent reported ${impact.result} but gave no evidence`
-    : 'impact agent returned nothing'
-  const status = !impact || impact.result === 'NOT_VERIFIED' ? 'NEEDS_MORE_INFO' : 'NOT_EXPLOITABLE'
+  // Read the affirmative value, as every sibling gate in this file does. Only
+  // DISPROVEN is positive evidence that no impact exists, so only DISPROVEN may
+  // reach a terminal dismissal. Grading by exclusion made NOT_EXPLOITABLE the
+  // fall-through for every grade this script does not recognise, and `enum` is
+  // advisory to the validator: an impact agent that answered `Verified` in the
+  // wrong case, or invented a fourth grade, was reported to the user as "FALSE
+  // POSITIVE — no attacker-reachable path" over its own evidence FOR the impact,
+  // with no later stage left that would reopen it.
+  const status = impact && impact.result === 'DISPROVEN' ? 'NOT_EXPLOITABLE' : 'NEEDS_MORE_INFO'
+  // An unrecognised grade establishes nothing, so its `evidence` is not the
+  // reason: that text argues the impact, and relaying it verbatim handed the
+  // reader "NEEDS MORE INFO — traced end to end" as the fact still missing.
+  const graded = impact && (impact.result === 'NOT_VERIFIED' || impact.result === 'DISPROVEN')
+  const reason = !impact
+    ? 'impact agent returned nothing'
+    : graded
+      ? String(impact.evidence || '').trim() || `impact agent reported ${impact.result} but gave no evidence`
+      : `impact agent graded checkpoint 2.4 ${impact.result ? `'${impact.result}'` : 'with nothing'}, which is not one of VERIFIED, NOT_VERIFIED or DISPROVEN, so no impact grade was established`
   log(`${status}: impact ${stated}. ${reason}`)
   return {
     status,
@@ -1225,19 +1427,27 @@ if (!impact || impact.result !== 'VERIFIED') {
 }
 
 // Checkpoint 2.4b passes only if "the required external precondition is stated
-// explicitly" for an integration or external root cause. JSON Schema cannot
+// explicitly" for any root cause that is not internal. JSON Schema cannot
 // express "required when rootCause is not internal", so the schema marks
 // externalPrecondition optional and the rule is applied here. Without it a
 // finding that only fires when some upstream system misbehaves reaches the PoC
 // stage with the precondition that makes it exploitable left unsaid — and the
 // severity cap has nothing to cap against.
+//
+// `externalRootCause` rather than `!== 'internal'` inline: this gate and the cap
+// have to read the same value the same way, and they did not.
 function missingPrecondition(verified) {
-  if (!verified || verified.rootCause === 'internal') return false
+  if (!verified || !externalRootCause(verified.rootCause)) return false
   return !String(verified.externalPrecondition || '').trim()
 }
 
 if (missingPrecondition(impact)) {
-  const why = `root cause is ${impact.rootCause}, so the external precondition the attack requires must be stated explicitly, and it was not`
+  // The same label the three cap notes use, for the same reason and on the same
+  // predicate: this branch is reached by every root cause that is not `internal`,
+  // blank and absent included, and "root cause is , so …" / "root cause is
+  // undefined, so …" is what SKILL.md then relays to the user verbatim.
+  const cause = String(impact.rootCause || '').trim() || 'non-internal'
+  const why = `root cause is ${cause}, so the external precondition the attack requires must be stated explicitly, and it was not`
   log(`NEEDS_MORE_INFO: ${why}`)
   return {
     status: 'NEEDS_MORE_INFO',
@@ -1317,6 +1527,29 @@ function namedLevels(severity) {
   return LEVELS.filter((name) => new RegExp(`\\b${name}\\b`, 'i').test(String(severity)))
 }
 
+// One reading of "not internal", shared by `missingPrecondition`, by the cap and
+// by the three gate-prompt conditionals below. They disagreed: the cap matched
+// `integration` or `external` affirmatively while the other three branched on
+// `!== 'internal'`, so `third-party` — a spelling nothing rejects, because
+// `required` is the only thing the runtime validator enforces — took the external
+// branch everywhere EXCEPT the cap. The gate agent was handed "the severity is
+// already capped at Critical because of it", which was false, and forbidden on
+// that false premise from failing gateReachability, gateRealImpact or
+// gatePocValidation on the external trigger. The relaxation's own argument is
+// that the trigger "has been priced once already, in the cap"; it holds only
+// where the cap was actually paid.
+//
+// Unrecognised reads as NOT internal. `internal` is the stronger claim — the
+// trigger originates inside this repository, so the severity stands as rated and
+// gate 2 keeps its trust-boundary half — and an agent that did not write one of
+// the three enum values has not made it. The other reading hands back the
+// agent's own uncapped number, which is the escape 2.4b exists to close. Case
+// and surrounding space are forgiven for the reason `namedLevels` forgives them:
+// the enum is advisory, so `Internal` is the same claim.
+function externalRootCause(rootCause) {
+  return String(rootCause || '').trim().toLowerCase() !== 'internal'
+}
+
 function capSeverity(severity, rootCause, classification) {
   const CAP = 'Medium'
   // Affirmative — "is this rating at or above the cap?" — rather than by
@@ -1331,28 +1564,42 @@ function capSeverity(severity, rootCause, classification) {
   // direction that is wrong half the time — guess high and a Low is raised to
   // Medium under a note reading "severity lowered from Low", guess low and an
   // inflated Critical ships uncorrected with `low` inside "low-privilege" as its
-  // licence. So it is not guessed. An ambiguous rating is an unusable agent
-  // answer and is handed back to the caller as one, exactly as a missing verdict
-  // is, and the caller counts it against the finding rather than shipping a
-  // number nobody can defend.
+  // licence. So it is not guessed.
+  //
+  // NONE named is not a rating either, and reading it as one below the cap was
+  // the same escape from the other side: 'Sev-1', 'P0', a CVSS number and a blank
+  // were returned untouched with no note and no flag, so an integration root
+  // cause reached TRUE_POSITIVE with checkpoint 2.4b never applied — and that
+  // uncapped string is what Stages 2 and 3 are forwarded. There is no caller-side
+  // guard here to fall back on: Stage 3's `reportProblem` refuses an unreadable
+  // rating, Stage 1's only post-cap check was this function's own ambiguity flag.
+  //
+  // Either way the rating is an unusable agent answer and is handed back to the
+  // caller as one, exactly as a missing verdict is, and the caller counts it
+  // against the finding rather than shipping a number nobody can defend.
   const named = namedLevels(severity)
-  if (named.length > 1) {
+  if (named.length !== 1) {
+    const stated = String(severity || '').trim()
     return {
       severity,
       note: '',
-      ambiguous: `severity "${String(severity).trim()}" names ${named.length} levels (${named.join(', ')}), so there is no single rating to cap: state exactly one of Critical, High, Medium, Low, Informational`,
+      ambiguous: !stated
+        ? 'no severity was stated, and no cap can be applied to a blank rating: state exactly one of Critical, High, Medium, Low, Informational'
+        : named.length === 0
+          ? `severity "${stated}" names none of Critical, High, Medium, Low or Informational; no cap can be applied to a rating that is not one of them: state exactly one`
+          : `severity "${stated}" names ${named.length} levels (${named.join(', ')}), so there is no single rating to cap: state exactly one of Critical, High, Medium, Low, Informational`,
     }
   }
-  // None named — '', undefined, 'Unknown'. Unknown, not above the cap: the caller
-  // has its own handling for a rating it cannot read, and inventing one here
-  // would be the same guess in the other direction.
-  const level = named[0] || ''
+  const level = named[0]
   if (level !== 'critical' && level !== 'high') return { severity, note: '', ambiguous: '' }
-  if (rootCause === 'integration' || rootCause === 'external') {
+  if (externalRootCause(rootCause)) {
+    // Named, so the note says which value was read. A blank one is not internal
+    // either, and `a  root cause` is not a sentence.
+    const cause = String(rootCause || '').trim() || 'non-internal'
     return {
       severity: CAP,
       ambiguous: '',
-      note: `severity lowered from ${severity} to ${CAP}: a ${rootCause} root cause requires an external failure to trigger (checkpoints.md 2.4b)`,
+      note: `severity lowered from ${severity} to ${CAP}: a ${cause} root cause requires an external failure to trigger (checkpoints.md 2.4b)`,
     }
   }
   if (classification === 'hardening_gap') {
@@ -1388,13 +1635,23 @@ phase('Verdict')
 // NOWHERE: the impact prompt, this prompt and `decideVerdict` otherwise never see
 // `threat` at all, so a documented design-intent objection is dropped and the
 // finding comes back TRUE_POSITIVE with no record it was ever raised. It is
-// carried here,
-// to the one agent holding every other piece of evidence, and deliberately NOT
-// added to `overruled`: that list forbids TRUE_POSITIVE outright, which is the
-// terminal dismissal on a single indicator that raising the bar removed.
+// carried here, to the one agent holding every other piece of evidence, and
+// deliberately NOT added to `overruled`: that list forbids TRUE_POSITIVE
+// outright, which is the terminal dismissal on a single indicator that raising
+// the bar removed.
+//
+// Keyed on the INDICATORS, not on `byDesign`. That bar has two halves — two
+// indicators AND a confirming search — and the boolean carries only whether the
+// second was done, so keying the carry on it dropped the STRONGER of the two
+// objections: an agent that obeys the prompt and reports three indicators
+// without having finished the search returns `byDesign: false`, and that shape
+// reached no prompt in this file at all while a one-indicator hunch was carried.
+// Either signal carries now, so whichever half of the bar was missed, the
+// objection still reaches the agent that can answer it.
+const byDesignCount = Number(threat && threat.byDesignIndicators) || 0
 const softByDesign =
-  threat && threat.byDesign && !(Number(threat.byDesignIndicators) >= 2)
-    ? `${Number(threat.byDesignIndicators) || 0} of 3 design-intent indicators fired: ${String(threat.evidence || '').trim() || 'no evidence given'}`
+  threat && (threat.byDesign || byDesignCount >= 1)
+    ? `${byDesignCount} of 3 design-intent indicators fired${threat.byDesign ? '' : ', though the agent did not itself mark the finding by-design'}: ${String(threat.evidence || '').trim() || 'no evidence given'}`
     : ''
 
 const verdictAgent = await agent(
@@ -1405,13 +1662,13 @@ Finding: ${finding.summary}
 Sink: ${finding.sink}
 Bug class: ${finding.bugClass}
 Verified impact: ${impact.impact}
-Root cause: ${impact.rootCause}${impact.rootCause === 'internal' ? '' : ` (external precondition: ${impact.externalPrecondition})`}
+Root cause: ${impact.rootCause}${!externalRootCause(impact.rootCause) ? '' : ` (external precondition: ${impact.externalPrecondition})`}
 Classification: ${impact.classification}
 Severity after the caps: ${capped.severity}${capped.note ? ` — ${capped.note}` : ''}
 Recovery: ${recovery.recoveryExists ? `EXISTS, ${recovery.mechanism || 'mechanism not named'}` : 'none found'} — ${recovery.effectiveImpact}
 ${layerSummary}${layerVerdicts.length ? `\n  ${layerVerdicts.map((l) => `${l.layer} (${l.location}): ${l.evidence}`).join('\n  ')}` : ''}
 Already-fixed search: ${history.fixed} — ${history.searched}
-${softByDesign ? `Design intent, raised by the threat-model agent and carried rather than acted on:\nit reported BY DESIGN below the bar checkpoint 3.3 sets at two indicators plus a\nsearch, so it did not dismiss the finding. Answer it here — ${softByDesign}` : ''}
+${softByDesign ? `Design intent, raised by the threat-model agent and carried rather than acted on:\nit did not clear the bar checkpoint 3.3 sets at two indicators plus a confirming\nsearch, so it did not dismiss the finding. Answer it here — ${softByDesign}` : ''}
 ${proofs.length ? `Deep-route proofs:\n  ${proofs.map((p) => `${p.key}: ${p.verdict ? `${p.verdict.applies === true ? p.verdict.verdict : `${p.verdict.verdict} (does not apply to this finding)`} — ${p.verdict.evidence}` : 'agent returned nothing'}`).join('\n  ')}` : ''}
 Route: ${route}
 ${blockingProof.length ? `\nDeep-route proof(s) reporting the finding impossible. They were carried rather\nthan made terminal, because a single auxiliary proof is not above the traced path:\n  ${blockingProof.map((p) => `${p.key}: ${p.what}`).join('\n  ')}\n` : ''}
@@ -1434,7 +1691,7 @@ rather than in a reference file on purpose: a gate criterion that exists in two
 places is one an agent can read the stale copy of.
 
   gateProcess         every stage above produced concrete evidence, not assertion
-  gateReachability    ${impact.rootCause === 'internal' ? `attacker-controlled data reaches the sink through a path a
+  gateReachability    ${!externalRootCause(impact.rootCause) ? `attacker-controlled data reaches the sink through a path a
                       real caller can drive. A demonstration that constructs
                       state no real caller could reach does NOT pass this gate,
                       however genuine the sink is. Neither does a value no
@@ -1460,7 +1717,7 @@ places is one an agent can read the stale copy of.
   gateEnvironment     no compiler, runtime, OS or framework protection prevents
                       exploitation ENTIRELY. Raising the bar is not preventing
 
-${impact.rootCause === 'internal' ? '' : `The root cause of this finding is ${impact.rootCause}: the trigger originates outside
+${!externalRootCause(impact.rootCause) ? '' : `The root cause of this finding is ${impact.rootCause}: the trigger originates outside
 this repository BY CONSTRUCTION. The precondition is stated — ${impact.externalPrecondition} —
 and the severity is already capped at ${capped.severity} because of it.
 
@@ -1495,6 +1752,11 @@ No speculative language in verdictReason: "probably", "likely", "might", "would"
 // as a vulnerability. As prose in a reference file that is something an agent is
 // asked to honour; here it is arithmetic over six enums.
 //
+// That rule decides TRUE POSITIVE and nothing else. Which of the other two
+// verdicts a run that did not clear all six lands on is a second question, and
+// answering it "any FAIL is a FALSE POSITIVE" is what the gate table below exists
+// to stop.
+//
 // A missing verdict counts AGAINST the finding, and unresolved uncertainty is
 // its own outcome rather than being resolved in either direction.
 //
@@ -1513,23 +1775,57 @@ function decideVerdict(result, overruled) {
   if (!result) {
     return { status: 'NEEDS_MORE_INFO', reason: 'the gate-review agent returned nothing; no gate was evaluated' }
   }
+  // The third column is what a FAIL on that gate MEANS, and it is what stops a
+  // thin write-up being reported as a refutation. Four of the six grade the BUG:
+  // no reachable path, no security consequence, algebra that forbids the
+  // condition, a protection that prevents exploitation. A FAIL there says the bug
+  // is not there. The other two grade the EVIDENCE — gateProcess asks whether the
+  // stages above produced evidence rather than assertion, and gatePocValidation
+  // on this route asks whether the traced path has a gap in it — and neither says
+  // anything about whether the bug exists.
+  //
+  // Mapping those two to FALSE POSITIVE retired a finding whose Reachability,
+  // Real Impact, Math Bounds and Environment gates had all PASSED, on the ground
+  // that the write-up behind them was thin. That is the rounding
+  // references/gate-reviews.md calls the most expensive mistake available here,
+  // and it is reachable on a supported dispatch: `layers: []` with
+  // `layersSearched` tells this same prompt that the layer stage rests on a
+  // caller assertion rather than on agent verification, which is a Process FAIL
+  // an honest agent can write. VERDICT_SCHEMA gives gateProcess the enum
+  // ['PASS', 'FAIL'] and no third value, so the conflation was forced by the
+  // schema rather than chosen by the agent.
+  //
+  // One table and not two, so the affirmative sweep below still covers all six.
   const GATES = [
-    ['gateProcess', 'Process'],
-    ['gateReachability', 'Reachability'],
-    ['gateRealImpact', 'Real Impact'],
-    ['gatePocValidation', 'PoC Validation'],
-    ['gateMathBounds', 'Math Bounds'],
-    ['gateEnvironment', 'Environment'],
+    ['gateProcess', 'Process', 'evidence'],
+    ['gateReachability', 'Reachability', 'bug'],
+    ['gateRealImpact', 'Real Impact', 'bug'],
+    ['gatePocValidation', 'PoC Validation', 'evidence'],
+    ['gateMathBounds', 'Math Bounds', 'bug'],
+    ['gateEnvironment', 'Environment', 'bug'],
   ]
   const why = String(result.verdictReason || '').trim() || String(result.evidence || '').trim()
 
-  // FAIL first: a gate that failed is a FALSE POSITIVE and says which one, which
-  // is more useful than "something was uncertain".
-  const failed = GATES.filter(([key]) => result[key] === 'FAIL').map(([, name]) => name)
-  if (failed.length > 0) {
+  // A refutation first: a gate that says the bug is not there is a FALSE POSITIVE
+  // and says which one, which is more useful than "something was uncertain".
+  const refuted = GATES.filter(([key, , grades]) => grades === 'bug' && result[key] === 'FAIL').map(([, name]) => name)
+  if (refuted.length > 0) {
     return {
       status: 'FALSE_POSITIVE',
-      reason: `gate ${failed.join(' and ')} failed: ${why || 'agent reported FAIL with no reason'}`,
+      reason: `gate ${refuted.join(' and ')} failed: ${why || 'agent reported FAIL with no reason'}`,
+    }
+  }
+
+  // Then the two that grade the evidence, and only once no gate has refuted the
+  // finding — checked second so a run that failed both kinds still reports the
+  // refutation. "There is no reachable path" is an answer; "the stages asserted
+  // rather than showed" is a missing fact, and the weaker statement must not
+  // displace the stronger one in the reason the orchestrator relays verbatim.
+  const thin = GATES.filter(([key, , grades]) => grades === 'evidence' && result[key] === 'FAIL').map(([, name]) => name)
+  if (thin.length > 0) {
+    return {
+      status: 'NEEDS_MORE_INFO',
+      reason: `gate ${thin.join(' and ')} failed and no gate refuted the finding, so the evidence is incomplete rather than the finding disproven: ${why || 'agent reported FAIL with no reason'}`,
     }
   }
 
@@ -1559,10 +1855,13 @@ function decideVerdict(result, overruled) {
   }
 
   // The other half of deferral. A dismissal that was carried here rather than
-  // acted on has to be answered by the six gates, and "answered" means a FAIL
-  // that names the gate — which is checked first, above, and returns
-  // FALSE_POSITIVE. Six passes with a dismissal still standing means the two
-  // disagree and nothing reconciled them, so the finding is not confirmed.
+  // acted on has to be answered by the six gates, and "answered" means a FAIL on
+  // a gate that grades the BUG — which is checked first, above, and returns
+  // FALSE_POSITIVE. A Process or PoC Validation FAIL does not answer it: those
+  // report that the evidence is thin, which leaves the dismissal exactly where it
+  // was, and the branch above returns NEEDS_MORE_INFO for the same reason this
+  // one does. Six passes with a dismissal still standing means the two disagree
+  // and nothing reconciled them, so the finding is not confirmed.
   //
   // The reason quotes the dismissal rather than summarising it: the whole point
   // of deferring was that this argument survives to the reader.

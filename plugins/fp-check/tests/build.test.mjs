@@ -152,3 +152,20 @@ test('always returns a boolean, never a truthy object', () => {
     assert.equal(typeof isAcceptableBuild(input), 'boolean')
   }
 })
+
+// The same by-exclusion read one stage earlier, and the same premise behind it:
+// `type` is advisory, so a builder can answer `built: 'no'` inside the schema.
+// Truthiness read every one of these as YES, so a build the builder itself said
+// did not happen bought five reviewers and reached REPORTED.
+test('an off-type build boolean fails the gate rather than passing it', () => {
+  for (const field of ['built', 'executed', 'lintPassed']) {
+    for (const value of ['no', 'false', 'FAILED', 1, {}, []]) {
+      assert.equal(
+        isAcceptableBuild({ ...goodBuild, [field]: value }),
+        false,
+        `${field} = ${JSON.stringify(value)} must not clear the build gate`,
+      )
+    }
+  }
+  assert.equal(isAcceptableBuild(goodBuild), true, 'a real build must still pass')
+})

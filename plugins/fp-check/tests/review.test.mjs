@@ -16,6 +16,7 @@ const { severityCapViolation, reportProblem, namedLevels } = loadFns(
   'severityCapViolation',
   'reportProblem',
   'namedLevels',
+  'externalRootCause',
 )
 const { alreadyFixedStands, citedReference } = loadFns(REVIEW, 'alreadyFixedStands', 'citedReference')
 const artifactProblem = loadFn(REVIEW, 'artifactProblem')
@@ -113,6 +114,27 @@ test('a lost challenge is reported with its argument text', () => {
 test('a missing challenge is labelled as having no verdict', () => {
   const t = tallyChallenges([], ['reachable'])
   assert.equal(t.unrebutted[0].challenge, 'no verdict returned')
+})
+
+// The only thing that told a reviewer who ARGUED apart from an agent that never
+// ran was `unrebutted[].challenge`, a sentinel string nothing was told to read —
+// and the band branch reported both with the same reason, the one SKILL.md maps
+// to FALSE POSITIVE.
+test('an unanswered challenge is marked as such, not merged with one that was argued', () => {
+  const t = tallyChallenges([lost('reachable')], ['reachable', 'recoverable'])
+  assert.equal(t.unrebutted.length, 2)
+  assert.equal(t.unrebutted.find((u) => u.key === 'reachable').answered, true)
+  assert.equal(t.unrebutted.find((u) => u.key === 'recoverable').answered, false)
+  assert.equal(t.defeated, 0, 'silence still costs the band, exactly as before')
+})
+
+// `missing` was `expectedKeys.length - byKey.size`, so a verdict filed under an
+// unknown key — ignored everywhere else here — deflated it and the log undercounted
+// the agents that died.
+test('missing counts expected challenges nobody answered, not returned verdicts', () => {
+  const t = tallyChallenges([won('not-a-real-challenge')], KEYS)
+  assert.equal(t.missing, 5, 'an unknown key answers none of the five')
+  assert.equal(t.defeated, 0)
 })
 
 test('empty expected list returns cleanly rather than throwing', () => {
@@ -402,11 +424,16 @@ test('the root-cause cap is reported ahead of the classification cap', () => {
   assert.match(v, /integration/)
 })
 
-test('an unrecognised severity is not silently treated as capped', () => {
-  // The schema constrains severity to the five names; anything else means the
-  // enum moved and this function must not start rejecting valid reports.
-  assert.equal(severityCapViolation(undefined, 'integration', 'vulnerability'), null)
-  assert.equal(severityCapViolation('', 'integration', 'vulnerability'), null)
+test('an unrecognised severity is not silently treated as below the cap', () => {
+  // Returning null read as "no violation", which is a gate whose whole job is to
+  // bound a number answering for a string it could not read. `reportProblem`
+  // refuses these first and with a better message, so this is what the function
+  // says when it is called and graded on its own.
+  for (const severity of [undefined, '', 'Sev-1', 'P0']) {
+    const v = severityCapViolation(severity, 'integration', 'vulnerability')
+    assert.ok(v, `severity ${JSON.stringify(severity)} must not read as below the cap`)
+    assert.match(v, /no cap can be checked against it/)
+  }
 })
 
 
@@ -422,7 +449,8 @@ const cleanCheck = {
   fileExists: true,
   lintExitZero: true,
   reimplementation: 'NOT_DEFINED',
-  reRunSucceeded: true,
+  reRun: 'REPRODUCED',
+  reRunNotes: '',
   evidence: 'ran it',
 }
 
@@ -515,11 +543,44 @@ test('a lint failure with no captured output still reports a reason', () => {
   assert.match(problem, /no output captured/)
 })
 
-test('a failed re-run does NOT block', () => {
+// `reRunSucceeded` was one boolean over two opposite results, and the gate that
+// ought to have read it read neither: nothing in code required the PoC to
+// reproduce for the one reader who did not build it, so a reviewer's "ran it; the
+// balance is unchanged" came back REPORTED at High. Four assertions replace the
+// one that stood here, because the input it was written for is only half of what
+// `false` used to mean.
+test('a PoC the reviewer ran that did not reproduce blocks', () => {
+  const problem = artifactProblem({ ...cleanCheck, reRun: 'DID_NOT_REPRODUCE', reRunNotes: 'the balance is unchanged' })
+  assert.ok(problem)
+  assert.match(problem, /did not reproduce the impact/)
+  assert.match(problem, /the balance is unchanged/, "the reviewer's notes belong in the reason, as lintOutput does")
+})
+
+test('a PoC that could not be run here does NOT block', () => {
   // A testnet or service-dependent PoC can legitimately fail to reproduce on
   // the reviewer's machine. That is a boundary for the report's "unproven"
-  // section, not evidence the finding is wrong.
-  assert.equal(artifactProblem({ ...cleanCheck, reRunSucceeded: false }), null)
+  // section, not evidence the finding is wrong — and this is the direction that
+  // must not regress into a false dismissal.
+  assert.equal(artifactProblem({ ...cleanCheck, reRun: 'COULD_NOT_RUN_HERE', reRunNotes: 'no ES cluster here' }), null)
+})
+
+// The clearing answer owes its reason, exactly as the Principle 5 clearance above
+// does: "could not run here" with nothing behind it is the same self-report as an
+// evidence-free clearance, and it is the answer that BUYS the pass.
+test('an environmental boundary with no reason given does not clear', () => {
+  for (const reRunNotes of [undefined, '', '   ', '\n\t']) {
+    const problem = artifactProblem({ ...cleanCheck, reRun: 'COULD_NOT_RUN_HERE', reRunNotes })
+    assert.ok(problem, `${JSON.stringify(reRunNotes)} must not clear`)
+    assert.match(problem, /did not say what stopped it/)
+  }
+})
+
+test('an omitted or unrecognised re-run answer is not a reproduction', () => {
+  for (const reRun of [undefined, '', 'true', 'reproduced', 'YES', 'PARTIAL']) {
+    const problem = artifactProblem({ ...cleanCheck, reRun })
+    assert.ok(problem, `${JSON.stringify(reRun)} must not read as a reproduction`)
+    assert.match(problem, /no usable answer/)
+  }
 })
 
 test('file existence is checked before lint, so the reason is the useful one', () => {
@@ -573,19 +634,23 @@ test('an empty or whitespace reportPath blocks, and the reason names the field',
   }
 })
 
-// The number the finding ships with. `severityCapViolation` names no level in a
-// blank string, so a blank reads as below the cap and returns null, and SKILL.md
-// tells the orchestrator the top-level `severity` IS the rating — so REPORTED
-// carried no rating and no cap had been applied to it. Stage 2 has a fallback for
-// this shape (`unknownSeverity` -> `verification.severity`); Stage 3 has none.
+// The number the finding ships with. SKILL.md tells the orchestrator the
+// top-level `severity` IS the rating, so a blank shipped REPORTED with no rating
+// at all. Stage 2 has a fallback for this shape (`unknownSeverity` ->
+// `verification.severity`); Stage 3 has none, so it refuses — at this gate, which
+// names the fix, and the cap behind it refuses too rather than reading a string it
+// could not parse as below itself.
 test('an empty or whitespace severity blocks — REPORTED cannot ship without a rating', () => {
   for (const severity of [undefined, '', '   ', '\n\t']) {
     const problem = reportProblem({ ...goodReport, severity })
     assert.ok(problem, `severity ${JSON.stringify(severity)} must block`)
     assert.match(problem, /severity/)
-    // and it is not the rationale's message standing in for it
-    assert.equal(severityCapViolation(severity, 'integration', 'vulnerability'), null,
-      'the cap cannot catch a blank rating, which is why this gate has to')
+    // and this gate is the one that names the fix; the cap behind it refuses too
+    assert.match(
+      severityCapViolation(severity, 'integration', 'vulnerability'),
+      /no cap can be checked against it/,
+      'a blank must not read as below the cap',
+    )
   }
 })
 
@@ -810,6 +875,20 @@ test('SKILL.md documents every status triage-poc can return', () => {
   }
 })
 
+// The DO_NOT_SUBMIT table describes reviewers who ARGUED, and both of its rows
+// key on a `reason` prefix. Five agents that never ran produced the byte-identical
+// prefix, so an obedient orchestrator reported a built, executed, independently
+// verified PoC as FALSE POSITIVE on the strength of nothing anyone said.
+test('SKILL.md says a silent challenge agent is not a refutation', () => {
+  const section = skillSection(/Verdicts/i)
+  assert.match(
+    section,
+    /no verdict/i,
+    'the DO_NOT_SUBMIT table describes reviewers who argued; it has to say what a silent one returns',
+  )
+  assert.match(section, /NEEDS_MORE_INFO/, 'and name the status Stage 3 returns instead')
+})
+
 test('SKILL.md gives every settled verdict an opening line to report it with', () => {
   const section = skillSection(/asked for a PoC/i)
   for (const status of SETTLED) {
@@ -845,4 +924,23 @@ test('the retraction wording leaves no room to hedge', () => {
     /already[-\s*_`]+fixed[-\s*_`]+on[-\s*_`]+current[-\s*_`]+HEAD/i,
     'the baseline sentence is the thing being ruled out; deleting the example deletes the rule',
   )
+})
+
+// An off-type boolean is not a hypothetical here: `required` is the only thing
+// the runtime validator enforces and `type` is advisory, so `lintExitZero: 'no'`
+// is a schema-valid answer. Read by exclusion, every one of these was TRUTHY and
+// cleared the gate — a PoC with no file at all, and one whose lint FAILED, each
+// reached REPORTED at HIGH confidence, which SKILL.md maps to TRUE POSITIVE.
+// `0` fails the other way: it is the exit code of a CLEAN run and is falsy, so a
+// reviewer answering the old prompt literally blocked a correct PoC.
+test('an off-type artifact boolean blocks rather than clearing', () => {
+  for (const field of ['fileExists', 'lintExitZero']) {
+    for (const value of ['no', 'false', 'true', '0', 1, 0, {}, []]) {
+      assert.ok(
+        artifactProblem({ ...cleanCheck, [field]: value }),
+        `${field} = ${JSON.stringify(value)} must not clear the artifact gate`,
+      )
+    }
+  }
+  assert.equal(artifactProblem(cleanCheck), null, 'a clean check must still pass')
 })

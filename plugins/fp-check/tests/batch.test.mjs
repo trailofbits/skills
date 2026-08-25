@@ -74,6 +74,10 @@ const blockedAt = (...names) => ({
   layers: names.map(stopped),
 })
 const CONFIRMED = { status: 'TRUE_POSITIVE', reason: 'the rate reaches ledger.debit', severity: 'High', layers: [] }
+// The single likeliest way a Stage 1 child declines. BLOCKED is this codebase's
+// own word for an analysis that did not RUN — triage-static.js returns it from
+// nine sites, most of them a dead agent — and the ledger filed it as a verdict.
+const BLOCKED_CHILD = { status: 'BLOCKED', reason: '2 layer agent(s) returned nothing; Stage 1c is unverified' }
 
 const CHAIN_CONFIRMED = {
   chains: true,
@@ -98,7 +102,8 @@ const staticAlways = () => blockedAt('authz')
 // ================================================================ missingArgs
 
 test('missingArgs: the batch shape, one row per way a dispatch goes wrong', () => {
-  const missingArgs = loadFn(SCRIPT, 'missingArgs')
+  // `auditedSearch` alongside it: the layers rule reads through that sibling.
+  const { missingArgs } = loadFns(SCRIPT, 'missingArgs', 'auditedSearch')
   const ok = args()
 
   const cases = [
@@ -119,6 +124,10 @@ test('missingArgs: the batch shape, one row per way a dispatch goes wrong', () =
     ['an entry with no entryPoint at all', { ...ok, findings: [{ ...entry('a'), entryPoint: undefined }] }, ['findings[0].entryPoint.description', 'findings[0].entryPoint.location', 'findings[0].entryPoint.payload']],
     ['an entry that is not an object', { ...ok, findings: ['a bug in billing'] }, ['findings[0]']],
     ['empty layers with no layersSearched', { ...ok, findings: [{ ...entry('a'), layers: [] }] }, ['findings[0].layers']],
+    // A stand-in is not a declaration: it cleared the old non-blankness rule and
+    // the entry was forwarded to Stage 1, which then reached a verdict on zero
+    // layer agents.
+    ['empty layers with a stand-in for layersSearched', { ...ok, findings: [{ ...entry('a'), layers: [], layersSearched: 'n/a' }] }, ['findings[0].layers']],
     ['empty layers WITH layersSearched', { ...ok, findings: [{ ...entry('a'), layers: [], layersSearched: 'read api/orders.py and billing/charge.py; no validation between them' }] }, []],
     ['a layer with no location', { ...ok, findings: [{ ...entry('a'), layers: [{ name: 'sign-check' }] }] }, ['findings[0].layers[0].location']],
     ['layers as a string', { ...ok, findings: [{ ...entry('a'), layers: 'the sign check' }] }, ['findings[0].layers']],
@@ -141,7 +150,8 @@ test('missingArgs: an empty batch is rejected rather than returning a clean empt
   // codebase keeps rediscovering — `layers`, `sources`, the citation gate. Every
   // loop below matches nothing on an empty list, so without this the script
   // reports a batch triaged having triaged nothing.
-  const missingArgs = loadFn(SCRIPT, 'missingArgs')
+  // `auditedSearch` alongside it: the layers rule reads through that sibling.
+  const { missingArgs } = loadFns(SCRIPT, 'missingArgs', 'auditedSearch')
   assert.ok(missingArgs({ ...args(), findings: [] }, 5).some((m) => m.startsWith('findings')))
 })
 
@@ -183,6 +193,31 @@ test('accountFindings: every dispatched finding lands in exactly one column', ()
       ['b', 'c'],
     ],
     ['nothing came back at all', [null, null, null], [], ['a', 'b', 'c']],
+    [
+      'a sub-workflow that could not run at all',
+      [CONFIRMED, BLOCKED_CHILD, CONFIRMED],
+      ['a', 'c'],
+      ['b'],
+    ],
+    ['every sub-workflow BLOCKED', [BLOCKED_CHILD, BLOCKED_CHILD, BLOCKED_CHILD], [], ['a', 'b', 'c']],
+    [
+      'a status this script does not recognise',
+      [{ status: 'TRIAGED', reason: 'stage 2 finished' }, CONFIRMED, CONFIRMED],
+      ['b', 'c'],
+      ['a'],
+    ],
+    [
+      'the internal PROCEED sentinel escaping decideGate',
+      [{ status: 'PROCEED', reason: '' }, CONFIRMED, CONFIRMED],
+      ['b', 'c'],
+      ['a'],
+    ],
+    [
+      'a verdict in the wrong case',
+      [{ status: 'true_positive', reason: 'x' }, CONFIRMED, CONFIRMED],
+      ['b', 'c'],
+      ['a'],
+    ],
   ]
 
   for (const [name, results, verified, unverified] of cases) {
@@ -197,6 +232,38 @@ test('accountFindings: every dispatched finding lands in exactly one column', ()
     )
     for (const row of got.unverified) assert.ok(row.why.trim() !== '', `${name}: an unverified row with no reason`)
   }
+})
+
+// Both directions in one table, so it fails if BLOCKED is accepted AND if a real
+// verdict is rejected. The allowlist is pinned to triage-static.js's own status
+// literals by test_the_batch_verdict_allowlist_matches_what_stage_1_returns.
+test('accountFindings: every status Stage 1 returns is graded, and BLOCKED is not a verdict', () => {
+  const accountFindings = loadFn(SCRIPT, 'accountFindings')
+  const cases = [
+    ['TRUE_POSITIVE', true],
+    ['FALSE_POSITIVE', true],
+    ['NOT_EXPLOITABLE', true],
+    ['NOT_VULNERABLE', true],
+    ['NEEDS_MORE_INFO', true],
+    ['ALREADY_FIXED', true],
+    ['OUT_OF_SCOPE', true],
+    ['BLOCKED', false],
+  ]
+  for (const [status, isVerdict] of cases) {
+    const got = accountFindings([entry('a')], [{ status, reason: 'r' }])
+    assert.equal(got.problem, '', status)
+    assert.deepEqual(got.verified.map((v) => v.id), isVerdict ? ['a'] : [], status)
+    assert.deepEqual(got.unverified.map((u) => u.id), isVerdict ? [] : ['a'], status)
+  }
+})
+
+// An unverified row is the orchestrator's NEEDS MORE INFO and the missing fact is
+// the deliverable; a row naming only an id is unactionable.
+test('accountFindings: a BLOCKED row keeps the reason it was blocked for', () => {
+  const accountFindings = loadFn(SCRIPT, 'accountFindings')
+  const got = accountFindings([entry('a')], [BLOCKED_CHILD])
+  assert.match(got.unverified[0].why, /BLOCKED/)
+  assert.ok(got.unverified[0].why.includes(BLOCKED_CHILD.reason))
 })
 
 test('accountFindings: more results than dispatches is a hard stop, not a tally', () => {
@@ -261,6 +328,11 @@ test('pairReason: the pairing rule, one row per shape', () => {
     ['confirmed plus unexploitable, the other way round', row('x', 'TRUE_POSITIVE', CONFIRMED), ne('authz'), true],
     ['needs-more-info plus confirmed', row('x', 'NEEDS_MORE_INFO', {}), row('y', 'TRUE_POSITIVE', CONFIRMED), true],
     ['two confirmed findings', row('x', 'TRUE_POSITIVE', CONFIRMED), row('y', 'TRUE_POSITIVE', CONFIRMED), false],
+    // These two are absent by decision, not by oversight, and the reason is in
+    // `pairReason`'s own comment: a NEEDS_MORE_INFO names its missing fact only in
+    // prose, so either pair could only be selected on the status alone — the
+    // string heuristic this plugin has regressed on five times — and both would
+    // spend against a cap of 3 that is sliced in candidate order.
     ['two needs-more-info', row('x', 'NEEDS_MORE_INFO', {}), row('y', 'NEEDS_MORE_INFO', {}), false],
     ['needs-more-info plus unexploitable', row('x', 'NEEDS_MORE_INFO', {}), ne('authz'), false],
   ]
@@ -407,6 +479,43 @@ test('wiring: a batch where nothing reached a verdict is BLOCKED, not BATCH_TRIA
   assert.deepEqual(chainLabels(r), [], 'chains were checked over an empty ledger')
 })
 
+// The same hiding place, entered by the door the null-child test above does not
+// cover: every child returned BLOCKED. `status` was non-blank, so the ledger
+// counted three verdicts, the guard could not fire, and the batch came back
+// BATCH_TRIAGED / "3 of 3 finding(s) verified; 0 unverified" over three analyses
+// that never ran. Grading a guard on one of its two inputs is why this slipped.
+test('wiring: a batch where every child BLOCKED is BLOCKED, not "N of N verified"', async () => {
+  const r = await runScript('triage-batch.js', {
+    args: args(['a', 'b', 'c']),
+    agents: { context: CONTEXT, chain: NO_CHAIN },
+    workflows: () => BLOCKED_CHILD,
+  })
+  assert.equal(r.result.status, 'BLOCKED')
+  assert.match(r.result.reason, /no finding reached a verdict/)
+  assert.match(r.result.reason, /Stage 1c is unverified/, "the child's own reason has to reach the caller")
+  assert.deepEqual(r.result.unverified.map((u) => u.id), ['a', 'b', 'c'])
+  assert.deepEqual(r.result.findings, [])
+  assert.ok(!r.logs.some((l) => /reached a verdict\./.test(l)), 'nothing reached a verdict, so nothing may say so')
+  assert.deepEqual(chainLabels(r), [])
+})
+
+// The correct-behaviour direction, so the fix files BLOCKED elsewhere rather than
+// dropping it: a blocked finding is still reported, beside the ones that decided,
+// through the channel SKILL.md says must not be omitted.
+test('wiring: a BLOCKED child is reported beside the findings that DID reach a verdict', async () => {
+  const r = await runScript('triage-batch.js', {
+    args: args(),
+    agents: { context: CONTEXT, chain: NO_CHAIN },
+    workflows: (name, sub) => (sub.finding.summary === 'finding a' ? BLOCKED_CHILD : CONFIRMED),
+  })
+  assert.equal(r.result.status, 'BATCH_TRIAGED')
+  assert.deepEqual(r.result.findings.map((f) => [f.id, f.status]), [['b', 'TRUE_POSITIVE']])
+  assert.deepEqual(r.result.unverified.map((u) => u.id), ['a'])
+  assert.match(r.result.reason, /1 of 2 finding\(s\) verified; 1 unverified/)
+  assert.ok(r.logs.some((l) => /UNVERIFIED a/.test(l)))
+  assert.deepEqual(r.result.notChainable, [], 'a blocked finding is not a verdict that merely cannot chain')
+})
+
 test('wiring: the chain verdict reaches the return, with both contributions', async () => {
   const r = await runScript('triage-batch.js', {
     args: args(),
@@ -418,6 +527,91 @@ test('wiring: the chain verdict reaches the return, with both contributions', as
   assert.deepEqual(r.result.chains[0].findings, ['a', 'b'])
   assert.equal(r.result.chains[0].supplies, CHAIN_CONFIRMED.supplies)
   assert.match(r.result.reason, /1 chain\(s\) confirmed/)
+})
+
+// ===================================================== what the chain agent sees
+//
+// Nothing asserted on the chain prompt's CONTENT before these: the fan-out was
+// tested for its labels, its cap and its rejection logic, never for what it says.
+// So the only false-negative guard in the plugin was shown a status and a
+// sentence — `blocked at <layer>` on the canonical pair — and told to answer
+// chains:false whenever it could not name the supplying mechanism.
+
+test('describe: the chain agent is told what each finding IS, not only its status', () => {
+  const describe = loadFn(SCRIPT, 'describe')
+  const row = { id: 'a', status: 'NOT_EXPLOITABLE', reason: 'blocked at authz (billing/authz.py:10)', finding, entryPoint }
+  const text = describe(row)
+
+  assert.match(text, /^a — NOT_EXPLOITABLE: blocked at authz \(billing\/authz\.py:10\)/, 'the verdict line changed')
+  for (const value of Object.values(finding)) {
+    assert.ok(text.includes(value), `the description dropped ${value}`)
+  }
+  for (const value of Object.values(entryPoint)) {
+    assert.ok(text.includes(value), `the description dropped ${value}`)
+  }
+  // The claim is the submitter's and this phase never established it; an
+  // unlabelled claimed impact reads to the agent as a fact.
+  assert.match(text, /claimed impact, UNVERIFIED/)
+
+  // Blank fields are dropped rather than rendered, for the reason contextBlock
+  // drops them: a literal 'undefined' in a prompt reads as an established fact.
+  const sparse = describe({ id: 'b', status: 'TRUE_POSITIVE', finding: { summary: 'only a summary' }, entryPoint: {} })
+  assert.ok(!/undefined/.test(sparse), 'an absent field reached the prompt as the text undefined')
+  assert.ok(!/sink:/.test(sparse), 'a blank field kept its label, which reads as established')
+  assert.match(sparse, /no reason given/)
+  assert.doesNotThrow(() => describe({ id: 'c', status: 'NEEDS_MORE_INFO' }), 'a row with no dispatch attached threw')
+})
+
+test('wiring: the chain prompt names both findings, out of the dispatch not the verdict', async () => {
+  const r = await runScript('triage-batch.js', {
+    args: args(),
+    agents: { context: CONTEXT, chain: NO_CHAIN },
+    workflows: (name, sub) => blockedAt(sub.finding.summary === 'finding a' ? 'authz' : 'quota'),
+  })
+  const prompt = r.calls.find((c) => c.label.startsWith('chain:')).prompt
+  assert.ok(prompt.includes('finding a') && prompt.includes('finding b'), 'a finding was not named')
+  // Exactly twice is what proves BOTH findings were described rather than one:
+  // the two entries share these fixture values.
+  for (const value of [finding.sink, finding.bugClass, finding.threatModel, entryPoint.location, entryPoint.payload]) {
+    assert.equal(prompt.split(value).length - 1, 2, `${value} appears once, so only one finding was described`)
+  }
+})
+
+test('wiring: a confirmed chain carries a status the Verdicts table can map', async () => {
+  const r = await runScript('triage-batch.js', {
+    args: args(['a', 'b']),
+    agents: { context: CONTEXT, chain: CHAIN_CONFIRMED },
+    workflows: (name, sub) => blockedAt(sub.finding.summary === 'finding a' ? 'authz' : 'quota'),
+  })
+  assert.equal(r.result.chains[0].status, 'NEEDS_MORE_INFO')
+  assert.match(r.result.chains[0].reason, /Re-run Stage 1/)
+  assert.ok(r.result.chains[0].reason.includes(CHAIN_CONFIRMED.supplies), 'the mechanism is the deliverable')
+  assert.deepEqual(r.result.findings.map((f) => f.chainedInto), [['a + b'], ['a + b']])
+  // The guard against the over-fix. Rewriting a sub-workflow's verdict in the
+  // parent is the "argue the dismissal back to life" this phase's prompt forbids,
+  // and those findings ARE unexploitable alone.
+  assert.deepEqual(r.result.findings.map((f) => f.status), ['NOT_EXPLOITABLE', 'NOT_EXPLOITABLE'])
+})
+
+test('wiring: no chain leaves every row unmarked, so the marker means something', async () => {
+  const r = await runScript('triage-batch.js', {
+    args: args(),
+    agents: { context: CONTEXT, chain: NO_CHAIN },
+    workflows: (name, sub) => blockedAt(sub.finding.summary === 'finding a' ? 'authz' : 'quota'),
+  })
+  assert.deepEqual(r.result.chains, [])
+  for (const rowOut of r.result.findings) {
+    assert.ok(!('chainedInto' in rowOut), `${rowOut.id} was marked on a run with no chain`)
+  }
+})
+
+test('chainedInto: a row is marked by every confirmed chain that names it', () => {
+  const chainedInto = loadFn(SCRIPT, 'chainedInto')
+  const confirmed = [{ findings: ['a', 'b'] }, { findings: ['a', 'c'] }, { findings: ['b', 'c'] }]
+  assert.deepEqual(chainedInto({ id: 'a' }, confirmed), ['a + b', 'a + c'])
+  assert.deepEqual(chainedInto({ id: 'd' }, confirmed), [])
+  assert.deepEqual(chainedInto({ id: 'a' }, []), [])
+  assert.deepEqual(chainedInto({ id: 'a' }, null), [])
 })
 
 test('wiring: a chain claimed without a mechanism is rejected and said out loud', async () => {

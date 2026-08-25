@@ -112,7 +112,7 @@ const CHALLENGE_SCHEMA = {
 const ARTIFACT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['fileExists', 'lintExitZero', 'reimplementation', 'evidence'],
+  required: ['fileExists', 'lintExitZero', 'reimplementation', 'reRun', 'reRunNotes', 'evidence'],
   properties: {
     fileExists: { type: 'boolean' },
     lintExitZero: { type: 'boolean', description: 'poc-lint.sh exited 0 when YOU ran it' },
@@ -137,8 +137,26 @@ const ARTIFACT_SCHEMA = {
       description:
         'does the PoC contain a copy of the code under test, under ANY name? NOT_DEFINED: it holds no copy and calls the imported symbol. LOCAL_DRIVER: it defines that name but the body is not the target\'s logic. COPY_OF_TARGET: the vulnerable logic was pasted in, whatever it was renamed to',
     },
-    reRunSucceeded: { type: 'boolean', description: 'the PoC command ran and reproduced the impact' },
-    reRunNotes: { type: 'string' },
+    // The independent re-run, and the only field here filled by someone who
+    // actually ran the PoC — the builder's `executed` is a self-report in a script
+    // with no Bash. Three values for the reason `reimplementation` above has
+    // three: as a boolean, `false` meant both "I ran it and the impact did not
+    // happen" and "there is no Elasticsearch on this host", and the prompt asked
+    // for the same `false` for both. Those are opposite results, so the field
+    // could not be gated on in either direction and was gated on in neither —
+    // which is how a PoC whose independent reviewer reported the balance
+    // unchanged came back REPORTED at High, the status SKILL.md maps to TRUE
+    // POSITIVE. Graded affirmatively below: an omitted or unrecognised answer is
+    // not a reproduction.
+    reRun: {
+      enum: ['REPRODUCED', 'DID_NOT_REPRODUCE', 'COULD_NOT_RUN_HERE'],
+      description:
+        'you ran the PoC command yourself. REPRODUCED: it ran and the impact happened. DID_NOT_REPRODUCE: it ran to completion and the impact did not happen. COULD_NOT_RUN_HERE: it could not be run on this host at all — a missing service, a target that is not this machine',
+    },
+    reRunNotes: {
+      type: 'string',
+      description: 'what you observed; for COULD_NOT_RUN_HERE, what stopped it running here',
+    },
     evidence: { type: 'string' },
   },
 }
@@ -287,9 +305,33 @@ function settledByStageOne(a) {
 // throws a TypeError and kills the run mid-prompt-construction.
 function missingArgs(a) {
   const missing = []
-  const need = (path, value) => {
+  // Whitespace is missing. `finding.summary = '   '` satisfies a `!== ''` check
+  // and then reaches every prompt as blank space, which is the `undefined`
+  // failure this validator exists to stop wearing a different hat.
+  //
+  // The TYPE is checked for the same reason the blank is. Presence alone let
+  // `finding.bugClass = {cwe: 89}` and `layers[i].name = {fn: 'validate'}` clear
+  // this validator and reach six prompts as the literal text `[object Object]` —
+  // the agent LABEL became `layer:[object Object]` — and the run still returned
+  // TRUE_POSITIVE, from a layer agent told to inspect "[object Object] at
+  // [object Object]". `baseDir` was worse: `[]`, `[null]` and `['']` are none of
+  // undefined, null or a blank string, so they cleared here AND stringified to ''
+  // in the shape guard below, which skips on a falsy `base` — zero problems
+  // reported, every `${baseDir}/references/` read resolving under a bare
+  // `/references/`, and five agents answering from memory behind a verdict that
+  // looks complete.
+  //
+  // `kind` exists for one call site: an integer whose range is graded elsewhere.
+  // Demanding a string there would reject every well-formed envelope.
+  const need = (path, value, kind = 'string') => {
     const blank = typeof value === 'string' && value.trim() === ''
-    if (value === undefined || value === null || blank) missing.push(path)
+    if (value === undefined || value === null || blank) {
+      missing.push(path)
+      return
+    }
+    if (kind === 'string' && typeof value !== 'string') {
+      missing.push(`${path} (must be a string; a value of type ${typeof value} interpolates as '${String(value)}')`)
+    }
   }
   const finding = (a && a.finding) || {}
   const impact = (a && a.verification && a.verification.impact) || {}
@@ -321,13 +363,25 @@ function missingArgs(a) {
   // One here turns that whole suite red on unmutated code, and a mutation whose
   // baseline is red proves nothing.
   //
-  // `String(...)`, not a `typeof === 'string'` test. A non-string baseDir clears
-  // `need` — it is neither undefined, null nor a blank string — and would read as
-  // '' here, skipping the shape check below entirely while every reference path
-  // resolves to '[object Object]/references/...'.
+  // Still `String(... ?? '')` and not a `typeof` test, but no longer for the
+  // reason it used to give: `need` now rejects a non-string baseDir one line
+  // above. It is load-bearing for an ABSENT one — `undefined.trim()` would throw
+  // out of the validator and kill the run with no BLOCKED result at all, which is
+  // the worst shape this plugin can fail in.
+  //
+  // Separators are normalised and a drive letter counts as absolute because the
+  // leading-slash test rejected the only value that WORKS on native Windows.
+  // `C:\\Users\\...\\skills\\fp-check` failed both halves, the stage returned
+  // BLOCKED, and the only path that then satisfied this guard was a POSIX-shaped
+  // path that does not exist — so the guard manufactured the very failure it was
+  // written to prevent, one case further down. A UNC path normalises to
+  // `//server/share/...` and passes on the leading slash; `skills\\fp-check`
+  // normalises to a relative path and is still refused.
   const base = String((a && a.baseDir) ?? '').trim()
-  const withoutSlash = base.endsWith('/') ? base.slice(0, -1) : base
-  const shaped = withoutSlash.startsWith('/') && withoutSlash.endsWith('/skills/fp-check')
+  const slashed = base.split('\\').join('/')
+  const withoutSlash = slashed.endsWith('/') ? slashed.slice(0, -1) : slashed
+  const absolute = withoutSlash.startsWith('/') || new RegExp('^[A-Za-z]:/').test(withoutSlash)
+  const shaped = absolute && withoutSlash.endsWith('/skills/fp-check')
   if (base && !shaped) {
     missing.push(
       `baseDir (must be the skill directory's ABSOLUTE path, ending in skills/fp-check; got '${base}'. Copy it from an expanded reference link rather than reconstructing it — the working directory is the TARGET repo and has no references/ in it)`,
@@ -371,7 +425,9 @@ function missingArgs(a) {
       `verification.status (must be 'TRUE_POSITIVE'; got ${status ? `'${status}'` : 'nothing'} — only a finding Stage 1 confirmed outright justifies building an exploit. Six passing gates are necessary and not sufficient: an unresolved uncertainty still returns NEEDS_MORE_INFO, and that is a missing fact to answer rather than a bug to demonstrate)`,
     )
   }
-  need('envelope.level', envelope.level)
+  // 'any': `level` is an INTEGER, and its type and range are graded by the 1-5
+  // check below. Demanding a string here would reject every well-formed envelope.
+  need('envelope.level', envelope.level, 'any')
   if (!Array.isArray(envelope.hosts)) missing.push('envelope.hosts (must be an array)')
   if (typeof envelope.destructive !== 'boolean') {
     missing.push('envelope.destructive (must be a boolean)')
@@ -403,9 +459,11 @@ function missingArgs(a) {
     missing.push('candidates (must be an array)')
   } else {
     for (const [i, c] of (Array.isArray(cands) ? cands : []).entries()) {
-      if (!c || !c.description) missing.push(`candidates[${i}].description`)
-      if (!c || !c.entryPoint) missing.push(`candidates[${i}].entryPoint`)
-      if (!c || !c.payload) missing.push(`candidates[${i}].payload`)
+      // Through `need`, so the same type discipline covers the per-item fields:
+      // each of these is interpolated into the builder prompt verbatim.
+      need(`candidates[${i}].description`, c && c.description)
+      need(`candidates[${i}].entryPoint`, c && c.entryPoint)
+      need(`candidates[${i}].payload`, c && c.payload)
     }
   }
   return missing
@@ -465,8 +523,16 @@ function selectAttempts(all, max) {
 // test_the_build_gate_covers_every_field_the_reviewers_read pins it against the
 // fields the challenge and artifact prompts interpolate, so a field this gate
 // lets through cannot reach a reviewer as blank.
+// The three booleans are compared to `true` rather than read by truthiness, for
+// the reason every other gate in this file grades affirmatively: `required` is
+// the only thing the runtime validator enforces and `type` is advisory, so
+// `built: 'no'`, `executed: 'false'` and `lintPassed: 'failed'` are all
+// schema-valid answers that a truthiness test reads as YES. Each one cleared this
+// gate, and a build the builder itself said did not happen went on to five
+// reviewers and reached REPORTED at HIGH confidence. `!result` stays in front of
+// the chain because a dead builder agent yields null and `null.built` throws.
 function isAcceptableBuild(result) {
-  if (!result || !result.built || !result.executed || !result.lintPassed) return false
+  if (!result || result.built !== true || result.executed !== true || result.lintPassed !== true) return false
   return ['absolutePath', 'path', 'pocType', 'command', 'output', 'invokedSymbol'].every(
     (f) => typeof result[f] === 'string' && result[f].trim() !== '',
   )
@@ -624,7 +690,9 @@ Command the builder says runs it: ${poc.command}
 Do these, with Bash:
   1. Confirm the file exists and read it.
   2. Run: ${baseDir}/scripts/poc-lint.sh --symbol '${poc.invokedSymbol}' '${poc.absolutePath}'
-     Report its exit code as lintExitZero and paste its output as lintOutput.
+     Set lintExitZero TRUE if it exited 0 and FALSE otherwise, and paste its
+     output as lintOutput. It is a boolean, not the exit code: reporting the
+     number 0 there says the opposite of what a clean run means.
      The builder reported that this passes; you are the one who checks.
      If it prints a \`possible-reimplementation\` NOTE, that is not a lint
      failure and must not be reported as one — it is the one Principle 5
@@ -645,13 +713,25 @@ Do these, with Bash:
      copy is broken and nothing about the application. Put the two locations you
      compared in \`evidence\`, whichever of the three you answer; a blank one
      ends this stage as BLOCKED too.
-  4. Run the command above and report whether it reproduces the impact.
+  4. Run the command above yourself and answer \`reRun\` with ONE of three, which
+     is the whole of checkpoint 4.3 — "the output demonstrates the vulnerability",
+     decided by the one reader who did not build this:
+       REPRODUCED          it ran and the impact happened
+       DID_NOT_REPRODUCE   it ran to completion and the impact did not happen
+       COULD_NOT_RUN_HERE  it could not be run on this host at all
      Grade the impact, not the exit code: the preferred test-integrated PoC is
      written to FAIL while the vulnerability exists, so a red test there IS a
-     reproduction and reRunSucceeded is true.
-     If it cannot run here for an environmental reason — a missing service, a
-     target that is not this machine — say so in reRunNotes and set
-     reRunSucceeded false. That is a boundary to record, not a failure to hide.
+     reproduction and \`reRun\` is REPRODUCED.
+     DID_NOT_REPRODUCE ends this stage as BLOCKED: the builder's captured output
+     is otherwise the only evidence the PoC ever worked. Say what you saw in
+     \`reRunNotes\`.
+     COULD_NOT_RUN_HERE is for an environmental boundary and only that — a missing
+     service, a target that is not this machine. It is a boundary to record rather
+     than a failure to hide, and not a result: the stage continues and the report
+     puts it in "unproven". Say what stopped it in \`reRunNotes\`; a blank one ends
+     this stage as BLOCKED, because "could not run" with no reason given cannot be
+     told apart from not having tried. Do not answer it for a PoC that ran here and
+     disappointed you — that is DID_NOT_REPRODUCE.
 
 Report what you observed. Do not repair the PoC and do not re-run the linter
 until it passes; a failing check is the finding.`
@@ -709,15 +789,31 @@ const verdicts = checks.slice(1).filter(Boolean)
 // The barrier is justified: the confidence band is a decision over all five.
 
 // Re-decided on what the reviewer observed rather than on what the builder
-// claimed. Only the two environment-independent facts gate: the file is there,
-// and the linter exits 0. A failed re-run is recorded for the report instead of
-// blocking, because a testnet or service-dependent PoC can legitimately fail to
-// reproduce on the reviewer's machine — that is a boundary for the "unproven"
-// section, not proof the finding is wrong.
+// claimed: the file is there, the linter exits 0, Principle 5 clears, and the
+// PoC reproduced for someone who did not build it.
+//
+// That last one used to gate on nothing at all. `reRunSucceeded: false` said both
+// "I ran it and the impact did not happen" and "there is no cluster on this host",
+// so it could not be blocked on without turning an environmental boundary into a
+// false dismissal — and was blocked on in neither direction. A PoC whose
+// independent reviewer wrote "ran it; the balance is unchanged, the impact does
+// not reproduce" therefore reached REPORTED at High, which SKILL.md maps to TRUE
+// POSITIVE, on the strength of output the BUILDER captured. Every challenge
+// prompt interpolates that same builder output, so the five reviewers could not
+// catch it either. `reRun` splits the two, and only the environmental half is
+// still carried to the report rather than blocking.
 function artifactProblem(check) {
   if (!check) return 'the artifact-check agent returned nothing; the PoC was never independently verified'
-  if (!check.fileExists) return 'no PoC file exists at the reported absolutePath'
-  if (!check.lintExitZero) {
+  // Both compared to `true`, not read by truthiness, and the two directions this
+  // closes are opposite. Reading by exclusion, `fileExists: 'no'` and
+  // `lintExitZero: 'false'` are truthy strings that CLEARED the gate — a PoC with
+  // no file at all, and one whose lint failed, each reached REPORTED at HIGH.
+  // Reading a boolean field as an exit code fails the other way: `0` means a
+  // clean run and is falsy, so a reviewer who answered the prompt literally
+  // blocked a correct PoC. The prompt above now asks for the boolean in as many
+  // words; this is the half of that fix the prompt cannot enforce.
+  if (check.fileExists !== true) return 'no PoC file exists at the reported absolutePath'
+  if (check.lintExitZero !== true) {
     return `poc-lint.sh did not exit 0 when an independent reviewer ran it, though the builder reported lintPassed: ${check.lintOutput || 'no output captured'}`
   }
   // Principle 5, decided here because it is decidable here and nowhere else.
@@ -738,6 +834,26 @@ function artifactProblem(check) {
   if (!String(check.evidence || '').trim()) {
     return `the artifact check answered ${check.reimplementation} for Principle 5 without saying what it compared; the two locations opened are what makes that a check rather than an assertion`
   }
+  // LAST, after the file, the lint and Principle 5, so that when several things
+  // are wrong at once the more actionable reason still wins — the same ordering
+  // rule 'file existence is checked before lint' pins one gate up.
+  if (check.reRun === 'DID_NOT_REPRODUCE') {
+    return `the PoC ran to completion for an independent reviewer and did not reproduce the impact: ${String(check.reRunNotes || '').trim() || 'no observation recorded'}. The builder's captured output is then the only evidence it ever worked, and checkpoint 4.3 asks that the output demonstrate the vulnerability`
+  }
+  // The environmental half owes its reason. "Could not run here" with nothing
+  // behind it is indistinguishable from not having tried, and it is the answer
+  // that BUYS a pass through this gate — so it is held to the standard the
+  // Principle 5 clearance above is held to, and for the same reason.
+  if (check.reRun === 'COULD_NOT_RUN_HERE' && !String(check.reRunNotes || '').trim()) {
+    return 'the artifact check reported it could not run the PoC here but did not say what stopped it; an environmental boundary is only a boundary if it names itself'
+  }
+  // Affirmative, like `reimplementation` above and for the same reason: the enum
+  // is advisory, the runtime validator enforces `required` alone, and by
+  // exclusion an omitted or misspelt answer would buy the same pass a genuine
+  // reproduction does.
+  if (check.reRun !== 'REPRODUCED' && check.reRun !== 'COULD_NOT_RUN_HERE') {
+    return `the artifact check gave no usable answer for the independent re-run (${check.reRun || 'nothing returned'}); REPRODUCED, DID_NOT_REPRODUCE and COULD_NOT_RUN_HERE are the three, and only the first says checkpoint 4.3 was met`
+  }
   return null
 }
 
@@ -745,6 +861,13 @@ function artifactProblem(check) {
 // back: a challenge with no verdict counts as won by the challenge, which is the
 // stated rule. Tallying the returned array instead lets a dead agent raise
 // confidence by shrinking the denominator.
+//
+// `answered` because "won by the challenge" and "nobody was there to argue" are
+// the same entry otherwise, and the band branch below reported them with the same
+// string — the one SKILL.md maps to FALSE POSITIVE. `missing` counts EXPECTED
+// keys nobody answered rather than the size of the map, which a verdict filed
+// under an unknown key — ignored everywhere else here — deflated, making the log
+// undercount the agents that died.
 function tallyChallenges(challengeVerdicts, expectedKeys) {
   const byKey = new Map((challengeVerdicts || []).filter(Boolean).map((v) => [v.key, v]))
   const unrebutted = []
@@ -752,9 +875,9 @@ function tallyChallenges(challengeVerdicts, expectedKeys) {
   for (const key of expectedKeys) {
     const v = byKey.get(key)
     if (v && v.winner === 'REBUTTAL') defeated += 1
-    else unrebutted.push({ key, challenge: v ? v.challenge : 'no verdict returned' })
+    else unrebutted.push({ key, challenge: v ? v.challenge : 'no verdict returned', answered: Boolean(v) })
   }
-  return { defeated, unrebutted, missing: expectedKeys.length - byKey.size }
+  return { defeated, unrebutted, missing: unrebutted.filter((u) => !u.answered).length }
 }
 
 // checkpoints.md 5.1 challenge 4: "a fix exists -> the band does not get a vote".
@@ -819,8 +942,12 @@ function citedReference(value) {
     [
       // a commit sha, alone or qualified by the repo it belongs to
       bound + '[0-9a-f]{7,40}([^0-9a-z]|$)',
-      // #412, and owner/repo#412
-      '[0-9a-z._-]*#[0-9]+',
+      // #412, owner/repo#412, and GitLab's merge-request form !412 — the same
+      // shorthand with the other sigil, and the only thing a fix that landed in a
+      // GitLab MR has to cite. In the shared class rather than a branch of its
+      // own so `group/project!412` is reached the way `openssl/openssl#12345`
+      // already is.
+      '[0-9a-z._-]*[#!][0-9]+',
       // Advisory IDs, recognised by REGISTRY NAME rather than by shape. Every
       // available shape rule mis-classifies in both directions: "one hyphen and
       // a digit" makes `internal-fix-2` and `fixed in a post-2020 refactor`
@@ -845,14 +972,45 @@ function citedReference(value) {
       // bulletin number — which is what separates the ID from the prose: `go` is
       // in the list, and `go-to-market-2` still fails because `to` is not a
       // number.
-      bound + '(cve|rustsec|pysec|osv|go|dsa|usn|dla|zdi|mal|alsa|elsa|talos)[-:][0-9]+[-:][0-9a-z]+',
-      // v3, v2.3.1, 2.3.1. The trailing lookahead refuses a version that is part
-      // of a FILENAME: `src/handlers/auth-v2.go:118` is the bare file:line
-      // challenge 4's own prompt names as a non-citation, and without the
-      // lookahead the `v2` inside it satisfies a consuming boundary group.
-      bound + '(v[0-9]+([.][0-9]+)*|[0-9]+([.][0-9]+){2,})(?![0-9a-z]|[.][a-z])',
-      // PR 4521, issue #1234, release 3, gh-1234.
-      bound + '(pr|pull|issues?|bug|ticket|gh|release)[ #-]+[0-9]+',
+      //
+      // The list is INCOMPLETE by construction, and every name missing from it is
+      // the false REJECT this comment already names. It shipped carrying `alsa`
+      // and `elsa` — the AlmaLinux and Oracle REBUILDS of a Red Hat erratum —
+      // without `rhsa`, the original both rebuild, and refused `MFSA-2021-24` and
+      // `SUSE-SU-2021:1234` outright, so bugs those advisories had already fixed
+      // were reported as live. A name it still has not heard of is not silently
+      // promoted; what makes that survivable is the note in
+      // `downgradeUnreferencedFix`, which quotes the string it was handed instead
+      // of claiming nothing was offered. SUSE numbers a two-letter advisory KIND
+      // (`SU` security, `RU` recommended) before the year, so it needs `[a-z]{2}`
+      // where the others need nothing, and `openSUSE` is a registry name rather
+      // than a prefix on one — the `open` is inside the group because `bound`
+      // refuses to reach `suse` through the `n`.
+      //
+      // One physical line, and that is load-bearing rather than a style choice:
+      // mutation-gate.sh's "the registry allowlist reverts to a shape rule"
+      // mutant matches `bound + '(cve|` and its whole alternation with a single
+      // pattern, and a wrapped form makes that mutation a no-op the gate scores
+      // as SURVIVED.
+      bound + '(cve|rustsec|pysec|osv|go|dsa|usn|dla|zdi|mal|alsa|elsa|talos|rhsa|rhba|cesa|glsa|mfsa|mgasa|fedora|asa|ssa|vmsa|icsa|(open)?suse-[a-z]{2})[-:][0-9]+[-:][0-9a-z]+',
+      // v3, v2.3.1, 2.3.1. The trailing lookahead refuses a version that some
+      // other component hangs off: a FILENAME (`src/handlers/auth-v2.go:118`)
+      // and equally a PATH SEGMENT (`api/v1/handlers.go:40`), both of which are
+      // the bare file:line challenge 4's own prompt names as a NON-citation, and
+      // without the lookahead the `v1` inside satisfies a consuming boundary
+      // group. `[.][0-9a-z]`, not `[.][a-z]`, because the branch BACKTRACKS:
+      // refusing `v1.2` in `api/v1.2/x.go` only makes the engine retry `v1`,
+      // whose next character is a `.` followed by a DIGIT. A separator is
+      // refused only AFTER the version, never before it — `refs/tags/v1.4.0` and
+      // `release/v1.4.0` reach a real release tag through a `/`. FOUR
+      // backslashes, not two: the string literal halves them, and with two the
+      // `\]` escapes the closing bracket, the class runs on, and `api/v1/`,
+      // `a/b/v10/c.ts:3` and the Windows path quietly come back — a slip the
+      // NOT_CITATIONS table below is the fixture for.
+      bound + '(v[0-9]+([.][0-9]+)*|[0-9]+([.][0-9]+){2,})(?![0-9a-z/\\\\]|[.][0-9a-z])',
+      // PR 4521, issue #1234, release 3, gh-1234, bpo-40501 — the last a
+      // two-token tracker ID that no other branch here could reach.
+      bound + '(pr|pull|issues?|bug|bpo|ticket|gh|release)[ #-]+[0-9]+',
       // pull/882 and issues/1234, which is how GitHub shorthand is written. The
       // keyword may NOT be reached through a path separator, and that is the
       // whole difference between this branch and the one above it: with `/` in
@@ -860,6 +1018,11 @@ function citedReference(value) {
       // are both citations, contradicting this function's own rule that a bare
       // `file:line` is not one. Inside a full URL the `https?://` branch already
       // matches, so nothing is lost by refusing the path form here.
+      //
+      // Deliberately NOT the same keyword list as the branch above: `bpo` is
+      // there and not here because `bpo/40501` is not a form anyone writes, and
+      // two adjacent near-identical lists invite a future "sync" that would
+      // admit it.
       '(^|[^0-9a-z/])(pr|pull|issues?|bug|ticket|gh|release)/[0-9]+',
       'https?://[^ ]',
     ].join('|'),
@@ -936,6 +1099,32 @@ if (artifactIssue) {
 
 if (band.action === 'DO_NOT_SUBMIT') {
   const unrebuttedKeys = lost.map((v) => v.key).join(', ')
+  // Silence can withhold a PROCEED; it cannot produce a REFUTATION. The tally
+  // counting a challenge nobody answered against the band is the stated rule and
+  // stays, but the status below asserts more than that: SKILL.md reads
+  // `confidence NONE (0/5 defeated)` as "the reviewers refuted the finding" and
+  // reports FALSE POSITIVE on it, so five agents that never ran retracted a built,
+  // executed, independently lint-checked PoC of a real bug on the strength of
+  // nothing anyone said. The two reasons were byte-identical; only
+  // `unrebutted[].challenge` differed, and nothing told the orchestrator to read
+  // it. Carried by the STATUS rather than by a reason prefix the orchestrator has
+  // to parse, for the reason the ALREADY_FIXED branch above is: any mapping
+  // written over one shared status reports all of its outcomes the same way.
+  const silent = lost.filter((v) => !v.answered)
+  if (silent.length > 0) {
+    const silentKeys = silent.map((v) => v.key).join(', ')
+    log(`NEEDS_MORE_INFO: ${silent.length} challenge agent(s) never answered; the band rests on silence.`)
+    return {
+      status: 'NEEDS_MORE_INFO',
+      reason: `${silent.length} of ${CHALLENGES.length} challenge agents returned no verdict (${silentKeys}), so confidence ${band.label} (${defeated}/${CHALLENGES.length} defeated) rests on silence rather than on a refutation. Re-run those challenges; the PoC and the artifact check stand. Unrebutted: ${unrebuttedKeys}`,
+      band,
+      defeated,
+      poc,
+      artifact,
+      verdicts,
+      unrebutted: lost,
+    }
+  }
   log(`Confidence ${band.label}. Not submitting. Unrebutted: ${unrebuttedKeys}`)
   return {
     status: 'DO_NOT_SUBMIT',
@@ -986,10 +1175,20 @@ const uncitedFix = verdicts.find(
 )
 if (uncitedFix) {
   const claim = String(uncitedFix.evidence || '').trim() || 'no evidence given'
+  // What was in `reference`, said rather than denied. `citedReference` refuses a
+  // string for two different reasons — nothing was offered, or a real registry
+  // it has never heard of was — and a single "no commit, PR, issue or advisory
+  // in `reference`" over both wrote that denial across a reference that was
+  // there. `reference` reaches the user only through this sentence, so denying
+  // it here throws away the one string that would settle the question.
+  const cited = String(uncitedFix.reference || '').trim()
+  const missing = cited
+    ? `citing "${cited}" in \`reference\`, which is not a commit, PR, issue or advisory ID this script recognises`
+    : 'with no commit, PR, issue or advisory in `reference`'
   log(`NEEDS_MORE_INFO: the already-fixed challenge was awarded with nothing cited.`)
   return {
     status: 'NEEDS_MORE_INFO',
-    reason: `the already-fixed challenge was awarded on a complete fix with no commit, PR, issue or advisory in \`reference\`: ${claim}. Establish the reference — it retracts if one exists — rather than reporting this as live.`,
+    reason: `the already-fixed challenge was awarded on a complete fix ${missing}: ${claim}. Establish the reference — it retracts if one exists — rather than reporting this as live.`,
     band,
     defeated,
     poc,
@@ -1005,6 +1204,11 @@ phase('Report')
 
 const corrections = verdicts.filter((v) => v.impactCorrection).map((v) => `${v.key}: ${v.impactCorrection}`)
 
+// The artifact-check line below reads `lintExitZero === true` rather than by
+// truthiness. `artifactProblem` refuses anything else first, so nothing off-type
+// reaches here today — but this is the sentence the report agent is told the lint
+// result by, and a read that prints "yes" for the string 'no' is one deleted
+// guard away from telling a reviewer a failed lint passed.
 const report = await agent(
   `Calibrate the severity, then write the report. You did not build this PoC.
 
@@ -1036,9 +1240,9 @@ ${poc.absolutePath}, and return that path as reportPath. reportPath must be a
 file you actually wrote, not a path you intend to use.
 
 Independent artifact check (a reviewer re-ran these; the builder self-reported):
-  poc-lint.sh exit 0: ${artifact.lintExitZero ? 'yes' : 'no'}
-  PoC re-ran and reproduced the impact: ${artifact.reRunSucceeded ? 'yes' : `no — ${artifact.reRunNotes || 'no reason given'}`}
-${artifact.reRunSucceeded ? '' : 'A PoC that did not reproduce for an independent reviewer is a boundary: say so in "unproven" rather than omitting it.'}
+  poc-lint.sh exit 0: ${artifact.lintExitZero === true ? 'yes' : 'no'}
+  PoC re-ran and reproduced the impact: ${artifact.reRun === 'REPRODUCED' ? 'yes' : `no — ${artifact.reRunNotes || 'no reason given'}`}
+${artifact.reRun === 'REPRODUCED' ? '' : 'The reviewer could not run this PoC here at all, so nobody but the builder has seen it work. That is a boundary: say so in "unproven" rather than omitting it.'}
 ${band.action === 'PROCEED_WITH_UNCERTAINTIES' ? '\nConfidence is MEDIUM: the False Positive Analysis section must document the uncertainties explicitly, not gloss them.' : ''}
 
 Fill the "unproven" field with what this PoC does not establish. It is not
@@ -1073,11 +1277,15 @@ function reportProblem(result) {
   // separate failures it covers. `required` validates `severity: ''`, the enum is
   // advisory, and SKILL.md tells the orchestrator the top-level `severity` IS the
   // number the finding ships with — so a blank ships a finding with no rating at
-  // all; `Unknown`, `n/a` and `TBD` ship one that names no level, which
-  // `severityCapViolation` reads as below the cap and passes; and `Medium/High`
-  // and `Critical (affects low-privilege users)` ship two ratings at once. Stage
-  // 2 can fall back to Stage 1's number for the unreadable shapes. This stage has
-  // nothing to fall back to, so it refuses and names the fix.
+  // all; `Unknown`, `n/a` and `TBD` ship one that names no level; and
+  // `Medium/High` and `Critical (affects low-privilege users)` ship two ratings
+  // at once. Stage 2 can fall back to Stage 1's number for the unreadable shapes.
+  // This stage has nothing to fall back to, so it refuses and names the fix.
+  //
+  // `severityCapViolation` refuses both unreadable shapes too, so neither would
+  // now escape as "below the cap" — the reason this gate is still here is that it
+  // runs FIRST and names the fix in the report agent's own vocabulary, which is
+  // the argument the paragraph above already makes.
   const stated = String(result.severity || '').trim()
   const levels = namedLevels(stated)
   if (levels.length !== 1) {
@@ -1109,6 +1317,15 @@ if (reportIssue) {
   return { status: 'NEEDS_MORE_INFO', reason: reportIssue, band, defeated, poc, artifact, verdicts, unrebutted: lost }
 }
 
+// Duplicated from triage-static.js alongside the cap it serves — see the
+// reasoning there. One reading of "not internal", and unrecognised reads as NOT
+// internal: `third-party` and `External` are spellings the advisory enum does not
+// stop, and neither of them is the claim that the trigger originates inside the
+// repository, which is what buys an uncapped rating in the report.
+function externalRootCause(rootCause) {
+  return String(rootCause || '').trim().toLowerCase() !== 'internal'
+}
+
 // checkpoints.md 2.4b and 2.5, as arithmetic rather than judgement. Stage 1
 // CORRECTS an over-rated severity because it has no artifact to correct; here the
 // agent has already written the number into a report file, so correcting the
@@ -1120,20 +1337,25 @@ function severityCapViolation(severity, rootCause, classification) {
   // validator enforces — so grading by exclusion lets 'critical', 'CRITICAL' and
   // 'Critical (RCE)' through the gate that exists to catch exactly them.
   //
-  // EXACTLY ONE level named is a rating; more than one is an unusable answer, not
-  // a number to pick from. `reportProblem` above refuses those first and with a
-  // better message, so this branch is normally unreachable — it is here because
-  // the alternative is that a gate whose whole job is to bound a number returns
-  // "no violation" for a string it could not read, and this function is called
-  // and graded on its own. It cannot be allowed to become a silent pass.
+  // EXACTLY ONE level named is a rating; anything else is an unusable answer, not
+  // a number to pick from. `reportProblem` above refuses both shapes first and
+  // with a better message, so this branch is normally unreachable — it is here
+  // because the alternative is that a gate whose whole job is to bound a number
+  // returns "no violation" for a string it could not read, and this function is
+  // called and graded on its own. It cannot be allowed to become a silent pass.
   const named = namedLevels(severity)
-  if (named.length > 1) {
-    return `severity ${severity} names ${named.length} levels (${named.join(', ')}), so no cap can be checked against it: state exactly one of Critical, High, Medium, Low, Informational`
+  if (named.length !== 1) {
+    return named.length === 0
+      ? `severity "${String(severity || '').trim()}" names none of Critical, High, Medium, Low or Informational, so no cap can be checked against it: state exactly one of them`
+      : `severity ${severity} names ${named.length} levels (${named.join(', ')}), so no cap can be checked against it: state exactly one of Critical, High, Medium, Low, Informational`
   }
-  const level = named[0] || ''
+  const level = named[0]
   if (level !== 'critical' && level !== 'high') return null
-  if (rootCause === 'integration' || rootCause === 'external') {
-    return `severity ${severity} exceeds the Medium cap for a ${rootCause} root cause (checkpoints.md 2.4b)`
+  if (externalRootCause(rootCause)) {
+    // Named, so the block says which value was read. A blank one is not internal
+    // either, and `a  root cause` is not a sentence.
+    const cause = String(rootCause || '').trim() || 'non-internal'
+    return `severity ${severity} exceeds the Medium cap for a ${cause} root cause (checkpoints.md 2.4b)`
   }
   if (classification === 'hardening_gap') {
     return `severity ${severity} exceeds the Medium cap for a hardening gap (checkpoints.md 2.5)`

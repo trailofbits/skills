@@ -92,9 +92,10 @@ orchestrator cannot argue with:
 | No scope or severity claim is made from memory when offline | `offlineProblem` |
 | Out-of-scope needs a quoted policy clause; "probably" is `unclear` | `scopeHalt` |
 | Destructive PoC operations only at safety levels 1–2 | `missingArgs` in Stage 3 |
-| Every finding in a batch is accounted for by id — one whose Stage 1 returned nothing is reported as unverified, never silently dropped | `accountFindings` |
+| Every finding in a batch is accounted for by id — one whose Stage 1 returned nothing, or returned `BLOCKED` without reaching a verdict, is reported as unverified, never silently dropped | `accountFindings` |
 | Two findings are only paired for a chain check when one's blocking reason could supply what the other lacks | `pairReason`, `isChainable` |
 | A chain is only reported when the agent names both contributions and the mechanism connecting them | `chainProblem` |
+| A confirmed chain is a verdict of its own, and neither finding it names is left reportable as a false positive | the chain row's `status`, `chainedInto` |
 
 ## Components
 

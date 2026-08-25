@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { loadFn, script } from './extract.mjs'
+import { loadFn, loadFns, script } from './extract.mjs'
 
-const missingArgs = loadFn(script('triage-static.js'), 'missingArgs')
+// `auditedSearch` alongside it: `missingArgs` now reads the layers declaration
+// through that sibling, and `loadFn` evaluates one function alone, where a call
+// to a sibling is a ReferenceError.
+const { missingArgs } = loadFns(script('triage-static.js'), 'missingArgs', 'auditedSearch')
 
 const GOOD = {
   baseDir: '/plugin/skills/fp-check',
@@ -222,11 +225,37 @@ test('layers: [] is accepted when the caller says what it read and did not find'
   assert.deepEqual(missingArgs(declared), [], 'an audited "nothing validates this path" must be dispatchable')
 })
 
+// The over-fitting guard, and the test to extend if a real declaration is ever
+// wrongly rejected. A declaration is FREE TEXT written by the orchestrator, and
+// the rule is only that it name a file — not a length, a word count, or a shape.
+test('a declaration naming the files read is accepted, in the shapes one arrives in', () => {
+  const real = [
+    'read api/orders.py and billing/charge.py; no validation between them',
+    'read charge.py, rates.py and ledger.py end to end; no sign, bounds or type check on the rate anywhere between fetch_rate and debit',
+    'grepped for Validate( across handlers/*.go and internal/rate.go; nothing on this path',
+    'traced fetch_rate through ledger.debit; nothing validates the rate in billing/charge.py',
+    'read C:\\src\\app\\billing\\charge.py in full; no check on the amount',
+    'read app/models/order.rb and app/controllers/orders_controller.rb; neither bounds the quantity',
+    'read charge.py',
+  ]
+  for (const layersSearched of real) {
+    assert.deepEqual(missingArgs({ ...GOOD, layers: [], layersSearched }), [], layersSearched)
+  }
+})
+
 // The declaration is the whole difference between "confirmed none exist" and a
 // forgotten field, so it is read the same way every other null-result field in
 // this plugin is: affirmatively, and not satisfied by blank space.
-test('a blank declaration does not buy the empty-layers path', () => {
-  for (const layersSearched of [undefined, null, '', '   ', 0, true, ['charge.py']]) {
+// CHANGED: this used to loop only blank and non-string values, because the rule
+// was non-blankness. That was the defect — `n/a`, `none`, `TBD` and `.` are all
+// non-blank strings, and each bought the empty-layers path and a TRUE_POSITIVE on
+// zero layer agents. `['charge.py']` stays in the table: it stringifies to a
+// filename, so only the `typeof` check refuses it.
+test('a stand-in does not buy the empty-layers path', () => {
+  for (const layersSearched of [
+    undefined, null, '', '   ', 0, true, ['charge.py'],
+    'n/a', 'N/A', 'none', 'None', 'TBD', 'tbd', '.', '-', 'x', '???', 'unknown', 'nothing found', 'see above',
+  ]) {
     const problems = missingArgs({ ...GOOD, layers: [], layersSearched })
     assert.ok(
       problems.some((p) => p.startsWith('layers')),
@@ -235,8 +264,12 @@ test('a blank declaration does not buy the empty-layers path', () => {
   }
 })
 
-test('a blank declaration alongside real layers is reported rather than ignored', () => {
-  for (const layersSearched of ['', '   ']) {
+// CHANGED: the loop was `['', '   ']` and the title said "blank", because that
+// branch only fired on a blank string. It now fires on any value that names no
+// file read, so a message saying "empty" about `n/a` would be the same lie the
+// predicate was.
+test('a declaration that names nothing, alongside real layers, is reported rather than ignored', () => {
+  for (const layersSearched of ['', '   ', 'n/a', 'TBD']) {
     const problems = missingArgs({ ...GOOD, layersSearched })
     assert.ok(problems.some((p) => p.startsWith('layersSearched')), JSON.stringify(layersSearched))
   }
@@ -458,5 +491,100 @@ test('a non-array candidates list is reported, not thrown on', () => {
     const problems = buildMissing({ ...GOOD_BUILD, candidates: bad })
     assert.ok(Array.isArray(problems), 'must return, not throw')
     assert.ok(problems.some((p) => p.startsWith('candidates')), `bad shape ${typeof bad} reported`)
+  }
+})
+
+// ==================================================== arg-shape type discipline
+//
+// `need` used to push only on undefined, null and a blank STRING, so any other
+// type cleared it. Below, both directions for each: the shape that failed open
+// must now be reported, and the value a real dispatch carries must still pass.
+
+// `missingArgs` calls `auditedSearch` in the two scripts that validate a layers
+// declaration, and `loadFns` evaluates the named functions in one scope — so the
+// sibling has to be named for those two and must NOT be for the other two, where
+// it does not exist and `loadFns` fails loudly.
+const validatorFor = (file) =>
+  ['triage-static.js', 'triage-batch.js'].includes(file)
+    ? loadFns(script(file), 'missingArgs', 'auditedSearch').missingArgs
+    : loadFn(script(file), 'missingArgs')
+
+test('a baseDir that is not a string is rejected by all four validators', () => {
+  // `[]`, `[null]` and `['']` are the sharp cases: they cleared `need` AND
+  // stringified to '' in the shape guard, which skips on a falsy `base`, so the
+  // whole validator returned zero problems. `['/plugin/skills/fp-check']`
+  // stringifies to a VALID path, so only a type check catches it at all.
+  const bad = [[], [null], [''], ['/plugin/skills/fp-check'], {}, 42, true]
+  for (const file of ['triage-static.js', 'triage-online.js', 'triage-poc.js', 'triage-batch.js']) {
+    const validator = validatorFor(file)
+    for (const baseDir of bad) {
+      const problems = validator({ baseDir })
+      assert.ok(
+        problems.some((p) => p.startsWith('baseDir')),
+        `${file} accepted baseDir ${JSON.stringify(baseDir)}`,
+      )
+    }
+    assert.ok(
+      !validator({ ...GOOD, baseDir: '/plugin/skills/fp-check' }).some((p) => p.startsWith('baseDir')),
+      `${file} rejected a well-formed baseDir`,
+    )
+  }
+})
+
+test('a required field that is not a string is rejected, not interpolated', () => {
+  // These reached six prompts as the literal text `[object Object]` — the agent
+  // LABEL became `layer:[object Object]` — behind a TRUE_POSITIVE verdict.
+  for (const field of ['summary', 'sink', 'component', 'claimedImpact', 'bugClass', 'threatModel']) {
+    for (const value of [{ cwe: 89 }, ['a', 'b'], 7]) {
+      const problems = missingArgs({ ...GOOD, finding: { ...GOOD.finding, [field]: value } })
+      assert.ok(problems.some((p) => p.startsWith(`finding.${field}`)), `finding.${field} = ${JSON.stringify(value)}`)
+    }
+  }
+  for (const field of ['description', 'location', 'payload']) {
+    for (const value of [{ at: 'x' }, ['a']]) {
+      const problems = missingArgs({ ...GOOD, entryPoint: { ...GOOD.entryPoint, [field]: value } })
+      assert.ok(problems.some((p) => p.startsWith(`entryPoint.${field}`)), `entryPoint.${field}`)
+    }
+  }
+  assert.deepEqual(missingArgs(GOOD), [], 'a well-formed dispatch must still pass')
+})
+
+test('a layer whose name or location is not a string is rejected', () => {
+  // The per-item loop was `!layer || !layer.name`, weaker than `need` is for
+  // everything else: a truthy non-string cleared it outright.
+  for (const field of ['name', 'location']) {
+    for (const value of [{ fn: 'validate' }, ['x'], 3]) {
+      const layers = [{ ...GOOD.layers[0], [field]: value }]
+      const problems = missingArgs({ ...GOOD, layers })
+      assert.ok(problems.some((p) => p.startsWith(`layers[0].${field}`)), `layers[0].${field} = ${JSON.stringify(value)}`)
+    }
+  }
+  // A null item still pushes the bare path, unchanged.
+  assert.ok(missingArgs({ ...GOOD, layers: [GOOD.layers[0], null] }).includes('layers[1].location'))
+})
+
+test('a Windows drive-letter baseDir is accepted, in all four validators', () => {
+  // The leading-slash test rejected the only value that works on native Windows,
+  // and the message then invited the orchestrator to retry with a POSIX-shaped
+  // path that does not exist — so the guard produced the failure it prevents.
+  const accepted = [
+    'C:/Users/x/.claude/plugins/fp-check/skills/fp-check',
+    'C:\\Users\\x\\.claude\\plugins\\fp-check\\skills\\fp-check',
+    'd:\\plugins\\fp-check\\skills\\fp-check\\',
+    '\\\\server\\share\\plugins\\skills\\fp-check',
+  ]
+  // "accept a drive letter" must not degrade into "accept anything".
+  const refused = ['C:/Users/x/target-repo', 'skills\\fp-check', 'C:/skills/concept-prover', 'skills/fp-check']
+  for (const file of ['triage-static.js', 'triage-online.js', 'triage-poc.js', 'triage-batch.js']) {
+    const validator = validatorFor(file)
+    for (const baseDir of accepted) {
+      assert.ok(
+        !validator({ baseDir }).some((p) => p.startsWith('baseDir')),
+        `${file} rejected the Windows path ${baseDir}`,
+      )
+    }
+    for (const baseDir of refused) {
+      assert.ok(validator({ baseDir }).some((p) => p.startsWith('baseDir')), `${file} accepted ${baseDir}`)
+    }
   }
 })

@@ -107,7 +107,10 @@ payload cannot answer coherently, and kills the finding before impact is reached
 **If nothing on the path validates the payload, send `layers: []` together with
 `layersSearched`** — what you read, and what you did not find. An empty list alone
 is rejected: a forgotten field and a deliberate "nothing guards this" are the same
-value, and the declaration is what tells them apart.
+value, and the declaration is what tells them apart. It must **name at least one
+file you read** (`billing/charge.py`): `n/a`, `none` and `TBD` are rejected exactly
+as the empty list is, because a placeholder and an audit are otherwise that same
+pair of indistinguishable values all over again.
 
 ## Routing: standard or deep
 
@@ -149,7 +152,9 @@ reference read resolves to a file that is absent or stale, and the agents answer
 without the lookup table they were sent for. Running from a checkout by
 `scriptPath` instead, it is that checkout's `plugins/fp-check/skills/fp-check`.
 Either way it must be **absolute**: a path relative to your working directory is
-not relative to the agent's.
+not relative to the agent's. On native Windows a drive-letter path
+(`C:\...\skills\fp-check`) is absolute and is taken as it stands; translating it to
+a POSIX shape names a directory that does not exist.
 
 ### Stage 1 — always
 
@@ -175,7 +180,8 @@ args = {
           name and location are required per layer; checks is optional and the
           layer agent derives it from the code when you omit it
   layersSearched: required ONLY when layers is [] — what you read and what you
-          did not find. Never send the absence of a check as a layer instead
+          did not find, NAMING THE FILES (`billing/charge.py`); a placeholder
+          such as n/a is rejected. Never send the absence of a check as a layer
   scope:  a STRING describing the declared scope; an object interpolates as
           [object Object] and is rejected
   route:  'standard' | 'deep'                optional; computed when omitted
@@ -386,6 +392,18 @@ take its open questions from `summary`, and its scope and severity from the
 **top-level `scopeVerdict` and `severity`** — not `summary`'s, which are pre-cap
 and unvalidated. Out-of-scope ends the stage itself, on a quoted clause.
 
+**An optional stage that did not finish leaves the Stage 1 verdict standing.**
+Stage 2's `BLOCKED`, `OFFLINE` and `NEEDS_MORE_INFO` carry `stageOneStatus` and the
+`severity` Stage 1 reached: report THAT verdict, with the `reason` as the check
+that could not be made — a policy page that would not load has not unmade a TRUE
+POSITIVE established from the code. The NEEDS MORE INFO row applies only when
+`stageOneStatus` is absent. **An arg-shape `reason` is the one of those you fix
+and re-dispatch** rather than report — no network, a dead agent and a blank summary
+are not recoverable by retrying, and a bad dispatch is. Reporting it leaves the
+online check you asked for never made. Stage 3 is the same rule without the field,
+dispatched only on `TRUE_POSITIVE`: its `BUILD_FAILED`, `NO_CANDIDATES` and
+`NEEDS_MORE_INFO` are a PoC that could not be produced, not a finding refuted.
+
 **`DO_NOT_SUBMIT` is two outcomes wearing one status, and the `reason` tells them
 apart.** Mapping both to FALSE POSITIVE is the rounding error this skill prevents:
 
@@ -393,6 +411,11 @@ apart.** Mapping both to FALSE POSITIVE is the rounding error this skill prevent
 |---|---|---|
 | `confidence NONE (0/5 defeated)` | not one challenge was rebutted; the reviewers refuted the finding | **FALSE POSITIVE**, naming the unrebutted challenges |
 | `confidence LOW (1/5 defeated)` or `(2/5 defeated)` | some challenges were rebutted with evidence and the rest were not — a missing fact, not a refutation | **NEEDS MORE INFO**, naming the unrebutted challenges as the facts to settle |
+
+Both rows are reviewers who argued. **A challenge agent that returned no verdict
+never reaches `DO_NOT_SUBMIT`** — Stage 3 returns `NEEDS_MORE_INFO` naming the
+silent agents instead. Silence still costs the finding its band step, so it can
+withhold a report; it cannot retract one.
 
 ## Batch Triage
 
@@ -428,8 +451,12 @@ args = {
 Returns `BATCH_TRIAGED`, carrying `findings` (a row per verdict), `unverified`,
 `chains`, and `notChainable`. Report each row exactly as you would a single
 dispatch, using the Verdicts table — **an `unverified` row is NEEDS MORE INFO and
-must be reported, not omitted.** `BLOCKED` means the batch itself could not run:
-an unusable arg shape, or no finding reaching a verdict at all.
+must be reported, not omitted**, and a row carrying `chainedInto` is the exception
+described below. A finding is `unverified` when its Stage 1 returned nothing, or
+anything that is not one of the verdicts in the table above — an allowlist, so
+`BLOCKED`, a payload from the wrong stage and a mis-cased status all land there
+and none of them is in `findings`. `BLOCKED` at the batch level means the batch
+itself could not run: an unusable arg shape, or no finding reaching a verdict.
 
 The shared context reaches each Stage 1 as its `context` argument. That argument
 is the batch's to supply; do not send one on a single dispatch, where the agents
@@ -448,14 +475,24 @@ workflow sees a second finding. The pairs worth an agent are chosen in code:
 | `NEEDS_MORE_INFO` + `TRUE_POSITIVE` | the missing fact may be the other finding's established impact |
 
 `ALREADY_FIXED` pairs with nothing — it is dead, and pairing it invites the chain
-agent to argue it back to life. `NOT_VULNERABLE`, `OUT_OF_SCOPE`, `FALSE_POSITIVE`
-and `BLOCKED` are not chainable either, and come back named in `notChainable`
-rather than dropped. At most **3** pairs are checked; the rest are named in
+agent to argue it back to life. `NOT_VULNERABLE`, `OUT_OF_SCOPE` and
+`FALSE_POSITIVE` are not chainable either, and come back named in `notChainable`
+rather than dropped. A Stage 1 that returned `BLOCKED` is not in that list because
+it is not a verdict at all — it is in `unverified`. At most **3** pairs are checked; the rest are named in
 `chainsBeyondCap` as unchecked, which is not the same as no chain.
 
 A chain is only reported when the agent names both contributions **and** the
 mechanism by which one supplies what the other lacks. "Both are auth bugs" is
 rejected in code and logged.
+
+**A confirmed chain is a row with a verdict of its own**, carrying
+`status: NEEDS_MORE_INFO` and the mechanism in `reason`, because the composed
+attack went through one agent and not Stage 1. Report it as NEEDS MORE INFO and
+**re-dispatch the composed finding to Stage 1** with that mechanism given. **A
+finding named in a chain is not reported as a false positive**: its row keeps
+Stage 1's status and carries `chainedInto`, and printing that `NOT_EXPLOITABLE` as
+FALSE POSITIVE beside a chain built on it reads as the dismissal — which loses the
+finding this check exists to recover.
 
 ## Rationalizations to Reject
 

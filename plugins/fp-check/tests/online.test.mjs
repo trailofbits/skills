@@ -21,11 +21,15 @@ const missingArgs = loadFn(ONLINE, 'missingArgs')
 const offlineProblem = loadFn(ONLINE, 'offlineProblem')
 const scopeHalt = loadFn(ONLINE, 'scopeHalt')
 const summaryProblem = loadFn(ONLINE, 'summaryProblem')
-const needsUserCensus = loadFn(ONLINE, 'needsUserCensus')
+// `externalRootCause` alongside it: the census gate now reads root cause through
+// the predicate the cap reads it through, and `loadFn` evaluates one function
+// alone, where a call to a sibling is a ReferenceError.
+const { needsUserCensus } = loadFns(ONLINE, 'needsUserCensus', 'externalRootCause')
 const censusProblem = loadFn(ONLINE, 'censusProblem')
+const stageOneStands = loadFn(ONLINE, 'stageOneStands')
 // `namedLevels` alongside it: `capSeverity` calls it, and `loadFn` evaluates one
 // function alone, where a call to a sibling is a ReferenceError.
-const { capSeverity } = loadFns(ONLINE, 'capSeverity', 'namedLevels')
+const { capSeverity } = loadFns(ONLINE, 'capSeverity', 'namedLevels', 'externalRootCause')
 
 const GOOD = {
   baseDir: '/plugin/skills/fp-check',
@@ -317,10 +321,25 @@ test('a bug exploitable in the target itself needs no consumer census', () => {
   assert.equal(needsUserCensus(IN_REPO, REACHED, IN_SCOPE), false)
 })
 
+// Widened past the two enum members, and `third-party` is the row that matters:
+// the cap reads this same field through `externalRootCause`, so with the
+// affirmative pair here a finding was priced as external by 2.4b — the arithmetic
+// that made severity turn on downstream usage — while this gate read it as
+// in-repo and skipped the census that severity now depended on.
 test('a root cause outside this project makes it the client-side that matters', () => {
-  for (const rootCause of ['integration', 'external']) {
+  for (const rootCause of ['integration', 'external', 'third-party', 'upstream', '', undefined]) {
     const verification = { impact: { rootCause, classification: 'vulnerability' } }
-    assert.equal(needsUserCensus(verification, REACHED, IN_SCOPE), true, rootCause)
+    assert.equal(needsUserCensus(verification, REACHED, IN_SCOPE), true, JSON.stringify(rootCause))
+  }
+})
+
+// The other direction, so the widening did not become "always census": `internal`
+// is the claim that exempts, and it exempts in any casing for the reason the cap
+// forgives one.
+test('an in-repo root cause still needs no census, in any casing', () => {
+  for (const rootCause of ['internal', 'Internal', '  internal  ']) {
+    const verification = { impact: { rootCause, classification: 'vulnerability' } }
+    assert.equal(needsUserCensus(verification, REACHED, IN_SCOPE), false, JSON.stringify(rootCause))
   }
 })
 
@@ -555,6 +574,30 @@ test('a finalSeverity naming two levels falls back to Stage 1 rather than shippi
   assert.match(result.reason, /names 2 levels/)
 })
 
+// The third shape of the same fallback. 'n/a', 'TBD' and 'P1' name no level, so
+// the cap read them as below itself and let them through: the finding shipped
+// with a string as its rating, and the only branch that caught this shape was the
+// literal-'Unknown' one beside it.
+test('a finalSeverity naming no level falls back to Stage 1 rather than shipping', async () => {
+  for (const finalSeverity of ['n/a', 'TBD', 'P1']) {
+    const { result } = await runScript('triage-online.js', {
+      args: {
+        ...GOOD,
+        verification: {
+          ...GOOD.verification,
+          severity: 'Medium',
+          impact: { ...GOOD.verification.impact, rootCause: 'integration' },
+        },
+      },
+      agents: agents({ summary: { ...SUMMARY, finalSeverity } }),
+    })
+    assert.equal(result.severity, 'Medium', `${finalSeverity} was adopted as the reported rating`)
+    assert.match(result.severityCorrection, /names none of/)
+    assert.match(result.severityCorrection, /Stage 1/)
+    assert.match(result.reason, /names none of/)
+  }
+})
+
 // Stage 2 carries its own copy of the cap, because this stage's census fires
 // precisely on the capped root causes and its `severityEffect: raise` invites the
 // number back up. The workflow-level test above proves the copy is WIRED; these
@@ -713,9 +756,88 @@ test('a confirmed duplicate survives a summary that fails its own gate', async (
   }
 })
 
+// `evidence` is REQUIRED of every past-bug return, so a `dupCite` that accepted
+// any non-blank string made `cited` a filter nothing could fail: one agent's hunch
+// ended the stage as a TERMINAL retraction, decided ahead of the summary gate, with
+// no link — while SKILL.md reports DUPLICATE as a retraction "with their reference"
+// and the orchestrator relays the reason verbatim. The other two retraction sites
+// hold the same claim to `citedReference`; this one now does too.
+test('an uncited duplicate claim does not retract the finding', async () => {
+  const claims = [
+    'I believe this is the same class of issue as one discussed on the mailing list',
+    'looks like the same thing',
+  ]
+  for (const evidence of claims) {
+    const { result } = await runScript('triage-online.js', {
+      args: GOOD,
+      agents: agents({
+        'past-bugs': {
+          result: 'similar-bugs-found',
+          coverage: 'searched page 1',
+          links: '',
+          similarity: 'feels familiar',
+          recommendedSeverity: 'High',
+          duplicate: true,
+          evidence,
+        },
+      }),
+    })
+    assert.equal(result.status, 'TRIAGED', JSON.stringify(evidence))
+  }
+})
+
+// The half that stops the fix from being over-applied. Refusing the retraction must
+// not delete the claim: `dupCite` returning null now means "what it said points at
+// nothing anyone can look up", not "it said nothing", and the summary agent is the
+// one reader that can put that in openQuestions.
+test('an uncited duplicate still reaches the summary agent as a claim', async () => {
+  const { calls } = await runScript('triage-online.js', {
+    args: GOOD,
+    agents: agents({
+      'past-bugs': {
+        result: 'similar-bugs-found',
+        coverage: 'searched page 1',
+        links: '',
+        similarity: 'feels familiar',
+        recommendedSeverity: 'High',
+        duplicate: true,
+        evidence: 'the same class of issue was discussed on the mailing list',
+      },
+    }),
+  })
+  const summary = calls.find((c) => c.label === 'summary')
+  assert.match(summary.prompt, /the same class of issue was discussed on the mailing list/)
+  assert.match(summary.prompt, /NO citable reference/)
+  assert.match(summary.prompt, /openQuestions/)
+})
+
+// The deliberate semantic change, pinned in both directions: `dupCite` was
+// "whichever field is FILLED" and is now "whichever field is CITABLE", so prose in
+// `links` no longer displaces a real reference sitting in `evidence`.
+test('the citation is taken from whichever field carries one', async () => {
+  const { result } = await runScript('triage-online.js', {
+    args: GOOD,
+    agents: agents({
+      'past-bugs': {
+        result: 'similar-bugs-found',
+        coverage: 'all pages',
+        links: 'see the mailing list thread',
+        similarity: 'same trigger',
+        recommendedSeverity: 'High',
+        duplicate: true,
+        evidence: 'https://github.com/example/app/issues/9',
+      },
+    }),
+  })
+  assert.equal(result.status, 'DUPLICATE')
+  assert.match(result.reason, /issues\/9/)
+})
+
 // The citation a retraction is relayed with, and `required` checks presence and not
 // content: `links: '   '` is schema-valid and truthy, so it displaced the `evidence`
-// it was meant to fall back to and DUPLICATE came back citing blank space.
+// it was meant to fall back to and DUPLICATE came back citing blank space. It now
+// proves something strictly stronger — the fallback happens AND the fallback target
+// is itself citable.
 test('a whitespace links field falls back to the evidence, not to nothing', async () => {
   const { result } = await runScript('triage-online.js', {
     args: GOOD,
@@ -876,8 +998,159 @@ test('the census state is carried on a terminal duplicate too', async () => {
   assert.equal(result.census.state, 'performed')
 })
 
+// ------------------------------------------------------- stageOneStands
+//
+// Stage 2 is optional and can only narrow or correct Stage 1. Before these, all
+// five of its non-terminal exits returned a bare status with no severity and no
+// field naming the verdict they were handed — so a summary agent that left
+// `openQuestions` empty printed NEEDS MORE INFO over a TRUE_POSITIVE established
+// from the code. Nothing asserted on those returns' payloads at all, which is how
+// the shape shipped.
+
+test('the Stage 1 verdict and its number are what stands', () => {
+  assert.deepEqual(stageOneStands(GOOD), { stageOneStatus: 'TRUE_POSITIVE', severity: 'High' })
+  assert.deepEqual(
+    stageOneStands({ ...GOOD, verification: { ...GOOD.verification, status: 'NEEDS_MORE_INFO', severity: 'Medium' } }),
+    { stageOneStatus: 'NEEDS_MORE_INFO', severity: 'Medium' },
+  )
+})
+
+// `{}` and not a set of undefined keys: the spread has to be a no-op, or a
+// malformed dispatch manufactures `stageOneStatus: undefined` and SKILL.md's
+// "absent means no verdict was forwarded" rule reads it as present.
+test('nothing stands when no Stage 1 verdict was forwarded', () => {
+  for (const verification of [undefined, {}, { status: 'FALSE_POSITIVE' }, { status: '' }, { status: '  ' }, { status: 7 }]) {
+    assert.deepEqual(stageOneStands({ ...GOOD, verification }), {}, JSON.stringify(verification))
+  }
+  assert.deepEqual(stageOneStands(undefined), {})
+})
+
+test('the carried keys cannot clobber the status or the reason', () => {
+  assert.ok(Object.keys(stageOneStands(GOOD)).every((k) => ['stageOneStatus', 'severity'].includes(k)))
+})
+
+test('a forwarded verdict with no number still stands', () => {
+  const { severity, ...verification } = GOOD.verification
+  assert.deepEqual(stageOneStands({ ...GOOD, verification }), { stageOneStatus: 'TRUE_POSITIVE' })
+})
+
+test('an offline run leaves the Stage 1 verdict standing', async () => {
+  const { result } = await runScript('triage-online.js', {
+    args: GOOD,
+    agents: agents({ policy: { ...READ, reachedNetwork: false, sourcesRead: 'no network' } }),
+  })
+  assert.equal(result.status, 'OFFLINE')
+  assert.equal(result.stageOneStatus, 'TRUE_POSITIVE')
+  assert.equal(result.severity, 'High')
+})
+
+test('a dead reachability agent leaves the Stage 1 verdict standing', async () => {
+  const { result } = await runScript('triage-online.js', { args: GOOD, agents: agents({ reachability: null }) })
+  assert.equal(result.status, 'BLOCKED')
+  assert.equal(result.stageOneStatus, 'TRUE_POSITIVE')
+  assert.equal(result.severity, 'High')
+})
+
+test('a dead scope agent leaves the Stage 1 verdict standing', async () => {
+  const { result } = await runScript('triage-online.js', { args: GOOD, agents: agents({ inscope: null }) })
+  assert.equal(result.status, 'BLOCKED')
+  assert.equal(result.stageOneStatus, 'TRUE_POSITIVE')
+  assert.equal(result.severity, 'High')
+})
+
+test('an unclaused out-of-scope leaves the Stage 1 verdict standing', async () => {
+  const { result } = await runScript('triage-online.js', {
+    args: GOOD,
+    agents: agents({ inscope: { ...IN_SCOPE, verdict: 'out-of-scope', clause: '' } }),
+  })
+  assert.equal(result.status, 'NEEDS_MORE_INFO')
+  assert.equal(result.stageOneStatus, 'TRUE_POSITIVE')
+  assert.equal(result.severity, 'High')
+})
+
+// The measured failure, pinned: this is the single defect `summaryProblem` exists
+// to catch, and it was the one that overwrote a TRUE_POSITIVE.
+test('a summary that left openQuestions empty leaves the Stage 1 verdict standing', async () => {
+  const { result } = await runScript('triage-online.js', {
+    args: GOOD,
+    agents: agents({ summary: { ...SUMMARY, openQuestions: '' } }),
+  })
+  assert.equal(result.status, 'NEEDS_MORE_INFO')
+  assert.match(result.reason, /openQuestions/)
+  assert.equal(result.stageOneStatus, 'TRUE_POSITIVE')
+  assert.equal(result.severity, 'High')
+})
+
+test('an unusable arg shape still carries the verdict it was handed', async () => {
+  const { result } = await runScript('triage-online.js', { args: { ...GOOD, sources: [] }, agents: agents() })
+  assert.equal(result.status, 'BLOCKED')
+  assert.equal(result.stageOneStatus, 'TRUE_POSITIVE')
+  assert.equal(result.severity, 'High')
+})
+
+// The other direction. A dispatch with no usable Stage 1 verdict has nothing to
+// stand on, and must carry nothing rather than manufacture one.
+test('a malformed dispatch manufactures no verdict', async () => {
+  for (const verification of [undefined, { ...GOOD.verification, status: 'FALSE_POSITIVE' }]) {
+    const { result } = await runScript('triage-online.js', { args: { ...GOOD, verification }, agents: agents() })
+    assert.equal(result.status, 'BLOCKED')
+    assert.equal(result.stageOneStatus, undefined, JSON.stringify(verification))
+    assert.equal(result.severity, undefined)
+  }
+})
+
+// The guard at the scopeHalt call site, pinned: OUT_OF_SCOPE is this stage
+// ANSWERING, so it carries neither. Remove the guard and this goes red.
+test('a terminal out-of-scope carries neither the verdict nor a number', async () => {
+  const { result } = await runScript('triage-online.js', {
+    args: GOOD,
+    agents: agents({ inscope: { ...IN_SCOPE, verdict: 'out-of-scope', clause: '"the search module is out of scope"' } }),
+  })
+  assert.equal(result.status, 'OUT_OF_SCOPE')
+  assert.equal(result.stageOneStatus, undefined)
+  assert.equal(result.severity, undefined)
+})
+
+// The two terminal statuses that DO answer keep `severity` meaning the CORRECTED
+// number, not Stage 1's raw one.
+test('the terminal answers keep their own corrected severity', async () => {
+  const { result: dup } = await runScript('triage-online.js', {
+    args: GOOD,
+    agents: agents({
+      'past-bugs': {
+        result: 'similar-bugs-found',
+        coverage: 'all pages',
+        links: 'GHSA-xxxx-yyyy-zzzz',
+        similarity: 'same trigger, same actor',
+        recommendedSeverity: 'High',
+        duplicate: true,
+        evidence: 'identical report',
+      },
+    }),
+  })
+  assert.equal(dup.status, 'DUPLICATE')
+  assert.equal(dup.severity, 'High')
+  assert.equal(dup.stageOneStatus, undefined)
+
+  const { result: triaged } = await runScript('triage-online.js', { args: GOOD, agents: agents() })
+  assert.equal(triaged.status, 'TRIAGED')
+  assert.equal(triaged.severity, 'High')
+  assert.equal(triaged.stageOneStatus, undefined)
+})
+
+// The forwarding relays, it does not upgrade.
+test('a Stage 1 NEEDS_MORE_INFO stands as itself, not as a confirmation', async () => {
+  const { result } = await runScript('triage-online.js', {
+    args: { ...GOOD, verification: { ...GOOD.verification, status: 'NEEDS_MORE_INFO', severity: 'Medium' } },
+    agents: agents({ policy: { ...READ, reachedNetwork: false, sourcesRead: 'no network' } }),
+  })
+  assert.equal(result.status, 'OFFLINE')
+  assert.equal(result.stageOneStatus, 'NEEDS_MORE_INFO')
+  assert.equal(result.severity, 'Medium')
+})
+
 test('every gate function is extractable: a rename must fail loudly', () => {
-  const names = ['missingArgs', 'offlineProblem', 'scopeHalt', 'summaryProblem', 'needsUserCensus', 'censusProblem']
+  const names = ['missingArgs', 'offlineProblem', 'scopeHalt', 'summaryProblem', 'needsUserCensus', 'censusProblem', 'stageOneStands']
   const loaded = loadFns(ONLINE, ...names)
   for (const name of names) {
     assert.equal(typeof loaded[name], 'function', `${name} is not extractable`)

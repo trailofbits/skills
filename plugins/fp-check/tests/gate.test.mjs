@@ -11,8 +11,13 @@ const STATIC = script('triage-static.js')
 // Evaluating decideGate alone made every call a ReferenceError, and the
 // alternative — inlining the fix check at both call sites — is the duplicated
 // gate logic this suite exists to catch.
-const { decideGate } = loadFns(STATIC, 'decideGate', 'upstreamFixStands', 'citedReference')
-const missingPrecondition = loadFn(STATIC, 'missingPrecondition')
+// `fixedAnswer` for the same reason one level down: `upstreamFixStands` calls it.
+// `auditedSearch` for the same reason again: `decideGate` reads the layers
+// declaration through it.
+const { decideGate } = loadFns(STATIC, 'decideGate', 'upstreamFixStands', 'citedReference', 'fixedAnswer', 'auditedSearch')
+// `externalRootCause` alongside it, for the same reason: the precondition gate
+// reads root cause through the predicate the cap reads it through.
+const { missingPrecondition } = loadFns(STATIC, 'missingPrecondition', 'externalRootCause')
 
 const layer = (name, verdict) => ({ layer: name, location: `${name}.go:10`, verdict })
 const inScope = { inScope: 'YES', byDesign: false, evidence: 'in scope' }
@@ -150,12 +155,18 @@ test('zero layers WITH a declaration proceeds: that is 2.2 "or confirmed none ex
   assert.equal(r.status, 'PROCEED', 'an audited "nothing validates this path" must reach the impact agent and the severity cap')
 })
 
-// Read affirmatively, exactly as the arg validator reads it. A forgotten `layers`
-// field and a deliberate claim were the same value once; the declaration is the
-// only thing telling them apart, so anything that is not a real statement leaves
-// the vacuous pass exactly where it was.
-test('a blank or non-string declaration is still the vacuous pass', () => {
-  for (const declared of [undefined, null, '', '   ', 0, 1, true, {}, ['charge.py']]) {
+// CHANGED, and the old comment here was the clearest statement of the defect: it
+// claimed "anything that is not a real statement leaves the vacuous pass exactly
+// where it was", which was false. `n/a` is not a real statement and it DID pass,
+// because non-blankness was the whole rule. The rule is now `auditedSearch` — the
+// declaration must name a file that was read — and it is read through the same
+// helper the arg validator reads it through, so the two cannot disagree about
+// which dispatches reach a verdict.
+test('a declaration that names nothing read is still the vacuous pass', () => {
+  for (const declared of [
+    undefined, null, '', '   ', 0, 1, true, {}, ['charge.py'],
+    'n/a', 'N/A', 'none', 'TBD', '.', '-', 'x', 'unknown', 'nothing found', 'see above',
+  ]) {
     const r = decideGate([], checked, inScope, unfixed, 0, declared)
     assert.equal(r.status, 'BLOCKED', `declaration ${JSON.stringify(declared)} must not pass the gate`)
   }
@@ -223,6 +234,18 @@ test('a referenced complete fix outranks a blocking layer, and names both', () =
   assert.match(r.reason, /#412/)
   assert.match(r.reason, /digest/, 'the blocking layer is not lost, only outranked')
   assert.match(r.reason, /Retract/)
+})
+
+// `enum` is advisory to the runtime validator, so the answer arrives in whatever
+// case the agent typed. Case-exactly, `Yes` fell past this branch, past the
+// downgrade that compensates for an uncited fix, and out at PROCEED — and the
+// citation reaches no prompt from there, so nothing downstream could recover it.
+test('a case variant of YES still outranks the blocking layer', () => {
+  for (const answer of ['Yes', 'yes', ' YES ']) {
+    const r = decideGate([layer('digest', 'PAYLOAD_STOPPED_HERE')], checked, inScope, { ...retracted, fixed: answer }, 1)
+    assert.equal(r.status, 'ALREADY_FIXED', answer)
+    assert.match(r.reason, /#412/)
+  }
 })
 
 // The other direction of the citation test, and the reason it is a shape test
@@ -432,10 +455,17 @@ test('every non-PROCEED status carries a non-empty reason', () => {
 
 test('an internal root cause needs no external precondition', () => {
   assert.equal(missingPrecondition({ rootCause: 'internal' }), false)
+  // `Internal` is the same claim, and it used to be told to state the external
+  // precondition of a trigger it had just placed inside the repository. The cap
+  // read it the other way, which is the disagreement the shared predicate ends.
+  assert.equal(missingPrecondition({ rootCause: 'Internal' }), false, 'the same claim, differently cased')
 })
 
-test('integration and external without a precondition are caught', () => {
-  for (const rootCause of ['integration', 'external']) {
+// The demanding side, widened past the two enum members: `required` is the only
+// thing the runtime validator enforces, so a root cause nothing in the schema
+// stops is a root cause this gate has to price.
+test('anything but internal without a precondition is caught', () => {
+  for (const rootCause of ['integration', 'external', 'third-party', '']) {
     assert.equal(missingPrecondition({ rootCause }), true, `${rootCause} must require one`)
     assert.equal(
       missingPrecondition({ rootCause, externalPrecondition: '   ' }),

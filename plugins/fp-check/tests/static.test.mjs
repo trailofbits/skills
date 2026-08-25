@@ -25,9 +25,22 @@ const STATIC = script('triage-static.js')
 const selectRoute = loadFn(STATIC, 'selectRoute')
 // `citedReference` alongside it: `upstreamFixStands` calls it, and `loadFn`
 // evaluates one function alone, where a call to a sibling is a ReferenceError.
-const { upstreamFixStands, citedReference } = loadFns(STATIC, 'upstreamFixStands', 'citedReference')
-// `namedLevels` alongside `capSeverity`, for the same reason.
-const { capSeverity, namedLevels } = loadFns(STATIC, 'capSeverity', 'namedLevels')
+const { upstreamFixStands, citedReference, fixedAnswer, downgradeUnreferencedFix } = loadFns(
+  STATIC,
+  'upstreamFixStands',
+  'citedReference',
+  'fixedAnswer',
+  'downgradeUnreferencedFix',
+)
+// `namedLevels` alongside `capSeverity`, for the same reason, and
+// `externalRootCause` — the cap calls it too, and it is the predicate the
+// precondition gate and the gate prompt now share with it.
+const { capSeverity, namedLevels, externalRootCause } = loadFns(
+  STATIC,
+  'capSeverity',
+  'namedLevels',
+  'externalRootCause',
+)
 const decideVerdict = loadFn(STATIC, 'decideVerdict')
 const blockingProofs = loadFn(STATIC, 'blockingProofs')
 
@@ -57,6 +70,48 @@ test('a concurrency or bounds bug class escalates, case-insensitively', () => {
     'buffer UNDERFLOW',
     'off-by-one',
     'bounds check missing',
+  ]) {
+    assert.equal(selectRoute({ finding: { bugClass }, layers: [{}] }), 'deep', bugClass)
+  }
+})
+
+// 'race' as a raw substring escalated 'stack trace', 'traceback' and 'grace
+// period' onto the deep route — an information-disclosure finding, which the
+// Route table marks standard — where any one of the three proof agents
+// returning nothing is BLOCKED.
+test('an escalation keyword inside another word does not escalate', () => {
+  for (const bugClass of [
+    'error message leak via stack trace',
+    'stack trace exposure',
+    'stack-trace in the 500 response',
+    'traceback disclosure',
+    'grace period bypass',
+    'embrace of untrusted input',
+  ]) {
+    assert.equal(selectRoute({ finding: { bugClass }, layers: [{}] }), 'standard', bugClass)
+  }
+})
+
+// The other direction, and the reason only the word START is anchored: the
+// plural and the derived form are the same bug, and 'concurren' is in the list
+// as a prefix on purpose.
+test('a keyword still escalates in its plural, derived and punctuated forms', () => {
+  for (const bugClass of [
+    'data races', // the plural of 'race'
+    'deadlocks',
+    'atomicity violation', // 'atomic' + ity
+    'concurrent map write', // the 'concurren' prefix
+    'use_after_free', // an underscore is a word break
+    'off by one error', // the hyphenated entry, written unhyphenated
+    'out of bounds write',
+    // The two spellings the word-start anchor cannot reach through their own
+    // first letters, and the reason each is spelled out in the list. Neither
+    // appears anywhere in the references, so nothing else in this suite pins
+    // them, and a ReDoS finding routed standard never reaches the math-bounds
+    // agent — which is the proof its class is escalated for.
+    'DDoS amplification',
+    'ReDoS in the email validator',
+    'heap buffer overflow (CWE-122)',
   ]) {
     assert.equal(selectRoute({ finding: { bugClass }, layers: [{}] }), 'deep', bugClass)
   }
@@ -262,9 +317,69 @@ test('an omitted or non-boolean complete flag is not a complete fix', () => {
   }
 })
 
+// One predicate gated BOTH the retraction and the downgrade that compensates for
+// a missing one, so a case variant switched off the two together: an
+// already-fixed, fully cited bug shipped as TRUE_POSITIVE, and `reference` is
+// interpolated into no prompt on that path, so no agent downstream saw the
+// citation that would have caught it.
+test('a case variant of YES still retracts', () => {
+  for (const value of ['Yes', 'yes', ' YES ', 'yEs', 'YES\n']) {
+    const r = upstreamFixStands(fixed({ fixed: value }))
+    assert.ok(r, `fixed: ${JSON.stringify(value)} must still retract`)
+    assert.equal(r.reference, '#412')
+  }
+})
+
+// The other direction, and the one that matters more: YES is the answer that
+// RETRACTS, so the normalisation must not become "contains yes". Anything
+// unreadable falls to UNCERTAIN, which keeps analysing.
+// `['YES']` and the `toString` object are the sharp rows: `type` is advisory to
+// the runtime validator exactly as `enum` is, and a normalisation that COERCED
+// read both as the retraction — so a non-string `fixed` discarded a live finding
+// terminally as ALREADY_FIXED, which is worse than the case-exactness it was
+// written to fix. `auditedSearch` refuses to coerce one field up for this reason.
+test('an answer outside the enum is UNCERTAIN rather than a retraction', () => {
+  for (const value of [
+    'YES.', 'YES, in the unstable branch only', 'MAYBE', 'FIXED', '', undefined, null, true, 0,
+    ['YES'], ['yes'], ['YES', 'NO'], { toString: () => 'YES' }, {},
+  ]) {
+    assert.equal(fixedAnswer({ fixed: value }), 'UNCERTAIN', `fixed: ${JSON.stringify(value)}`)
+    assert.equal(upstreamFixStands(fixed({ fixed: value })), null, `fixed: ${JSON.stringify(value)}`)
+  }
+  for (const value of ['NO', 'no', ' No ']) {
+    assert.equal(fixedAnswer({ fixed: value }), 'NO', `fixed: ${JSON.stringify(value)}`)
+  }
+})
+
 test('a dead history agent does not stand as a fix', () => {
   assert.equal(upstreamFixStands(null), null)
   assert.equal(upstreamFixStands(undefined), null)
+})
+
+// ------------------------------------------------ downgradeUnreferencedFix
+
+test('an uncited fix is downgraded whatever case the answer arrived in', () => {
+  for (const value of ['YES', 'Yes', ' yes ']) {
+    const r = downgradeUnreferencedFix(fixed({ fixed: value, reference: '' }))
+    assert.equal(r.fixed, 'UNCERTAIN', `fixed: ${JSON.stringify(value)}`)
+    assert.match(r.searched, /a retraction has to point at something/)
+  }
+})
+
+test('a cited fix keeps its answer, canonicalised, and is not annotated', () => {
+  const r = downgradeUnreferencedFix(fixed({ fixed: 'Yes' }))
+  assert.equal(r.fixed, 'YES')
+  assert.equal(r.searched, 'git log -p -- auth.py, CHANGELOG')
+})
+
+// The note says the agent answered YES with nothing behind it. An agent that
+// never answered YES has not done that, so it does not get the note — only the
+// canonical answer, which is what makes the impact prompt's inconclusive branch
+// fire instead of the reader silently assuming the search came back clean.
+test('an unreadable answer is carried as UNCERTAIN without the uncited note', () => {
+  const r = downgradeUnreferencedFix(fixed({ fixed: 'MAYBE', reference: '' }))
+  assert.equal(r.fixed, 'UNCERTAIN')
+  assert.equal(r.searched, 'git log -p -- auth.py, CHANGELOG')
 })
 
 // ------------------------------------------------------- citedReference
@@ -335,6 +450,50 @@ const CITATIONS = [
   'v3',
   'v2.3.1',
   '2.3.1',
+  'v1.4.0',
+  // prerelease and build metadata: the character after the last digit is `-` or
+  // `+`, which the version branch's trailing lookahead must not refuse
+  'v2.0.0-rc1',
+  'v1.4.0+build.1',
+  'fixed in v1.4.0',
+  'OpenSSL 3.0.7',
+  'openssl-1.1.1',
+  // A release tag REACHED THROUGH a `/`, and the single most load-bearing line
+  // in this table. The version branch refuses a separator AFTER the version, so
+  // that `api/v1/handlers.go:40` is not a citation; it may never refuse one
+  // BEFORE it, because a git ref and a scheme-less release URL are exactly that
+  // shape. Anyone "tightening" the branch with a leading guard breaks these.
+  'release/v1.4.0',
+  'refs/tags/v1.4.0',
+  'github.com/openssl/openssl/releases/tag/v1.4.0',
+  // Registries the allowlist did not name, each one a REJECT that reported a
+  // fixed bug as live — the direction opposite to `api/v1/handlers.go:40`. It
+  // shipped carrying `alsa` and `elsa`, the AlmaLinux and Oracle REBUILDS of a
+  // Red Hat erratum, without `rhsa`, the original both rebuild.
+  'RHSA-2021:4056',
+  'RHBA-2021:4056',
+  'CESA-2021:4056',
+  'MFSA-2021-24',
+  'MGASA-2021-0123',
+  'GLSA-202107-48',
+  'FEDORA-2021-8d6be9d0e9',
+  'ASA-202109-1',
+  'SSA:2021-123-01',
+  'VMSA-2021-0020',
+  'ICSA-21-208-01',
+  'fixed in RHSA-2021:4056',
+  // SUSE numbers an advisory KIND before the year, so it missed the
+  // three-segment shape as well as the name list; openSUSE is a registry of its
+  // own rather than a prefix on one.
+  'SUSE-SU-2021:1234',
+  'SUSE-RU-2021:1234-1',
+  'openSUSE-SU-2021:1234-1',
+  // A two-segment tracker ID, which no branch here could reach.
+  'bpo-40501',
+  // GitLab's merge request: the same shorthand as `#412` with the other sigil,
+  // and the only thing a fix that landed in an MR has to cite.
+  '!412',
+  'group/project!412',
 ]
 
 const NOT_CITATIONS = [
@@ -365,6 +524,48 @@ const NOT_CITATIONS = [
   'fixed sometime in the 2.x line',
   '',
   '   ',
+  // A version that is a PATH SEGMENT, which is the same bare file:line as
+  // `auth-v2.go:118` above and was accepted for exactly as long as the trailing
+  // lookahead only refused a version inside a FILENAME. Retracting on one of
+  // these discards a live finding while citing something nobody can look up.
+  'api/v1/handlers.go:40',
+  'internal/v2/charge.go:118',
+  'pkg/v3/foo.rs:12',
+  'github.com/foo/bar/v2/baz.go:9',
+  'vendor/openssl-1.1.1/ssl.c:44',
+  'k8s.io/api/core/v1/types.go:44',
+  'node_modules/pkg/2.3.1/index.js',
+  // The ones the branch only reaches by BACKTRACKING: refusing `v1.2` makes the
+  // engine retry `v1`, whose next character is a `.` followed by a DIGIT, so
+  // `[.][a-z]` lets the shorter match through. These fail against a fix that
+  // adds `/` to the lookahead without also widening `[.][a-z]` to `[.][0-9a-z]`.
+  'api/v1.2/x.go',
+  'api/v1.2.3/x.go',
+  'v1.2.3/x.go',
+  'build/v1.0.0/out.bin',
+  // The three that come back if the separator class is written with two
+  // backslashes instead of four: the `\]` then escapes the closing bracket, the
+  // class runs on and swallows the second alternative, and the lookahead
+  // silently becomes a two-character test. NOTHING else in either table notices
+  // that slip — it produces no false reject — which is why these are here by
+  // name rather than left to the version forms above to catch.
+  'a/b/v10/c.ts:3',
+  'api/v1/',
+  'src\\v2\\main.go:12',
+  // The LIMIT of the widened allowlist, which is the half of an allowlist a
+  // corpus usually forgets: a name it still has not heard of is not promoted by
+  // shape, a new name may not be reached through a letter, and SUSE without its
+  // kind segment is not one either.
+  'FOOBAR-2021-0001',
+  'ACME-SA-alpha',
+  'casa-2021-1',
+  'nrhsa-2021:4056',
+  'SUSE-2021:1234',
+  'suse rebuilt it in 2021',
+  'fedora rebuild',
+  'glsa page',
+  // the `!` sigil needs its number the way `#` does
+  'x != 412',
 ]
 
 test('every honest citation is recognised', () => {
@@ -379,12 +580,20 @@ test('prose, stand-ins and file paths are not citations', () => {
   }
 })
 
-// The two copies are byte-identical by construction; this is what proves they
+// The three copies are byte-identical by construction; this is what proves they
 // still behave identically, over the whole table rather than over one fixture.
-test('Stage 3 reads citations exactly as Stage 1 does', () => {
-  const { citedReference: poc } = loadFns(script('triage-poc.js'), 'citedReference')
-  for (const ref of [...CITATIONS, ...NOT_CITATIONS]) {
-    assert.equal(poc(ref), citedReference(ref), `the two copies disagree on ${JSON.stringify(ref)}`)
+//
+// Stage 2 is in the list because its DUPLICATE retraction is the third site
+// asking this question, and it asked it as "non-blank" until the `evidence` that
+// every past-bug return is REQUIRED to fill turned that filter into a
+// pass-through. It fails loudly — `function citedReference not found` — if a
+// future edit deletes the copy rather than merely drifting it.
+test('every stage reads citations exactly as Stage 1 does', () => {
+  for (const file of ['triage-poc.js', 'triage-online.js']) {
+    const { citedReference: copy } = loadFns(script(file), 'citedReference')
+    for (const ref of [...CITATIONS, ...NOT_CITATIONS]) {
+      assert.equal(copy(ref), citedReference(ref), `${file} disagrees with Stage 1 on ${JSON.stringify(ref)}`)
+    }
   }
 })
 
@@ -401,6 +610,90 @@ test('a cited retraction stands, and an uncited one does not', () => {
   }
   for (const reference of NOT_CITATIONS) {
     assert.equal(upstreamFixStands(fixed({ reference })), null, reference)
+  }
+})
+
+// The note is the whole channel. `reference` is interpolated into no prompt of
+// its own, so "no reference given" written over a reference that IS there is
+// unrecoverable: nobody downstream holds the string it would take to check the
+// claim by hand, and the allowlist not knowing a registry became a denial that
+// one was cited at all.
+test('the downgrade note quotes the reference it did not recognise', () => {
+  const d = downgradeUnreferencedFix({
+    fixed: 'YES',
+    complete: true,
+    reference: 'see the 2021 rebuild',
+    searched: 'git log',
+    evidence: 'x',
+  })
+  assert.equal(d.fixed, 'UNCERTAIN')
+  assert.match(d.searched, /see the 2021 rebuild/)
+  assert.doesNotMatch(d.searched, /with no commit, PR, issue or advisory reference/)
+})
+
+// The other direction, so the branch above narrowed the note rather than
+// deleting the case it was written for.
+test('the downgrade note still reports an absent reference as absent', () => {
+  for (const reference of ['', '   ', undefined]) {
+    const d = downgradeUnreferencedFix({ fixed: 'YES', complete: true, reference, searched: 'git log', evidence: 'x' })
+    assert.equal(d.fixed, 'UNCERTAIN')
+    assert.match(d.searched, /with no commit, PR, issue or advisory reference/)
+  }
+})
+
+test('a recognised advisory is not downgraded at all', () => {
+  const hv = { fixed: 'YES', complete: true, reference: 'RHSA-2021:4056', searched: 'git log', evidence: 'x' }
+  assert.equal(downgradeUnreferencedFix(hv).fixed, 'YES')
+  assert.equal(downgradeUnreferencedFix(hv).searched, 'git log')
+})
+
+// ----------------------------------------------------------- auditedSearch
+//
+// `layersSearched` is the ONE input separating a deliberate "I read the path and
+// nothing validates the payload" from a caller who left `layers` empty without
+// doing the work, and it used to be tested only for non-blankness. `n/a` cleared
+// it, so Stage 1 returned TRUE_POSITIVE at High having dispatched zero layer
+// agents — and with zero layers the affirmative counter-check
+// `passed.length !== attemptedLayers` is vacuous at 0 !== 0, so nothing in the
+// stage established reachability at all.
+
+const auditedSearch = loadFn(STATIC, 'auditedSearch')
+
+const DECLARATIONS = [
+  'read api/orders.py and billing/charge.py; no validation between them',
+  'read charge.py, rates.py and ledger.py end to end; no sign, bounds or type check on the rate anywhere between fetch_rate and debit',
+  'grepped for Validate( across handlers/*.go and internal/rate.go; nothing on this path',
+  'traced fetch_rate through ledger.debit; nothing validates the rate in billing/charge.py',
+  'read C:\\src\\app\\billing\\charge.py in full; no check on the amount',
+  'read app/models/order.rb and app/controllers/orders_controller.rb; neither bounds the quantity',
+  'read charge.py',
+]
+
+// Every one of these is a stand-in an agent reaches for when it has nothing, and
+// a denylist would only know the ones somebody thought of.
+const NOT_DECLARATIONS = [
+  'n/a', 'N/A', 'none', 'None', 'TBD', 'tbd', '.', '-', 'x', '???', 'unknown',
+  'nothing found', 'no validation', 'not applicable', 'see above', 'the code',
+  'e.g. nothing was found', 'i.e. none', '', '   ',
+  undefined, null, 0, 1, true, {}, ['charge.py'],
+]
+
+test('a declaration that names a file read is one, and a stand-in is not', () => {
+  for (const value of DECLARATIONS) {
+    assert.equal(auditedSearch(value), value.trim(), `${JSON.stringify(value)} is a real declaration`)
+  }
+  for (const value of NOT_DECLARATIONS) {
+    assert.equal(auditedSearch(value), null, `${JSON.stringify(value)} is not a declaration`)
+  }
+})
+
+// The same contract `citedReference` is under: the batch validates this rule
+// BEFORE the shared-context agent is paid for, so the two copies decide alike or
+// a batch entry is admitted that a single dispatch would refuse.
+test('the batch reads a declaration exactly as Stage 1 does', () => {
+  const { auditedSearch: copy } = loadFns(script('triage-batch.js'), 'auditedSearch')
+  for (const value of [...DECLARATIONS, ...NOT_DECLARATIONS]) {
+    assert.equal(copy(value), auditedSearch(value), `triage-batch.js disagrees on ${JSON.stringify(value)}`)
   }
 })
 
@@ -504,31 +797,47 @@ const CAP_TABLE = [
   ['Critical: full RCE. Not Low.', 'ambiguous'],
   ['Critically low impact — Informational', 'ambiguous'],
   ['Informational (no high-value data)', 'ambiguous'],
-  // none named
-  ['Unknown', 'unknown'],
-  ['', 'unknown'],
-  ['   ', 'unknown'],
-  ['n/a', 'unknown'],
-  [undefined, 'unknown'],
-  [null, 'unknown'],
+  // NONE named. Not a rating either: a cap cannot be applied to a string nobody
+  // can read as a level, and passing it through shipped 'Sev-1' and 'P0' as the
+  // finding's severity with checkpoint 2.4b never applied.
+  ['Unknown', 'unreadable'],
+  ['Sev-1', 'unreadable'],
+  ['P0 — remote code execution', 'unreadable'],
+  ['', 'unreadable'],
+  ['   ', 'unreadable'],
+  ['n/a', 'unreadable'],
+  [undefined, 'unreadable'],
+  [null, 'unreadable'],
 ]
 
 test('the cap decides on exactly one named level and refuses to guess at more', () => {
   for (const [severity, expect] of CAP_TABLE) {
-    for (const rootCause of ['integration', 'external', 'in-repo-caller']) {
+    for (const rootCause of ['integration', 'external', 'internal', 'Internal', 'third-party', '']) {
       for (const classification of ['vulnerability', 'hardening_gap']) {
         const where = `${JSON.stringify(severity)} / ${rootCause} / ${classification}`
         const r = capSeverity(severity, rootCause, classification)
-        if (expect === 'ambiguous') {
-          assert.ok(r.ambiguous, `${where} names two levels and must be refused, not guessed at`)
+        if (expect === 'ambiguous' || expect === 'unreadable') {
+          assert.ok(r.ambiguous, `${where} is not one named level and must be refused, not guessed at`)
           assert.equal(r.severity, severity, `${where} must not be rewritten`)
           assert.equal(r.note, '', `${where} was not lowered, so it must not claim it was`)
+          assert.match(r.ambiguous, /exactly one/, `${where}: the message has to name the fix`)
+          assert.match(
+            r.ambiguous,
+            expect === 'ambiguous' ? /names \d+ levels/ : /names none of|blank rating/,
+            where,
+          )
           continue
         }
         assert.equal(r.ambiguous, '', `${where} is unambiguous`)
-        // `in-repo-caller` is not a capped root cause, so only the hardening-gap
-        // arm of 2.5 fires there.
-        const capped = expect === 'cap' && (rootCause !== 'in-repo-caller' || classification === 'hardening_gap')
+        // `internal`, in any casing, is the only root cause 2.4b exempts, so only
+        // the hardening-gap arm of 2.5 fires there. `third-party` and a blank are
+        // spellings the advisory enum does not stop, and neither of them is the
+        // claim that the trigger originates in this repository — so both are
+        // priced as 2.4b prices an external trigger. The row this replaced asserted
+        // the opposite, under a root cause (`in-repo-caller`) that is a
+        // reachability driver and not a root cause at all.
+        const internal = rootCause.trim().toLowerCase() === 'internal'
+        const capped = expect === 'cap' && (!internal || classification === 'hardening_gap')
         assert.equal(r.severity, capped ? 'Medium' : severity, where)
         assert.equal(Boolean(r.note), capped, `${where}: a correction must be reported, and a non-correction must not be`)
       }
@@ -540,10 +849,10 @@ test('the cap decides on exactly one named level and refuses to guess at more', 
 // a guess: three separate copies of this arithmetic exist, one per stage, and a
 // number that escapes Stage 1 is the number Stage 3 reports.
 test('all three stage copies reach the same decision on every row', () => {
-  const online = loadFns(script('triage-online.js'), 'capSeverity', 'namedLevels')
-  const poc = loadFns(script('triage-poc.js'), 'severityCapViolation', 'namedLevels')
+  const online = loadFns(script('triage-online.js'), 'capSeverity', 'namedLevels', 'externalRootCause')
+  const poc = loadFns(script('triage-poc.js'), 'severityCapViolation', 'namedLevels', 'externalRootCause')
   for (const [severity] of CAP_TABLE) {
-    for (const rootCause of ['integration', 'external', 'in-repo-caller']) {
+    for (const rootCause of ['integration', 'external', 'internal', 'Internal', 'third-party', '']) {
       for (const classification of ['vulnerability', 'hardening_gap']) {
         const where = `${JSON.stringify(severity)} / ${rootCause} / ${classification}`
         const a = capSeverity(severity, rootCause, classification)
@@ -556,7 +865,7 @@ test('all three stage copies reach the same decision on every row', () => {
         // BLOCKS where Stage 1 lowers, and one that names the ambiguity where
         // Stage 1 refuses.
         const v = poc.severityCapViolation(severity, rootCause, classification)
-        const pocAmbiguous = Boolean(v) && /names \d+ levels/.test(v)
+        const pocAmbiguous = Boolean(v) && /no cap can be checked against it/.test(v)
         assert.equal(pocAmbiguous, Boolean(a.ambiguous), `Stage 3 disagrees on ambiguity at ${where}`)
         assert.equal(Boolean(v) && !pocAmbiguous, Boolean(a.note), `Stage 3 disagrees on the cap at ${where}`)
       }
@@ -573,12 +882,65 @@ test('an ambiguous rating is refused, never silently passed', () => {
   assert.match(r.ambiguous, /exactly one/)
 })
 
+// The other half of the same rule, and the one Stage 1 was missing: a rating
+// that names NO level is not below the cap, it is unreadable. 'Sev-1' and 'P0'
+// reached TRUE_POSITIVE with the 2.4b cap silently skipped, and that number is
+// what Stages 2 and 3 were forwarded.
+test('a rating naming no level is refused rather than passed through as below the cap', () => {
+  const r = capSeverity('Sev-1', 'integration', 'vulnerability')
+  assert.match(r.ambiguous, /names none of Critical, High, Medium, Low or Informational/)
+  assert.match(r.ambiguous, /exactly one/)
+  assert.equal(r.severity, 'Sev-1', 'the agent value is handed back, not rewritten')
+  assert.equal(r.note, '', 'nothing was lowered, so nothing may claim it was')
+  // and a blank says so in the words a reader can act on rather than quoting ""
+  const blank = capSeverity('   ', 'integration', 'vulnerability')
+  assert.match(blank.ambiguous, /blank rating/)
+  assert.match(blank.ambiguous, /exactly one/)
+})
+
 test('namedLevels reports every distinct level, word-bounded, most severe first', () => {
   assert.deepEqual(namedLevels('Medium/High'), ['high', 'medium'])
   assert.deepEqual(namedLevels('Allowlist bypass — High'), ['high'])
   assert.deepEqual(namedLevels('Highly situational, ultimately Low'), ['low'])
   assert.deepEqual(namedLevels('Critically low impact — Informational'), ['low', 'informational'])
   assert.deepEqual(namedLevels('Unknown'), [])
+})
+
+// The cap matched `integration` or `external` affirmatively while the three gate
+// prompts and `missingPrecondition` branched on `!== 'internal'`, so every
+// spelling outside the enum — and `required` is the only thing the runtime
+// validator enforces — took the external branch everywhere except here. The gate
+// agent was then told the severity had been capped when it had not.
+test('anything but internal is capped: the enum is advisory and the cap is not', () => {
+  for (const rootCause of ['integration', 'external', 'third-party', 'upstream', 'unknown', '', undefined, null]) {
+    const r = capSeverity('Critical', rootCause, 'vulnerability')
+    assert.equal(r.severity, 'Medium', `${JSON.stringify(rootCause)} escaped the 2.4b cap`)
+    assert.match(r.note, /2\.4b/, `${JSON.stringify(rootCause)}: the correction has to cite the checkpoint`)
+    // and the note reads as a sentence whatever was in the field
+    assert.doesNotMatch(r.note, /a {2,}root cause/, `${JSON.stringify(rootCause)}: 'a  root cause' is not a sentence`)
+  }
+})
+
+test('internal keeps its severity whatever the casing or padding', () => {
+  for (const rootCause of ['internal', 'Internal', 'INTERNAL', '  internal  ']) {
+    const r = capSeverity('Critical', rootCause, 'vulnerability')
+    assert.equal(r.severity, 'Critical', `${JSON.stringify(rootCause)} is the in-repo claim and keeps its rating`)
+    assert.equal(r.note, '', `${JSON.stringify(rootCause)}: nothing was lowered, so nothing may claim it was`)
+  }
+})
+
+// The predicate itself, because three sites in Stage 1 read root cause through it
+// and the defect was that they did not all read it the same way.
+test('the predicate the cap, the precondition and the prompt all read', () => {
+  assert.equal(externalRootCause('internal'), false)
+  assert.equal(externalRootCause('Internal'), false, 'the same claim, differently cased')
+  assert.equal(externalRootCause('  internal '), false)
+  assert.equal(externalRootCause('integration'), true)
+  assert.equal(externalRootCause('external'), true)
+  assert.equal(externalRootCause('third-party'), true, 'a spelling the advisory enum does not stop')
+  assert.equal(externalRootCause(undefined), true, 'an unmade claim is not the in-repo one')
+  assert.equal(externalRootCause(null), true)
+  assert.equal(externalRootCause(''), true)
 })
 
 test('the correction is always reported, never silent', () => {
@@ -614,12 +976,66 @@ test('all six passing is a TRUE POSITIVE carrying the reason', () => {
   assert.match(r.reason, /ledger\.debit/)
 })
 
-test('any single gate failing is a FALSE POSITIVE that names the gate', () => {
-  for (const key of GATE_NAMES) {
+// A FAIL means different things on different gates, and this used to be one test
+// asserting FALSE_POSITIVE for all six. That was the pin that kept the defect
+// alive: Process asks whether the stages above showed their work and PoC
+// Validation asks whether the traced path has a gap in it, so a FAIL on either
+// says the write-up is thin, not that the bug is absent — and the old assertion
+// retired findings whose Reachability, Real Impact, Math Bounds and Environment
+// gates had all PASSED. gate-reviews.md calls that rounding the most expensive
+// mistake available here.
+const REFUTING = ['gateReachability', 'gateRealImpact', 'gateMathBounds', 'gateEnvironment']
+const EVIDENCE = ['gateProcess', 'gatePocValidation']
+
+test('a gate that grades the bug failing is a FALSE POSITIVE that names the gate', () => {
+  for (const key of REFUTING) {
     const r = decideVerdict({ ...GATES, [key]: 'FAIL' })
     assert.equal(r.status, 'FALSE_POSITIVE', `${key} FAIL must not pass`)
     assert.ok(r.reason.trim(), `${key} FAIL gave no reason`)
   }
+})
+
+test('a gate that grades the evidence failing is NEEDS MORE INFO, not a refutation', () => {
+  for (const key of EVIDENCE) {
+    const r = decideVerdict({ ...GATES, [key]: 'FAIL' })
+    assert.equal(r.status, 'NEEDS_MORE_INFO', `${key} FAIL is a missing fact, not a refutation`)
+    assert.match(r.reason, /^gate (Process|PoC Validation) failed/, `${key} FAIL must still name the gate`)
+    assert.match(r.reason, /no gate refuted the finding/)
+    // SKILL.md tells the orchestrator to relay the reason verbatim, so the
+    // agent's own sentence has to survive into it.
+    assert.match(r.reason, /ledger\.debit/, `${key} FAIL discarded the agent's reason`)
+  }
+})
+
+// The guard against over-correcting. A run that failed both kinds still reports
+// the refutation: "there is no reachable path" is an answer and outranks "the
+// stages asserted rather than showed".
+test('a refutation outranks a thin write-up, so the specific answer wins', () => {
+  for (const key of EVIDENCE) {
+    const r = decideVerdict({ ...GATES, [key]: 'FAIL', gateReachability: 'FAIL' })
+    assert.equal(r.status, 'FALSE_POSITIVE', `${key} + Reachability must report the refutation`)
+    assert.match(r.reason, /Reachability/)
+  }
+})
+
+test('every gate failing is a FALSE POSITIVE: four of the six refute', () => {
+  const all = Object.fromEntries(GATE_NAMES.map((key) => [key, 'FAIL']))
+  const r = decideVerdict({ ...GATES, ...all })
+  assert.equal(r.status, 'FALSE_POSITIVE')
+  assert.ok(r.reason.trim())
+})
+
+// Pins the ordering: `thin` is checked before `unresolved`, so the named gate
+// beats free text. Both are NEEDS_MORE_INFO, and the unresolved note is not lost
+// — the whole gates object is returned in the payload.
+test('a thin write-up alongside an unresolved note is NEEDS MORE INFO naming the gate', () => {
+  const r = decideVerdict({
+    ...GATES,
+    gateProcess: 'FAIL',
+    unresolvedUncertainty: 'could not establish the deployment shape',
+  })
+  assert.equal(r.status, 'NEEDS_MORE_INFO')
+  assert.match(r.reason, /Process/)
 })
 
 test('a FAIL outranks unresolved uncertainty: the specific answer wins', () => {
@@ -978,10 +1394,13 @@ test('every gate function is extractable: a rename must fail loudly', () => {
   const names = [
     'missingArgs',
     'selectRoute',
+    'fixedAnswer',
     'upstreamFixStands',
+    'downgradeUnreferencedFix',
     'decideGate',
     'missingPrecondition',
     'namedLevels',
+    'externalRootCause',
     'capSeverity',
     'blockingProofs',
     'decideVerdict',
@@ -1014,6 +1433,11 @@ test('every post-impact exit carries the capped severity, not the raw one', asyn
     ['missingPrecondition exit', INTEGRATION_CRITICAL, 'NEEDS_MORE_INFO'],
     ['NOT_VERIFIED exit', { ...INTEGRATION_CRITICAL, result: 'NOT_VERIFIED' }, 'NEEDS_MORE_INFO'],
     ['DISPROVEN exit', { ...INTEGRATION_CRITICAL, result: 'DISPROVEN' }, 'NOT_EXPLOITABLE'],
+    // The grade the script cannot read leaves by the same door, so it has to
+    // carry the same corrected number: an off-enum answer used to fall through
+    // to NOT_EXPLOITABLE, and pinning only the two in-enum rows would let the
+    // fix be applied in a way that skipped the cap on the third.
+    ['off-enum exit', { ...INTEGRATION_CRITICAL, result: 'Verified' }, 'NEEDS_MORE_INFO'],
   ]
   for (const [label, impact, expected] of cases) {
     const { result } = await runScript('triage-static.js', {
@@ -1027,12 +1451,82 @@ test('every post-impact exit carries the capped severity, not the raw one', asyn
   }
 })
 
+// The precondition gate now fires on a blank and an absent root cause too — that
+// is what reading it through `externalRootCause` means — and its reason is
+// relayed to the user verbatim. Labelled as the three cap notes label it, so the
+// sentence a reader is handed is not "root cause is , so …".
+test('the precondition reason reads as a sentence whatever the root cause held', async () => {
+  for (const rootCause of ['', '   ', undefined, null]) {
+    const { result } = await runScript('triage-static.js', {
+      args: WIRING_ARGS,
+      agents: agents({
+        impact: {
+          result: 'VERIFIED',
+          impact: 'an attacker mints balance',
+          rootCause,
+          externalPrecondition: '',
+          classification: 'vulnerability',
+          severity: 'High',
+          severityRationale: 'full balance control',
+          evidence: 'traced',
+        },
+      }),
+    })
+    assert.equal(result.status, 'NEEDS_MORE_INFO', JSON.stringify(rootCause))
+    assert.match(result.reason, /^root cause is non-internal, so /, JSON.stringify(rootCause))
+  }
+  // and a stated one is still named, rather than flattened into the label
+  const { result } = await runScript('triage-static.js', {
+    args: WIRING_ARGS,
+    agents: agents({
+      impact: {
+        result: 'VERIFIED',
+        impact: 'an attacker mints balance',
+        rootCause: 'third-party',
+        externalPrecondition: '',
+        classification: 'vulnerability',
+        severity: 'High',
+        severityRationale: 'full balance control',
+        evidence: 'traced',
+      },
+    }),
+  })
+  assert.match(result.reason, /^root cause is third-party, so /)
+})
+
 // The end-to-end half of the ambiguity rule, and the reason it needs one. Round 7
 // let any above-cap rating containing the word `low` through the cap untouched,
 // and nothing downstream re-checked it: the number reached `verification.severity`
 // and from there the Stage 3 report, and the finding shipped REPORTED at Critical
 // on an integration root cause. `capSeverity` now refuses to read it, so the run
 // has to stop here rather than pass the string along.
+//
+// The same escape ran from the other side, and this is it: a rating naming NO
+// level was returned untouched with no note and no flag, so an integration root
+// cause shipped TRUE_POSITIVE at 'Sev-1' with checkpoint 2.4b never applied.
+test('a severity naming no level stops the run instead of shipping uncapped', async () => {
+  const { result } = await runScript('triage-static.js', {
+    args: WIRING_ARGS,
+    agents: agents({
+      impact: {
+        result: 'VERIFIED',
+        impact: 'an attacker mints balance',
+        rootCause: 'integration',
+        externalPrecondition: 'upstream rate feed returns a negative',
+        classification: 'vulnerability',
+        severity: 'Sev-1',
+        severityRationale: 'full balance control',
+        evidence: 'traced',
+      },
+    }),
+  })
+  assert.equal(result.status, 'NEEDS_MORE_INFO', 'Sev-1 shipped TRUE_POSITIVE with 2.4b never applied')
+  assert.match(result.reason, /names none of/)
+  assert.match(result.reason, /exactly one/)
+  assert.match(result.severityCorrection, /names none of/)
+  assert.equal(result.impact.severity, 'Sev-1', 'the raw agent value is still visible')
+})
+
 test('an ambiguous impact severity stops the run instead of shipping', async () => {
   const { result } = await runScript('triage-static.js', {
     args: WIRING_ARGS,

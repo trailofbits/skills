@@ -276,6 +276,52 @@ test('a by-design objection below the bar is carried to the six-gate agent', asy
   assert.match(gates, /1 of 3 design-intent indicators/)
 })
 
+// The other half of the same bar, and the stronger objection of the two: the bar
+// is two indicators AND a confirming search, so an agent that obeys the prompt
+// with three indicators and an unfinished search returns `byDesign: false`.
+// Keyed on the boolean, that shape reached NO prompt in the file at all, while
+// the one-indicator hunch above was carried.
+test('a by-design objection with the indicators but not the boolean is carried too', async () => {
+  const r = await runScript('triage-static.js', {
+    args: standardArgs(),
+    agents: staticAgents({
+      'threat-model': {
+        inScope: 'YES',
+        byDesign: false,
+        byDesignIndicators: 3,
+        evidence: 'forceUpdate, a guarded withdraw() sibling, and test_admin_override covers it',
+      },
+    }),
+  })
+  assert.equal(r.result.status, 'TRUE_POSITIVE', 'below the bar is still not a dismissal')
+  const gates = promptFor(r, 'gates')
+  assert.match(gates, /3 of 3 design-intent indicators/)
+  assert.match(gates, /forceUpdate/)
+  assert.match(gates, /did not itself mark the finding by-design/)
+})
+
+// `type` is advisory to the runtime validator just as `enum` is, so the count
+// arrives as whatever the agent typed.
+test('an off-type indicator count still carries the objection', async () => {
+  const r = await runScript('triage-static.js', {
+    args: standardArgs(),
+    agents: staticAgents({
+      'threat-model': { inScope: 'YES', byDesign: false, byDesignIndicators: '2', evidence: 'two documented escape hatches' },
+    }),
+  })
+  assert.equal(r.result.status, 'TRUE_POSITIVE')
+  assert.match(promptFor(r, 'gates'), /2 of 3 design-intent indicators/)
+})
+
+// The guard on the fix rather than on the bug: carrying is not free. Without
+// this, "always interpolate `threat`" would pass the two tests above and ask the
+// verdict agent to answer an objection nobody raised, on every run.
+test('no design-intent objection is carried when no indicator fired', async () => {
+  const r = await runScript('triage-static.js', { args: standardArgs(), agents: staticAgents() })
+  assert.equal(r.result.status, 'TRUE_POSITIVE')
+  assert.doesNotMatch(promptFor(r, 'gates'), /design-intent indicators/)
+})
+
 test('[concept-prover] the external-precondition rule decides an integration finding', async () => {
   const r = await runScript('triage-static.js', {
     args: standardArgs(),
@@ -505,13 +551,29 @@ test('[old fp-check] the six-gate review decides the verdict', async () => {
   assert.equal(pass.result.reason, GATES_ALL_PASS.verdictReason, 'the verdict must come from decideVerdict, not from an earlier stage')
   assert.ok(labels(pass).includes('gates'), 'the six gates were never dispatched')
 
-  for (const gate of ['gateProcess', 'gateReachability', 'gateRealImpact', 'gatePocValidation', 'gateMathBounds', 'gateEnvironment']) {
+  // Paired rather than a flat loop over six. What is under test here is
+  // unchanged — that decideVerdict, rather than something upstream, decides — but
+  // a FAIL does not mean the same thing on every gate: Process and PoC Validation
+  // grade whether the analysis showed its work, so a FAIL there is a missing fact
+  // and not a refutation. The loop used to assert FALSE_POSITIVE for all six,
+  // which is what let a thin write-up retire a finding whose four bug-grading
+  // gates had all passed.
+  for (const [gate, expected] of [
+    ['gateProcess', 'NEEDS_MORE_INFO'],
+    ['gateReachability', 'FALSE_POSITIVE'],
+    ['gateRealImpact', 'FALSE_POSITIVE'],
+    ['gatePocValidation', 'NEEDS_MORE_INFO'],
+    ['gateMathBounds', 'FALSE_POSITIVE'],
+    ['gateEnvironment', 'FALSE_POSITIVE'],
+  ]) {
     const r = await runScript('triage-static.js', {
       args: standardArgs(),
       agents: staticAgents({ gates: { ...GATES_ALL_PASS, [gate]: 'FAIL' } }),
     })
-    assert.equal(r.result.status, 'FALSE_POSITIVE', `${gate} failing did not decide the verdict`)
-    assert.match(r.result.reason, /^gate .* failed:/)
+    assert.equal(r.result.status, expected, `${gate} failing did not decide the verdict`)
+    // Not `failed:` — the NEEDS_MORE_INFO reason reads "gate Process failed and
+    // no gate refuted…", and the gate still has to be named either way.
+    assert.match(r.result.reason, /^gate .* failed/)
   }
 })
 
@@ -908,7 +970,7 @@ const POC_BUILT = {
   lintPassed: true,
 }
 
-const ARTIFACT_OK = { fileExists: true, lintExitZero: true, reimplementation: 'NOT_DEFINED', reRunSucceeded: true, evidence: 'ran it and it reproduces' }
+const ARTIFACT_OK = { fileExists: true, lintExitZero: true, reimplementation: 'NOT_DEFINED', reRun: 'REPRODUCED', reRunNotes: '', evidence: 'ran it and it reproduces' }
 const CHALLENGE_WON = { challenge: 'the path is unreachable', rebuttal: 'the entry point drives it', winner: 'REBUTTAL', evidence: 'see the PoC setup' }
 const CHALLENGE_LOST = { challenge: 'the path is unreachable', rebuttal: 'none found', winner: 'CHALLENGE', evidence: 'the fixture constructs state no caller reaches' }
 const REPORT = { severity: 'Medium', severityRationale: 'ledger corruption behind an internal trust boundary', reportPath: '/w/finding-negative-rate.md', unproven: 'that the rate service can be made to misbehave' }

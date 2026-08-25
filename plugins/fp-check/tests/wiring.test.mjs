@@ -92,6 +92,178 @@ test('the happy path reaches TRUE_POSITIVE through the impact and gate agents', 
   assert.equal(result.severity, 'High', 'an internal root cause is not capped')
 })
 
+// `layers: []` with a `layersSearched` declaration is a SUPPORTED dispatch, and
+// on it the gate prompt says outright that the layer stage rests on a caller
+// assertion rather than on agent verification — so a Process FAIL is a sentence
+// an honest agent writes on it. That used to come back FALSE POSITIVE, retiring a
+// finding whose four bug-grading gates had all passed.
+const NO_LAYERS = {
+  ...VERIFY_ARGS,
+  layers: [],
+  layersSearched: 'read api.py and ledger.py end to end; nothing checks the sign of amount on the path',
+}
+
+test('a Process FAIL on the caller-declared no-layers dispatch is NEEDS MORE INFO', async () => {
+  const { result, calls } = await runScript('triage-static.js', {
+    args: NO_LAYERS,
+    agents: verifyAgents({
+      gates: {
+        ...ALL_GATES_PASS,
+        gateProcess: 'FAIL',
+        verdictReason: 'no agent verified the absence of a validation layer; the caller asserted it',
+      },
+    }),
+  })
+  assert.equal(result.status, 'NEEDS_MORE_INFO')
+  assert.match(result.reason, /gate Process failed/)
+  assert.match(result.reason, /no agent verified the absence/)
+  // Proves the reachability claim rather than assuming it: this is the prompt
+  // text that invites the FAIL in the first place.
+  const gatePrompt = calls.find((c) => c.label === 'gates').prompt
+  assert.match(gatePrompt, /the caller declared this rather than any agent verifying it/)
+})
+
+test('the same dispatch still reaches TRUE_POSITIVE when the process gate passes', async () => {
+  const { result } = await runScript('triage-static.js', { args: NO_LAYERS, agents: verifyAgents() })
+  assert.equal(result.status, 'TRUE_POSITIVE', 'the supported no-layers dispatch became a permanent NEEDS MORE INFO')
+})
+
+// The repro, pinned. `layersSearched: 'n/a'` cleared the arg gate and
+// `decideGate`'s zero-layer guard, and Stage 1 returned TRUE_POSITIVE at High
+// having dispatched no layer agent at all — with the affirmative counter-check
+// `passed.length !== attemptedLayers` vacuous at 0 !== 0, so nothing in the stage
+// established that the payload reaches the sink.
+test('a stand-in for layersSearched does not buy a verdict on zero layer agents', async () => {
+  for (const layersSearched of ['n/a', 'none', 'TBD', '.']) {
+    const { result, calls } = await runScript('triage-static.js', {
+      args: { ...VERIFY_ARGS, layers: [], layersSearched },
+      agents: verifyAgents(),
+    })
+    assert.equal(result.status, 'BLOCKED', layersSearched)
+    assert.match(result.reason, /layersSearched/)
+    assert.ok(!calls.some((c) => c.label.startsWith('layer')), 'a layer agent ran on an empty list')
+  }
+})
+
+// The other direction, so a future tightening of the rule cannot quietly re-close
+// checkpoint 2.2's "or confirmed none exist" half.
+test('an audited "nothing validates this path" still reaches a verdict', async () => {
+  const { result, calls } = await runScript('triage-static.js', {
+    args: {
+      ...VERIFY_ARGS,
+      layers: [],
+      layersSearched: 'read api.py and ledger.py end to end; no sign or bounds check between transfer and debit',
+    },
+    agents: verifyAgents(),
+  })
+  assert.equal(result.status, 'TRUE_POSITIVE')
+  assert.ok(!calls.some((c) => c.label.startsWith('layer')), 'there were no layers to inspect')
+  assert.ok(calls.some((c) => c.label === 'impact'), 'the declared-absence path must still reach the impact agent')
+})
+
+test('a Reachability FAIL is still a FALSE_POSITIVE end to end', async () => {
+  const { result } = await runScript('triage-static.js', {
+    args: VERIFY_ARGS,
+    agents: verifyAgents({ gates: { ...ALL_GATES_PASS, gateReachability: 'FAIL' } }),
+  })
+  assert.equal(result.status, 'FALSE_POSITIVE')
+  assert.match(result.reason, /Reachability/)
+})
+
+// The gate prompt used to tell the agent the number had been capped when it had
+// not, and forbid three gate failures on that false premise. The cap matched
+// `integration` or `external` affirmatively; the prompt and `missingPrecondition`
+// branched on `!== 'internal'` — so `third-party`, which nothing rejects, got the
+// relaxation and the path-only gate-2 wording with the cap never applied, under a
+// sentence reading "the severity is already capped at Critical because of it."
+const gatePrompt = (calls) => calls.find((c) => c.label === 'gates').prompt
+
+test('an off-enum root cause is capped, and the prompt says what was actually done', async () => {
+  const { result, calls } = await runScript('triage-static.js', {
+    args: VERIFY_ARGS,
+    agents: verifyAgents({
+      impact: {
+        ...VERIFIED,
+        rootCause: 'third-party',
+        externalPrecondition: 'the upstream rate feed returns a negative rate',
+        severity: 'Critical',
+      },
+    }),
+  })
+  assert.equal(result.status, 'TRUE_POSITIVE')
+  assert.equal(result.severity, 'Medium', 'a root cause the enum does not list still requires an external failure')
+  assert.match(result.severityCorrection, /third-party/)
+  const prompt = gatePrompt(calls)
+  assert.ok(
+    prompt.includes('the severity is already capped at Medium because of it.'),
+    'the relaxation may only assert a cap that was actually paid',
+  )
+  assert.ok(
+    prompt.includes('Do NOT fail gateReachability, gateRealImpact or gatePocValidation'),
+    'the relaxation itself still applies: the trigger is external either way',
+  )
+})
+
+// Looped over the CASINGS, and that is what pins the three gate-prompt
+// conditionals rather than only the cap. `third-party` above cannot reach them:
+// the cap change alone already produces the right prompt there, so reverting all
+// three prompt reads to `=== 'internal'` left it — and the whole suite — green,
+// while `Internal` was told "the severity is already capped at Critical because
+// of it" over a cap that had not been applied, and forbidden on that premise from
+// failing three gates. A casing variant is the only input on which the cap and
+// the prompts can disagree, so it is the only one that grades them separately.
+test('an internal root cause keeps the strict gate wording and its severity', async () => {
+  for (const rootCause of ['internal', 'Internal', '  internal  ']) {
+    const { result, calls } = await runScript('triage-static.js', {
+      args: VERIFY_ARGS,
+      agents: verifyAgents({ impact: { ...VERIFIED, rootCause, severity: 'Critical' } }),
+    })
+    assert.equal(result.severity, 'Critical', rootCause)
+    assert.equal(result.severityCorrection, '', rootCause)
+    const prompt = gatePrompt(calls)
+    assert.ok(prompt.includes('attacker-controlled data reaches the sink'), `${rootCause}: gate 2 keeps its trust-boundary half`)
+    assert.ok(!prompt.includes('Do NOT fail gateReachability'), `${rootCause}: nothing was priced in a cap, so nothing may be relaxed`)
+    assert.ok(
+      !prompt.includes('the severity is already capped'),
+      `${rootCause}: the prompt asserted a cap that was never applied`,
+    )
+    assert.ok(!prompt.includes('external precondition:'), `${rootCause}: an in-repo trigger has no external precondition to state`)
+  }
+})
+
+// An information-disclosure finding: standard in the Route table of
+// references/bug-class-verification.md. The only thing separating it from the
+// control is that the submitter wrote the words "stack trace".
+const TRACE_ARGS = {
+  ...VERIFY_ARGS,
+  finding: {
+    summary: 'the 500 handler returns the raw exception to the caller',
+    sink: 'api/handlers.py:40',
+    component: 'api',
+    claimedImpact: 'internal paths and SQL leak to an unauthenticated caller',
+    bugClass: 'information disclosure via stack trace',
+    threatModel: 'an unauthenticated caller of any endpoint that raises',
+  },
+  entryPoint: { description: 'GET /orders/{id}', location: 'api/handlers.py:12', payload: "id=';" },
+  layers: [{ name: 'error-filter', location: 'api/handlers.py:35', checks: 'sanitises some messages' }],
+}
+// No entry for api-contract, math-bounds or race-feasibility: the absence IS the
+// assertion. If the route escalates, those three are dispatched, answer nothing,
+// and `deadProofs` returns BLOCKED.
+const traceAgents = verifyAgents({ impact: { ...VERIFIED, severity: 'Low' } })
+
+test('a bug class that merely CONTAINS an escalation keyword does not buy the deep route', async () => {
+  const { result, calls } = await runScript('triage-static.js', { args: TRACE_ARGS, agents: traceAgents })
+  assert.equal(result.route, 'standard')
+  for (const proof of ['api-contract', 'math-bounds', 'race-feasibility']) {
+    assert.ok(!calls.some((c) => c.label === proof), `${proof} must not be dispatched`)
+  }
+  // Before: 'stack trace' escalated, the three proof agents were dispatched and
+  // never scripted, and `deadProofs` returned BLOCKED — NEEDS MORE INFO to the
+  // user, on a finding every gate had passed.
+  assert.equal(result.status, 'TRUE_POSITIVE')
+})
+
 test('a stopped payload halts before the impact agent is ever spent', async () => {
   const { result, calls } = await runScript('triage-static.js', {
     args: VERIFY_ARGS,
@@ -110,6 +282,22 @@ test('an UNCERTAIN verdict needs more info: the gate decision is acted on', asyn
     agents: verifyAgents({ layer: { verdict: 'UNCERTAIN', evidence: 'could not trace' } }),
   })
   assert.equal(result.status, 'NEEDS_MORE_INFO')
+})
+
+// `[]` cleared `need` (not undefined, not null, not a blank string) and then
+// stringified to '' in the shape guard, which skips on a falsy `base` — so the
+// validator reported nothing, every `${baseDir}/references/` read resolved under
+// a bare `/references/`, and five agents answered from memory behind a
+// TRUE_POSITIVE that looked complete.
+test('a baseDir that stringifies to nothing is refused before any agent runs', async () => {
+  for (const baseDir of [[], [null], ['']]) {
+    const { result, calls } = await runScript('triage-static.js', {
+      args: { ...VERIFY_ARGS, baseDir },
+      agents: verifyAgents(),
+    })
+    assert.equal(result.status, 'BLOCKED', JSON.stringify(baseDir))
+    assert.equal(calls.length, 0, 'agents were dispatched on a baseDir no reference read can resolve')
+  }
 })
 
 test('a dead layer agent blocks rather than proceeding', async () => {
@@ -206,6 +394,35 @@ test('NOT_VERIFIED does not reach a positive verdict', async () => {
   }
 })
 
+// The enum has three values; `result` can hold any string. The runtime validator
+// enforces `required` and treats `enum` as advisory, and this branch graded by
+// exclusion — so NOT_EXPLOITABLE, which triage-poc refuses to build for and
+// triage-online refuses to check, was the fall-through for every grade the script
+// does not recognise. An impact agent answering `Verified` in the wrong case had
+// its own evidence FOR the impact relayed to the user as "FALSE POSITIVE — no
+// attacker-reachable path".
+test('an off-enum impact grade is NEEDS_MORE_INFO, not a terminal dismissal', async () => {
+  // 'DISPROVED' is the deliberate near-miss of the one grade that IS a dismissal;
+  // '' is the present-but-empty case `required` lets through.
+  for (const bad of ['Verified', 'verified', 'VERIFIED_WITH_LOWER_SEVERITY', 'PARTIAL', 'DISPROVED', '']) {
+    const { result } = await runScript('triage-static.js', {
+      args: VERIFY_ARGS,
+      agents: verifyAgents({ impact: { ...VERIFIED, result: bad, evidence: 'traced end to end' } }),
+    })
+    assert.equal(result.status, 'NEEDS_MORE_INFO', `${JSON.stringify(bad)} must not dismiss the finding`)
+    assert.match(
+      result.reason,
+      /not one of VERIFIED, NOT_VERIFIED or DISPROVEN/,
+      `${JSON.stringify(bad)}: the reason names the unusable grade`,
+    )
+    assert.doesNotMatch(
+      result.reason,
+      /traced end to end/,
+      `${JSON.stringify(bad)}: the agent's evidence FOR the impact is not the fact still missing`,
+    )
+  }
+})
+
 // IMPACT_SCHEMA requires `evidence`, and JSON Schema `required` checks presence
 // rather than content: `evidence: ''` validates. The 2.4 branch relayed it
 // verbatim, so SKILL.md's failure protocol rendered as "Reason:" with nothing
@@ -282,6 +499,119 @@ test('no more layer agents are dispatched than the cap allows', async () => {
   })
   const layerCalls = calls.filter((c) => c.label.startsWith('layer:'))
   assert.equal(layerCalls.length, 4)
+})
+
+// `citedReference` was tested; the retraction it gates was not tested against a
+// path, and that is precisely what let a `file:line` reference ship as a
+// citation for months. `api/v1/handlers.go:40` is what a history agent writes
+// when it found nothing and answered anyway — the sink it was handed, not a fix
+// — and it took the finding out terminally, with SKILL.md relaying "RETRACTED —
+// already fixed by api/v1/handlers.go:40" to a reader who cannot look that up.
+// A unit assertion on the predicate cannot show the discard; only running the
+// script can, so the end-to-end direction is pinned here as well as at the
+// predicate.
+test('a file:line masquerading as an upstream fix does not retract the finding', async () => {
+  const { result } = await runScript('triage-static.js', {
+    args: VERIFY_ARGS,
+    agents: verifyAgents({
+      history: { ...UNFIXED, fixed: 'YES', complete: true, reference: 'api/v1/handlers.go:40' },
+    }),
+  })
+  assert.notEqual(result.status, 'ALREADY_FIXED')
+  assert.equal(result.status, 'TRUE_POSITIVE')
+  assert.doesNotMatch(String(result.reason || ''), /already fixed/)
+})
+
+// The other direction, in the same shape, because a fix that stops retracting is
+// as expensive as one that retracts wrongly: it reports a dead bug as live. This
+// is what says the branch above narrowed the predicate rather than disabling it.
+test('a real cited fix still retracts', async () => {
+  const { result } = await runScript('triage-static.js', {
+    args: VERIFY_ARGS,
+    agents: verifyAgents({
+      history: { ...UNFIXED, fixed: 'YES', complete: true, reference: 'fixed in v1.4.0', evidence: 'released upstream' },
+    }),
+  })
+  assert.equal(result.status, 'ALREADY_FIXED')
+  assert.match(result.reason, /already fixed by fixed in v1\.4\.0/)
+})
+
+// The same predicate as `api/v1/handlers.go:40` above, the other way round: a
+// real distro advisory that FIXED the bug, refused because the allowlist had not
+// been told the registry's name. A unit assertion on the predicate does not show
+// what that costs — only running the script does, and it came back
+// TRUE_POSITIVE, which SKILL.md relays as "BUG #N TRUE POSITIVE" on a bug that
+// was already dead.
+test('a distro advisory retracts the finding it fixed', async () => {
+  for (const reference of ['RHSA-2021:4056', 'SUSE-SU-2021:1234', 'MFSA-2021-24', '!412']) {
+    const { result } = await runScript('triage-static.js', {
+      args: VERIFY_ARGS,
+      agents: verifyAgents({
+        history: { ...UNFIXED, fixed: 'YES', complete: true, reference, evidence: 'released upstream' },
+      }),
+    })
+    assert.equal(result.status, 'ALREADY_FIXED', reference)
+    assert.ok(result.reason.includes(reference), reference)
+  }
+})
+
+// And the route left open for a registry the allowlist STILL does not know. An
+// allowlist is incomplete by construction, so the gate agent is the only party
+// who can catch the next miss — and it can only do that if it is handed the
+// string. `reference` reaches no prompt of its own; the downgrade note is its
+// only carrier, and that note used to deny the reference existed.
+test('an unrecognised reference reaches the gate agent rather than being denied', async () => {
+  const { result, calls } = await runScript('triage-static.js', {
+    args: VERIFY_ARGS,
+    agents: verifyAgents({
+      history: { ...UNFIXED, fixed: 'YES', complete: true, reference: 'ACME-SA-alpha', evidence: 'vendor bulletin' },
+    }),
+  })
+  assert.equal(result.status, 'TRUE_POSITIVE')
+  const gate = calls.find((c) => c.label === 'gates')
+  assert.ok(gate.prompt.includes('ACME-SA-alpha'), 'the gate agent must be handed the reference it has to check')
+  assert.doesNotMatch(gate.prompt, /with no commit, PR, issue or advisory reference/)
+})
+
+// The finding's own repro, end to end: the predicate assertions cannot show the
+// terminal status, and the terminal status is what this cost. Case-exactly,
+// `Yes` with a real commit sha shipped an already-fixed bug as TRUE_POSITIVE at
+// the agent's severity, with the word "fixed" nowhere in the result.
+test('a cited fix retracts whatever case the history agent answered in', async () => {
+  for (const answer of ['Yes', 'yes', ' YES ']) {
+    const { result } = await runScript('triage-static.js', {
+      args: VERIFY_ARGS,
+      agents: verifyAgents({
+        history: {
+          ...UNFIXED,
+          fixed: answer,
+          complete: true,
+          reference: 'torvalds/linux@a1b2c3d',
+          evidence: 'the caller now digests',
+        },
+      }),
+    })
+    assert.equal(result.status, 'ALREADY_FIXED', answer)
+    assert.match(result.reason, /already fixed by torvalds\/linux@a1b2c3d/)
+  }
+})
+
+// The downgrade has no terminal status of its own, so the prompt is the only
+// place it is observable — and the prompt is the only place it MATTERS, since a
+// gate agent told `Already-fixed search: Yes` cannot tell an unproven retraction
+// from a proven one.
+test('an uncited fix reaches the gate prompt as UNCERTAIN, not as the case it arrived in', async () => {
+  const { result, calls } = await runScript('triage-static.js', {
+    args: VERIFY_ARGS,
+    agents: verifyAgents({
+      history: { ...UNFIXED, fixed: 'Yes', complete: true, reference: '', evidence: 'it felt familiar' },
+    }),
+  })
+  assert.equal(result.status, 'TRUE_POSITIVE', 'an uncited retraction must still not discard a live finding')
+  const gates = calls.find((c) => c.label === 'gates')
+  assert.ok(gates, 'the six-gate review must run')
+  assert.match(gates.prompt, /Already-fixed search: UNCERTAIN/)
+  assert.match(gates.prompt, /a retraction has to point at something/)
 })
 
 // --------------------------------------------------------------- triage-poc
@@ -423,7 +753,7 @@ test('a destructive envelope above level 2 never reaches the builder', async () 
 
 // ------------------------------------------------- triage-poc, review half
 
-const CLEAN_ARTIFACT = { fileExists: true, lintExitZero: true, reimplementation: 'NOT_DEFINED', reRunSucceeded: true, evidence: 'ok' }
+const CLEAN_ARTIFACT = { fileExists: true, lintExitZero: true, reimplementation: 'NOT_DEFINED', reRun: 'REPRODUCED', reRunNotes: '', evidence: 'ok' }
 const rebutted = (key) => ({ challenge: `c:${key}`, rebuttal: 'r', winner: 'REBUTTAL', evidence: 'e' })
 const REPORT = {
   severity: 'High',
@@ -547,6 +877,44 @@ test('a missing PoC file blocks', async () => {
   assert.equal(result.status, 'BLOCKED')
 })
 
+// The off-type shapes reached REPORTED at HIGH — TRUE POSITIVE with a severity —
+// on a PoC with no file, or one whose lint failed, because both were read by
+// truthiness and every one of these strings is truthy.
+test('an off-type artifact boolean blocks instead of reaching REPORTED', async () => {
+  for (const check of [
+    { ...CLEAN_ARTIFACT, lintExitZero: 'no' },
+    { ...CLEAN_ARTIFACT, lintExitZero: 1 },
+    { ...CLEAN_ARTIFACT, fileExists: 'false' },
+  ]) {
+    const { result, calls } = await runScript('triage-poc.js', {
+      args: BUILD_ARGS,
+      agents: reviewAgents({ 'artifact-check': check }),
+    })
+    assert.equal(result.status, 'BLOCKED', JSON.stringify(check))
+    assert.ok(!calls.some((c) => c.label === 'report'), 'a report was written on an unverified artifact')
+  }
+})
+
+test('an off-type build boolean fails the build rather than buying five reviewers', async () => {
+  const { result, calls } = await runScript('triage-poc.js', {
+    args: BUILD_ARGS,
+    agents: reviewAgents({ build: { ...BUILT_POC, built: 'no', failureReason: 'nothing was built' } }),
+  })
+  assert.equal(result.status, 'BUILD_FAILED')
+  assert.ok(!calls.some((c) => c.label === 'artifact-check'), 'a reviewer was paid for a build that did not happen')
+})
+
+// The prompt half of the same defect, which no behavioural test can reach: the
+// field is a boolean and the prompt asked for an exit code, so a reviewer
+// complying literally after a CLEAN run reported 0 and blocked a good PoC.
+test('the artifact prompt asks for a boolean, not the exit code', async () => {
+  const { calls } = await runScript('triage-poc.js', { args: BUILD_ARGS, agents: reviewAgents() })
+  const prompt = calls.find((c) => c.label === 'artifact-check').prompt
+  assert.ok(!prompt.includes('Report its exit code as lintExitZero'), 'the prompt still asks for the exit code')
+  assert.match(prompt, /lintExitZero TRUE if it exited 0/)
+  assert.match(prompt, /It is a boolean, not the exit code/)
+})
+
 // End to end, because the unit test on `artifactProblem` cannot show that a
 // reimplementation verdict actually ends the stage. poc-lint.sh reports the
 // candidate as a NOTE and exits 0 — grep cannot tell a façade re-export from a
@@ -633,6 +1001,25 @@ test('an awarded but uncited WHOLE fix is not reported as live', async () => {
     assert.match(result.reason, /already-fixed/)
     assert.ok(!calls.some((c) => c.label === 'report'), 'an unestablished retraction is not written up')
   }
+})
+
+// Stage 3's copy of the same lie Stage 1's downgrade note told: a reason saying
+// nothing was in `reference` while something was. The reason is what the
+// orchestrator relays, so it is the only place this string reaches a reader, and
+// denying it throws away exactly what the reviewer needs to settle the question.
+test('an unrecognised challenge-4 reference is quoted, not denied', async () => {
+  const { result } = await runScript('triage-poc.js', {
+    args: BUILD_ARGS,
+    agents: reviewAgents({
+      challenge: (prompt) =>
+        prompt.includes('ALREADY FIXED')
+          ? { challenge: 'patched in 1.2', rebuttal: 'none', winner: 'CHALLENGE', reference: 'ACME-SA-alpha', complete: true, evidence: 'the fix landed one layer up' }
+          : rebutted('x'),
+    }),
+  })
+  assert.equal(result.status, 'NEEDS_MORE_INFO')
+  assert.match(result.reason, /ACME-SA-alpha/)
+  assert.doesNotMatch(result.reason, /with no commit, PR, issue or advisory in/)
 })
 
 // `winner` is an enum the runtime validator does not enforce — `required` is all
@@ -793,6 +1180,96 @@ test('LOW confidence does not proceed to a report', async () => {
   assert.ok(!calls.some((c) => c.label === 'report'))
 })
 
+// `status`, `reason`, `band` and `defeated` were byte-identical between "five
+// reviewers refuted it" and "five agents never ran". SKILL.md keys its FALSE
+// POSITIVE row on that exact reason prefix, so a built, executed, lint-clean,
+// independently artifact-checked PoC of a real bug was reported as refuted by
+// reviewers who never ran. The only difference in the whole return was
+// `unrebutted[].challenge`, and nothing told the orchestrator to read it.
+test('challenge agents that never ran are not reported as reviewers who refuted it', async () => {
+  const silent = await runScript('triage-poc.js', { args: BUILD_ARGS, agents: reviewAgents({ challenge: null }) })
+  assert.equal(silent.result.status, 'NEEDS_MORE_INFO', 'silence is a missing fact, not a refutation')
+  assert.equal(silent.result.band.label, 'NONE', 'the band still counts silence against the finding')
+  assert.match(silent.result.reason, /no verdict/i, 'the reason has to name what is missing')
+  assert.ok(
+    !silent.result.reason.startsWith('confidence NONE (0/5 defeated)'),
+    'the reason still opens with the prefix SKILL.md maps to FALSE POSITIVE',
+  )
+
+  const refuted = await runScript('triage-poc.js', {
+    args: BUILD_ARGS,
+    agents: reviewAgents({
+      challenge: { challenge: 'c', rebuttal: 'none', winner: 'CHALLENGE', evidence: 'the guard rejects it' },
+    }),
+  })
+  assert.equal(refuted.result.status, 'DO_NOT_SUBMIT', 'five arguing reviewers still refute')
+  assert.ok(
+    refuted.result.reason.startsWith('confidence NONE (0/5 defeated)'),
+    'the FALSE POSITIVE row of SKILL.md keys on this prefix and must stay reachable',
+  )
+  assert.notEqual(silent.result.status, refuted.result.status, 'the two must differ without reading the reason')
+})
+
+// Wider than all-five-dead: any mix landing the band at NONE with one silent
+// agent rested partly on silence and produced the same FALSE-POSITIVE-keyed
+// prefix. The per-key override MUST be the label key `challenge:real-deployment`
+// — a `prompt.includes('REAL DEPLOYMENT')` predicate does not match the prompt
+// text and silently makes the fixture a no-op.
+test('a single silent agent stops a 0/5 band from reading as a refutation', async () => {
+  const { result, calls } = await runScript('triage-poc.js', {
+    args: BUILD_ARGS,
+    agents: reviewAgents({
+      challenge: { challenge: 'c', rebuttal: 'none', winner: 'CHALLENGE', evidence: 'e' },
+      'challenge:real-deployment': null,
+    }),
+  })
+  assert.equal(result.status, 'NEEDS_MORE_INFO')
+  assert.match(result.reason, /real-deployment/, 'the reason names the agent to re-run')
+  assert.equal(result.defeated, 0)
+  assert.ok(!calls.some((c) => c.label === 'report'), 'nothing is written up on an incomplete review')
+})
+
+// The finding's own repro, end to end, because the unit assertions cannot show
+// what it cost: nothing in code required the PoC to reproduce for anyone but its
+// builder, so a build that passed `isAcceptableBuild`, five defeated challenges
+// and a clean artifact check came back REPORTED at High — TRUE POSITIVE, per
+// SKILL.md — while the one independent reader who ran the exploit reported the
+// balance unchanged. Every challenge prompt interpolates the BUILDER's captured
+// output, so the five could not have caught it.
+test('a PoC the reviewer could not reproduce does not come back REPORTED', async () => {
+  const { result } = await runScript('triage-poc.js', {
+    args: BUILD_ARGS,
+    agents: reviewAgents({
+      'artifact-check': {
+        ...CLEAN_ARTIFACT,
+        reRun: 'DID_NOT_REPRODUCE',
+        reRunNotes: 'ran it; the balance is unchanged',
+      },
+    }),
+  })
+  assert.equal(result.status, 'BLOCKED', 'a PoC that demonstrates nothing is a fact to settle, not a report')
+  assert.match(result.reason, /did not reproduce the impact/)
+  assert.ok(result.poc, 'the artifact is named so it can be corrected')
+})
+
+// And the direction that must not regress into a false dismissal. A testnet or
+// service-dependent PoC can legitimately have nowhere to run on the reviewer's
+// host; the band still decides and the report records the boundary.
+test('a PoC the reviewer had no environment for still reports', async () => {
+  const { result } = await runScript('triage-poc.js', {
+    args: BUILD_ARGS,
+    agents: reviewAgents({
+      'artifact-check': {
+        ...CLEAN_ARTIFACT,
+        reRun: 'COULD_NOT_RUN_HERE',
+        reRunNotes: 'no ES cluster on this host',
+      },
+    }),
+  })
+  assert.equal(result.status, 'REPORTED')
+  assert.equal(result.band.label, 'HIGH')
+})
+
 test('a severity above the cap for an integration root cause blocks the report', async () => {
   const { result } = await runScript('triage-poc.js', {
     args: {
@@ -891,13 +1368,13 @@ test("a reviewer's impact correction reaches the report agent", async () => {
 })
 
 test('a re-run the reviewer could not reproduce is stated, not glossed', async () => {
-  const failed = { ...CLEAN_ARTIFACT, reRunSucceeded: false, reRunNotes: 'no ES cluster here' }
+  const failed = { ...CLEAN_ARTIFACT, reRun: 'COULD_NOT_RUN_HERE', reRunNotes: 'no ES cluster here' }
   const prompt = await reportPrompt({ 'artifact-check': failed })
   assert.match(prompt, /no ES cluster here/)
   assert.match(prompt, /unproven/)
 
   // And the passing case must not claim the boundary exists.
-  assert.doesNotMatch(await reportPrompt({}), /did not reproduce for an independent reviewer/)
+  assert.doesNotMatch(await reportPrompt({}), /could not run this PoC here/)
 })
 
 test('MEDIUM confidence tells the report to document the uncertainties', async () => {

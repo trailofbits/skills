@@ -343,7 +343,7 @@
     },
     {
       "name": "fp-check",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "description": "Verifies whether a suspected security bug is real: a static stage always, plus online policy checks and a built-and-executed PoC on request, with every gate enforced in workflow code rather than self-reported",
       "author": {
         "name": "Maciej Domanski"

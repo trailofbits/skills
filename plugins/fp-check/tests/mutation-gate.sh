@@ -220,7 +220,7 @@ run_mutation "any baseDir shape is accepted again" "L2" \
 # further up — so the mutation edited a different conditional, the prohibition
 # stayed correctly scoped, and it SURVIVED while appearing to test the bound.
 run_mutation "the root-cause conditionals stop being conditional" "L2" \
-  'perl -0pi -e "s/impact\.rootCause === .internal. \?/false ?/g" "$SANDBOX/workflows/triage-static.js"' \
+  'perl -0pi -e "s/!externalRootCause\(impact\.rootCause\) \?/false ?/g" "$SANDBOX/workflows/triage-static.js"' \
   'node --test "$SANDBOX/tests/coverage.test.mjs"'
 
 run_mutation "the gate agent is no longer told not to price the precondition twice" "L2" \
@@ -301,12 +301,31 @@ run_mutation "an audited empty layers list is still the vacuous pass" "L2" \
 # path, or a dispatch that simply omitted `layers` proceeds having inspected
 # nothing — which is the bug the zero-layer guard was written for.
 run_mutation "any layersSearched value confirms none exist" "L2" \
-  'perl -0pi -e "s/const declaredNone = typeof layersSearched === .string. && layersSearched\.trim\(\) !== ..$/const declaredNone = layersSearched !== undefined/m" "$SANDBOX/workflows/triage-static.js"' \
+  'perl -0pi -e "s/const declaredNone = auditedSearch\(layersSearched\) !== null$/const declaredNone = layersSearched !== undefined/m" "$SANDBOX/workflows/triage-static.js"' \
   'node --test "$SANDBOX/tests/gate.test.mjs"'
 
 run_mutation "the arg validator accepts an undeclared empty layers list" "L2" \
   'perl -0pi -e "s/    if \(!declaredNone\) \{/    if (false) {/" "$SANDBOX/workflows/triage-static.js"' \
   'node --test "$SANDBOX/tests/args.test.mjs"'
+
+# `fixed` is the field that RETRACTS, so both directions of reading it cost a
+# finding and they cost it opposite ways. Reading it case-exactly let `Yes` with a
+# real sha ship an already-fixed bug as TRUE_POSITIVE; coercing it with `String()`
+# read `['YES']` and any object with a toString AS the retraction and discarded a
+# live one terminally. This puts the coercion back.
+run_mutation "the already-fixed answer is coerced instead of typed" "L2" \
+  'perl -0pi -e "s/  const raw = historyVerdict && historyVerdict\.fixed\n  if \(typeof raw !== .string.\) return .UNCERTAIN.\n  const answer = raw\.trim\(\)\.toUpperCase\(\)/  const answer = String((historyVerdict \&\& historyVerdict.fixed) || \x27\x27).trim().toUpperCase()/" "$SANDBOX/workflows/triage-static.js"' \
+  'node --test "$SANDBOX/tests/static.test.mjs" "$SANDBOX/tests/wiring.test.mjs"'
+
+# The route keywords as raw substrings: `race` fires inside `stack trace` and
+# `grace period`, so an information-disclosure finding buys the deep route and
+# three proof agents that answer a question it never asked — and any one of them
+# returning nothing is BLOCKED. The anchor is what stops that, and `ddos`/`redos`
+# are in the list because the anchor cannot reach `dos` through their first
+# letters, so this mutation is the only thing pinning them together.
+run_mutation "an escalation keyword is matched as a raw substring again" "L2" \
+  'perl -0pi -e "s/if \(escalates\.some\(\(k\) => spaced\.includes\(. \\\$\{words\(k\)\}.\)\)\) return .deep./if (escalates.some((k) => bugClass.includes(k))) return \x27deep\x27/" "$SANDBOX/workflows/triage-static.js"' \
+  'node --test "$SANDBOX/tests/static.test.mjs" "$SANDBOX/tests/wiring.test.mjs"'
 
 run_mutation "gate reads any non-NO scope as in scope" "L2" \
   'perl -0pi -e "s/threatVerdict\.inScope !== .YES./threatVerdict.inScope === \x27UNCERTAIN\x27/" "$SANDBOX/workflows/triage-static.js"' \
@@ -338,7 +357,7 @@ run_mutation "the band default drifts from the challenge count" "L1" \
   '"${PYTEST[@]}" "$SANDBOX/tests/test_workflow_contract.py" -k band_total_matches'
 
 run_mutation "build accepts a PoC that failed lint" "L2" \
-  'perl -0pi -e "s/ \|\| !result\.lintPassed//" "$SANDBOX/workflows/triage-poc.js"' \
+  'perl -0pi -e "s/ \|\| result\.lintPassed !== true//" "$SANDBOX/workflows/triage-poc.js"' \
   'node --test "$SANDBOX/tests/build.test.mjs"'
 
 run_mutation "build cap removed, retry loop unbounded" "L2" \
@@ -361,8 +380,13 @@ run_mutation "envelope.hosts array check dropped" "L2" \
   'perl -0pi -e "s/if \\(!Array\\.isArray\\(envelope\\.hosts\\)\\)[^\\n]*\\n//" "$SANDBOX/workflows/triage-poc.js"' \
   'node --test "$SANDBOX/tests/args.test.mjs"'
 
-run_mutation "verify-attack-path scope type check dropped" "L2" \
-  'perl -0pi -e "s/typeof a\\.scope !== .string./false/" "$SANDBOX/workflows/triage-static.js"' \
+# The scope-only type guard this used to mutate is gone: `need` now makes that
+# decision for every required field, so the mutation points at `need` instead. A
+# pattern left on the deleted guard would have matched the comment that explains
+# the deletion, edited prose, and passed — reported as SURVIVED on a rule that is
+# in fact enforced.
+run_mutation "the arg validator stops type-checking its required fields" "L2" \
+  'perl -0pi -e "s/if \\(kind === .string. && typeof value !== .string.\\) \\{/if (false) {/" "$SANDBOX/workflows/triage-static.js"' \
   'node --test "$SANDBOX/tests/args.test.mjs"'
 
 run_mutation "a documented arg field is removed from SKILL.md" "L1" \
@@ -465,7 +489,7 @@ run_mutation "already-fixed rule skips a challenge that never answered" "L2" \
 # checkpoints.md 2.4b and 2.5 cap severity. The report prompt states the caps;
 # the returned severity is whatever the agent chose.
 run_mutation "integration root cause no longer caps severity" "L2" \
-  'perl -0pi -e "s/if \(rootCause === .integration. \|\| rootCause === .external.\)/if (false)/" "$SANDBOX/workflows/triage-poc.js"' \
+  'perl -0pi -e "s/if \(externalRootCause\(rootCause\)\)/if (false)/" "$SANDBOX/workflows/triage-poc.js"' \
   'node --test "$SANDBOX/tests/review.test.mjs"'
 
 run_mutation "hardening gap no longer caps severity" "L2" \
@@ -490,7 +514,7 @@ run_mutation "severity level names lose their word boundaries" "L2" \
 # replaced them, and it is the part with no fallback: let the ambiguity through
 # and whichever level the code happens to read becomes the finding's rating.
 run_mutation "the cap guesses at an ambiguous rating instead of refusing it" "L2" \
-  'perl -0pi -e "s/  if \(named\.length > 1\) \{/  if (false) {/" "$SANDBOX/workflows/triage-static.js"' \
+  'perl -0pi -e "s/  if \(named\.length !== 1\) \{/  if (false) {/" "$SANDBOX/workflows/triage-static.js"' \
   'node --test "$SANDBOX/tests/static.test.mjs"'
 
 # And the routing, which is the half a unit test cannot see: `capSeverity` can
@@ -515,7 +539,7 @@ run_mutation "the report gate accepts a severity that is not exactly one level" 
   'node --test "$SANDBOX/tests/review.test.mjs"'
 
 run_mutation "the Stage 3 cap passes an ambiguous rating as no violation" "L2" \
-  'perl -0pi -e "s/  if \(named\.length > 1\) \{/  if (false) {/" "$SANDBOX/workflows/triage-poc.js"' \
+  'perl -0pi -e "s/  if \(named\.length !== 1\) \{/  if (false) {/" "$SANDBOX/workflows/triage-poc.js"' \
   'node --test "$SANDBOX/tests/review.test.mjs"'
 
 # A citation rule that rejects a real advisory ID does not merely report a false
@@ -543,6 +567,15 @@ run_mutation "Principle 5 clears without saying what was compared" "L2" \
   'perl -0pi -e "s/  if \(!String\(check\.evidence \|\| ..\)\.trim\(\)\) \{\n[^\n]*\n  \}\n//" "$SANDBOX/workflows/triage-poc.js"' \
   'node --test "$SANDBOX/tests/review.test.mjs"'
 
+# Checkpoint 4.3's "the output demonstrates the vulnerability", decided by the one
+# reader who did not build the PoC. Nothing in code required it for as long as
+# `reRunSucceeded` was one boolean over two opposite results — a reviewer's "ran
+# it; the balance is unchanged" came back REPORTED at High, which SKILL.md maps to
+# TRUE POSITIVE. This turns the branch back off.
+run_mutation "a PoC that demonstrably did not reproduce still reports" "L2" \
+  'perl -0pi -e "s/  if \(check\.reRun === .DID_NOT_REPRODUCE.\) \{/  if (false) {/" "$SANDBOX/workflows/triage-poc.js"' \
+  'node --test "$SANDBOX/tests/review.test.mjs" "$SANDBOX/tests/wiring.test.mjs"'
+
 # "Only a TRUE POSITIVE justifies building." A failed Stage 1 return carries a
 # populated `impact`, `severity` and `history`, so forwarding one verbatim
 # satisfies every other field.
@@ -566,9 +599,12 @@ run_mutation "the census gate answers no on a client-driven sink" "L2" \
   'perl -0pi -e "s/  return driver !== .in-repo-caller./  return false/" "$SANDBOX/workflows/triage-online.js"' \
   'node --test "$SANDBOX/tests/online.test.mjs"'
 
-run_mutation "an integration root cause no longer needs a consumer census" "L2" \
-  'perl -0pi -e "s/  if \(impact\.rootCause === .integration. \|\| impact\.rootCause === .external.\) return true/  if (false) return true/" "$SANDBOX/workflows/triage-online.js"' \
-  'node --test "$SANDBOX/tests/coverage.test.mjs"'
+# The affirmative pair this used to anchor on is gone: the census reads root
+# cause through `externalRootCause`, the predicate the cap reads it through, so
+# `third-party` cannot be priced as external by 2.4b and as in-repo here.
+run_mutation "a non-internal root cause no longer needs a consumer census" "L2" \
+  'perl -0pi -e "s/  if \(externalRootCause\(impact\.rootCause\)\) return true/  if (false) return true/" "$SANDBOX/workflows/triage-online.js"' \
+  'node --test "$SANDBOX/tests/coverage.test.mjs" "$SANDBOX/tests/online.test.mjs"'
 
 # And the one that matters most in the other direction: a census that searched
 # nothing must never reach the summary as "no consumer is affected".
@@ -747,7 +783,7 @@ run_mutation "poc-lint todo markers lose their word boundaries" "L4" \
 # --- PR review findings ---------------------------------------------------
 
 run_mutation "build gate field neither required nor named in the prompt" "L1" \
-  'perl -0pi -e "s/if \(!result \|\| !result\.built/if (!result || !result.verifiedByHuman || !result.built/" "$SANDBOX/workflows/triage-poc.js"' \
+  'perl -0pi -e "s/if \(!result \|\| result\.built/if (!result || !result.verifiedByHuman || result.built/" "$SANDBOX/workflows/triage-poc.js"' \
   '"${PYTEST[@]}" "$SANDBOX/tests/test_workflow_contract.py" -k names_every_field'
 
 run_mutation "the layer cap and the arg gate drift apart" "L1" \
@@ -759,7 +795,7 @@ run_mutation "over-cap layers dispatch agents instead of failing closed" "L2" \
   'node --test "$SANDBOX/tests/args.test.mjs"'
 
 run_mutation "checkpoint 4.3 trusts the builder self-report again" "L2" \
-  'perl -0pi -e "s/  if \(!check\.lintExitZero\) \{/  if (false) {/" "$SANDBOX/workflows/triage-poc.js"' \
+  'perl -0pi -e "s/  if \(check\.lintExitZero !== true\) \{/  if (false) {/" "$SANDBOX/workflows/triage-poc.js"' \
   'node --test "$SANDBOX/tests/review.test.mjs"'
 
 run_mutation "a dead artifact-check agent reads as a pass" "L2" \
@@ -847,6 +883,14 @@ run_mutation "the already-fixed override is computed and ignored" "L2b" \
 
 run_mutation "a LOW confidence band proceeds to the report" "L2b" \
   'perl -0pi -e "s/^if \(band\.action === .DO_NOT_SUBMIT.\) \{/if (false) {/m" "$SANDBOX/workflows/triage-poc.js"' \
+  "$WIRING"
+
+# Silence can withhold a PROCEED; it cannot produce a REFUTATION. Five agents that
+# never ran produced the byte-identical `confidence NONE (0/5 defeated)` prefix
+# SKILL.md maps to FALSE POSITIVE, on a built, executed, independently verified
+# PoC. This puts the conflation back.
+run_mutation "a silent challenge agent reads as a refutation" "L2b" \
+  'perl -0pi -e "s/^  if \(silent\.length > 0\) \{/  if (false) {/m" "$SANDBOX/workflows/triage-poc.js"' \
   "$WIRING"
 
 run_mutation "checkpoint 6.1 accepts an empty unproven field" "L2b" \

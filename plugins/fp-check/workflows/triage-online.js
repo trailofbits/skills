@@ -177,9 +177,33 @@ const SUMMARY_SCHEMA = {
 // Pure.
 function missingArgs(a) {
   const missing = []
-  const need = (path, value) => {
+  // Whitespace is missing. `finding.summary = '   '` satisfies a `!== ''` check
+  // and then reaches every prompt as blank space, which is the `undefined`
+  // failure this validator exists to stop wearing a different hat.
+  //
+  // The TYPE is checked for the same reason the blank is. Presence alone let
+  // `finding.bugClass = {cwe: 89}` and `layers[i].name = {fn: 'validate'}` clear
+  // this validator and reach six prompts as the literal text `[object Object]` —
+  // the agent LABEL became `layer:[object Object]` — and the run still returned
+  // TRUE_POSITIVE, from a layer agent told to inspect "[object Object] at
+  // [object Object]". `baseDir` was worse: `[]`, `[null]` and `['']` are none of
+  // undefined, null or a blank string, so they cleared here AND stringified to ''
+  // in the shape guard below, which skips on a falsy `base` — zero problems
+  // reported, every `${baseDir}/references/` read resolving under a bare
+  // `/references/`, and five agents answering from memory behind a verdict that
+  // looks complete.
+  //
+  // `kind` exists for one call site: an integer whose range is graded elsewhere.
+  // Demanding a string there would reject every well-formed envelope.
+  const need = (path, value, kind = 'string') => {
     const blank = typeof value === 'string' && value.trim() === ''
-    if (value === undefined || value === null || blank) missing.push(path)
+    if (value === undefined || value === null || blank) {
+      missing.push(path)
+      return
+    }
+    if (kind === 'string' && typeof value !== 'string') {
+      missing.push(`${path} (must be a string; a value of type ${typeof value} interpolates as '${String(value)}')`)
+    }
   }
   const finding = (a && a.finding) || {}
   const proj = (a && a.project) || {}
@@ -206,13 +230,25 @@ function missingArgs(a) {
   // One here turns the whole suite red on unmutated code, and a mutation whose
   // baseline is red proves nothing.
   //
-  // `String(...)`, not a `typeof === 'string'` test. A non-string baseDir clears
-  // `need` — it is neither undefined, null nor a blank string — and would then read
-  // as '' here, skipping the shape check below entirely and making every reference
-  // path '[object Object]/references/...'.
+  // Still `String(... ?? '')` and not a `typeof` test, but no longer for the
+  // reason it used to give: `need` now rejects a non-string baseDir one line
+  // above. It is load-bearing for an ABSENT one — `undefined.trim()` would throw
+  // out of the validator and kill the run with no BLOCKED result at all, which is
+  // the worst shape this plugin can fail in.
+  //
+  // Separators are normalised and a drive letter counts as absolute because the
+  // leading-slash test rejected the only value that WORKS on native Windows.
+  // `C:\\Users\\...\\skills\\fp-check` failed both halves, the stage returned
+  // BLOCKED, and the only path that then satisfied this guard was a POSIX-shaped
+  // path that does not exist — so the guard manufactured the very failure it was
+  // written to prevent, one case further down. A UNC path normalises to
+  // `//server/share/...` and passes on the leading slash; `skills\\fp-check`
+  // normalises to a relative path and is still refused.
   const base = String((a && a.baseDir) ?? '').trim()
-  const withoutSlash = base.endsWith('/') ? base.slice(0, -1) : base
-  const shaped = withoutSlash.startsWith('/') && withoutSlash.endsWith('/skills/fp-check')
+  const slashed = base.split('\\').join('/')
+  const withoutSlash = slashed.endsWith('/') ? slashed.slice(0, -1) : slashed
+  const absolute = withoutSlash.startsWith('/') || new RegExp('^[A-Za-z]:/').test(withoutSlash)
+  const shaped = absolute && withoutSlash.endsWith('/skills/fp-check')
   if (base && !shaped) {
     missing.push(
       `baseDir (must be the skill directory's ABSOLUTE path, ending in skills/fp-check; got '${base}'. Copy it from an expanded reference link rather than reconstructing it — the working directory is the TARGET repo and has no references/ in it)`,
@@ -288,11 +324,42 @@ function missingArgs(a) {
       )
     }
     for (const [i, s] of list.entries()) {
-      if (!s || !s.label) missing.push(`sources[${i}].label`)
-      if (!s || !s.query) missing.push(`sources[${i}].query`)
+      // Through `need`, so the same type discipline covers the per-item fields:
+      // a non-string query is interpolated into a search prompt verbatim.
+      need(`sources[${i}].label`, s && s.label)
+      need(`sources[${i}].query`, s && s.query)
     }
   }
   return missing
+}
+
+// Pure. Stage 2 is optional and can only narrow or correct what Stage 1 returned,
+// so a clerical failure here — no network, a dead agent, a summary that left
+// `openQuestions` empty — leaves Stage 1's answer exactly where it was. Without
+// this the five non-terminal exits returned a bare BLOCKED / OFFLINE /
+// NEEDS_MORE_INFO, and SKILL.md's Verdicts table collapses all three onto NEEDS
+// MORE INFO: an optional stage failing at its own paperwork printed "NEEDS MORE
+// INFO" over a TRUE_POSITIVE Stage 1 had established from the code, and the next
+// reader paid for the whole static analysis again to get it back.
+//
+// A field BESIDE the status rather than a replacement for it, for the reason
+// Stage 3 carries `settledBy`: the status still has to say THIS STAGE DID NOT
+// RUN, and outcomes told apart by pattern-matching the `reason` are told apart
+// wrong. The number rides under `severity`, the key SKILL.md already reads for
+// TRIAGED, so one instruction covers every status this stage returns.
+//
+// Guarded on the status and on the number rather than assumed, because the arg
+// gate calls this on args that did NOT validate: a dispatch that forwarded no
+// verification at all must carry nothing rather than a verdict of `undefined`.
+// The two accepted statuses are inline, and are `missingArgs`' `actionable` list —
+// the tests extract this function and evaluate it alone, where a free variable is
+// a ReferenceError.
+function stageOneStands(a) {
+  const v = (a && a.verification) || {}
+  const status = typeof v.status === 'string' ? v.status.trim() : ''
+  const severity = String(v.severity || '').trim()
+  if (!['TRUE_POSITIVE', 'NEEDS_MORE_INFO'].includes(status)) return {}
+  return severity ? { stageOneStatus: status, severity } : { stageOneStatus: status }
 }
 
 const argProblems = missingArgs(args)
@@ -301,6 +368,7 @@ if (argProblems.length > 0) {
   return {
     status: 'BLOCKED',
     reason: `triage-online received an unusable arg shape: ${argProblems.join(', ')}. See the Dispatch section of SKILL.md.`,
+    ...stageOneStands(args),
   }
 }
 
@@ -375,6 +443,7 @@ if (offline) {
   return {
     status: 'OFFLINE',
     reason: `${offline}. Stage 2 makes claims about the project's current public posture and will not make them from memory; re-run it with network access, or rely on Stage 1's verdict alone.`,
+    ...stageOneStands(args),
   }
 }
 
@@ -425,7 +494,7 @@ Cite a link for every material claim.`,
 if (!reachability) {
   const why = 'the reachability agent returned nothing; public call sites, actors and preconditions are unverified'
   log(`BLOCKED: ${why}`)
-  return { status: 'BLOCKED', reason: why, policy }
+  return { status: 'BLOCKED', reason: why, ...stageOneStands(args), policy }
 }
 
 const scope = await agent(
@@ -492,7 +561,13 @@ function scopeHalt(result) {
 const halt = scopeHalt(scope)
 if (halt) {
   log(`${halt.status}: ${halt.reason}`)
-  return { status: halt.status, reason: halt.reason, policy, reachability, scope }
+  // Affirmative on the two statuses that mean this stage did not run, rather than
+  // excluding the one that does: OUT_OF_SCOPE is this stage ANSWERING on a quoted
+  // clause, and SKILL.md reports it with no severity because nothing here
+  // established one — carrying Stage 1's number under it would put a rating on the
+  // one verdict that is about scope and not about whether the bug is real.
+  const stands = halt.status === 'BLOCKED' || halt.status === 'NEEDS_MORE_INFO' ? stageOneStands(args) : {}
+  return { status: halt.status, reason: halt.reason, ...stands, policy, reachability, scope }
 }
 
 // ----------------------------------------------------------------- History
@@ -593,9 +668,18 @@ function needsUserCensus(verification, reachability, scope) {
   if (scope && scope.verdict === 'out-of-scope') return false
 
   const impact = (verification && verification.impact) || {}
-  // An integration or external root cause means the attack needs a failure
-  // outside this project, which is the client's side of the boundary.
-  if (impact.rootCause === 'integration' || impact.rootCause === 'external') return true
+  // A root cause that is not internal means the attack needs a failure outside
+  // this project, which is the client's side of the boundary.
+  //
+  // Through `externalRootCause`, and not because this clause was ever read the
+  // wrong way round — the exclusion below is the deliberate part. It is here
+  // because the CAP reads the same field through that predicate, and the two
+  // disagreed the moment it did: `third-party` and `Internal` are spellings the
+  // advisory enum does not stop, so a finding could be priced as external by
+  // 2.4b and as in-repo by this gate, and the census that severity now turned on
+  // was the one thing not dispatched. The direction it moves is the one this
+  // comment already argues for — a false positive costs one agent.
+  if (externalRootCause(impact.rootCause)) return true
   // A hardening gap is by definition not exploitable on its own; whether it
   // matters is a question about how it is used. Not narrowed to "in an exported
   // surface" — nothing structural tells us that, and guessing narrows toward the
@@ -712,20 +796,151 @@ phase('Summary')
 
 const duplicates = searched.filter((r) => r.duplicate)
 
+// Pure. Duplicated verbatim from triage-static.js — see the reasoning there.
+// A third copy because these scripts have no module system, and the alternative
+// to three copies is three divergent rules for the one question all three
+// retraction sites ask.
+function citedReference(value) {
+  // `new RegExp` from strings rather than regex literals: the contract suite
+  // lexes these scripts and rejects a bare `/` in code position, because reading
+  // a regex as a division silently blanks the rest of the file and turns every
+  // check built on that text green.
+  //
+  // Matched ANYWHERE in the string, bounded by non-identifier characters, rather
+  // than split on whitespace with each token anchored. Anchoring rejects every
+  // ordinary wrapper a citation arrives in: `openssl/openssl#12345` — the
+  // canonical cross-repo form, and the one a fix in an upstream dependency takes —
+  // `torvalds/linux@a1b2c3d`, a backticked sha, `<https://...>`, a markdown link,
+  // and `PR 4521`. A rejection here is not harmless in either direction: Stage 1
+  // writes a note saying no reference was given and reports an already-fixed bug
+  // as live, and Stage 3 turns a genuine retraction into NEEDS_MORE_INFO.
+  //
+  // A BARE number is deliberately not a citation. `4521` is indistinguishable
+  // from a line number or a year, and admitting it makes "fixed in 2021" a
+  // reference; the keyword form (`PR 4521`, `issue 1234`) carries the context
+  // that tells them apart. For the same reason a dotted version needs either a
+  // `v` or two dots, so that `v3` and `2.3.1` are citations and `2021.03` is not.
+  const bound = '(^|[^0-9a-z])'
+  const forms = new RegExp(
+    [
+      // a commit sha, alone or qualified by the repo it belongs to
+      bound + '[0-9a-f]{7,40}([^0-9a-z]|$)',
+      // #412, owner/repo#412, and GitLab's merge-request form !412 — the same
+      // shorthand with the other sigil, and the only thing a fix that landed in a
+      // GitLab MR has to cite. In the shared class rather than a branch of its
+      // own so `group/project!412` is reached the way `openssl/openssl#12345`
+      // already is.
+      '[0-9a-z._-]*[#!][0-9]+',
+      // Advisory IDs, recognised by REGISTRY NAME rather than by shape. Every
+      // available shape rule mis-classifies in both directions: "one hyphen and
+      // a digit" makes `internal-fix-2` and `fixed in a post-2020 refactor`
+      // advisory IDs and retracts live findings; "the last segment ends in a
+      // digit" throws out roughly one real GHSA ID in twenty; "every segment is
+      // four or more characters" throws out `PYSEC-2021-19`, `OSV-2021-9`,
+      // `DSA-4879-1` and `USN-5678-1` — writing "no reference given" over a
+      // correct citation and reporting a fixed bug as live. A shape cannot tell
+      // an ID from an English phrase because registries did not agree on one. An
+      // allowlist is honest about what it knows: a name it has never heard of is
+      // not silently promoted, and a name it has is matched against that
+      // registry's actual ID grammar.
+      //
+      // GHSA is its own branch because its shape is documented and unlike the
+      // rest: exactly three four-character segments over the alphabet
+      // `23456789cfghjmpqrvwx`, in which a digit is common but not guaranteed —
+      // `GHSA-vqqm-hhhc-jqhw` carries none at all.
+      bound + 'ghsa(-[0-9a-z]{4}){3}',
+      // CVE-2024-1234, RUSTSEC-2021-0093, PYSEC-2021-19, OSV-2021-9,
+      // GO-2022-0603, DSA-4879-1, USN-5678-1, DLA-2571-1, ZDI-21-1234,
+      // ALSA-2021:9106. Each of these numbers its first segment — a year or a
+      // bulletin number — which is what separates the ID from the prose: `go` is
+      // in the list, and `go-to-market-2` still fails because `to` is not a
+      // number.
+      //
+      // The list is INCOMPLETE by construction, and every name missing from it is
+      // the false REJECT this comment already names. It shipped carrying `alsa`
+      // and `elsa` — the AlmaLinux and Oracle REBUILDS of a Red Hat erratum —
+      // without `rhsa`, the original both rebuild, and refused `MFSA-2021-24` and
+      // `SUSE-SU-2021:1234` outright, so bugs those advisories had already fixed
+      // were reported as live. A name it still has not heard of is not silently
+      // promoted; what makes that survivable is the note in
+      // `downgradeUnreferencedFix`, which quotes the string it was handed instead
+      // of claiming nothing was offered. SUSE numbers a two-letter advisory KIND
+      // (`SU` security, `RU` recommended) before the year, so it needs `[a-z]{2}`
+      // where the others need nothing, and `openSUSE` is a registry name rather
+      // than a prefix on one — the `open` is inside the group because `bound`
+      // refuses to reach `suse` through the `n`.
+      //
+      // One physical line, and that is load-bearing rather than a style choice:
+      // mutation-gate.sh's "the registry allowlist reverts to a shape rule"
+      // mutant matches `bound + '(cve|` and its whole alternation with a single
+      // pattern, and a wrapped form makes that mutation a no-op the gate scores
+      // as SURVIVED.
+      bound + '(cve|rustsec|pysec|osv|go|dsa|usn|dla|zdi|mal|alsa|elsa|talos|rhsa|rhba|cesa|glsa|mfsa|mgasa|fedora|asa|ssa|vmsa|icsa|(open)?suse-[a-z]{2})[-:][0-9]+[-:][0-9a-z]+',
+      // v3, v2.3.1, 2.3.1. The trailing lookahead refuses a version that some
+      // other component hangs off: a FILENAME (`src/handlers/auth-v2.go:118`)
+      // and equally a PATH SEGMENT (`api/v1/handlers.go:40`), both of which are
+      // the bare file:line challenge 4's own prompt names as a NON-citation, and
+      // without the lookahead the `v1` inside satisfies a consuming boundary
+      // group. `[.][0-9a-z]`, not `[.][a-z]`, because the branch BACKTRACKS:
+      // refusing `v1.2` in `api/v1.2/x.go` only makes the engine retry `v1`,
+      // whose next character is a `.` followed by a DIGIT. A separator is
+      // refused only AFTER the version, never before it — `refs/tags/v1.4.0` and
+      // `release/v1.4.0` reach a real release tag through a `/`. FOUR
+      // backslashes, not two: the string literal halves them, and with two the
+      // `\]` escapes the closing bracket, the class runs on, and `api/v1/`,
+      // `a/b/v10/c.ts:3` and the Windows path quietly come back — a slip the
+      // NOT_CITATIONS table below is the fixture for.
+      bound + '(v[0-9]+([.][0-9]+)*|[0-9]+([.][0-9]+){2,})(?![0-9a-z/\\\\]|[.][0-9a-z])',
+      // PR 4521, issue #1234, release 3, gh-1234, bpo-40501 — the last a
+      // two-token tracker ID that no other branch here could reach.
+      bound + '(pr|pull|issues?|bug|bpo|ticket|gh|release)[ #-]+[0-9]+',
+      // pull/882 and issues/1234, which is how GitHub shorthand is written. The
+      // keyword may NOT be reached through a path separator, and that is the
+      // whole difference between this branch and the one above it: with `/` in
+      // the shared separator class, `src/bug/12.go` and `tests/issues/42/repro.py`
+      // are both citations, contradicting this function's own rule that a bare
+      // `file:line` is not one. Inside a full URL the `https?://` branch already
+      // matches, so nothing is lost by refusing the path form here.
+      //
+      // Deliberately NOT the same keyword list as the branch above: `bpo` is
+      // there and not here because `bpo/40501` is not a form anyone writes, and
+      // two adjacent near-identical lists invite a future "sync" that would
+      // admit it.
+      '(^|[^0-9a-z/])(pr|pull|issues?|bug|ticket|gh|release)/[0-9]+',
+      'https?://[^ ]',
+    ].join('|'),
+    'i',
+  )
+  const ref = String(value || '').trim()
+  return forms.test(ref) ? ref : null
+}
+
 // What a duplicate is relayed with, in the summary prompt and in the DUPLICATE
-// return. Trimmed and in one place: `links` is optional and `required` checks
-// presence rather than content, so `links: '   '` is schema-valid AND truthy — it
-// would displace the `evidence` it is meant to fall back to and send the retraction
-// out citing blank space. DUPLICATE is terminal, so that citation is the deliverable.
+// return. A CITATION, by the same token test `upstreamFixStands` and
+// `alreadyFixedStands` hold the other two retraction sites to, for the reason all
+// three share: an unreferenced retraction is the one failure mode that silently
+// discards a real finding.
 //
-// No literal closes this expression, deliberately: a fallback string such as 'no
-// link or evidence given' lets an entirely uncited duplicate end the stage as a
-// retraction citing that sentence. `upstreamFixStands` and `alreadyFixedStands`
-// refuse the same thing at the other two retraction sites, for the reason all three
-// share: an unreferenced retraction is the one failure mode that silently discards a
-// real finding. An uncited one still reaches the summary agent, as a claim.
-const dupCite = (r) => String(r.links || '').trim() || String(r.evidence || '').trim()
+// Non-blank will not do here for the reason it does not there, and one field over:
+// `evidence` is `required` of every past-bug return, so `cited` was a filter
+// nothing could fail — "I believe this is the same class of issue as one discussed
+// on the mailing list" ended the stage as a terminal retraction, on one agent, with
+// no link, and SKILL.md prints DUPLICATE "with their reference". `links` first
+// because that is the field that exists to hold the reference; `evidence` is fallen
+// back to only when it carries one, since an agent that writes "filed as issue
+// 1204" there has still cited something. The old `links: '   '` hazard is subsumed:
+// `citedReference` is null on blank space, so a whitespace `links` no longer
+// displaces the `evidence` it was meant to fall back to.
+const dupCite = (r) => citedReference(r.links) || citedReference(r.evidence)
 const cited = duplicates.filter(dupCite)
+
+// The uncited claim, still relayed. `dupCite` returning null no longer means the
+// agent said nothing — it means what it said points at nothing anyone can look up —
+// so dropping the prose along with the retraction would delete the reason the claim
+// was made, and the summary agent is the one reader that can put it in
+// openQuestions.
+const dupClaim = (r) =>
+  `${r.source}: ${dupCite(r) || `NO citable reference — the claim is "${String(r.evidence || '').trim() || 'nothing recorded'}", and a claim is not a citation; it belongs in openQuestions`}`
 
 const summary = await agent(
   `Write the online triage summary. Everything below was gathered by agents that
@@ -748,7 +963,7 @@ Past-bug searches, ${searched.length} of ${attempted} dispatched source(s) retur
   ${searched.map((r) => `${r.source}: ${r.result}${r.recommendedSeverity && r.recommendedSeverity !== 'Unknown' ? ` → ${r.recommendedSeverity}` : ''} — ${r.similarity || r.evidence} [coverage: ${r.coverage}]`).join('\n  ')}
 ${unsearched.length ? `NOT searched, because those agents returned nothing — treat these venues as unchecked, not as clear:\n  ${unsearched.join('\n  ')}` : ''}
 ${beyondCap.length ? `NOT searched, because they were beyond the cap of ${MAX_SOURCES} and no agent was dispatched — unchecked, not clear:\n  ${beyondCap.join('\n  ')}` : ''}
-${duplicates.length ? `Reported as an existing public duplicate:\n  ${duplicates.map((r) => `${r.source}: ${dupCite(r) || 'NO link and no evidence given — a claim, not a citation; it belongs in openQuestions'}`).join('\n  ')}` : searched.length ? 'No source reported this as an existing duplicate.' : 'NOT ONE source returned a result, so the duplicate check did not happen. That is unchecked, not clear, and it belongs in openQuestions — "no source reported a duplicate" would be a claim about searches that were never completed.'}
+${duplicates.length ? `Reported as an existing public duplicate:\n  ${duplicates.map(dupClaim).join('\n  ')}` : searched.length ? 'No source reported this as an existing duplicate.' : 'NOT ONE source returned a result, so the duplicate check did not happen. That is unchecked, not clear, and it belongs in openQuestions — "no source reported a duplicate" would be a claim about searches that were never completed.'}
 
 ${censusReport}
 
@@ -803,6 +1018,15 @@ function namedLevels(severity) {
   return LEVELS.filter((name) => new RegExp(`\\b${name}\\b`, 'i').test(String(severity)))
 }
 
+// Duplicated from triage-static.js alongside `capSeverity` — see the reasoning
+// there. One reading of "not internal", and unrecognised reads as NOT internal:
+// `third-party` and `External` are spellings the advisory enum does not stop, and
+// neither of them is the claim that the trigger originates inside the repository,
+// which is what buys an uncapped rating.
+function externalRootCause(rootCause) {
+  return String(rootCause || '').trim().toLowerCase() !== 'internal'
+}
+
 function capSeverity(severity, rootCause, classification) {
   const CAP = 'Medium'
   // Affirmative — "is this rating at or above the cap?" — rather than by
@@ -816,22 +1040,33 @@ function capSeverity(severity, rootCause, classification) {
   // business-critical)' each name two, and no positional rule separates them —
   // guess high and a Low is raised under a note saying it was lowered, guess low
   // and an inflated Critical ships with `low` inside "low-privilege" as its
-  // licence. The ambiguity is handed back rather than resolved.
+  // licence. NONE named is not a rating either: reading 'Sev-1' or 'P0' as below
+  // the cap passed it straight through as this stage's `finalSeverity`, which is
+  // the number SKILL.md tells the orchestrator to report. Both are handed back
+  // rather than resolved, and the fallback below keeps Stage 1's number.
   const named = namedLevels(severity)
-  if (named.length > 1) {
+  if (named.length !== 1) {
+    const stated = String(severity || '').trim()
     return {
       severity,
       note: '',
-      ambiguous: `severity "${String(severity).trim()}" names ${named.length} levels (${named.join(', ')}), so there is no single rating to cap: state exactly one of Critical, High, Medium, Low, Informational`,
+      ambiguous: !stated
+        ? 'no severity was stated, and no cap can be applied to a blank rating: state exactly one of Critical, High, Medium, Low, Informational'
+        : named.length === 0
+          ? `severity "${stated}" names none of Critical, High, Medium, Low or Informational; no cap can be applied to a rating that is not one of them: state exactly one`
+          : `severity "${stated}" names ${named.length} levels (${named.join(', ')}), so there is no single rating to cap: state exactly one of Critical, High, Medium, Low, Informational`,
     }
   }
-  const level = named[0] || ''
+  const level = named[0]
   if (level !== 'critical' && level !== 'high') return { severity, note: '', ambiguous: '' }
-  if (rootCause === 'integration' || rootCause === 'external') {
+  if (externalRootCause(rootCause)) {
+    // Named, so the note says which value was read. A blank one is not internal
+    // either, and `a  root cause` is not a sentence.
+    const cause = String(rootCause || '').trim() || 'non-internal'
     return {
       severity: CAP,
       ambiguous: '',
-      note: `severity lowered from ${severity} to ${CAP}: a ${rootCause} root cause requires an external failure to trigger (checkpoints.md 2.4b)`,
+      note: `severity lowered from ${severity} to ${CAP}: a ${cause} root cause requires an external failure to trigger (checkpoints.md 2.4b)`,
     }
   }
   if (classification === 'hardening_gap') {
@@ -931,6 +1166,7 @@ if (summaryIssue) {
   return {
     status: 'NEEDS_MORE_INFO',
     reason: summaryIssue,
+    ...stageOneStands(args),
     policy,
     reachability,
     scope,

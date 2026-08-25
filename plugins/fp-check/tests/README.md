@@ -51,13 +51,23 @@ is missing — a renamed helper fails loudly rather than silently testing nothin
 was inlining the sibling's logic at both call sites, and duplicated logic in a
 gate is the drift this suite exists to catch, so the harness gives way.
 
-Covered: `missingArgs` (four copies), `selectRoute`, `triageBrocards`,
-`upstreamFixStands`, `decideGate`, `missingPrecondition`, `capSeverity`,
-`decideVerdict`, `selectAttempts`, `isAcceptableBuild`, `artifactProblem`,
-`tallyChallenges`, `alreadyFixedStands`, `confidenceBand`, `reportProblem`,
-`severityCapViolation`, `offlineProblem`, `scopeHalt`, `summaryProblem`,
+Covered: `missingArgs` (four copies), `selectRoute`, `auditedSearch`,
+`citedReference`, `fixedAnswer`, `upstreamFixStands`, `downgradeUnreferencedFix`,
+`decideGate`, `missingPrecondition`, `namedLevels`, `externalRootCause`,
+`capSeverity`, `blockingProofs`, `decideVerdict`, `settledByStageOne`,
+`selectAttempts`, `isAcceptableBuild`, `artifactProblem`, `tallyChallenges`,
+`alreadyFixedStands`, `confidenceBand`, `reportProblem`, `severityCapViolation`,
+`offlineProblem`, `scopeHalt`, `stageOneStands`, `summaryProblem`,
 `needsUserCensus`, `censusProblem`, `accountFindings`, `contextBlock`,
-`isChainable`, `blockingLayers`, `pairReason`, `chainCandidates`, `chainProblem`.
+`isChainable`, `blockingLayers`, `pairReason`, `chainCandidates`, `chainProblem`,
+`describe`, `chainedInto`.
+
+Five of those are duplicated across scripts and the copies are pinned to agree,
+not merely to exist: `citedReference` (three), `namedLevels` and
+`externalRootCause` (three each), `auditedSearch` (two), and the cap arithmetic in
+`capSeverity` / `severityCapViolation` (three, compared over every `CAP_TABLE`
+row). A copy deleted rather than drifted fails loudly — `loadFns` throws on a
+function it cannot find.
 
 The fourth `missingArgs` is triage-batch's, and it re-validates each entry
 against triage-static's own field list rather than delegating. It duplicates that

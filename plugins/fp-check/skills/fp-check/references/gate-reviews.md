@@ -11,7 +11,7 @@ be the copy that decides.
 | Gate | Passes when |
 |------|-------------|
 | 1 Process | every stage produced concrete evidence, not assertion |
-| 2 Reachability | **attacker-controlled data reaches the sink through a path a real caller can drive**. On a finding whose root cause is *integration* or *external* the first half is dropped and only the path is judged — 2.4b has already established that the value comes from outside, and it is priced there as a severity cap, so failing this gate on it would charge it twice |
+| 2 Reachability | **attacker-controlled data reaches the sink through a path a real caller can drive**. On a finding whose root cause is anything but *internal* the first half is dropped and only the path is judged — 2.4b has already established that the value comes from outside, and it is priced there as a severity cap, so failing this gate on it would charge it twice |
 | 3 Real Impact | RCE, privilege escalation or information disclosure — not operational robustness, and not a defence-in-depth failure behind intact primary controls |
 | 4 PoC Validation | the attack path is demonstrated end to end |
 | 5 Math Bounds | the algebra permits the vulnerable condition. `N/A` when it is not a bounds or arithmetic finding |
@@ -20,6 +20,16 @@ be the copy that decides.
 Gate 5 is the only one that may be `N/A`. Every other gate returning anything but
 `PASS` or `FAIL` is treated as an incomplete review, not as a pass — the affirmative
 value is read rather than inferred by exclusion.
+
+**A FAIL does not mean the same thing on all six.** Gates 2, 3, 5 and 6 grade the
+BUG: a FAIL there says there is no reachable path, no security consequence, no
+algebra that permits the condition, or a protection that prevents exploitation
+entirely. That is a refutation, and the finding is a false positive. Gates 1 and 4
+grade the EVIDENCE — whether the stages above showed their work, and whether the
+traced path has a gap in it — and neither says the bug is absent, so
+`decideVerdict` returns NEEDS MORE INFO on them and names the gate. A refutation
+wins where both kinds failed: "there is no reachable path" is an answer, and "the
+stages asserted rather than showed" is a fact still to establish.
 
 **Gate 2 is where most false positives die, and the wording is load-bearing.** A
 proof of concept that calls the vulnerable function directly demonstrates attacker
@@ -41,8 +51,8 @@ What follows is the shape to report once you have the verdict.
 | Verdict | Reached when | Report as |
 |---|---|---|
 | **TRUE POSITIVE** | all six gates pass, with a stated reason, **and** nothing was left unresolved or deferred — an `unresolvedUncertainty` or a carried `blockingProofs` entry returns NEEDS MORE INFO on six passes | `BUG #N TRUE POSITIVE — <description>`, with the severity |
-| **FALSE POSITIVE** | any gate fails, a layer stops the payload, or it is by design | `BUG #N FALSE POSITIVE — <the reason, verbatim>` |
-| **NEEDS MORE INFO** | the review ran and the evidence does not decide | `BUG #N NEEDS MORE INFO — <the missing fact>` |
+| **FALSE POSITIVE** | a gate that grades the bug fails — Reachability, Real Impact, Math Bounds or Environment — a layer stops the payload, or it is by design | `BUG #N FALSE POSITIVE — <the reason, verbatim>` |
+| **NEEDS MORE INFO** | the review ran and the evidence does not decide, which includes a Process or PoC Validation FAIL — those report the analysis incomplete, not the finding disproven | `BUG #N NEEDS MORE INFO — <the missing fact>` |
 
 `ALREADY_FIXED` and `DUPLICATE` are reported as retractions with their reference,
 and `OUT_OF_SCOPE` as an answer about scope rather than a judgement on the bug.

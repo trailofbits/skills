@@ -235,9 +235,11 @@ What counts as evidence depends on the class of impact claimed:
   one and let checkpoint 5.2 apply the severity cap
 
 **What the code does with it:** `DISPROVEN` returns `NOT_EXPLOITABLE` — positive
-evidence of no impact. `NOT_VERIFIED` returns `NEEDS_MORE_INFO`, because the
-absence of evidence is not evidence of absence, and treating the two alike is the
-conflation that killed a real finding. Neither branch "downgrades severity":
+evidence of no impact, and the only grade that does. Everything else returns
+`NEEDS_MORE_INFO`: `NOT_VERIFIED`, because the absence of evidence is not evidence
+of absence, and treating the two alike is the conflation that killed a real finding;
+and any answer outside the three, because a grade the code cannot read establishes
+nothing in either direction. Neither branch "downgrades severity":
 a smaller-but-real impact is `VERIFIED` carrying the smaller impact, and the cap
 is applied afterwards by `capSeverity`.
 
@@ -263,6 +265,12 @@ For Integration or External, answer: is defensive validation required by design
 - Classification chosen with code evidence, not asserted
 - If Integration/External, the required external precondition is stated
   explicitly
+
+Only **Internal** exempts a finding from the cap, and it is the strong claim: the
+trigger originates inside this repository. Anything else — including a
+classification named in some other vocabulary — is priced as Integration/External
+by `missingPrecondition` and `capSeverity`, which read one predicate between them
+so the cap cannot be paid in the prompt and skipped in the arithmetic.
 
 **If it fails:** trace the data to its origin before classifying.
 
@@ -403,6 +411,14 @@ target commit or version, the exact command, and the full output.
 
 **If it fails:** debug until it works, or document why it cannot.
 
+The second and third are graded by the artifact-check reviewer's `reRun`, not by
+the builder, whose `executed` is a self-report in a script with no Bash. It has
+three values because "debug until it works" and "document why it cannot" are two
+different answers: `DID_NOT_REPRODUCE` is the first and ends the stage as
+`BLOCKED`, `COULD_NOT_RUN_HERE` is the second and rides into the report's
+`unproven`. As one boolean the two collapsed, so neither could be acted on and
+neither was.
+
 ---
 
 ## Stage 3: Self-Critical Review (MANDATORY)
@@ -494,6 +510,13 @@ raise` invites the number back up. Stage 3 `severityCapViolation` **blocks**,
 because by then the number has been written into a report file and correcting the
 return value would leave that file wrong.
 
+A rating that names no level, or names two, is **not capped at all** — there is no
+number to bound, so none of the three guesses at one. Stage 1 stops at NEEDS MORE
+INFO and names the fix, Stage 2 keeps the rating Stage 1 derived from the code, and
+Stage 3 refuses the report. Reading a string nobody can parse as *below* the cap is
+how an integration finding shipped as a true positive at `Sev-1` with 2.4b never
+applied.
+
 ---
 
 ## Stage 3: Documentation
@@ -531,23 +554,31 @@ what the code returns for it:
 | Recovery exists | The verified impact is the one that survives recovery, and it is what 1e records | continues on the surviving impact |
 | A deep-route proof reports the finding impossible | Carried to the six gates, which answer it with the traced path in hand, and blocks a TRUE POSITIVE at the verdict | `NEEDS_MORE_INFO` at 1g |
 | A Stage 3 challenge wins | Lowers the confidence band, and the band decides | `DO_NOT_SUBMIT` at LOW or NONE; MEDIUM proceeds with the challenge documented |
+| A Stage 3 challenge agent returns no verdict | Still counts against the band as a win for the challenge, but a band nobody argued for is a missing fact, not a refutation | `NEEDS_MORE_INFO` naming the silent agents |
 | Stage 3's challenge 4 wins on a **whole** fix, **with a citation** | Overrides the band outright: the bug was real and a fix landed | `ALREADY_FIXED`, a retraction carrying that citation |
 | Stage 3's challenge 4 wins on a **whole** fix, **citing nothing** | A retraction has to point at something, and a bug a reviewer calls entirely patched is not reported as live either. Establish the reference | `NEEDS_MORE_INFO`, unless the artifact gate or a band of LOW/NONE has already answered the finding |
 | Stage 3's challenge 4 wins on a **partial** fix, cited or not | The fix is incomplete, so the finding survives it either way, and only the retraction needed the citation — the same call Stage 1 makes, which downgrades an uncited fix claim and carries on | the band decides, and the report records the partial fix |
 | Placeholder detected | Complete the code; `poc-lint.sh` must exit 0 | `BUILD_FAILED`, or `BLOCKED` at the reviewer's re-run |
+| The reviewer's re-run runs and does not reproduce the impact | 4.3's "the output demonstrates the vulnerability", decided by the one reader who did not build it. Fix the PoC | `BLOCKED` at the artifact gate |
+| The reviewer cannot run the PoC here at all — a missing service, a target that is not this host | A boundary rather than a result; it is recorded in the report's `unproven` section, and it must name what stopped it | the band decides, and the report records the boundary |
 
 **`NOT_EXPLOITABLE` is a Stage 1 status only.** Stage 3 has no verdict of that
 name: a challenge that stands there costs the finding one band step, and only a
-band of LOW or NONE returns `DO_NOT_SUBMIT`. A single standing challenge is not
+band of LOW or NONE, with every challenge answered, returns `DO_NOT_SUBMIT` — the
+status SKILL.md reads a refutation out of, which no agent that never ran has made.
+A single standing challenge is not
 terminal by itself — the same reason a single deep-route proof is carried rather
 than allowed to end Stage 1, one row up.
 
-Three rows above do not end the stage: "recovery exists", the blocking deep-route
-proof, and a standing Stage 3 challenge that leaves the band at MEDIUM. None of
-the three is a licence to proceed as though the check had passed. The first
-replaces the claimed impact with the surviving one; the second is carried in
-`blockingProofs` and denies a TRUE POSITIVE in code; the third rides on
-`unrebutted` in the `REPORTED` return and the report must address it.
+Four rows above do not end the stage: "recovery exists", the blocking deep-route
+proof, a standing Stage 3 challenge that leaves the band at MEDIUM, and a PoC the
+reviewer had no environment to run. None of the four is a licence to proceed as
+though the check had passed. The first replaces the claimed impact with the
+surviving one; the second is carried in `blockingProofs` and denies a TRUE
+POSITIVE in code; the third rides on `unrebutted` in the `REPORTED` return and the
+report must address it; the fourth rides into the report prompt, which tells the
+report agent that nobody but the builder has seen the PoC work and that this
+belongs in `unproven`.
 
 **There is no cheap pre-gate row any more.** Stage 1b dispatched four brocard
 agents that could end the analysis on the shape of the claim alone; it was removed
