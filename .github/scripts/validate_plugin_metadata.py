@@ -164,7 +164,7 @@ SCAN_SKIP_DIRS = frozenset({".venv", "venv", "node_modules", "__pycache__", ".gi
 
 # Floor for --self-test, set to the exact number of assertions the fixtures run. There is
 # no slack on purpose: dropping one has to be a deliberate edit here, not a silent loss.
-SELF_TEST_MINIMUM = 82
+SELF_TEST_MINIMUM = 88
 
 
 @dataclass
@@ -187,6 +187,7 @@ class ScanResult:
     refs_checked: int = 0
     paths_scanned: int = 0
     python_docs_scanned: int = 0
+    components_checked: int = 0
 
     def add(self, plugin: str, message: str, severity: str = ERROR) -> None:
         self.findings.append(Finding(plugin, message, severity))
@@ -510,6 +511,55 @@ def validate_entry_points(plugin_path: Path) -> list[str]:
     if (plugin_path / ".mcp.json").is_file() or (plugin_path / "hooks" / "hooks.json").is_file():
         return []
     return ["exposes no entry point: no skills/, commands/, agents/, hooks, or .mcp.json"]
+
+
+def workflow_names(plugin_path: Path) -> list[tuple[str, str]]:
+    """Dynamic workflows a plugin ships, as (display path, invocable name) pairs.
+
+    A workflow ships as `/<plugin>:<meta.name>`, and `meta.name` is frequently not the
+    filename — so a scan that globbed filenames would look thorough and still miss the
+    name a reader has to type. Falls back to the stem only when `meta.name` is absent.
+    """
+    workflows_dir = plugin_path / "workflows"
+    if not workflows_dir.is_dir():
+        return []
+    found = []
+    for path in sorted(workflows_dir.rglob("*.js")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        match = re.search(r"""\bname:\s*['"]([^'"]+)['"]""", text)
+        found.append((path.name, match.group(1) if match else path.stem))
+    return found
+
+
+def validate_readme_names_components(plugin_path: Path) -> tuple[list[str], int]:
+    """A plugin's README must name every component the plugin ships.
+
+    A README that describes a skill without naming it leaves the reader unable to invoke
+    it, and the gap is worst exactly where it is least guessable — when the skill name is
+    not the plugin name. The same applies to agents, commands, and workflows: an agent
+    missing from a pipeline table reads as a pipeline that does not have it.
+
+    Returns the findings and the number of components inspected. The count is returned so
+    the caller can refuse a run that inspected nothing — a sweep over zero components
+    reports "all clean" exactly like a sweep over all of them.
+    """
+    readme = plugin_path / "README.md"
+    if not readme.is_file():
+        return [], 0  # A missing README is already an error elsewhere.
+    text = readme.read_text(encoding="utf-8", errors="replace")
+
+    components: list[tuple[str, str]] = []
+    components += [("skill", p.parent.name) for p in skill_files(plugin_path)]
+    components += [("agent", p.stem) for p in agent_files(plugin_path)]
+    components += [("command", p.stem) for p in command_files(plugin_path)]
+    components += [("workflow", name) for _, name in workflow_names(plugin_path)]
+
+    findings = [
+        f"README.md does not name the {kind} '{name}' — a reader cannot invoke what is not named"
+        for kind, name in components
+        if name not in text
+    ]
+    return findings, len(components)
 
 
 def validate_subagent_dispatch(
@@ -1000,6 +1050,11 @@ def validate_plugins(
         for msg in validate_subagent_dispatch(plugin_path, plugin_name, agent_owners):
             result.add(plugin_name, msg)
 
+        readme_findings, components = validate_readme_names_components(plugin_path)
+        result.components_checked += components
+        for msg in readme_findings:
+            result.add(plugin_name, msg)
+
         if base_ref and plugin_name in version_check_scope:
             for msg in validate_version_increment(repo_root, plugin_name, plugin_data, base_ref):
                 result.add(plugin_name, msg)
@@ -1091,6 +1146,12 @@ def main(argv: list[str] | None = None) -> int:
         print("\n✗ legacy-python scan read no files at all — discovery is broken")
         return 1
 
+    # Component discovery has three globs and a meta.name parse; any of them silently
+    # returning nothing would turn every README into a pass.
+    if result.components_checked == 0:
+        print("\n✗ README component scan found no components at all — discovery is broken")
+        return 1
+
     errors = [f for f in result.findings if f.severity == ERROR]
     if errors:
         return 1
@@ -1098,7 +1159,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"\n✓ no errors ({result.refs_checked} references resolved, "
         f"{result.paths_scanned} files scanned for hardcoded paths, "
-        f"{result.python_docs_scanned} for legacy python invocations)"
+        f"{result.python_docs_scanned} for legacy python invocations, "
+        f"{result.components_checked} components named in their README)"
     )
     return 0
 
@@ -1124,7 +1186,15 @@ def _build_demo(root: Path, name: str = "demo") -> Path:
             }
         ),
     )
-    _write(plugin / "README.md", f"# {name}\n")
+    # Names the component vocabulary the other fixtures use, so each of them stays
+    # isolated to the checker it targets instead of also tripping the
+    # README-names-its-components check. _self_test_readme_components overwrites
+    # this when a missing name is the thing under test.
+    _write(
+        plugin / "README.md",
+        f"# {name}\n\nComponents: `go`, `run-it`, `audit`, `worker`, `helper`, `w`,\n"
+        "`demo-analysis`.\n",
+    )
     _write(
         plugin / "skills" / name / "SKILL.md",
         "---\nname: demo\ndescription: Demo.\nallowed-tools: Read Grep\n---\n\n"
@@ -1559,6 +1629,77 @@ def _self_test_errors(ran: list[str]) -> None:
         )
 
 
+def _self_test_readme_components(ran: list[str]) -> None:
+    """The README-names-its-components checker fires, and does not over-fire."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _build_demo(root)
+        _check(
+            ran,
+            "README naming its skill is accepted",
+            not any("does not name the skill" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "README.md", "# A plugin\n\nIt reviews things.\n")
+        _check(
+            ran,
+            "skill absent from README",
+            any("does not name the skill 'demo'" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(
+            plugin / "agents" / "helper.md",
+            "---\nname: helper\ndescription: x\ntools:\n  - Read\n---\n",
+        )
+        _write(plugin / "README.md", "# demo\n\nIt does things.\n")
+        _check(
+            ran,
+            "agent absent from README",
+            any("does not name the agent 'helper'" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "commands" / "run-it.md", "---\ndescription: x\n---\n\n# Run\n")
+        _write(plugin / "README.md", "# demo\n\nIt does things.\n")
+        _check(
+            ran,
+            "command absent from README",
+            any("does not name the command 'run-it'" in e for e in _errors_for(root)),
+        )
+
+    # The case a filename glob cannot see: a workflow ships under meta.name, so a README
+    # citing only the filename leaves the invocable name unwritten anywhere. Both real
+    # instances in this repo (git-cleanup, static-analysis) were exactly this shape.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(
+            plugin / "workflows" / "analyze.js",
+            "export const meta = {\n  name: 'demo-analysis',\n  description: 'x',\n}\n",
+        )
+        _write(plugin / "README.md", "# demo\n\nSee `workflows/analyze.js`.\n")
+        errors = _errors_for(root)
+        _check(
+            ran,
+            "workflow named only by filename",
+            any("does not name the workflow 'demo-analysis'" in e for e in errors),
+        )
+        _write(plugin / "README.md", "# demo\n\nShips as `/demo:demo-analysis`.\n")
+        _check(
+            ran,
+            "workflow named by meta.name is accepted",
+            not any("does not name the workflow" in e for e in _errors_for(root)),
+        )
+
+
 def _self_test_warnings(ran: list[str]) -> None:
     """Each warning-level checker fires on a known-bad fixture, and does not block."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -1762,6 +1903,7 @@ def self_test() -> int:
     ran: list[str] = []
     try:
         _self_test_errors(ran)
+        _self_test_readme_components(ran)
         _self_test_warnings(ran)
         _self_test_guards(ran)
     except AssertionError as exc:

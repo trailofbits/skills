@@ -29,7 +29,7 @@
     },
     {
       "name": "burpsuite-project-parser",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Search and extract data from Burp Suite project files (.burp) for security analysis",
       "author": {
         "name": "Will Vandevanter"
@@ -147,7 +147,7 @@
     },
     {
       "name": "semgrep-rule-creator",
-      "version": "1.2.3",
+      "version": "1.2.4",
       "description": "Create custom Semgrep rules for detecting bug patterns and security vulnerabilities",
       "author": {
         "name": "Maciej Domanski"
@@ -177,7 +177,7 @@
     },
     {
       "name": "static-analysis",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
       "author": {
         "name": "Axel Mierczuk & Paweł Płatek"
@@ -283,7 +283,7 @@
     },
     {
       "name": "git-cleanup",
-      "version": "2.3.0",
+      "version": "2.3.1",
       "description": "Safely analyzes and cleans up local git branches and worktrees by categorizing them as merged, squash-merged, superseded, or active work.",
       "author": {
         "name": "Henrik Brodin",

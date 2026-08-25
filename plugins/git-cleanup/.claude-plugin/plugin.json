@@ -1,6 +1,6 @@
 {
   "name": "git-cleanup",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Safely analyzes and cleans up local git branches and worktrees by categorizing them as merged, squash-merged, superseded, or active work.",
   "author": {
     "name": "Henrik Brodin",
