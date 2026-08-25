@@ -135,9 +135,11 @@ PHP analysis uses either the VLD extension (recommended) or opcache debug output
 
 ```bash
 # Install VLD extension (recommended)
-# Query latest version from PECL
-VLD_VERSION=$(curl -s https://pecl.php.net/package/vld | grep -oP 'vld-\K[0-9.]+(?=\.tgz)' | head -1)
-pecl install channel://pecl.php.net/vld-${VLD_VERSION}
+# Query latest version from PECL. POSIX ERE, not `grep -P`: PCRE mode is a GNU
+# extension that stock macOS grep rejects, leaving VLD_VERSION empty.
+VLD_VERSION=$(curl -fsS https://pecl.php.net/package/vld |
+  grep -oE 'vld-[0-9]+(\.[0-9]+)*\.tgz' | head -1 | sed -E 's/^vld-//; s/\.tgz$//')
+[ -n "$VLD_VERSION" ] && pecl install channel://pecl.php.net/vld-${VLD_VERSION}
 
 # Or build from source (if PECL fails)
 git clone https://github.com/derickr/vld.git && cd vld
