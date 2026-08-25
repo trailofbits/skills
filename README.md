@@ -106,7 +106,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 |--------|-------------|
 | [code-improver](plugins/code-improver/) | Autonomous review-and-fix workflow over skills, plugins, or a branch, with a pluggable reviewer, findings ledger, escalation, and scope guard |
 | [devcontainer-setup](plugins/devcontainer-setup/) | Create pre-configured devcontainers with Claude Code and language-specific tooling |
-| [gh-cli](plugins/gh-cli/) | Intercept GitHub URL fetches and redirect to the authenticated `gh` CLI |
+| [gh-cli](plugins/gh-cli/) | Intercept GitHub URL fetches — `WebFetch`, MCP fetch tools, and curl/wget — and redirect to the authenticated `gh` CLI |
 | [git-cleanup](plugins/git-cleanup/) | Safely clean up git worktrees and local branches: a dynamic workflow gathers merge evidence and tries to refute its own delete recommendations, behind gated confirmation |
 | [goal-prompt](plugins/goal-prompt/) | Draft `/goal` commands for goal mode in Claude Code and Codex — verifiable completion conditions formatted to a copy-ready single line |
 | [github-triage](plugins/github-triage/) | Triage open GitHub issues and PRs: merge ready bot/approved PRs, review unreviewed ones via subagents, close resolved issues with cited comments, cross-link pending fixes, and score the rest with local-only priority and change-size estimates |
