@@ -120,13 +120,19 @@ else goes inside. Order the blocks P1 first. The blank line after `</summary>`
 is required or the markdown inside will not render. If you cannot state a failure
 scenario, say so in the body and rank the finding lower.
 
-Write every literal `<` in a summary line as `&lt;`. That line is raw HTML, not
-markdown: GitHub deletes anything it reads as an unknown tag, so a finding about
-`<plugin>:<agent>` renders as `:` with nothing to show the reader that two words
-were dropped, and a quoted `<!--` hides the rest of the line outright. Backticks
-do not save you there, because inline markdown is not processed inside `<summary>`.
-Below the blank line the body is ordinary markdown, so backticks work as usual and
-`<` needs no escaping.
+In a summary line, escape the angle brackets in your own words: write
+`&lt;plugin&gt;:&lt;agent&gt;`, never `<plugin>:<agent>`. That line is raw HTML,
+not markdown, and GitHub deletes anything it reads as an unknown tag, so the
+unescaped form renders as `:` with nothing to show the reader that two words were
+dropped, and a quoted `<!--` hides the rest of the line outright. Escape a literal
+`&` as `&amp;` for the same reason. This applies to the words of your finding only
+— the `<summary>`, `<b>` and `<code>` tags around them are markup and must stay
+unescaped. Backticks do not help here, because inline markdown is not processed
+inside `<summary>`.
+
+The body below the blank line is markdown, so backticks work there — and you need
+them: a bare `<plugin>` is dropped from a body exactly as it is from a summary.
+Wrap angle brackets in backticks, or escape them as above.
 
 This repository is a marketplace of Claude Code plugins. Most content is markdown
 that instructs a model, so "does this text cause correct behaviour" matters as much
