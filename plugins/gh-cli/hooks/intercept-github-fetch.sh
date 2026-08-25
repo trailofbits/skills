@@ -7,7 +7,11 @@ command -v gh &>/dev/null || exit 0
 # WebFetch passes a single `url`; MCP fetch tools (Exa's web_fetch_exa and
 # friends) pass a `urls` array and can batch several URLs into one call. Read
 # both shapes so a batched fetch cannot slip a GitHub URL past the hook.
-urls=$(jq -r '[.tool_input.url?, (.tool_input.urls? | arrays | .[])]
+# `urls` is listed twice on purpose: the type filter keeps it when a server
+# declares it as a bare string, and `arrays` unpacks it when it is a list.
+# Only these two fields are read — WebFetch's `prompt` is deliberately not
+# scanned, or a prompt that merely mentions a GitHub URL would false-deny.
+urls=$(jq -r '[.tool_input.url?, .tool_input.urls?, (.tool_input.urls? | arrays | .[])]
   | map(select(type == "string" and . != ""))
   | .[]' 2>/dev/null) || exit 0
 [[ -z "$urls" ]] && exit 0
@@ -121,5 +125,15 @@ done <<<"$urls"
 
 [[ -z "$reason" ]] && exit 0
 
-jq -n --arg reason "${reason}. The gh CLI uses your authenticated GitHub token and works with private repos." \
+# One suggestion reads as a sentence; several read as a list, so the closing
+# note gets its own line rather than trailing only the last entry.
+closing="The gh CLI uses your authenticated GitHub token and works with private repos."
+if [[ "$reason" == *$'\n'* ]]; then
+  reason="${reason}
+${closing}"
+else
+  reason="${reason}. ${closing}"
+fi
+
+jq -n --arg reason "$reason" \
   '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":$reason}}'

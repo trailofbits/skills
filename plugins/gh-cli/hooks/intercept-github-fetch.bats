@@ -272,8 +272,14 @@ load test_helper
   assert_suggestion_contains "gh gist view"
 }
 
-@test "fetch: ignores a non-array urls field" {
+@test "fetch: checks a string-valued urls field" {
   run bash -c 'echo "{\"tool_input\":{\"urls\":\"https://github.com/owner/repo\"}}" | '"'$FETCH_HOOK'"
+  assert_deny
+  assert_suggestion_contains "gh repo view owner/repo"
+}
+
+@test "fetch: allows a non-GitHub string-valued urls field" {
+  run bash -c 'echo "{\"tool_input\":{\"urls\":\"https://pypi.org/project/requests/\"}}" | '"'$FETCH_HOOK'"
   assert_allow
 }
 

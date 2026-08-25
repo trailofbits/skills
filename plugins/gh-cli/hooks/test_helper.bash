@@ -112,7 +112,16 @@ assert_suggestion_contains() {
 assert_suggestion_starts_with() {
   local expected="$1"
   local reason
+  if [[ -z "$expected" ]]; then
+    echo "assert_suggestion_starts_with called with an empty prefix — it would pass vacuously"
+    return 1
+  fi
   reason=$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' 2>/dev/null)
+  if [[ -z "$reason" ]]; then
+    echo "No permissionDecisionReason found in output"
+    echo "Output: $output"
+    return 1
+  fi
   if [[ "$reason" != "$expected"* ]]; then
     echo "Expected suggestion to start with: $expected"
     echo "Got: $reason"

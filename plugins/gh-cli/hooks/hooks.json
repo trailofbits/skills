@@ -23,7 +23,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "WebFetch|mcp__.*[Ff]etch",
+        "matcher": "WebFetch|mcp__.*([Ff]etch|[Ss]crape|[Cc]rawl|[Ee]xtract)",
         "hooks": [
           {
             "type": "command",
