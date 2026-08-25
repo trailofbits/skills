@@ -419,7 +419,7 @@ After validation, document results:
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| YAML parse error | Bad indentation in description | Use `>` for multi-line |
+| YAML parse error | Unquoted description containing `: ` or ` #` | Put the description on one double-quoted line |
 | Missing section | Template not fully populated | Fill from handbook |
 | Over 500 lines | Too much detail in main file | Split to supporting files |
 | Broken reference | Supporting file not created | Create file or remove link |

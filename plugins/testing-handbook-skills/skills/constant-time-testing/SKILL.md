@@ -1,9 +1,7 @@
 ---
 name: constant-time-testing
 type: domain
-description: >
-  Constant-time testing detects timing side channels in cryptographic code.
-  Use when auditing crypto implementations for timing vulnerabilities.
+description: "Detects timing side channels in cryptographic implementations using dudect, ctgrind, and Valgrind-based tooling. Covers the leakage patterns that matter — secret-dependent branches, secret-indexed table lookups, and variable-time arithmetic — and how to measure and read the results. Use when auditing crypto code for timing leaks, testing whether an implementation is constant-time, or investigating a suspected timing attack."
 ---
 
 # Constant-Time Testing
