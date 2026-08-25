@@ -113,7 +113,7 @@ Each generated skill:
 
 ## Skills Cross-Reference
 
-This graph shows the 16 generated skills and their cross-references (from the Related Skills section of each skill). Only links between actually generated skills are shown.
+This graph shows the 14 generated skills and their cross-references (from the Related Skills section of each skill). Only links between actually generated skills are shown.
 
 ```mermaid
 graph TB
@@ -218,7 +218,6 @@ graph TB
 |------|--------|
 | Fuzzers (6) | libfuzzer, aflpp, libafl, cargo-fuzz, atheris, ruzzy |
 | Techniques (6) | harness-writing, address-sanitizer, coverage-analysis, fuzzing-dictionary, fuzzing-obstacles, ossfuzz |
-| Tools (2) | semgrep, codeql |
 | Domain (2) | wycheproof, constant-time-testing |
 
 **Note:** Some skills reference planned/external skills not yet generated (e.g., `honggfuzz`, `fuzzing-corpus`, `sarif-parsing`). Run `validate-skills.py` to see the full list.

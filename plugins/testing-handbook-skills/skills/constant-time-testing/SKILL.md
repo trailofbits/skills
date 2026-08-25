@@ -1,7 +1,7 @@
 ---
 name: constant-time-testing
 type: domain
-description: "Detects timing side channels in cryptographic implementations using dudect, ctgrind, and Valgrind-based tooling. Covers the leakage patterns that matter — secret-dependent branches, secret-indexed table lookups, and variable-time arithmetic — and how to measure and read the results. Use when auditing crypto code for timing leaks, testing whether an implementation is constant-time, or investigating a suspected timing attack."
+description: "Measures timing side channels in cryptographic implementations by running them, using dudect for statistical analysis and Timecop over Valgrind for dynamic tracing. Covers the formal, symbolic, dynamic, and statistical tool categories and how to read a result. Use when testing whether a running implementation is constant-time, measuring timing variance on a compiled binary, or investigating a suspected timing attack. Not for statically inspecting compiler output — the constant-time-analysis plugin covers that."
 ---
 
 # Constant-Time Testing

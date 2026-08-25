@@ -73,7 +73,7 @@ Before writing SKILL.md, verify ALL items:
 - [ ] **No shortcodes**: No `{{<` or `{{% ` patterns remain in output
 - [ ] **No escaped backticks**: No `\``` ` patterns remain (should be unescaped to ` ``` `)
 - [ ] **Required section**: Has `## When to Use` heading
-- [ ] **Trigger phrase**: Description contains "Use when" or "Use for", naming two or more concrete situations rather than restating the tool's purpose (see Pass 2 "Description quality")
+- [ ] **Trigger phrase**: Description contains "Use when" or "Use for", naming two or more concrete situations rather than restating the tool's purpose (see "Description quality" under Critical Rules)
 - [ ] **Code preserved**: All code blocks have language specifier and exact content
 - [ ] **Related Skills placeholder**: Has `## Related Skills` with `<!-- PASS2: ... -->` comment
 

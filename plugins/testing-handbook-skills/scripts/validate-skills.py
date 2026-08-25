@@ -48,6 +48,10 @@ RESERVED_WORDS = frozenset({"anthropic", "claude"})
 VALID_SKILL_TYPES = frozenset({"tool", "fuzzer", "technique", "domain"})
 NAME_PATTERN = re.compile(r"^[a-z0-9-]{1,64}$")
 SHORTCODE_PATTERN = re.compile(r"\{\{[<%]")
+# The templates express their fill-in slots as {like this}. The shortcode pattern
+# needs *double* braces, so a description shipped with a slot still in it passed
+# every check and printed a clean tick.
+PLACEHOLDER_PATTERN = re.compile(r"\{[^{}]*\}")
 ESCAPED_BACKTICKS_PATTERN = re.compile(r"\\`{3}")
 HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 
@@ -262,6 +266,13 @@ def validate_frontmatter(
 
         if SHORTCODE_PATTERN.search(desc_str):
             result.add_error("Description contains Hugo shortcodes")
+
+        leftover = PLACEHOLDER_PATTERN.findall(desc_str)
+        if leftover:
+            result.add_error(
+                f"Description still contains template placeholders: {leftover} — "
+                f"replace every {{...}} slot with real content"
+            )
 
     # Validate type field (recommended but not strictly required for backwards compat)
     skill_type = frontmatter.get("type")
