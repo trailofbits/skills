@@ -24,6 +24,10 @@ interprets the spread and uses the reading to inform its approach.
 
 ## How It Works
 
+The spread is drawn by the `draw` agent (`agents/draw.md`), dispatched as
+`let-fate-decide:draw`.
+
+
 1. A Python script uses `secrets.randbelow()` to perform Fisher-Yates shuffles
 2. A Major Arcana deck and Minor Arcana deck are shuffled separately
 3. 12 houses are dealt, each with 1 Major Arcana and 2 Minor Arcana cards

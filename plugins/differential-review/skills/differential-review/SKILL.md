@@ -93,12 +93,13 @@ Phase 3: Blast Radius → Phase 4: Deep Context → Phase 5: Adversarial → Pha
 
 ## Agents
 
-**`adversarial-modeler`** — Models attacker perspectives and builds exploit
-scenarios for HIGH RISK code changes. Follows the 5-step adversarial
-methodology (attacker model, attack vectors, exploitability rating, exploit
-scenario, baseline cross-reference) and produces structured vulnerability
+**`differential-review:adversarial-modeler`** — Models attacker perspectives and
+builds exploit scenarios for HIGH RISK code changes. Follows the 5-step
+adversarial methodology (attacker model, attack vectors, exploitability rating,
+exploit scenario, baseline cross-reference) and produces structured vulnerability
 reports. Delegate to this agent when Phase 5 analysis is needed on high-risk
-changes.
+changes, passing that full namespaced name as `subagent_type` — a bare
+`adversarial-modeler` is unregistered and the dispatch fails at runtime.
 
 ---
 

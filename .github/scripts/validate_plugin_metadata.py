@@ -164,7 +164,7 @@ SCAN_SKIP_DIRS = frozenset({".venv", "venv", "node_modules", "__pycache__", ".gi
 
 # Floor for --self-test, set to the exact number of assertions the fixtures run. There is
 # no slack on purpose: dropping one has to be a deliberate edit here, not a silent loss.
-SELF_TEST_MINIMUM = 88
+SELF_TEST_MINIMUM = 96
 
 
 @dataclass
@@ -188,6 +188,7 @@ class ScanResult:
     paths_scanned: int = 0
     python_docs_scanned: int = 0
     components_checked: int = 0
+    components_by_kind: dict[str, int] = field(default_factory=dict)
 
     def add(self, plugin: str, message: str, severity: str = ERROR) -> None:
         self.findings.append(Finding(plugin, message, severity))
@@ -524,11 +525,48 @@ def workflow_names(plugin_path: Path) -> list[tuple[str, str]]:
     if not workflows_dir.is_dir():
         return []
     found = []
-    for path in sorted(workflows_dir.rglob("*.js")):
+    for path in sorted(workflows_dir.rglob("*.[mc]js")) + sorted(workflows_dir.rglob("*.js")):
         text = path.read_text(encoding="utf-8", errors="replace")
-        match = re.search(r"""\bname:\s*['"]([^'"]+)['"]""", text)
-        found.append((path.name, match.group(1) if match else path.stem))
-    return found
+        # Anchor to the meta block. A bare search takes the first `name:` in the file,
+        # and these scripts carry `name:` inside comments and inside agent option
+        # objects — code-improver's improve.js already has one in a comment. A file
+        # with no `export const meta` is a helper, not a shippable workflow.
+        start = text.find("export const meta")
+        if start == -1:
+            continue
+        match = re.search(r"""\bname:\s*['"]([^'"]+)['"]""", text[start:])
+        if not match:
+            continue  # A computed or templated name is not something a README can quote.
+        found.append((path.name, match.group(1)))
+    return sorted(set(found))
+
+
+def _readme_names(text: str, kind: str, name: str, plugin: str) -> bool:
+    """Whether a README names one component, as opposed to merely containing its letters.
+
+    A plain `name in text` looks thorough and cannot fail for a large share of what it
+    counts: `draw` is satisfied by "draws Tarot cards", `semgrep-rule` by the plugin's
+    own name in the install line, and `burp-search` by a `scripts/burp-search.sh` path
+    that is a different thing entirely.
+
+    Commands and workflows are reachable only as `/<plugin>:<name>`, so that literal is
+    the only mention that helps a reader — nothing else tells them what to type.
+
+    Agents are dispatched by identifier and never typed as prose, so a bare word in a
+    sentence does not name one: `let-fate-decide`'s `draw` agent was satisfied by
+    "(draw cards instead)". They need an identifier-shaped mention — backticked, or as
+    an `agents/<name>` path, or namespaced.
+
+    Skills are the one kind genuinely referred to by bare name in prose and tables, so
+    they need only a delimited occurrence — one not glued to a longer identifier, which
+    is what stops "draws" counting as `draw` and `semgrep-rule-creator` as `semgrep-rule`.
+    """
+    if kind in ("command", "workflow"):
+        return f"/{plugin}:{name}" in text
+    if kind == "agent":
+        return any(form in text for form in (f"`{name}`", f"agents/{name}", f"{plugin}:{name}"))
+    delimited = re.compile(rf"(?<![A-Za-z0-9_-]){re.escape(name)}(?![A-Za-z0-9_-])")
+    return delimited.search(text) is not None
 
 
 def validate_readme_names_components(plugin_path: Path) -> tuple[list[str], int]:
@@ -539,13 +577,15 @@ def validate_readme_names_components(plugin_path: Path) -> tuple[list[str], int]
     not the plugin name. The same applies to agents, commands, and workflows: an agent
     missing from a pipeline table reads as a pipeline that does not have it.
 
-    Returns the findings and the number of components inspected. The count is returned so
-    the caller can refuse a run that inspected nothing — a sweep over zero components
-    reports "all clean" exactly like a sweep over all of them.
+    Returns the findings, the number of components inspected, and that count broken down
+    by kind. The counts are returned so the caller can refuse a run that inspected
+    nothing — a sweep over zero components reports "all clean" exactly like a sweep over
+    all of them — and per-kind so the loss of one discovery helper cannot hide inside a
+    healthy total.
     """
     readme = plugin_path / "README.md"
     if not readme.is_file():
-        return [], 0  # A missing README is already an error elsewhere.
+        return [], 0, {}  # A missing README is already an error elsewhere.
     text = readme.read_text(encoding="utf-8", errors="replace")
 
     components: list[tuple[str, str]] = []
@@ -554,12 +594,20 @@ def validate_readme_names_components(plugin_path: Path) -> tuple[list[str], int]
     components += [("command", p.stem) for p in command_files(plugin_path)]
     components += [("workflow", name) for _, name in workflow_names(plugin_path)]
 
-    findings = [
-        f"README.md does not name the {kind} '{name}' — a reader cannot invoke what is not named"
-        for kind, name in components
-        if name not in text
-    ]
-    return findings, len(components)
+    findings = []
+    for kind, name in components:
+        if _readme_names(text, kind, name, plugin_path.name):
+            continue
+        wanted = f"/{plugin_path.name}:{name}" if kind in ("command", "workflow") else f"'{name}'"
+        findings.append(
+            f"README.md does not name the {kind} {wanted} — "
+            f"a reader cannot invoke what is not named"
+        )
+
+    by_kind: dict[str, int] = {}
+    for kind, _ in components:
+        by_kind[kind] = by_kind.get(kind, 0) + 1
+    return findings, len(components), by_kind
 
 
 def validate_subagent_dispatch(
@@ -1050,8 +1098,10 @@ def validate_plugins(
         for msg in validate_subagent_dispatch(plugin_path, plugin_name, agent_owners):
             result.add(plugin_name, msg)
 
-        readme_findings, components = validate_readme_names_components(plugin_path)
+        readme_findings, components, by_kind = validate_readme_names_components(plugin_path)
         result.components_checked += components
+        for kind, count in by_kind.items():
+            result.components_by_kind[kind] = result.components_by_kind.get(kind, 0) + count
         for msg in readme_findings:
             result.add(plugin_name, msg)
 
@@ -1146,10 +1196,18 @@ def main(argv: list[str] | None = None) -> int:
         print("\n✗ legacy-python scan read no files at all — discovery is broken")
         return 1
 
-    # Component discovery has three globs and a meta.name parse; any of them silently
-    # returning nothing would turn every README into a pass.
-    if result.components_checked == 0:
-        print("\n✗ README component scan found no components at all — discovery is broken")
+    # Four independent discovery sources feed this. A single total would stay comfortably
+    # non-zero if skill_files() — 81 of 129 components — stopped matching, so each kind
+    # carries its own floor: this repo ships all four, so a zero anywhere is a broken
+    # glob, not an empty category.
+    seen = result.components_by_kind
+    empty_kinds = [kind for kind, count in sorted(seen.items()) if count == 0]
+    missing_kinds = sorted({"skill", "agent", "command", "workflow"} - set(seen))
+    if empty_kinds or missing_kinds:
+        broken = ", ".join(empty_kinds + missing_kinds)
+        print(
+            f"\n✗ README component scan found no {broken} components at all — discovery is broken"
+        )
         return 1
 
     errors = [f for f in result.findings if f.severity == ERROR]
@@ -1192,8 +1250,9 @@ def _build_demo(root: Path, name: str = "demo") -> Path:
     # this when a missing name is the thing under test.
     _write(
         plugin / "README.md",
-        f"# {name}\n\nComponents: `go`, `run-it`, `audit`, `worker`, `helper`, `w`,\n"
-        "`demo-analysis`.\n",
+        f"# {name}\n\nCommands and workflows: `/{name}:go`, `/{name}:run-it`, "
+        f"`/{name}:audit`, `/{name}:demo-analysis`.\n\n"
+        "Agents: `worker`, `helper`, `w`.\n",
     )
     _write(
         plugin / "skills" / name / "SKILL.md",
@@ -1672,7 +1731,65 @@ def _self_test_readme_components(ran: list[str]) -> None:
         _check(
             ran,
             "command absent from README",
-            any("does not name the command 'run-it'" in e for e in _errors_for(root)),
+            any("does not name the command /demo:run-it" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "commands" / "go.md", "---\ndescription: x\nallowed-tools: Read\n---\n")
+        _write(plugin / "README.md", "# demo\n\nRun `scripts/go.sh` to go.\n")
+        _check(
+            ran,
+            "command satisfied only by a same-named script path",
+            any("does not name the command /demo:go" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "commands" / "go.md", "---\ndescription: x\nallowed-tools: Read\n---\n")
+        _write(plugin / "README.md", "# demo\n\nInvoke `/demo:go` to go.\n")
+        _check(
+            ran,
+            "command named by its slash form is accepted",
+            not any("does not name the command" in e for e in _errors_for(root)),
+        )
+
+    # A bare word in a sentence is not a dispatchable identifier. This is the shape that
+    # let let-fate-decide's `draw` agent pass on "(draw cards instead)".
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "agents" / "w.md", "---\nname: w\ndescription: x\ntools:\n  - Read\n---\n")
+        _write(plugin / "README.md", "# demo\n\nIt goes w places, w times over.\n")
+        _check(
+            ran,
+            "agent satisfied only by prose",
+            any("does not name the agent 'w'" in e for e in _errors_for(root)),
+        )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "agents" / "w.md", "---\nname: w\ndescription: x\ntools:\n  - Read\n---\n")
+        _write(plugin / "README.md", "# demo\n\nDispatch `w` for that.\n")
+        _check(
+            ran,
+            "agent named in identifier form is accepted",
+            not any("does not name the agent" in e for e in _errors_for(root)),
+        )
+
+    # A skill name that is only ever a prefix of a longer identifier is not named.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root, name="demo")
+        (plugin / "skills" / "demo").rename(plugin / "skills" / "demo-thing")
+        _write(plugin / "README.md", "# demo\n\nSee the demo-thingamajig docs.\n")
+        _check(
+            ran,
+            "skill satisfied only as a prefix of a longer word",
+            any("does not name the skill 'demo-thing'" in e for e in _errors_for(root)),
         )
 
     # The case a filename glob cannot see: a workflow ships under meta.name, so a README
@@ -1690,7 +1807,7 @@ def _self_test_readme_components(ran: list[str]) -> None:
         _check(
             ran,
             "workflow named only by filename",
-            any("does not name the workflow 'demo-analysis'" in e for e in errors),
+            any("does not name the workflow /demo:demo-analysis" in e for e in errors),
         )
         _write(plugin / "README.md", "# demo\n\nShips as `/demo:demo-analysis`.\n")
         _check(
@@ -1733,6 +1850,33 @@ def _self_test_warnings(ran: list[str]) -> None:
             "illustrative paths in code blocks ignored",
             not any("imaginary" in w for w in _warnings_for(root)),
         )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(plugin / "workflows" / "helper.js", "// no meta block here\nexport const x = 1\n")
+        names = workflow_names(plugin)
+        _check(ran, "helper .js without a meta block is not a workflow", names == [])
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _write(
+            plugin / "workflows" / "w.js",
+            "// name: 'from-a-comment'\nexport const meta = {\n  name: 'real-name',\n}\n",
+        )
+        _check(
+            ran,
+            "workflow name read from meta, not an earlier comment",
+            workflow_names(plugin) == [("w.js", "real-name")],
+        )
+
+    # The per-kind floor: losing one discovery helper must go red, not hide in the total.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        _, _, by_kind = validate_readme_names_components(plugin)
+        _check(ran, "component scan reports a per-kind breakdown", by_kind.get("skill") == 1)
 
 
 def _self_test_guards(ran: list[str]) -> None:

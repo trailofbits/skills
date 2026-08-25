@@ -279,6 +279,14 @@ Each of these fails the build. There is no value in checking any of it by hand:
 - `subagent_type` values are namespaced `<plugin>:<agent>` — a bare name is
   unregistered and the dispatch fails at runtime, whether it names this plugin's own
   agent, another plugin's, or nothing at all
+- A plugin's `README.md` names every skill, agent, command, and dynamic workflow it
+  ships. A reader cannot invoke what is not written down, and the gap is worst where
+  it is least guessable — a skill whose name is not the plugin name, or a workflow,
+  which ships under its `meta.name` rather than its filename. Commands and workflows
+  must appear in the `/<plugin>:<name>` form, since that is the only string a user can
+  type; agents must appear as an identifier (backticked, an `agents/<name>` path, or
+  namespaced), because a bare word in a sentence is not a dispatchable name; skills
+  need only a delimited mention.
 - No hardcoded `/Users/…` or `/home/…` paths, in any `.md`, `.py`, `.json`, `.sh`,
   `.bats`, `.yml` or `.toml` file under `plugins/`. `*-shim.bats` is exempt because
   those fixtures need literal paths, and `/path/to` and `/home/vscode` are treated as
