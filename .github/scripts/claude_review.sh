@@ -91,7 +91,7 @@ scripts it adds, and check its claims against the repository rather than taking 
 at face value. When the PR states a number, a limit, or a cost, verify it against the
 files — count the things it claims to count. When it adds a check, work out by reading
 it what input would slip past, and say so.
-            
+
 Report every issue you find, at every severity. Do not pre-filter, do not suppress
 low-confidence findings, and do not decide something is too minor to mention. Rank
 each finding P1 to P4 and let a human filter. A finding you withheld is worth
@@ -118,7 +118,7 @@ scannable list of one-liners and a reader expands only what they care about:
 The summary line carries the severity, the location and the defect; everything
 else goes inside. Order the blocks P1 first. The blank line after `</summary>`
 is required or the markdown inside will not render. If you cannot state a failure
-cenario, say so in the body and rank the finding lower.
+scenario, say so in the body and rank the finding lower.
 
 This repository is a marketplace of Claude Code plugins. Most content is markdown
 that instructs a model, so "does this text cause correct behaviour" matters as much
