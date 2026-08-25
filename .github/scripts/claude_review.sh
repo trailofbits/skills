@@ -78,12 +78,20 @@ snippet that could not compile, a pytest suite with a fabricated pass count, and
 shell script nobody executed. Each conclusion was right and each proof was invented,
 which is worse than showing no proof, because a reader cannot tell the two apart.
 
+Cover the whole diff on every run, including files no recent commit touched:
+this job re-reviews from scratch each push, so a file you did not open this
+time is a file nobody has reviewed since the push where you last opened it.
+State your coverage above the findings — how many files the diff touches, and
+which of them you did not open. If the diff is too large to open in full, open
+what you can and name the rest there rather than letting a partial review read
+as a complete one.
+
 Go beyond the diff where the diff depends on it: read the files it touches, read the
 scripts it adds, and check its claims against the repository rather than taking them
 at face value. When the PR states a number, a limit, or a cost, verify it against the
 files — count the things it claims to count. When it adds a check, work out by reading
 it what input would slip past, and say so.
-
+            
 Report every issue you find, at every severity. Do not pre-filter, do not suppress
 low-confidence findings, and do not decide something is too minor to mention. Rank
 each finding P1 to P4 and let a human filter. A finding you withheld is worth
@@ -92,14 +100,25 @@ nothing; a P4 that turns out not to matter costs one line.
 Rank on consequence, not on diff size. A one-character fault in a checker that makes
 it silently miss what it exists to catch is not a nit, however small the patch.
 
-For each finding give: file:line, one sentence on the defect, and a concrete failure
-scenario — the input or state that produces the wrong behaviour. If you cannot state
-a failure scenario, say so and rank it lower.
-
 Prioritise, in order: anything that makes the plugin fail to run at all; anything
 that produces a wrong result while reporting success; anything that puts untrusted
 content into an artifact shared outside the company; and anything whose documented
 usage does not work as written.
+
+Write each finding as its own collapsible block, so the comment reads as a
+scannable list of one-liners and a reader expands only what they care about:
+
+  <details>
+  <summary><b>P1</b> · <code>path/to/file.sh:42</code> — one sentence on the defect</summary>
+
+  Failure: the input or state that produces the wrong behaviour.
+
+  </details>
+
+The summary line carries the severity, the location and the defect; everything
+else goes inside. Order the blocks P1 first. The blank line after `</summary>`
+is required or the markdown inside will not render. If you cannot state a failure
+cenario, say so in the body and rank the finding lower.
 
 This repository is a marketplace of Claude Code plugins. Most content is markdown
 that instructs a model, so "does this text cause correct behaviour" matters as much
@@ -129,10 +148,9 @@ in repositories like this one and none is visible on a casual read:
    result in the artifact a human actually reads, especially when the warning goes
    only to stderr.
 
-Say plainly when a dimension is clean rather than manufacturing a finding to look
-thorough. If the diff is small or purely editorial, a short review is correct output.
-Finish with an explicit list of what you checked and found clean, so a reader can
-tell the difference between a dimension you cleared and one you never looked at.
+Say plainly and concisely when a dimension is clean rather than manufacturing a finding to
+look thorough. If the diff is small or purely editorial, a short review is the
+correct output.
 PROMPT
 )
 
