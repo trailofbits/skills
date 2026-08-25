@@ -135,11 +135,6 @@ graph TB
         ossfuzz[ossfuzz]
     end
 
-    subgraph Tools
-        semgrep[semgrep]
-        codeql[codeql]
-    end
-
     subgraph Domain
         wycheproof[wycheproof]
         constant-time-testing[constant-time-testing]
@@ -170,10 +165,6 @@ graph TB
     libafl -.-> cargo-fuzz
     ruzzy -.-> libfuzzer
     ruzzy -.-> aflpp
-
-    %% Tool ↔ Tool alternatives
-    semgrep -.-> codeql
-    codeql -.-> semgrep
 
     %% Technique → Fuzzer references
     harness-writing --> libfuzzer
