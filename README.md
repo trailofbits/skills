@@ -45,7 +45,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 
 | Plugin | Description |
 |--------|-------------|
-| [building-secure-contracts](plugins/building-secure-contracts/) | Smart contract security toolkit with vulnerability scanners for 6 blockchains |
+| [building-secure-contracts](plugins/building-secure-contracts/) | Smart contract security toolkit with vulnerability scanners for 6 blockchains and 5 development guideline assistants |
 | [entry-point-analyzer](plugins/entry-point-analyzer/) | Identify state-changing entry points in smart contracts for security auditing |
 
 ### Code Auditing
