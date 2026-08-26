@@ -75,7 +75,8 @@ trailmark/
 ├── .claude-plugin/
 │   └── plugin.json
 ├── agents/
-│   └── code-slice-worker.md          # Repository-tool-free bounded worker
+│   └── code-slice-worker.md          # Bounded worker, no repository tools.
+│                                     # Dispatch as `trailmark:code-slice-worker`
 ├── README.md
 └── skills/
     ├── trailmark/                    # Core graph querying

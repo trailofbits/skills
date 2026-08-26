@@ -26,6 +26,10 @@ Diagnose and fix Claude in Chrome MCP extension connectivity issues.
 /plugin install trailofbits/skills/plugins/claude-in-chrome-troubleshooting
 ```
 
+The plugin ships one skill, `chrome-mcp-troubleshooting`. It triggers on its own when
+the symptoms above appear; invoke it directly with
+`/claude-in-chrome-troubleshooting:chrome-mcp-troubleshooting`.
+
 ## License
 
 This work is licensed under a [Creative Commons Attribution-ShareAlike 4.0 International License](https://creativecommons.org/licenses/by-sa/4.0/).

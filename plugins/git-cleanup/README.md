@@ -53,7 +53,7 @@ claude plugins:add trailofbits/skills/git-cleanup
 | Path | Role |
 |------|------|
 | `commands/git-cleanup.md` | The `/git-cleanup` entry point: gates, confirmations, and the deletions |
-| `workflows/analyze-branches.js` | The dynamic workflow. Read-only — it never deletes |
+| `workflows/analyze-branches.js` | The dynamic workflow, shipping as `/git-cleanup:git-cleanup-analysis` — workflows are namespaced by `meta.name`, not the filename. Read-only — it never deletes |
 | `references/merge-evidence.md` | What counts as proof a branch is merged, read by the agents and the fallback path |
 | `tests/analyze-branches.test.mjs` | Stubs every agent and asserts the triage, clustering, and failure handling |
 | `evals/` | End-to-end evals: does the model produce a correct gate-1 analysis on a real repository? |

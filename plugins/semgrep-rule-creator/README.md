@@ -36,6 +36,11 @@ Use this skill when you need to:
 /plugin install trailofbits/skills/plugins/semgrep-rule-creator
 ```
 
+Then run `/semgrep-rule-creator:semgrep-rule` to walk through building a rule.
+
+```
+```
+
 ## Related Skills
 
 - `semgrep-rule-variant-creator` - Port existing Semgrep rules to new target languages

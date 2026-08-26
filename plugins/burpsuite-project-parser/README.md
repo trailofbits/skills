@@ -37,6 +37,10 @@ This skill provides CLI access to Burp Suite project files through the burpsuite
 
 ## Usage
 
+Inside Claude Code, run `/burpsuite-project-parser:burp-search` — it takes the same
+project path and flags as the script below.
+
+
 Base command:
 ```bash
 scripts/burp-search.sh /path/to/project.burp [FLAGS]

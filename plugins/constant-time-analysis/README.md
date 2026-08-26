@@ -32,6 +32,16 @@ uv tool install .
 ct-analyzer crypto.c
 ```
 
+## Components
+
+The rest of this README documents `ct-analyzer`, the CLI. Inside Claude Code the plugin
+offers two more entry points:
+
+| Component | Name | Purpose |
+|---|---|---|
+| Skill | `constant-time-analysis` | Triggers on its own when you write or review crypto code, or ask about a timing side channel. Invoke directly with `/constant-time-analysis:constant-time-analysis`. Adds the per-language guidance under `skills/constant-time-analysis/references/` and judgment about triaging what the analyzer reports |
+| Command | `/constant-time-analysis:ct-check` | One-shot run over a file — `<source-file> [--warnings] [--json] [--arch <arch>]` |
+
 ## Usage
 
 ### Basic Analysis

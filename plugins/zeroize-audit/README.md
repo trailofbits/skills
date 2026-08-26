@@ -91,10 +91,10 @@ bear -- make -j$(nproc)
 
 ## Agent Architecture
 
-The analysis pipeline uses 10 agents across 8 phases, enabling parallel source analysis (C/C++ and Rust simultaneously), per-TU compiler analysis, mandatory PoC validation with verification, and protection against context pressure:
+The analysis pipeline uses 11 agents across 9 phases (0-8), enabling parallel source analysis (C/C++ and Rust simultaneously), per-TU compiler analysis, mandatory PoC validation with verification, and protection against context pressure:
 
 ```
-Phase 0: Orchestrator — Preflight + config + create workdir + enumerate TUs
+Phase 0: 0-preflight agent — Preflight + config + create workdir + enumerate TUs
 Phase 1: Wave 1:  1-mcp-resolver              (skip if mcp_mode=off OR language_mode=rust)
          Wave 2a: 2-source-analyzer           (C/C++ only; skip if no compile_db)  ─┐ parallel
          Wave 2b: 2b-rust-source-analyzer     (Rust only; skip if no cargo_manifest) ─┘
@@ -114,6 +114,7 @@ Phase 8: Orchestrator — Return final-report.md
 
 | Agent | Phase | Purpose | Output Directory |
 |---|---|---|---|
+| `0-preflight` | 0 | Validate prerequisites, merge config, enumerate TUs, create the run directory. Gates everything after it — if a critical check fails, the run stops here | run root |
 | `1-mcp-resolver` | 1, Wave 1 | Resolve symbols/types via Serena MCP (C/C++ only) | `mcp-evidence/` |
 | `2-source-analyzer` | 1, Wave 2a | Sensitive objects, wipes, data-flow/heap (C/C++) | `source-analysis/` |
 | `2b-rust-source-analyzer` | 1, Wave 2b | Rustdoc JSON trait analysis + dangerous API grep | `source-analysis/` |
@@ -121,6 +122,8 @@ Phase 8: Orchestrator — Return final-report.md
 | `3b-rust-compiler-analyzer` | 2, Wave 3R | Crate-level MIR + LLVM IR analysis (Rust) | `rust-compiler-analysis/` |
 | `4-report-assembler` | 3+6, Wave 4+6 | Collect findings, confidence gating; merge PoC results (invoked twice: interim + final) | `report/` |
 | `5-poc-generator` | 4, Wave 5 | Generate proof-of-concept programs (C/C++ findings only) | `poc/` |
+| `5b-poc-validator` | 5, Step 5a | Compile and run every PoC | `poc/` |
+| `5c-poc-verifier` | 5, Step 5b | Check each PoC actually proves the finding it claims, by reading the PoC, the finding, and the original source | `poc/` |
 | `6-test-generator` | 7, Wave 7 | Generate runtime validation test harnesses (optional) | `tests/` |
 
 Agents write persistent finding files to a shared working directory (`/tmp/zeroize-audit-{run_id}/`) with namespaced IDs to prevent collisions during parallel execution.

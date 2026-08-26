@@ -70,6 +70,7 @@ the same `references/`, so a ruleset added to `rulesets.md` reaches both.
 | Workflow | Purpose |
 |----------|---------|
 | `workflows/semgrep-scan.js` | Ships as `/static-analysis:semgrep-scan`. Four phases: Detect, Select, Scan, Report |
+| `workflows/codeql-build.js` | Ships as `/static-analysis:codeql-build`. Three phases: Detect, Build, Assess. Walks the build-method ladder — autobuild, custom command, multi-step, no-build — diagnosing and retrying at each rung, then enforces the quality gate |
 
 ## Scripts Included
 

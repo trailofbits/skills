@@ -1,6 +1,6 @@
 {
   "name": "devcontainer-setup",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Create pre-configured devcontainers with Claude Code and language-specific tooling",
   "author": {
     "name": "Alexis Challande",

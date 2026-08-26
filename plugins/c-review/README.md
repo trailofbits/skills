@@ -111,7 +111,7 @@ Two consequences worth knowing:
 | File | Role |
 |---|---|
 | `skills/c-review/SKILL.md` | The entry point. Collects the four parameters, resolves paths, makes one `Workflow` call, returns the report |
-| `workflows/c-review.js` | The orchestrator: the bug-class catalogue, every agent prompt, the phase sequence, and the deterministic duplicate merges |
+| `workflows/c-review.js` | The orchestrator, shipping as `/c-review:audit` — workflows are namespaced by `meta.name`, not the filename. The bug-class catalogue, every agent prompt, the phase sequence, and the deterministic duplicate merges |
 | `agents/c-review-worker.md` | The tool scope for review, sweep and dedup agents — see above |
 | `scripts/enumerate_units.py` | Parses the tree and cuts it into units, deciding which questions each unit owes and counting the spots each question is about. Everything downstream is partitioned from this |
 | `scripts/check_ledger.py` | The coverage check: re-derives those spots from the source and diffs them against what the agents wrote down |

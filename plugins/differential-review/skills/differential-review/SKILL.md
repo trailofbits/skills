@@ -1,10 +1,6 @@
 ---
 name: differential-review
-description: >
-  Performs security-focused differential review of code changes (PRs, commits, diffs).
-  Adapts analysis depth to codebase size, uses git history for context, calculates
-  blast radius, checks test coverage, and generates comprehensive markdown reports.
-  Automatically detects and prevents security regressions.
+description: "Performs security-focused differential review of code changes. Adapts analysis depth to codebase size, uses git blame for context, calculates blast radius by counting callers, checks test coverage of modified code, and generates a markdown report. Use when reviewing a PR, commit, or diff for security vulnerabilities, checking whether a change re-introduces a previously fixed bug, asking what else a change could break, or finding which modified code has no test covering it."
 allowed-tools: Read Write Grep Glob Bash
 ---
 
@@ -78,7 +74,7 @@ Phase 3: Blast Radius → Phase 4: Deep Context → Phase 5: Adversarial → Pha
 ├─ Analyzing HIGH RISK change?
 │  ├─ Read: adversarial.md
 │  │  (Phase 5: Attacker modeling, exploit scenarios, exploitability rating)
-│  └─ Or delegate to: adversarial-modeler agent
+│  └─ Or delegate to: differential-review:adversarial-modeler agent
 │     (Autonomous attacker modeling with concrete exploit scenarios)
 │
 ├─ Writing the final report?
@@ -97,12 +93,13 @@ Phase 3: Blast Radius → Phase 4: Deep Context → Phase 5: Adversarial → Pha
 
 ## Agents
 
-**`adversarial-modeler`** — Models attacker perspectives and builds exploit
-scenarios for HIGH RISK code changes. Follows the 5-step adversarial
-methodology (attacker model, attack vectors, exploitability rating, exploit
-scenario, baseline cross-reference) and produces structured vulnerability
+**`differential-review:adversarial-modeler`** — Models attacker perspectives and
+builds exploit scenarios for HIGH RISK code changes. Follows the 5-step
+adversarial methodology (attacker model, attack vectors, exploitability rating,
+exploit scenario, baseline cross-reference) and produces structured vulnerability
 reports. Delegate to this agent when Phase 5 analysis is needed on high-risk
-changes.
+changes, passing that full namespaced name as `subagent_type` — a bare
+`adversarial-modeler` is unregistered and the dispatch fails at runtime.
 
 ---
 

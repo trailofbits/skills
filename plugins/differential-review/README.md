@@ -28,19 +28,27 @@ This skill performs comprehensive security review of code changes:
 /plugin install trailofbits/skills/plugins/differential-review
 ```
 
+## Components
+
+| Component | Name | Purpose |
+|---|---|---|
+| Skill | `differential-review` | The review itself — Pre-Analysis plus Phases 0–6, described below |
+| Command | `/differential-review:diff-review` | Entry point taking `<pr-url\|commit-sha\|diff-path> [--baseline <ref>]` |
+| Agent | `differential-review:adversarial-modeler` | Phase 5 only. The skill delegates to it for HIGH RISK changes to build concrete exploit paths and rate exploitability |
+
 ## Documentation Structure
 
 This skill uses a **modular documentation architecture** for token efficiency and progressive disclosure:
 
 ### Core Entry Point
-- **[SKILL.md](skills/differential-review/SKILL.md)** - Main entry point (217 lines)
+- **[SKILL.md](skills/differential-review/SKILL.md)** - Main entry point (224 lines)
   - Quick reference tables for triage
   - Decision tree routing to detailed docs
   - Quality checklist and red flags
   - Integration with other skills
 
 ### Supporting Documentation
-- **[methodology.md](skills/differential-review/methodology.md)** - Detailed phase-by-phase workflow (~200 lines)
+- **[methodology.md](skills/differential-review/methodology.md)** - Detailed phase-by-phase workflow (234 lines)
   - Pre-Analysis: Baseline context building
   - Phase 0: Intake & Triage
   - Phase 1: Changed Code Analysis
@@ -48,19 +56,19 @@ This skill uses a **modular documentation architecture** for token efficiency an
   - Phase 3: Blast Radius Analysis
   - Phase 4: Deep Context Analysis
 
-- **[adversarial.md](skills/differential-review/adversarial.md)** - Attacker modeling and exploit scenarios (~150 lines)
+- **[adversarial.md](skills/differential-review/adversarial.md)** - Attacker modeling and exploit scenarios (203 lines)
   - Phase 5: Adversarial Vulnerability Analysis
   - Attacker model definition (WHO/ACCESS/INTERFACE)
   - Exploitability rating framework
   - Complete exploit scenario templates
 
-- **[reporting.md](skills/differential-review/reporting.md)** - Report structure and formatting (~120 lines)
+- **[reporting.md](skills/differential-review/reporting.md)** - Report structure and formatting (369 lines)
   - Phase 6: Report Generation
   - 9-section report template
   - Formatting guidelines and conventions
   - File naming and notification templates
 
-- **[patterns.md](skills/differential-review/patterns.md)** - Common vulnerability patterns (~80 lines)
+- **[patterns.md](skills/differential-review/patterns.md)** - Common vulnerability patterns (300 lines)
   - Security regressions detection
   - Reentrancy, access control, overflow patterns
   - Quick detection bash commands
