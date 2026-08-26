@@ -59,7 +59,7 @@ GOOD_DESCRIPTION = (
 )
 
 
-def check(frontmatter: dict) -> list[str]:
+def check(frontmatter) -> list[str]:
     """Run frontmatter validation and return the errors it reported."""
     result = validate_skills.ValidationResult(skill_name="fixture", skill_path=Path("SKILL.md"))
     validate_skills.validate_frontmatter(frontmatter, result)
@@ -75,6 +75,43 @@ def frontmatter(**overrides) -> dict:
 def test_good_frontmatter_is_accepted() -> None:
     """The positive control. If this fails, every rejection below proves nothing."""
     assert check(frontmatter()) == []
+
+
+@pytest.mark.parametrize(
+    "parsed",
+    [pytest.param(None, id="empty-block"), pytest.param("just a string", id="bare-scalar")],
+)
+def test_non_mapping_frontmatter_is_rejected(parsed) -> None:
+    """A block yaml accepts but that carries no fields must not validate silently.
+
+    This is the whole-check version of the zero-guard: every field check below
+    reads `frontmatter.get(...)`, so anything that is not a mapping used to skip
+    all of them and report the skill clean.
+    """
+    assert check(parsed) != []
+
+
+@pytest.mark.parametrize(
+    ("parsed", "expected"),
+    [
+        pytest.param(None, "empty", id="empty-block"),
+        pytest.param("just a string", "not a mapping", id="bare-scalar"),
+    ],
+)
+def test_extraction_reports_non_mapping_frontmatter(monkeypatch, parsed, expected) -> None:
+    """`extract_frontmatter` must pair a non-mapping result with an error.
+
+    `validate_skill` runs the field checks only when extraction reported no
+    error, so returning `(None, None)` for an empty block skipped them all.
+    The parser is stubbed rather than fed YAML so this runs in CI's
+    pyyaml-free environment, where it matters most.
+    """
+    monkeypatch.setattr(validate_skills.yaml, "safe_load", lambda _text: parsed)
+
+    frontmatter_result, error = validate_skills.extract_frontmatter("---\n\n---\n\n# Skill\n")
+
+    assert frontmatter_result is None
+    assert error and expected in error
 
 
 @pytest.mark.parametrize(

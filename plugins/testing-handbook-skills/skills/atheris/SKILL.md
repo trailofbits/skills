@@ -29,7 +29,7 @@ import sys
 import atheris
 
 @atheris.instrument_func
-def test_one_input(data: bytes):
+def TestOneInput(data: bytes):
     if len(data) == 4:
         if data[0] == 0x46:  # "F"
             if data[1] == 0x55:  # "U"
@@ -38,7 +38,7 @@ def test_one_input(data: bytes):
                         raise RuntimeError("You caught me")
 
 def main():
-    atheris.Setup(sys.argv, test_one_input)
+    atheris.Setup(sys.argv, TestOneInput)
     atheris.Fuzz()
 
 if __name__ == "__main__":
@@ -150,7 +150,7 @@ import sys
 import atheris
 
 @atheris.instrument_func
-def test_one_input(data: bytes):
+def TestOneInput(data: bytes):
     """
     Fuzzing entry point. Called with random byte sequences.
 
@@ -170,12 +170,47 @@ def test_one_input(data: bytes):
     # Let unexpected exceptions crash (that's what we're looking for!)
 
 def main():
-    atheris.Setup(sys.argv, test_one_input)
+    atheris.Setup(sys.argv, TestOneInput)
     atheris.Fuzz()
 
 if __name__ == "__main__":
     main()
 ```
+
+### Structured Input with FuzzedDataProvider
+
+A target that takes several typed arguments — a string, a length, a flag — wastes most of
+the fuzzer's inputs if the harness slices `data` by hand, because every mutation shifts the
+byte offsets of everything after it. `atheris.FuzzedDataProvider` splits one `bytes` input
+into typed values while keeping each draw stable under mutation:
+
+```python
+@atheris.instrument_func
+def TestOneInput(data: bytes):
+    fdp = atheris.FuzzedDataProvider(data)
+    name = fdp.ConsumeUnicodeNoSurrogates(fdp.ConsumeIntInRange(0, 64))
+    count = fdp.ConsumeIntInRange(1, 1000)
+    strict = fdp.ConsumeBool()
+    your_target_function(name, count, strict=strict)
+```
+
+Draw in a fixed order. Each call consumes from where the last one left off, so inserting or
+reordering a call reinterprets every byte after it and devalues the corpus already built.
+
+| Need | Call |
+|------|------|
+| Raw bytes | `ConsumeBytes(count)` |
+| Text | `ConsumeUnicodeNoSurrogates(count)`, or `ConsumeUnicode(count)` to include surrogate pairs |
+| Bounded integer | `ConsumeIntInRange(min, max)` |
+| Sized integer | `ConsumeInt(size)` (signed), `ConsumeUInt(size)` |
+| Float | `ConsumeFloat()`, `ConsumeRegularFloat()` (no `NaN`/`Inf`), `ConsumeProbability()` |
+| Flag | `ConsumeBool()` |
+| Choice from a fixed set | `PickValueInList(values)` |
+| Remaining input | `remaining_bytes()` |
+
+List variants exist for most of these (`ConsumeIntList`, `ConsumeFloatListInRange`). Ask for
+size before content, as above: a bounded length keeps the fuzzer from spending the whole
+buffer on one field.
 
 ### Harness Rules
 
@@ -199,10 +234,10 @@ with atheris.instrument_imports():
     import your_module
     from another_module import target_function
 
-def test_one_input(data: bytes):
+def TestOneInput(data: bytes):
     target_function(data)
 
-atheris.Setup(sys.argv, test_one_input)
+atheris.Setup(sys.argv, TestOneInput)
 atheris.Fuzz()
 ```
 
@@ -247,7 +282,7 @@ import atheris
 # _cbor2 ensures the C library is imported
 from _cbor2 import loads
 
-def test_one_input(data: bytes):
+def TestOneInput(data: bytes):
     try:
         loads(data)
     except Exception:
@@ -255,7 +290,7 @@ def test_one_input(data: bytes):
         pass
 
 def main():
-    atheris.Setup(sys.argv, test_one_input)
+    atheris.Setup(sys.argv, TestOneInput)
     atheris.Fuzz()
 
 if __name__ == "__main__":
@@ -390,7 +425,7 @@ with atheris.instrument_imports():
     import target_module
 # Don't instrument test harness code
 
-def test_one_input(data: bytes):
+def TestOneInput(data: bytes):
     target_module.parse(data)
 ```
 
@@ -422,7 +457,7 @@ import atheris
 import json
 
 @atheris.instrument_func
-def test_one_input(data: bytes):
+def TestOneInput(data: bytes):
     try:
         # Fuzz Python's JSON parser
         json.loads(data.decode('utf-8', errors='ignore'))
@@ -430,7 +465,7 @@ def test_one_input(data: bytes):
         pass
 
 def main():
-    atheris.Setup(sys.argv, test_one_input)
+    atheris.Setup(sys.argv, TestOneInput)
     atheris.Fuzz()
 
 if __name__ == "__main__":
@@ -447,7 +482,7 @@ with atheris.instrument_imports():
     from urllib3 import HTTPResponse
     from io import BytesIO
 
-def test_one_input(data: bytes):
+def TestOneInput(data: bytes):
     try:
         # Fuzz HTTP response parsing
         fake_response = HTTPResponse(
@@ -460,7 +495,7 @@ def test_one_input(data: bytes):
         pass
 
 def main():
-    atheris.Setup(sys.argv, test_one_input)
+    atheris.Setup(sys.argv, TestOneInput)
     atheris.Fuzz()
 
 if __name__ == "__main__":
