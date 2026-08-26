@@ -179,38 +179,18 @@ if __name__ == "__main__":
 
 ### Structured Input with FuzzedDataProvider
 
-A target that takes several typed arguments — a string, a length, a flag — wastes most of
-the fuzzer's inputs if the harness slices `data` by hand, because every mutation shifts the
-byte offsets of everything after it. `atheris.FuzzedDataProvider` splits one `bytes` input
-into typed values while keeping each draw stable under mutation:
+A target taking several typed arguments wastes most of the fuzzer's inputs if the harness
+slices `data` by hand, because every mutation shifts the byte offsets of everything after it.
+`atheris.FuzzedDataProvider` splits one `bytes` input into typed values instead:
 
 ```python
-@atheris.instrument_func
-def TestOneInput(data: bytes):
-    fdp = atheris.FuzzedDataProvider(data)
-    name = fdp.ConsumeUnicodeNoSurrogates(fdp.ConsumeIntInRange(0, 64))
-    count = fdp.ConsumeIntInRange(1, 1000)
-    strict = fdp.ConsumeBool()
-    your_target_function(name, count, strict=strict)
+fdp = atheris.FuzzedDataProvider(data)
+name = fdp.ConsumeUnicodeNoSurrogates(fdp.ConsumeIntInRange(0, 64))
+strict = fdp.ConsumeBool()
 ```
 
-Draw in a fixed order. Each call consumes from where the last one left off, so inserting or
-reordering a call reinterprets every byte after it and devalues the corpus already built.
-
-| Need | Call |
-|------|------|
-| Raw bytes | `ConsumeBytes(count)` |
-| Text | `ConsumeUnicodeNoSurrogates(count)`, or `ConsumeUnicode(count)` to include surrogate pairs |
-| Bounded integer | `ConsumeIntInRange(min, max)` |
-| Sized integer | `ConsumeInt(size)` (signed), `ConsumeUInt(size)` |
-| Float | `ConsumeFloat()`, `ConsumeRegularFloat()` (no `NaN`/`Inf`), `ConsumeProbability()` |
-| Flag | `ConsumeBool()` |
-| Choice from a fixed set | `PickValueInList(values)` |
-| Remaining input | `remaining_bytes()` |
-
-List variants exist for most of these (`ConsumeIntList`, `ConsumeFloatListInRange`). Ask for
-size before content, as above: a bounded length keeps the fuzzer from spending the whole
-buffer on one field.
+See [structured-input.md](structured-input.md) for the full method reference, the fixed-draw-
+order rule, and what each method returns once the buffer runs dry.
 
 ### Harness Rules
 
@@ -449,58 +429,8 @@ Note: Modify flags in Dockerfile if using containerized setup.
 
 ## Real-World Examples
 
-### Example: Pure Python Parser
-
-```python
-import sys
-import atheris
-import json
-
-@atheris.instrument_func
-def TestOneInput(data: bytes):
-    try:
-        # Fuzz Python's JSON parser
-        json.loads(data.decode('utf-8', errors='ignore'))
-    except (ValueError, UnicodeDecodeError):
-        pass
-
-def main():
-    atheris.Setup(sys.argv, TestOneInput)
-    atheris.Fuzz()
-
-if __name__ == "__main__":
-    main()
-```
-
-### Example: HTTP Request Parsing
-
-```python
-import sys
-import atheris
-
-with atheris.instrument_imports():
-    from urllib3 import HTTPResponse
-    from io import BytesIO
-
-def TestOneInput(data: bytes):
-    try:
-        # Fuzz HTTP response parsing
-        fake_response = HTTPResponse(
-            body=BytesIO(data),
-            headers={},
-            preload_content=False
-        )
-        fake_response.read()
-    except Exception:
-        pass
-
-def main():
-    atheris.Setup(sys.argv, TestOneInput)
-    atheris.Fuzz()
-
-if __name__ == "__main__":
-    main()
-```
+Two complete harnesses — a pure-Python parser and an HTTP response parser — are in
+[examples.md](examples.md).
 
 ## Troubleshooting
 
