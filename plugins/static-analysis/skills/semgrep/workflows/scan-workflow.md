@@ -78,25 +78,44 @@ semgrep --pro --validate --metrics=off --config p/default 2>/dev/null && echo "P
 
 **Detect languages** using Glob (not Bash). Run these patterns against the target directory and count matches:
 
-`**/*.py`, `**/*.js`, `**/*.ts`, `**/*.tsx`, `**/*.jsx`, `**/*.go`, `**/*.rb`, `**/*.java`, `**/*.php`, `**/*.c`, `**/*.cpp`, `**/*.rs`, `**/Dockerfile`, `**/*.tf`
+`**/*.py`, `**/*.pyi`, `**/*.js`, `**/*.jsx`, `**/*.mjs`, `**/*.cjs`, `**/*.ts`, `**/*.tsx`, `**/*.go`, `**/*.rb`, `**/*.java`, `**/*.jsp`, `**/*.kt`, `**/*.kts`, `**/*.php`, `**/*.phtml`, `**/*.c`, `**/*.cc`, `**/*.cpp`, `**/*.cxx`, `**/*.h`, `**/*.hh`, `**/*.hpp`, `**/*.hxx`, `**/*.cs`, `**/*.rs`, `**/*.scala`, `**/*.swift`, `**/*.ex`, `**/*.exs`, `**/*.cls`, `**/*.trigger`, `**/*.sol`, `**/Dockerfile`, `**/*.dockerfile`, `**/*.tf`, `**/*.tfvars`, `**/*.hcl`, `**/*.yaml`, `**/*.yml`, `**/*.json`
 
-Also check for framework markers: `package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `Cargo.toml`, `pom.xml`. Use Read to inspect these files for framework dependencies (e.g., read `package.json` to detect React, Express, Next.js; read `pyproject.toml` for Django, Flask, FastAPI).
+This list is the union of the `includes_for` globs in [run-scans.sh](../scripts/run-scans.sh). Step 2 can only select a ruleset for a category this step detected, so an extension missing here removes its ruleset from the scan with no signal — the report then reads clean rather than incomplete. Keep the two in sync when either changes. `.mts`, `.cts`, `.C`, `Containerfile`, and `Dockerfile.prod` are deliberately absent from both: semgrep does not parse them.
+
+Also check for framework markers: `**/package.json`, `**/pyproject.toml`, `**/requirements.txt`, `**/Gemfile`, `**/composer.json`, `**/go.mod`, `**/Cargo.toml`, `**/pom.xml`. Use Read to inspect these files for framework dependencies (e.g., read `package.json` to detect React, Express, Next.js; read `pyproject.toml` for Django, Flask, FastAPI). The `**/` prefix is required, not cosmetic: a bare `package.json` matches only the target root, so a monorepo with `packages/*/package.json` or `services/*/go.mod` gets no framework rulesets at all.
 
 Map findings to categories:
 
 | Detection | Category |
 |-----------|----------|
-| `.py`, `pyproject.toml` | Python |
-| `.js`, `.ts`, `package.json` | JavaScript/TypeScript |
+| `.py`, `.pyi`, `pyproject.toml`, `requirements.txt` | Python |
+| `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `package.json` | JavaScript/TypeScript |
 | `.go`, `go.mod` | Go |
 | `.rb`, `Gemfile` | Ruby |
-| `.java`, `pom.xml` | Java |
-| `.php` | PHP |
-| `.c`, `.cpp` | C/C++ |
+| `.java`, `.jsp`, `pom.xml` | Java |
+| `.kt`, `.kts` | Kotlin |
+| `.php`, `.phtml`, `composer.json` | PHP |
+| `.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hh`, `.hpp`, `.hxx` | C/C++ |
+| `.cs` | C# |
 | `.rs`, `Cargo.toml` | Rust |
-| `Dockerfile` | Docker |
-| `.tf` | Terraform |
-| k8s manifests | Kubernetes |
+| `.scala` | Scala |
+| `.swift` | Swift |
+| `.ex`, `.exs` | Elixir |
+| `.cls`, `.trigger` | Apex |
+| `.sol` | Solidity |
+| `Dockerfile`, `.dockerfile` | Docker |
+| `.tf`, `.tfvars`, `.hcl` | Terraform |
+| `.json` | JSON |
+| `.yaml`, `.yml` | YAML, Kubernetes, GitHub Actions, or CloudFormation — disambiguate below |
+
+**Disambiguating YAML.** One `.yaml`/`.yml` match feeds four categories, so Read a sample of the matches before assigning:
+
+- path under `.github/workflows/` → GitHub Actions
+- `apiVersion:` together with `kind:` → Kubernetes
+- `AWSTemplateFormatVersion:`, or `Resources:` with a `Type: AWS::` member → CloudFormation
+- anything else → YAML
+
+These are not exclusive; assign every category that matches. Include the generic YAML category whenever any YAML is present, since `p/yaml` carries patterns the specific rulesets do not.
 
 ---
 
