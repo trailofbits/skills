@@ -149,7 +149,7 @@ class Http:
         if not path.exists():
             return None
         try:
-            stored = json.loads(path.read_text(), strict=False)
+            stored = json.loads(path.read_text(encoding="utf-8"), strict=False)
         except (json.JSONDecodeError, OSError):
             # A run interrupted mid-write leaves a truncated file that would otherwise
             # crash every later run. Drop it and refetch.
@@ -171,7 +171,7 @@ class Http:
         payload = {"__meta": {"fetched_at": time.time(), "status": status}, "body": body}
         # Atomic: a partial file must never become a cache hit.
         tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(payload))
+        tmp.write_text(json.dumps(payload), encoding="utf-8")
         os.replace(tmp, path)
 
     def _serve(self, entry: CacheEntry, url: str) -> dict:
@@ -522,7 +522,12 @@ def gh_token() -> str | None:
     """
     try:
         out = subprocess.run(
-            ["gh", "auth", "token"], capture_output=True, text=True, timeout=15, check=False
+            ["gh", "auth", "token"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=15,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -654,6 +659,7 @@ def pip_audit_vulnerable(requirements: Path) -> set[str]:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=300,
             check=False,
         )

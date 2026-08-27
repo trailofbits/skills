@@ -9,6 +9,11 @@ clean verdict, and a run in which every source is down must refuse to report.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
+import tempfile
+import textwrap
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -16,6 +21,7 @@ import pytest
 import sources
 from collect import (
     STALE_DAYS,
+    _read_json,
     _advisory_signal,
     _concentration_signal,
     _exact_npm_pin,
@@ -661,3 +667,136 @@ def test_non_registry_direct_dep_is_never_queried(tmp_path: Path, monkeypatch: p
         # carried alongside it
         assert "resolves from outside its public registry" in signal["detail"]
         assert "not the npm registry" in signal["value"]
+
+
+# ---------------------------------------------------------------- text encoding
+
+
+def test_non_ascii_manifest_is_read_as_utf8(tmp_path: Path):
+    """A manifest with non-ASCII text must survive the read intact (issue #273).
+
+    On Windows `read_text()` with no `encoding=` decodes with the ANSI code page, so an
+    accented author name either raises UnicodeDecodeError or, where the bytes happen to
+    be cp1252-decodable, is silently mojibaked into the report.
+    """
+    manifest = tmp_path / "package.json"
+    manifest.write_bytes(
+        json.dumps({"name": "p", "author": "José Álvarez", "dependencies": {}}).encode("utf-8")
+    )
+
+    assert _read_json(manifest)["author"] == "José Álvarez"
+
+
+def test_non_utf8_manifest_is_refused_not_a_traceback(tmp_path: Path):
+    """JSON is UTF-8 by RFC 8259, so an undecodable manifest is malformed input.
+
+    UnicodeDecodeError is a ValueError but not a JSONDecodeError, so before this it
+    escaped both `except` clauses and surfaced as a traceback.
+    """
+    manifest = tmp_path / "package.json"
+    manifest.write_bytes(b'{"author": "Jos\xe9"}')  # latin-1, invalid UTF-8
+
+    with pytest.raises(SystemExit, match="is not UTF-8"):
+        _read_json(manifest)
+
+
+def test_every_text_io_call_names_its_encoding():
+    """No read_text/write_text/text-mode subprocess in the package may omit encoding=.
+
+    The static half of the pair below. It reaches sites the driver does not execute —
+    `render.py`'s artifact read and report write among them — so a new call site is
+    caught wherever it lands, including in code no test drives yet.
+    """
+    package = Path(__file__).parent
+    offenders = []
+    for module in ("collect.py", "sources.py", "render.py", "model.py"):
+        for lineno, line in enumerate(
+            (package / module).read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if ("read_text(" in line or "write_text(" in line) and "encoding=" not in line:
+                offenders.append(f"{module}:{lineno}: {line.strip()}")
+            if "text=True" in line and "encoding=" not in line:
+                # A text-mode subprocess decodes with the locale encoding too, so it is
+                # the same defect wearing different clothes. Both calls in this package
+                # are multi-line, so the encoding sits on its own line: check the next.
+                offenders.append(f"{module}:{lineno}: {line.strip()} (check encoding= nearby)")
+
+    # subprocess sites are reported for review rather than failed outright, since their
+    # encoding= is on an adjacent line; the read/write ones must be clean.
+    hard = [o for o in offenders if "check encoding= nearby" not in o]
+    assert not hard, "text I/O without an explicit encoding:\n" + "\n".join(hard)
+
+
+def test_no_text_io_relies_on_the_platform_default_encoding():
+    """The behavioural half: run the real code paths and let CPython catch omissions.
+
+    Under `-X warn_default_encoding` an omitted `encoding=` raises EncodingWarning
+    (PEP 597), which is exactly the Windows defect in issue #273 — the platform default
+    is cp1252 there, not UTF-8. This drives `collect.py` and `sources.py` for real, so
+    it catches an omission the static check above could miss (a call built dynamically,
+    or one in a stdlib helper the package hands a file to). `render.py`'s two sites are
+    not on this path and are covered statically instead.
+    """
+    # Drives the readers and writers directly rather than `collect()`, which refuses an
+    # offline run against an empty cache ("this run measured nothing") before it reaches
+    # the render path. Every text I/O site in the package is on one of these calls.
+    driver = textwrap.dedent(
+        """
+        import sys, warnings
+        from pathlib import Path
+        warnings.simplefilter("error", EncodingWarning)
+
+        project = Path(sys.argv[1])
+
+        import collect, render, sources
+
+        collect.discover(project)                    # manifest, requirements and go.mod readers
+        collect.scan_metadata(project)               # .git/HEAD and its ref
+        collect._read_toml(project / "pyproject.toml")
+
+        http = sources.Http(project / ".cache", offline=True)
+        path = http._path("GET", "https://example.com/x")
+        http._write_cache(path, {"name": "José"}, 200)   # cache write
+        http.get_json("https://example.com/x")          # cache read
+
+        sources.gh_token()                           # subprocess(text=True), if gh exists
+        print("ok")
+        """
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        project.mkdir()
+        # Non-ASCII on purpose: the bytes must survive every layer.
+        (project / "package.json").write_text(
+            json.dumps({"name": "p", "author": "José", "dependencies": {"left-pad": "1.3.0"}}),
+            encoding="utf-8",
+        )
+        (project / "requirements.txt").write_text("flask==2.0.0  # José\n", encoding="utf-8")
+        (project / "go.mod").write_text("module x\n\ngo 1.21\n", encoding="utf-8")
+        (project / "pyproject.toml").write_text('[project]\nname = "José"\n', encoding="utf-8")
+        (project / ".git").mkdir()
+        (project / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+        script = Path(tmp) / "driver.py"
+        script.write_text(driver, encoding="utf-8")
+
+        scripts_dir = Path(__file__).parent
+        env = {**os.environ, "PYTHONPATH": str(scripts_dir)}
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-X",
+                "warn_default_encoding",
+                str(script),
+                str(project),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=scripts_dir,
+            env=env,
+        )
+
+    assert "EncodingWarning" not in result.stderr, (
+        f"a text I/O call omitted encoding=:\n{result.stderr}"
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ok" in result.stdout
