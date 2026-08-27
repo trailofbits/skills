@@ -1214,6 +1214,143 @@ public class Test {
             os.unlink(temp_path)
 
 
+class TestCSharpILRuntimePairing(unittest.TestCase):
+    """The tool-store fallback must pair a store assembly with a matching runtime.
+
+    ilspycmd installs framework-dependent, so the assembly in the store targets
+    exactly one framework and .NET will not start it on a runtime of a different
+    major version. Discovery and runtime choice are therefore one decision. These
+    tests use a fake store and fake runtime paths, so they need no dotnet install.
+    """
+
+    HOMEBREW = "/opt/homebrew/opt/dotnet@{major}/libexec/dotnet"
+
+    def _make_store(self, root, tfms):
+        """Populate a fake `dotnet tool` store with one ilspycmd per TFM.
+
+        Mirrors the real layout:
+        `.store/ilspycmd/<version>/ilspycmd/<version>/tools/<tfm>/any/ilspycmd.dll`
+        """
+        paths = {}
+        for tfm in tfms:
+            version = f"{tfm.removeprefix('net')}.0"
+            dll = (
+                root
+                / ".dotnet/tools/.store/ilspycmd"
+                / version
+                / "ilspycmd"
+                / version
+                / "tools"
+                / tfm
+                / "any"
+                / "ilspycmd.dll"
+            )
+            dll.parent.mkdir(parents=True, exist_ok=True)
+            dll.write_bytes(b"")
+            paths[tfm] = dll
+        return paths
+
+    def _run(self, store_tfms, installed_majors):
+        """Run the fallback against a fake store and fake set of runtimes.
+
+        Returns:
+            (result, argv) where argv is the command the fallback executed, or
+            None when it never reached subprocess.run.
+        """
+        from script_analyzers import CSharpAnalyzer
+
+        runtimes = {self.HOMEBREW.format(major=m) for m in installed_majors}
+        real_exists = Path.exists
+
+        def fake_exists(path):
+            # Only the runtime lookups are faked; the fake store on disk is real.
+            if "/libexec/dotnet" in str(path):
+                return str(path) in runtimes
+            return real_exists(path)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._make_store(root, store_tfms)
+            captured = {}
+
+            def fake_run(argv, **kwargs):
+                captured["argv"] = argv
+                return subprocess.CompletedProcess(argv, 0, stdout="IL_0000: ret", stderr="")
+
+            with (
+                mock.patch.object(Path, "home", return_value=root),
+                mock.patch.object(Path, "exists", fake_exists),
+                mock.patch.object(subprocess, "run", fake_run),
+            ):
+                result = CSharpAnalyzer()._il_via_versioned_runtime("Target.dll")
+            return result, captured.get("argv")
+
+    def test_finds_assembly_newer_than_net8(self):
+        """A net9.0 store assembly must be found, not just net8.0.
+
+        This is the regression: the glob was pinned to `tools/net8.0/`, so every
+        ilspycmd 9.x install was invisible and C# analysis fell through to the
+        "IL disassembly tools not available" error — while the install command
+        that error recommends produces exactly this layout.
+        """
+        (ok, output), argv = self._run(["net9.0"], installed_majors=[9])
+
+        self.assertTrue(ok, "net9.0 store assembly should have been found")
+        self.assertEqual(output, "IL_0000: ret")
+        self.assertEqual(argv[0], self.HOMEBREW.format(major=9))
+        self.assertIn("net9.0", argv[1])
+
+    def test_runtime_major_must_match_the_assembly(self):
+        """A net9.0 assembly must not be launched on a .NET 8 runtime.
+
+        Widening the glob without pairing the runtime would turn a silent
+        no-match into a silent failed exec, which is not an improvement.
+        """
+        (ok, _output), argv = self._run(["net9.0"], installed_majors=[8])
+
+        self.assertFalse(ok, "should not pair a net9.0 assembly with dotnet@8")
+        self.assertIsNone(argv, "should not have executed anything")
+
+    def test_newest_available_tfm_wins(self):
+        """With several versions installed, the newest with a runtime is used."""
+        (ok, _output), argv = self._run(["net8.0", "net10.0"], installed_majors=[8, 10])
+
+        self.assertTrue(ok)
+        self.assertEqual(argv[0], self.HOMEBREW.format(major=10))
+        self.assertIn("net10.0", argv[1])
+
+    def test_falls_back_to_older_tfm_when_newer_runtime_is_absent(self):
+        """net10.0 present but no dotnet@10 — the net8.0 pair still runs."""
+        (ok, _output), argv = self._run(["net8.0", "net10.0"], installed_majors=[8])
+
+        self.assertTrue(ok)
+        self.assertEqual(argv[0], self.HOMEBREW.format(major=8))
+        self.assertIn("net8.0", argv[1])
+
+    def test_missing_store_is_not_an_error(self):
+        """No store at all returns cleanly so callers reach the next fallback."""
+        (ok, output), argv = self._run([], installed_majors=[9])
+
+        self.assertFalse(ok)
+        self.assertEqual(output, "")
+        self.assertIsNone(argv)
+
+    def test_tfm_version_parsing(self):
+        """Only versioned netX.Y monikers name a runtime we can pair with."""
+        from script_analyzers import CSharpAnalyzer
+
+        parse = CSharpAnalyzer._tfm_version
+
+        self.assertEqual(parse("net8.0"), (8, 0))
+        self.assertEqual(parse("net9.0"), (9, 0))
+        self.assertEqual(parse("net10.0"), (10, 0))
+        # Ordering is numeric, not lexical: "net10.0" < "net8.0" as strings.
+        self.assertGreater(parse("net10.0"), parse("net8.0"))
+        # Neither of these names a .NET runtime major version.
+        self.assertIsNone(parse("netstandard2.0"))
+        self.assertIsNone(parse("net48"))
+
+
 class TestScriptAnalyzerIntegration(unittest.TestCase):
     """Integration tests for scripting language analyzers.
 

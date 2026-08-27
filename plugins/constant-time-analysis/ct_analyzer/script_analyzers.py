@@ -3013,6 +3013,79 @@ class CSharpAnalyzer(ScriptAnalyzer):
         except FileNotFoundError:
             return False, f".NET SDK not found: {self.dotnet_path}"
 
+    @staticmethod
+    def _tfm_version(tfm: str) -> tuple[int, int] | None:
+        """Parse a target framework moniker such as "net9.0" into (9, 0).
+
+        Args:
+            tfm: The moniker naming a directory in the dotnet tool store.
+
+        Returns:
+            The (major, minor) version, or None when the moniker is not a
+            versioned `netX.Y` — `netstandard2.0` and `net48` both land here,
+            and neither names a runtime this fallback can pair with.
+        """
+        match = re.fullmatch(r"net(\d+)\.(\d+)", tfm)
+        if match is None:
+            return None
+        return (int(match.group(1)), int(match.group(2)))
+
+    def _il_via_versioned_runtime(self, dll_file: str) -> tuple[bool, str]:
+        """Disassemble via the tool-store ilspycmd under a matching .NET runtime.
+
+        ilspycmd installs framework-dependent: the assembly under
+        `~/.dotnet/tools/.store` targets exactly one framework — net8.0 for
+        ilspycmd 8.x, net9.0 for 9.x — and .NET does not roll forward across a
+        major version by default, so a net9.0 assembly will not start on an 8.0
+        runtime. The TFM discovered on disk therefore decides which runtime to
+        use; the two cannot be chosen independently. Homebrew's versioned
+        dotnet@N formulae are where a macOS box keeps an older runtime once the
+        system dotnet has moved on, which is the case this fallback exists for.
+
+        Args:
+            dll_file: Path to the assembly to disassemble.
+
+        Returns:
+            (True, IL text) on success, (False, "") when no store assembly and
+            matching runtime pair could run — callers continue to the next
+            fallback.
+        """
+        store = Path.home() / ".dotnet/tools/.store/ilspycmd"
+        if not store.exists():
+            return False, ""
+
+        candidates = []
+        for dll_path in store.glob("*/ilspycmd/*/tools/net*/any/ilspycmd.dll"):
+            version = self._tfm_version(dll_path.parent.parent.name)
+            if version is not None:
+                candidates.append((version, dll_path))
+        # Newest first, so a box carrying several ilspycmd versions uses the most
+        # recent one it has a runtime for. Sorting the parsed tuple rather than the
+        # moniker string matters: lexically, "net10.0" sorts below "net8.0".
+        candidates.sort(key=lambda candidate: candidate[0], reverse=True)
+
+        for (major, _minor), dll_path in candidates:
+            for runtime in (
+                f"/opt/homebrew/opt/dotnet@{major}/libexec/dotnet",  # Apple Silicon
+                f"/usr/local/opt/dotnet@{major}/libexec/dotnet",  # Intel Mac
+            ):
+                if not Path(runtime).exists():
+                    continue
+                try:
+                    env = os.environ.copy()
+                    env["DOTNET_ROOT"] = str(Path(runtime).parent)
+                    result = subprocess.run(
+                        [runtime, str(dll_path), "-il", dll_file],
+                        capture_output=True,
+                        text=True,
+                        env=env,
+                    )
+                    if result.returncode == 0:
+                        return True, result.stdout
+                except FileNotFoundError:
+                    pass  # runtime vanished between the exists() check and exec
+        return False, ""
+
     def _get_il_output(self, dll_file: str) -> tuple[bool, str]:
         """Get IL disassembly for a .NET assembly."""
         # First try ilspycmd directly (globally installed and in PATH)
@@ -3039,33 +3112,10 @@ class CSharpAnalyzer(ScriptAnalyzer):
         except FileNotFoundError:
             pass  # dotnet not found or local tool not installed
 
-        # Try running ilspycmd via .NET 8.0 from Homebrew (macOS)
-        # This handles the case where ilspycmd targets .NET 8.0 but the system
-        # has a newer .NET version installed
-        dotnet8_paths = [
-            "/opt/homebrew/opt/dotnet@8/libexec/dotnet",  # Apple Silicon
-            "/usr/local/opt/dotnet@8/libexec/dotnet",  # Intel Mac
-        ]
-        ilspycmd_dll = Path.home() / ".dotnet/tools/.store/ilspycmd"
-        if ilspycmd_dll.exists():
-            # Find the ilspycmd.dll in the store
-            for dll_path in ilspycmd_dll.glob("*/ilspycmd/*/tools/net8.0/any/ilspycmd.dll"):
-                for dotnet8 in dotnet8_paths:
-                    if Path(dotnet8).exists():
-                        try:
-                            env = os.environ.copy()
-                            env["DOTNET_ROOT"] = str(Path(dotnet8).parent)
-                            result = subprocess.run(
-                                [dotnet8, str(dll_path), "-il", dll_file],
-                                capture_output=True,
-                                text=True,
-                                env=env,
-                            )
-                            if result.returncode == 0:
-                                return True, result.stdout
-                        except FileNotFoundError:
-                            pass
-                break  # Only try the first matching dll
+        # Try running the tool-store assembly under a matching versioned runtime
+        ok, output = self._il_via_versioned_runtime(dll_file)
+        if ok:
+            return True, output
 
         # Try monodis (available on Linux/macOS with Mono)
         try:
