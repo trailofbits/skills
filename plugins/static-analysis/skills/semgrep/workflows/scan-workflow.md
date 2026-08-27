@@ -78,25 +78,54 @@ semgrep --pro --validate --metrics=off --config p/default 2>/dev/null && echo "P
 
 **Detect languages** using Glob (not Bash). Run these patterns against the target directory and count matches:
 
-`**/*.py`, `**/*.js`, `**/*.ts`, `**/*.tsx`, `**/*.jsx`, `**/*.go`, `**/*.rb`, `**/*.java`, `**/*.php`, `**/*.c`, `**/*.cpp`, `**/*.rs`, `**/Dockerfile`, `**/*.tf`
+`**/*.py`, `**/*.pyi`, `**/*.js`, `**/*.jsx`, `**/*.mjs`, `**/*.cjs`, `**/*.ts`, `**/*.tsx`, `**/*.go`, `**/*.rb`, `**/*.java`, `**/*.jsp`, `**/*.kt`, `**/*.kts`, `**/*.php`, `**/*.phtml`, `**/*.c`, `**/*.cc`, `**/*.cpp`, `**/*.cxx`, `**/*.h`, `**/*.hh`, `**/*.hpp`, `**/*.hxx`, `**/*.cs`, `**/*.rs`, `**/*.scala`, `**/*.swift`, `**/*.ex`, `**/*.exs`, `**/*.cls`, `**/*.trigger`, `**/*.sol`, `**/Dockerfile`, `**/*.dockerfile`, `**/*.tf`, `**/*.tfvars`, `**/*.hcl`, `**/*.yaml`, `**/*.yml`, `**/*.json`
 
-Also check for framework markers: `package.json`, `pyproject.toml`, `Gemfile`, `go.mod`, `Cargo.toml`, `pom.xml`. Use Read to inspect these files for framework dependencies (e.g., read `package.json` to detect React, Express, Next.js; read `pyproject.toml` for Django, Flask, FastAPI).
+Step 2 can only select a ruleset for a category this step detected, so an extension missing here removes its ruleset from the scan with no signal — the report then reads clean rather than incomplete. The list is the union of the `includes_for` globs in [run-scans.sh](../scripts/run-scans.sh); keep the two in sync when either changes. `.mts`, `.cts`, `.C`, `Containerfile`, and `Dockerfile.prod` are absent from both, because semgrep does not parse them.
+
+**Two extensions are matched by glob but assigned by content, not by extension.** `.yaml`/`.yml` and `.json` each feed several categories, and both are common in repositories that have no infrastructure to scan at all — nearly every project carries `package.json`, `tsconfig.json` and a lockfile. Assigning a category from the extension alone would attach an AWS IAM ruleset to every scan and report a JSON "language" for a project that has none. Assigning nothing would leave `r/json.aws` and JSON-format CloudFormation unreachable, which is worse: an unselected category never enters `rulesets.json`, so it cannot appear in `coveredNothing`, `failed` or `skipped` either, and the report reads clean. Glob for both, then read a sample and assign on the markers below.
+
+Also check for framework markers: `**/package.json`, `**/pyproject.toml`, `**/requirements.txt`, `**/Gemfile`, `**/composer.json`, `**/go.mod`, `**/Cargo.toml`, `**/pom.xml`. Use Read to inspect these files for framework dependencies (e.g., read `package.json` to detect React, Express, Next.js; read `pyproject.toml` for Django, Flask, FastAPI). The `**/` prefix is required, not cosmetic: a bare `package.json` matches only the target root, so a monorepo with `packages/*/package.json` or `services/*/go.mod` gets no framework rulesets at all.
 
 Map findings to categories:
 
 | Detection | Category |
 |-----------|----------|
-| `.py`, `pyproject.toml` | Python |
-| `.js`, `.ts`, `package.json` | JavaScript/TypeScript |
+| `.py`, `.pyi`, `pyproject.toml`, `requirements.txt` | Python |
+| `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `package.json` | JavaScript/TypeScript |
 | `.go`, `go.mod` | Go |
 | `.rb`, `Gemfile` | Ruby |
-| `.java`, `pom.xml` | Java |
-| `.php` | PHP |
-| `.c`, `.cpp` | C/C++ |
+| `.java`, `.jsp`, `pom.xml` | Java |
+| `.kt`, `.kts` | Kotlin |
+| `.php`, `.phtml`, `composer.json` | PHP |
+| `.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hh`, `.hpp`, `.hxx` | C/C++ |
+| `.cs` | C# |
 | `.rs`, `Cargo.toml` | Rust |
-| `Dockerfile` | Docker |
-| `.tf` | Terraform |
-| k8s manifests | Kubernetes |
+| `.scala` | Scala |
+| `.swift` | Swift |
+| `.ex`, `.exs` | Elixir |
+| `.cls`, `.trigger` | Apex |
+| `.sol` | Solidity |
+| `Dockerfile`, `.dockerfile` | Docker |
+| `.tf`, `.tfvars`, `.hcl` | Terraform |
+| `.yaml`, `.yml` | YAML, Kubernetes, GitHub Actions, or CloudFormation — disambiguate below |
+| `.json` | CloudFormation or JSON, or no category at all — disambiguate below |
+
+**Disambiguating YAML.** One `.yaml`/`.yml` match feeds four categories, so Read a sample of the matches before assigning:
+
+- path under `.github/workflows/` → GitHub Actions
+- `apiVersion:` together with `kind:` → Kubernetes
+- `AWSTemplateFormatVersion:`, or `Resources:` with a `Type: AWS::` member → CloudFormation
+- anything else → YAML
+
+These are not exclusive; assign every category that matches. Include the generic YAML category whenever any YAML is present, since `p/yaml` carries patterns the specific rulesets do not.
+
+**Disambiguating JSON.** Unlike YAML, `.json` has no catch-all: most JSON in a repository is build configuration that no ruleset covers, so the default is to assign nothing. Read a sample and assign only on these markers:
+
+- `"AWSTemplateFormatVersion"`, or `"Resources"` whose members carry a `"Type": "AWS::…"` → CloudFormation
+- a `"Statement"` array whose elements have `"Effect"` → JSON (this is the IAM policy shape `r/json.aws` targets)
+- anything else, including `package.json`, `tsconfig.json`, `composer.json`, lockfiles and editor settings → **no category**
+
+Do not report a `json` category because JSON files exist. Report it when a sampled file has the IAM policy shape. Prefer sampling files whose path suggests infrastructure — `iam/`, `policies/`, `cloudformation/`, `infra/`, `*template*.json` — since a repository with thousands of JSON files will have its IAM policies outnumbered by build configuration, and a sample drawn without regard to path is likely to miss them.
 
 ---
 
