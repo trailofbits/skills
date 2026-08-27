@@ -277,8 +277,10 @@ mewt print mutations --language rust
 **Verify patterns:**
 ```bash
 mewt print config
-ls src/**/*.rs  # Do files exist and match include patterns?
+find src -name '*.rs' | head  # Do source files exist where include points?
 ```
+
+`find`, not `ls src/**/*.rs`. Whether `**` recurses depends on the shell: zsh expands it, bash does not unless `globstar` is set, and the bash 3.2 that macOS ships has no `globstar` option to set. So the `ls` form degrades to `src/*/*.rs` under bash — given `src/top.rs`, `src/a/one.rs`, and `src/a/b/two.rs` it lists only `src/a/one.rs` — while the same line is correct under zsh. A diagnostic that under-reports on some machines and not others is worse than none: the files it drops read as "the include pattern doesn't match," sending you to edit a pattern that was already right. `find` behaves identically in every shell and exits 0 when nothing matches, instead of erroring. Keep the `**` in `mewt.toml`, where mewt expands it rather than the shell.
 
 **Common causes:**
 - Include pattern doesn't match files
