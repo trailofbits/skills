@@ -1214,6 +1214,243 @@ public class Test {
             os.unlink(temp_path)
 
 
+class TestCSharpILRuntimePairing(unittest.TestCase):
+    """The tool-store fallback must pair a store assembly with a matching runtime.
+
+    ilspycmd installs framework-dependent, so the assembly in the store targets
+    exactly one framework and .NET will not start it on a runtime of a different
+    major version. Discovery and runtime choice are therefore one decision. These
+    tests use a fake store and fake runtime paths, so they need no dotnet install.
+    """
+
+    HOMEBREW = "/opt/homebrew/opt/dotnet@{major}/libexec/dotnet"
+
+    def _make_store(self, root, tfms):
+        """Populate a fake `dotnet tool` store with one ilspycmd per TFM.
+
+        Mirrors the real layout:
+        `.store/ilspycmd/<version>/ilspycmd/<version>/tools/<tfm>/any/ilspycmd.dll`
+        """
+        paths = {}
+        for tfm in tfms:
+            version = f"{tfm.removeprefix('net')}.0"
+            dll = (
+                root
+                / ".dotnet/tools/.store/ilspycmd"
+                / version
+                / "ilspycmd"
+                / version
+                / "tools"
+                / tfm
+                / "any"
+                / "ilspycmd.dll"
+            )
+            dll.parent.mkdir(parents=True, exist_ok=True)
+            dll.write_bytes(b"")
+            paths[tfm] = dll
+        return paths
+
+    def _run(self, store_tfms, installed_majors, generic=(), on_path=None, raise_oserror=()):
+        """Run the fallback against a fake store and a fake set of runtimes.
+
+        Args:
+            store_tfms: TFM directories to create in the fake tool store.
+            installed_majors: majors for which a Homebrew `dotnet@N` keg exists.
+            generic: absolute paths of unversioned runtimes that exist.
+            on_path: what `shutil.which` should report for the bare "dotnet".
+            raise_oserror: runtime paths whose exec raises OSError.
+
+        Returns:
+            (result, calls) where calls is the list of (argv, env) actually
+            executed, in order — empty when subprocess.run was never reached.
+        """
+        from script_analyzers import CSharpAnalyzer
+
+        runtimes = {self.HOMEBREW.format(major=m) for m in installed_majors} | set(generic)
+        if on_path:
+            runtimes.add(on_path)
+        real_exists = Path.exists
+
+        def fake_exists(path):
+            # Every runtime candidate is an executable named `dotnet`; the fake
+            # store on disk is left to the real exists().
+            if str(path).endswith("/dotnet"):
+                return str(path) in runtimes
+            return real_exists(path)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._make_store(root, store_tfms)
+            calls = []
+
+            def fake_run(argv, **kwargs):
+                calls.append((argv, kwargs.get("env", {})))
+                if argv[0] in raise_oserror:
+                    raise OSError(86, "Bad CPU type in executable")
+                return subprocess.CompletedProcess(argv, 0, stdout="IL_0000: ret", stderr="")
+
+            with (
+                mock.patch.object(Path, "home", return_value=root),
+                mock.patch.object(Path, "exists", fake_exists),
+                mock.patch.object(subprocess, "run", fake_run),
+                mock.patch("script_analyzers.shutil.which", return_value=on_path),
+            ):
+                result = CSharpAnalyzer()._il_via_versioned_runtime("Target.dll")
+            return result, calls
+
+    @staticmethod
+    def _argv(calls):
+        """The argv of the last command executed, or None if nothing ran."""
+        return calls[-1][0] if calls else None
+
+    def test_finds_assembly_newer_than_net8(self):
+        """A net9.0 store assembly must be found, not just net8.0.
+
+        This is the regression: the glob was pinned to `tools/net8.0/`, so every
+        ilspycmd 9.x install was invisible and C# analysis fell through to the
+        "IL disassembly tools not available" error — while the install command
+        that error recommends produces exactly this layout.
+        """
+        (ok, output), calls = self._run(["net9.0"], installed_majors=[9])
+        argv = self._argv(calls)
+
+        self.assertTrue(ok, "net9.0 store assembly should have been found")
+        self.assertEqual(output, "IL_0000: ret")
+        self.assertEqual(argv[0], self.HOMEBREW.format(major=9))
+        self.assertIn("net9.0", argv[1])
+
+    def test_runtime_major_must_match_the_assembly(self):
+        """A net9.0 assembly must not be launched on a .NET 8 keg.
+
+        Widening the glob without pairing the runtime would turn a silent
+        no-match into a silent failed exec, which is not an improvement. dotnet@8
+        exists here and is still never chosen for a net9.0 assembly; with no
+        generic runtime and nothing on PATH either, nothing runs at all.
+        """
+        (ok, _output), calls = self._run(["net9.0"], installed_majors=[8])
+        argv = self._argv(calls)
+
+        self.assertFalse(ok, "should not pair a net9.0 assembly with dotnet@8")
+        self.assertIsNone(argv, "should not have executed anything")
+
+    def test_newest_available_tfm_wins(self):
+        """With several versions installed, the newest with a runtime is used."""
+        (ok, _output), calls = self._run(["net8.0", "net10.0"], installed_majors=[8, 10])
+        argv = self._argv(calls)
+
+        self.assertTrue(ok)
+        self.assertEqual(argv[0], self.HOMEBREW.format(major=10))
+        self.assertIn("net10.0", argv[1])
+
+    def test_falls_back_to_older_tfm_when_newer_runtime_is_absent(self):
+        """net10.0 present but no dotnet@10 — the net8.0 pair still runs."""
+        (ok, _output), calls = self._run(["net8.0", "net10.0"], installed_majors=[8])
+        argv = self._argv(calls)
+
+        self.assertTrue(ok)
+        self.assertEqual(argv[0], self.HOMEBREW.format(major=8))
+        self.assertIn("net8.0", argv[1])
+
+    def test_exact_major_keg_does_not_set_roll_forward(self):
+        """A keg of the right major needs no roll-forward, so it must not ask for one.
+
+        Setting it unconditionally would mask a genuinely mismatched pair instead of
+        letting it fail, which is the behaviour the previous test pins.
+        """
+        (ok, _output), calls = self._run(["net9.0"], installed_majors=[9])
+
+        self.assertTrue(ok)
+        argv, env = calls[-1]
+        self.assertEqual(argv[0], self.HOMEBREW.format(major=9))
+        self.assertNotIn("DOTNET_ROLL_FORWARD", env)
+
+    def test_generic_runtime_runs_with_roll_forward_when_no_keg_exists(self):
+        """No dotnet@N keg must not mean no disassembly.
+
+        homebrew-core carries a versioned formula for some majors and not others
+        (dotnet@7 was dropped at EOL), and no Linux distribution ships one at all.
+        Without this path the fix would only move the silent no-match from the glob
+        to the exists() check. A generic runtime is a different major, so it is only
+        legal to launch under DOTNET_ROLL_FORWARD=Major.
+        """
+        installer = "/usr/local/share/dotnet/dotnet"
+        (ok, _output), calls = self._run(["net9.0"], installed_majors=[], generic=[installer])
+
+        self.assertTrue(ok, "should fall back to a generic runtime with roll-forward")
+        argv, env = calls[-1]
+        self.assertEqual(argv[0], installer)
+        self.assertEqual(env.get("DOTNET_ROLL_FORWARD"), "Major")
+
+    def test_path_dotnet_is_the_last_resort(self):
+        """With no keg and no known install location, the PATH dotnet is tried.
+
+        `dotnet_path` defaults to the bare name "dotnet", so it has to be resolved
+        through PATH — exists()-checking a bare name tests the cwd and always fails.
+        """
+        which = "/opt/custom/bin/dotnet"
+        (ok, _output), calls = self._run(["net9.0"], installed_majors=[], on_path=which)
+
+        self.assertTrue(ok)
+        argv, env = calls[-1]
+        self.assertEqual(argv[0], which)
+        self.assertEqual(env.get("DOTNET_ROLL_FORWARD"), "Major")
+
+    def test_oserror_from_a_runtime_is_survivable(self):
+        """A runtime that exists but cannot exec must not abort the analysis.
+
+        An Intel keg on an Apple Silicon box without Rosetta raises
+        OSError("Bad CPU type in executable"), not FileNotFoundError. Catching only
+        the latter let it escape this helper, _get_il_output and analyze, crashing a
+        fallback whose contract is to return quietly and let monodis try.
+        """
+        keg = self.HOMEBREW.format(major=9)
+        installer = "/usr/local/share/dotnet/dotnet"
+        (ok, _output), calls = self._run(
+            ["net9.0"],
+            installed_majors=[9],
+            generic=[installer],
+            raise_oserror={keg},
+        )
+
+        self.assertTrue(ok, "should have carried on to the next candidate")
+        self.assertEqual([argv[0] for argv, _env in calls], [keg, installer])
+
+    def test_dotnet_root_points_at_the_runtime_parent(self):
+        """DOTNET_ROOT is what lets an isolated keg find its shared framework.
+
+        Nothing asserted it before, so deleting the line passed the whole suite.
+        """
+        (ok, _output), calls = self._run(["net9.0"], installed_majors=[9])
+
+        self.assertTrue(ok)
+        _argv, env = calls[-1]
+        self.assertEqual(env.get("DOTNET_ROOT"), "/opt/homebrew/opt/dotnet@9/libexec")
+
+    def test_missing_store_is_not_an_error(self):
+        """No store at all returns cleanly so callers reach the next fallback."""
+        (ok, output), calls = self._run([], installed_majors=[9])
+        argv = self._argv(calls)
+
+        self.assertFalse(ok)
+        self.assertEqual(output, "")
+        self.assertIsNone(argv)
+
+    def test_tfm_version_parsing(self):
+        """Only versioned netX.Y monikers name a runtime we can pair with."""
+        from script_analyzers import CSharpAnalyzer
+
+        parse = CSharpAnalyzer._tfm_version
+
+        self.assertEqual(parse("net8.0"), (8, 0))
+        self.assertEqual(parse("net9.0"), (9, 0))
+        self.assertEqual(parse("net10.0"), (10, 0))
+        # Ordering is numeric, not lexical: "net10.0" < "net8.0" as strings.
+        self.assertGreater(parse("net10.0"), parse("net8.0"))
+        # Neither of these names a .NET runtime major version.
+        self.assertIsNone(parse("netstandard2.0"))
+        self.assertIsNone(parse("net48"))
+
+
 class TestScriptAnalyzerIntegration(unittest.TestCase):
     """Integration tests for scripting language analyzers.
 
