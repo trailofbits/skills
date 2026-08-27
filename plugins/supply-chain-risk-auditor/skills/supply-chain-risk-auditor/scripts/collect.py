@@ -341,7 +341,7 @@ def _pypi_specs(project: Path) -> tuple[dict[str, tuple[str, bool]], list[str]]:
         for group, is_dev in groups:
             _absorb_specs(group, specs, notes, is_dev)
     for candidate in sorted(project.glob("requirements*.txt")):
-        lines = candidate.read_text().splitlines()
+        lines = _read_text(candidate).splitlines()
         includes = [ln for ln in lines if ln.strip().startswith(("-r", "--requirement"))]
         if includes:
             notes.append(
@@ -558,7 +558,7 @@ def parse_go(project: Path) -> tuple[list[Dependency], list[str]]:
     notes: list[str] = []
     block: str | None = None
     replaced = 0
-    for line in gomod.read_text().splitlines():
+    for line in _read_text(gomod).splitlines():
         block, kind = _gomod_line_kind(line, block)
         if kind == "directive":
             replaced += 1
@@ -590,7 +590,7 @@ def _go_indirect(
     gomod = project / "go.mod"
     if not gomod.exists():
         return [], [], None, None
-    text = gomod.read_text()
+    text = _read_text(gomod)
     match = _GO_DIRECTIVE.search(text)
     if not match or (int(match.group(1)), int(match.group(2))) < (1, 17):
         return (
@@ -613,9 +613,40 @@ def _go_indirect(
 PARSERS = (parse_npm, parse_pypi, parse_go)
 
 
+def _read_text(path: Path) -> str:
+    """Read a plain-text manifest as UTF-8, refusing anything that will not decode.
+
+    The JSON and TOML readers below already turn an undecodable file into a refusal.
+    Without this, `requirements*.txt` and `go.mod` did not: `main()` catches only
+    `ReconciliationError`, so a `UnicodeDecodeError` escaped as a traceback. That is not
+    hypothetical on the platform this exists to support — PowerShell 5.1 redirection
+    writes UTF-16LE with a BOM, so any requirements file generated with `>` on a stock
+    Windows box begins with two bytes that are invalid UTF-8.
+
+    Args:
+        path: The file to read.
+
+    Returns:
+        The decoded text.
+
+    Raises:
+        SystemExit: The file is not UTF-8, or could not be read.
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise SystemExit(
+            f"error: {path} is not UTF-8, so its contents cannot be read: {exc}. "
+            f"A file produced by PowerShell redirection is UTF-16 — re-save it as "
+            f"UTF-8, or regenerate it through `Out-File -Encoding utf8`."
+        ) from exc
+    except OSError as exc:
+        raise SystemExit(f"error: cannot read {path}: {exc}") from exc
+
+
 def _read_json(path: Path) -> dict:
     try:
-        data = json.loads(path.read_text(), strict=False)
+        data = json.loads(path.read_text(encoding="utf-8"), strict=False)
         if not isinstance(data, dict):
             raise SystemExit(
                 f"error: {path} holds a JSON {type(data).__name__}, not the object this "
@@ -624,15 +655,23 @@ def _read_json(path: Path) -> dict:
         return data
     except json.JSONDecodeError as exc:
         raise SystemExit(f"error: {path} is not valid JSON: {exc}") from exc
+    # UnicodeDecodeError is a ValueError, not a JSONDecodeError, so the two clauses
+    # around this one do not catch it and it used to escape as a traceback. JSON is
+    # UTF-8 by RFC 8259, so a manifest that is not decodable is malformed input and
+    # earns the same refusal as invalid syntax.
+    except UnicodeDecodeError as exc:
+        raise SystemExit(f"error: {path} is not UTF-8, which JSON requires: {exc}") from exc
     except OSError as exc:
         raise SystemExit(f"error: cannot read {path}: {exc}") from exc
 
 
 def _read_toml(path: Path) -> dict:
     try:
-        return tomllib.loads(path.read_text())
+        return tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
         raise SystemExit(f"error: {path} is not valid TOML: {exc}") from exc
+    except UnicodeDecodeError as exc:
+        raise SystemExit(f"error: {path} is not UTF-8, which TOML requires: {exc}") from exc
     except OSError as exc:
         raise SystemExit(f"error: cannot read {path}: {exc}") from exc
 
@@ -1296,12 +1335,12 @@ def _git_commit(project: Path) -> str | None:
     # None rather than leaking file content into the report or aborting the run —
     # UnicodeDecodeError is a ValueError, which the original OSError guard missed.
     try:
-        content = head.read_text().strip()
+        content = head.read_text(encoding="utf-8").strip()
         if content.startswith("ref: "):
             ref = (git_dir / content.removeprefix("ref: ")).resolve()
             if not ref.is_relative_to(git_dir.resolve()):
                 return None
-            content = ref.read_text().strip() if ref.exists() else ""
+            content = ref.read_text(encoding="utf-8").strip() if ref.exists() else ""
         return content[:12] or None
     except (OSError, ValueError):
         return None
@@ -1391,6 +1430,8 @@ def collect(project: Path, cache: Path, offline: bool) -> dict:
 
     token = sources.gh_token()
     http = sources.Http(cache, offline=offline, auth_marker="gh" if token else "anon")
+    if http.cache_owner_caveat:
+        notes.append(http.cache_owner_caveat)
     if token is None:
         notes.append(
             "gh is not authenticated. GitHub allows 60 requests/hour unauthenticated "
@@ -1516,7 +1557,7 @@ def main() -> int:
         raise SystemExit(f"error: this run cannot be reported: {exc}") from exc
     text = json.dumps(artifact, indent=2, sort_keys=True)
     if args.json:
-        args.json.write_text(text + "\n")
+        args.json.write_text(text + "\n", encoding="utf-8")
         print(f"wrote {args.json} ({artifact['coverage']['total_dependencies']} dependencies)")
     else:
         print(text)
