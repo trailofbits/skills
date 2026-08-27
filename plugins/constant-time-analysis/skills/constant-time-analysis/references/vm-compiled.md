@@ -303,14 +303,32 @@ ilspycmd --version  # Should show: ilspycmd: 9.x.x
 
 **Common Issues:**
 
-- **"ilspycmd requires .NET 8.0 but you have .NET 10.0"**: This happens when ilspycmd targets an older .NET version than your installed SDK. The analyzer automatically handles this on macOS by detecting Homebrew's dotnet@8 installation. Install the compatible runtime:
+- **"ilspycmd requires .NET 8.0 but you have .NET 10.0"**: This happens when ilspycmd targets an older .NET version than your installed SDK. ilspycmd installs framework-dependent, so the version you have decides which runtime it needs — ilspycmd 8.x needs .NET 8, 9.x needs .NET 9. Do not assume .NET 8; check what is actually in the tool store:
 
   ```bash
-  # macOS
-  brew install dotnet@8
-
-  # Other platforms: install .NET 8.0 runtime alongside your SDK
+  # Prints the target framework the installed ilspycmd was built for, e.g. net9.0
+  find ~/.dotnet/tools/.store/ilspycmd -maxdepth 6 -type d -name 'net*'
   ```
+
+  `find` rather than `ls` on a glob, because `ls ~/.dotnet/.../tools/*` aborts under zsh when
+  nothing matches. If `find` itself reports "No such file or directory", the store does not exist
+  and `ilspycmd` was never installed with `dotnet tool install` — that is the answer, not an error
+  to work around.
+
+  The analyzer resolves this itself, preferring a Homebrew keg of that exact major and otherwise
+  running the tool on whatever runtime it can find with `DOTNET_ROLL_FORWARD=Major`. Installing the
+  matching keg is the more reliable path:
+
+  ```bash
+  # macOS — substitute the major from the command above (dotnet@8, dotnet@9, …)
+  brew install dotnet@9
+
+  # Other platforms: install that .NET runtime alongside your SDK
+  ```
+
+  Note that homebrew-core does not carry a keg for every major — `dotnet@6`, `dotnet@8` and
+  `dotnet@9` exist, `dotnet@7` was dropped at end of life. When there is no keg for the major you
+  need, the roll-forward path above is what runs, and no install is required.
 
 - **"IL disassembly tools not found"**: Ensure `ilspycmd` is installed globally and `~/.dotnet/tools` is in your PATH.
 

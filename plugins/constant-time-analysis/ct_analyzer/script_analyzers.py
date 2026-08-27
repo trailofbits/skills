@@ -11,6 +11,7 @@ that work at the bytecode/opcode level rather than native assembly.
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -3030,25 +3031,67 @@ class CSharpAnalyzer(ScriptAnalyzer):
             return None
         return (int(match.group(1)), int(match.group(2)))
 
+    # Homebrew keg prefixes, Apple Silicon then Intel.
+    _KEG_PREFIXES = ("/opt/homebrew/opt", "/usr/local/opt")
+
+    # Runtimes of unknown major, tried only with major roll-forward enabled.
+    # homebrew-core carries a versioned dotnet@N formula for some majors and not
+    # others — dotnet@6, dotnet@8 and dotnet@9 exist, dotnet@7 was dropped at EOL —
+    # and no Linux distribution ships one at all, so an exact-major keg cannot be
+    # the only candidate or the motivating failure just moves from the glob to the
+    # exists() check.
+    _GENERIC_RUNTIMES = (
+        "/opt/homebrew/opt/dotnet/libexec/dotnet",
+        "/usr/local/opt/dotnet/libexec/dotnet",
+        "/usr/local/share/dotnet/dotnet",  # official macOS installer
+        "/usr/share/dotnet/dotnet",  # official Linux packages
+    )
+
+    def _runtime_candidates(self, major: int) -> list[tuple[str, bool]]:
+        """Runtimes to try for a store assembly targeting `major`, best first.
+
+        Args:
+            major: The .NET major version the store assembly was built for.
+
+        Returns:
+            (runtime path, roll_forward) pairs. An exact-major runtime comes first
+            and needs no roll-forward. Every later candidate is a runtime of
+            unknown major, which .NET refuses to launch a differently-versioned
+            assembly on unless `DOTNET_ROLL_FORWARD=Major` says otherwise — that
+            refusal is the reason this fallback exists, so the flag is set only
+            where the majors may genuinely differ.
+        """
+        runtimes = [(f"{keg}/dotnet@{major}/libexec/dotnet", False) for keg in self._KEG_PREFIXES]
+        runtimes += [(runtime, True) for runtime in self._GENERIC_RUNTIMES]
+
+        # `dotnet_path` defaults to the bare name "dotnet", so resolve it through
+        # PATH rather than exists()-checking a name relative to the cwd.
+        on_path = shutil.which(self.dotnet_path)
+        if on_path:
+            runtimes.append((on_path, True))
+        return runtimes
+
     def _il_via_versioned_runtime(self, dll_file: str) -> tuple[bool, str]:
-        """Disassemble via the tool-store ilspycmd under a matching .NET runtime.
+        """Disassemble via the tool-store ilspycmd under a compatible .NET runtime.
 
         ilspycmd installs framework-dependent: the assembly under
         `~/.dotnet/tools/.store` targets exactly one framework — net8.0 for
         ilspycmd 8.x, net9.0 for 9.x — and .NET does not roll forward across a
         major version by default, so a net9.0 assembly will not start on an 8.0
         runtime. The TFM discovered on disk therefore decides which runtime to
-        use; the two cannot be chosen independently. Homebrew's versioned
-        dotnet@N formulae are where a macOS box keeps an older runtime once the
-        system dotnet has moved on, which is the case this fallback exists for.
+        use; the two cannot be chosen independently.
+
+        A matching Homebrew `dotnet@N` keg is preferred, since it needs no
+        roll-forward. Where no such keg exists the generic runtimes are tried with
+        `DOTNET_ROLL_FORWARD=Major`, which is what allows a net9.0 assembly to run
+        on a 10.x runtime and is also the only path available off macOS.
 
         Args:
             dll_file: Path to the assembly to disassemble.
 
         Returns:
             (True, IL text) on success, (False, "") when no store assembly and
-            matching runtime pair could run — callers continue to the next
-            fallback.
+            runtime pair could run — callers continue to the next fallback.
         """
         store = Path.home() / ".dotnet/tools/.store/ilspycmd"
         if not store.exists():
@@ -3065,25 +3108,31 @@ class CSharpAnalyzer(ScriptAnalyzer):
         candidates.sort(key=lambda candidate: candidate[0], reverse=True)
 
         for (major, _minor), dll_path in candidates:
-            for runtime in (
-                f"/opt/homebrew/opt/dotnet@{major}/libexec/dotnet",  # Apple Silicon
-                f"/usr/local/opt/dotnet@{major}/libexec/dotnet",  # Intel Mac
-            ):
+            for runtime, roll_forward in self._runtime_candidates(major):
                 if not Path(runtime).exists():
                     continue
+
+                env = os.environ.copy()
+                env["DOTNET_ROOT"] = str(Path(runtime).parent)
+                if roll_forward:
+                    env["DOTNET_ROLL_FORWARD"] = "Major"
+
                 try:
-                    env = os.environ.copy()
-                    env["DOTNET_ROOT"] = str(Path(runtime).parent)
                     result = subprocess.run(
                         [runtime, str(dll_path), "-il", dll_file],
                         capture_output=True,
                         text=True,
                         env=env,
                     )
-                    if result.returncode == 0:
-                        return True, result.stdout
-                except FileNotFoundError:
-                    pass  # runtime vanished between the exists() check and exec
+                except OSError:
+                    # Not just FileNotFoundError: an Intel keg on an Apple Silicon
+                    # box without Rosetta raises OSError("Bad CPU type"), and a
+                    # missing execute bit raises PermissionError. Both used to
+                    # escape this helper and abort the whole analysis, where the
+                    # contract is to return quietly and let monodis try.
+                    continue
+                if result.returncode == 0:
+                    return True, result.stdout
         return False, ""
 
     def _get_il_output(self, dll_file: str) -> tuple[bool, str]:
