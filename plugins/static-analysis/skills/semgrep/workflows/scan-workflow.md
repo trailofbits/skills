@@ -315,7 +315,8 @@ and the severity flags are all its job, not yours. It writes `$OUTPUT_DIR/scans.
 
 | Field | Meaning |
 |-------|---------|
-| `scans` | Rulesets that ran, with `json`, `sarif`, `findings` and `filesScanned` for each. `findings` is counted from the JSON the scan wrote; `filesScanned` is how many files semgrep opened, or `-1` when it did not say |
+| `scans` | Rulesets that ran, with `json`, `sarif`, `findings`, `filesScanned`, `partial` and `exitCode` for each. `findings` is counted from the JSON the scan wrote; `filesScanned` is how many files semgrep opened, or `-1` when it did not say; `exitCode` is what semgrep exited with |
+| `scans[].partial` | `true` when the scan wrote complete output while some of its rules failed to compile — semgrep exits 2 and reports the rest of the run normally. The findings are real and in the merge; the rules that never compiled found nothing and cannot say so, so this reads as an unqualified success unless it is called out. **Must be shown.** |
 | `coveredNothing` | Rulesets that ran against zero files, because their `--include` globs matched nothing in the target. They report 0 findings exactly like a ruleset that ran and found nothing, so a plan naming a language the target does not contain reads as a clean audit. **Must be shown.** |
 | `failed` | Rulesets that ran and did not produce usable output, with the `json` and `sarif` paths they may have partly written, and the stderr excerpt. **Must be shown to the user.** |
 | `skipped` | Rulesets dropped before scanning, mostly repos that would not clone. **Must be shown.** |
@@ -331,6 +332,9 @@ arguments, because the approved plan is what produced them.
 
 **If `failed` or `skipped` is non-empty**, carry both into the Step 5 report. A run that covered
 four of nine rulesets reads exactly like one that covered four of four unless you say otherwise.
+The same line is why any scan with `partial: true` is carried across as well: it is in `scans` as
+a success, so the rules of it that never ran are invisible in every count the report otherwise
+prints.
 
 ---
 
@@ -412,6 +416,12 @@ one finding flagged by two rulesets is one row in the merge and two in that sum]
 [omit this section only when failed and skipped are both empty]
 - Skipped: <ruleset> — <reason from the workflow>
 - Failed: <ruleset> — <error from the workflow>
+
+### Ran Partially:
+[omit when no scan has partial: true]
+- <ruleset> — ran and wrote full output, but some of its rules failed to compile (semgrep exit
+  <exitCode>). Its findings are in the total below; the rules that did not compile scanned
+  nothing, so this ruleset's coverage is narrower than its entry in the scan count suggests
 
 ### Also Covered Unscoped:
 [omit when alsoShared is empty]

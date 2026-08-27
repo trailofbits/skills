@@ -135,7 +135,7 @@ const SELECT_SCHEMA = {
 
 const SCAN_SCHEMA = {
   type: 'object',
-  required: ['ok', 'scansJson', 'succeeded', 'failed', 'skipped'],
+  required: ['ok', 'scansJson', 'succeeded', 'partial', 'failed', 'skipped'],
   additionalProperties: false,
   properties: {
     ok: {
@@ -145,6 +145,13 @@ const SCAN_SCHEMA = {
     },
     scansJson: { type: 'string', description: 'absolute path of scans.json, or "" when the script did not get that far' },
     succeeded: { type: 'integer', description: 'length of .scans in scans.json, or -1 if unreadable' },
+    // Counted separately because a partial scan is inside .scans: its findings are real and its
+    // coverage is not complete, so a bare success count reports the two as the same thing.
+    partial: {
+      type: 'integer',
+      description:
+        'how many of .scans have partial=true — rulesets that ran and wrote full output while some of their rules failed to compile. A subset of succeeded, not an addition to it; -1 if unreadable',
+    },
     failed: { type: 'integer', description: 'length of .failed' },
     skipped: { type: 'integer', description: 'length of .skipped' },
     error: { type: 'string', description: 'the script stderr when ok is false, else ""' },
@@ -384,8 +391,12 @@ const scanned = await agent(
     'It writes scans.json in the output directory and prints its path. Read the counts from that',
     'file with jq:',
     `  jq '.scans | length' "${outputDir}/scans.json"`,
+    `  jq '[.scans[] | select(.partial)] | length' "${outputDir}/scans.json"`,
     `  jq '.failed | length' "${outputDir}/scans.json"`,
     `  jq '.skipped | length' "${outputDir}/scans.json"`,
+    '',
+    'The partial count is a subset of the first, not an addition to it: those rulesets ran and',
+    'wrote full output with some of their rules failing to compile. Report it as partial.',
     '',
     'A non-zero exit means no scan succeeded. Report ok=false with the stderr, and do not retry',
     'with different arguments: the ruleset file is what produced them.',
@@ -397,7 +408,7 @@ if (!scanned || !scanned.ok) {
   const why = (scanned && scanned.error) || 'the scan agent returned nothing'
   throw new Error(`no scan succeeded: ${why}`)
 }
-log(`${scanned.succeeded} scans succeeded, ${scanned.failed} failed, ${scanned.skipped} skipped`)
+log(`${scanned.succeeded} scans succeeded (${scanned.partial} partial), ${scanned.failed} failed, ${scanned.skipped} skipped`)
 
 phase('Report')
 const reported = await agent(
@@ -462,6 +473,11 @@ const reported = await agent(
     '   .alsoShared (rulesets not repeated per language because they already ran over the whole',
     '   target — coverage is unaffected, but it explains why the ruleset and scan counts differ).',
     '',
+    '   Rulesets with partial=true get their own "Ran Partially" section on the same grounds.',
+    '   They are in .scans as successes and their findings are in the merge, but some of their',
+    '   rules never compiled, so the rules that did not run found nothing and cannot say so.',
+    `     jq -r '.scans[] | select(.partial) | .ruleset' "${outputDir}/scans.json"`,
+    '',
     '   .coveredNothing gets its own section too, and matters more than the other two: those are',
     '   rulesets that opened zero files because their --include globs matched nothing. They',
     '   report 0 findings exactly like a ruleset that ran and found nothing, so leaving them out',
@@ -499,6 +515,7 @@ return {
   rulesetsPath: selected.rulesetsPath,
   scansJson: scanned.scansJson,
   succeeded: scanned.succeeded,
+  partial: scanned.partial,
   failed: scanned.failed,
   skipped: scanned.skipped,
   resultsSarif: reported.resultsSarif,
