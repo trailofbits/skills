@@ -78,9 +78,12 @@ semgrep --pro --validate --metrics=off --config p/default 2>/dev/null && echo "P
 
 **Detect languages** using Glob (not Bash). Run these patterns against the target directory and count matches:
 
-`**/*.py`, `**/*.pyi`, `**/*.js`, `**/*.jsx`, `**/*.mjs`, `**/*.cjs`, `**/*.ts`, `**/*.tsx`, `**/*.go`, `**/*.rb`, `**/*.java`, `**/*.jsp`, `**/*.kt`, `**/*.kts`, `**/*.php`, `**/*.phtml`, `**/*.c`, `**/*.cc`, `**/*.cpp`, `**/*.cxx`, `**/*.h`, `**/*.hh`, `**/*.hpp`, `**/*.hxx`, `**/*.cs`, `**/*.rs`, `**/*.scala`, `**/*.swift`, `**/*.ex`, `**/*.exs`, `**/*.cls`, `**/*.trigger`, `**/*.sol`, `**/Dockerfile`, `**/*.dockerfile`, `**/*.tf`, `**/*.tfvars`, `**/*.hcl`, `**/*.yaml`, `**/*.yml`, `**/*.json`
+`**/*.py`, `**/*.pyi`, `**/*.js`, `**/*.jsx`, `**/*.mjs`, `**/*.cjs`, `**/*.ts`, `**/*.tsx`, `**/*.go`, `**/*.rb`, `**/*.java`, `**/*.jsp`, `**/*.kt`, `**/*.kts`, `**/*.php`, `**/*.phtml`, `**/*.c`, `**/*.cc`, `**/*.cpp`, `**/*.cxx`, `**/*.h`, `**/*.hh`, `**/*.hpp`, `**/*.hxx`, `**/*.cs`, `**/*.rs`, `**/*.scala`, `**/*.swift`, `**/*.ex`, `**/*.exs`, `**/*.cls`, `**/*.trigger`, `**/*.sol`, `**/Dockerfile`, `**/*.dockerfile`, `**/*.tf`, `**/*.tfvars`, `**/*.hcl`, `**/*.yaml`, `**/*.yml`
 
-This list is the union of the `includes_for` globs in [run-scans.sh](../scripts/run-scans.sh). Step 2 can only select a ruleset for a category this step detected, so an extension missing here removes its ruleset from the scan with no signal — the report then reads clean rather than incomplete. Keep the two in sync when either changes. `.mts`, `.cts`, `.C`, `Containerfile`, and `Dockerfile.prod` are deliberately absent from both: semgrep does not parse them.
+Step 2 can only select a ruleset for a category this step detected, so an extension missing here removes its ruleset from the scan with no signal — the report then reads clean rather than incomplete. The list is the union of the `includes_for` globs in [run-scans.sh](../scripts/run-scans.sh) minus one deliberate exclusion; keep the two in sync when either changes.
+
+- `.mts`, `.cts`, `.C`, `Containerfile`, and `Dockerfile.prod` are absent from both, because semgrep does not parse them.
+- `**/*.json` is absent here on purpose, though `includes_for` has globs for it. Nearly every repository carries JSON — `package.json`, `tsconfig.json`, lockfiles, editor settings — while the only ruleset keyed to the `json` category is `r/json.aws`, which is about AWS IAM policy misconfigurations. Globbing it would attach an IAM ruleset to every scan and report a JSON "language" for projects that have no JSON worth scanning. When the target really is IAM policies, or a CloudFormation template written in JSON rather than YAML, name the `json` or `cloudformation` category explicitly instead.
 
 Also check for framework markers: `**/package.json`, `**/pyproject.toml`, `**/requirements.txt`, `**/Gemfile`, `**/composer.json`, `**/go.mod`, `**/Cargo.toml`, `**/pom.xml`. Use Read to inspect these files for framework dependencies (e.g., read `package.json` to detect React, Express, Next.js; read `pyproject.toml` for Django, Flask, FastAPI). The `**/` prefix is required, not cosmetic: a bare `package.json` matches only the target root, so a monorepo with `packages/*/package.json` or `services/*/go.mod` gets no framework rulesets at all.
 
@@ -105,7 +108,6 @@ Map findings to categories:
 | `.sol` | Solidity |
 | `Dockerfile`, `.dockerfile` | Docker |
 | `.tf`, `.tfvars`, `.hcl` | Terraform |
-| `.json` | JSON |
 | `.yaml`, `.yml` | YAML, Kubernetes, GitHub Actions, or CloudFormation — disambiguate below |
 
 **Disambiguating YAML.** One `.yaml`/`.yml` match feeds four categories, so Read a sample of the matches before assigning:
