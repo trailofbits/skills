@@ -8,6 +8,7 @@ clean verdict, and a run in which every source is down must refuse to report.
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import subprocess
@@ -687,6 +688,43 @@ def test_non_ascii_manifest_is_read_as_utf8(tmp_path: Path):
     assert _read_json(manifest)["author"] == "José Álvarez"
 
 
+def test_utf16_requirements_is_refused_not_a_traceback(tmp_path: Path):
+    """PowerShell 5.1 redirection writes UTF-16LE, so this is a stock Windows file.
+
+    A requirements file generated with `>` there begins with a BOM whose first two
+    bytes are invalid UTF-8. main() catches only ReconciliationError, so before this
+    the run died with a raw UnicodeDecodeError — on the platform the fix supports.
+    """
+    # encode("utf-16"), not "utf-16-le": the BOM is what makes it invalid UTF-8.
+    # Without it, UTF-16LE ASCII decodes as UTF-8 with embedded nulls and no error —
+    # silent corruption rather than a crash, which is its own problem.
+    (tmp_path / "requirements.txt").write_bytes("flask==2.0.0\n".encode("utf-16"))
+
+    with pytest.raises(SystemExit, match="not UTF-8"):
+        parse_pypi(tmp_path)
+
+
+def test_utf16_gomod_is_refused_not_a_traceback(tmp_path: Path):
+    """Same defect, same fix, the other plain-text reader."""
+    (tmp_path / "go.mod").write_bytes("module x\n\ngo 1.21\n".encode("utf-16"))
+
+    with pytest.raises(SystemExit, match="not UTF-8"):
+        parse_go(tmp_path)
+
+
+def test_utf16_gomod_is_refused_by_the_indirect_reader_too(tmp_path: Path):
+    """go.mod is read in two places and `parse_go` short-circuits before the second.
+
+    `_go_indirect` has its own read, so reverting only that one left every test green.
+    The static encoding check cannot see it either: the omission there is the guard, not
+    the encoding, so this needs its own case.
+    """
+    (tmp_path / "go.mod").write_bytes("module x\n\ngo 1.21\n".encode("utf-16"))
+
+    with pytest.raises(SystemExit, match="not UTF-8"):
+        _go_indirect(tmp_path)
+
+
 def test_non_utf8_manifest_is_refused_not_a_traceback(tmp_path: Path):
     """JSON is UTF-8 by RFC 8259, so an undecodable manifest is malformed input.
 
@@ -700,31 +738,104 @@ def test_non_utf8_manifest_is_refused_not_a_traceback(tmp_path: Path):
         _read_json(manifest)
 
 
-def test_every_text_io_call_names_its_encoding():
-    """No read_text/write_text/text-mode subprocess in the package may omit encoding=.
+TEXT_IO_ATTRS = ("read_text", "write_text")
 
-    The static half of the pair below. It reaches sites the driver does not execute —
-    `render.py`'s artifact read and report write among them — so a new call site is
-    caught wherever it lands, including in code no test drives yet.
+
+def _is_binary_call(node: ast.Call) -> bool:
+    """True when the call names a binary mode, where an encoding is meaningless."""
+    modes = [a for a in node.args if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+    modes += [
+        kw.value for kw in node.keywords if kw.arg == "mode" and isinstance(kw.value, ast.Constant)
+    ]
+    return any("b" in m.value for m in modes if isinstance(getattr(m, "value", None), str))
+
+
+def _text_io_without_encoding(source: str) -> list[str]:
+    """Call sites that decode or encode text without naming the encoding.
+
+    Parsed rather than grepped. The previous line-based version tried to handle a
+    multi-line `subprocess.run(..., text=True, encoding=...)` by looking for both on one
+    line, could not, and shunted those hits into a list nothing asserted on — so
+    deleting an `encoding=` from either subprocess call passed. An AST sees the whole
+    call however it is wrapped.
+
+    Only the builtin `open` is flagged, not `x.open(...)`: `self.opener.open(request)` is
+    a urllib call returning bytes, and an encoding there would be nonsense. A
+    `Path.open()` in text mode would therefore slip past this check, which is one of the
+    reasons the behavioural test below exists alongside it.
+
+    Args:
+        source: Python source text.
+
+    Returns:
+        One `line: description` string per offending call.
+    """
+    out = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        kwargs = {kw.arg for kw in node.keywords}
+        if "encoding" in kwargs or _is_binary_call(node):
+            continue
+
+        func = node.func
+        if isinstance(func, ast.Attribute) and func.attr in TEXT_IO_ATTRS:
+            out.append(f"{node.lineno}: {func.attr}() with no encoding=")
+        elif isinstance(func, ast.Name) and func.id == "open":
+            out.append(f"{node.lineno}: open() with no encoding=")
+        # A text-mode subprocess decodes the child's output with the locale encoding,
+        # so it is the same defect wearing different clothes.
+        elif "text" in kwargs or "universal_newlines" in kwargs:
+            name = getattr(func, "attr", None) or getattr(func, "id", "call")
+            out.append(f"{node.lineno}: {name}(text=True) with no encoding=")
+    return out
+
+
+def test_every_text_io_call_names_its_encoding():
+    """No text I/O anywhere in the package may fall back to the platform default.
+
+    The static half of the pair below, covering sites the behavioural driver does not
+    execute — `render.py`'s artifact read and report write, and `pip_audit_vulnerable`'s
+    subprocess, which needs pip-audit installed to run at all.
+
+    Modules are globbed rather than listed, so a new one added to `scripts/` is covered
+    the day it lands. Tests are excluded: their fixtures write ASCII through
+    `write_text` by the dozen and are not what ships to a user.
     """
     package = Path(__file__).parent
-    offenders = []
-    for module in ("collect.py", "sources.py", "render.py", "model.py"):
-        for lineno, line in enumerate(
-            (package / module).read_text(encoding="utf-8").splitlines(), start=1
-        ):
-            if ("read_text(" in line or "write_text(" in line) and "encoding=" not in line:
-                offenders.append(f"{module}:{lineno}: {line.strip()}")
-            if "text=True" in line and "encoding=" not in line:
-                # A text-mode subprocess decodes with the locale encoding too, so it is
-                # the same defect wearing different clothes. Both calls in this package
-                # are multi-line, so the encoding sits on its own line: check the next.
-                offenders.append(f"{module}:{lineno}: {line.strip()} (check encoding= nearby)")
+    modules = sorted(p for p in package.glob("*.py") if not p.name.startswith("test_"))
+    assert len(modules) >= 4, f"module discovery found only {[p.name for p in modules]}"
 
-    # subprocess sites are reported for review rather than failed outright, since their
-    # encoding= is on an adjacent line; the read/write ones must be clean.
-    hard = [o for o in offenders if "check encoding= nearby" not in o]
-    assert not hard, "text I/O without an explicit encoding:\n" + "\n".join(hard)
+    offenders = [
+        f"{path.name}:{hit}"
+        for path in modules
+        for hit in _text_io_without_encoding(path.read_text(encoding="utf-8"))
+    ]
+    assert not offenders, "text I/O without an explicit encoding:\n" + "\n".join(offenders)
+
+
+def test_the_encoding_check_detects_a_missing_encoding():
+    """The checker above must fail on the code it exists to reject.
+
+    Its predecessor passed while a real regression was present, so the guard is itself
+    guarded: both shapes it must catch are asserted here, including the multi-line
+    subprocess form that defeated the line-based version.
+    """
+    assert _text_io_without_encoding("p.read_text()")
+    assert _text_io_without_encoding("open(p)")
+    assert _text_io_without_encoding("p.write_text(x)")
+    assert _text_io_without_encoding(
+        "subprocess.run(\n    ['gh'],\n    capture_output=True,\n    text=True,\n)"
+    )
+    # ...and must not fire on the fixed forms.
+    assert not _text_io_without_encoding('p.read_text(encoding="utf-8")')
+    assert not _text_io_without_encoding(
+        'subprocess.run(\n    ["gh"],\n    text=True,\n    encoding="utf-8",\n)'
+    )
+    assert not _text_io_without_encoding("p.read_bytes()")
+    assert not _text_io_without_encoding('open(p, "rb")')
+    # urllib: bytes, so an encoding would be nonsense
+    assert not _text_io_without_encoding("self.opener.open(request, timeout=5)")
 
 
 def test_no_text_io_relies_on_the_platform_default_encoding():

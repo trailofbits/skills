@@ -341,7 +341,7 @@ def _pypi_specs(project: Path) -> tuple[dict[str, tuple[str, bool]], list[str]]:
         for group, is_dev in groups:
             _absorb_specs(group, specs, notes, is_dev)
     for candidate in sorted(project.glob("requirements*.txt")):
-        lines = candidate.read_text(encoding="utf-8").splitlines()
+        lines = _read_text(candidate).splitlines()
         includes = [ln for ln in lines if ln.strip().startswith(("-r", "--requirement"))]
         if includes:
             notes.append(
@@ -558,7 +558,7 @@ def parse_go(project: Path) -> tuple[list[Dependency], list[str]]:
     notes: list[str] = []
     block: str | None = None
     replaced = 0
-    for line in gomod.read_text(encoding="utf-8").splitlines():
+    for line in _read_text(gomod).splitlines():
         block, kind = _gomod_line_kind(line, block)
         if kind == "directive":
             replaced += 1
@@ -590,7 +590,7 @@ def _go_indirect(
     gomod = project / "go.mod"
     if not gomod.exists():
         return [], [], None, None
-    text = gomod.read_text(encoding="utf-8")
+    text = _read_text(gomod)
     match = _GO_DIRECTIVE.search(text)
     if not match or (int(match.group(1)), int(match.group(2))) < (1, 17):
         return (
@@ -611,6 +611,37 @@ def _go_indirect(
 
 
 PARSERS = (parse_npm, parse_pypi, parse_go)
+
+
+def _read_text(path: Path) -> str:
+    """Read a plain-text manifest as UTF-8, refusing anything that will not decode.
+
+    The JSON and TOML readers below already turn an undecodable file into a refusal.
+    Without this, `requirements*.txt` and `go.mod` did not: `main()` catches only
+    `ReconciliationError`, so a `UnicodeDecodeError` escaped as a traceback. That is not
+    hypothetical on the platform this exists to support — PowerShell 5.1 redirection
+    writes UTF-16LE with a BOM, so any requirements file generated with `>` on a stock
+    Windows box begins with two bytes that are invalid UTF-8.
+
+    Args:
+        path: The file to read.
+
+    Returns:
+        The decoded text.
+
+    Raises:
+        SystemExit: The file is not UTF-8, or could not be read.
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise SystemExit(
+            f"error: {path} is not UTF-8, so its contents cannot be read: {exc}. "
+            f"A file produced by PowerShell redirection is UTF-16 — re-save it as "
+            f"UTF-8, or regenerate it through `Out-File -Encoding utf8`."
+        ) from exc
+    except OSError as exc:
+        raise SystemExit(f"error: cannot read {path}: {exc}") from exc
 
 
 def _read_json(path: Path) -> dict:
