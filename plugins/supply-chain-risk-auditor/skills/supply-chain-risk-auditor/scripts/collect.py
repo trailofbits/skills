@@ -1391,6 +1391,8 @@ def collect(project: Path, cache: Path, offline: bool) -> dict:
 
     token = sources.gh_token()
     http = sources.Http(cache, offline=offline, auth_marker="gh" if token else "anon")
+    if http.cache_owner_caveat:
+        notes.append(http.cache_owner_caveat)
     if token is None:
         notes.append(
             "gh is not authenticated. GitHub allows 60 requests/hour unauthenticated "

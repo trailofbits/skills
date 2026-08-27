@@ -1,6 +1,6 @@
 {
   "name": "supply-chain-risk-auditor",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Audit a project's npm, PyPI, and Go dependencies for supply-chain risk: version-matched advisories for direct dependencies and the full lockfile tree, abandoned upstreams, npm publisher concentration, and install scripts",
   "author": {
     "name": "Eric Quintero"

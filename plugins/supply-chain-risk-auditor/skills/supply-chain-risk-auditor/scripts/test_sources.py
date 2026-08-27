@@ -9,6 +9,7 @@ this one does.
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from email.message import Message
@@ -135,6 +136,44 @@ def test_truncated_cache_entry_is_dropped(tmp_path: Path):
     with pytest.raises(Unavailable):
         http.get_json("https://example.com/x")
     assert not path.exists()
+
+
+def test_cache_owner_is_verified_on_posix(tmp_path: Path):
+    """The usual case: ownership checks out, so there is no caveat to report."""
+    http = Http(tmp_path, offline=True)
+    assert http.cache_owner_caveat is None
+
+
+def test_foreign_cache_owner_still_aborts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """The control this caveat exists to protect must keep biting on POSIX.
+
+    A cache another user can write turns a compromised package into a clean
+    "no advisories" verdict, so a foreign owner has to stop the run outright.
+    """
+    monkeypatch.setattr(sources.os, "getuid", lambda: os.stat(tmp_path).st_uid + 1)
+    with pytest.raises(SystemExit, match="owned by another user"):
+        Http(tmp_path, offline=True)
+
+
+def test_missing_getuid_reports_a_caveat_instead_of_crashing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Windows has no os.getuid, and st_uid is always 0 there (issue #273).
+
+    The client must construct rather than raise AttributeError, and must hand back a
+    caveat naming what went unchecked — dropping the control silently would let the
+    report claim a verified cache it never verified.
+    """
+    monkeypatch.delattr(sources.os, "getuid", raising=True)
+
+    http = Http(tmp_path, offline=True)
+
+    assert http.cache_owner_caveat is not None
+    assert "not verified" in http.cache_owner_caveat
+    assert str(tmp_path) in http.cache_owner_caveat
+    # Still usable: the caveat is a report line, not a degraded client.
+    seed(http, "GET", "https://example.com/x", {"ok": 1})
+    assert http.get_json("https://example.com/x") == {"ok": 1}
 
 
 def test_auth_marker_partitions_the_cache(tmp_path: Path):
