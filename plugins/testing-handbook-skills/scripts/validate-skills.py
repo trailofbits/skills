@@ -48,6 +48,10 @@ RESERVED_WORDS = frozenset({"anthropic", "claude"})
 VALID_SKILL_TYPES = frozenset({"tool", "fuzzer", "technique", "domain"})
 NAME_PATTERN = re.compile(r"^[a-z0-9-]{1,64}$")
 SHORTCODE_PATTERN = re.compile(r"\{\{[<%]")
+# The templates express their fill-in slots as {like this}. The shortcode pattern
+# needs *double* braces, so a description shipped with a slot still in it passed
+# every check and printed a clean tick.
+PLACEHOLDER_PATTERN = re.compile(r"\{[^{}]*\}")
 ESCAPED_BACKTICKS_PATTERN = re.compile(r"\\`{3}")
 HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 
@@ -158,9 +162,23 @@ def extract_frontmatter(content: str) -> tuple[dict | None, str | None]:
 
     frontmatter_text = "\n".join(lines[1:end_idx])
     try:
-        return yaml.safe_load(frontmatter_text), None
+        parsed = yaml.safe_load(frontmatter_text)
     except yaml.YAMLError as e:
         return None, f"YAML parse error: {e}"
+
+    # An empty block parses to None and a bare scalar to a str, neither of which
+    # is an error to yaml. Returning either with no error made every frontmatter
+    # check below skip silently, so a nameless, descriptionless skill printed a
+    # clean tick.
+    if parsed is None:
+        return None, "Frontmatter block is empty (no name or description to validate)"
+    if not isinstance(parsed, dict):
+        return None, (
+            f"Frontmatter is not a mapping: parsed as {type(parsed).__name__}, "
+            f"expected 'key: value' fields"
+        )
+
+    return parsed, None
 
 
 def detect_skill_type(
@@ -218,8 +236,11 @@ def validate_frontmatter(
         frontmatter: Parsed frontmatter dict.
         result: ValidationResult to update.
     """
-    if frontmatter is None:
-        return  # Error already added during extraction
+    if not isinstance(frontmatter, dict):
+        result.add_error(
+            "No frontmatter fields to validate: the block is missing, empty, or not a mapping"
+        )
+        return
 
     # Validate name field
     name = frontmatter.get("name")
@@ -262,6 +283,13 @@ def validate_frontmatter(
 
         if SHORTCODE_PATTERN.search(desc_str):
             result.add_error("Description contains Hugo shortcodes")
+
+        leftover = PLACEHOLDER_PATTERN.findall(desc_str)
+        if leftover:
+            result.add_error(
+                f"Description still contains template placeholders: {leftover} — "
+                f"replace every {{...}} slot with real content"
+            )
 
     # Validate type field (recommended but not strictly required for backwards compat)
     skill_type = frontmatter.get("type")

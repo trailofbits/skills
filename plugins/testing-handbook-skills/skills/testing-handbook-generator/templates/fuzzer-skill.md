@@ -8,8 +8,7 @@ Use this template for language-specific fuzzers (libFuzzer, AFL++, cargo-fuzz, e
 ---
 name: {fuzzer-name-lowercase}
 type: fuzzer
-description: >
-  {Summary from handbook}. Use for fuzzing {language} projects.
+description: "Sets up and runs {fuzzer} on {language} projects{, plus what makes it the right choice}. Covers harness structure, {build flags and instrumentation}, corpus and dictionary management, and crash triage. Use when {the situations a user describes — writing or debugging a specific harness API, starting on a particular kind of target, choosing between this fuzzer and its alternatives, or diagnosing a campaign that finds nothing}."
 ---
 
 # {Fuzzer Name}
@@ -331,9 +330,7 @@ When generating a fuzzer skill, identify and link to these technique skills:
 ---
 name: libfuzzer
 type: fuzzer
-description: >
-  Coverage-guided fuzzer built into LLVM. Use for fuzzing C/C++ projects
-  that can be compiled with Clang.
+description: "Sets up and runs libFuzzer, the coverage-guided fuzzer built into LLVM, on C/C++ code that compiles with Clang. Covers harness structure, -fsanitize=fuzzer builds, corpus and dictionary management, sanitizer integration, and campaign triage. Use when writing or debugging an LLVMFuzzerTestOneInput harness, starting fuzzing on a C/C++ library, choosing between libFuzzer and AFL++, or working out why a libFuzzer run finds nothing."
 ---
 
 # libFuzzer

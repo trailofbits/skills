@@ -1,0 +1,12 @@
+{
+  "id": "01-mixed-repo",
+  "description": "The core path: one genuinely merged branch, one squash-merged, one with unpushed commits, one [gone] with no evidence. Tests that all four are told apart and that the -d/-D split is right.",
+  "fixture": ["--merged", "--squash-merged", "--unpushed", "--gone"],
+  "allowed_tools": "Bash Read AskUserQuestion Workflow",
+  "expect": "analysis",
+  "ask": {
+    "with": "Now run `/git-cleanup {{DIR}}/repo`.",
+    "without": "Now clean up the accumulated local branches in `{{DIR}}/repo`. Show me what you propose to delete, with your reasoning for each branch, before deleting anything."
+  },
+  "notes": "The two arms differ in wording because `disable-model-invocation: true` means the command cannot self-trigger — a user has to type it. The without-arm ask is the closest natural-language equivalent. See README for why this confound is accepted."
+}

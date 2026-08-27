@@ -1,9 +1,6 @@
 ---
 name: testing-handbook-generator
-description: >
-  Meta-skill that analyzes the Trail of Bits Testing Handbook (appsec.guide)
-  and generates Claude Code skills for security testing tools and techniques.
-  Use when creating new skills based on handbook content.
+description: "Generates Claude Code skills from the Trail of Bits Testing Handbook (appsec.guide), analyzing handbook pages and emitting SKILL.md files with the structure each skill type requires. Use when creating or refreshing a skill from handbook content, or when the user names the testing handbook or appsec.guide. Not for answering security testing questions — the generated skills cover those."
 ---
 
 # Testing Handbook Skill Generator

@@ -8,8 +8,7 @@ Use this template for cross-cutting techniques that apply to multiple tools (har
 ---
 name: {technique-name-lowercase}
 type: technique
-description: >
-  {Summary of what this technique does}. Use when {trigger conditions}.
+description: "{What applying this technique achieves, leading with the outcome rather than naming the technique}. Covers {the concrete steps, tools, and flags}. Use when {the situations a user describes, in the words they would type — the symptom, the stalled campaign, the error, the question}."
 ---
 
 # {Technique Name}
@@ -265,9 +264,7 @@ When generating a technique skill, create bidirectional links:
 ---
 name: fuzz-harness-writing
 type: technique
-description: >
-  Techniques for writing effective fuzzing harnesses. Use when creating
-  new fuzz targets or improving existing harness code.
+description: "Designs and improves fuzzing harnesses for C/C++ and Rust. Covers mapping raw bytes onto a target API, generating structured inputs, avoiding non-determinism and false crashes, and deciding what to fuzz together. Use when writing a first fuzz target, when a campaign finds nothing or reports crashes that will not reproduce, or when the target API needs structured rather than raw input."
 ---
 
 # Writing Fuzzing Harnesses
@@ -453,9 +450,7 @@ fuzz_target!(|data: &[u8]| {
 ---
 name: address-sanitizer
 type: technique
-description: >
-  Memory error detection for C/C++ fuzzing. Use when fuzzing C/C++ code
-  to detect memory corruption bugs like buffer overflows and use-after-free.
+description: "Builds and runs code under AddressSanitizer to catch buffer overflows, use-after-free, and other memory errors during fuzzing or tests. Covers -fsanitize=address builds, ASAN_OPTIONS, reading the crash report, LeakSanitizer, and the overhead and platform trade-offs. Use when fuzzing C/C++ or Rust that has unsafe blocks or FFI, when debugging a memory corruption crash, or when reading an ASan stack trace."
 ---
 
 # AddressSanitizer (ASan)

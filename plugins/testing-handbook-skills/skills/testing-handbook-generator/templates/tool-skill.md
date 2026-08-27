@@ -8,8 +8,7 @@ Use this template for static analysis tools (Semgrep, CodeQL) and similar standa
 ---
 name: {tool-name-lowercase}
 type: tool
-description: >
-  {Summary from handbook}. Use when {trigger conditions based on tool purpose}.
+description: "{What the tool does for the reader, leading with the task rather than defining the tool}. Covers {the concrete commands, config files, and output formats}. Use when {the situations a user describes, in the words they would type — the file in front of them, the error, the question}."
 ---
 
 # {Tool Name}
@@ -259,9 +258,7 @@ Not all sections apply to every tool. Use this guide:
 ---
 name: semgrep
 type: tool
-description: >
-  Fast static analysis for finding bugs, detecting vulnerabilities, and enforcing code standards.
-  Use when scanning code for security issues, enforcing patterns, or integrating into CI/CD pipelines.
+description: "Scans code with Semgrep to find bugs, vulnerabilities, and pattern violations across a repository. Covers rule syntax, running the registry rulesets, writing custom rules, and wiring results into CI. Use when scanning a codebase for security issues, writing or debugging a Semgrep rule, triaging semgrep output, or adding a static analysis gate to a pipeline."
 ---
 
 # Semgrep

@@ -40,7 +40,7 @@ Each category is three files that must agree:
 
 |                        |                                                                      |
 | ---------------------- | -------------------------------------------------------------------- |
-| `workflows/audit.js`   | an `{ id, title }` row, all the script knows                         |
+| `workflows/audit.js`   | an `{ id, title }` row, all the script knows. Ships as `/insecure-defaults:audit-pipeline` |
 | `references/<id>.json` | title + seed patterns                                                |
 | `references/<id>.md`   | **Report when** / **Skip when**, plus worked vulnerable/secure pairs |
 

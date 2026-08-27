@@ -4,7 +4,7 @@ A Claude Code plugin that intercepts GitHub URL fetches and redirects Claude to 
 
 ## Problem
 
-Claude Code's `WebFetch` tool and Bash `curl`/`wget` commands don't use the user's GitHub authentication. This means:
+Claude Code's `WebFetch` tool, MCP fetch tools (Exa's `web_fetch_exa` and similar), and Bash `curl`/`wget` commands don't use the user's GitHub authentication. This means:
 
 - **Private repos**: Fetches fail with 404 errors
 - **Rate limits**: Unauthenticated requests are limited to 60/hour (vs 5,000/hour authenticated)
@@ -14,21 +14,43 @@ Claude Code's `WebFetch` tool and Bash `curl`/`wget` commands don't use the user
 
 This plugin provides:
 
-1. **PreToolUse hooks** that intercept GitHub URL access via `WebFetch` or `curl`/`wget`, and suggest the correct `gh` CLI command
+1. **PreToolUse hooks** that intercept GitHub URL access via `WebFetch`, MCP fetch/scrape/crawl/extract tools, or `curl`/`wget`, and suggest the correct `gh` CLI command
 2. **A `gh` PATH shim** that blocks anti-patterns: API `/contents/` fetching and non-session-scoped temp directory clones
 3. **A SessionEnd hook** that automatically cleans up cloned repositories when the session ends
 
 ### What Gets Intercepted
 
+The fetch hook matches `WebFetch` plus any MCP tool whose name contains `fetch`,
+`scrape`, `crawl`, or `extract` — `mcp__exa__web_fetch_exa`,
+`mcp__firecrawl__firecrawl_scrape`, `mcp__tavily__tavily_extract`, and
+equivalents from other MCP servers. Web tools named something else entirely
+(browser navigation, for instance) are not covered; `hooks/matcher.bats` records
+exactly which names match.
+
+It reads both fetch payload shapes — `WebFetch`'s single `url`, and the `urls`
+field MCP fetch tools use to batch several pages into one call, whether that
+field arrives as an array or a bare string. Because a tool call is atomic, one
+GitHub URL anywhere in a batch denies the whole call; the denial names each
+offending URL alongside its suggestion. `WebFetch`'s `prompt` field is
+deliberately not scanned, so a prompt that merely mentions a GitHub URL is not
+denied.
+
 | Tool | Pattern | Suggestion |
 |------|---------|------------|
-| `WebFetch` | `github.com/{owner}/{repo}` | `gh repo view owner/repo` |
-| `WebFetch` | `github.com/.../blob/...` | `gh repo clone` + Read |
-| `WebFetch` | `github.com/.../tree/...` | `gh repo clone` + Read/Glob/Grep |
-| `WebFetch` | `api.github.com/repos/.../pulls` | `gh pr list` / `gh pr view` |
-| `WebFetch` | `api.github.com/repos/.../issues` | `gh issue list` / `gh issue view` |
-| `WebFetch` | `api.github.com/...` | `gh api <endpoint>` |
-| `WebFetch` | `raw.githubusercontent.com/...` | `gh repo clone` + Read |
+| `WebFetch`, MCP fetch | `github.com/{owner}/{repo}` | `gh repo view owner/repo` |
+| `WebFetch`, MCP fetch | `github.com/.../blob/...` | `gh repo clone` + Read |
+| `WebFetch`, MCP fetch | `github.com/.../tree/...` | `gh repo clone` + Read/Glob/Grep |
+| `WebFetch`, MCP fetch | `github.com/.../pull/{n}` | `gh pr view` |
+| `WebFetch`, MCP fetch | `github.com/.../issues/{n}` | `gh issue view` |
+| `WebFetch`, MCP fetch | `github.com/.../releases/download/...` | `gh release download` |
+| `WebFetch`, MCP fetch | `api.github.com/repos/.../pulls` | `gh pr list` / `gh pr view` |
+| `WebFetch`, MCP fetch | `api.github.com/repos/.../issues` | `gh issue list` / `gh issue view` |
+| `WebFetch`, MCP fetch | `api.github.com/repos/.../contents/...` | `gh repo clone` + Read |
+| `WebFetch`, MCP fetch | `api.github.com/repos/.../releases` | `gh release list` |
+| `WebFetch`, MCP fetch | `api.github.com/repos/.../actions` | `gh run list` |
+| `WebFetch`, MCP fetch | `api.github.com/...` (anything else) | `gh api <endpoint>` |
+| `WebFetch`, MCP fetch | `raw.githubusercontent.com/...` | `gh repo clone` + Read |
+| `WebFetch`, MCP fetch | `gist.github.com/...` | `gh gist view` |
 | `Bash` | `curl https://api.github.com/...` | `gh api <endpoint>` |
 | `Bash` | `curl https://raw.githubusercontent.com/...` | `gh repo clone` + Read |
 | `Bash` | `wget https://github.com/...` | `gh release download` |
