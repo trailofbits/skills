@@ -53,6 +53,23 @@ matched nothing.
 Anything other than 0 means the search result is unverified, and saying "no matching traffic" on the strength
 of it is a false negative reported as a clean finding.
 
+**Through a pipe the exit code is not yours to read.** A pipeline reports the status of its *last* command, and
+nearly every example here ends in `| jq`, `| head` or `| wc -cl` — so `$?` is `head`'s 0, not the script's 3.
+Two reliable signals:
+
+- **stderr**, which reaches you regardless of piping. `Error: the parser produced no output.` or
+  `Error: Burp produced output, but not one JSON object` is the answer; no such block means the run was fine.
+- **`set -o pipefail`** when you want the code itself, or read `${PIPESTATUS[0]}`:
+
+```bash
+set -o pipefail
+{baseDir}/scripts/burp-search.sh project.burp auditItems | jq -c 'select(.severity == "High")'
+echo "exit: $?"
+```
+
+Non-JSON output never reaches stdout, so a downstream `grep` or `jq` cannot match a Burp startup banner and
+mistake it for data.
+
 See [Platform Configuration](#platform-configuration) for setup instructions.
 
 ## Sub-Component Filters (USE THESE)

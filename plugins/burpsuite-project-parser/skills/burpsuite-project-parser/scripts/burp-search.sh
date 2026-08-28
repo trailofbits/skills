@@ -61,8 +61,11 @@ Output: JSON objects, one per line
 Exit codes:
   0   output produced
   1   bad usage, or a missing file, Java or JAR
-  3   no output -- an empty result set and a missing parser extension look the same
-  4   output was not JSON -- Burp ignored the query flags, extension not loaded
+  3   no output at all -- an empty result set and a missing parser extension look the same
+  4   output, but not one JSON object -- Burp ignored the query flags, extension not loaded
+
+Only JSON objects reach stdout; any other line is reported on stderr. Through a pipe the exit
+code is invisible, so stderr is the signal to read -- or set -o pipefail and check PIPESTATUS.
 EOF
   exit 1
 }
@@ -104,21 +107,24 @@ fi
 # Burp silently ignores flags it does not recognise, so with the parser extension missing it starts
 # normally and drops the query -- producing either its own non-JSON startup output or nothing at all.
 # Both look like a successful search that found nothing. Stream the output through awk so the common
-# case still pipes to jq/head unbuffered by a temp file, and classify what went past:
-#   exit 3  no output at all       -- an empty result set and a missing extension are indistinguishable
-#   exit 4  output that is not JSON -- the flags were dropped; the extension is not loaded
+# case still pipes to jq/head unbuffered by a temp file, and classify the WHOLE stream rather than
+# just its first line. Judging line 1 alone breaks both ways: a working install may print a licence
+# or startup line before the JSON, and a Java log line like `[main] INFO ...` would pass a check
+# that accepts a leading `[`.
+#
+# Only JSON objects reach stdout. Anything else goes to stderr rather than being dropped, so a
+# downstream `grep` or `jq` can never match a startup banner.
+#   exit 3  nothing at all      -- an empty result set and a missing extension are indistinguishable
+#   exit 4  output, but no JSON -- the flags were dropped; the extension is not loaded
 # `set +e` rather than `|| true`: `true` is a command of its own and would reset PIPESTATUS before it
 # could be read.
 set +e
 "$JAVA_PATH" -jar -Djava.awt.headless=true "$BURP_JAR" \
   --project-file="$PROJECT_FILE" \
   "$@" | awk '
-    NR == 1 && $0 !~ /^[[:space:]]*[{[]/ {
-      not_json = 1
-      print "burp-search.sh: first line of output was not JSON: " $0 > "/dev/stderr"
-    }
-    { print; lines++ }
-    END { if (lines == 0) exit 3; if (not_json) exit 4 }
+    /^[[:space:]]*\{/ { print; json++; next }
+    { print "burp-search.sh: ignored non-JSON output: " $0 > "/dev/stderr"; other++ }
+    END { if (json == 0 && other == 0) exit 3; if (json == 0) exit 4 }
   '
 pipe_status=("${PIPESTATUS[@]}")
 set -e
@@ -143,7 +149,7 @@ case "$awk_status" in
     exit 3
     ;;
   4)
-    echo "Error: Burp produced output that is not JSON, so it ignored the query flags." >&2
+    echo "Error: Burp produced output, but not one JSON object, so it ignored the query flags." >&2
     echo "This is what a missing burpsuite-project-file-parser extension looks like: Burp starts" >&2
     echo "normally and drops flags it does not recognise." >&2
     echo "Install it from https://github.com/BuffaloWill/burpsuite-project-file-parser and add the" >&2
