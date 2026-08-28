@@ -96,7 +96,7 @@ Three actions with dangerous configurations (from research Example 8):
 - **Specific restricted tool patterns** in Claude: `--allowedTools "Bash(npm test:*)"` or `--allowedTools "Bash(echo:*)"` -- these are restrictive, not dangerous (though they may be exploitable via Vector F for subshell expansion)
 - **Codex workspace-scoped sandbox:** `sandbox: workspace-write` allows writes but within a workspace boundary, not full system access
 - **Gemini specific tool lists:** `coreTools` containing specific tools but NOT `run_shell_command` -- tool-specific restrictions, not full sandbox disable
-- **Default configurations:** Actions without explicit sandbox/safety config fields -- defaults are generally safe (Claude defaults to restricted tools, Codex defaults to `sandbox: workspace-write`, Gemini defaults to sandbox enabled)
+- **Default configurations:** Claude defaults to restricted tools and Codex to `sandbox: workspace-write`, so an absent field is a safe default for those two. It is NOT safe for Gemini: `action-profiles.md` records the action running with the sandbox off unless `"sandbox": true` is set, so an absent field there is the unsandboxed case. And this false positive is about *action* defaults -- a CLI agent's absent flag is the CLI's own default, which for `gemini -p` and `aider -m` is not sandboxed and not approval-gated. Check the CLI's default, do not excuse it
 - **Claude `--allowedTools` with narrow patterns:** e.g., `--allowedTools "Read(*) Grep(*)"` -- read-only tools pose minimal risk
 
 See [foundations.md](foundations.md) for AI action field mappings.

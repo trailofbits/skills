@@ -90,5 +90,7 @@ Where each supported action receives prompt content that could carry attacker in
 | `google-gemini/gemini-cli-action` | `with.prompt` | Legacy/archived Gemini action reference |
 | `openai/codex-action` | `with.prompt`, `with.prompt-file` | `prompt-file` may point to attacker-controlled file |
 | `actions/ai-inference` | `with.prompt`, `with.system-prompt`, `with.system-prompt-file` | System prompt is also an injection surface |
+| `anthropics/claude-code-base-action` | `with.prompt`, `with.prompt_file`, `with.system_prompt`, `with.append_system_prompt` | Different schema from the wrapper action; also `with.settings` and `with.mcp_config` |
+| CLI-invoked agent (`run:` block) | positional argument, `-p`/`--print`, `-m`/`--message`/`--message-file`, a heredoc, a file the command reads, or stdin from a pipe | No `with:` block exists; the prompt is the command line and what feeds it |
 
 When checking for attacker-controlled content in prompts, examine ALL fields listed for the relevant action, not just the primary `prompt` field.

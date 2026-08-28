@@ -47,7 +47,7 @@ From a project with the Trail of Bits internal marketplace configured:
 /plugin menu
 ```
 
-Select **agentic-actions-auditor** from the Security Tooling section.
+Select **agentic-actions-auditor** from the Code Auditing section.
 
 ## Skills Included
 

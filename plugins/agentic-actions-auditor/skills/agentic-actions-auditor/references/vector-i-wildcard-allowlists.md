@@ -80,7 +80,7 @@ From research Example 9 -- both actions with wildcard allowlists:
 
 ## False Positives
 
-- **No allowlist field present:** Actions without any user allowlist field typically default to write-access-only users (safe default behavior) -- the absence of the field is not a finding
+- **No allowlist field present:** This applies to `anthropics/claude-code-action`, which does default to write-access-only users. It does NOT apply where no allowlist input exists at all -- `run-gemini-cli`, `actions/ai-inference` and `claude-code-base-action` per the table above, or a CLI agent invoked from a `run:` block. For those the gate is the step or job `if:` condition; none, on an externally triggerable event, is a finding rather than a safe default
 - **Explicit user lists:** `allowed_non_write_users: "user1,user2"` or `allow-users: "dependabot[bot],renovate[bot]"` -- restricted to specific users, not wildcard
 - **Bot-only wildcard:** `allowed_bots: "*"` without a wildcard on the user allowlist -- lower risk since bots typically do not open issues with attacker-crafted content, though this should still be noted as a secondary concern
 - **Push-only workflows:** Workflows triggered only by `push` events with wildcard allowlists -- push requires write access anyway, so the allowlist is redundant but not dangerous

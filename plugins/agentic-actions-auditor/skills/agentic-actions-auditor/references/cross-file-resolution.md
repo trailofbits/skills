@@ -13,8 +13,8 @@ Parse each `uses:` value to determine its type and resolution strategy.
 | `./path/to/action` | Local composite action | Read `{path}/action.yml` from filesystem | YES |
 | `./.github/workflows/called.yml` | Local reusable workflow | Read file from filesystem | YES |
 | `owner/repo/.github/workflows/file.yml@ref` | Remote reusable workflow | Fetch via `gh api` Contents API | YES |
-| `docker://image:tag` | Docker image | N/A -- no steps to analyze | NO (skip) |
-| `owner/repo@ref` (without `.github/workflows/`) | Remote action | Would require remote action.yml fetch | NO (skip silently) |
+| `docker://image:tag` | Docker image | N/A -- no steps to analyze | NO -- record as unresolved |
+| `owner/repo@ref` (without `.github/workflows/`) | Remote action | Would require remote action.yml fetch | NO -- record as unresolved |
 
 **Classification algorithm:**
 
@@ -24,7 +24,7 @@ Given a uses: value:
 2. Starts with "./" -> LOCAL COMPOSITE ACTION
 3. Contains ".github/workflows/" AND contains "@" -> REMOTE REUSABLE WORKFLOW
 4. Starts with "docker://" -> DOCKER IMAGE (skip)
-5. Else -> REMOTE ACTION (out of scope, skip silently)
+5. Else -> REMOTE ACTION (out of scope, record as unresolved)
 ```
 
 Order matters: check step 1 before step 2, because local reusable workflows also start with `./`.
@@ -50,10 +50,10 @@ Order matters: check step 1 before step 2, because local reusable workflows also
 | `runs.using` Value | Action Type | Analyze? |
 |-------------------|-------------|----------|
 | `composite` | Composite action | YES -- scan `runs.steps[]` |
-| `node12`, `node16`, `node20`, `node24` | JavaScript action | NO -- skip silently |
-| `docker` | Docker action | NO -- skip silently |
+| `node12`, `node16`, `node20`, `node24` | JavaScript action | NO -- record as unresolved |
+| `docker` | Docker action | NO -- record as unresolved |
 
-Only composite actions have `runs.steps[]` containing workflow-style steps. If `runs.using` is not `composite`, skip silently -- do NOT log as unresolved.
+Only composite actions have `runs.steps[]` containing workflow-style steps. If `runs.using` is not `composite` there are no steps to read, but the action may still run an agent internally, so record it as unresolved rather than skipping silently -- otherwise the clean report asserts a coverage it did not have.
 
 **Analysis of composite action steps:**
 1. For each step in `runs.steps[]`, check `uses:` against the known AI action references (SKILL.md Step 2a)
@@ -196,13 +196,13 @@ When any references could not be resolved, add an "Unresolved References" sectio
 ```
 
 - Omit this section entirely when all references resolve successfully
-- The summary counts total findings only -- it does not count resolved or unresolved references
+- The summary counts total findings only. Unresolved references are not findings and are not folded into the AI-action instance count either; they get their own line, per SKILL.md Step 5e
 
 ## Edge Cases
 
 **action.yml vs action.yaml:** Try `.yml` first, fall back to `.yaml`. GitHub supports both filenames and prefers `.yml`. This applies to both filesystem reads and API fetches.
 
-**Non-composite actions at local paths:** When `./path/to/action` resolves to a JavaScript or Docker action (`runs.using` is `node*` or `docker`), skip silently. Do NOT log as unresolved -- these are valid actions that simply have no analyzable workflow-style steps.
+**Non-composite actions at local paths:** When `./path/to/action` resolves to a JavaScript or Docker action (`runs.using` is `node*` or `docker`), there are no workflow-style steps to analyze. Record it as unresolved naming the action and its type: nothing was read, and a JavaScript or Docker action is a normal place to run an agent.
 
 **Local paths in remote analysis mode:** Fetch via Contents API using the same repo context. The `./` prefix is relative to the repository root, and the Contents API can retrieve any path: `gh api repos/{owner}/{repo}/contents/{path}/action.yml?ref={ref}`.
 
