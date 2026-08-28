@@ -63,7 +63,7 @@ Select **agentic-actions-auditor** from the Security Tooling section.
 
 ## Usage
 
-Once installed, the skill activates automatically when Claude detects GitHub Actions workflow files (`.github/workflows/*.yml`) containing AI agent action references. You can also invoke it directly:
+Once installed, the skill activates automatically when Claude detects GitHub Actions workflow files (`.github/workflows/*.yml`) that invoke an AI agent — as a published action, or as a CLI command in a `run:` block. You can also invoke it directly:
 
 ```
 Audit the GitHub Actions workflows in this repository for AI agent security issues.
