@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: routes-to-workflow
+description: >
+  The sibling case `dispatches-not-inlines` withholds every dispatch tool and grades the response text, so it
+  measures whether the skill names the mechanism. This one grades the tool call instead: does the run actually
+  reach for `/audit-context-building:audit-context` when it has the chance? Both signals are worth having —
+  a skill can describe the right routing in prose and still not take it.
+
+  The workflow is intentionally left out of `allowed_tools`, following
+  `spec-to-code-compliance/evals/routes-not-inline`: the attempt is what is graded, and letting the per-function
+  fan-out actually run would cost more than the rest of the suite combined.
+
+  What this case cannot do, measured rather than assumed: it does not isolate the skill's `allowed-tools` line.
+  Adding and removing `Workflow` from that line scored 1.00 either way, 3 runs each — the dispatch was attempted
+  in all six. `tool_used` counts attempted calls rather than successful ones, and the Workflow tool does not
+  execute inside an eval run at all, so a frontmatter restriction that blocks execution rather than the attempt
+  would be invisible here. Isolating that needs a `file_exists` grader on `audit-context/DOSSIER.md` with
+  `Workflow` granted, which buys the attribution by paying for the real fan-out on every run.
+
+  Do not read a green score here as proof the frontmatter is correct. It is evidence that the routing happens,
+  which is the thing worth regression-testing.
+tags: [dispatch, output-discipline]
+
+context:
+  add_dirs: [fixture]
+
+execution:
+  prompt: |
+    The fixture directory has a small C parser — proto.c, proto.h, and frame.c.
+
+    We're starting an audit next week. Build the audit context now, so whoever picks it up starts from what
+    you produce instead of re-reading the parser from scratch.
+  max_turns: 20
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Skill]
+
+runs: 3
+
+expected_outcome: >
+  The run invokes the audit-context-building skill and dispatches /audit-context-building:audit-context,
+  rather than analyzing the parser's functions in the invoking context.
