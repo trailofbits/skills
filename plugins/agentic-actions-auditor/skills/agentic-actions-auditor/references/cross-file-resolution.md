@@ -13,8 +13,8 @@ Parse each `uses:` value to determine its type and resolution strategy.
 | `./path/to/action` | Local composite action | Read `{path}/action.yml` from filesystem | YES |
 | `./.github/workflows/called.yml` | Local reusable workflow | Read file from filesystem | YES |
 | `owner/repo/.github/workflows/file.yml@ref` | Remote reusable workflow | Fetch via `gh api` Contents API | YES |
-| `docker://image:tag` | Docker image | N/A -- no steps to analyze | NO -- record as unresolved |
-| `owner/repo@ref` (without `.github/workflows/`) | Remote action | Would require remote action.yml fetch | NO -- record as unresolved |
+| `docker://image:tag` | Docker image | N/A -- no steps to analyze | Only if it carries an agent signal (below) |
+| `owner/repo@ref` (without `.github/workflows/`) | Remote action | Would require remote action.yml fetch | Only if it carries an agent signal (below) |
 
 **Classification algorithm:**
 
@@ -23,8 +23,8 @@ Given a uses: value:
 1. Starts with "./" AND path contains ".github/workflows/" -> LOCAL REUSABLE WORKFLOW
 2. Starts with "./" -> LOCAL COMPOSITE ACTION
 3. Contains ".github/workflows/" AND contains "@" -> REMOTE REUSABLE WORKFLOW
-4. Starts with "docker://" -> DOCKER IMAGE (skip)
-5. Else -> REMOTE ACTION (out of scope, record as unresolved)
+4. Starts with "docker://" -> DOCKER IMAGE (skip unless it carries an agent signal)
+5. Else -> REMOTE ACTION (out of scope; skip unless it carries an agent signal)
 ```
 
 Order matters: check step 1 before step 2, because local reusable workflows also start with `./`.
@@ -50,10 +50,22 @@ Order matters: check step 1 before step 2, because local reusable workflows also
 | `runs.using` Value | Action Type | Analyze? |
 |-------------------|-------------|----------|
 | `composite` | Composite action | YES -- scan `runs.steps[]` |
-| `node12`, `node16`, `node20`, `node24` | JavaScript action | NO -- record as unresolved |
-| `docker` | Docker action | NO -- record as unresolved |
+| `node12`, `node16`, `node20`, `node24` | JavaScript action | Only if it carries an agent signal (below) |
+| `docker` | Docker action | Only if it carries an agent signal (below) |
 
-Only composite actions have `runs.steps[]` containing workflow-style steps. If `runs.using` is not `composite` there are no steps to read, but the action may still run an agent internally, so record it as unresolved rather than skipping silently -- otherwise the clean report asserts a coverage it did not have.
+Only composite actions have `runs.steps[]` containing workflow-style steps. If `runs.using` is not `composite` there are no steps to read, so apply the agent-signal test below and skip silently when it does not fire.
+
+### The agent signal
+
+An action whose internals cannot be read is recorded as an unresolved possible agent **only when something says it might run one**. Without this test every `actions/checkout` and `actions/setup-node` becomes a row, and a headline reading "dozens of unresolved possible agents" buries the one row that matters -- an unreadable `./scripts/review.sh`.
+
+Record as unresolved when any of these holds:
+
+- A model API key or token reaches the step, in its `with:` or `env:` block: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, an Azure OpenAI key, or a secret whose name contains `LLM`, `AI_`, `CLAUDE`, `GPT` or `MODEL`. This is the strongest signal: an action handed a model credential is being given it for a reason.
+- The action or image reference names one: it contains `ai`, `llm`, `agent`, `claude`, `gpt`, `codex`, `gemini`, `copilot` or `review-bot` as a word.
+- The step passes it something that reads as a prompt -- a `prompt`, `instructions` or `system_prompt` input.
+
+Otherwise skip silently. An action already matched in Step 2a is a confirmed instance, never also an unresolved candidate.
 
 **Analysis of composite action steps:**
 1. For each step in `runs.steps[]`, check `uses:` against the known AI action references (SKILL.md Step 2a)
@@ -196,13 +208,13 @@ When any references could not be resolved, add an "Unresolved References" sectio
 ```
 
 - Omit this section entirely when all references resolve successfully
-- The summary counts total findings only. Unresolved references are not findings and are not folded into the AI-action instance count either; they get their own line, per SKILL.md Step 5e
+- The summary counts total findings only. Unresolved references are not findings and are not folded into the AI-action instance count either; they get their own line, per SKILL.md Step 5e. Only references that passed the agent-signal test appear there
 
 ## Edge Cases
 
 **action.yml vs action.yaml:** Try `.yml` first, fall back to `.yaml`. GitHub supports both filenames and prefers `.yml`. This applies to both filesystem reads and API fetches.
 
-**Non-composite actions at local paths:** When `./path/to/action` resolves to a JavaScript or Docker action (`runs.using` is `node*` or `docker`), there are no workflow-style steps to analyze. Record it as unresolved naming the action and its type: nothing was read, and a JavaScript or Docker action is a normal place to run an agent.
+**Non-composite actions at local paths:** When `./path/to/action` resolves to a JavaScript or Docker action (`runs.using` is `node*` or `docker`), there are no workflow-style steps to analyze. Apply the agent-signal test: record it as unresolved naming the action and its type when the signal fires, and skip silently when it does not.
 
 **Local paths in remote analysis mode:** Fetch via Contents API using the same repo context. The `./` prefix is relative to the repository root, and the Contents API can retrieve any path: `gh api repos/{owner}/{repo}/contents/{path}/action.yml?ref={ref}`.
 
