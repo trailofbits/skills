@@ -25,10 +25,19 @@ The skill checks for nine categories of security issues:
 | Action | Repository | Notes |
 |--------|------------|-------|
 | Claude Code Action | anthropics/claude-code-action | |
+| Claude Code Action (base) | anthropics/claude-code-base-action | |
 | Gemini CLI | google-github-actions/run-gemini-cli | Primary |
 | Gemini CLI (legacy) | google-gemini/gemini-cli-action | Archived |
 | OpenAI Codex | openai/codex-action | |
 | GitHub AI Inference | actions/ai-inference | |
+
+## CLI-Invoked Agents
+
+An agent does not need a published action to run in CI. The audit also scans `run:` blocks for the same agents
+invoked as CLIs — `claude -p`, `codex exec`, `gemini`, `npx @anthropic-ai/claude-code`, `aider`, and direct
+`curl` calls to a model API — because they hold the same tools and the same secrets with no `uses:` line to
+match on. Scanning the action list alone reports such a repository as running no agents at all, which is the
+one wrong answer that reads as a clean bill of health.
 
 ## Installation
 

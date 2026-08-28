@@ -41,6 +41,9 @@ Wrong because this is the classic env var intermediary miss. Data flows through 
 **4. "The sandbox prevents any real damage"**
 Wrong because sandbox misconfigurations (`danger-full-access`, `Bash(*)`, `--yolo`) disable protections entirely. Even properly configured sandboxes leak secrets if the AI agent can read environment variables or mounted files. The sandbox boundary is only as strong as its configuration.
 
+**5. "It doesn't use any of the known AI actions, so there is nothing to audit"**
+Wrong because it mistakes a packaging choice for an absence of agents. The same models run from `run:` blocks as CLIs -- `claude -p`, `codex exec`, `npx @google/gemini-cli`, a `curl` to `api.anthropic.com` -- holding the same tools and the same secrets, with no `uses:` line to match on. Grepping the action allowlist and stopping produces a confident "0 AI action instances" for a repository whose agent is one `run:` block away. Scan both surfaces before reporting a repository clean.
+
 ## Audit Methodology
 
 Follow these steps in order. Each step builds on the previous one.
@@ -123,11 +126,17 @@ Important: Only scan `.github/workflows/` at the repository root. Do not scan su
 
 For each workflow file, examine every job and every step within each job. Check each step's `uses:` field against the known AI action references below.
 
+An agent reaches a workflow two ways, and both are in scope: a published action under `uses:` (2a), or a
+command in a `run:` block (2b). Scan for both before concluding a repository runs no agents.
+
+#### 2a: Action-Invoked Agents (`uses:`)
+
 **Known AI Action References:**
 
 | Action Reference | Action Type |
 |-----------------|-------------|
 | `anthropics/claude-code-action` | Claude Code Action |
+| `anthropics/claude-code-base-action` | Claude Code Action (base) |
 | `google-github-actions/run-gemini-cli` | Gemini CLI |
 | `google-gemini/gemini-cli-action` | Gemini CLI (legacy/archived) |
 | `openai/codex-action` | OpenAI Codex |
@@ -147,7 +156,41 @@ For each workflow file, examine every job and every step within each job. Check 
 - Action reference (the full `uses:` value including the version ref)
 - Action type (from the table above)
 
-If no AI action steps are found across all workflows, report "No AI action steps found in N workflow files" and stop.
+#### 2b: CLI-Invoked Agents (`run:`)
+
+The same agents ship as CLIs, and a `run:` block that invokes one is an AI action step with no `uses:` line to
+match. This is the common shape in repositories that outgrew the published action, wrapped it in a script, or
+were built before the action existed. Nothing about it is safer -- the agent holds the same tools and the same
+secrets -- and 2a alone reports it as a repository that runs no agents at all.
+
+Examine every `run:` block in every job for these invocations:
+
+| Command pattern | Agent |
+|----------------|-------|
+| `claude`, `claude -p`, `npx @anthropic-ai/claude-code` | Claude Code CLI |
+| `codex exec`, `npx @openai/codex` | OpenAI Codex CLI |
+| `gemini`, `npx @google/gemini-cli` | Gemini CLI |
+| `aider` | Aider |
+| `curl` to `api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com`, or an OpenAI-compatible `/v1/chat/completions` endpoint | Direct model API call |
+
+**Matching rules:**
+
+- Scan the whole block, including every line of a `run: \|` multi-line script and any heredoc inside it.
+- Installing an agent is not invoking one. `npm install -g @anthropic-ai/claude-code` is a setup step; find the
+  later line that runs `claude`. Both may sit in the same block.
+- A workflow that runs a repository script (`./scripts/review.sh`) may invoke an agent inside it. Read the
+  script when it is in the repository; when it is not, record the step as an unresolved possible agent rather
+  than dropping it.
+- Not every mention is an invocation. `which claude`, `claude --version`, a `grep` for the string, and a
+  filename containing it are diagnostics, not agent runs. Confirm the command is executed with a prompt
+  reaching it before recording it.
+
+**For each matched step, record** the same five fields as 2a, with the full command line in place of the action
+reference and the agent name in place of the action type.
+
+If neither 2a nor 2b matches anywhere across all workflows, report "No AI action steps found in N workflow
+files" and stop. Do not stop after 2a: a repository that drives its agent entirely from `run:` steps is exactly
+the case this step exists to catch, and reporting it clean is the most expensive error this skill can make.
 
 #### Cross-File Resolution
 
@@ -195,6 +238,21 @@ Capture these security-relevant input fields based on the action type:
 - `model` -- which model is invoked
 - `token` -- GitHub token with model access (check scope)
 
+**CLI-invoked agents (from 2b):** the same fields exist, as command-line arguments rather than `with:` keys.
+Capture:
+
+- **The prompt** -- wherever it reaches the agent: a positional argument, `-p`/`--prompt`, a heredoc, a file
+  named by `--prompt-file`, or stdin from a pipe (`echo "$BODY" \| claude -p`). A piped prompt is still a
+  prompt; trace what fills the pipe.
+- **Tool and sandbox flags** -- `--allowedTools`/`--dangerously-skip-permissions` (Claude), `--yolo`/
+  `--approval-mode=yolo` (Gemini), `--full-auto`/`--sandbox danger-full-access`/
+  `--dangerously-bypass-approvals-and-sandbox` (Codex), `--yes-always` (Aider). These are the Vector H checks in
+  CLI form.
+- **The `env:` block on the step** -- a CLI agent reads env vars by name exactly as an action does, so Vector A
+  applies unchanged.
+- **What gates the step** -- an `if:` condition on the step or job is the only allowlist a CLI agent has. Absent,
+  anyone who can fire the trigger reaches the agent, which is Vector I without a wildcard to grep for.
+
 #### 3b. Workflow-Level Context
 
 For the entire workflow containing the AI action step, also capture:
@@ -221,6 +279,10 @@ After scanning all workflows, produce a summary:
 
 "Found N AI action instances across M workflow files: X Claude Code Action, Y Gemini CLI, Z OpenAI Codex, W GitHub AI Inference"
 
+Count action-invoked and CLI-invoked instances together, and say which is which -- "6 instances (4 action-invoked,
+2 CLI-invoked)". A reader who sees only the total cannot tell that a third of the agents in the repository would
+have been missed by scanning `uses:` alone.
+
 Include the security context captured for each instance in the detailed output.
 
 ### Step 4: Analyze for Attack Vectors
@@ -242,6 +304,16 @@ Then check each vector against the security context captured in Step 3:
 | I | Wildcard Allowlists | `allowed_non_write_users: "*"`, `allow-users: "*"` | [{baseDir}/references/vector-i-wildcard-allowlists.md]({baseDir}/references/vector-i-wildcard-allowlists.md) |
 
 For each vector, read the referenced file and apply its detection heuristic against the security context captured in Step 3. For each finding, record: the vector letter and name, the specific evidence from the workflow, the data flow path from attacker input to AI agent, and the affected workflow file and step.
+
+The vector files are written against `uses:` steps, so two of them need reading across for a CLI-invoked agent
+found in 2b:
+
+- **Vector B excludes `${{ }}` in `run:` blocks** as ordinary script injection outside this skill's scope. That
+  exclusion assumes the `run:` block is not the AI step. When the block *is* the agent invocation, an expression
+  interpolated into its command line is direct injection into the prompt -- Vector B, in scope, and the
+  exclusion does not apply.
+- **Vector H's dangerous configurations** are listed as `with:` keys. For a CLI agent read them as the
+  equivalent command-line flags captured in Step 3, not as absent.
 
 ### Step 5: Report Findings
 
@@ -298,8 +370,11 @@ When no findings are detected, produce a substantive report rather than a bare "
 
 1. **Executive summary header:** Same format with 0 findings count
 2. **Workflows Scanned table:** Workflow File | AI Action Instances (one row per workflow)
-3. **AI Actions Found table:** Action Type | Count (one row per action type discovered)
+3. **AI Actions Found table:** Action Type | Invocation (action or CLI) | Count (one row per type discovered)
 4. **Closing statement:** "No security findings identified."
+
+State that both `uses:` and `run:` were scanned. A clean report is a claim about what was looked for, and its
+value rests entirely on the reader knowing the CLI surface was included.
 
 #### 5f. Cross-References
 
