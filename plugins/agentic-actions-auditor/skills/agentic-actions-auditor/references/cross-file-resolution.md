@@ -56,8 +56,12 @@ Order matters: check step 1 before step 2, because local reusable workflows also
 Only composite actions have `runs.steps[]` containing workflow-style steps. If `runs.using` is not `composite`, skip silently -- do NOT log as unresolved.
 
 **Analysis of composite action steps:**
-1. For each step in `runs.steps[]`, check `uses:` against the known AI action references (SKILL.md Step 2)
-2. If an AI action is found, capture its `with:` fields for security context (SKILL.md Step 3)
+1. For each step in `runs.steps[]`, check `uses:` against the known AI action references (SKILL.md Step 2a)
+   **and** check `run:` blocks for CLI-invoked agents (SKILL.md Step 2b). A composite action is a common place
+   to hide `claude -p "$ISSUE_BODY" --dangerously-skip-permissions`, and matching only `uses:` here reproduces
+   inside the resolved file exactly the blind spot Step 2b closes in the caller.
+2. If an AI action is found, capture its `with:` fields -- or, for a CLI invocation, the command line, step
+   `env:` block and `if:` condition -- for security context (SKILL.md Step 3)
 3. Run the same attack vector detection (SKILL.md Step 4) on each AI action step found
 4. Any `uses:` cross-file references found inside the resolved file are logged as unresolved (depth limit) -- do NOT follow them
 
