@@ -39,6 +39,20 @@ The script uses environment variables for platform compatibility:
 - `BURP_JAVA`: Path to Java executable
 - `BURP_JAR`: Path to burpsuite_pro.jar
 
+**Check the exit code. Empty output is not a clean result.** Burp ignores flags it does not recognise, so
+without the parser extension it starts normally and drops the query — which looks exactly like a search that
+matched nothing.
+
+| Exit | Meaning | What to do |
+|------|---------|------------|
+| 0 | Output produced | Proceed |
+| 1 | Bad usage, or a missing file, Java or JAR | Read the message; fix the path |
+| 3 | No output at all | **Do not report this as "nothing found".** An empty result set and an unloaded extension are indistinguishable from here. Confirm the extension is loaded, then re-run; if it is loaded, the query genuinely matched nothing |
+| 4 | Output was not JSON | The extension is not loaded and Burp ignored the flags. Install it before trusting any result |
+
+Anything other than 0 means the search result is unverified, and saying "no matching traffic" on the strength
+of it is a false negative reported as a clean finding.
+
 See [Platform Configuration](#platform-configuration) for setup instructions.
 
 ## Sub-Component Filters (USE THESE)
@@ -162,6 +176,9 @@ The `wc -cl` output shows: `<bytes> <lines>` (e.g., `524288 42` means 512KB acro
 
 **A single 10MB response on one line will show high byte count but only 1 line - the byte check catches this.**
 
+`0 0` from `wc -cl` is not a size to act on — the script exited 3 and nothing was verified. Piping hides that,
+so re-run the query on its own and read the exit code before concluding the project holds no matching traffic.
+
 ### Step 2: Refine Broad Searches
 
 If count/size is too high:
@@ -284,6 +301,7 @@ Common shortcuts that lead to missed vulnerabilities or false reports:
 | "All audit items are relevant" | Filter by actual threat model; not every finding matters for every app |
 | "Proxy history is complete" | May be filtered by Burp scope/intercept settings; you see only what Burp captured |
 | "Burp found it, so it's a vuln" | Burp findings require manual verification—they indicate potential issues, not proof |
+| "The search returned nothing, so the traffic isn't there" | Check the exit code first. Exit 3 means the script could not tell an empty result from an unloaded extension, and exit 4 means the query never ran. Only a 0 makes "nothing found" a statement about the project rather than about the tooling |
 
 ## Output Format
 
