@@ -16,7 +16,7 @@ command -v uv >/dev/null 2>&1 || {
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
-readonly EXPECTED_ASSERTIONS=78
+readonly EXPECTED_ASSERTIONS=82
 
 command -v jq >/dev/null 2>&1 || {
   echo "run_scan_tests.sh: jq not found — required" >&2
@@ -234,6 +234,19 @@ DUPE=$(plan dupe '{"baseline":[],"js":["p/javascript"],"javascript":["p/javascri
 out=$(dry "$DUPE")
 n=$(printf '%s\n' "$out" | grep -c 'p/javascript')
 eq "$n" "1" "the same ruleset under two aliases of one language must be scanned once"
+
+# JavaScript and TypeScript are distinct detection categories with distinct primary rulesets.
+# The JavaScript include scope also carries TypeScript extensions, but folding the categories
+# together would discard the signal that selects p/typescript for a TS-only or mixed tree.
+JSTS=$(plan jsts '{"baseline":[],"javascript":["p/javascript"],"typescript":["p/typescript"],"third_party":[]}')
+out=$(dry "$JSTS")
+n=$(printf '%s\n' "$out" | grep -c 'raw/javascript-')
+eq "$n" "1" "javascript must keep its own scan unit"
+n=$(printf '%s\n' "$out" | grep -c 'raw/typescript-')
+eq "$n" "1" "typescript must keep its own scan unit"
+ts_cmd=$(printf '%s\n' "$out" | grep 'p/typescript')
+contains "$ts_cmd" '"--include=*.ts"' "the TypeScript ruleset must scan .ts files"
+contains "$ts_cmd" '"--include=*.tsx"' "the TypeScript ruleset must scan .tsx files"
 
 # Two spellings of one repository collapse to one clone directory, so the second clone would
 # fail into a non-empty tree and both would then read the same result.

@@ -91,7 +91,8 @@ Map findings to categories:
 | Detection | Category |
 |-----------|----------|
 | `.py`, `.pyi`, `pyproject.toml`, `requirements.txt` | Python |
-| `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `package.json` | JavaScript/TypeScript |
+| `.js`, `.jsx`, `.mjs`, `.cjs`, `package.json` with JavaScript sources | JavaScript |
+| `.ts`, `.tsx`, `package.json` with TypeScript sources | TypeScript |
 | `.go`, `go.mod` | Go |
 | `.rb`, `Gemfile` | Ruby |
 | `.java`, `.jsp`, `pom.xml` | Java |
@@ -109,6 +110,13 @@ Map findings to categories:
 | `.tf`, `.tfvars`, `.hcl` | Terraform |
 | `.yaml`, `.yml` | YAML, Kubernetes, GitHub Actions, or CloudFormation — disambiguate below |
 | `.json` | CloudFormation or JSON, or no category at all — disambiguate below |
+
+Keep JavaScript and TypeScript as separate detected categories. `run-scans.sh` deliberately
+includes `.ts`/`.tsx` in the JavaScript execution scope because JavaScript rules can apply to
+TypeScript syntax too, but that execution overlap does not make the detection categories
+interchangeable: [rulesets.md](../references/rulesets.md) assigns `p/javascript` and
+`p/typescript` separately. A mixed tree therefore reports both categories; a TypeScript-only
+tree reports TypeScript, not JavaScript.
 
 **Disambiguating YAML.** One `.yaml`/`.yml` match feeds four categories, so Read a sample of the matches before assigning:
 

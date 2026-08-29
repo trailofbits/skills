@@ -39,7 +39,8 @@ die() {
 # re-run that when bumping it, because a type omitted here is excluded with no signal and the
 # ruleset reads clean rather than incomplete. Absent because semgrep does not parse them:
 # .mts, .cts, .C, Containerfile, Dockerfile.prod. javascript carries the TypeScript globs
-# because one detection category covers both.
+# because JavaScript rules can apply to TypeScript syntax too. Detection still keeps the two
+# categories separate so the plan can select both p/javascript and p/typescript.
 includes_for() {
   case "$1" in
     python) echo '*.py *.pyi' ;;
