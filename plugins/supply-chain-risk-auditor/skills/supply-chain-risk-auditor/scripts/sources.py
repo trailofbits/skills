@@ -150,7 +150,7 @@ class Http:
             return None
         try:
             stored = json.loads(path.read_text(encoding="utf-8"), strict=False)
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError):
             # A run interrupted mid-write leaves a truncated file that would otherwise
             # crash every later run. Drop it and refetch.
             self.stats["errors"] += 1
