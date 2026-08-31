@@ -85,10 +85,26 @@ Where each supported action receives prompt content that could carry attacker in
 
 | Action | Prompt Fields | Notes |
 |--------|--------------|-------|
-| `anthropics/claude-code-action` | `with.prompt` | Also check `with.claude_args` for embedded instructions |
+| `anthropics/claude-code-action` | `with.prompt`, `with.direct_prompt`, `with.override_prompt` | The last two are the pre-v1 names; also check `with.claude_args` for embedded instructions |
 | `google-github-actions/run-gemini-cli` | `with.prompt` | Shell-style env var interpolation in prompt text |
 | `google-gemini/gemini-cli-action` | `with.prompt` | Legacy/archived Gemini action reference |
 | `openai/codex-action` | `with.prompt`, `with.prompt-file` | `prompt-file` may point to attacker-controlled file |
 | `actions/ai-inference` | `with.prompt`, `with.system-prompt`, `with.system-prompt-file` | System prompt is also an injection surface |
 
 When checking for attacker-controlled content in prompts, examine ALL fields listed for the relevant action, not just the primary `prompt` field.
+
+### Claude Code Action Renamed Its Inputs at v1
+
+`claude-code-action` replaced its input surface at v1. The v0.x names are absent from the v1 `action.yml` and the v1 names are absent from v0.x, so a signature written against one set silently matches nothing in the other. The action's [migration guide](https://github.com/anthropics/claude-code-action/blob/main/docs/migration-guide.md) gives the mapping; these are the security-relevant rows:
+
+| v0.x, including the `@beta` tag | v1 and later | Why it matters |
+|---------------------------------|--------------|----------------|
+| `direct_prompt` | `prompt` | Prompt sink |
+| `override_prompt` | `prompt` | Prompt sink |
+| `custom_instructions` | `claude_args: --append-system-prompt` | System prompt sink |
+| `allowed_tools` | `claude_args: --allowedTools` | Tool allowlist, Vectors F and H |
+| `disallowed_tools` | `claude_args: --disallowedTools` | Tool denylist |
+
+Both sets appear in the wild, so match on either. The ref after `@` does not identify the set: `@beta` carries the v0.x names, and files pinned at `@v1` or a commit SHA still carry `direct_prompt`. Read the field names present in the file, not the ref.
+
+The tool lists also separate differently. `claude_args: '--allowedTools "Bash(a:*) Bash(b:*)"'` separates on spaces; the v0.x `allowed_tools: "Bash(a:*),Bash(b:*)"` separates on commas. A matcher that splits one way reads the other as a single entry.

@@ -137,11 +137,13 @@ Composite action (actions/issue-triage/action.yml):
 
 ```
 Caller workflow (.github/workflows/ci.yml):
+  on: pull_request_target
   jobs:
     ai-review:
       uses: org/shared/.github/workflows/ai-review.yml@main
       with:
         pr_body: ${{ github.event.pull_request.body }}
+      secrets: inherit
 
 Called workflow (org/shared/.github/workflows/ai-review.yml):
   on:
@@ -167,10 +169,27 @@ Called workflow (org/shared/.github/workflows/ai-review.yml):
    -> org/shared/.github/workflows/ai-review.yml, on.workflow_call.inputs
 4. AI action: prompt contains ${{ inputs.pr_body }}
    -> org/shared/.github/workflows/ai-review.yml, jobs.review.steps[0]
-5. Claude executes with tainted prompt via pull_request_target (has secrets access)
+5. Claude executes with tainted prompt via pull_request_target
+   -> secrets reach the callee through `secrets: inherit` on the calling job
+   -> .github/workflows/ci.yml, jobs.ai-review.secrets
 ```
 
 The trace format follows the same stacked multi-line style as other data flow traces in this skill. Each hop shows the relevant YAML location. Cross-file findings have a longer trace because they span multiple files, but are otherwise identical to direct findings.
+
+## Secrets Across the Boundary
+
+SKILL.md Step 5b scores severity partly on secrets availability, and the two kinds of resolved file carry secrets in opposite ways. Neither can be read off the resolved file alone.
+
+**Composite actions have no `secrets` context.** GitHub's [contexts reference](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context) states it is unavailable there and that a secret must be passed explicitly as an input. Two consequences, in opposite directions:
+
+- A `${{ secrets.NAME }}` written inside `runs.steps[]` resolves to empty. An `anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}` in a composite action is not a secret exposure; it is a broken workflow. Do not report it as one.
+- A secret that did reach the action arrived through the caller's `with:` and now lives in `inputs.*`. Searching the composite file for `secrets.` finds nothing while the secret is present. Read the caller's `with:` block to decide whether one is.
+
+**Reusable workflows receive secrets explicitly or by inheritance.** The caller names them under `jobs.<id>.secrets`, or passes all of them with `secrets: inherit`. Under `inherit` the called workflow need not declare them in `on.workflow_call.secrets` to reference them, so an empty `secrets:` block there is not evidence of a callee without secrets. `secrets: inherit` is the maximum, not a default: it raises severity rather than lowering it.
+
+**Inheritance is not transitive.** In a chain A calls B calls C, C receives a secret only if A passed it to B and B passed it to C. The depth limit stops resolution at B, so nothing about C's secrets can be asserted from A.
+
+Record what the caller passes alongside the input trace. A finding whose severity rests on secrets access should name the line that grants it.
 
 ## Depth Limit and Unresolved References
 

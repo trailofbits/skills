@@ -138,6 +138,19 @@ def test_truncated_cache_entry_is_dropped(tmp_path: Path):
     assert not path.exists()
 
 
+def test_non_utf8_cache_entry_is_dropped(tmp_path: Path):
+    """Undecodable cache bytes are corruption, not a permanent client crash."""
+    http = Http(tmp_path, offline=True)
+    path = seed(http, "GET", "https://example.com/x", {"ok": 1})
+    path.write_bytes(b"\xff")
+
+    with pytest.raises(Unavailable):
+        http.get_json("https://example.com/x")
+
+    assert http.stats["errors"] == 1
+    assert not path.exists()
+
+
 def test_cache_owner_is_verified_on_posix(tmp_path: Path):
     """The usual case: ownership checks out, so there is no caveat to report."""
     http = Http(tmp_path, offline=True)

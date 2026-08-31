@@ -169,7 +169,9 @@ Capture these security-relevant input fields based on the action type:
 
 **Claude Code Action:**
 - `prompt` -- the instruction sent to the AI agent
+- `direct_prompt`, `override_prompt` -- the same sink on pre-v1 workflows, which are still common
 - `claude_args` -- CLI arguments passed to Claude (may contain `--allowedTools`, `--disallowedTools`)
+- `allowed_tools`, `disallowed_tools`, `custom_instructions` -- the pre-v1 spellings of what `claude_args` now carries
 - `allowed_non_write_users` -- which users can trigger the action (wildcard `"*"` is a red flag)
 - `allowed_bots` -- which bots can trigger the action
 - `settings` -- path to Claude settings file (may configure tool permissions)
