@@ -10,7 +10,6 @@ The prompt instructs the AI agent to fetch attacker-controlled content at runtim
 | Gemini CLI | Yes | Can execute `gh` commands if shell tools are enabled |
 | OpenAI Codex | Yes | Can execute `gh` commands if sandbox allows shell access |
 | GitHub AI Inference | No | No shell access -- cannot execute CLI commands at runtime |
-| CLI-invoked (`run:`) | Yes | A CLI agent runs on the runner with whatever the step's `GITHUB_TOKEN` allows, so shell access is the default rather than a configured tool |
 
 Applicability depends on the action having shell/CLI tool access. Actions without shell capabilities cannot fetch data at runtime.
 

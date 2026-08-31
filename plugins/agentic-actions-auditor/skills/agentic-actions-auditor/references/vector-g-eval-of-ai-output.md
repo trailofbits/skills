@@ -12,7 +12,6 @@ This vector applies to any AI action whose output is consumed by subsequent `run
 | Claude Code Action | Applicable if output captured | Primarily operates on codebase directly, but output can be captured in subsequent steps |
 | Gemini CLI | Applicable if output captured | Primarily operates on codebase directly, but output can be captured in subsequent steps |
 | OpenAI Codex | Applicable if output captured | Primarily operates on codebase directly, but output can be captured in subsequent steps |
-| CLI-invoked (`run:`) | Applicable if output captured | The reply is stdout in the invoking block; it leaves the step via `$GITHUB_OUTPUT`/`$GITHUB_ENV` or a file |
 
 ## Trigger Events
 
@@ -32,7 +31,7 @@ The AI output crosses a trust boundary: it is treated as trusted data by the sub
 ## What to Look For
 
 1. **Steps AFTER an AI action** that reference `${{ steps.<ai-step-id>.outputs.* }}` in their `run:` block or `env:` block. For a CLI agent invoked inside a `run:` block, the reply arrives as stdout in that same block, so check both halves:
-   - **Inside the block** -- a reply captured into a variable, piped into `jq`, `eval`, `bash`, or written to a file a later step runs, is this vector
+   - **Inside the block** -- a reply piped into `eval` or `bash`, captured into a variable that is then expanded unquoted into a command, or written to a file a later step runs, is this vector. `jq` alone is not: it parses, it does not evaluate. `claude -p "$BODY" | jq -r '.summary'` feeding a `gh pr comment --body` is the False Positive below; the same `jq` output reaching a shell is the vector
    - **Leaving the block** -- a CLI reply written to `$GITHUB_OUTPUT` or `$GITHUB_ENV` does cross the step boundary and reappears as `${{ steps.<id>.outputs.* }}` or an env var in a later step, where the shape above matches exactly. `R=$(claude -p "$ISSUE_BODY")` followed by `echo "result=$R" >> "$GITHUB_OUTPUT"` and a later `eval "${{ steps.review.outputs.result }}"` is this vector, spread across two steps
 2. The consuming step's `run:` block contains any of:
    - `eval` command

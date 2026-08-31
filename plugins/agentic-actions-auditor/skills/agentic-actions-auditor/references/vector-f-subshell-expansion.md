@@ -10,7 +10,6 @@ Tool restriction lists include commands that support subshell expansion (e.g., `
 | Claude Code Action | Medium confidence | `Bash(echo:*)` in `--allowedTools` is structurally similar -- allows the `echo` command through Bash, which may evaluate subshell expansion. Unconfirmed at runtime. |
 | OpenAI Codex | Medium confidence | If restricted shell commands are allowed via `codex-args`, subshell expansion may apply. Unconfirmed at runtime. |
 | GitHub AI Inference | Not applicable | No shell access -- this action calls a model API, not a shell environment. |
-| CLI-invoked (`run:`) | Yes | The same restriction flags appear on the command line rather than in `claude_args` or `settings`. A CLI agent given a narrow allowlist is this vector; one given none is Vector H |
 
 **Confidence note:** This vector is CONFIRMED for Gemini CLI (PoCs 1-2 achieved arbitrary command execution via `echo $(env)` and `echo $(whoami)`). For Claude Code Action and OpenAI Codex, the attack is structurally similar but behavior under subshell expansion needs runtime testing to confirm exploitability.
 
@@ -45,9 +44,9 @@ The critical insight: the restriction is on the **command name**, not on shell i
 1. `with.settings` (Gemini CLI) -- parse the JSON string for `coreTools` arrays containing shell command names
 2. `with.claude_args` (Claude Code Action) -- look for `--allowedTools` flags with `Bash(command:*)` patterns. Pre-v1 workflows carry the same patterns in a `with.allowed_tools` string instead
 3. `with.codex-args` (OpenAI Codex) -- check for tool restriction flags
-4. For a CLI-invoked agent, the command line in the `run:` block, where these flags are captured by Step 3 rather than absent: `--allowedTools "Bash(echo:*)"` on `claude`, `--allowed-tools` on `gemini`, tool-restriction flags on `codex`
-5. **For a CLI-invoked Gemini, the absence of a flag is not the absence of a tool list.** The CLI reads `.gemini/settings.json` from the project directory (and a user-level copy) with no flag naming it, so a `gemini -p` command line can look completely clean while the repository ships a settings file allowing the shell tool. Read `.gemini/settings.json` in the audited repo whenever a CLI Gemini invocation is found; a `--settings`/`--config` path on the command line overrides it and should be read instead. This is the one vector with a confirmed RCE PoC, so a clean command line is not enough to clear it. Both spellings of the key are in use across Gemini CLI versions -- `tools.core` (as `action-profiles.md` records) and the older top-level `coreTools` -- so match either
 4. Look specifically for patterns suggesting **restricted** tool access rather than fully open access -- fully open tool access is Vector H, not Vector F
+5. For a CLI-invoked agent, the command line in the `run:` block, where these flags are captured by Step 3 rather than absent: `--allowedTools "Bash(echo:*)"` on `claude`, `--allowed-tools` on `gemini`, tool-restriction flags on `codex`
+6. **For a CLI-invoked Gemini, a clean command line does not clear this vector.** The CLI reads `.gemini/settings.json` from the project directory (and a user-level copy) without being told to, so `gemini -p` can carry no tool flag at all while the repository ships a settings file allowing the shell tool. Read `.gemini/settings.json` in the audited repo whenever a CLI Gemini invocation is found. If the command line does name a settings path -- `--settings`/`--config` -- read that file instead, since it takes precedence. This is the one vector with a confirmed RCE PoC, so an absent flag is not an absent tool list. Both spellings of the key are in use across Gemini CLI versions -- `tools.core` (as `action-profiles.md` records) and the older top-level `coreTools` -- so match either
 
 ## Why It Matters
 

@@ -41,8 +41,8 @@ Order matters: check step 1 before step 2, because local reusable workflows also
 3. If neither exists, log as unresolved with reason "File not found"
 
 **Remote analysis mode:**
-1. Fetch via Contents API: `gh api repos/{owner}/{repo}/contents/{path}/action.yml?ref={ref} --jq '.content | @base64d'`
-2. On 404, try `action.yaml`: `gh api repos/{owner}/{repo}/contents/{path}/action.yaml?ref={ref} --jq '.content | @base64d'`
+1. Fetch via Contents API: `gh api "repos/{owner}/{repo}/contents/{path}/action.yml?ref={ref}" --jq '.content | @base64d'`
+2. On 404, try `action.yaml`: `gh api "repos/{owner}/{repo}/contents/{path}/action.yaml?ref={ref}" --jq '.content | @base64d'`
 3. If both 404, log as unresolved with reason "File not found"
 
 **Type discrimination -- check `runs.using`:**
@@ -87,7 +87,7 @@ Otherwise skip silently. An action already matched in Step 2a is a confirmed ins
 1. Read the file from the filesystem using the Read tool
 
 **Remote analysis mode:**
-1. Fetch via Contents API using the same repo context: `gh api repos/{owner}/{repo}/contents/.github/workflows/{filename}?ref={ref} --jq '.content | @base64d'`
+1. Fetch via Contents API using the same repo context: `gh api "repos/{owner}/{repo}/contents/.github/workflows/{filename}?ref={ref}" --jq '.content | @base64d'`
 
 The resolved file is a complete workflow YAML with `on: workflow_call`. Analyze it through the existing Steps 2-4 detection pipeline -- identify AI action steps, capture security context, and detect attack vectors.
 
@@ -103,7 +103,7 @@ The resolved file is a complete workflow YAML with `on: workflow_call`. Analyze 
 
 **Fetch:**
 ```
-gh api repos/{owner}/{repo}/contents/.github/workflows/{filename}?ref={ref} --jq '.content | @base64d'
+gh api "repos/{owner}/{repo}/contents/.github/workflows/{filename}?ref={ref}" --jq '.content | @base64d'
 ```
 
 This is the same Contents API pattern established in Step 0 (Phase 5).
@@ -237,7 +237,7 @@ When any references could not be resolved, add an "Unresolved References" sectio
 
 **Non-composite actions at local paths:** When `./path/to/action` resolves to a JavaScript or Docker action (`runs.using` is `node*` or `docker`), there are no workflow-style steps to analyze. Apply the agent-signal test: record it as unresolved naming the action and its type when the signal fires, and skip silently when it does not.
 
-**Local paths in remote analysis mode:** Fetch via Contents API using the same repo context. The `./` prefix is relative to the repository root, and the Contents API can retrieve any path: `gh api repos/{owner}/{repo}/contents/{path}/action.yml?ref={ref}`.
+**Local paths in remote analysis mode:** Fetch via Contents API using the same repo context. The `./` prefix is relative to the repository root, and the Contents API can retrieve any path: `gh api "repos/{owner}/{repo}/contents/{path}/action.yml?ref={ref}"`.
 
 **Missing files:** Log as unresolved with the specific reason (404, file not found, etc.). Do not treat missing files as errors that halt analysis -- continue with remaining references.
 
