@@ -99,7 +99,7 @@ claude plugin eval plugins/audit-context-building --judge-model sonnet
 Run it against the plugin **by name**. That way the tests run twice — once with the plugin and once without —
 so you can see what it actually adds. Pointing at a folder path instead only runs it once.
 
-Four tests, covering the three kinds of target this plugin gets used on.
+Five tests, covering the three kinds of target this plugin gets used on.
 
 **`dispatches-not-inlines`** — asks for audit context on a small C codebase with no way to hand the work off,
 so the only correct move is to say what to run and stop. It fails if the reply contains the analysis instead.
@@ -107,6 +107,18 @@ This is the test aimed at what the plugin actually changes, rather than at what 
 
 Its `max_turns` was raised from 20 to 40 after the plugin arm was being truncated before it could answer,
 which scored as a routing failure. It has not been re-measured since. Run it before relying on its number.
+
+**`routes-to-workflow`** — the same C parser, graded on the tool call rather than the reply: does the run
+actually reach for `/audit-context-building:audit-context`? The case above withholds every dispatch tool and
+reads the prose, so it measures whether the skill *names* the mechanism, and a skill can describe the right
+routing without taking it. `Workflow` is kept out of `allowed_tools` here too, so the per-function fan-out
+never runs and the grader counts the attempt.
+
+Scored 1.00 over three runs. Two things that does not establish. No with-plugin-versus-without arm has been
+run, so nothing yet shows the case can go red. And because `tool_used` counts attempts while the Workflow
+tool does not execute inside an eval run at all, a frontmatter restriction that blocked execution rather than
+the attempt would be invisible to it — adding and removing `Workflow` from the skill's `allowed-tools` scored
+1.00 either way. Do not read a green score here as proof that line is correct.
 
 **`contract-continuity`** — Solidity. `release()` looks like `require(_charge(...))` confirms the buyer had
 enough credit. It doesn't: for whitelisted accounts, `_charge` subtracts and returns true without ever
