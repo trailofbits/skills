@@ -8,8 +8,13 @@ User allowlist fields are set to wildcard values (`"*"`) that permit ANY GitHub 
 |--------|-----------|-------|
 | Claude Code Action | Yes | `allowed_non_write_users: "*"` and `allowed_bots: "*"` confirmed in many PoCs |
 | OpenAI Codex | Yes | `allow-users: "*"` and `allow-bots: "*"` confirmed in PoCs |
-| Gemini CLI | No | No equivalent user allowlist field -- any user who can trigger the workflow event can interact |
-| GitHub AI Inference | No | No equivalent user allowlist field -- access controlled by workflow trigger permissions only |
+| Gemini CLI | Yes, via `if:` | No allowlist field, so the step or job `if:` is the whole gate |
+| GitHub AI Inference | Yes, via `if:` | No allowlist field, so the step or job `if:` is the whole gate |
+| Claude Code Action (base) | Yes, via `if:` | `claude-code-base-action` exposes no allowlist input |
+| CLI-invoked (`run:`) | Yes, via `if:` | No allowlist input exists for a CLI agent |
+
+Every row is in scope. The column says which gate to read, not whether to check the vector: where no
+allowlist input exists, an absent `if:` on an externally triggerable event is itself the finding.
 
 ## Trigger Events
 
@@ -51,6 +56,8 @@ The wildcard removes the user-based gate that would otherwise restrict which use
 ## Where to Look
 
 The `with:` block of AI action steps. Check for the exact field names listed above with string values of `"*"`.
+
+For the rows with no allowlist input -- Gemini CLI, AI Inference, `claude-code-base-action`, and any CLI agent from a `run:` block -- read the step's `if:` and the job's `if:` instead. That condition is the whole gate, so no `if:` on an externally triggerable event is the finding.
 
 ## Why It Matters
 

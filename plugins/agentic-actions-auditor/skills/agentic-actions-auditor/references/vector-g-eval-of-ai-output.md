@@ -30,7 +30,7 @@ The AI output crosses a trust boundary: it is treated as trusted data by the sub
 
 ## What to Look For
 
-1. **Steps AFTER an AI action** that reference `${{ steps.<ai-step-id>.outputs.* }}` in their `run:` block or `env:` block. For a CLI agent invoked inside a `run:` block, the reply is stdout in that same block and never crosses a step boundary, so this shape never matches -- read the block itself: a reply captured into a variable, piped into `jq`, `eval`, `bash`, or written to a file a later step runs, is this vector
+1. **Steps AFTER an AI action** that reference `${{ steps.<ai-step-id>.outputs.* }}` in their `run:` block or `env:` block. For a CLI agent invoked inside a `run:` block, the reply is stdout in that same block, so read the block itself as well -- a reply captured into a variable, piped into `eval` or `bash`, or written to a file a later step runs, is this vector. **It can also leave the block:** `OUT=$(claude -p "$BODY")` followed by `echo "result=$OUT" >> "$GITHUB_OUTPUT"` reappears as `${{ steps.<id>.outputs.result }}` in a later step, where the shape above matches exactly; `$GITHUB_ENV` does the same via an env var. A CLI invocation narrows where to look, it does not rule the check out
 2. The consuming step's `run:` block contains any of:
    - `eval` command
    - Python `exec()` or `subprocess` with string formatting from AI output
