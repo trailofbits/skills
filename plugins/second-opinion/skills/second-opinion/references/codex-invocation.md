@@ -2,8 +2,35 @@
 
 ## Default Configuration
 
-- Model: `gpt-5.5`
+- Model: `gpt-5.6-sol`
 - Reasoning effort: `xhigh`
+
+Verified against `codex-cli` 0.149.1. The `gpt-5.6` family exposes
+`gpt-5.6`, `gpt-5.6-sol`, `gpt-5.6-luna`, `gpt-5.6-terra`, and
+`gpt-5.6-pro`. `sol` is the general-purpose choice and the one the
+Codex CLI's own default config selected on the machine this was
+verified on.
+
+Valid `model_reasoning_effort` values are now `none`, `minimal`, `low`,
+`medium`, `high`, `xhigh`, `max`, `ultra`. `xhigh` is the right default
+for review — `max`/`ultra` cost substantially more wall time for
+marginal gain on a diff-sized input.
+
+## Why Not `codex exec review`
+
+`codex exec review` now has native scope flags (`--uncommitted`,
+`--base <BRANCH>`, `--commit <SHA>`) and supports `--output-schema`,
+`-o`, and `--ephemeral`. It looks like a simplification, but those
+scope flags are **mutually exclusive with the `[PROMPT]` argument**:
+
+```
+error: the argument '--uncommitted' cannot be used with '[PROMPT]'
+```
+
+That makes it impossible to inject project conventions (CLAUDE.md /
+AGENTS.md) or a focus area alongside a scope flag. Keep the manual
+`codex exec` prompt-assembly approach below, which supports context
+and focus for all three scopes.
 
 ## Approach
 
@@ -17,8 +44,8 @@ stdout.
 
 Use this prompt verbatim — it is from OpenAI's [Build Code Review
 with the Codex SDK](https://developers.openai.com/cookbook/examples/codex/build_code_review_with_codex_sdk)
-cookbook, and GPT-5.4 and later received specific training
-on it:
+cookbook, and GPT-5.4 and later (including the 5.6 family)
+received specific training on it:
 
 ```
 You are acting as a reviewer for a proposed code change made by another engineer.
@@ -86,7 +113,7 @@ been staged would be silently excluded. Generate the full diff:
 
 ```bash
 codex exec \
-  -c model='"gpt-5.5"' \
+  -c model='"gpt-5.6-sol"' \
   -c model_reasoning_effort='"xhigh"' \
   --sandbox read-only \
   --ephemeral \
@@ -141,16 +168,20 @@ diagnose the failure.
 
 ## Model Fallback
 
-If `gpt-5.5` fails with an auth error (e.g., "not supported
-when using Codex with a ChatGPT account"), retry with
-`gpt-5.4`. Log the fallback for the user.
+If `gpt-5.6-sol` fails with an auth error (e.g., "not supported
+when using Codex with a ChatGPT account"), retry in order:
+`gpt-5.6`, then `gpt-5.4`. Log the fallback for the user.
+
+`gpt-5.6-pro` is deliberately not in the fallback chain: it is a
+higher-tier, slower model, so it is a poor automatic substitute for an
+auth failure. Untested here — reach for it only on explicit request.
 
 ## Error Handling
 
 | Error | Action |
 |-------|--------|
 | `codex: command not found` | Tell user: `npm i -g @openai/codex` |
-| Model auth error | Retry with `gpt-5.4` |
+| Model auth error | Retry with `gpt-5.6`, then `gpt-5.4` |
 | Timeout | Suggest narrowing the diff scope |
 | `EPERM` / sandbox errors | Expected — `codex exec` runs sandboxed. Ignore these. |
 | Empty/missing output file | Read `$stderr_log` to diagnose the failure |
