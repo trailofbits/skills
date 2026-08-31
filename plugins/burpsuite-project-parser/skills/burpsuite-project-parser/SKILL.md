@@ -47,11 +47,34 @@ matched nothing.
 |------|---------|------------|
 | 0 | Output produced | Proceed |
 | 1 | Bad usage, or a missing file, Java or JAR | Read the message; fix the path |
-| 3 | No output at all | **Do not report this as "nothing found".** An empty result set and an unloaded extension are indistinguishable from here. Confirm the extension is loaded, then re-run; if it is loaded, the query genuinely matched nothing |
+| 3 | No output at all | **Do not report this as "nothing found".** An empty result set and an unloaded extension are indistinguishable from here. Run the control query below to tell them apart |
 | 4 | Output was not JSON | The extension is not loaded and Burp ignored the flags. Install it before trusting any result |
 
 Anything other than 0 means the search result is unverified, and saying "no matching traffic" on the strength
 of it is a false negative reported as a clean finding.
+
+### Resolving Exit 3: the control query
+
+Exit 3 is the common case — most narrowly-scoped regexes legitimately match nothing — so it needs a resolution
+you can carry out yourself. You have `Bash` and `Read`; Burp runs headless here, so there is no Extensions tab
+to open and no GUI to inspect. Re-running the same query just returns 3 again.
+
+Run a **control query** instead: a selector broad enough that it must return rows if the parser is working at
+all, against the same project file.
+
+```bash
+{baseDir}/scripts/burp-search.sh project.burp proxyHistory | head -n 1
+```
+
+| Control result | What it means | What to do |
+|---|---|---|
+| Rows on stdout | The parser works | Your narrower query genuinely matched nothing. Report that as a result |
+| Exit 3 again | Nothing comes back at all | Either the extension is not loaded, or this project holds no proxy history. Check you named the right project file and that it is non-empty, then ask the user to confirm `burpsuite-project-file-parser` under Burp Suite → Extensions |
+| Exit 4 | Burp started and dropped the flags | The extension is not loaded. Say so; do not report on traffic |
+
+**Run the control before concluding anything about the project's traffic.** Assuming the extension is loaded is
+exactly how an unverified empty result becomes a clean bill of health — and asking the user to check the GUI is
+a legitimate answer where the control is inconclusive. Guessing is not.
 
 **Through a pipe the exit code is not yours to read.** A pipeline reports the status of its *last* command, and
 nearly every example here ends in `| jq`, `| head` or `| wc -cl` — so `$?` is `head`'s 0, not the script's 3.

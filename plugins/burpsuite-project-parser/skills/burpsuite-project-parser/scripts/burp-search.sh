@@ -4,6 +4,19 @@
 
 set -euo pipefail
 
+# How many non-JSON lines are echoed to stderr before the rest are counted instead of printed.
+#
+# Uncapped this is a hole, not a diagnostic. When NO line is JSON -- the missing-extension case this script
+# exists to catch -- awk never writes to stdout, so it never takes SIGPIPE, so a documented downstream
+# `head -c 50000` cannot close the pipeline early. It blocks to EOF while every line Burp produced is mirrored
+# to stderr, where the caller captures it and no documented output limit applies. Measured against a 100k-line
+# non-JSON stream: 8.4 MB of stderr behind a `head -c 200` that could not terminate. Under the bare exec this
+# replaced, those bytes went to stdout where `head` truncated them.
+#
+# Twenty lines is enough to recognise a licence banner or a Java stack trace; the suppressed count is what says
+# the stream kept going.
+readonly STDERR_LINE_CAP=20
+
 # Platform-specific default paths
 case "$(uname -s)" in
   Darwin)
@@ -126,10 +139,19 @@ fi
 set +e
 "$JAVA_PATH" -jar -Djava.awt.headless=true "$BURP_JAR" \
   --project-file="$PROJECT_FILE" \
-  "$@" | awk '
+  "$@" | awk -v cap="$STDERR_LINE_CAP" '
     /^[[:space:]]*\{/ { print; fflush(); json++; next }
-    { print "burp-search.sh: ignored non-JSON output: " $0 > "/dev/stderr"; other++ }
-    END { if (json == 0 && other == 0) exit 3; if (json == 0) exit 4 }
+    {
+      other++
+      if (other <= cap) print "burp-search.sh: ignored non-JSON output: " $0 > "/dev/stderr"
+    }
+    END {
+      if (other > cap) {
+        printf "burp-search.sh: %d further non-JSON line(s) suppressed.\n", other - cap > "/dev/stderr"
+      }
+      if (json == 0 && other == 0) exit 3
+      if (json == 0) exit 4
+    }
   '
 pipe_status=("${PIPESTATUS[@]}")
 set -e
@@ -149,8 +171,22 @@ case "$awk_status" in
     echo "Error: the parser produced no output." >&2
     echo "Either the query matched nothing, or the burpsuite-project-file-parser extension is not" >&2
     echo "loaded -- this script cannot tell which, so it does not report success." >&2
-    echo "Check Burp Suite -> Extensions for burpsuite-project-file-parser, and that it is enabled." >&2
-    echo "With the extension confirmed loaded, no output means the query matched nothing." >&2
+    echo "" >&2
+    echo "Tell them apart with a control query -- a selector that must return rows if the parser is" >&2
+    echo "working at all, run against the same project file:" >&2
+    echo "" >&2
+    printf '  %s %q proxyHistory | head -n 1\n' "$0" "$PROJECT_FILE" >&2
+    echo "" >&2
+    echo "  rows on stdout -> the parser works, and your narrower query genuinely matched nothing." >&2
+    echo "                    Report that as a result, not as a failure." >&2
+    echo "  exit 3 again   -> nothing at all comes back through the parser. Either the extension is" >&2
+    echo "                    not loaded, or this project holds no proxy history. Check the project" >&2
+    echo "                    file is the one you meant and is non-empty, then check Burp Suite ->" >&2
+    echo "                    Extensions for burpsuite-project-file-parser." >&2
+    echo "  exit 4 again   -> Burp started and dropped the flags; the extension is not loaded." >&2
+    echo "" >&2
+    echo "Run the control query before concluding anything about this project's traffic. Assuming the" >&2
+    echo "extension is loaded is how an unverified empty result becomes a clean bill of health." >&2
     exit 3
     ;;
   4)

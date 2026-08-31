@@ -19,7 +19,7 @@ set -euo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/burpsuite-project-parser/scripts/burp-search.sh"
-readonly EXPECTED_ASSERTIONS=16
+readonly EXPECTED_ASSERTIONS=18
 
 [ -x "$SCRIPT" ] || {
   echo "run_search_tests.sh: not executable: $SCRIPT" >&2
@@ -45,6 +45,7 @@ case "$STUB_MODE" in
   fail7)    printf 'boom\n' >&2; exit 7 ;;
   jsonfail) printf '{"a":1}\n'; exit 7 ;;
   big)      awk 'BEGIN{for(i=0;i<100000;i++) printf "{\"i\":%d}\n", i}' ;;
+  noisy)    awk 'BEGIN{for(i=0;i<100000;i++) print "Burp Suite Professional startup line " i}' ;;
   slow)     for i in 1 2 3; do printf '{"i":%d}\n' "$i"; sleep 1; done ;;
 esac
 STUB
@@ -157,6 +158,20 @@ first_line_at=$(
 )
 [ "$first_line_at" -lt 2 ] && streaming=yes || streaming=no
 eq "$streaming" "yes" "output must stream, not arrive only when the producer exits"
+
+# A stream with NO JSON is the missing-extension case, and it is the one where awk never writes to stdout --
+# so it never takes SIGPIPE, and a downstream `head` cannot close the pipeline early. Uncapped, every line
+# Burp produced is mirrored to stderr, which the caller captures and no documented output limit covers.
+# Measured before the cap: 8.4 MB behind a `head -c 200` that could not terminate.
+set +e
+STUB_MODE=noisy BURP_JAVA="$WORK/java" BURP_JAR="$WORK/fake.jar" \
+  "$SCRIPT" "$WORK/project.burp" query 2>"$WORK/err" | head -c 200 >/dev/null
+set -e
+noisy_bytes=$(wc -c <"$WORK/err" | tr -d ' ')
+[ "$noisy_bytes" -lt 5000 ] && capped=yes || capped=no
+eq "$capped" "yes" "stderr from a no-JSON stream must be capped, not mirrored in full"
+contains "$(cat "$WORK/err")" "further non-JSON line(s) suppressed" \
+  "the cap must report how many lines it suppressed, so a truncated diagnostic is not mistaken for a short one"
 
 echo
 if [ "$RAN" -ne "$EXPECTED_ASSERTIONS" ]; then
