@@ -61,9 +61,7 @@ An action whose internals cannot be read is recorded as an unresolved possible a
 
 Record as unresolved when any of these holds:
 
-- A model API key or token reaches the step, in its `with:` or `env:` block. This is the strongest signal: an action handed a model credential is being given it for a reason. **The test is what the name denotes, not membership of a list** -- a closed list of provider names is the same false-negative shape Step 2b's closed `uses:` allowlist was written to fix, and new providers appear constantly. Apply it in this order:
-  - **Fires on its own:** a name containing any model-provider or model-product word -- `ANTHROPIC`, `CLAUDE`, `OPENAI`, `GPT`, `GEMINI`, `COPILOT`, `LLM`, `MISTRAL`, `GROQ`, `OPENROUTER`, `HUGGINGFACE`/`HF_`, `COHERE`, `XAI`/`GROK`, `PERPLEXITY`, `TOGETHER`, `FIREWORKS`, `DEEPSEEK`, `BEDROCK`, `VERTEX_AI`, `AZURE_OPENAI` -- in any credential-shaped name (`*_API_KEY`, `*_AUTH_TOKEN`, `*_TOKEN`, `*_KEY`, `*_SECRET`). `ANTHROPIC_AUTH_TOKEN` matches on `ANTHROPIC`, not on an exact name. **This list is illustrative, not exhaustive:** a provider you do not recognise, in a credential-shaped name, still fires.
-  - **Needs a second signal from the two bullets below:** `GOOGLE_API_KEY`, which serves Maps, Drive and Sheets far more often than a model; and a bare `MODEL` or `AI_`, which match `MODEL_REGISTRY_TOKEN` and `AI_TEAM_SLACK_TOKEN` in ordinary repos. These two are ambiguous rather than absent -- do not treat them as cleared.
+- A model API key or token reaches the step, in its `with:` or `env:` block: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, an Azure OpenAI key, or a secret whose name contains `LLM`, `AI_`, `CLAUDE`, `GPT` or `MODEL`. This is the strongest signal: an action handed a model credential is being given it for a reason.
 - The action or image reference names one: it contains `ai`, `llm`, `agent`, `claude`, `gpt`, `codex`, `gemini`, `copilot` or `review-bot` as a word.
 - The step passes it something that reads as a prompt -- a `prompt`, `instructions` or `system_prompt` input.
 
@@ -100,11 +98,10 @@ The resolved file is a complete workflow YAML with `on: workflow_call`. Analyze 
 **Parse the reference:**
 - Extract: `owner`, `repo`, file path (everything after `repo/` and before `@`), and `ref` (everything after `@`)
 - Example: `org/shared/.github/workflows/review.yml@main` -> owner=`org`, repo=`shared`, path=`.github/workflows/review.yml`, ref=`main`
-- **All four come out of the audited workflow, so all four get Step 0's character filter before they reach a
-  shell** -- `ref` included. Quoting the URL is not enough; anything outside `[A-Za-z0-9._/-]` means log the
-  reference as unresolved instead of running the command. A ref is the easiest of the four to wave through,
-  since `@main` and `@v1` look like version metadata rather than input, but Git permits `$`, backticks, `;` and
-  `|` in a ref name and it lands in the same command line as the path.
+- **All four come out of the audited workflow, so all four get Step 0's character filter before reaching a shell**
+  -- `ref` included. A ref is the easiest to wave through, since `@main` and `@v1` read as version metadata
+  rather than input, but Git permits `$`, backticks, `;` and `|` in a ref name and it lands in the same command
+  line as the path. Anything outside `[A-Za-z0-9._/-]` means log the reference unresolved, not run the command.
 
 **Fetch:**
 ```

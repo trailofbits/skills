@@ -40,7 +40,6 @@ The data never passes through YAML expressions or env vars. The prompt may inter
 
 - The `with.prompt` field -- look for CLI command patterns and natural-language fetch instructions
 - `with.prompt-file` content if the file is readable -- the prompt template may contain fetch instructions
-- For a CLI-invoked agent, the prompt text wherever it sits in the `run:` block -- the positional argument, after `-p`, inside a heredoc body, or in a file the step writes and then points the agent at. A wrapper script the step invokes may hold the fetch instruction instead, which is why Step 2b reads it. Fetch instructions are prose, so they survive being moved between these forms unchanged
 - `env:` blocks for `GITHUB_TOKEN` on the AI action step (required for `gh` CLI to authenticate)
 - Preceding steps that may configure `gh auth` or set tokens
 

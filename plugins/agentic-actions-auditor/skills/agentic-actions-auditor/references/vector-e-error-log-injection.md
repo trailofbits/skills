@@ -10,7 +10,6 @@ CI error output, build logs, or test failure messages are fed to an AI agent as 
 | Gemini CLI | Yes | Applicable if workflow passes build output to prompt. |
 | OpenAI Codex | Yes | Applicable if workflow passes error logs to prompt. |
 | GitHub AI Inference | Yes | Applicable if captured CI output is included in the prompt. |
-| CLI-invoked (`run:`) | Yes | Build output usually reaches a CLI agent inside the same block that produced it -- `npm test 2>&1 \| tee log.txt` then `claude -p "Fix: $(cat log.txt)"` -- with no step output to trace |
 
 Any AI action that receives CI output in its prompt is vulnerable. The attacker does not need direct access to the prompt field -- they control what the CI system outputs by crafting code that produces specific error messages.
 
@@ -50,9 +49,8 @@ Attacker's PR code
 1. The `on:` block for `workflow_run` or `workflow_dispatch` triggers
 2. `workflow_dispatch` `inputs:` definitions -- check if any input is described as carrying logs or error output
 3. The `with.prompt` field for references to step outputs (`${{ steps.*.outputs.* }}`) or workflow inputs (`${{ github.event.inputs.* }}`)
-4. For a CLI-invoked agent, the invoking `run:` block itself. The handoff is usually local to the block rather than a step output, so look for the agent's prompt being built from a log file (`$(cat log.txt)`, `< build.log`), a pipe out of the build (`npm test 2>&1 | claude -p`), or a shell variable holding captured output assigned earlier in the same block. A build that runs in one step and an agent that runs in another still uses the step-output path above
-5. Prior steps in the same job that capture build output (e.g., `run: |` blocks that set outputs or write to files)
-6. Steps that download artifacts from prior workflow runs and feed content to AI prompts
+4. Prior steps in the same job that capture build output (e.g., `run: |` blocks that set outputs or write to files)
+5. Steps that download artifacts from prior workflow runs and feed content to AI prompts
 
 ## Why It Matters
 

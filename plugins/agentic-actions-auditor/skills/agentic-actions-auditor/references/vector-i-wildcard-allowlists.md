@@ -4,18 +4,12 @@ User allowlist fields are set to wildcard values (`"*"`) that permit ANY GitHub 
 
 ## Applicable Actions
 
-Every row is in scope. The column says which gate to read, not whether to check the vector:
-where no allowlist input exists, the step or job `if:` condition is the only gate, and its
-absence on an externally triggerable event is the finding.
-
-| Action | Gate to check | Notes |
-|--------|--------------|-------|
-| Claude Code Action | Allowlist input | `allowed_non_write_users: "*"` and `allowed_bots: "*"` confirmed in many PoCs |
-| OpenAI Codex | Allowlist input | `allow-users: "*"` and `allow-bots: "*"` confirmed in PoCs |
-| Gemini CLI | `if:` condition | No equivalent user allowlist field -- any user who can trigger the workflow event can interact |
-| GitHub AI Inference | `if:` condition | No equivalent user allowlist field -- access controlled by workflow trigger permissions only |
-| Claude Code Action (base) | `if:` condition | `claude-code-base-action` exposes no allowlist input |
-| CLI-invoked (`run:`) | `if:` condition | No allowlist input exists for a CLI agent |
+| Action | Applicable | Notes |
+|--------|-----------|-------|
+| Claude Code Action | Yes | `allowed_non_write_users: "*"` and `allowed_bots: "*"` confirmed in many PoCs |
+| OpenAI Codex | Yes | `allow-users: "*"` and `allow-bots: "*"` confirmed in PoCs |
+| Gemini CLI | No | No equivalent user allowlist field -- any user who can trigger the workflow event can interact |
+| GitHub AI Inference | No | No equivalent user allowlist field -- access controlled by workflow trigger permissions only |
 
 ## Trigger Events
 
@@ -57,8 +51,6 @@ The wildcard removes the user-based gate that would otherwise restrict which use
 ## Where to Look
 
 The `with:` block of AI action steps. Check for the exact field names listed above with string values of `"*"`.
-
-For an action with no allowlist input, and for a CLI agent invoked from a `run:` block, read the step's `if:` and the job's `if:` instead. That condition is the whole gate, so no `if:` on an externally triggerable event (`issues`, `issue_comment`, `pull_request_target`) is the finding.
 
 ## Why It Matters
 
