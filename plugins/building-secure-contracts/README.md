@@ -38,11 +38,12 @@ Scans Algorand/TEAL codebases for 11 vulnerability patterns including:
 **Skill:** `/building-secure-contracts:cairo-vulnerability-scanner`
 
 Analyzes StarkNet/Cairo smart contracts for 6 vulnerability patterns:
-- Arithmetic overflow/underflow
-- Reentrancy
-- Uninitialized storage
-- Authorization bypass
-- And 2 more patterns
+- Felt252 arithmetic overflow/underflow
+- L1 to L2 address conversion
+- L1 to L2 message failure
+- Overconstrained L1 <-> L2 interaction
+- Signature replay protection
+- Unchecked `from_address` in L1 handler
 
 ### Cosmos Vulnerability Scanner
 **Skill:** `/building-secure-contracts:cosmos-vulnerability-scanner`
@@ -78,9 +79,9 @@ Analyzes Substrate pallets for 7 security issues:
 **Skill:** `/building-secure-contracts:ton-vulnerability-scanner`
 
 Detects vulnerabilities in TON smart contracts for 3 patterns:
-- Replay protection
-- Unprotected receiver
-- Sender validation issues
+- Integer as boolean (FunC's true is -1)
+- Fake Jetton contract
+- Forward TON without gas check
 
 ---
 
