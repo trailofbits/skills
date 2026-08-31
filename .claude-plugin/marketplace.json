@@ -177,7 +177,7 @@
     },
     {
       "name": "static-analysis",
-      "version": "1.4.2",
+      "version": "1.4.3",
       "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
       "author": {
         "name": "Axel Mierczuk & Paweł Płatek"
@@ -303,7 +303,7 @@
     },
     {
       "name": "supply-chain-risk-auditor",
-      "version": "2.0.1",
+      "version": "2.0.2",
       "description": "Audit a project's npm, PyPI, and Go dependencies for supply-chain risk: version-matched advisories for direct dependencies and the full lockfile tree, abandoned upstreams, npm publisher concentration, and install scripts",
       "author": {
         "name": "Eric Quintero"
