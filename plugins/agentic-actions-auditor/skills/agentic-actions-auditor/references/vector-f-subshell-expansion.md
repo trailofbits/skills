@@ -35,14 +35,14 @@ The critical insight: the restriction is on the **command name**, not on shell i
 ## What to Look For
 
 1. **Gemini CLI:** `with.settings` JSON containing a `coreTools` array that includes `run_shell_command(echo)` or other shell commands supporting expansion
-2. **Claude Code Action:** `with.claude_args` containing `--allowedTools` with `Bash(echo:*)`, `Bash(cat:*)`, `Bash(printf:*)`, or similar restricted-but-expandable command patterns
+2. **Claude Code Action:** `with.claude_args` containing `--allowedTools`, or the pre-v1 `with.allowed_tools` input, with `Bash(echo:*)`, `Bash(cat:*)`, `Bash(printf:*)`, or similar restricted-but-expandable command patterns
 3. **General:** Any tool restriction pattern that allows a shell command supporting `$()`, backtick substitution, or process substitution (`<()`)
 4. **Dangerous expandable commands:** `echo`, `cat`, `printf`, `tee`, `head`, `tail`, `wc`, `sort`, and most standard Unix utilities -- these all pass arguments through a shell that evaluates subshell expressions
 
 ## Where to Look
 
 1. `with.settings` (Gemini CLI) -- parse the JSON string for `coreTools` arrays containing shell command names
-2. `with.claude_args` (Claude Code Action) -- look for `--allowedTools` flags with `Bash(command:*)` patterns
+2. `with.claude_args` (Claude Code Action) -- look for `--allowedTools` flags with `Bash(command:*)` patterns. Pre-v1 workflows carry the same patterns in a `with.allowed_tools` string instead
 3. `with.codex-args` (OpenAI Codex) -- check for tool restriction flags
 4. Look specifically for patterns suggesting **restricted** tool access rather than fully open access -- fully open tool access is Vector H, not Vector F
 

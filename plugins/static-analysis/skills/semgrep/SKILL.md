@@ -259,6 +259,7 @@ read from the processes and the JSON they wrote.
 - [ ] User explicitly approved the scan plan (Step 3 gate passed)
 - [ ] `run-scans.sh` exited 0 and wrote `$OUTPUT_DIR/scans.json`
 - [ ] `failed` and `skipped` from `scans.json` are empty, or listed in the report
+- [ ] Scans marked `partial` in `scans.json` are none, or listed in the report — they ran with some of their rules failing to compile
 - [ ] Every `semgrep` command used `--metrics=off`
 - [ ] Approved plan written to `$OUTPUT_DIR/rulesets.json` at the Step 3 gate, and passed to
       the scanner unchanged

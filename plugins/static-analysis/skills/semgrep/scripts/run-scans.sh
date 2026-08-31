@@ -12,6 +12,16 @@ readonly METRICS_OFF="--metrics=off"
 SEVERITY_FLAGS=(--severity WARNING --severity ERROR)
 readonly DEFAULT_JOBS=4
 
+# A semgrep join rule carries `mode: join` and the `join:` block that mode needs, and requiring
+# both is what keeps the prune below off a rule that merely mentions the words. Each is anchored
+# as a YAML key on its own line — optionally the first key of a list item, optionally quoted,
+# with a trailing comment allowed — because one file holds many rules and deleting it on a
+# `message:` that quotes the docs would take every sibling rule with it. A rule that names the
+# mode without the block is not a valid join rule; semgrep rejects it per-rule, which the exit-2
+# handling below now survives, so leaving it in place costs nothing.
+readonly JOIN_MODE_RE="^[[:space:]]*(-[[:space:]]+)?mode:[[:space:]]*(join|\"join\"|'join')[[:space:]]*(#.*)?\$"
+readonly JOIN_BLOCK_RE="^[[:space:]]*join:[[:space:]]*(#.*)?\$"
+
 usage() {
   cat <<'USAGE'
 Usage: run-scans.sh --target DIR --output-dir DIR --mode MODE --rulesets FILE [options]
@@ -25,8 +35,9 @@ Usage: run-scans.sh --target DIR --output-dir DIR --mode MODE --rulesets FILE [o
   --dry-run          print the commands that would run, then exit; clones nothing
 
 Writes OUTPUT_DIR/scans.json:
-  {scans:[{lang,ruleset,json,sarif,findings}], failed:[...], skipped:[...],
-   unscoped:[lang], alsoShared:["lang/ruleset"]}
+  {scans:[{lang,ruleset,json,sarif,findings,filesScanned,partial,exitCode}],
+   failed:[...], skipped:[...], unscoped:[lang], alsoShared:["lang/ruleset"]}
+  partial is a scan that wrote complete output while some of its rules failed to compile.
 USAGE
 }
 
@@ -111,6 +122,25 @@ repo_dir_name() {
   u=${u%/*}
   owner=${u##*/}
   printf '%s' "${owner:-unknown}-${repo:-rules}" | sed 's/[^A-Za-z0-9._-]\{1,\}/-/g'
+}
+
+# Deletes every .yaml/.yml under $1 that the remaining arguments select, printing what it took.
+# The status is returned rather than swallowed: the prunes that use this keep files semgrep
+# cannot handle out of a --config directory, and one that quietly stops matching puts the bug it
+# exists to prevent straight back, with nothing on stderr to say so.
+prune_yaml() { # prune_yaml <dir> <find-predicate...>
+  local dir=$1
+  shift
+  find "$dir" \( -name '*.yaml' -o -name '*.yml' \) -type f "$@" -print -delete
+}
+
+# `wc -l` reads one line in the empty string, so the zero case comes from the string itself.
+count_lines() {
+  if [ -z "$1" ]; then
+    echo 0
+  else
+    printf '%s\n' "$1" | wc -l | tr -d ' '
+  fi
 }
 
 TARGET="" OUTPUT_DIR="" MODE="" RULESETS_FILE="" PRO="" DRY_RUN=""
@@ -353,6 +383,41 @@ while [ $i -lt ${#CLONE_URLS[@]} ]; do
     printf '%s\t%s\n' "$url" "$(printf '%s' "$err" | tail -n 3 | tr '\n' ' ')" >>"$SKIPPED"
     continue
   fi
+  # semgrep parses EVERY .yaml/.yml under a --config directory as a rule file, and a single
+  # unparseable one aborts the whole scan with exit 7 — no findings from any of the rules that
+  # were fine. Rule repos ship their own CI config alongside their rules, and a workflow's
+  # `on: pull_request:` is a null value, which semgrep rejects outright. Observed killing both
+  # trailofbits/semgrep-rules (.github/workflows/semgrep-rules-format.yml) and
+  # elttam/semgrep-rules (perf-templates/benchmark-tests.yml) — two required rulesets silently
+  # contributing nothing.
+  #
+  # A semgrep rule file always has a top-level `rules:` key; nothing else here does. Pruning on
+  # that also drops the `*.test.yaml` fixtures, which are rule test inputs rather than rules.
+  # Measured on this prune alone: keeps 118/145 files for trailofbits and 80/94 for elttam,
+  # losing no real rule. The join prune below then takes elttam's one join rule, leaving 79.
+  #
+  # `mode: join` rules are the second thing semgrep 1.173 cannot take: they crash it outright
+  # (AttributeError in join_rule.py), which kills the whole batch and writes no output at all —
+  # a hard process failure rather than the rule-level error a bad rule produces. elttam's
+  # rules/generic/jsp-likely-xss.yaml is one. Only .yaml/.yml are considered, so a README
+  # quoting the docs is not a candidate, and the pair of keys above is what makes it a rule.
+  #
+  # A prune that deletes nothing is a legitimate outcome — a repo may ship rules and nothing
+  # else — but a prune that cannot run is not, so its status is checked and the ruleset is
+  # skipped with a reason rather than scanned from a half-pruned tree.
+  if ! non_rules=$(prune_yaml "$dest" ! -exec grep -q '^rules:' {} \;) ||
+    ! join_rules=$(prune_yaml "$dest" -exec grep -qE "$JOIN_MODE_RE" {} \; \
+      -exec grep -qE "$JOIN_BLOCK_RE" {} \;); then
+    printf '%s\t%s\n' "$url" "could not prune unscannable YAML from the clone" >>"$SKIPPED"
+    rm -rf "$dest"
+    continue
+  fi
+  # Reported every time, including as zeroes. These two prunes are the difference between a
+  # ruleset that runs and one that contributes nothing, and a run that stopped pruning would
+  # otherwise look exactly like a run with nothing to prune.
+  printf '%s: pruned %s non-rule YAML file(s) and %s join-mode rule file(s)\n' \
+    "$name" "$(count_lines "$non_rules")" "$(count_lines "$join_rules")" >&2
+
   # A repository that cloned but carries no rules scans nothing, and reporting it as fine would
   # show a completed scan against a ruleset that never ran.
   #
@@ -534,9 +599,37 @@ while IFS=$'\t' read -r stem lang ruleset config includes; do
   scanned=-1
   ok=""
   # Exit 0 covers both "found nothing" and "found plenty", so it says nothing about findings.
-  # Exit 1 is a successful scan on older versions. 7 means the config would not load and 2 a
-  # bad argument; in both cases no scan happened.
-  if { [ "$rc" -eq 0 ] || [ "$rc" -eq 1 ]; } && [ -s "$json" ] && [ -s "$sarif" ]; then
+  # Exit 1 is a successful scan on older versions.
+  #
+  # Exit 2 is not only "no scan happened". semgrep also returns 2 when individual rules fail
+  # to compile while the rest of the run completes and writes complete output — e.g. 12 Java
+  # rules in elttam/semgrep-rules that current semgrep cannot parse, alongside 107 that ran
+  # fine, and apiiro/malicious-code-ruleset whose own log read "Scan completed successfully
+  # • Findings: 51". Both were thrown away. Exit 2 also still covers a bad argument, where
+  # nothing is written at all; the artifact checks below tell the two apart, so 2 is allowed
+  # through and flagged partial rather than trusted outright.
+  #
+  # Anything outside 0/1/2 stays fatal however plausible the artifacts look, exit 7 (config
+  # would not load) included. Verified on semgrep 1.173: the exit code for an unloadable
+  # config depends on the OUTPUT FLAGS, which is worth knowing before trusting either number.
+  # Same rules directory, same target, back to back:
+  #
+  #   semgrep --config rules target                              -> 7, nothing written
+  #   semgrep --config rules -o out.json --sarif-output=out.sarif -> 2, nothing written
+  #
+  # This script uses the second form, so a config that will not load reaches here as 2 with
+  # no artifacts, and the -s checks below reject it on their own. The fatal branch is
+  # therefore belt-and-braces rather than the thing doing the work — but it costs nothing,
+  # it is what the suite pins, and it means a future semgrep that writes an empty result set
+  # alongside a hard failure cannot be read as a clean scan.
+  partial=""
+  fatal=""
+  case "$rc" in
+    0 | 1) ;;
+    2) partial=1 ;;
+    *) fatal=1 ;;
+  esac
+  if [ -z "$fatal" ] && [ -s "$json" ] && [ -s "$sarif" ]; then
     if findings=$(jq -e '.results | length' "$json" 2>/dev/null); then
       ok=1
       # null and empty are different answers: a semgrep that does not report .paths gives -1,
@@ -550,9 +643,14 @@ while IFS=$'\t' read -r stem lang ruleset config includes; do
   fi
   if [ -n "$ok" ]; then
     [ "$scanned" -ne 0 ] || printf '%s/%s\n' "$lang" "$ruleset" >>"$COVERED_NOTHING"
+    # `partial` marks a run whose results are real but incomplete — some rules failed to
+    # compile. Reporting it as an unqualified success would overstate coverage; dropping it
+    # entirely (the old behaviour) understated it far worse.
     jq -nc --arg lang "$lang" --arg ruleset "$ruleset" --arg json "$json" \
       --arg sarif "$sarif" --argjson findings "$findings" --argjson scanned "$scanned" \
-      '{lang:$lang, ruleset:$ruleset, json:$json, sarif:$sarif, findings:$findings, filesScanned:$scanned}' \
+      --argjson partial "$([ -n "$partial" ] && echo true || echo false)" --arg rc "$rc" \
+      '{lang:$lang, ruleset:$ruleset, json:$json, sarif:$sarif, findings:$findings,
+        filesScanned:$scanned, partial:$partial, exitCode:($rc|tonumber)}' \
       >>"$WORK/scans.jsonl"
   else
     # Carries the same paths a success does: a scan that crashed part-way may still have
