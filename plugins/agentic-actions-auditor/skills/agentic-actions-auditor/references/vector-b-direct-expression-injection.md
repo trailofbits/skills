@@ -47,6 +47,8 @@ Also check multiline `prompt: |` blocks -- expressions can appear on any line wi
 
 The `with:` block of AI action steps. Focus on all fields listed above, not just `prompt:`. Expressions in `env:` blocks are Vector A, not Vector B.
 
+For a CLI-invoked agent there is no `with:` block, so look at the command line inside the `run:` block: an expression in the positional prompt argument, after `-p`/`--prompt`, inside a heredoc body, or in a `--prompt-file` path. The blanket exclusion of `${{ }}` in `run:` blocks below applies to steps that are not the AI invocation; when the block *is* the invocation, the expression lands in the prompt and this vector applies.
+
 ## Why It Matters
 
 While visually obvious, this vector remains common because developers treat AI prompts like natural language rather than code. The `${{ }}` evaluation happens at the YAML level before the AI agent runs, so the attacker's content is indistinguishable from the workflow author's intended prompt text. The AI has no way to tell which parts of its prompt are trusted instructions and which are attacker-injected content.

@@ -56,6 +56,8 @@ The `with:` block of AI action steps:
 - **Codex:** Check `with.sandbox` and `with.safety-strategy` field values directly
 - **Gemini:** Parse `with.settings` JSON string for `"sandbox": false` and approval mode settings. Check any args-style fields for `--yolo` or `--approval-mode=yolo`
 
+For a CLI-invoked agent, the same flags appear on the command line in the `run:` block rather than in `with:` -- `--dangerously-skip-permissions` or `--allowedTools` for `claude`, `--yolo` or `--approval-mode=yolo` for `gemini`, `--dangerously-bypass-approvals-and-sandbox` or `--sandbox danger-full-access` for `codex`, `--yes-always` for `aider`. Read every line of the block, including heredoc bodies. An absent flag is the CLI's own default, which is not the action's default -- see the last false positive below.
+
 ## Why It Matters
 
 Dangerous sandbox configs turn prompt injection from a text-influence attack into full remote code execution. Without sandbox restrictions, the AI agent can:
@@ -97,7 +99,7 @@ Three actions with dangerous configurations (from research Example 8):
 - **Specific restricted tool patterns** in Claude: `--allowedTools "Bash(npm test:*)"` or `--allowedTools "Bash(echo:*)"` -- these are restrictive, not dangerous (though they may be exploitable via Vector F for subshell expansion)
 - **Codex workspace-scoped sandbox:** `sandbox: workspace-write` allows writes but within a workspace boundary, not full system access
 - **Gemini specific tool lists:** `coreTools` containing specific tools but NOT `run_shell_command` -- tool-specific restrictions, not full sandbox disable
-- **Default configurations:** Claude defaults to restricted tools and Codex to `sandbox: workspace-write`, so an absent field is a safe default for those two. It is NOT safe for Gemini: `action-profiles.md` records the action running with the sandbox off unless `"sandbox": true` is set, so an absent field there is the unsandboxed case. And this false positive is about *action* defaults -- a CLI agent's absent flag is the CLI's own default, which for `gemini -p` and `aider -m` is not sandboxed and not approval-gated. Check the CLI's default, do not excuse it
+- **Default configurations:** Claude defaults to restricted tools and Codex to `sandbox: workspace-write`, so an absent field is a safe default for those two. It is NOT safe for Gemini: `action-profiles.md` records the action running with the sandbox off unless `"sandbox": true` is set, so an absent field there is the unsandboxed case. And this false positive is about *action* defaults -- a CLI agent's absent flag is the CLI's own default, which for `gemini -p` and `aider -m` is not sandboxed. Check the CLI's default, do not excuse it. Approval gating is a separate question and is not settled by the absent flag: `action-profiles.md` records Gemini defaulting to confirmation for tool calls, but that default describes an interactive session and a `run:` step has nobody to confirm. Record the approval flag actually present -- `--yolo`, `--approval-mode`, `--yes-always` -- rather than assuming a prompt either fires or does not
 - **Claude `--allowedTools` with narrow patterns:** e.g., `--allowedTools "Read(*) Grep(*)"` -- read-only tools pose minimal risk
 
 See [foundations.md](foundations.md) for AI action field mappings.

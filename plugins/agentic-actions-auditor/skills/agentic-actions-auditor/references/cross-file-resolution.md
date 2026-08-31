@@ -61,7 +61,7 @@ An action whose internals cannot be read is recorded as an unresolved possible a
 
 Record as unresolved when any of these holds:
 
-- A model API key or token reaches the step, in its `with:` or `env:` block: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, an Azure OpenAI key, or a secret whose name contains `LLM`, `AI_`, `CLAUDE`, `GPT` or `MODEL`. This is the strongest signal: an action handed a model credential is being given it for a reason.
+- A model API key or token reaches the step, in its `with:` or `env:` block: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, an Azure OpenAI key, or a secret whose name contains `LLM`, `CLAUDE`, `GPT`, `COPILOT` or `OPENAI`. This is the strongest signal: an action handed a model credential is being given it for a reason. Two names are deliberately not on this list: `GOOGLE_API_KEY` serves Maps, Drive and Sheets far more often than a model, and a bare `MODEL` matches `MODEL_REGISTRY_TOKEN` in any MLOps repo. Count either only when a second signal below also fires.
 - The action or image reference names one: it contains `ai`, `llm`, `agent`, `claude`, `gpt`, `codex`, `gemini`, `copilot` or `review-bot` as a word.
 - The step passes it something that reads as a prompt -- a `prompt`, `instructions` or `system_prompt` input.
 
