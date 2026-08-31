@@ -208,7 +208,13 @@ Examine every `run:` block in every job for these invocations:
   not execute anything, but they steer the read outside the repository under audit and pull its contents into
   the report. Normalise before use: strip a leading `./`, since the API path is repo-rooted and
   `contents/./scripts/review.sh` 404s -- which reads as "could not be read" when it was asked for wrongly. For
-  `Read`, join the repo-relative path to the checkout root; `Read` needs an absolute path. This is the first Bash argument
+  `Read`, join the repo-relative path to the checkout root; `Read` needs an absolute path. **In local mode,
+  require a regular file inside the checkout root before reading it.** The character rules above reject `..` and
+  a leading `/`, but a symlink defeats both: a hostile repository ships `scripts/review.sh` pointing at
+  `~/.aws/credentials`, the path passes every check, and `Read` follows the link and pulls the auditor's own
+  secrets into a report that may ship to a client. Resolve the link and confirm the target is a regular file
+  under the checkout; if it is not, record the step unresolved. Remote mode is unaffected -- the contents API
+  returns the link, not its target. This is the first Bash argument
   in this skill that comes from the file under audit; a path that expands before `gh` runs is code execution on
   the auditor's machine during a read-only audit. When you cannot reach the script, record the step as an
   unresolved possible agent rather than dropping it -- unless nothing is readable at all. If the whole

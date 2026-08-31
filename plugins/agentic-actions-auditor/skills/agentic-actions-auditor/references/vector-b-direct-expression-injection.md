@@ -10,7 +10,7 @@ Direct `${{ github.event.* }}` expressions embedded in AI prompt fields. The YAM
 | Gemini CLI | Yes | Check `with.prompt` for direct expressions |
 | OpenAI Codex | Yes | Check `with.prompt`, `with.prompt-file` (if resolving to attacker-controlled path), `with.codex-args` |
 | GitHub AI Inference | Yes | Check `with.prompt`, `with.system-prompt`, `with.system-prompt-file` |
-| CLI-invoked (`run:`) | Yes | Check the command line: positional prompt argument, after `-p`/`--prompt`, heredoc body, `--prompt-file` path |
+| CLI-invoked (`run:`) | Yes | Check the command line: positional prompt argument, after `-p`/`--print` (Claude) or `-m`/`--message`/`--message-file` (Aider), a heredoc body, or a file the command reads |
 
 Check ALL `with:` fields that accept text content, not just `prompt:`. Each action has multiple fields that are injection surfaces.
 
@@ -48,7 +48,7 @@ Also check multiline `prompt: |` blocks -- expressions can appear on any line wi
 
 The `with:` block of AI action steps. Focus on all fields listed above, not just `prompt:`. Expressions in `env:` blocks are Vector A, not Vector B.
 
-For a CLI-invoked agent there is no `with:` block, so look at the command line inside the `run:` block: an expression in the positional prompt argument, after `-p`/`--prompt`, inside a heredoc body, or in a `--prompt-file` path. The blanket exclusion of `${{ }}` in `run:` blocks below applies to steps that are not the AI invocation; when the block *is* the invocation, the expression lands in the prompt and this vector applies.
+For a CLI-invoked agent there is no `with:` block, so look at the command line inside the `run:` block: an expression in the positional prompt argument, after `-p`/`--print` (Claude) or `-m`/`--message`/`--message-file` (Aider), inside a heredoc body, or in a file the command is pointed at. Take the flag list from SKILL.md Step 3 rather than from the action inputs above -- `prompt-file` is a Codex *action* input and not a flag any CLI in Step 2b accepts, so hunting for it on a command line finds nothing while `--message-file` goes unchecked. The blanket exclusion of `${{ }}` in `run:` blocks below applies to steps that are not the AI invocation; when the block *is* the invocation, the expression lands in the prompt and this vector applies.
 
 ## Why It Matters
 
