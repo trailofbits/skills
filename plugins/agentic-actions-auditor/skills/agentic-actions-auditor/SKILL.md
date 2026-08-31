@@ -378,7 +378,7 @@ Then check each vector against the security context captured in Step 3:
 | F | Subshell Expansion | Tool restriction list includes commands supporting `$()` expansion | [{baseDir}/references/vector-f-subshell-expansion.md]({baseDir}/references/vector-f-subshell-expansion.md) |
 | G | Eval of AI Output | `eval`, `exec`, or `$()` in `run:` step consuming `steps.*.outputs.*` | [{baseDir}/references/vector-g-eval-of-ai-output.md]({baseDir}/references/vector-g-eval-of-ai-output.md) |
 | H | Dangerous Sandbox Configs | `danger-full-access`, `Bash(*)`, `--yolo`, `safety-strategy: unsafe` | [{baseDir}/references/vector-h-dangerous-sandbox-configs.md]({baseDir}/references/vector-h-dangerous-sandbox-configs.md) |
-| I | Wildcard Allowlists | `allowed_non_write_users: "*"`, `allow-users: "*"` | [{baseDir}/references/vector-i-wildcard-allowlists.md]({baseDir}/references/vector-i-wildcard-allowlists.md) |
+| I | Wildcard Allowlists | `allowed_non_write_users: "*"`, `allow-users: "*"` -- or, where the target has no allowlist input at all (Gemini, AI Inference, base-action, any CLI agent), no `if:` on an externally triggerable event | [{baseDir}/references/vector-i-wildcard-allowlists.md]({baseDir}/references/vector-i-wildcard-allowlists.md) |
 
 For each vector, read the referenced file and apply its detection heuristic against the security context captured in Step 3. For each finding, record: the vector letter and name, the specific evidence from the workflow, the data flow path from attacker input to AI agent, and the affected workflow file and step.
 

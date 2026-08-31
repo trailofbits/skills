@@ -1,6 +1,11 @@
 # Vector I: Wildcard User Allowlists
 
-User allowlist fields are set to wildcard values (`"*"`) that permit ANY GitHub user -- including external contributors, anonymous users, and potential attackers -- to trigger the AI agent. This removes the last line of defense (user-based gating) that might prevent an external attacker from triggering the AI agent via issues or comments.
+Nothing restricts which GitHub users can trigger the AI agent, so any user -- including external contributors, anonymous users, and potential attackers -- can reach it via issues or comments. This removes the last line of defense that user-based gating would otherwise provide.
+
+That happens two ways, and the second is easy to miss because there is no wildcard to grep for:
+
+1. **A user allowlist field set to `"*"`** -- `allowed_non_write_users`, `allow-users`, `allowed_bots`. The classic form, on the two actions that have such a field.
+2. **No allowlist field at all, and no `if:` condition either.** Gemini CLI, GitHub AI Inference, `claude-code-base-action` and every CLI agent invoked from a `run:` block expose no allowlist input, so the step or job `if:` is the entire gate. Absent, on an externally triggerable event, the step is as open as an explicit `"*"` -- the difference is only that one is written down.
 
 ## Applicable Actions
 
@@ -51,7 +56,7 @@ The wildcard removes the user-based gate that would otherwise restrict which use
 - `with.allow-users: "*"` -- allows any user to trigger the AI agent
 - `with.allow-bots: "*"` -- allows any bot account to trigger the action
 
-**General pattern:** Any `with:` field containing a user or bot allowlist with value `"*"` or that resolves to unrestricted access.
+**General pattern:** Any `with:` field containing a user or bot allowlist with value `"*"` or that resolves to unrestricted access -- **or** a step with no allowlist input available to it and no step- or job-level `if:`, on a trigger an external user can fire. Both leave the agent reachable by anyone; only the first leaves a wildcard to grep for.
 
 ## Where to Look
 

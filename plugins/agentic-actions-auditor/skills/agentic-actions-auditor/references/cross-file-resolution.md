@@ -57,7 +57,17 @@ Only composite actions have `runs.steps[]` containing workflow-style steps. If `
 
 ### The agent signal
 
-An action whose internals cannot be read is recorded as an unresolved possible agent **only when something says it might run one**. Without this test every `actions/checkout` and `actions/setup-node` becomes a row, and a headline reading "dozens of unresolved possible agents" buries the one row that matters -- an unreadable `./scripts/review.sh`.
+This test applies **only to the reference types marked "Only if it carries an agent signal" above** -- a remote
+action, a Docker image, a non-composite action at a local path. Those are out of scope by default, and the
+signal is the one thing that pulls a given one back in: without it every `actions/checkout` and
+`actions/setup-node` becomes a row, and a headline reading "dozens of unresolved possible agents" buries the
+row that matters.
+
+It is not a filter on the Unresolved References table. A reference this file marks in scope -- a reusable
+workflow, a composite action -- that could not be read is reported whether or not any signal fires. See
+"The agent-signal test gates one row type" below.
+
+For an out-of-scope reference, record it as an unresolved possible agent when something says it might run one.
 
 Record as unresolved when any of these holds:
 
@@ -231,7 +241,26 @@ When any references could not be resolved, add an "Unresolved References" sectio
 ```
 
 - Omit this section entirely when all references resolve successfully
-- The summary counts total findings only. Unresolved references are not findings and are not folded into the AI-action instance count either; they get their own line, per SKILL.md Step 5e. Only references that passed the agent-signal test appear there
+- The summary counts total findings only. Unresolved references are not findings and are not folded into the AI-action instance count either; they get their own line, per SKILL.md Step 5e
+
+**The agent-signal test gates one row type, not this table.** It exists to stop every `actions/checkout` and
+`actions/setup-node` becoming a row, so it applies **only** to the reference types this file marks "Only if it
+carries an agent signal" -- a remote action, a Docker image, a non-composite action at a local path. Those are
+out of scope to begin with, and the signal is what pulls one back in.
+
+Everything this file marks in scope is reported whenever it could not be read, signal or no signal:
+
+- a 404 or auth failure on a reusable workflow or composite action
+- a reference stopped by the depth limit
+- an `action.yml`/`action.yaml` that does not exist
+- a script under SKILL.md 2b that could not be fetched
+
+Both rows in the example above are of that kind, and neither would fire the signal. Applying the test to them
+would delete them. The case that makes this load-bearing: a job-level `uses: org/private/.github/workflows/scan.yml@v2`
+with `secrets: inherit`, 404ing because the repository is private. It runs with every secret the caller holds,
+its body cannot be read, and nothing about the name, the `with:` block or a prompt input says "agent" -- so the
+signal is silent and the row would vanish, leaving "0 AI action instances, 0 findings" over a workflow nobody
+looked inside. That is the clean-bill-of-health-over-unread-ground this whole skill is written against.
 
 ## Edge Cases
 
