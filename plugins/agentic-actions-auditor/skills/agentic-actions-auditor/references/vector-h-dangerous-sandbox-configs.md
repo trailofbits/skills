@@ -10,6 +10,7 @@ AI action sandbox or safety configurations are set to values that disable protec
 | OpenAI Codex | Yes | `sandbox: danger-full-access` and `safety-strategy: unsafe` disable protections |
 | Gemini CLI | Yes | `"sandbox": false` in settings JSON and `--yolo`/`--approval-mode=yolo` disable sandbox and approval |
 | GitHub AI Inference | No | Inference-only API with no sandbox/tool configuration -- no shell access to restrict |
+| CLI-invoked (`run:`) | Yes | The bypass flags sit on the command line rather than in `with:`; an absent flag is the CLI's own default, not the action's |
 
 ## Trigger Events
 

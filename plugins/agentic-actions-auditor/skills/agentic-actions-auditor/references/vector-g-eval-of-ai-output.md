@@ -12,6 +12,7 @@ This vector applies to any AI action whose output is consumed by subsequent `run
 | Claude Code Action | Applicable if output captured | Primarily operates on codebase directly, but output can be captured in subsequent steps |
 | Gemini CLI | Applicable if output captured | Primarily operates on codebase directly, but output can be captured in subsequent steps |
 | OpenAI Codex | Applicable if output captured | Primarily operates on codebase directly, but output can be captured in subsequent steps |
+| CLI-invoked (`run:`) | Applicable if output captured | The reply is stdout in the invoking block; it leaves the step via `$GITHUB_OUTPUT`/`$GITHUB_ENV` or a file |
 
 ## Trigger Events
 

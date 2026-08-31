@@ -376,14 +376,11 @@ read each one against the command line, the step `env:` block and the `if:` cond
 instead. A vector whose `with:` field does not exist on a CLI step has not been ruled out -- it has not been
 checked.
 
-Vectors B, G, H and I each carry a false positive or a detection shape that misfires on a CLI step, and each
-has been amended in its own file to say so; apply the file as written. The two that are easiest to get wrong:
-
-- **Vectors A, C and E** are defined over `with.prompt`. The CLI equivalent is the whole invocation: the env var
-  the command reads (A), a `gh issue view` or `gh pr view` inside the prompt or the script building it (C), and
-  a prompt assembled from build output or a log file (E).
-- **Vector F**'s tool-restriction checks read `claude_args`. For a CLI agent they are the command-line flags
-  captured in Step 3, not absent.
+Every vector file now states its own CLI form -- which gate to read, where the prompt sits, which flags replace
+the `with:` keys -- so apply each file as written rather than translating here. The rule the files encode: a
+vector defined over `with.prompt` reads the whole invocation instead, since a CLI step has no `with:` block, and
+a check that reads `claude_args` reads the command-line flags captured in Step 3. Absence of a `with:` field is
+never itself the answer for a CLI step.
 
 ### Step 5: Report Findings
 

@@ -10,6 +10,7 @@ Attacker data flows from GitHub event context into `env:` blocks, and the AI pro
 | Gemini CLI | Yes | Shell-style `"${VAR}"` interpolation in prompt text |
 | OpenAI Codex | Yes | Similar env var reference pattern in prompt instructions |
 | GitHub AI Inference | Yes | Prompt text can reference env var names for the runner to resolve |
+| CLI-invoked (`run:`) | Yes -- the primary shape | The shell expands `"$VAR"` on the command line before the agent starts. GitHub's own script-injection guidance pushes authors toward `env:` for `run:` blocks, so this is the likeliest form a CLI agent takes, not an edge case |
 
 ## Trigger Events
 
@@ -32,7 +33,9 @@ The `${{ }}` expression is in the `env:` block, not the prompt. By the time the 
 This is a TWO-PART match. Both conditions must be true:
 
 1. **Part A -- Env var with attacker-controlled value:** Find `env:` keys (at workflow, job, or step scope) whose values contain `${{ github.event.* }}` expressions referencing attacker-controlled contexts (see [foundations.md](foundations.md) for the complete list)
-2. **Part B -- Prompt references that env var name:** Check if the AI action step's `with.prompt` (or `with.prompt-file`) references those env var names -- by exact name string, `"${VAR}"` shell expansion, `echo "$VAR"` instruction, or text mentioning the variable name
+2. **Part B -- The prompt reaches that env var name.** Where to read Part B depends on how the agent was invoked, and the two are not interchangeable:
+   - **Action-invoked:** the step's `with.prompt` (or `with.prompt-file`) references the env var name -- by exact name string, `"${VAR}"` shell expansion, `echo "$VAR"` instruction, or text mentioning the variable name
+   - **CLI-invoked (`run:`):** there is no `with.prompt`, and requiring one here would make this vector unmatchable for every CLI agent. Part B is the invocation itself: the env var named anywhere in the command line (`claude -p "$ISSUE_BODY"`), inside a heredoc body fed to the agent, piped in (`printf '%s' "$ISSUE_BODY" | claude -p`), written to a file the agent is pointed at, or read by a wrapper script the step runs. A bare `"$VAR"` on the command line is the match -- the shell expands it before the agent starts, so the attacker text is in the prompt whether or not the YAML ever names it
 
 Both parts must be present. An env var with attacker content that is never referenced in the prompt is not this vector. A prompt referencing env vars that contain only safe values is not this vector.
 
@@ -40,6 +43,7 @@ Both parts must be present. An env var with attacker content that is never refer
 
 - `env:` blocks at all three scopes: workflow-level (top of file), job-level (under `jobs.<id>:`), and step-level (on the AI action step itself)
 - The `with.prompt` field of the AI action step
+- For a CLI-invoked agent, the `run:` block instead: every line of it, including heredoc bodies and any wrapper script the step invokes. The env var may be referenced on the agent's own command line or in a shell variable assigned earlier in the same block
 - Prior steps in the same job that set env vars via `echo "NAME=value" >> $GITHUB_ENV`
 
 ## Why It Matters
@@ -69,6 +73,20 @@ jobs:
 ```
 
 **Data flow:** `github.event.issue.body` -> `env: ISSUE_BODY` -> prompt instruction `"${ISSUE_BODY}"` -> Gemini reads env var -> attacker content in AI context.
+
+The same vector with a CLI-invoked agent, which is the form this most often takes because GitHub's script-injection guidance recommends exactly this `env:` indirection for `run:` blocks:
+
+```yaml
+      - name: Triage
+        env:
+          ISSUE_BODY: '${{ github.event.issue.body }}'      # attacker-controlled
+        run: |
+          claude -p "Triage this issue: $ISSUE_BODY"
+          # No with: block and no ${{ }} on the command line -- the shell
+          # expands $ISSUE_BODY before claude starts
+```
+
+**Data flow:** `github.event.issue.body` -> `env: ISSUE_BODY` -> shell expansion on the `claude -p` command line -> attacker content in AI context. Part A is the `env:` block; Part B is the command line, not a `with.prompt`.
 
 ## False Positives
 

@@ -10,6 +10,7 @@ Tool restriction lists include commands that support subshell expansion (e.g., `
 | Claude Code Action | Medium confidence | `Bash(echo:*)` in `--allowedTools` is structurally similar -- allows the `echo` command through Bash, which may evaluate subshell expansion. Unconfirmed at runtime. |
 | OpenAI Codex | Medium confidence | If restricted shell commands are allowed via `codex-args`, subshell expansion may apply. Unconfirmed at runtime. |
 | GitHub AI Inference | Not applicable | No shell access -- this action calls a model API, not a shell environment. |
+| CLI-invoked (`run:`) | Yes | The same restriction flags appear on the command line rather than in `claude_args` or `settings`. A CLI agent given a narrow allowlist is this vector; one given none is Vector H |
 
 **Confidence note:** This vector is CONFIRMED for Gemini CLI (PoCs 1-2 achieved arbitrary command execution via `echo $(env)` and `echo $(whoami)`). For Claude Code Action and OpenAI Codex, the attack is structurally similar but behavior under subshell expansion needs runtime testing to confirm exploitability.
 
@@ -44,6 +45,7 @@ The critical insight: the restriction is on the **command name**, not on shell i
 1. `with.settings` (Gemini CLI) -- parse the JSON string for `coreTools` arrays containing shell command names
 2. `with.claude_args` (Claude Code Action) -- look for `--allowedTools` flags with `Bash(command:*)` patterns. Pre-v1 workflows carry the same patterns in a `with.allowed_tools` string instead
 3. `with.codex-args` (OpenAI Codex) -- check for tool restriction flags
+4. For a CLI-invoked agent, the command line in the `run:` block, where these flags are captured by Step 3 rather than absent: `--allowedTools "Bash(echo:*)"` on `claude`, `--allowed-tools` or a `--settings` file on `gemini`, tool-restriction flags on `codex`. A `--settings`/`--config` path names a file in the repository; read it, since the `coreTools` array lives there rather than inline
 4. Look specifically for patterns suggesting **restricted** tool access rather than fully open access -- fully open tool access is Vector H, not Vector F
 
 ## Why It Matters

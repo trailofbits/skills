@@ -10,6 +10,7 @@ An attacker opens a fork pull request against a repository that uses `pull_reque
 | Gemini CLI | Yes | Applicable if used with `pull_request_target`. Same filesystem read behavior. |
 | OpenAI Codex | Yes | Applicable. Reads files from working directory for code analysis. |
 | GitHub AI Inference | Possible | Less common, but applicable if the prompt instructs the model to read file contents from disk. |
+| CLI-invoked (`run:`) | Yes | The checkout is a prior step and the agent reads the same working directory, so invocation style does not change this vector |
 
 The key requirement is any AI action that reads files from the checked-out working directory. The attacker embeds prompt injection payloads in code comments, README files, configuration files, or any file the AI is likely to read during review.
 
