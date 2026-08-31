@@ -100,6 +100,11 @@ The resolved file is a complete workflow YAML with `on: workflow_call`. Analyze 
 **Parse the reference:**
 - Extract: `owner`, `repo`, file path (everything after `repo/` and before `@`), and `ref` (everything after `@`)
 - Example: `org/shared/.github/workflows/review.yml@main` -> owner=`org`, repo=`shared`, path=`.github/workflows/review.yml`, ref=`main`
+- **All four come out of the audited workflow, so all four get Step 0's character filter before they reach a
+  shell** -- `ref` included. Quoting the URL is not enough; anything outside `[A-Za-z0-9._/-]` means log the
+  reference as unresolved instead of running the command. A ref is the easiest of the four to wave through,
+  since `@main` and `@v1` look like version metadata rather than input, but Git permits `$`, backticks, `;` and
+  `|` in a ref name and it lands in the same command line as the path.
 
 **Fetch:**
 ```
