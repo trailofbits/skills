@@ -106,11 +106,16 @@ fi
 #
 # Burp silently ignores flags it does not recognise, so with the parser extension missing it starts
 # normally and drops the query -- producing either its own non-JSON startup output or nothing at all.
-# Both look like a successful search that found nothing. Stream the output through awk so the common
-# case still pipes to jq/head unbuffered by a temp file, and classify the WHOLE stream rather than
-# just its first line. Judging line 1 alone breaks both ways: a working install may print a licence
-# or startup line before the JSON, and a Java log line like `[main] INFO ...` would pass a check
-# that accepts a leading `[`.
+# Both look like a successful search that found nothing. Stream the output through awk rather than a
+# temp file, so a large dump never lands on disk, and classify the WHOLE stream rather than just its
+# first line. Judging line 1 alone breaks both ways: a working install may print a licence or startup
+# line before the JSON, and a Java log line like `[main] INFO ...` would pass a check that accepts a
+# leading `[`.
+#
+# `fflush()` on every emitted line is load-bearing, not decoration: awk block-buffers when its stdout
+# is a pipe, and the documented workflows all pipe. Without it a long search over a large project
+# prints nothing until Burp exits, where the bare `exec` this replaced streamed line by line. The
+# flush restores that at the cost of one write per JSON object.
 #
 # Only JSON objects reach stdout. Anything else goes to stderr rather than being dropped, so a
 # downstream `grep` or `jq` can never match a startup banner.
@@ -122,7 +127,7 @@ set +e
 "$JAVA_PATH" -jar -Djava.awt.headless=true "$BURP_JAR" \
   --project-file="$PROJECT_FILE" \
   "$@" | awk '
-    /^[[:space:]]*\{/ { print; json++; next }
+    /^[[:space:]]*\{/ { print; fflush(); json++; next }
     { print "burp-search.sh: ignored non-JSON output: " $0 > "/dev/stderr"; other++ }
     END { if (json == 0 && other == 0) exit 3; if (json == 0) exit 4 }
   '
