@@ -6,7 +6,7 @@ Security-relevant configuration fields, default behaviors, dangerous configurati
 
 ### Default Security Posture
 
-- Bash tool disabled by default; commands must be explicitly allowed via `--allowedTools` in `claude_args`
+- Bash tool disabled by default; commands must be explicitly allowed via `--allowedTools` in `claude_args`, or via the `allowed_tools` input on pre-v1 workflows (see foundations.md)
 - Only users with repository write access can trigger (default when `allowed_non_write_users` is omitted)
 - GitHub Apps and bots blocked by default (when `allowed_bots` is omitted)
 - Commits to new branch, does NOT auto-create PRs (requires human review)
@@ -18,10 +18,11 @@ Security-relevant configuration fields, default behaviors, dangerous configurati
 | Configuration | Risk |
 |--------------|------|
 | `claude_args: "--allowedTools Bash(*)"` | Unrestricted shell access; any prompt injection achieves full RCE |
+| `allowed_tools: "Bash(*)"` | The same risk on pre-v1 workflows, under the older input name |
 | `allowed_non_write_users: "*"` | Any GitHub user can trigger the action, including external contributors and attackers |
 | `allowed_bots: "*"` | Any bot can trigger, enables automated attack chains via bot-to-bot escalation |
 | `show_full_output: true` (in public repos) | Exposes full conversation including potential secrets in workflow logs |
-| `prompt` containing `${{ github.event.* }}` | Direct expression injection of attacker-controlled content into AI prompt |
+| `prompt` or `direct_prompt` containing `${{ github.event.* }}` | Direct expression injection of attacker-controlled content into AI prompt |
 
 ### Remediation Patterns
 
