@@ -16,6 +16,10 @@ set -euo pipefail
 # Twenty lines is enough to recognise a licence banner or a Java stack trace; the suppressed count is what says
 # the stream kept going.
 readonly STDERR_LINE_CAP=20
+# And how long any one of those lines may be. The line cap alone bounds nothing when the stream is one very
+# long line, which SKILL.md:217 already records as a real shape ("A single 10MB response on one line will show
+# high byte count but only 1 line").
+readonly STDERR_LINE_MAXLEN=500
 
 # Platform-specific default paths
 case "$(uname -s)" in
@@ -139,11 +143,23 @@ fi
 set +e
 "$JAVA_PATH" -jar -Djava.awt.headless=true "$BURP_JAR" \
   --project-file="$PROJECT_FILE" \
-  "$@" | awk -v cap="$STDERR_LINE_CAP" '
+  "$@" | awk -v cap="$STDERR_LINE_CAP" -v maxlen="$STDERR_LINE_MAXLEN" '
     /^[[:space:]]*\{/ { print; fflush(); json++; next }
+    # A blank or whitespace-only line is not output Burp meant to produce, and counting it makes an
+    # empty-but-correct result exit 4 with "the extension is not loaded" -- a wrong diagnosis on a healthy
+    # install, off one trailing newline. It also mirrors as a diagnostic with nothing after the colon.
+    /^[[:space:]]*$/ { next }
     {
       other++
-      if (other <= cap) print "burp-search.sh: ignored non-JSON output: " $0 > "/dev/stderr"
+      if (other <= cap) {
+        line = $0
+        # The cap bounds how many lines are mirrored; this bounds how long one may be. Without it a single
+        # 10 MB line -- a raw body or a base64 blob, which SKILL.md documents as a real shape -- passes the
+        # count check and is written to stderr in full, where the documented `head -c` on stdout cannot reach
+        # it. These bytes come from captured HTTP traffic, so length is attacker-influenced.
+        if (length(line) > maxlen) line = substr(line, 1, maxlen) " ... [truncated, " length($0) " bytes]"
+        print "burp-search.sh: ignored non-JSON output: " line > "/dev/stderr"
+      }
     }
     END {
       if (other > cap) {
@@ -175,7 +191,7 @@ case "$awk_status" in
     echo "Tell them apart with a control query -- a selector that must return rows if the parser is" >&2
     echo "working at all, run against the same project file:" >&2
     echo "" >&2
-    printf '  %s %q proxyHistory | head -n 1\n' "$0" "$PROJECT_FILE" >&2
+    printf '  %s %q proxyHistory.request.headers | head -c 2000\n' "$0" "$PROJECT_FILE" >&2
     echo "" >&2
     echo "  rows on stdout -> the parser works, and your narrower query genuinely matched nothing." >&2
     echo "                    Report that as a result, not as a failure." >&2

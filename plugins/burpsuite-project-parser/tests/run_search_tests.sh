@@ -19,7 +19,7 @@ set -euo pipefail
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/burpsuite-project-parser/scripts/burp-search.sh"
-readonly EXPECTED_ASSERTIONS=18
+readonly EXPECTED_ASSERTIONS=21
 
 [ -x "$SCRIPT" ] || {
   echo "run_search_tests.sh: not executable: $SCRIPT" >&2
@@ -46,6 +46,8 @@ case "$STUB_MODE" in
   jsonfail) printf '{"a":1}\n'; exit 7 ;;
   big)      awk 'BEGIN{for(i=0;i<100000;i++) printf "{\"i\":%d}\n", i}' ;;
   noisy)    awk 'BEGIN{for(i=0;i<100000;i++) print "Burp Suite Professional startup line " i}' ;;
+  longline) awk 'BEGIN{s="x"; while (length(s) < 2000000) s = s s; print s}' ;;
+  blank)    printf '\n   \n' ;;
   slow)     for i in 1 2 3; do printf '{"i":%d}\n' "$i"; sleep 1; done ;;
 esac
 STUB
@@ -172,6 +174,21 @@ noisy_bytes=$(wc -c <"$WORK/err" | tr -d ' ')
 eq "$capped" "yes" "stderr from a no-JSON stream must be capped, not mirrored in full"
 contains "$(cat "$WORK/err")" "further non-JSON line(s) suppressed" \
   "the cap must report how many lines it suppressed, so a truncated diagnostic is not mistaken for a short one"
+
+# The line cap bounds how MANY lines are mirrored, not how long one may be. SKILL.md:217 records a single 10MB
+# response on one line as a real shape, and those bytes are captured HTTP traffic -- attacker-influenced text
+# on a channel the documented `head -c` on stdout cannot reach.
+run longline
+eq "$RC" "4" "a single huge non-JSON line is still not JSON"
+long_bytes=$(printf '%s' "$ERR" | wc -c | tr -d ' ')
+[ "$long_bytes" -lt 5000 ] && bounded=yes || bounded=no
+eq "$bounded" "yes" "one very long non-JSON line must be truncated, not mirrored in full"
+
+# A trailing newline is not output Burp meant to produce. Counting it flips an empty-but-correct result to
+# exit 4 -- "the extension is not loaded" -- on a healthy install, and mirrors a diagnostic with nothing
+# after the colon.
+run blank
+eq "$RC" "3" "whitespace-only output must read as empty (exit 3), not as non-JSON (exit 4)"
 
 echo
 if [ "$RAN" -ne "$EXPECTED_ASSERTIONS" ]; then

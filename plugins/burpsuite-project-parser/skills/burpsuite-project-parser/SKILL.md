@@ -60,11 +60,17 @@ you can carry out yourself. You have `Bash` and `Read`; Burp runs headless here,
 to open and no GUI to inspect. Re-running the same query just returns 3 again.
 
 Run a **control query** instead: a selector broad enough that it must return rows if the parser is working at
-all, against the same project file.
+all, against the same project file. Use the sub-component filter, not the bare selector — a control is still a
+query, and the rules above apply to it unchanged.
 
 ```bash
-{baseDir}/scripts/burp-search.sh project.burp proxyHistory | head -n 1
+{baseDir}/scripts/burp-search.sh project.burp proxyHistory.request.headers | head -c 2000
 ```
+
+`proxyHistory.request.headers` is the right control precisely because it is broad but bounded: it covers every
+record in the project, at under 1KB each. Bare `proxyHistory` would answer the same question and is banned
+above for a reason — one record with bodies can be megabytes, and `head -n 1` does not stop that, it delivers
+exactly one of them in full.
 
 | Control result | What it means | What to do |
 |---|---|---|
