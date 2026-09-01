@@ -1,6 +1,6 @@
 # second-opinion
 
-Run code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on uncommitted changes, branch diffs, or specific commits.
+Run code reviews using external LLM CLIs (OpenAI Codex, Google Antigravity) on uncommitted changes, branch diffs, or specific commits.
 
 ## Prerequisites
 
@@ -9,12 +9,24 @@ Run code reviews using external LLM CLIs (OpenAI Codex, Google Gemini) on uncomm
 - [Codex CLI](https://github.com/openai/codex) installed: `npm i -g @openai/codex`
 - OpenAI API key or ChatGPT Plus subscription configured for Codex
 
-### Google Gemini CLI
+### Google Antigravity CLI
+
+- [Antigravity](https://antigravity.google) installed; binary is `agy`
+  (installs to `~/.local/bin`, which may need adding to PATH)
+- Google account authenticated (`agy models` should list models)
+- No extensions required
+
+### Google Gemini CLI (legacy — paid tiers only)
+
+Gemini CLI stopped serving individual accounts (AI Pro, Ultra, free) on
+2026-06-18; they now get `UNSUPPORTED_CLIENT` and are pointed at
+Antigravity. Only Gemini Code Assist Standard/Enterprise licenses or a
+paid `GEMINI_API_KEY` still work.
 
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) installed: `npm i -g @google/gemini-cli`
-- Google account authenticated
 - Code review extension: `gemini extensions install https://github.com/gemini-cli-extensions/code-review`
 - Security extension: `gemini extensions install https://github.com/gemini-cli-extensions/security`
+- Headless runs need `--skip-trust` or `GEMINI_CLI_TRUST_WORKSPACE=true`
 
 ## Installation
 
