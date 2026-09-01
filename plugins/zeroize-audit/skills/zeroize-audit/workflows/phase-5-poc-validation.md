@@ -8,7 +8,7 @@
 
 ### Step 5a — Compile and Run All PoCs (agent)
 
-Spawn agent `5b-poc-validator` via `Task` with:
+Spawn agent `zeroize-audit:5b-poc-validator` via `Task` (`subagent_type: "zeroize-audit:5b-poc-validator"`) with:
 
 | Parameter | Value |
 |---|---|
@@ -27,7 +27,7 @@ echo "Exit code: $?"
 
 ### Step 5b — Verify PoCs Prove Their Claims (agent)
 
-Spawn agent `5c-poc-verifier` via `Task` with:
+Spawn agent `zeroize-audit:5c-poc-verifier` via `Task` (`subagent_type: "zeroize-audit:5c-poc-verifier"`) with:
 
 | Parameter | Value |
 |---|---|

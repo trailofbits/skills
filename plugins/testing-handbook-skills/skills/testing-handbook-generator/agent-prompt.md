@@ -73,7 +73,7 @@ Before writing SKILL.md, verify ALL items:
 - [ ] **No shortcodes**: No `{{<` or `{{% ` patterns remain in output
 - [ ] **No escaped backticks**: No `\``` ` patterns remain (should be unescaped to ` ``` `)
 - [ ] **Required section**: Has `## When to Use` heading
-- [ ] **Trigger phrase**: Description contains "Use when" or "Use for"
+- [ ] **Trigger phrase**: Description contains "Use when" or "Use for", naming two or more concrete situations rather than restating the tool's purpose (see "Description quality" under Critical Rules)
 - [ ] **Code preserved**: All code blocks have language specifier and exact content
 - [ ] **Related Skills placeholder**: Has `## Related Skills` with `<!-- PASS2: ... -->` comment
 
@@ -124,6 +124,24 @@ Templates use `\``` ` (backslash-escaped backticks) to show code block examples 
 - `name`: lowercase, `[a-z0-9-]+`, max 64 chars
 - `type`: one of `tool`, `fuzzer`, `technique`, `domain` (determines required sections)
 - `description`: max 1024 chars, MUST include "Use when {trigger}" or "Use for {purpose}"
+
+**Description quality.** The trigger phrase is necessary, not sufficient — "Use for
+fuzzing C/C++ code" satisfies the check and still loses every routing contest to a
+sibling skill. This is the highest-leverage line in a skill: one that never triggers
+may as well not exist. Write it in three parts, on a single quoted line:
+
+1. **What it does for the reader**, leading with the task, not a definition of the
+   tool. "Sets up and runs libFuzzer …", not "libFuzzer is a coverage-guided fuzzer."
+   The `name` field already carries the tool name.
+2. **What it covers** — the concrete commands, flags, file names, and API symbols.
+   These are what a user's own words get matched against.
+3. **Use when …**, naming situations in the words a user would actually type: the
+   symptom ("a campaign that finds nothing"), the artifact in front of them
+   (`LLVMFuzzerTestOneInput`, `project.yaml`, an ASan stack trace), the decision
+   ("choosing between libFuzzer and AFL++"). Two to four situations, not one.
+
+Anchor the domain if the wording would otherwise match unrelated repositories, and
+add a closing "Not for …" when a sibling skill owns the adjacent case.
 
 ## Error Handling
 

@@ -32,6 +32,7 @@ Without dangerous configs, a successful prompt injection may still be contained 
 **Claude Code Action (`anthropics/claude-code-action`):**
 
 - `with.claude_args` containing `--allowedTools Bash(*)` or `--allowedTools "Bash(*)"` -- unrestricted shell access, the AI can execute any command
+- `with.allowed_tools` containing `Bash(*)` -- the pre-v1 spelling of the same thing, on a plain input rather than inside `claude_args`
 - `with.claude_args` with broad tool patterns combining multiple unrestricted categories (e.g., `Bash(npm:*) Bash(git:*) Bash(curl:*)`)
 - `with.settings` pointing to a settings file -- flag for manual review, the file may override tool permissions in ways not visible in the workflow YAML
 
@@ -51,7 +52,7 @@ Without dangerous configs, a successful prompt injection may still be contained 
 
 The `with:` block of AI action steps:
 
-- **Claude:** Parse `with.claude_args` string for `--allowedTools` patterns. Also check `with.settings` for external config file path
+- **Claude:** Parse `with.claude_args` string for `--allowedTools` patterns, and `with.allowed_tools` on pre-v1 workflows. Also check `with.settings` for external config file path
 - **Codex:** Check `with.sandbox` and `with.safety-strategy` field values directly
 - **Gemini:** Parse `with.settings` JSON string for `"sandbox": false` and approval mode settings. Check any args-style fields for `--yolo` or `--approval-mode=yolo`
 

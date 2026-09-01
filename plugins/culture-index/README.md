@@ -29,6 +29,10 @@ This skill provides expert interpretation of Culture Index behavioral assessment
 /plugin install trailofbits/skills/plugins/culture-index
 ```
 
+The plugin ships one skill, `interpreting-culture-index`. It triggers on its own when
+you bring it a profile; invoke it directly with
+`/culture-index:interpreting-culture-index`.
+
 ## Key Concepts
 
 ### Trait Colors

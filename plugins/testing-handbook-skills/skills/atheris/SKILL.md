@@ -1,9 +1,7 @@
 ---
 name: atheris
 type: fuzzer
-description: >
-  Atheris is a coverage-guided Python fuzzer based on libFuzzer.
-  Use for fuzzing pure Python code and Python C extensions.
+description: "Sets up and runs Atheris, the coverage-guided Python fuzzer built on libFuzzer. Covers TestOneInput harnesses, FuzzedDataProvider, instrumenting both pure Python and native C extensions, and running under AddressSanitizer. Use when fuzzing a Python package, hunting memory corruption in a Python C extension, or choosing between Atheris and Hypothesis for a Python target."
 ---
 
 # Atheris
@@ -31,7 +29,7 @@ import sys
 import atheris
 
 @atheris.instrument_func
-def test_one_input(data: bytes):
+def TestOneInput(data: bytes):
     if len(data) == 4:
         if data[0] == 0x46:  # "F"
             if data[1] == 0x55:  # "U"
@@ -40,7 +38,7 @@ def test_one_input(data: bytes):
                         raise RuntimeError("You caught me")
 
 def main():
-    atheris.Setup(sys.argv, test_one_input)
+    atheris.Setup(sys.argv, TestOneInput)
     atheris.Fuzz()
 
 if __name__ == "__main__":
@@ -152,7 +150,7 @@ import sys
 import atheris
 
 @atheris.instrument_func
-def test_one_input(data: bytes):
+def TestOneInput(data: bytes):
     """
     Fuzzing entry point. Called with random byte sequences.
 
@@ -172,12 +170,27 @@ def test_one_input(data: bytes):
     # Let unexpected exceptions crash (that's what we're looking for!)
 
 def main():
-    atheris.Setup(sys.argv, test_one_input)
+    atheris.Setup(sys.argv, TestOneInput)
     atheris.Fuzz()
 
 if __name__ == "__main__":
     main()
 ```
+
+### Structured Input with FuzzedDataProvider
+
+A target taking several typed arguments wastes most of the fuzzer's inputs if the harness
+slices `data` by hand, because every mutation shifts the byte offsets of everything after it.
+`atheris.FuzzedDataProvider` splits one `bytes` input into typed values instead:
+
+```python
+fdp = atheris.FuzzedDataProvider(data)
+name = fdp.ConsumeUnicodeNoSurrogates(fdp.ConsumeIntInRange(0, 64))
+strict = fdp.ConsumeBool()
+```
+
+See [structured-input.md](structured-input.md) for the full method reference, the fixed-draw-
+order rule, and what each method returns once the buffer runs dry.
 
 ### Harness Rules
 
@@ -201,10 +214,10 @@ with atheris.instrument_imports():
     import your_module
     from another_module import target_function
 
-def test_one_input(data: bytes):
+def TestOneInput(data: bytes):
     target_function(data)
 
-atheris.Setup(sys.argv, test_one_input)
+atheris.Setup(sys.argv, TestOneInput)
 atheris.Fuzz()
 ```
 
@@ -249,7 +262,7 @@ import atheris
 # _cbor2 ensures the C library is imported
 from _cbor2 import loads
 
-def test_one_input(data: bytes):
+def TestOneInput(data: bytes):
     try:
         loads(data)
     except Exception:
@@ -257,7 +270,7 @@ def test_one_input(data: bytes):
         pass
 
 def main():
-    atheris.Setup(sys.argv, test_one_input)
+    atheris.Setup(sys.argv, TestOneInput)
     atheris.Fuzz()
 
 if __name__ == "__main__":
@@ -392,7 +405,7 @@ with atheris.instrument_imports():
     import target_module
 # Don't instrument test harness code
 
-def test_one_input(data: bytes):
+def TestOneInput(data: bytes):
     target_module.parse(data)
 ```
 
@@ -416,58 +429,8 @@ Note: Modify flags in Dockerfile if using containerized setup.
 
 ## Real-World Examples
 
-### Example: Pure Python Parser
-
-```python
-import sys
-import atheris
-import json
-
-@atheris.instrument_func
-def test_one_input(data: bytes):
-    try:
-        # Fuzz Python's JSON parser
-        json.loads(data.decode('utf-8', errors='ignore'))
-    except (ValueError, UnicodeDecodeError):
-        pass
-
-def main():
-    atheris.Setup(sys.argv, test_one_input)
-    atheris.Fuzz()
-
-if __name__ == "__main__":
-    main()
-```
-
-### Example: HTTP Request Parsing
-
-```python
-import sys
-import atheris
-
-with atheris.instrument_imports():
-    from urllib3 import HTTPResponse
-    from io import BytesIO
-
-def test_one_input(data: bytes):
-    try:
-        # Fuzz HTTP response parsing
-        fake_response = HTTPResponse(
-            body=BytesIO(data),
-            headers={},
-            preload_content=False
-        )
-        fake_response.read()
-    except Exception:
-        pass
-
-def main():
-    atheris.Setup(sys.argv, test_one_input)
-    atheris.Fuzz()
-
-if __name__ == "__main__":
-    main()
-```
+Two complete harnesses — a pure-Python parser and an HTTP response parser — are in
+[examples.md](examples.md).
 
 ## Troubleshooting
 

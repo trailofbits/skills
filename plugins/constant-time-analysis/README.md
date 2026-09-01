@@ -32,6 +32,16 @@ uv tool install .
 ct-analyzer crypto.c
 ```
 
+## Components
+
+The rest of this README documents `ct-analyzer`, the CLI. Inside Claude Code the plugin
+offers two more entry points:
+
+| Component | Name | Purpose |
+|---|---|---|
+| Skill | `constant-time-analysis` | Triggers on its own when you write or review crypto code, or ask about a timing side channel. Invoke directly with `/constant-time-analysis:constant-time-analysis`. Adds the per-language guidance under `skills/constant-time-analysis/references/` and judgment about triaging what the analyzer reports |
+| Command | `/constant-time-analysis:ct-check` | One-shot run over a file — `<source-file> [--warnings] [--json] [--arch <arch>]` |
+
 ## Usage
 
 ### Basic Analysis
@@ -135,9 +145,11 @@ PHP analysis uses either the VLD extension (recommended) or opcache debug output
 
 ```bash
 # Install VLD extension (recommended)
-# Query latest version from PECL
-VLD_VERSION=$(curl -s https://pecl.php.net/package/vld | grep -oP 'vld-\K[0-9.]+(?=\.tgz)' | head -1)
-pecl install channel://pecl.php.net/vld-${VLD_VERSION}
+# Query latest version from PECL. POSIX ERE, not `grep -P`: PCRE mode is a GNU
+# extension that stock macOS grep rejects, leaving VLD_VERSION empty.
+VLD_VERSION=$(curl -fsS https://pecl.php.net/package/vld |
+  grep -oE 'vld-[0-9]+(\.[0-9]+)*\.tgz' | head -1 | sed -E 's/^vld-//; s/\.tgz$//')
+[ -n "$VLD_VERSION" ] && pecl install channel://pecl.php.net/vld-${VLD_VERSION}
 
 # Or build from source (if PECL fails)
 git clone https://github.com/derickr/vld.git && cd vld

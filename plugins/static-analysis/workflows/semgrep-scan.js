@@ -135,7 +135,7 @@ const SELECT_SCHEMA = {
 
 const SCAN_SCHEMA = {
   type: 'object',
-  required: ['ok', 'scansJson', 'succeeded', 'failed', 'skipped'],
+  required: ['ok', 'scansJson', 'succeeded', 'partial', 'failed', 'skipped'],
   additionalProperties: false,
   properties: {
     ok: {
@@ -145,6 +145,13 @@ const SCAN_SCHEMA = {
     },
     scansJson: { type: 'string', description: 'absolute path of scans.json, or "" when the script did not get that far' },
     succeeded: { type: 'integer', description: 'length of .scans in scans.json, or -1 if unreadable' },
+    // Counted separately because a partial scan is inside .scans: its findings are real and its
+    // coverage is not complete, so a bare success count reports the two as the same thing.
+    partial: {
+      type: 'integer',
+      description:
+        'how many of .scans have partial=true — rulesets that ran and wrote full output while some of their rules failed to compile. A subset of succeeded, not an addition to it; -1 if unreadable',
+    },
     failed: { type: 'integer', description: 'length of .failed' },
     skipped: { type: 'integer', description: 'length of .skipped' },
     error: { type: 'string', description: 'the script stderr when ok is false, else ""' },
@@ -239,13 +246,45 @@ const detected = await agent(
     '   p/default against the registry, so without it an audit phones home before scanning.',
     '',
     '6. Detect languages by counting files. Report the count that justified each category, since',
-    '   a category with one file is worth knowing about before its rulesets run. Cover at least:',
-    '   python, javascript, typescript, go, ruby, java, php, c, cpp, rust, docker, terraform,',
-    '   kubernetes. Use lowercase category names.',
+    '   a category with one file is worth knowing about before its rulesets run. Cover every',
+    '   category run-scans.sh has globs for, because one it never hears about is one it never',
+    '   scans, and the report then reads clean rather than incomplete:',
+    '   python, javascript, typescript, go, ruby, java, kotlin, php, c, cpp, csharp, rust,',
+    '   scala, swift, elixir, apex, solidity, docker, terraform, json, cloudformation,',
+    '   github-actions, kubernetes, yaml. Use lowercase category names.',
+    '   Search by extension, not by name alone: .py .pyi / .js .jsx .mjs .cjs / .ts .tsx / .go /',
+    '   .rb / .java .jsp / .kt .kts / .php .phtml / .c .cc .cpp .cxx .h .hh .hpp .hxx / .cs /',
+    '   .rs / .scala / .swift / .ex .exs / .cls .trigger / .sol / Dockerfile *.dockerfile /',
+    '   .tf .tfvars .hcl / .yaml .yml / .json. A header-only C++ tree or an ESM-only .mjs',
+    '   package matches none of the obvious extensions.',
+    '   Two pairs of categories OVERLAP, and the extension group above does not say which takes',
+    '   which. Report the SUPERSET, never the narrower one:',
+    '     c vs cpp     — report cpp unless the tree is .c/.h only. `includes_for cpp` covers',
+    '                    .c .cc .cpp .cxx .h .hh .hpp .hxx, while `includes_for c` is only',
+    '                    .c .h, so choosing c for a .cpp/.hpp tree scans with --include=*.c',
+    '                    --include=*.h, opens zero files and exits 0. The run lands in',
+    '                    coveredNothing rather than failing, so the C/C++ rules never read the',
+    '                    source and nothing says the scan was empty for the wrong reason.',
+    '     javascript vs typescript — javascript already carries the .ts/.tsx globs, so report',
+    '                    javascript for a mixed or TS-only tree. Reporting both scans the same',
+    '                    files twice under two rulesets.',
+    '   YAML and JSON are assigned by CONTENT, not by extension: both are everywhere, and both',
+    '   carry rulesets that must stay reachable. Glob for them, then Grep or read a sample.',
+    '   YAML feeds four categories — under .github/workflows/ is github-actions, apiVersion+kind',
+    '   is kubernetes, AWSTemplateFormatVersion or Resources with Type: AWS:: is cloudformation,',
+    '   anything else is yaml. They are not exclusive; report each that matches.',
+    '   JSON has no catch-all: "AWSTemplateFormatVersion", or "Resources" with a "Type": "AWS::"',
+    '   member, is cloudformation; a "Statement" array whose elements have "Effect" is json (the',
+    '   IAM policy shape r/json.aws targets); anything else — package.json, tsconfig.json,',
+    '   lockfiles, editor settings — is NO category. Do not report json merely because .json',
+    '   files exist, and prefer sampling paths that suggest infrastructure (iam/, policies/,',
+    '   cloudformation/, infra/, *template*.json), since build config will outnumber policies.',
     '',
-    '7. Read the framework markers that exist — package.json, pyproject.toml, Gemfile, go.mod,',
-    '   Cargo.toml, pom.xml — and name the frameworks you find (django, flask, react, express,',
-    '   nextjs, spring, …). These select extra rulesets in the next phase.',
+    '7. Read the framework markers that exist — package.json, pyproject.toml, requirements.txt,',
+    '   Gemfile, composer.json, go.mod, Cargo.toml, pom.xml — and name the frameworks you find',
+    '   (django, flask, react, express, nextjs, spring, laravel, …). Look at every level, not',
+    '   just the target root: a monorepo keeps them in packages/*/ or services/*/. These select',
+    '   extra rulesets in the next phase.',
     '',
     'Report a language only when files actually matched. An invented category costs a ruleset',
     'that scans nothing and reads in the final report as coverage that happened.',
@@ -352,8 +391,12 @@ const scanned = await agent(
     'It writes scans.json in the output directory and prints its path. Read the counts from that',
     'file with jq:',
     `  jq '.scans | length' "${outputDir}/scans.json"`,
+    `  jq '[.scans[] | select(.partial)] | length' "${outputDir}/scans.json"`,
     `  jq '.failed | length' "${outputDir}/scans.json"`,
     `  jq '.skipped | length' "${outputDir}/scans.json"`,
+    '',
+    'The partial count is a subset of the first, not an addition to it: those rulesets ran and',
+    'wrote full output with some of their rules failing to compile. Report it as partial.',
     '',
     'A non-zero exit means no scan succeeded. Report ok=false with the stderr, and do not retry',
     'with different arguments: the ruleset file is what produced them.',
@@ -365,7 +408,7 @@ if (!scanned || !scanned.ok) {
   const why = (scanned && scanned.error) || 'the scan agent returned nothing'
   throw new Error(`no scan succeeded: ${why}`)
 }
-log(`${scanned.succeeded} scans succeeded, ${scanned.failed} failed, ${scanned.skipped} skipped`)
+log(`${scanned.succeeded} scans succeeded (${scanned.partial} partial), ${scanned.failed} failed, ${scanned.skipped} skipped`)
 
 phase('Report')
 const reported = await agent(
@@ -430,6 +473,11 @@ const reported = await agent(
     '   .alsoShared (rulesets not repeated per language because they already ran over the whole',
     '   target — coverage is unaffected, but it explains why the ruleset and scan counts differ).',
     '',
+    '   Rulesets with partial=true get their own "Ran Partially" section on the same grounds.',
+    '   They are in .scans as successes and their findings are in the merge, but some of their',
+    '   rules never compiled, so the rules that did not run found nothing and cannot say so.',
+    `     jq -r '.scans[] | select(.partial) | .ruleset' "${outputDir}/scans.json"`,
+    '',
     '   .coveredNothing gets its own section too, and matters more than the other two: those are',
     '   rulesets that opened zero files because their --include globs matched nothing. They',
     '   report 0 findings exactly like a ruleset that ran and found nothing, so leaving them out',
@@ -467,6 +515,7 @@ return {
   rulesetsPath: selected.rulesetsPath,
   scansJson: scanned.scansJson,
   succeeded: scanned.succeeded,
+  partial: scanned.partial,
   failed: scanned.failed,
   skipped: scanned.skipped,
   resultsSarif: reported.resultsSarif,

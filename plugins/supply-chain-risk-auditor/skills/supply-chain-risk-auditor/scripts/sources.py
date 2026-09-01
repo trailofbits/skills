@@ -95,14 +95,47 @@ class Http:
         # later authenticated run — the run the user fixed their credentials for.
         self.auth_marker = auth_marker
         self.cache_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        # None once ownership is confirmed; a caveat string when the platform cannot be
+        # asked. Callers surface it — see collect.collect, which appends it to the report's
+        # notes so an unenforced control appears in "Method and caveats" rather than
+        # nowhere.
+        self.cache_owner_caveat = self._check_cache_owner()
+        self.opener = urllib.request.build_opener()
+        self.stats = {"hits": 0, "fetched": 0, "offline_misses": 0, "errors": 0, "stale": 0}
+        self.oldest_hit_seconds = 0.0
+
+    def _check_cache_owner(self) -> str | None:
+        """Refuse a cache owned by another user, or report why that was not checked.
+
+        The cache holds registry and advisory responses, and the collector trusts them.
+        A cache another user can write turns a compromised package into a clean
+        "no advisories" verdict, so on POSIX a foreign owner aborts the run.
+
+        `os.getuid` is POSIX-only and `st_uid` is always 0 on Windows, so the check
+        cannot be evaluated there. Rather than drop it silently, this returns a caveat
+        for the caller to surface: an unenforced control the report admits to is a
+        smaller problem than one nobody mentions.
+
+        Returns:
+            None when ownership was verified, or the caveat text when the platform
+            offers no way to verify it.
+
+        Raises:
+            SystemExit: The cache directory belongs to another user.
+        """
+        if not hasattr(os, "getuid"):  # Windows
+            return (
+                f"cache directory ownership was not verified: os.getuid is POSIX-only, so "
+                f"a cache at {self.cache_dir} owned by another user would not be detected "
+                f"on this platform. Keep the cache under your own user profile, or pass "
+                f"--cache with a private path."
+            )
         if self.cache_dir.stat().st_uid != os.getuid():
             raise SystemExit(
                 f"error: cache directory {self.cache_dir} is owned by another user; "
                 f"refusing to trust or write it — pass --cache with a private path"
             )
-        self.opener = urllib.request.build_opener()
-        self.stats = {"hits": 0, "fetched": 0, "offline_misses": 0, "errors": 0, "stale": 0}
-        self.oldest_hit_seconds = 0.0
+        return None
 
     # ------------------------------------------------------------------ cache
 
@@ -116,8 +149,8 @@ class Http:
         if not path.exists():
             return None
         try:
-            stored = json.loads(path.read_text(), strict=False)
-        except (json.JSONDecodeError, OSError):
+            stored = json.loads(path.read_text(encoding="utf-8"), strict=False)
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError):
             # A run interrupted mid-write leaves a truncated file that would otherwise
             # crash every later run. Drop it and refetch.
             self.stats["errors"] += 1
@@ -138,7 +171,7 @@ class Http:
         payload = {"__meta": {"fetched_at": time.time(), "status": status}, "body": body}
         # Atomic: a partial file must never become a cache hit.
         tmp = path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(payload))
+        tmp.write_text(json.dumps(payload), encoding="utf-8")
         os.replace(tmp, path)
 
     def _serve(self, entry: CacheEntry, url: str) -> dict:
@@ -489,7 +522,12 @@ def gh_token() -> str | None:
     """
     try:
         out = subprocess.run(
-            ["gh", "auth", "token"], capture_output=True, text=True, timeout=15, check=False
+            ["gh", "auth", "token"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=15,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -621,6 +659,7 @@ def pip_audit_vulnerable(requirements: Path) -> set[str]:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=300,
             check=False,
         )

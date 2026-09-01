@@ -4,6 +4,9 @@ Helps configure [mewt](https://github.com/trailofbits/mewt) or [muton](https://g
 
 > **Note**: muton and mewt share identical interfaces but target different languages — mewt for general-purpose languages, muton for TON smart contracts (Tact, Tolk, FunC). All commands and configuration patterns in this plugin apply to both tools. File names change accordingly: `mewt.toml` → `muton.toml`, `mewt.sqlite` → `muton.sqlite`.
 
+The plugin ships one skill, `mutation-testing`, which the triggers below fire. Invoke it
+directly with `/mutation-testing:mutation-testing`.
+
 ## What It Does
 
 Walks through a 5-phase configuration workflow:

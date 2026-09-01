@@ -14,6 +14,14 @@ run_fetch_hook() {
   run bash -c 'jq -n --arg url "$1" '"'"'{"tool_input":{"url":$url,"prompt":"test"}}'"'"' | "$2"' _ "$url" "$FETCH_HOOK"
 }
 
+# Run the fetch hook with a `urls` array, as MCP fetch tools (e.g. Exa's
+# web_fetch_exa) pass them.
+# Usage: run_fetch_hook_urls "https://example.com" "https://github.com/owner/repo"
+run_fetch_hook_urls() {
+  local hook="$FETCH_HOOK"
+  run bash -c 'hook="$1"; shift; jq -n '"'"'{"tool_input":{"urls":$ARGS.positional}}'"'"' --args "$@" | "$hook"' _ "$hook" "$@"
+}
+
 # Run the Bash hook with a command
 # Usage: run_curl_hook "curl https://api.github.com/..."
 run_curl_hook() {
@@ -94,6 +102,28 @@ assert_suggestion_contains() {
   fi
   if [[ "$reason" != *"$expected"* ]]; then
     echo "Expected suggestion to contain: $expected"
+    echo "Got: $reason"
+    return 1
+  fi
+}
+
+# Assert the suggestion begins with expected text
+# Usage: assert_suggestion_starts_with "Use "
+assert_suggestion_starts_with() {
+  local expected="$1"
+  local reason
+  if [[ -z "$expected" ]]; then
+    echo "assert_suggestion_starts_with called with an empty prefix — it would pass vacuously"
+    return 1
+  fi
+  reason=$(echo "$output" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty' 2>/dev/null)
+  if [[ -z "$reason" ]]; then
+    echo "No permissionDecisionReason found in output"
+    echo "Output: $output"
+    return 1
+  fi
+  if [[ "$reason" != "$expected"* ]]; then
+    echo "Expected suggestion to start with: $expected"
     echo "Got: $reason"
     return 1
   fi

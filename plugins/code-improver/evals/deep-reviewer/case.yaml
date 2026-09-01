@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: deep-reviewer
+description: >
+  The reviewer is a skill that orchestrates specialist subagents (the review-panel
+  fixture), and each specialist carries a private codeword rule that exists only in its
+  own agent definition. Measures the dispatch trampoline end-to-end: the loop must
+  execute the skill's dispatch plan (workflow agents cannot spawn subagents), the
+  specialists' private rules must reach the ledger as findings, and the loop must fix
+  them. The trampoline's guard mechanics (wave cap, unresolvable specialists, dead
+  specialists) are pinned deterministically by the offline harness; this case proves
+  the paid end-to-end outcome.
+tags: [code-improver, reviewer, trampoline]
+
+# The panel reviewer and its auditor agents come from the fixture stand-in; listing
+# plugins replaces auto-detection, so the plugin under test is named too.
+plugins:
+  - ../..
+  - ../../tests/fixtures/review-panel
+
+context:
+  scaffold_script: scaffold.sh
+
+execution:
+  prompt: |
+    Use the code-improver skill to improve the plugin at fixture/linky with this
+    configuration: reviewer kind "skill", name "review-panel:panel-review"; scope
+    ["fixture/linky/**"]; maxRounds 5. Work autonomously; do not ask me to approve
+    individual fixes.
+  max_turns: 80
+  timeout_seconds: 3600
+  allowed_tools: [Skill, Workflow, Task, Read, Glob, Grep, Bash, Edit, Write]
+
+runs: 3
+
+expected_outcome: >
+  The loop converges. Both planted codewords — NOCOMMIT-J7Q4 (known only to the
+  todo-auditor agent) and XRAY-K3P9 (known only to the naming-auditor agent) — appear
+  as findings in the persisted ledger, proving the specialists' definitions drove the
+  review, and both are removed from the fixture files. The ledger ends on a clean
+  review.

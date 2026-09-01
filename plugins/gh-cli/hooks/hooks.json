@@ -1,5 +1,5 @@
 {
-  "description": "Intercept GitHub URL fetches and curl/wget commands, suggest gh CLI instead. PATH shim blocks gh anti-patterns. Clean up cloned repos on session end.",
+  "description": "Intercept GitHub URL fetches (WebFetch and MCP fetch tools) and curl/wget commands, suggest gh CLI instead. PATH shim blocks gh anti-patterns. Clean up cloned repos on session end.",
   "hooks": {
     "SessionStart": [
       {
@@ -23,7 +23,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "WebFetch",
+        "matcher": "WebFetch|mcp__.*([Ff]etch|[Ss]crape|[Cc]rawl|[Ee]xtract)",
         "hooks": [
           {
             "type": "command",

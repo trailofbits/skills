@@ -11,15 +11,24 @@ The VLD (Vulcan Logic Dumper) extension is required for detailed opcode analysis
 **Option 1: PECL Install (Recommended)**
 
 ```bash
-# Query latest version from PECL
-VLD_VERSION=$(curl -s https://pecl.php.net/package/vld | grep -oP 'vld-\K[0-9.]+(?=\.tgz)' | head -1)
-echo "Latest VLD version: $VLD_VERSION"
+# Query latest version from PECL. POSIX ERE, not `grep -P`: PCRE mode is a GNU
+# extension and stock macOS grep exits 2 on it, which would silently leave
+# VLD_VERSION empty and install a package named `vld-` with no version.
+VLD_VERSION=$(curl -fsS https://pecl.php.net/package/vld |
+  grep -oE 'vld-[0-9]+(\.[0-9]+)*\.tgz' | head -1 | sed -E 's/^vld-//; s/\.tgz$//')
 
-# Install via PECL channel URL (avoids version detection issues)
-pecl install channel://pecl.php.net/vld-${VLD_VERSION}
+if [ -z "$VLD_VERSION" ]; then
+  echo "Could not read the latest VLD version from PECL." >&2
+  echo "Check https://pecl.php.net/package/vld and set VLD_VERSION by hand." >&2
+else
+  echo "Latest VLD version: $VLD_VERSION"
 
-# Or if above fails, install with explicit channel:
-pecl install https://pecl.php.net/get/vld-${VLD_VERSION}.tgz
+  # Install via PECL channel URL (avoids version detection issues)
+  pecl install channel://pecl.php.net/vld-${VLD_VERSION}
+
+  # Or if above fails, install with explicit channel:
+  pecl install https://pecl.php.net/get/vld-${VLD_VERSION}.tgz
+fi
 ```
 
 **Option 2: Build from Source**

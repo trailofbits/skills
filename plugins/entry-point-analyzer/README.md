@@ -43,6 +43,10 @@ Trigger the skill with requests like:
 - "List audit flows for src/core/"
 - "What privileged operations exist in this project?"
 
+Or invoke either entry point directly:
+- Skill — `/entry-point-analyzer:entry-point-analyzer`
+- Command — `/entry-point-analyzer:entry-points [directory-path]`
+
 ## Directory Filtering
 
 Specify a subdirectory to limit scope:

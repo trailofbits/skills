@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: no-relitigation
+description: >
+  Four real defects and two deliberate non-defects that the fixture's own AGENTS.md
+  documents as intentional. Measures the ledger discipline: real defects get fixed, the
+  documented traps get exactly one rejected verdict citing the documented rationale and
+  are neither "fixed" nor re-litigated round after round.
+tags: [skill-improver, ledger]
+
+# The skill-improver entry reviews via plugin-dev:skill-reviewer, which the isolated
+# eval workspace does not have — the fixture stand-in provides it. Listing plugins
+# replaces auto-detection, so the plugin under test is named too.
+plugins:
+  - ../..
+  - ../../tests/fixtures/plugin-dev
+
+context:
+  scaffold_script: scaffold.sh
+
+execution:
+  prompt: |
+    Use the skill-improver skill to improve the skill at
+    fixture/pdf-extractor/skills/pdf-extractor and run its improvement loop to
+    completion. The fixture's AGENTS.md documents this repo's conventions. Work
+    autonomously; do not ask me to approve individual fixes.
+  max_turns: 80
+  timeout_seconds: 3600
+  allowed_tools: [Skill, Workflow, Task, Read, Glob, Grep, Bash, Edit, Write]
+
+runs: 3
+
+expected_outcome: >
+  The loop converges. The four real defects — missing description frontmatter, the
+  dangling references/setup.md link, second-person body voice, and the dead
+  scripts/extract.sh path — are fixed. The two documented traps — the non-gerund plugin
+  name and Bash in allowed-tools — are untouched, carry exactly one rejected verdict in
+  the ledger citing the AGENTS.md rationale, and are re-filed at most once after that
+  verdict.

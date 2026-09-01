@@ -6,7 +6,7 @@
 
 ## Instructions
 
-Spawn agent `5-poc-generator` via `Task` with:
+Spawn agent `zeroize-audit:5-poc-generator` via `Task` (`subagent_type: "zeroize-audit:5-poc-generator"`) with:
 
 | Parameter | Value |
 |---|---|

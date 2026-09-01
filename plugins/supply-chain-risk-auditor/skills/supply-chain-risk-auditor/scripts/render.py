@@ -794,11 +794,11 @@ def main() -> int:
     parser.add_argument("--out", type=Path, help="write Markdown here (default: stdout)")
     args = parser.parse_args()
     try:
-        text = render(json.loads(args.artifact.read_text(), strict=False))
+        text = render(json.loads(args.artifact.read_text(encoding="utf-8"), strict=False))
     except ReconciliationError as exc:
         raise SystemExit(f"error: {args.artifact} cannot be rendered: {exc}") from exc
     if args.out:
-        args.out.write_text(text)
+        args.out.write_text(text, encoding="utf-8")
         print(f"wrote {args.out}")
     else:
         print(text)

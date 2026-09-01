@@ -124,7 +124,11 @@ DESC=$(yq '.description' "$SKILL")
 - No XML/HTML tags in name or description (pattern: `<[^>]+>`)
 - No reserved words ("anthropic", "claude") in name
 - `type` field ensures correct section validation (if missing, type is inferred from content)
-- Description should include both "what" (tool purpose) and "when" (trigger conditions)
+- Description leads with what the skill does for the reader, not a definition of the tool,
+  names the concrete commands, flags, and API symbols it covers, and closes with two or
+  more situations in the words a user would type. "Coverage-guided fuzzer built into LLVM.
+  Use for fuzzing C/C++ code" has a what and a when and still routes to nothing — see
+  "Description quality" in `agent-prompt.md` for the bar.
 - No Hugo shortcodes in frontmatter (pattern: `\{\{[<%]`)
 
 **Trigger phrase validation:**
@@ -346,7 +350,8 @@ Before delivering each generated skill:
 - [ ] Warnings reviewed and addressed (or documented as acceptable)
 
 ### Content Quality (manual review)
-- [ ] Description includes what AND when
+- [ ] Description leads with the task, names concrete anchors, and gives two or more situations
+- [ ] Every command, flag, file name, and API symbol the description advertises appears in the skill body
 - [ ] When to Use section has clear triggers
 - [ ] Quick Reference is actionable
 - [ ] Code examples are complete and runnable
@@ -419,7 +424,7 @@ After validation, document results:
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| YAML parse error | Bad indentation in description | Use `>` for multi-line |
+| YAML parse error | Unquoted description containing `: ` or ` #` | Put the description on one double-quoted line |
 | Missing section | Template not fully populated | Fill from handbook |
 | Over 500 lines | Too much detail in main file | Split to supporting files |
 | Broken reference | Supporting file not created | Create file or remove link |
@@ -446,7 +451,7 @@ After each generation run, systematically review and improve the generator.
 | Shortcodes | Were there shortcodes or formats not handled? | `discovery.md` (section 3.2) |
 | Manual fixes | Did any skills require manual fixes after generation? | Templates or agent prompt |
 | Detection | Are there patterns in the handbook not detected? | `discovery.md` (section 1.3) |
-| Activation | Did activation testing reveal description issues? | Templates (description guidance) |
+| Activation | Did activation testing reveal description issues? | `agent-prompt.md` ("Description quality") and the templates |
 | Validation | Did a bug slip through validation? | `testing.md` (add new check) |
 
 ### Improvement Log Format

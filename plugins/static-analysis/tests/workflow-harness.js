@@ -46,7 +46,7 @@ const DETECT = {
   frameworks: ["django"],
 };
 const SELECT = { rulesetsPath: "/proj/static_analysis_semgrep_1/rulesets.json", counts: { baseline: 2, language: 2, thirdParty: 1 } };
-const SCAN = { ok: true, scansJson: "/proj/static_analysis_semgrep_1/scans.json", succeeded: 4, failed: 0, skipped: 0, error: "" };
+const SCAN = { ok: true, scansJson: "/proj/static_analysis_semgrep_1/scans.json", succeeded: 4, partial: 1, failed: 0, skipped: 0, error: "" };
 const REPORT = { ok: true, resultsSarif: "/proj/static_analysis_semgrep_1/results/results.sarif", total: 7, report: "# Semgrep Scan Complete", error: "" };
 
 // Each phase's reply is overridable; `null` stands for an agent that returned nothing.
@@ -92,6 +92,9 @@ const SCENARIOS = {
       [out && out.total === 7, "the merged finding total must be returned"],
       [out && out.outputDir === DETECT.outputDir, "the resolved output directory must be returned"],
       [out && out.succeeded === 4, "the scan counts must be carried through"],
+      // A partial scan is inside succeeded, so a caller reading only that count cannot tell a
+      // ruleset that ran in full from one whose rules half compiled.
+      [out && out.partial === 1, "the partial count must be carried through, not folded into succeeded"],
       [Object.keys(prompts).length === 4, "all four phases must run"],
     ];
   },
@@ -221,6 +224,7 @@ const SCENARIOS = {
       [/run-scans\.sh/.test(prompts.scan), "the scan phase must invoke run-scans.sh"],
       [/--rulesets "\/proj\/static_analysis_semgrep_1\/rulesets\.json"/.test(prompts.scan), "the ruleset file from the select phase must be passed through"],
       [/Do not add rulesets/.test(prompts.scan), "the agent must be told not to compose its own commands"],
+      [/select\(\.partial\)/.test(prompts.scan), "the scan phase must be told to read the partial count"],
     ];
   },
 
@@ -310,6 +314,9 @@ const SCENARIOS = {
       // so unless the report carries the line, the shortfall has nothing pointing at it.
       [/unparseable/.test(prompts.report), "SARIF files missing from the merge must be reported"],
       [/excludePattern/.test(prompts.report), "the pattern excluded from every scan must be reported"],
+      // A partial ruleset is a success in scans.json with its findings in the merge, so the
+      // rules that never compiled found nothing and nothing in the report says they did not run.
+      [/Ran Partially/.test(prompts.report), "rulesets whose rules partly failed to compile must be reported"],
     ];
   },
 };
@@ -332,6 +339,8 @@ const MUTATIONS = [
   ["stop reporting rulesets that covered nothing", (s) => s.replace(/\n\s*'\s*\.coveredNothing gets its own section[\s\S]*?clean audit\.',/, "")],
   ["stop reporting unparseable SARIF", (s) => s.replace(/\n\s*'6\. Read the merge command[\s\S]*?not in the merge\.',/, "")],
   ["stop reporting the exclude pattern", (s) => s.replace(/\n\s*'7\. If \.excludePattern[\s\S]*?clean coverage\.',/, "")],
+  ["stop reporting partial rulesets", (s) => s.replace(/\n\s*'\s*Rulesets with partial=true[\s\S]*?scans\.json"`,/, "")],
+  ["stop reading the partial count", (s) => s.replace(/\n\s*`\s*jq '\[\.scans\[\] \| select\(\.partial\)\][\s\S]*?scans\.json"`,/, "")],
 ];
 
 (async () => {

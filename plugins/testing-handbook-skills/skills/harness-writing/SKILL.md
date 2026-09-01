@@ -1,9 +1,7 @@
 ---
 name: harness-writing
 type: technique
-description: >
-  Techniques for writing effective fuzzing harnesses across languages.
-  Use when creating new fuzz targets or improving existing harness code.
+description: "Designs and improves fuzzing harnesses for C/C++ and Rust. Covers mapping raw bytes onto a target API, generating structured inputs, avoiding non-determinism and false crashes, and deciding what to fuzz together. Use when writing a first LLVMFuzzerTestOneInput or fuzz_target! harness, when a campaign finds nothing or reports crashes that will not reproduce, or when the target API needs structured rather than raw input."
 ---
 
 # Writing Fuzzing Harnesses

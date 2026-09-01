@@ -8,8 +8,7 @@ Use this template for domain-specific security testing (cryptographic testing, w
 ---
 name: {domain-name-lowercase}
 type: domain
-description: >
-  {Summary of domain and testing approach}. Use when {trigger conditions}.
+description: "{What this skill does for the reader, leading with the task rather than defining the domain}. Covers {the specific tools, formats, and checks}. Use when {the situations a user describes, in the words they would type — the symptom, the file, the error, the question}."
 ---
 
 # {Domain Name}
@@ -313,9 +312,7 @@ When generating a domain skill, map to relevant tool and technique skills:
 ---
 name: crypto-testing
 type: domain
-description: >
-  Methodology for testing cryptographic implementations.
-  Use when auditing crypto code, validating implementations, or testing for timing attacks.
+description: "Tests cryptographic implementations against known attacks and edge cases using standard test vectors and timing analysis. Covers vector formats, result flags, and reading a failure. Use when auditing crypto code for correctness or timing leaks, checking a library against standard test vectors, or investigating why two implementations disagree on the same input."
 ---
 
 # Cryptographic Testing
@@ -453,9 +450,7 @@ Essential for code handling secrets.
 ---
 name: web-security-testing
 type: domain
-description: >
-  Methodology for web application security testing.
-  Use when auditing web apps, APIs, or web-based services.
+description: "Tests web applications and APIs for the vulnerability classes that matter, from injection and access control to session handling. Covers proxy setup, request tampering, and triaging what a scanner reports. Use when auditing a web app or HTTP API, testing an authentication or session flow, or working through a scanner finding on a live target."
 ---
 
 # Web Security Testing

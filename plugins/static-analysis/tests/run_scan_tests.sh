@@ -16,7 +16,7 @@ command -v uv >/dev/null 2>&1 || {
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
-readonly EXPECTED_ASSERTIONS=78
+readonly EXPECTED_ASSERTIONS=93
 
 command -v jq >/dev/null 2>&1 || {
   echo "run_scan_tests.sh: jq not found — required" >&2
@@ -311,6 +311,29 @@ eq "$(jq '.failed | length' "$WORK/o3/scans.json")" "1" "a scan that exited 7 mu
 contains "$(jq -r '.failed[0].json' "$WORK/o3/scans.json")" "raw/python-python.json" \
   "a failed entry must carry the paths it may have partly written"
 
+# Exit 2 is the case this differs on. semgrep returns 2 both for a bad argument, where it
+# writes nothing, and for a run where SOME rules failed to compile while the rest completed
+# and wrote full output. The first must fail; the second must be kept and marked partial,
+# because discarding it throws away a complete result set over rules that were never going
+# to run.
+export STUB_RC=2 STUB_RESULTS='{"a":1},{"b":2},{"c":3}'
+rc=$(run_real "$ONE" "$WORK/o2b")
+eq "$(jq '.scans | length' "$WORK/o2b/scans.json")" "1" \
+  "exit 2 with complete output must be kept, not discarded"
+eq "$(jq -r '.scans[0].findings' "$WORK/o2b/scans.json")" "3" \
+  "the findings of a partial scan must still be counted"
+eq "$(jq -r '.scans[0].partial' "$WORK/o2b/scans.json")" "true" \
+  "a scan kept despite exit 2 must be flagged partial, not reported as clean"
+eq "$(jq '.failed | length' "$WORK/o2b/scans.json")" "0" "a partial scan must not also be failed"
+
+# Exit 2 that wrote nothing is a bad argument: no scan happened, so it must still fail.
+export STUB_RC=2 STUB_WRITE=0
+rc=$(run_real "$ONE" "$WORK/o2c")
+eq "$(jq '.scans | length' "$WORK/o2c/scans.json")" "0" \
+  "exit 2 with no output must not be treated as a partial success"
+eq "$(jq '.failed | length' "$WORK/o2c/scans.json")" "1" "exit 2 with no output must be reported as failed"
+unset STUB_WRITE
+
 # Exit 0 with no output file is the case the exit code alone cannot catch.
 export STUB_RC=0 STUB_WRITE=0
 rc=$(run_real "$ONE" "$WORK/o4")
@@ -360,16 +383,34 @@ case "${GIT_STUB_MODE:-fail}" in
     done
     exit 0
     ;;
+  # The shapes the two prunes have to tell apart, as a real rule repository ships them: rules,
+  # the repo's own CI config, a rule test fixture, a join-mode rule, a rule that only mentions
+  # the words, and a non-YAML file that does the same.
+  mixed)
+    mkdir -p "$dest/rules" "$dest/.github/workflows"
+    printf 'rules:\n  - id: keep\n    pattern: eval(...)\n' >"$dest/rules/good.yaml"
+    # `on: pull_request:` is the null value semgrep rejects, which is what aborts the whole scan.
+    printf 'on:\n  pull_request:\njobs:\n  test:\n    runs-on: ubuntu-latest\n' \
+      >"$dest/.github/workflows/ci.yml"
+    printf 'x: 1\ny: 2\n' >"$dest/rules/good.test.yaml"
+    printf 'rules:\n  - id: joiner\n    mode: join\n    join:\n      rules:\n        - id: inner\n' \
+      >"$dest/rules/join.yaml"
+    printf 'rules:\n  - id: decoy\n    message: "do not write mode: join in a new rule"\n    pattern: f(...)\n  - id: sibling\n    pattern: g(...)\n' \
+      >"$dest/rules/decoy.yaml"
+    printf 'Rules using mode: join are not supported here.\n' >"$dest/README.md"
+    exit 0
+    ;;
 esac
 GITSTUB
 chmod +x "$WORK/gitbin/git"
 
 REPO=$(plan repo '{"baseline":["p/security-audit"],"third_party":["https://github.com/x/rules"]}')
 
+CLONE_ERR="$WORK/clone.err"
 run_clone() {
   rm -rf "$2"
   PATH="$WORK/gitbin:$WORK/bin:$PATH" GIT_STUB_MODE="$1" bash "$SCRIPT" --target "$TARGET" \
-    --output-dir "$2" --mode run-all --rulesets "$REPO" --jobs 1 >/dev/null 2>&1
+    --output-dir "$2" --mode run-all --rulesets "$REPO" --jobs 1 >/dev/null 2>"$CLONE_ERR"
   echo $?
 }
 
@@ -388,6 +429,36 @@ eq "$(jq '.skipped | length' "$WORK/c2/scans.json")" "1" "a clone with no rule f
 run_clone ok "$WORK/c3" >/dev/null
 eq "$(jq '.skipped | length' "$WORK/c3/scans.json")" "0" "a healthy clone must not be skipped"
 eq "$(jq '.scans | length' "$WORK/c3/scans.json")" "2" "a healthy clone must be scanned alongside the baseline"
+
+# ------------------------------------------------------------------------ pruning a rule repo
+# semgrep parses every .yaml/.yml under a --config directory as a rule, so one file it cannot
+# parse aborts the scan and the whole ruleset contributes nothing. Both prunes delete files, so
+# both need a fixture: one proving they still hit what they are for, one proving they stop
+# there. Without it a prune that silently stopped matching looks exactly like a clean repo.
+echo "→ pruning a cloned rule repository"
+
+run_clone mixed "$WORK/c4" >/dev/null
+CLONE="$WORK/c4/repos/x-rules"
+present() { # present <path> -> 1 when the file survived the prune
+  [ -e "$CLONE/$1" ] && echo 1 || echo 0
+}
+
+eq "$(present rules/good.yaml)" "1" "a rule file must survive the prune"
+eq "$(present .github/workflows/ci.yml)" "0" \
+  "the repo's own CI workflow must be pruned: it is the file that aborts the scan with exit 7"
+eq "$(present rules/good.test.yaml)" "0" "a rule test fixture is not a rule and must be pruned"
+eq "$(present rules/join.yaml)" "0" "a mode: join rule must be pruned before it crashes semgrep"
+# The join prune deletes whole files, and one file holds many rules, so a match on prose costs
+# every sibling rule in it.
+eq "$(present rules/decoy.yaml)" "1" \
+  "a rule whose message quotes mode: join must survive, and take its siblings with it"
+eq "$(present README.md)" "1" "the join prune must look at YAML only, not at every file"
+
+contains "$(cat "$CLONE_ERR")" "pruned 2 non-rule YAML file(s) and 1 join-mode rule file(s)" \
+  "the prune must report its counts, so a run that stopped pruning does not read as a clean repo"
+eq "$(jq '.skipped | length' "$WORK/c4/scans.json")" "0" "a pruned clone must still be scanned"
+eq "$(jq '.scans | length' "$WORK/c4/scans.json")" "2" \
+  "pruning must leave the ruleset scannable alongside the baseline"
 
 # ------------------------------------------------------------------------- coverage reporting
 # A ruleset whose --include globs match nothing exits 0 with an empty result, which reads in the

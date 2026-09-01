@@ -1,6 +1,6 @@
 ---
 name: gh-cli
-description: Enforces authenticated gh CLI workflows over unauthenticated curl/WebFetch patterns. Use when working with GitHub URLs, API access, pull requests, or issues.
+description: Enforces authenticated gh CLI workflows over unauthenticated curl, WebFetch, and MCP fetch patterns. Use when working with GitHub URLs, API access, pull requests, or issues.
 ---
 
 # gh-cli
@@ -9,7 +9,7 @@ description: Enforces authenticated gh CLI workflows over unauthenticated curl/W
 
 - Working with GitHub repositories, pull requests, issues, releases, or raw file URLs.
 - You need authenticated access to private repositories or higher API rate limits.
-- You are about to use `curl`, `wget`, or unauthenticated web fetches against GitHub.
+- You are about to use `curl`, `wget`, `WebFetch`, or an MCP fetch tool against GitHub.
 
 ## When NOT to Use
 

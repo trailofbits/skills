@@ -1,0 +1,12 @@
+version = 1
+revision = 3
+requires-python = ">=3.11"
+
+[options]
+exclude-newer = "2026-06-12T13:46:36.255513Z"
+exclude-newer-span = "P1W"
+
+[[package]]
+name = "c-review-scripts"
+version = "0.1.0"
+source = { virtual = "." }

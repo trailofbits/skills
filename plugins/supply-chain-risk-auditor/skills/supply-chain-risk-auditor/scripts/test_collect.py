@@ -8,7 +8,13 @@ clean verdict, and a run in which every source is down must refuse to report.
 
 from __future__ import annotations
 
+import ast
 import json
+import os
+import subprocess
+import sys
+import tempfile
+import textwrap
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -16,6 +22,7 @@ import pytest
 import sources
 from collect import (
     STALE_DAYS,
+    _read_json,
     _advisory_signal,
     _concentration_signal,
     _exact_npm_pin,
@@ -661,3 +668,246 @@ def test_non_registry_direct_dep_is_never_queried(tmp_path: Path, monkeypatch: p
         # carried alongside it
         assert "resolves from outside its public registry" in signal["detail"]
         assert "not the npm registry" in signal["value"]
+
+
+# ---------------------------------------------------------------- text encoding
+
+
+def test_non_ascii_manifest_is_read_as_utf8(tmp_path: Path):
+    """A manifest with non-ASCII text must survive the read intact (issue #273).
+
+    On Windows `read_text()` with no `encoding=` decodes with the ANSI code page, so an
+    accented author name either raises UnicodeDecodeError or, where the bytes happen to
+    be cp1252-decodable, is silently mojibaked into the report.
+    """
+    manifest = tmp_path / "package.json"
+    manifest.write_bytes(
+        json.dumps({"name": "p", "author": "José Álvarez", "dependencies": {}}).encode("utf-8")
+    )
+
+    assert _read_json(manifest)["author"] == "José Álvarez"
+
+
+def test_utf16_requirements_is_refused_not_a_traceback(tmp_path: Path):
+    """PowerShell 5.1 redirection writes UTF-16LE, so this is a stock Windows file.
+
+    A requirements file generated with `>` there begins with a BOM whose first two
+    bytes are invalid UTF-8. main() catches only ReconciliationError, so before this
+    the run died with a raw UnicodeDecodeError — on the platform the fix supports.
+    """
+    # encode("utf-16"), not "utf-16-le": the BOM is what makes it invalid UTF-8.
+    # Without it, UTF-16LE ASCII decodes as UTF-8 with embedded nulls and no error —
+    # silent corruption rather than a crash, which is its own problem.
+    (tmp_path / "requirements.txt").write_bytes("flask==2.0.0\n".encode("utf-16"))
+
+    with pytest.raises(SystemExit, match="not UTF-8"):
+        parse_pypi(tmp_path)
+
+
+def test_utf16_gomod_is_refused_not_a_traceback(tmp_path: Path):
+    """Same defect, same fix, the other plain-text reader."""
+    (tmp_path / "go.mod").write_bytes("module x\n\ngo 1.21\n".encode("utf-16"))
+
+    with pytest.raises(SystemExit, match="not UTF-8"):
+        parse_go(tmp_path)
+
+
+def test_utf16_gomod_is_refused_by_the_indirect_reader_too(tmp_path: Path):
+    """go.mod is read in two places and `parse_go` short-circuits before the second.
+
+    `_go_indirect` has its own read, so reverting only that one left every test green.
+    The static encoding check cannot see it either: the omission there is the guard, not
+    the encoding, so this needs its own case.
+    """
+    (tmp_path / "go.mod").write_bytes("module x\n\ngo 1.21\n".encode("utf-16"))
+
+    with pytest.raises(SystemExit, match="not UTF-8"):
+        _go_indirect(tmp_path)
+
+
+def test_non_utf8_manifest_is_refused_not_a_traceback(tmp_path: Path):
+    """JSON is UTF-8 by RFC 8259, so an undecodable manifest is malformed input.
+
+    UnicodeDecodeError is a ValueError but not a JSONDecodeError, so before this it
+    escaped both `except` clauses and surfaced as a traceback.
+    """
+    manifest = tmp_path / "package.json"
+    manifest.write_bytes(b'{"author": "Jos\xe9"}')  # latin-1, invalid UTF-8
+
+    with pytest.raises(SystemExit, match="is not UTF-8"):
+        _read_json(manifest)
+
+
+TEXT_IO_ATTRS = ("read_text", "write_text")
+
+
+def _is_binary_call(node: ast.Call) -> bool:
+    """True when the call names a binary mode, where an encoding is meaningless."""
+    modes = [a for a in node.args if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+    modes += [
+        kw.value for kw in node.keywords if kw.arg == "mode" and isinstance(kw.value, ast.Constant)
+    ]
+    return any("b" in m.value for m in modes if isinstance(getattr(m, "value", None), str))
+
+
+def _text_io_without_encoding(source: str) -> list[str]:
+    """Call sites that decode or encode text without naming the encoding.
+
+    Parsed rather than grepped. The previous line-based version tried to handle a
+    multi-line `subprocess.run(..., text=True, encoding=...)` by looking for both on one
+    line, could not, and shunted those hits into a list nothing asserted on — so
+    deleting an `encoding=` from either subprocess call passed. An AST sees the whole
+    call however it is wrapped.
+
+    Only the builtin `open` is flagged, not `x.open(...)`: `self.opener.open(request)` is
+    a urllib call returning bytes, and an encoding there would be nonsense. A
+    `Path.open()` in text mode would therefore slip past this check, which is one of the
+    reasons the behavioural test below exists alongside it.
+
+    Args:
+        source: Python source text.
+
+    Returns:
+        One `line: description` string per offending call.
+    """
+    out = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        kwargs = {kw.arg for kw in node.keywords}
+        if "encoding" in kwargs or _is_binary_call(node):
+            continue
+
+        func = node.func
+        if isinstance(func, ast.Attribute) and func.attr in TEXT_IO_ATTRS:
+            out.append(f"{node.lineno}: {func.attr}() with no encoding=")
+        elif isinstance(func, ast.Name) and func.id == "open":
+            out.append(f"{node.lineno}: open() with no encoding=")
+        # A text-mode subprocess decodes the child's output with the locale encoding,
+        # so it is the same defect wearing different clothes.
+        elif "text" in kwargs or "universal_newlines" in kwargs:
+            name = getattr(func, "attr", None) or getattr(func, "id", "call")
+            out.append(f"{node.lineno}: {name}(text=True) with no encoding=")
+    return out
+
+
+def test_every_text_io_call_names_its_encoding():
+    """No text I/O anywhere in the package may fall back to the platform default.
+
+    The static half of the pair below, covering sites the behavioural driver does not
+    execute — `render.py`'s artifact read and report write, and `pip_audit_vulnerable`'s
+    subprocess, which needs pip-audit installed to run at all.
+
+    Modules are globbed rather than listed, so a new one added to `scripts/` is covered
+    the day it lands. Tests are excluded: their fixtures write ASCII through
+    `write_text` by the dozen and are not what ships to a user.
+    """
+    package = Path(__file__).parent
+    modules = sorted(p for p in package.glob("*.py") if not p.name.startswith("test_"))
+    assert len(modules) >= 4, f"module discovery found only {[p.name for p in modules]}"
+
+    offenders = [
+        f"{path.name}:{hit}"
+        for path in modules
+        for hit in _text_io_without_encoding(path.read_text(encoding="utf-8"))
+    ]
+    assert not offenders, "text I/O without an explicit encoding:\n" + "\n".join(offenders)
+
+
+def test_the_encoding_check_detects_a_missing_encoding():
+    """The checker above must fail on the code it exists to reject.
+
+    Its predecessor passed while a real regression was present, so the guard is itself
+    guarded: both shapes it must catch are asserted here, including the multi-line
+    subprocess form that defeated the line-based version.
+    """
+    assert _text_io_without_encoding("p.read_text()")
+    assert _text_io_without_encoding("open(p)")
+    assert _text_io_without_encoding("p.write_text(x)")
+    assert _text_io_without_encoding(
+        "subprocess.run(\n    ['gh'],\n    capture_output=True,\n    text=True,\n)"
+    )
+    # ...and must not fire on the fixed forms.
+    assert not _text_io_without_encoding('p.read_text(encoding="utf-8")')
+    assert not _text_io_without_encoding(
+        'subprocess.run(\n    ["gh"],\n    text=True,\n    encoding="utf-8",\n)'
+    )
+    assert not _text_io_without_encoding("p.read_bytes()")
+    assert not _text_io_without_encoding('open(p, "rb")')
+    # urllib: bytes, so an encoding would be nonsense
+    assert not _text_io_without_encoding("self.opener.open(request, timeout=5)")
+
+
+def test_no_text_io_relies_on_the_platform_default_encoding():
+    """The behavioural half: run the real code paths and let CPython catch omissions.
+
+    Under `-X warn_default_encoding` an omitted `encoding=` raises EncodingWarning
+    (PEP 597), which is exactly the Windows defect in issue #273 — the platform default
+    is cp1252 there, not UTF-8. This drives `collect.py` and `sources.py` for real, so
+    it catches an omission the static check above could miss (a call built dynamically,
+    or one in a stdlib helper the package hands a file to). `render.py`'s two sites are
+    not on this path and are covered statically instead.
+    """
+    # Drives the readers and writers directly rather than `collect()`, which refuses an
+    # offline run against an empty cache ("this run measured nothing") before it reaches
+    # the render path. Every text I/O site in the package is on one of these calls.
+    driver = textwrap.dedent(
+        """
+        import sys, warnings
+        from pathlib import Path
+        warnings.simplefilter("error", EncodingWarning)
+
+        project = Path(sys.argv[1])
+
+        import collect, render, sources
+
+        collect.discover(project)                    # manifest, requirements and go.mod readers
+        collect.scan_metadata(project)               # .git/HEAD and its ref
+        collect._read_toml(project / "pyproject.toml")
+
+        http = sources.Http(project / ".cache", offline=True)
+        path = http._path("GET", "https://example.com/x")
+        http._write_cache(path, {"name": "José"}, 200)   # cache write
+        http.get_json("https://example.com/x")          # cache read
+
+        sources.gh_token()                           # subprocess(text=True), if gh exists
+        print("ok")
+        """
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        project = Path(tmp) / "project"
+        project.mkdir()
+        # Non-ASCII on purpose: the bytes must survive every layer.
+        (project / "package.json").write_text(
+            json.dumps({"name": "p", "author": "José", "dependencies": {"left-pad": "1.3.0"}}),
+            encoding="utf-8",
+        )
+        (project / "requirements.txt").write_text("flask==2.0.0  # José\n", encoding="utf-8")
+        (project / "go.mod").write_text("module x\n\ngo 1.21\n", encoding="utf-8")
+        (project / "pyproject.toml").write_text('[project]\nname = "José"\n', encoding="utf-8")
+        (project / ".git").mkdir()
+        (project / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+        script = Path(tmp) / "driver.py"
+        script.write_text(driver, encoding="utf-8")
+
+        scripts_dir = Path(__file__).parent
+        env = {**os.environ, "PYTHONPATH": str(scripts_dir)}
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-X",
+                "warn_default_encoding",
+                str(script),
+                str(project),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=scripts_dir,
+            env=env,
+        )
+
+    assert "EncodingWarning" not in result.stderr, (
+        f"a text I/O call omitted encoding=:\n{result.stderr}"
+    )
+    assert result.returncode == 0, result.stderr
+    assert "ok" in result.stdout

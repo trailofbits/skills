@@ -20,16 +20,16 @@
     },
     {
       "name": "building-secure-contracts",
-      "version": "1.1.3",
+      "version": "1.2.0",
       "description": "Comprehensive smart contract security toolkit based on Trail of Bits' Building Secure Contracts framework. Includes vulnerability scanners for 6 blockchains and 5 development guideline assistants.",
       "author": {
-        "name": "Omar Inuwa && Pawe\u0142 P\u0142atek"
+        "name": "Omar Inuwa && Paweł Płatek"
       },
       "source": "./plugins/building-secure-contracts"
     },
     {
       "name": "burpsuite-project-parser",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Search and extract data from Burp Suite project files (.burp) for security analysis",
       "author": {
         "name": "Will Vandevanter"
@@ -38,7 +38,7 @@
     },
     {
       "name": "claude-in-chrome-troubleshooting",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "description": "Diagnose and fix Claude in Chrome MCP extension connectivity issues",
       "author": {
         "name": "Dan Guido"
@@ -47,7 +47,7 @@
     },
     {
       "name": "constant-time-analysis",
-      "version": "0.2.1",
+      "version": "0.2.4",
       "description": "Detect compiler-induced timing side-channels in cryptographic code",
       "author": {
         "name": "Scott Arciszewski",
@@ -57,7 +57,7 @@
     },
     {
       "name": "culture-index",
-      "version": "1.1.2",
+      "version": "1.1.3",
       "description": "Interprets Culture Index survey results for individuals and teams",
       "author": {
         "name": "Dan Guido"
@@ -66,7 +66,7 @@
     },
     {
       "name": "devcontainer-setup",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "description": "Create pre-configured devcontainers with Claude Code and language-specific tooling",
       "author": {
         "name": "Alexis Challande",
@@ -77,7 +77,7 @@
     {
       "name": "differential-review",
       "description": "Security-focused differential review of code changes with git history analysis and blast radius estimation",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "author": {
         "name": "Omar Inuwa"
       },
@@ -85,7 +85,7 @@
     },
     {
       "name": "firebase-apk-scanner",
-      "version": "2.1.1",
+      "version": "2.2.0",
       "description": "Scan Android APKs for Firebase security misconfigurations including open databases, storage buckets, authentication issues, and exposed cloud functions. For authorized security research only.",
       "author": {
         "name": "Nick Sellier"
@@ -94,8 +94,8 @@
     },
     {
       "name": "gh-cli",
-      "version": "1.5.1",
-      "description": "Intercepts GitHub URL fetches and curl/wget commands, redirecting to the authenticated gh CLI.",
+      "version": "1.6.0",
+      "description": "Intercepts GitHub URL fetches (WebFetch and MCP fetch tools) and curl/wget commands, redirecting to the authenticated gh CLI.",
       "author": {
         "name": "William Tan",
         "email": "opensource@trailofbits.com",
@@ -115,7 +115,7 @@
     },
     {
       "name": "entry-point-analyzer",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Analyzes smart contract codebases to identify state-changing entry points for security auditing. Detects externally callable functions that modify state, categorizes them by access level, and generates structured audit reports.",
       "author": {
         "name": "Nicolas Donboly",
@@ -126,8 +126,8 @@
     },
     {
       "name": "mutation-testing",
-      "version": "1.0.1",
-      "description": "Configures mewt or muton mutation testing campaigns \u2014 scopes targets, tunes timeouts, and optimizes long-running runs. Use when the user mentions mewt, muton, mutation testing, or wants to configure or optimize a mutation testing campaign.",
+      "version": "1.0.3",
+      "description": "Configures mewt or muton mutation testing campaigns — scopes targets, tunes timeouts, and optimizes long-running runs. Use when the user mentions mewt, muton, mutation testing, or wants to configure or optimize a mutation testing campaign.",
       "author": {
         "name": "Trail of Bits",
         "email": "opensource@trailofbits.com",
@@ -147,7 +147,7 @@
     },
     {
       "name": "semgrep-rule-creator",
-      "version": "1.2.3",
+      "version": "1.2.4",
       "description": "Create custom Semgrep rules for detecting bug patterns and security vulnerabilities",
       "author": {
         "name": "Maciej Domanski"
@@ -177,10 +177,10 @@
     },
     {
       "name": "static-analysis",
-      "version": "1.3.2",
+      "version": "1.4.3",
       "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
       "author": {
-        "name": "Axel Mierczuk & Pawe\u0142 P\u0142atek"
+        "name": "Axel Mierczuk & Paweł Płatek"
       },
       "source": "./plugins/static-analysis"
     },
@@ -195,16 +195,16 @@
     },
     {
       "name": "testing-handbook-skills",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "description": "Skills from the Trail of Bits Application Security Testing Handbook (appsec.guide)",
       "author": {
-        "name": "Pawe\u0142 P\u0142atek"
+        "name": "Paweł Płatek"
       },
       "source": "./plugins/testing-handbook-skills"
     },
     {
       "name": "trailmark",
-      "version": "0.11.0",
+      "version": "0.11.2",
       "description": "Builds multi-language source and binary code graphs for security analysis: call graphs, attack surface mapping, blast radius, taint propagation, complexity hotspots, entry point enumeration, proxy/unresolved-call tracking, type/reference analysis, and structural diffs. Creates bounded, graph-informed source packets for delegating focused work to constrained subagents. Generates Mermaid diagrams, runs graph-informed mutation testing triage (genotoxic), generates mutation-driven test vectors (vector-forge), extracts crypto protocol message flows, converts Mermaid diagrams to ProVerif models, projects SARIF/weAudit/binary findings onto code graphs, triages single findings with graph evidence, gates branch diffs for structural review regressions, and expands seed findings into variant-neighborhood candidates. Use when analyzing call paths, slicing source context for smaller models, mapping attack surface, visualizing code architecture, triaging survived mutants, generating cryptographic test vectors, diagramming crypto protocols, formally verifying protocols, augmenting audits with static analysis findings, deciding whether one candidate issue is reachable, reviewing graph-level PR risk, or seeding variant analysis.",
       "author": {
         "name": "Scott Arciszewski",
@@ -223,10 +223,10 @@
     },
     {
       "name": "c-review",
-      "version": "1.3.0",
-      "description": "Comprehensive C/C++ security code review with specialized bug-finding agents covering memory safety, type safety, concurrency, and Linux/Windows userspace-specific issues",
+      "version": "2.0.1",
+      "description": "Comprehensive C/C++ security code review, with coverage verified against a parse of the source",
       "author": {
-        "name": "Pawe\u0142 P\u0142atek"
+        "name": "Paweł Płatek"
       },
       "source": "./plugins/c-review"
     },
@@ -235,7 +235,7 @@
       "version": "1.1.0",
       "description": "Comprehensive Rust security code review with specialized bug-finding agents covering the safe/unsafe boundary, memory safety in unsafe blocks, concurrency, panic-induced DoS, recursion-induced stack overflow, FFI, and async runtime hazards",
       "author": {
-        "name": "Andrea Cappa (Aptos Labs) & Pawe\u0142 P\u0142atek (Trail of Bits)"
+        "name": "Andrea Cappa (Aptos Labs) & Paweł Płatek (Trail of Bits)"
       },
       "source": "./plugins/rust-review"
     },
@@ -252,7 +252,7 @@
     },
     {
       "name": "insecure-defaults",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "description": "Detects insecure default configurations including hardcoded credentials, fallback secrets, weak authentication defaults, and dangerous values in production",
       "author": {
         "name": "Trail of Bits",
@@ -283,7 +283,7 @@
     },
     {
       "name": "git-cleanup",
-      "version": "1.0.1",
+      "version": "2.3.1",
       "description": "Safely analyzes and cleans up local git branches and worktrees by categorizing them as merged, squash-merged, superseded, or active work.",
       "author": {
         "name": "Henrik Brodin",
@@ -303,7 +303,7 @@
     },
     {
       "name": "supply-chain-risk-auditor",
-      "version": "2.0.0",
+      "version": "2.0.2",
       "description": "Audit a project's npm, PyPI, and Go dependencies for supply-chain risk: version-matched advisories for direct dependencies and the full lockfile tree, abandoned upstreams, npm publisher concentration, and install scripts",
       "author": {
         "name": "Eric Quintero"
@@ -312,7 +312,7 @@
     },
     {
       "name": "zeroize-audit",
-      "version": "0.2.0",
+      "version": "0.3.1",
       "description": "Detects missing or compiler-optimized zeroization of sensitive data with assembly and control-flow analysis",
       "author": {
         "name": "Trail of Bits",
@@ -323,7 +323,7 @@
     },
     {
       "name": "let-fate-decide",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "description": "Draws the 12 Houses of the Zodiac Tarot spread using cryptographic randomness to add 100+ bits of entropy to vague or underspecified planning. Interprets the spread to guide next steps. Use when feeling lucky, invoking heart-of-the-cards energy, or when prompts are ambiguous.",
       "author": {
         "name": "Scott Arciszewski",
@@ -333,22 +333,22 @@
     },
     {
       "name": "agentic-actions-auditor",
-      "version": "1.2.1",
+      "version": "1.3.0",
       "description": "Audits GitHub Actions workflows for security vulnerabilities in AI agent integrations (Claude Code Action, Gemini CLI, OpenAI Codex, GitHub AI Inference)",
       "author": {
-        "name": "Emilio L\u00f3pez & Will Vandevanter"
+        "name": "Emilio López & Will Vandevanter"
       },
       "source": "./plugins/agentic-actions-auditor"
     },
     {
-      "name": "skill-improver",
-      "version": "1.1.0",
-      "description": "Automatically reviews and fixes Claude Code skills through iterative refinement until they meet quality standards. Requires plugin-dev plugin.",
+      "name": "code-improver",
+      "version": "1.0.0",
+      "description": "Improves code targets — skills, plugins, or a branch's changes — through an autonomous review-and-fix workflow with a pluggable reviewer (any installed skill or agent), a cross-round findings ledger, oscillation escalation, and a mechanical scope guard.",
       "author": {
-        "name": "Pawe\u0142 P\u0142atek",
+        "name": "Paweł Płatek",
         "url": "https://github.com/GrosQuildu"
       },
-      "source": "./plugins/skill-improver"
+      "source": "./plugins/code-improver"
     },
     {
       "name": "fp-check",
@@ -413,6 +413,17 @@
         "url": "https://github.com/trailofbits"
       },
       "source": "./plugins/writing-lean-proofs"
+    },
+    {
+      "name": "modern-cpp",
+      "version": "1.0.0",
+      "description": "Modern C++ best practices (C++20/23/26). Use when writing C++ code, creating new C++ projects, or modernizing legacy C++ patterns.",
+      "author": {
+        "name": "Julius Alexandre",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/modern-cpp"
     }
   ]
 }

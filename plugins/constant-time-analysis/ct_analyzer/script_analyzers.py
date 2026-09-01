@@ -11,6 +11,7 @@ that work at the bytecode/opcode level rather than native assembly.
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -3013,6 +3014,127 @@ class CSharpAnalyzer(ScriptAnalyzer):
         except FileNotFoundError:
             return False, f".NET SDK not found: {self.dotnet_path}"
 
+    @staticmethod
+    def _tfm_version(tfm: str) -> tuple[int, int] | None:
+        """Parse a target framework moniker such as "net9.0" into (9, 0).
+
+        Args:
+            tfm: The moniker naming a directory in the dotnet tool store.
+
+        Returns:
+            The (major, minor) version, or None when the moniker is not a
+            versioned `netX.Y` — `netstandard2.0` and `net48` both land here,
+            and neither names a runtime this fallback can pair with.
+        """
+        match = re.fullmatch(r"net(\d+)\.(\d+)", tfm)
+        if match is None:
+            return None
+        return (int(match.group(1)), int(match.group(2)))
+
+    # Homebrew keg prefixes, Apple Silicon then Intel.
+    _KEG_PREFIXES = ("/opt/homebrew/opt", "/usr/local/opt")
+
+    # Runtimes of unknown major, tried only with major roll-forward enabled.
+    # homebrew-core carries a versioned dotnet@N formula for some majors and not
+    # others — dotnet@6, dotnet@8 and dotnet@9 exist, dotnet@7 was dropped at EOL —
+    # and no Linux distribution ships one at all, so an exact-major keg cannot be
+    # the only candidate or the motivating failure just moves from the glob to the
+    # exists() check.
+    _GENERIC_RUNTIMES = (
+        "/opt/homebrew/opt/dotnet/libexec/dotnet",
+        "/usr/local/opt/dotnet/libexec/dotnet",
+        "/usr/local/share/dotnet/dotnet",  # official macOS installer
+        "/usr/share/dotnet/dotnet",  # official Linux packages
+    )
+
+    def _runtime_candidates(self, major: int) -> list[tuple[str, bool]]:
+        """Runtimes to try for a store assembly targeting `major`, best first.
+
+        Args:
+            major: The .NET major version the store assembly was built for.
+
+        Returns:
+            (runtime path, roll_forward) pairs. An exact-major runtime comes first
+            and needs no roll-forward. Every later candidate is a runtime of
+            unknown major, which .NET refuses to launch a differently-versioned
+            assembly on unless `DOTNET_ROLL_FORWARD=Major` says otherwise — that
+            refusal is the reason this fallback exists, so the flag is set only
+            where the majors may genuinely differ.
+        """
+        runtimes = [(f"{keg}/dotnet@{major}/libexec/dotnet", False) for keg in self._KEG_PREFIXES]
+        runtimes += [(runtime, True) for runtime in self._GENERIC_RUNTIMES]
+
+        # `dotnet_path` defaults to the bare name "dotnet", so resolve it through
+        # PATH rather than exists()-checking a name relative to the cwd.
+        on_path = shutil.which(self.dotnet_path)
+        if on_path:
+            runtimes.append((on_path, True))
+        return runtimes
+
+    def _il_via_versioned_runtime(self, dll_file: str) -> tuple[bool, str]:
+        """Disassemble via the tool-store ilspycmd under a compatible .NET runtime.
+
+        ilspycmd installs framework-dependent: the assembly under
+        `~/.dotnet/tools/.store` targets exactly one framework — net8.0 for
+        ilspycmd 8.x, net9.0 for 9.x — and .NET does not roll forward across a
+        major version by default, so a net9.0 assembly will not start on an 8.0
+        runtime. The TFM discovered on disk therefore decides which runtime to
+        use; the two cannot be chosen independently.
+
+        A matching Homebrew `dotnet@N` keg is preferred, since it needs no
+        roll-forward. Where no such keg exists the generic runtimes are tried with
+        `DOTNET_ROLL_FORWARD=Major`, which is what allows a net9.0 assembly to run
+        on a 10.x runtime and is also the only path available off macOS.
+
+        Args:
+            dll_file: Path to the assembly to disassemble.
+
+        Returns:
+            (True, IL text) on success, (False, "") when no store assembly and
+            runtime pair could run — callers continue to the next fallback.
+        """
+        store = Path.home() / ".dotnet/tools/.store/ilspycmd"
+        if not store.exists():
+            return False, ""
+
+        candidates = []
+        for dll_path in store.glob("*/ilspycmd/*/tools/net*/any/ilspycmd.dll"):
+            version = self._tfm_version(dll_path.parent.parent.name)
+            if version is not None:
+                candidates.append((version, dll_path))
+        # Newest first, so a box carrying several ilspycmd versions uses the most
+        # recent one it has a runtime for. Sorting the parsed tuple rather than the
+        # moniker string matters: lexically, "net10.0" sorts below "net8.0".
+        candidates.sort(key=lambda candidate: candidate[0], reverse=True)
+
+        for (major, _minor), dll_path in candidates:
+            for runtime, roll_forward in self._runtime_candidates(major):
+                if not Path(runtime).exists():
+                    continue
+
+                env = os.environ.copy()
+                env["DOTNET_ROOT"] = str(Path(runtime).parent)
+                if roll_forward:
+                    env["DOTNET_ROLL_FORWARD"] = "Major"
+
+                try:
+                    result = subprocess.run(
+                        [runtime, str(dll_path), "-il", dll_file],
+                        capture_output=True,
+                        text=True,
+                        env=env,
+                    )
+                except OSError:
+                    # Not just FileNotFoundError: an Intel keg on an Apple Silicon
+                    # box without Rosetta raises OSError("Bad CPU type"), and a
+                    # missing execute bit raises PermissionError. Both used to
+                    # escape this helper and abort the whole analysis, where the
+                    # contract is to return quietly and let monodis try.
+                    continue
+                if result.returncode == 0:
+                    return True, result.stdout
+        return False, ""
+
     def _get_il_output(self, dll_file: str) -> tuple[bool, str]:
         """Get IL disassembly for a .NET assembly."""
         # First try ilspycmd directly (globally installed and in PATH)
@@ -3039,33 +3161,10 @@ class CSharpAnalyzer(ScriptAnalyzer):
         except FileNotFoundError:
             pass  # dotnet not found or local tool not installed
 
-        # Try running ilspycmd via .NET 8.0 from Homebrew (macOS)
-        # This handles the case where ilspycmd targets .NET 8.0 but the system
-        # has a newer .NET version installed
-        dotnet8_paths = [
-            "/opt/homebrew/opt/dotnet@8/libexec/dotnet",  # Apple Silicon
-            "/usr/local/opt/dotnet@8/libexec/dotnet",  # Intel Mac
-        ]
-        ilspycmd_dll = Path.home() / ".dotnet/tools/.store/ilspycmd"
-        if ilspycmd_dll.exists():
-            # Find the ilspycmd.dll in the store
-            for dll_path in ilspycmd_dll.glob("*/ilspycmd/*/tools/net8.0/any/ilspycmd.dll"):
-                for dotnet8 in dotnet8_paths:
-                    if Path(dotnet8).exists():
-                        try:
-                            env = os.environ.copy()
-                            env["DOTNET_ROOT"] = str(Path(dotnet8).parent)
-                            result = subprocess.run(
-                                [dotnet8, str(dll_path), "-il", dll_file],
-                                capture_output=True,
-                                text=True,
-                                env=env,
-                            )
-                            if result.returncode == 0:
-                                return True, result.stdout
-                        except FileNotFoundError:
-                            pass
-                break  # Only try the first matching dll
+        # Try running the tool-store assembly under a matching versioned runtime
+        ok, output = self._il_via_versioned_runtime(dll_file)
+        if ok:
+            return True, output
 
         # Try monodis (available on Linux/macOS with Mono)
         try:
