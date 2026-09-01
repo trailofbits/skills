@@ -372,7 +372,7 @@
     },
     {
       "name": "vulnerability-triage-brocards",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "Principled framework for triaging vulnerability reports using 7 brocards (rules of thumb). Evaluates incoming CVEs, bug bounty submissions, and security findings against structured dismissal/acceptance criteria before escalating to deeper analysis.",
       "author": {
         "name": "Alexis Challande",
