@@ -5,7 +5,7 @@ requires-python = ">=3.12"
 dependencies = ["trailmark>=0.5,<0.6"]
 
 [dependency-groups]
-dev = ["pytest>=9", "ruff>=0.16.3,<1"]
+dev = ["pytest>=9", "ruff>=0.16.4,<1"]
 
 [tool.ruff]
 line-length = 100
