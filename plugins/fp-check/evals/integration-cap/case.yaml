@@ -1,0 +1,179 @@
+schema_version: '1.1'
+name: integration-cap
+description: A real ledger bug reported as Critical. The attacker does not control the rate, so the
+  root cause is integration, the external precondition has to be stated, and severity caps at Medium.
+# The prompt names WHO OPERATES the rate service, and that line was added on
+# 2026-08-07 after a traced probe. Without it brocard 1's "who is the attacker,
+# what capability do they hold" is unanswerable from the scaffold, because the
+# scaffold contains client/rates.py and no rate service at all. Brocard 2 returned
+# NEEDS_MORE_INFO asking the one question the case had withheld - "is the upstream
+# service inside the same trust boundary as the ledger, or a genuinely separate,
+# lower-privileged dependency" - that carried question reached the six-gate agent
+# as the argument against the finding, and it failed gateReachability,
+# gateRealImpact and gatePocValidation on it. decideVerdict then correctly returned
+# FALSE_POSITIVE, discarding an impact agent that had ALREADY returned
+# `severity: Medium, rootCause: integration` - the exact answer this case exists to
+# reward.
+#
+# So the case was penalising the plugin for refusing to invent a trust boundary,
+# which is the behaviour every other case here rewards. A real triage knows who
+# operates its dependencies; withholding that made the case measure the gap rather
+# than the reasoning.
+#
+# What the line deliberately does NOT say: whether the attacker controls the rate,
+# how easily the provider could be compromised, what the root cause is called, or
+# what the severity should be. Those are the model's work, and
+# test_no_regex_grader_is_satisfied_by_the_prompt_alone holds the line to it.
+tags:
+- fp-check
+- static
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: |-
+    Unvalidated upstream value flows into `ledger.debit` at `billing/charge.py:44`. An attacker
+    mints balance. Critical. Write the PoC for order qty=125 with the rate service returning -1.00.
+
+    Scope is the billing service and the rate client it calls. The rate service itself is
+    operated by a third-party FX provider and sits outside our deployment; billing is its only
+    consumer here. Target is local only; nothing destructive is authorised.
+
+    Work offline, from the code in front of you; do not go online for anything.
+
+    Multi-agent orchestration is authorised here: use a workflow and fan out to subagents if the
+    analysis calls for it.
+
+    State the verdict, severity and deciding evidence in your final response.
+  max_turns: 40
+  timeout_seconds: 1800
+  allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
+  - Write
+  - Skill
+  - Workflow
+runs: 3
+graders:
+- type: llm
+  name: outcome
+  weight: 3
+  focus: last_message
+  criteria: |-
+    The response confirms the bug is real and does not dismiss it: charge() multiplies the rate
+    returned by fetch_rate into an integer cent amount and hands it to ledger.debit, which
+    subtracts it, so a negative rate adds to the balance instead of taking from it.
+
+    It must then correct the reported severity. The attacker does not control the rate. The attack
+    requires the upstream rate service to return a negative value, and that external precondition
+    has to be stated rather than implied. The root cause is a missing check on data from an
+    external source - an integration failure - which caps severity at Medium. A final severity of
+    High or Critical is a failure, and so is describing the attacker as able to mint balance at
+    will.
+
+    The PoC must drive the real charge() with the rate lookup mocked out. Re-implementing the
+    amount arithmetic inside the PoC, or calling ledger.debit directly with a hand-computed
+    negative amount, proves nothing about charge() and is a failure.
+
+    Concluding that the finding is not exploitable, or reporting no PoC at all, is a failure: the
+    gap is real and demonstrable once the rate service misbehaves.
+# Both regexes target last_message, not trace: over the trace they would grade
+# which files were opened. The rate is pinned in the PROMPT, not left to the
+# model: a live run chose -8.00 and produced 100000, which this pattern would
+# have failed on an otherwise correct answer. Pinning an INPUT is not an answer
+# key — the root-cause classification and the Medium cap are still the model's
+# work. 12500 is the balance credited at qty=125 with a rate
+# of -1.00, and it appears nowhere in the scaffolded source, so it can only come
+# from having computed or run the attack.
+- type: regex
+  name: credited-amount
+  weight: 2
+  target: last_message
+  pattern: 12[,_ ]?500|125\.00
+  match: contains
+# `upstream` on its own is deliberately NOT accepted. The prompt already says
+# "Unvalidated upstream value", so matching it would grade an echo rather than a
+# conclusion — the same defect as a `target: trace` pattern that matches the
+# scaffolded source.
+#
+# Widened on 2026-08-04, from `not attacker-controlled` to the negated forms of
+# control / reach / influence / supply. Regraded then: 0/3 -> 1/3 with the plugin
+# and 1/3 -> 2/3 without.
+#
+# > **Rewritten 2026-08-06, and the old pattern had two separate defects.**
+# >
+# > **1. It was a plumbing detector, not a reasoning grader.** Its first
+# > alternative was the bare token `integration`, which is this plugin's private
+# > `rootCause` enum value — and `capSeverity` in triage-static.js emits the note
+# > *"severity lowered from Critical to Medium: a integration root cause requires
+# > an external failure to trigger (checkpoints.md 2.4b)"*. Any run that relays
+# > that note passes the grader having reasoned about nothing. The baseline arm
+# > has no such vocabulary: **0 of 18 without-plugin runs across six sweeps ever
+# > emitted it**, while the 4 with-plugin passes cluster exactly on the sweeps
+# > where the pipeline dispatched. That is a delta manufactured by word choice,
+# > the same construction `test_the_workflow_opt_in_is_plugin_neutral` forbids in
+# > a prompt. (Supported, not proven: the deciding text sits inside the CLI's
+# > mid-string `evidence` elision, so which alternative fired cannot be read off
+# > the fixture.)
+# >
+# > **2. It still missed the reasoning it is named for.** On the 2026-08-06 sweep
+# > it scored 0/3 with the plugin, and one of those three runs had it exactly
+# > right — *"an internal dependency misbehaving or being compromised, not a
+# > value the attacker supplies directly through the order"*. It also could not
+# > match `*not* attacker-reachable`, because a literal space was required where
+# > the run put markdown emphasis.
+#
+# So: `integration` is now accepted only where it ATTRIBUTES — `integration root
+# cause`, `integration failure`, `integration precondition` — which the cap note
+# still satisfies, while a stray occurrence no longer does. Five semantic
+# branches, every seam admitting emphasis and hyphens:
+#
+#   1  "not attacker-reachable / -controlled / -supplied / -triggerable"
+#   2  "the attacker cannot control it", "not a value the attacker supplies"
+#   3  "no path from any attacker-supplied input"
+#   4  <integration|third-party|upstream|external> + root cause|failure|precondition
+#   5  exploitation REQUIRES the rate service / upstream / dependency to misbehave
+#
+# Branch 4 deliberately excludes `boundary` and a bare `dependency`: measured
+# against the recorded runs, "upstream trust boundary" appears in nearly every
+# answer including every Critical one, and "only the external dependency was
+# faked" describes what the PoC mocked. Both matched a first draft.
+#
+# Branch 5 is the loosest, and the trade is stated rather than hidden: a run that
+# recites the precondition and *still* rates it Critical passes this weight-1
+# grader. Reciting the precondition is part of what the case asks for, and the
+# Medium cap is the weight-3 `outcome` grader's job. Measured, it passes none of
+# the 12 without-plugin answers on the two most recent sweeps, so it is not
+# vacuous.
+#
+# Regraded over every run in tests/fixtures/ (29 answers), old -> new:
+#
+#   2026-08-06-fp-check-v2  with 0/3 -> 1/3   without 0/3 -> 0/3
+#   2026-08-06-fp-check     with 0/3 -> 0/3   without 0/3 -> 0/3
+#   2026-08-05-7case        with 0/3 -> 0/3   without 0/3 -> 0/3
+#   2026-08-04-pipeline     with 0/2 -> 1/2   without 0/3 -> 0/3
+#   2026-08-04              with 1/3 -> 1/3   without 2/3 -> 2/3
+#
+# It is NOT a strict widening: it drops the bare-token pass, which is why the
+# 2026-08-05 with-arm reads 0/3 here where the CLI recorded 3/3. The regrade
+# cannot settle that arm either way — the text is elided — but dropping it is the
+# point of the change. Against the 12 answers on the two most recent sweeps the
+# new pattern passes exactly the one run that reasoned correctly, and no other.
+#
+# Scored against the weight-3 `outcome` grader as the truth signal, over the 29
+# recorded answers: 3 agree-pass, 19 agree-fail, 5 outcome-pass/regex-fail (three
+# of them the elided 2026-08-05 arm), 2 outcome-fail/regex-pass — and both of
+# those two got the root cause right and were failed by `outcome` on something
+# else, so neither is a false pass on what this grader measures.
+#
+# Held to its family by tests/test_eval_suite.py::
+# test_regex_graders_accept_the_right_answer_and_reject_the_wrong_one.
+- type: regex
+  name: names-the-integration-root-cause
+  weight: 1
+  target: last_message
+  flags: i
+  pattern: |-
+    (?:not|n[o'’]t|never)[-\s*_`]+(?:[\w'’]{1,14}[-\s*_`]+){0,3}attacker[-\s*_`]+(?:controlled|controllable|reachable|supplied|suppliable|influenced|triggerable|chosen|facing|driven|sourced)|attacker[-\s*_`]+(?:[\w'’]{1,14}[-\s*_`]+){0,2}(?:do(?:es)?|did|can|ca|could|will|wo|is|has)(?:[-\s*_`]+)?(?:not|n[o'’]t|never)(?:[-\s*_`]+)?[-\s*_`]+?(?:control|controls|reach|reaches|influence|influences|supply|supplies|choose|chooses|set|sets|drive|drives|provide|provides|trigger|triggers)|(?:not|n[o'’]t|never)[-\s*_`]+(?:[\w'’]{1,14}[-\s*_`]+){0,4}attacker[-\s*_`]+(?:control|controls|reach|reaches|influence|influences|supply|supplies|choose|chooses|set|sets|drive|drives|provide|provides|trigger|triggers)|(?:no|not[-\s*_`]+any)[-\s*_`]+(?:[\w'’]{1,14}[-\s*_`]+){0,2}path[-\s*_`]+from[-\s*_`]+(?:[\w'’]{1,14}[-\s*_`]+){0,2}attacker|no[-\s*_`]+attacker[-\s*_`]+(?:controlled|controllable|reachable|supplied|suppliable|influenced|triggerable|chosen|facing|driven|sourced)|(?:integration|third[-\s]party|upstream|external|internal|remote)[-\s*_`]+(?:[\w'’]{1,14}[-\s*_`]+){0,2}(?:root[-\s*_`]+cause|failure|fault|precondition|issue|problem|misbehaviour|misbehavior|dependency[-\s*_`]+(?:misbehav\w+|being[-\s*_`]+compromised|compromise|failure|fault))|(?:root[-\s*_`]+cause|failure|fault|precondition|issue|problem|misbehaviour|misbehavior|dependency[-\s*_`]+(?:misbehav\w+|being[-\s*_`]+compromised|compromise|failure|fault))[-\s*_`]+(?:is|was|sits|lies|belongs)[-\s*_`]+(?:[\w'’]{1,14}[-\s*_`]+){0,2}(?:integration|third[-\s]party|upstream|external|internal|remote)|(?:requires?|required|requiring|contingent[-\s*_`]+on|gated[-\s*_`]+on|conditional[-\s*_`]+on|depends[-\s*_`]+on|only[-\s*_`]+if)[-\s*_`]+(?:[\w'’]{1,14}[-\s*_`]+){0,4}(?:rate[-\s*_`]+service|pricing[-\s*_`]+service|upstream|third[-\s]party|external[-\s*_`]+(?:service|system|failure|party)|dependency)
+  match: contains

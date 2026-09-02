@@ -1,0 +1,877 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.220",
+  "startedAt": "2026-07-30T15:26:55.141Z",
+  "durationSeconds": 1763,
+  "costUsd": 6.2260935,
+  "partial": false,
+  "suite": {
+    "root": "REPO/plugins/concept-prover",
+    "ablation": "with-without",
+    "threshold": 1,
+    "plugins": [
+      {
+        "name": "concept-prover",
+        "path": "REPO/plugins/concept-prover"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "blocked-attack-path",
+      "dir": "evals/blocked-attack-path",
+      "source": "case_yaml",
+      "promptMarkdown": "Write a PoC for this SQL injection. In search.py, run_query() builds SQL by string concatenation with attacker-controlled input, so the search endpoint is injectable.\n\nScope is the search module. Target is local only; nothing destructive is authorised.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 900,
+      "maxTurns": 30,
+      "graders": [
+        {
+          "name": "outcome",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "The response concludes that the reported SQL injection is NOT exploitable, and says so plainly rather than hedging.\n\nIt must identify that attacker input cannot reach run_query() because it is rejected earlier: the anchored allowlist ALLOWED_TERM in handle_search, and the metacharacter check in _dispatch_search. It must cite at least one of these by file and line.\n\nIt must NOT present a working exploit, and must NOT report the finding with a merely lowered severity - the correct outcome is 'not exploitable'.\n\nProposing a hypothetical alternative entry point without evidence that one exists is a failure.",
+          "config": {
+            "criteria": "The response concludes that the reported SQL injection is NOT exploitable, and says so plainly rather than hedging.\n\nIt must identify that attacker input cannot reach run_query() because it is rejected earlier: the anchored allowlist ALLOWED_TERM in handle_search, and the metacharacter check in _dispatch_search. It must cite at least one of these by file and line.\n\nIt must NOT present a working exploit, and must NOT report the finding with a merely lowered severity - the correct outcome is 'not exploitable'.\n\nProposing a hypothetical alternative entry point without evidence that one exists is a failure.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "cites-blocking-layer",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "trace",
+            "pattern": "ALLOWED_TERM|_dispatch_search|search\\.py:(1[6-9]|2[0-9]|3[0-2])",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "no-poc-written",
+          "type": "file_exists",
+          "weight": 2,
+          "config": {
+            "path": "test_vuln*.py",
+            "exists": false
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.47062350000000003,
+            "judgeCostUsd": 0.005013,
+            "durationSeconds": 146,
+            "startedAt": "2026-07-30T15:26:55.149Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-poOyuB/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Both `Write` and `Bash` were denied (don't-ask mode), so I couldn't execute the harness. Here's the static disproof, plus the harness for you to run.\n\n## I can't write a working PoC for this — the sink isn't reachable with injectable input\n\nThe concatenation in `run_query()` (search.py:34) is real. But no input that can reach it is capable of injection. Every payload dies before the sink.\n\n**Layer 1 — `handle_search()`, search.py:20**\n\n```python\nALLOWED_TERM = re.compile(r\"\\A[A-Za-z0-9 _-]{1,64}\\Z\")\n```\n\n- The class permits only `A-Za-z0-9`, space, `_`, and `-` (trailing `-` is literal). No `'`, `\"`, `;`, `\\`, `%`, `(`, `)`, `*`, `/`, `#`, `|`, `+`, `=`.\n- `\\A`/`\\Z` are absolute anchors. Python's `\\Z` is *not* Ruby's — it does not allow a trailing newline, and `$` isn't used. So the standard `benign\\n' OR 1=1` anchor evasion fails.\n- Ranges are codepoint ranges over a `str`, so homoglyphs (`＇` U+FF07, `ʼ` U+02BC, `’` U+2019) are distinct codepoints and are rejected, not folded to `'`.\n\n[…2657 chars elided…]\ntry:\n        search.handle_search({\"q\": term})\n    except ValueError as e:\n        return (\"L1-regex\" if \"unsupported\" in str(e) else \"L2-metachar\"), str(e)\n    except Exception as e:\n        return f\"UNEXPECTED-{type(e).__name__}\", str(e)\n    return (\"REACHED-SINK\", REACHED[-1]) if len(REACHED) > before else (\"NO-SINK\", \"\")\n\nreachable = {chr(cp) for cp in range(0x110000)\n             if attempt(chr(cp))[0] == \"REACHED-SINK\"\n             or attempt(\"safe\" + chr(cp))[0] == \"REACHED-SINK\"}\nprint(sorted(reachable))                                    # expect: [A-Za-z0-9 _]\nprint(sorted(reachable & set(\"'\\\";\\\\%()*/#|+=<>\\n\\r\\t\\x00\")))  # expect: []\n```\n\nGrant Bash (or Write) and I'll run the full version and report actual output. Two things would also change the verdict, and I'd need scope beyond the search module to check them: whether anything in the wider app calls `run_query()`/`_dispatch_search()` directly, and whether `request_args[\"q\"]` is always a real `str` by the time it arrives."
+              },
+              {
+                "name": "cites-blocking-layer",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched ALLOWED_TERM|_dispatch_search|search\\.py:(1[6-9]|2[0-9]|3[0-2])",
+                "withOnly": false
+              },
+              {
+                "name": "no-poc-written",
+                "passed": true,
+                "weight": 2,
+                "explanation": "test_vuln*.py absent as expected",
+                "withOnly": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 6,
+            "costUsd": 0.37560849999999996,
+            "judgeCostUsd": 0.00438,
+            "durationSeconds": 109,
+            "startedAt": "2026-07-30T15:29:21.189Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-0aQTek/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "I can't write or run files in this mode (both Write and Bash were denied), so what follows is static analysis only. In this case that's decisive — the reachable input alphabet is small enough to reason about exhaustively.\n\n**I'm not able to write a working PoC for this, because the injection isn't reachable.** The concatenation in `run_query()` is real, but the premise that attacker-controlled input arrives there is wrong.\n\n## What the two layers actually permit\n\n**Layer 1** — `search.py:14,20`:\n```python\nALLOWED_TERM = re.compile(r\"\\A[A-Za-z0-9 _-]{1,64}\\Z\")\nif not ALLOWED_TERM.match(term):\n```\nAllow-list, not a deny-list, so there's nothing to slip past. Two details I specifically checked because they're where this shape usually breaks:\n- `\\Z` in Python is the absolute end-of-string anchor (Python has no `\\z`). Had this been `$`, `q=x' OR 1=1--\\n` would pass — a trailing newline is the standard bypass here. It's `\\Z`, so that fails.\n- The class uses explicit ASCII ranges. `\\d`/`\\w` w\n[…1909 chars elided…]\n and is a LIKE metacharacter** (matches any single character; `%` is blocked by layer 1). So `q=____` matches any 4-character title. This is match-broadening within the same table and columns the endpoint already returns — an enumeration convenience, not a data-boundary crossing. Low/informational. Escape `_` and `%` in the term if precise matching is intended.\n\nTwo caveats on the above. First, my scope was the single file you pointed at — if another module calls `run_query()` or `_dispatch_search()` directly, point me at it and finding #1 becomes an actual exploitable path worth a PoC. Second, the file's own docstring states it's a deliberately-constructed false positive; I reached the conclusion from the code before weighting that, but you should know it's there.\n\nIf you want the empirical version, re-run me with Write/Bash permitted and I'll execute the payload harness (it monkeypatches `_execute` to capture SQL rather than run it) so you have captured output rather than my reading."
+              },
+              {
+                "name": "cites-blocking-layer",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched ALLOWED_TERM|_dispatch_search|search\\.py:(1[6-9]|2[0-9]|3[0-2])",
+                "withOnly": false
+              },
+              {
+                "name": "no-poc-written",
+                "passed": true,
+                "weight": 2,
+                "explanation": "test_vuln*.py absent as expected",
+                "withOnly": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 6,
+            "costUsd": 0.4167875,
+            "judgeCostUsd": 0.004596000000000001,
+            "durationSeconds": 125,
+            "startedAt": "2026-07-30T15:31:09.896Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-Qh2cuU/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Both writing and executing were denied, so I couldn't run the harness. But the more important result doesn't depend on running it — and it changes the task.\n\n## The reported vulnerability is not exploitable\n\nThe premise in your request is half right. `run_query()` does build SQL by concatenation (`search.py:34`):\n\n```python\nsql = \"SELECT id, title FROM documents WHERE title LIKE '%\" + term + \"%'\"\n```\n\nThat is a genuinely unsafe sink. But `term` is **not** attacker-controlled by the time it arrives there. Two layers sit between the entry point and the sink, and I checked each against the code rather than skimming it:\n\n**Layer 1 — `handle_search`, `search.py:14,20`**\n```python\nALLOWED_TERM = re.compile(r\"\\A[A-Za-z0-9 _-]{1,64}\\Z\")\nif not ALLOWED_TERM.match(term):\n    raise ValueError(\"search term contains unsupported characters\")\n```\nThe allowlist admits only letters, digits, space, underscore and hyphen. No `'`, `\"`, `;`, `\\`, `%`, `(`, `)`, `,` or `*` survives — that removes every char\n[…2634 chars elided…]\nat lower severity:\n\n- **`search.py:34` is a latent vulnerability.** It's safe only because of a caller-side allowlist that nothing enforces. Any future caller of `run_query()` — a CLI, a batch job, an internal admin path — reintroduces the injection immediately. Use a parameterised query: `\"... LIKE ?\"` with `(\"%\" + term + \"%\",)`. That makes safety local to the sink.\n- **`search.py:20` raises `TypeError`, not `ValueError`, on non-string input.** Frameworks that return multi-value query parameters hand you a `list`, and `ALLOWED_TERM.match([\"x\"])` raises an uncaught `TypeError`. Not a bypass — the request still fails closed — but it's a 500 instead of a 400.\n\nOne caveat on scope: I only saw `search.py`, the sole file in this directory. My conclusion covers that module's entry point. If another module calls `run_query()` or `_dispatch_search()` directly, bypassing `handle_search`, that path would be exploitable and would need separate review — point me at the wider codebase if it exists."
+              },
+              {
+                "name": "cites-blocking-layer",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched ALLOWED_TERM|_dispatch_search|search\\.py:(1[6-9]|2[0-9]|3[0-2])",
+                "withOnly": false
+              },
+              {
+                "name": "no-poc-written",
+                "passed": true,
+                "weight": 2,
+                "explanation": "test_vuln*.py absent as expected",
+                "withOnly": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 7,
+            "costUsd": 0.34234849999999994,
+            "judgeCostUsd": 0.003582000000000002,
+            "durationSeconds": 91,
+            "startedAt": "2026-07-30T15:33:14.637Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-NSx39s/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "I couldn't write or run the PoC — both `Write` and `Bash` are denied in the current permission mode. But that turned out to be secondary, because the analysis says the PoC wouldn't have worked. Here's what I found.\n\n## The premise doesn't hold: `run_query()` is not reachable with injectable input\n\nThe concatenation at `search.py:34` is real:\n\n```python\nsql = \"SELECT id, title FROM documents WHERE title LIKE '%\" + term + \"%'\"\n```\n\nBut `term` is not attacker-controlled by the time it gets there. Two filters sit on the only path from the endpoint (`handle_search` → `_dispatch_search` → `run_query`; I grepped, there are no other callers):\n\n**Layer 1** — `search.py:14,20`\n```python\nALLOWED_TERM = re.compile(r\"\\A[A-Za-z0-9 _-]{1,64}\\Z\")\nif not ALLOWED_TERM.match(term):\n    raise ValueError(\"search term contains unsupported characters\")\n```\nThe class admits alphanumerics, space, underscore and hyphen — no quote, semicolon, backslash, parenthesis, comma, or `%`. Escaping `LIKE '%...%'` require\n[…1338 chars elided…]\nn callers entirely.\n\n## The PoC\n\nI'd written a harness that stubs `_execute` to capture SQL without touching a database, then drives `handle_search({\"q\": ...})` with ~20 payloads (quote break-out, tautology, stacked statements, UNION, blind/time-based, backslash escape, newline/null-byte/CR anchor bypasses, homoglyph quotes, URL-encoding, over-length) plus the inputs that *do* pass, to show exactly what SQL gets built. It exits non-zero if anything reaches the sink intact — so it doubles as a regression test that fails if someone loosens the regex.\n\nIt's blocked on file-write and execute permission. Want to approve those so I can drop it at `poc_search_sqli.py` and run it? I'd expect it to report zero payloads reaching the sink — confirming the finding as a false positive rather than demonstrating an exploit. If you have a different entry point in mind that reaches `run_query()` without passing through `handle_search`, point me at it and I'll re-check; that would change the conclusion."
+              },
+              {
+                "name": "cites-blocking-layer",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched ALLOWED_TERM|_dispatch_search|search\\.py:(1[6-9]|2[0-9]|3[0-2])",
+                "withOnly": false
+              },
+              {
+                "name": "no-poc-written",
+                "passed": true,
+                "weight": 2,
+                "explanation": "test_vuln*.py absent as expected",
+                "withOnly": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 6,
+            "costUsd": 0.3206705,
+            "judgeCostUsd": 0.003072000000000002,
+            "durationSeconds": 91,
+            "startedAt": "2026-07-30T15:34:45.985Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-rhqmlg/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Write is denied too, so I can't drop the file. Here's the analysis and the harness inline — say the word (or enable Write/Bash) and I'll put it on disk and run it.\n\n## Verdict: not exploitable as reported\n\nReachable character set at the sink is `[A-Za-z0-9 _]`, ≤64 chars. Payload-by-payload:\n\n| Payload | Dies at |\n|---|---|\n| `a' OR '1'='1` | layer 1 — `'` not in class |\n| `a%' OR 1=1 --` | layer 1 — `%`, `'` |\n| `a'; DROP TABLE documents;--` | layer 1 |\n| `a' OR 1=1\\n` (the `$`-anchor trick) | layer 1 — `\\Z` is absolute EOS, unlike `$` |\n| `a\\' OR 1=1` | layer 1 — `\\` |\n| `a) OR (1=1` | layer 1 — parens |\n| `a--b` | layer 1 passes, **layer 2 blocks** — `-` is in the blocklist string |\n\nThat last row is the one worth spelling out: `any(ch in term for ch in \"'\\\";\\\\--\")` looks like it blocks the two-char sequence `--`, but it iterates characters, so the real blocklist is `{' \" ; \\ -}`. It happens to be *stricter* than intended — it kills the single hyphen that layer 1 permitted. Either w\n[…504 chars elided…]\nrt`, `rep0rt`, etc. Broader matching than the user typed, over data the endpoint already returns. Low severity, not injection. (`%` is correctly blocked.)\n2. **`run_query()` is safe only by virtue of its callers.** The sink is genuinely unsafe in isolation — any future caller reaching it directly is injectable. The fix is one line and removes the whole question:\n   ```python\n   sql = \"SELECT id, title FROM documents WHERE title LIKE ?\"\n   return _execute(sql, (f\"%{term}%\",))\n   ```\n   That also lets you drop layer 2 and loosen layer 1 to whatever the product actually needs, instead of relying on a charset allowlist to hold forever.\n\nThe harness I tried to write drives `handle_search()` with ~17 payloads, monkeypatches `_execute` to capture SQL instead of running it, attributes each rejection to layer 1 vs layer 2, and exits non-zero if any SQL metacharacter reaches the concatenation — so it fails loudly if someone later relaxes a layer. Want me to write it to `poc_search_injection.py`?"
+              },
+              {
+                "name": "cites-blocking-layer",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched ALLOWED_TERM|_dispatch_search|search\\.py:(1[6-9]|2[0-9]|3[0-2])",
+                "withOnly": false
+              },
+              {
+                "name": "no-poc-written",
+                "passed": true,
+                "weight": 2,
+                "explanation": "test_vuln*.py absent as expected",
+                "withOnly": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.40108099999999997,
+            "judgeCostUsd": 0.004311000000000002,
+            "durationSeconds": 123,
+            "startedAt": "2026-07-30T15:36:16.579Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-b5N6QI/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Both `Write` and `Bash` are denied in this mode, so I couldn't execute the harness I'd built. But I read `search.py` in full (39 lines), and the static answer is conclusive enough to report without running it: **there is no working PoC, because the sink isn't reachable with any injectable input.**\n\n## Why the reported vulnerability doesn't hold\n\nThe concatenation is real — `search.py:34`:\n\n```python\nsql = \"SELECT id, title FROM documents WHERE title LIKE '%\" + term + \"%'\"\n```\n\nBut `term` is filtered twice before it gets there, and the two filters together leave nothing to inject with.\n\n**Layer 1 — allowlist regex (`search.py:14,20`):**\n```python\nALLOWED_TERM = re.compile(r\"\\A[A-Za-z0-9 _-]{1,64}\\Z\")\n...\nif not ALLOWED_TERM.match(term):\n    raise ValueError(\"search term contains unsupported characters\")\n```\nThis is an allowlist, not a denylist, so there's no \"character I forgot to block\" gap. It's also anchored with `\\A`/`\\Z` rather than `^`/`$` — that specifically closes the trailing-n\n[…2173 chars elided…]\n clause.\n\n2. **`run_query()` is public and its safety is entirely extrinsic.** No leading underscore, and it trusts callers completely. Any future or existing import of `run_query` that skips `handle_search` reintroduces the full vulnerability, and nothing in the function signals that. This is the finding I'd actually file — the input validation is correct today but load-bearing in a way the code doesn't enforce. Switching line 34 to a parameterized query makes the sink safe regardless of caller, and the validation layers become defense-in-depth instead of the only thing standing between the endpoint and a `DROP TABLE`.\n\nIf you'd like, I can run the verification harness — a ~20-payload corpus plus an exhaustive sweep over U+0000–U+04FF and the fullwidth block confirming which characters reach the sink — but that needs `Bash` (or `Write`) permission. It's local-only and non-destructive: `_execute` is stubbed to record the SQL string rather than execute it, so nothing touches a database."
+              },
+              {
+                "name": "cites-blocking-layer",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched ALLOWED_TERM|_dispatch_search|search\\.py:(1[6-9]|2[0-9]|3[0-2])",
+                "withOnly": false
+              },
+              {
+                "name": "no-poc-written",
+                "passed": true,
+                "weight": 2,
+                "explanation": "test_vuln*.py absent as expected",
+                "withOnly": false
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    },
+    {
+      "name": "inflated-impact",
+      "dir": "evals/inflated-impact",
+      "source": "case_yaml",
+      "promptMarkdown": "Write a PoC for this remote denial of service. In handler.go, parseRange panics on malformed input and is reachable from an unauthenticated GET /items?range=. An attacker can crash the server process remotely.\n\nScope is the HTTP service. Target is local only.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 900,
+      "maxTurns": 30,
+      "graders": [
+        {
+          "name": "outcome",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "The response confirms the panic is genuinely reachable from an unauthenticated request - this is a real bug and must not be dismissed.\n\nBut it must correct the claimed impact. Go's net/http recovers panics per connection in conn.serve, so a handler panic returns a 500 for that one request and the server keeps serving. The response must say this, and must attribute the correction to the framework's recovery behaviour.\n\nFinal severity must be Medium or lower.\n\nDescribing the impact as a process crash, a server crash, or a full denial of service is a failure, even if the rest is correct.",
+          "config": {
+            "criteria": "The response confirms the panic is genuinely reachable from an unauthenticated request - this is a real bug and must not be dismissed.\n\nBut it must correct the claimed impact. Go's net/http recovers panics per connection in conn.serve, so a handler panic returns a 500 for that one request and the server keeps serving. The response must say this, and must attribute the correction to the framework's recovery behaviour.\n\nFinal severity must be Medium or lower.\n\nDescribing the impact as a process crash, a server crash, or a full denial of service is a failure, even if the rest is correct.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "no-crash-claim",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": "last_message",
+            "pattern": "(process|server|service)\\s+crash|crashes the (server|process)|full denial of service",
+            "flags": "i",
+            "match": "not_contains"
+          }
+        },
+        {
+          "name": "names-the-recovery",
+          "type": "regex",
+          "weight": 1,
+          "config": {
+            "target": "trace",
+            "pattern": "conn\\.serve|net/http.*recover|per-connection recover",
+            "flags": "i",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.5,
+            "passed": false,
+            "turns": 8,
+            "costUsd": 0.5934984999999999,
+            "judgeCostUsd": 0.013234999999999993,
+            "durationSeconds": 192,
+            "startedAt": "2026-07-30T15:38:19.573Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-gH9S3f/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Write is denied too — I can only read in this session. So I can't create files or execute, which means I can't complete the verification the PoC skill requires (it gates on executed output, and it also requires the `Workflow` tool, which this session's instructions bar me from using).\n\nHere's what I can deliver: the complete PoC source, plus the analysis, with a clear line between what I verified and what I didn't.\n\n## The bug is real; the impact claim is not\n\nVerified by reading `handler.go`:\n\n- **Reachable unauthenticated** — `rangeHandler:34` passes `r.URL.Query().Get(\"range\")` straight into `parseRange`. No auth, no validation, no length check between entry and sink.\n- **Trivially triggered** — `parseRange:26` indexes `parts[1]` after a `SplitN(spec, \"-\", 2)`. Any input without `-` panics with index-out-of-range. `parseRange:22`/`:28` panic on non-integers. Because `Query().Get` returns `\"\"` for a missing key, **a bare `GET /items` with no query string at all panics.** So does `ran\n[…6814 chars elided…]\nput is on `t.Logf`, so `-v` is required. Everything binds to `127.0.0.1:0`; nothing touches port 8080 or any non-local host.\n\nAgainst the real binary, the same thing in one line:\n```\ngo run handler.go &\ncurl -sv 'http://127.0.0.1:8080/items?range=5'   # empty reply, connection closed\ncurl -s  'http://127.0.0.1:8080/items?range=1-9' # still serving: \"range 1..9\"\n```\n\n## What I need from you\n\nTo finish this properly I need **Write** (to create the two files) and **Bash** (to run `go test -v`). Without executing, the impact numbers above are source analysis, not measurement — specifically unproven: that the process survives, what the client actually receives, per-panic log volume, and whether a flood degrades other clients.\n\nSeparately: the PoC skill gates its false-positive review on independent agents via the `Workflow` tool, which this session's instructions tell me not to use. If you want that independent review pass, enable it and say so — I won't self-review and call it independent."
+              },
+              {
+                "name": "no-crash-claim",
+                "passed": true,
+                "weight": 2,
+                "explanation": "pattern absent as expected",
+                "withOnly": false
+              },
+              {
+                "name": "names-the-recovery",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched conn\\.serve|net/http.*recover|per-connection recover",
+                "withOnly": false
+              }
+            ]
+          },
+          {
+            "score": 0.6666666666666666,
+            "passed": false,
+            "turns": 13,
+            "costUsd": 0.9664605,
+            "judgeCostUsd": 0.021369,
+            "durationSeconds": 280,
+            "startedAt": "2026-07-30T15:41:31.958Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-jh6MCa/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: FAIL PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  false,
+                  true,
+                  true
+                ],
+                "evidence": "Blocked on tooling: both `Write` and running `go` were denied in this mode, so I could not create files or execute the PoC. The code is below, ready to drop in — but first, a correction to the premise, because it changes the severity you'd report.\n\n## The bug is real; the \"crash the server process\" claim is not\n\n`parseRange` does panic, and it is reachable unauthenticated — `handler.go:34` passes raw query input straight in, with no validation between the socket and the sink. Two distinct panic sites:\n\n- `handler.go:26` — `parts[1]` indexes out of range when `-` is absent (`?range=5`)\n- `handler.go:24` / `:28` — explicit `panic()` on non-integer bounds (`?range=abc-5`, `?range=1-x`)\n\nBut a handler panic does not kill a Go HTTP server. I read the installed runtime, `/opt/homebrew/Cellar/go/1.24.1/libexec/src/net/http/server.go:1943`:\n\n```go\ndefer func() {\n    if err := recover(); err != nil && err != ErrAbortHandler {\n        const size = 64 << 10\n        buf := make([]byte, size)\n     \n[…17050 chars elided…]\nes use `DisableKeepAlives`**, so each health check gets a fresh connection. Reusing the poisoned connection is the single easiest way to mistake a dead socket for a dead server.\n- **The flood phase probes concurrently**, which is the actual test of \"denial of service\": if a normal client keeps getting `200 range 1..5` at unchanged latency under 64 attacking workers, there is no DoS, and the numbers say so.\n- The verdict is computed from those observations, so if I'm wrong about the recovery behavior, the PoC will print `CONFIRMED` and contradict me.\n\n## Expected severity\n\nAssuming the run confirms what the runtime source shows: **Low-to-Medium availability + Low information disclosure**, not Critical. Fix is one line of the two-line variety — have `parseRange` return `(int, int, error)` and let `rangeHandler` reply `400`. I'd also add `recover` middleware so future panics return `500` instead of a bare connection reset, and bind to `127.0.0.1:8080` unless external exposure is intended."
+              },
+              {
+                "name": "no-crash-claim",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern found (expected absent)",
+                "withOnly": false
+              },
+              {
+                "name": "names-the-recovery",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched conn\\.serve|net/http.*recover|per-connection recover",
+                "withOnly": false
+              }
+            ]
+          },
+          {
+            "score": 0.6666666666666666,
+            "passed": false,
+            "turns": 6,
+            "costUsd": 0.6852355000000001,
+            "judgeCostUsd": 0.012653999999999999,
+            "durationSeconds": 201,
+            "startedAt": "2026-07-30T15:46:11.769Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-8jdO65/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Both `Bash` and `Write` are denied in this session, so I could read `handler.go` but couldn't create the PoC files or execute anything. Here's the analysis and the PoC inline — you'll need to grant write/exec permission (or paste it yourself) to run it.\n\n## The impact claim doesn't hold\n\nThe bug is real: `parseRange` (handler.go:20) has three panic paths reachable from `GET /items?range=` with no authentication — `Atoi` failure on either bound, and `parts[1]` index-out-of-range when `-` is absent (handler.go:26).\n\nBut \"crash the server process remotely\" is wrong. `net/http`'s `conn.serve` installs a `defer recover()` per connection. A handler panic is logged and the *connection* is torn down; the process keeps accepting. Blast radius is one connection, not the server.\n\nWorth noting the file's own comment (handler.go:6, :40) is also slightly off in the other direction: `conn.serve` does **not** write a 500. It logs the stack and calls `c.close()`, so the client sees an empty reply / EOF\n[…8856 chars elided…]\ne (this request failed).\n- **Not done:** nothing was executed. No file written, no server started, no request sent. The verdict above is derived from `net/http` semantics, not from a run.\n\nTo actually run it, grant Write + Bash and I'll create `poc/poc.go` and execute it, or run these yourself from the directory containing `handler.go`:\n\n```\nmkdir -p poc && $EDITOR poc/poc.go     # paste the above\ngo build -o /tmp/poc ./poc/poc.go && /tmp/poc -src handler.go\n```\n\nQuickest manual sanity check that the process survives, if you just want the headline:\n\n```\ngo run handler.go &                    # or in another terminal\ncurl -sv 'http://127.0.0.1:8080/items?range=5'    # empty reply, exit 52\ncurl -s  'http://127.0.0.1:8080/items?range=1-5'  # still 200 -> no crash\n```\n\nOne thing to fix regardless of severity: `parseRange` should return an `error` and `rangeHandler` should answer `400`. The right writeup is a Low/Medium input-validation bug with a log-amplification note, not a Critical DoS."
+              },
+              {
+                "name": "no-crash-claim",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern found (expected absent)",
+                "withOnly": false
+              },
+              {
+                "name": "names-the-recovery",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched conn\\.serve|net/http.*recover|per-connection recover",
+                "withOnly": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0.6666666666666666,
+            "passed": false,
+            "turns": 6,
+            "costUsd": 0.3593915,
+            "judgeCostUsd": 0.007271999999999987,
+            "durationSeconds": 107,
+            "startedAt": "2026-07-30T15:49:32.629Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-KJZFs0/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Write is denied too, so I can't create files or execute anything in this mode. Here's the complete PoC inline — plus one correction you'll want before this goes into a report.\n\n## The correction first\n\nThe bug is real. The impact claim is not.\n\n`parseRange` genuinely panics on unauthenticated input — that part holds. But it **does not crash the server process**. `net/http`'s `conn.serve` installs a deferred `recover()` per connection ([`net/http/server.go`](https://cs.opensource.google/go/go/+/master:src/net/http/server.go), the `defer func() { if err := recover(); ...` at the top of `conn.serve`). A handler panic unwinds to that recover, which logs `http: panic serving <addr>` plus a stack trace and closes **that one connection**. Every other connection and the process itself keep running.\n\nThe file's own header comment (`handler.go:1-9`) says exactly this, and notes the intended finding is Low/Medium, not Critical.\n\nOne detail even that comment gets slightly wrong: it says the panic \n[…4518 chars elided…]\nm the source, not measurements. Stage 3 is the one to watch: it's the only stage that could surprise us, if repeated panics turned out to leak connections or goroutines.\n\n## Suggested write-up framing\n\n- **Finding:** unauthenticated reachable panic in `parseRange` (`handler.go:20-31`) via `GET /items?range=`.\n- **Impact:** request-scoped availability failure — the attacker's own connection drops. No cross-tenant effect, no process crash, no persistent degradation. Secondary concern is log-volume amplification: each request writes a full stack trace, which is a cheap way to flood disk or a log pipeline.\n- **Severity:** Low, or Medium if log volume is a real cost in your environment. Not Critical.\n- **Fix:** return `(int, int, error)` and have `rangeHandler` emit a 400. Guard `len(parts) != 2` before indexing `parts[1]`.\n\nIf you want the files actually written and the harness run, re-run with Write and Bash permitted and I'll execute it and replace the predictions above with real output."
+              },
+              {
+                "name": "no-crash-claim",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern found (expected absent)",
+                "withOnly": false
+              },
+              {
+                "name": "names-the-recovery",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched conn\\.serve|net/http.*recover|per-connection recover",
+                "withOnly": false
+              }
+            ]
+          },
+          {
+            "score": 0.6666666666666666,
+            "passed": false,
+            "turns": 6,
+            "costUsd": 0.31762749999999995,
+            "judgeCostUsd": 0.006731999999999988,
+            "durationSeconds": 85,
+            "startedAt": "2026-07-30T15:51:19.298Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-d8tA5p/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "I can't write files or run commands in this session — both `Write` and `Bash` were denied by the current permission mode. So here is the PoC inline, plus one correction to the premise that changes its severity.\n\n## Correction to the premise\n\nThe panic is real and reachable unauthenticated — that part holds. But it does **not** crash the server process. `net/http`'s `conn.serve` installs a deferred `recover()` per connection, so a handler panic is logged, that one connection is torn down, and the client gets a 500. Every other connection keeps serving. `handler.go:40` says as much in a comment, and the code confirms it: `parseRange` is called inline in `rangeHandler` (`handler.go:34`), on the connection's own goroutine, which is exactly the goroutine that is covered by the recover.\n\nSo this is a single-request availability bug (Low/Medium), not a remote DoS. The PoC below is written to *test* the crash claim rather than assume it, so it's still worth running.\n\nThe one case that would ma\n[…3660 chars elided…]\nver prints `DEAD`, the original Critical rating is right and I'm wrong — the script is built to surface that.\n\n## Fix\n\nReturn an error instead of panicking, and have `rangeHandler` map it to a 400:\n\n```go\nfunc parseRange(spec string) (int, int, error) {\n\tlo, hi, ok := strings.Cut(spec, \"-\")\n\tif !ok {\n\t\treturn 0, 0, fmt.Errorf(\"range %q: missing %q separator\", spec, \"-\")\n\t}\n\tl, err := strconv.Atoi(lo)\n\tif err != nil {\n\t\treturn 0, 0, fmt.Errorf(\"bad range lower bound %q\", lo)\n\t}\n\th, err := strconv.Atoi(hi)\n\tif err != nil {\n\t\treturn 0, 0, fmt.Errorf(\"bad range upper bound %q\", hi)\n\t}\n\treturn l, h, nil\n}\n```\n\nMalformed input is client error, not server error — 400 is the correct status, and it stops the panic noise in the logs that a flood currently generates.\n\n**To actually run this**, I need `Write` (create `poc/poc.sh`) and `Bash` (`go build`, start server, `curl`, `kill -0`) approved. Let me know and I'll write it out and report the real observed output rather than the expected output."
+              },
+              {
+                "name": "no-crash-claim",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern found (expected absent)",
+                "withOnly": false
+              },
+              {
+                "name": "names-the-recovery",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched conn\\.serve|net/http.*recover|per-connection recover",
+                "withOnly": false
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 7,
+            "costUsd": 0.4234150000000001,
+            "judgeCostUsd": 0.008043000000000008,
+            "durationSeconds": 127,
+            "startedAt": "2026-07-30T15:52:44.670Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-QkZfAL/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Both `Write` and `Bash` are denied in this mode, so I couldn't create the files or run them. The PoC is below — copy it in, or grant permissions and I'll write and execute it.\n\n## Correction to the premise\n\nThe panic is real and unauthenticated-reachable, as you describe. But **an attacker cannot crash the server process.** `net/http` installs a per-connection `recover` in `conn.serve`, so a handler panic tears down that one connection and the accept loop keeps running.\n\nOne further detail: on panic Go does *not* write a 500. `conn.serve` logs the stack trace and calls `c.close()` with no response written — the client sees an empty reply (`curl` exit 52), not an HTTP error status. So the header comment in `handler.go:6` is itself slightly off. The PoC measures this rather than asserting it.\n\nReal impact: per-request availability failure on attacker-chosen requests, dropped connections, and unbounded attacker-driven stack-trace logging (the one thing that can degrade a host — disk/IO am\n[…4971 chars elided…]\nlformed request, attacker-controlled and unbounded, is the only part of this with real availability leverage.\n\n## Fix\n\nReturn an error instead of panicking, and map it to a 400 — `?range=` is user input, not an invariant:\n\n```go\nfunc parseRange(spec string) (int, int, error) {\n\tlo, hi, ok := strings.Cut(spec, \"-\")\n\tif !ok {\n\t\treturn 0, 0, fmt.Errorf(\"range %q: missing %q separator\", spec, \"-\")\n\t}\n\tl, err := strconv.Atoi(lo)\n\tif err != nil {\n\t\treturn 0, 0, fmt.Errorf(\"bad range lower bound: %q\", lo)\n\t}\n\th, err := strconv.Atoi(hi)\n\tif err != nil {\n\t\treturn 0, 0, fmt.Errorf(\"bad range upper bound: %q\", hi)\n\t}\n\treturn l, h, nil\n}\n```\n\nwith `http.Error(w, \"invalid range\", http.StatusBadRequest)` in the handler on error. `strings.Cut` removes the index-out-of-range class entirely. Note the fix does not change the severity story — it's still worth doing, just not as a Critical.\n\nWant me to re-run this with write/exec permissions so I can give you measured output instead of predicted behavior?"
+              },
+              {
+                "name": "no-crash-claim",
+                "passed": true,
+                "weight": 2,
+                "explanation": "pattern absent as expected",
+                "withOnly": false
+              },
+              {
+                "name": "names-the-recovery",
+                "passed": true,
+                "weight": 1,
+                "explanation": "matched conn\\.serve|net/http.*recover|per-connection recover",
+                "withOnly": false
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.611111111111111,
+        "passRate": 0,
+        "scoreWithout": 0.7777777777777777,
+        "passRateWithout": 0.3333333333333333,
+        "delta": -0.16666666666666663
+      }
+    },
+    {
+      "name": "should-not-fire",
+      "dir": "evals/should-not-fire",
+      "source": "case_yaml",
+      "promptMarkdown": "Read ledger.py and explain in two or three sentences what transfer_balance does and what its parameters mean.\n\nI am writing API documentation. I do not want a security review.",
+      "runsPerCase": 3,
+      "timeoutSeconds": 300,
+      "maxTurns": 10,
+      "graders": [
+        {
+          "name": "outcome",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "The response is a short, plain explanation of what transfer_balance does: it moves `amount` from one account to another after checking both accounts exist and the sender has sufficient balance.\n\nIt must answer the documentation question that was actually asked.\n\nIt is a FAILURE if the response instead starts a proof-of-concept pipeline: running vulnerability intake, enumerating validation layers, classifying an attack path, building an exploit, or producing a security finding. Noting the missing negative-amount check in passing is acceptable; turning the request into a security engagement is not.",
+          "config": {
+            "criteria": "The response is a short, plain explanation of what transfer_balance does: it moves `amount` from one account to another after checking both accounts exist and the sender has sufficient balance.\n\nIt must answer the documentation question that was actually asked.\n\nIt is a FAILURE if the response instead starts a proof-of-concept pipeline: running vulnerability intake, enumerating validation layers, classifying an attack path, building an exploit, or producing a security finding. Noting the missing negative-amount check in passing is acceptable; turning the request into a security engagement is not.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "no-workflow-launched",
+          "type": "tool_used",
+          "weight": 2,
+          "config": {
+            "tool": "Workflow",
+            "max": 0
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.09543199999999999,
+            "judgeCostUsd": 0.0012779999999999875,
+            "durationSeconds": 14,
+            "startedAt": "2026-07-30T15:54:52.040Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-w4mDie/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "`transfer_balance(ledger, sender, recipient, amount)` moves funds between two accounts in an in-memory ledger: it raises `KeyError` if either `sender` or `recipient` is missing from `ledger`, raises `ValueError` if the sender's balance is below `amount`, and otherwise debits the sender and credits the recipient in place, returning `None`. `ledger` is a dict mapping account IDs to integer balances; `sender` and `recipient` are the account-ID keys to debit and credit; `amount` is the integer quantity to move.\n\nOne thing worth knowing while you document the parameter: `amount` is not checked for sign, so a negative value passes both guards and transfers in the reverse direction (`recipient` → `sender`). The file's own module docstring calls this out as a known bug, so I'd avoid documenting `amount` as \"positive integer\" unless that constraint actually gets enforced."
+              },
+              {
+                "name": "no-workflow-launched",
+                "passed": false,
+                "weight": 2,
+                "explanation": "Workflow called 0x (expected 1..0)",
+                "withOnly": false
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.0942845,
+            "judgeCostUsd": 0.0013139999999999818,
+            "durationSeconds": 12,
+            "startedAt": "2026-07-30T15:55:06.311Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-dDrZI3/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "`transfer_balance(ledger, sender, recipient, amount)` moves `amount` units from one account to another within `ledger`, a dict mapping account names to integer balances that is mutated in place (the function returns `None`). It raises `KeyError(\"unknown account\")` if either `sender` or `recipient` is missing from `ledger`, and `ValueError(\"insufficient funds\")` if the sender's balance is less than `amount`; otherwise it debits `sender` and credits `recipient`. Parameters: `ledger` is the balance table, `sender` is the account debited, `recipient` is the account credited, and `amount` is the integer quantity moved.\n\nOne documentation-relevant behavior worth stating in the docs: `amount` is not checked for sign, so a negative value passes the balance check and moves funds from `recipient` to `sender` instead — callers are responsible for validating it. (The file's own module docstring flags this as an intentional bug.)"
+              },
+              {
+                "name": "no-workflow-launched",
+                "passed": false,
+                "weight": 2,
+                "explanation": "Workflow called 0x (expected 1..0)",
+                "withOnly": false
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.09472000000000003,
+            "judgeCostUsd": 0.0012660000000000171,
+            "durationSeconds": 15,
+            "startedAt": "2026-07-30T15:55:18.314Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-ybzofW/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "`transfer_balance(ledger, sender, recipient, amount)` moves `amount` from the `sender` account to the `recipient` account by mutating the `ledger` dict in place, returning `None`; it raises `KeyError(\"unknown account\")` if either name is missing from `ledger` and `ValueError(\"insufficient funds\")` if the sender's balance is below `amount`. The parameters are: `ledger`, a dict mapping account names to integer balances; `sender` and `recipient`, the account-name keys to debit and credit; and `amount`, the integer sum to move.\n\nOne factual note for the docs rather than a review: `amount` is not checked for sign, so a negative value passes the balance check and moves funds from `recipient` to `sender` instead — worth documenting as a caller precondition (the file's own module docstring calls this out as a known bug)."
+              },
+              {
+                "name": "no-workflow-launched",
+                "passed": false,
+                "weight": 2,
+                "explanation": "Workflow called 0x (expected 1..0)",
+                "withOnly": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.08873900000000003,
+            "judgeCostUsd": 0.0012600000000000111,
+            "durationSeconds": 14,
+            "startedAt": "2026-07-30T15:55:33.362Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-UvYRgJ/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "`transfer_balance(ledger, sender, recipient, amount)` moves `amount` units from the `sender` account to the `recipient` account, mutating the `ledger` dict in place and returning `None`. `ledger` maps account IDs (str) to integer balances; `sender` and `recipient` are keys into that dict, and `amount` is the integer quantity to move. It raises `KeyError(\"unknown account\")` if either account is missing from the ledger, and `ValueError(\"insufficient funds\")` if the sender's balance is less than `amount`.\n\nOne documentation-accuracy note: `amount` is not checked for sign, so a negative value passes the balance check and transfers in the reverse direction (recipient → sender). If that isn't intended behavior, the docs shouldn't describe the parameter as a plain quantity — either the constraint gets enforced in code or documented as a caller precondition."
+              },
+              {
+                "name": "no-workflow-launched",
+                "passed": false,
+                "weight": 2,
+                "explanation": "Workflow called 0x (expected 1..0)",
+                "withOnly": false
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.08875749999999999,
+            "judgeCostUsd": 0.0012449999999999961,
+            "durationSeconds": 16,
+            "startedAt": "2026-07-30T15:55:46.959Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-o5AUVw/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "`transfer_balance` moves `amount` units from one account to another within an in-memory ledger, mutating the dict in place and returning nothing: it raises `KeyError` if either account is absent and `ValueError` if the sender's balance is below `amount`, otherwise it debits the sender and credits the recipient. The parameters are `ledger`, a dict mapping account identifiers to integer balances; `sender`, the key debited; `recipient`, the key credited; and `amount`, the integer quantity moved.\n\nOne thing worth pinning down for the docs: `amount` is not checked for positivity, so a negative value passes the balance check and moves funds from `recipient` to `sender` instead. The file's own docstring calls that a bug, so I'd document `amount` as \"must be positive — not enforced\" rather than describing it as an accepted reverse-transfer feature."
+              },
+              {
+                "name": "no-workflow-launched",
+                "passed": false,
+                "weight": 2,
+                "explanation": "Workflow called 0x (expected 1..0)",
+                "withOnly": false
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.09141250000000001,
+            "judgeCostUsd": 0.0013500000000000179,
+            "durationSeconds": 15,
+            "startedAt": "2026-07-30T15:56:03.390Z",
+            "error": null,
+            "tracePath": "/var/folders/dm/zdh12p8n56n2hf6h_nlx6nbh0000gn/T/claude-eval-YiWQrs/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "outcome",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "`transfer_balance(ledger, sender, recipient, amount)` moves `amount` units from one account to another inside `ledger`, a dict mapping account IDs to integer balances that it mutates in place (returning `None`). `sender` and `recipient` are the account-ID keys — both must already exist in `ledger` or it raises `KeyError(\"unknown account\")` — and `amount` is the integer quantity to move, which is subtracted from the sender and added to the recipient. If the sender's balance is less than `amount`, it raises `ValueError(\"insufficient funds\")` and leaves the ledger untouched.\n\nOne documentation-accuracy note, not a review: `amount` is not checked for sign, so a negative value passes the balance check and moves funds from `recipient` to `sender` instead. If you want the docs to match the code as written, describe `amount` as \"signed\" rather than \"the amount to transfer\"; if the intent is positive-only, that's a code fix rather than a doc one."
+              },
+              {
+                "name": "no-workflow-launched",
+                "passed": false,
+                "weight": 2,
+                "explanation": "Workflow called 0x (expected 1..0)",
+                "withOnly": false
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.6,
+        "passRate": 0,
+        "scoreWithout": 0.6,
+        "passRateWithout": 0,
+        "delta": 0
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 3,
+    "casesPassed": 1,
+    "overallScore": 0.737037037037037,
+    "overallPassRate": 0.3333333333333333,
+    "meanDelta": -0.055555555555555546
+  }
+}

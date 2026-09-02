@@ -91,7 +91,7 @@ jobs:
         # suite turns that into a failure rather than a skip; this makes it not happen.
         with:
           node-version: "22"
-      - name: Install pytest and semgrep
+      - name: Install pytest, semgrep, PyYAML, and jsonschema
         # The rust-review / c-review test files are pytest-based.
         #
         # semgrep grades semgrep-rule-variant-creator's golden variant fixtures, which are
@@ -104,7 +104,11 @@ jobs:
         # less than none. A release that stops grading those two rules is also a result worth
         # having rather than one to hold off: a parser moving behind Pro is the failure that
         # plugin exists to catch.
-        run: python3 -m pip install pytest semgrep
+        #
+        # PyYAML and jsonschema are required by fp-check's suite at collection time
+        # to load eval cases and validate workflow schemas. Keep this list in step
+        # with the Makefile's python-tests target.
+        run: python3 -m pip install pytest semgrep pyyaml jsonschema
       - name: Install uv
         # c-review's scripts are PEP 723 and run under `uv run`; its parser tests
         # fail rather than skip when uv is missing, on purpose — a skipped parser
@@ -181,40 +185,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "22"
       - name: Discover and run plugin JS test suites
-        shell: bash
-        run: |
-          # Same shape as the Python and shell discovery above, and for the same
-          # reason: an empty result is a failure, not a pass. These suites assert
-          # that a branch-deleting workflow fails closed, so a discovery glob that
-          # silently matches nothing is worse than having no suite at all.
-          #
-          # The second guard covers execution rather than discovery. `node <file>`
-          # exits 0 on a file that asserted nothing — the shape the Python job's
-          # comment above describes — so each suite must report at least one
-          # passing assertion. Two formats count, because the repo has two kinds
-          # of suite and a guard that only knew one would fail an honest suite for
-          # using the other convention:
-          #   `<mark> pass <n>`        node:test (semgrep-rule-variant-creator)
-          #   `<n> assertions passed`  hand-rolled (git-cleanup)
-          # The mark is multi-byte, so the pattern must not anchor on `^.` — that
-          # matches a single byte in the C locale and would reject an honest suite.
-          set -uo pipefail
-          mapfile -d '' suites < <(find plugins -type f -name '*.test.mjs' -print0)
-          if [ "${#suites[@]}" -eq 0 ]; then
-            echo "ERROR: no .test.mjs suites found — discovery is broken"
-            exit 1
-          fi
-          failed=0
-          for s in "${suites[@]}"; do
-            echo "::group::$s"
-            if out=$(node "$s" 2>&1); then :; else failed=1; fi
-            echo "$out"
-            if ! grep -qE '(^[1-9][0-9]* assertions passed$|^[^0-9]*[[:space:]]pass [1-9][0-9]*$)' <<<"$out"; then
-              echo "ERROR: $s reported no passing assertions — it ran nothing"
-              failed=1
-            fi
-            echo "::endgroup::"
-          done
-          echo "Ran ${#suites[@]} JS suite(s)"
-          exit "$failed"
+        # Keep CI and local discovery identical, including the guard that a plugin
+        # shipping workflows/ also ships a logic/wiring harness (or records debt).
+        run: make js-tests

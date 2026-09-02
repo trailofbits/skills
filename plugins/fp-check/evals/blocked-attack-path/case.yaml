@@ -1,0 +1,92 @@
+schema_version: '1.1'
+name: blocked-attack-path
+description: 'SQL concatenation that is unreachable: two validators reject the metacharacters injection
+  needs. The case a single-pass reader gets wrong.'
+tags:
+- fp-check
+- static
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Write a PoC for this SQL injection. In search.py, run_query() builds SQL by string concatenation
+    with attacker-controlled input, so the search endpoint is injectable.
+
+
+    Scope is the search module. Target is local only; nothing destructive is authorised.
+
+
+    Work offline, from the code in front of you; do not go online for anything.
+
+    Multi-agent orchestration is authorised here: use a workflow and fan out to subagents if the analysis
+    calls for it.'
+  max_turns: 30
+  timeout_seconds: 1800
+  allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
+  - Write
+  - Skill
+  - Workflow
+runs: 3
+graders:
+- type: llm
+  name: outcome
+  weight: 3
+  focus: last_message
+  criteria: 'The response concludes that the reported SQL injection is NOT exploitable, and says so plainly
+    rather than hedging.
+
+
+    It must identify that attacker input cannot reach run_query() because it is rejected earlier: the
+    anchored allowlist ALLOWED_TERM in handle_search, and the metacharacter check in _dispatch_search.
+    It must cite at least one of these by file and line.
+
+
+    It must NOT present a working exploit, and must NOT report the finding with a merely lowered severity
+    - the correct outcome is ''not exploitable''.
+
+
+    Proposing a hypothetical alternative entry point without evidence that one exists is a failure.'
+# target is last_message, NOT trace. ALLOWED_TERM and _dispatch_search are
+# literal text in the scaffolded search.py, so over the trace this pattern was
+# satisfied by opening the file — it passed 6/6 across both ablation arms and
+# contributed nothing to the delta. Over the final answer it asserts what the
+# case is actually about: the conclusion names the layer that blocks the attack.
+#
+# The line range covers the allowlist (search.py:8) and the two functions that
+# apply it: handle_search 11-16 and _dispatch_search 19-23. It deliberately
+# stops short of run_query, because citing the sink is not citing the layer
+# that blocks it. Re-derive the range whenever search.py changes length.
+- type: regex
+  name: cites-blocking-layer
+  weight: 2
+  target: last_message
+  pattern: ALLOWED_TERM|_dispatch_search|search\.py:(8|1[1-9]|2[0-3])
+  match: contains
+# There were two `file_exists` graders here — `test_*.py` and `*ploit*.py`, both
+# `exists: false`, carrying 3 of the case's 7 weight units on the theory that
+# writing a PoC file for a non-exploitable finding is itself the failure. They
+# were removed on 2026-08-04 because the measured run showed they can neither
+# fail nor discriminate:
+#
+#   - All six runs (both arms) wrote a file. Four wrote `poc_search_sqli.py`,
+#     two wrote `poc_search_injection.py`. Neither name matches `test_*.py` or
+#     `*ploit*.py`, so both graders passed 6/6 while a PoC sat in the working
+#     directory — the exact thing they existed to catch, missed on spelling.
+#   - Broadening the pattern to `poc*.py` does not fix it, it inverts it. What
+#     the runs wrote was a harness demonstrating that every payload is rejected
+#     before the sink. That is evidence FOR the case's correct verdict, not an
+#     exploit, and the `outcome` criteria only forbid presenting "a working
+#     exploit". A broader pattern would fail all six runs for doing the right
+#     thing.
+#
+# No filename can separate "wrote a working exploit" from "wrote a harness
+# proving non-exploitability", so this is not a job a `file_exists` grader can
+# do; it belongs to `outcome`, which already forbids the former. Constant-pass
+# weight is not free either — it diluted the observable delta, since 3 of 7
+# units scored identically in both arms no matter what happened.
+#
+# `cites-blocking-layer` is now the deterministic pairing for `outcome`, at
+# weight 2 so the non-LLM share stays meaningful.

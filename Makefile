@@ -3,7 +3,7 @@
 # being trustworthy and everyone goes back to pushing and waiting.
 #
 # CI jobs covered: Lint (pre-commit: ruff, shellcheck, shfmt), Shell (bats),
-# Python tests, and Validate plugins and skills.
+# Python tests, JS tests, and Validate plugins and skills.
 #
 # RUFF_VERSION must match the ruff-pre-commit rev in .pre-commit-config.yaml. The
 # validator self-test asserts that; bump both together.
@@ -115,6 +115,14 @@ shell-suites:
 # block exits 0 under the loop having run nothing, which reads as a pass.
 # --import-mode=importlib is required — c-review and rust-review both ship
 # scripts/test_split.py, and the default import mode collides on the basename.
+#
+# pyyaml and jsonschema are not optional extras. fp-check's suite imports `yaml`
+# at module scope to read its eval cases and `jsonschema` to validate the schemas
+# its workflow scripts declare; with `--with pytest` alone those files error
+# during collection rather than failing informatively, and a collection error in
+# one directory is easy to read as "nothing to run here". Keep this list in step
+# with the CI job's pip install.
+#
 # evals*/fixture is excluded: those files are deliberately defective sample code
 # that a skill's eval measures against, so they are meant to fail — property-based-
 # testing's fixture ships a vacuous `assume()` test that raises FailedHealthCheck by
@@ -133,18 +141,20 @@ python-tests:
 	failed=0; ran=0; \
 	for d in $$dirs; do \
 		echo "  → $$d"; \
-		( cd "$$d" && uv run --no-project --with pytest python3 -m pytest -q \
-			--import-mode=importlib . ) || failed=1; \
+		( cd "$$d" && uv run --no-project --with pytest --with pyyaml --with jsonschema \
+			python3 -m pytest -q --import-mode=importlib . ) || failed=1; \
 		ran=$$((ran + 1)); \
 	done; \
 	echo "  ran $$ran test director(ies)"; \
 	exit $$failed
 
 ## js-tests: node suites a plugin ships as *.test.mjs
-# Two guards, because discovery and execution fail independently. An empty glob is a
-# failure, as in python-tests. And `node <file>` runs a file that asserts nothing just
-# as happily as one that asserts everything — the same shape python-tests moved away
-# from — so each suite must also report at least one passing assertion.
+# Three guards, because workflow coverage, discovery, and execution fail independently.
+# Every dynamic-workflow plugin needs a logic/wiring harness unless it is recorded as
+# existing debt below. An empty JS glob is a failure, as in python-tests. And
+# `node <file>` runs a file that asserts nothing just as happily as one that asserts
+# everything — the same shape python-tests moved away from — so each suite must also
+# report at least one passing assertion.
 #
 # Two report formats count, because the repo has two kinds of suite and a guard that
 # only knew one would fail an honest suite for using the other convention:
@@ -156,9 +166,38 @@ python-tests:
 # is a multi-byte character, and this recipe runs under /bin/sh in whatever locale the
 # machine has; `^.` matches one BYTE in the C locale, so anchoring on it passes locally
 # and fails in CI.
+WORKFLOW_TESTS_DEBT := audit-context-building insecure-defaults spec-to-code-compliance variant-analysis
+
 js-tests:
 	@echo "→ js tests"
-	@files=$$(find plugins -type f -name '*.test.mjs' | sort); \
+	@workflow_dirs=$$(find plugins -mindepth 2 -maxdepth 2 -type d -name workflows); \
+	if [ -z "$$workflow_dirs" ]; then \
+		echo "  ✗ no plugins/*/workflows/ directories found — discovery is broken"; \
+		exit 1; \
+	fi; \
+	for d in $$workflow_dirs; do \
+		plugin=$${d%/workflows}; \
+		name=$${plugin#plugins/}; \
+		harnesses=""; \
+		if [ -d "$$plugin/tests" ]; then \
+			harnesses=$$(find "$$plugin/tests" -maxdepth 1 -type f \
+				\( -name '*.test.mjs' -o -name 'test_workflow*.py' \
+				-o -name 'run_workflow_tests.sh' \)); \
+		fi; \
+		if [ -z "$$harnesses" ]; then \
+			known_debt=0; \
+			for known in $(WORKFLOW_TESTS_DEBT); do \
+				if [ "$$name" = "$$known" ]; then known_debt=1; fi; \
+			done; \
+			if [ "$$known_debt" -eq 1 ]; then \
+				echo "  ⚠ $$plugin has no workflow logic harness (known debt)"; \
+			else \
+				echo "  ✗ $$plugin ships workflows/ but has no workflow logic harness"; \
+				exit 1; \
+			fi; \
+		fi; \
+	done; \
+	files=$$(find plugins -type f -name '*.test.mjs' | sort); \
 	if [ -z "$$files" ]; then \
 		echo "  ✗ no .test.mjs files found — discovery is broken"; \
 		exit 1; \

@@ -1,0 +1,113 @@
+schema_version: '1.1'
+name: online-known-duplicate
+description: A real bug in a real public project that was disclosed and fixed upstream months ago.
+  The code is genuinely wrong, so a static-only reading correctly calls it real - and filing it
+  would duplicate a published advisory. Only a run that actually goes online can know that.
+tags:
+- fp-check
+# The tag that keeps this case OUT of the seven-case static numbers. Stage 2 has
+# never run in a graded run, and its premise is public evidence the synthetic
+# fixtures do not have, so mixing it into that mean would compare two different
+# things. test_online_cases_are_tagged_and_pinned_consistently holds the tag and
+# the prompt's pinned answer together.
+- online
+context:
+  scaffold_script: scaffold.sh
+execution:
+  # The version is stated because a triage without one cannot check an advisory
+  # range, and the project and URL are stated because looking up the wrong
+  # project is the documented way this goes quietly wrong. What is NOT stated is
+  # anything that identifies the advisory: no identifier, no date, no "this may
+  # be known". Finding that is the work.
+  prompt: |-
+    Reviewing a dependency: python-dotenv 1.2.1, from https://github.com/theskumar/python-dotenv.
+
+    In `dotenv/main.py`, the `rewrite()` context manager writes the new .env content to a
+    NamedTemporaryFile in the system temp directory and then calls `shutil.move(dest.name, path)`.
+    `set_key()` and `unset_key()` both go through it. If `path` is a symlink and the temp file is
+    on a different filesystem, the move falls back to a copy that follows the link, so a local
+    user who can pre-place a symlink where a deploy script later calls `set_key()` gets an
+    arbitrary file overwrite as that process. We are about to file this upstream.
+
+    Check the project's published security policy and advisories, and look for duplicates, before
+    we send anything. Do not write a PoC.
+
+    Multi-agent orchestration is authorised here: use a workflow and fan out to subagents if the
+    analysis calls for it.
+
+    Tell us whether to file this, and state the deciding evidence in your final response.
+  max_turns: 40
+  timeout_seconds: 1800
+  allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
+  - Write
+  - WebFetch
+  - WebSearch
+  - Skill
+  - Workflow
+runs: 3
+graders:
+- type: llm
+  name: outcome
+  weight: 3
+  focus: last_message
+  criteria: |-
+    The response must reach the conclusion that this bug is ALREADY PUBLICLY REPORTED and fixed
+    upstream, and that filing it again is not warranted. It must cite the published advisory by
+    its identifier.
+
+    Confirming the bug is real is correct and is not a failure on its own - the code genuinely
+    follows symlinks and shutil.move genuinely falls back to a copy across filesystems. The
+    failure this case measures is stopping there: a response that says "confirmed, file it" has
+    done the static half and skipped the half that saves the report.
+
+    It is also a failure to claim the bug does not exist, to claim the code is fine, or to
+    dismiss it as a false positive. It was real; it was reported by someone else first.
+
+    A response that says it could not reach the network, and stops there rather than guessing,
+    is NOT a failure of reasoning - but it has not answered the question either. Score it as a
+    failure of the run, and say in the explanation that the network was unavailable.
+# The identifier, which is the whole point of the case: a GHSA id is 12 random
+# characters from a restricted alphabet and CANNOT be guessed, inferred from the
+# code, or reasoned to. It appears nowhere in the prompt and nowhere in the
+# scaffolded source. The only way into the last message is to have gone and read
+# the advisory.
+#
+# Ground truth is therefore free: it is public record, and a `GHSA-` id cannot be
+# guessed. That is why this case exists rather than an offline one with a
+# hand-written key.
+#
+# The CVE alternative is accepted because the advisory carries both and either
+# one proves the same thing. Deliberately NOT accepted: the bare words
+# "duplicate", "already reported" or "advisory", which a run can produce by
+# guessing that a bug in a popular library is probably known.
+- type: regex
+  name: cites-the-published-advisory
+  weight: 2
+  target: last_message
+  flags: i
+  pattern: GHSA-mf9w-mj56-hr94|CVE-2026-28684
+  match: contains
+# There WAS a third grader here, `actually-went-online`, requiring WebFetch at
+# least once. It was meant to close a real hole: this advisory was published
+# 2026-04-19, inside some training data, so an identifier can in principle arrive
+# from memory rather than from a lookup.
+#
+# It was removed after its first measured run, because it graded TOOL CHOICE and
+# not behaviour. All six runs went online and all six found the advisory; two
+# with-plugin runs did it with `Bash` (gh / curl) instead of WebFetch and were
+# failed for it. The grader turned a 1.000 into 0.833 twice and manufactured a
+# -0.111 delta on a case where both arms were correct.
+#
+# `tool_used` names ONE tool, so "any of WebFetch, WebSearch or Bash" is not
+# expressible, and Bash alone is vacuous here — the already-fixed search runs
+# `git log` through it without leaving the machine. The from-memory hole is real
+# and is now UNCOVERED; closing it needs a grader that can read the trace for a
+# network call, which this schema does not offer.
+#
+# This is the same class as `names-the-integration-root-cause` accepting the bare
+# token `integration`: a deterministic grader that passes or fails on something
+# adjacent to the thing it is named for.

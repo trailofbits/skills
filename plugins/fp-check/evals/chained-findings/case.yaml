@@ -1,0 +1,89 @@
+schema_version: '1.1'
+name: chained-findings
+description: 'Two findings that only compose: a shell injection behind a role check that blocks it,
+  and a session decoder that lets the caller name their own role. Each is answerable alone; the
+  combination is not, and no single-finding pass can see it.'
+tags:
+- fp-check
+- batch
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: |-
+    Two findings came out of a scan of this service. Triage both.
+
+    BUG-1  Command injection in app/admin.py. rotate_logs() interpolates the caller-supplied
+           `target` into a shell string passed to subprocess.run with shell=True, so
+           POST /admin/rotate with target=";id" runs a command as the service user.
+
+    BUG-2  Privilege escalation in app/auth.py. load_session() takes `role` straight out of the
+           client-supplied session cookie, so a caller can name their own.
+
+    Scope is the maintenance API. Target is local only; nothing destructive is authorised.
+
+    Do not build a proof of concept; static analysis only.
+
+    Work offline, from the code in front of you; do not go online for anything.
+
+    Multi-agent orchestration is authorised here: use a workflow and fan out to subagents if the
+    analysis calls for it.
+
+    Report a verdict for every finding, with the deciding evidence, in your final response.
+  max_turns: 40
+  timeout_seconds: 2400
+  allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
+  - Write
+  - Skill
+  - Workflow
+runs: 3
+graders:
+- type: llm
+  name: outcome
+  weight: 3
+  focus: last_message
+  criteria: |-
+    The response must reach a verdict on BOTH findings and must state that they combine.
+
+    BUG-2 is real: load_session in app/auth.py copies `role` out of the client-supplied cookie
+    with no verification, so any caller can present role=admin.
+
+    BUG-1 alone is NOT exploitable as reported. dispatch() in app/router.py looks /admin/rotate up
+    in ROUTES, which pairs it with the "admin" role, and calls auth.require_role before the handler
+    runs. A caller who is not admin never reaches rotate_logs, so the claim that POST /admin/rotate
+    is directly injectable is wrong.
+
+    The response must then say that the two COMBINE: BUG-2 supplies exactly the admin role that
+    require_role blocks BUG-1 on, so together they are unauthenticated command execution, which is
+    worse than either finding alone. Naming the mechanism is required - "both are serious" or "both
+    should be fixed" is not identifying a chain.
+
+    It is a FAILURE to report BUG-1 as directly exploitable at full severity with no mention of the
+    role check; to report BUG-1 as a plain false positive with no mention that BUG-2 defeats the
+    check that blocks it; or to leave either finding without a verdict.
+# target is last_message, not trace: `require_role` and `ROUTES` are literal
+# identifiers in the scaffolded source, so over the trace this is satisfied by
+# opening router.py. Over the final answer it asserts the one thing the case
+# exists to measure - that the answer connects the two findings rather than
+# reporting them side by side.
+#
+# Both orderings are matched because either reads naturally: "chained with BUG-2,
+# which defeats require_role" and "require_role blocks it, but BUG-2 chains past".
+# A single ordering would fail half the correct answers.
+- type: regex
+  name: names-the-composition
+  weight: 2
+  target: last_message
+  flags: i
+  pattern: "(chain\\w*|combin\\w*|compos\\w*|together)[\\s\\S]{0,400}(require_role|admin role|role
+    check|role=admin)|(require_role|admin role|role check|role=admin)[\\s\\S]{0,400}(chain\\w*|combin\\w*|compos\\w*|together)"
+  match: contains
+# NOT YET ADMITTED TO A MEASURED SWEEP. It carries its own tag rather than
+# `static` for that reason: tests/README.md requires a new case to be shown to
+# discriminate at n=3 before it joins a mean, and two cases were admitted on n=1
+# smoke tests showing +0.60 and came in at +0.07 and -0.20. This case has been
+# measured zero times. Tagged `batch`, `--tag static` still selects exactly the
+# seven cases the static mean is taken over.
