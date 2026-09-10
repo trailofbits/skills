@@ -58,7 +58,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [c-review](plugins/c-review/) | Comprehensive C/C++ security code review, with coverage verified against a parse of the source |
 | [differential-review](plugins/differential-review/) | Security-focused differential review of code changes with git history analysis |
 | [dimensional-analysis](plugins/dimensional-analysis/) | Annotate codebases with dimensional analysis comments to detect unit mismatches and formula bugs |
-| [fp-check](plugins/fp-check/) | Systematic false positive verification for security bug analysis with mandatory gate reviews |
+| [fp-check](plugins/fp-check/) | Verify whether a suspected bug is real, exploitable, in scope or already fixed, with every gate enforced in workflow code |
 | [insecure-defaults](plugins/insecure-defaults/) | Parallel audit workflow for fail-open insecure defaults, with a refuting verifier per candidate file |
 | [rust-review](plugins/rust-review/) | Comprehensive Rust security review covering safe/unsafe boundary, memory safety, concurrency, panic-DoS, FFI, and async runtime with SARIF output |
 | [semgrep-rule-creator](plugins/semgrep-rule-creator/) | Create and refine Semgrep rules for custom vulnerability detection |

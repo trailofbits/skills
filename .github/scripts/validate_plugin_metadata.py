@@ -20,6 +20,7 @@ import argparse
 import contextlib
 import io
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -844,6 +845,35 @@ def check_dependabot_lockfiles(repo_root: Path) -> list[str]:
     return errors
 
 
+def _git_env(*, unsigned: bool = False) -> dict[str, str]:
+    """Environment for a git command that means "the repository at `cwd`".
+
+    Every git call in this file passes `cwd=` and means it, so an inherited
+    `GIT_DIR` or `GIT_INDEX_FILE` pointing somewhere else is wrong in all of
+    them. pre-commit sets both when it runs a hook, which produced two distinct
+    failures the moment the self-test ran as a hook:
+
+    - `git add -A` in the self-test's scratch repo honoured the caller's
+      `GIT_INDEX_FILE` and wrote the scratch tree into it. The developer's index
+      came back reporting every tracked file as deleted — 1131 spurious staged
+      deletions from one hook run, worktree untouched, nothing saying why.
+    - `changed_plugins()` on the scratch repo resolved `HEAD` through the
+      caller's `GIT_DIR`, so the scratch repo's own base commit was unknown
+      there: *"fatal: Invalid symmetric difference expression <sha>...HEAD"*.
+
+    `unsigned` additionally forces `commit.gpgsign=false`, for the scratch
+    commits only. Signing is inherited from the developer's global config, so
+    without it the self-test tries to sign with their key and fails — or blocks
+    on a passphrase — for a reason unrelated to the code under test.
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("GIT_INDEX", "GIT_DIR"))}
+    if unsigned:
+        env["GIT_CONFIG_COUNT"] = "1"
+        env["GIT_CONFIG_KEY_0"] = "commit.gpgsign"
+        env["GIT_CONFIG_VALUE_0"] = "false"
+    return env
+
+
 def _git_show(repo_root: Path, ref: str, rel_path: str) -> str | None:
     """Contents of `rel_path` at `ref`, or None when it did not exist there."""
     result = subprocess.run(
@@ -852,6 +882,7 @@ def _git_show(repo_root: Path, ref: str, rel_path: str) -> str | None:
         capture_output=True,
         text=True,
         check=False,
+        env=_git_env(),
     )
     return result.stdout if result.returncode == 0 else None
 
@@ -864,6 +895,7 @@ def _merge_base(repo_root: Path, base_ref: str) -> str:
         capture_output=True,
         text=True,
         check=False,
+        env=_git_env(),
     )
     return result.stdout.strip() if result.returncode == 0 else base_ref
 
@@ -888,6 +920,7 @@ def changed_plugins(repo_root: Path, base_ref: str) -> set[str]:
         capture_output=True,
         text=True,
         check=False,
+        env=_git_env(),
     )
     if result.returncode != 0:
         # Returning an empty set here would disarm the version check for every plugin
@@ -1975,6 +2008,7 @@ def _self_test_guards(ran: list[str]) -> None:
             root / "CODEOWNERS",
             "/plugins/touched/ @a @dguido\n/plugins/untouched/ @a @dguido\n",
         )
+        env = _git_env(unsigned=True)
         for cmd in (
             ["git", "init", "-q"],
             ["git", "config", "user.email", "t@example.com"],
@@ -1982,16 +2016,25 @@ def _self_test_guards(ran: list[str]) -> None:
             ["git", "add", "-A"],
             ["git", "commit", "-q", "-m", "base"],
         ):
-            subprocess.run(cmd, cwd=root, check=True, capture_output=True)
+            subprocess.run(cmd, cwd=root, check=True, capture_output=True, env=env)
         base = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
         ).stdout.strip()
 
         skill = root / "plugins" / "touched" / "skills" / "touched" / "SKILL.md"
         skill.write_text(skill.read_text() + "\nA substantive change.\n")
-        subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True, env=env)
         subprocess.run(
-            ["git", "commit", "-q", "-m", "change"], cwd=root, check=True, capture_output=True
+            ["git", "commit", "-q", "-m", "change"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            env=env,
         )
 
         scope = changed_plugins(root, base)

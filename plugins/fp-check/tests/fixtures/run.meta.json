@@ -1,0 +1,12 @@
+{
+  "cli_version": "2.1.220 (Claude Code)",
+  "model": "session default (inherited)",
+  "effort": "session default",
+  "permission_mode": "bypassPermissions",
+  "exit_status": 0,
+  "runs": 3,
+  "passed": 3,
+  "synthetic": false,
+  "case": "blocked-attack-path (evals/fixtures/case2_search)",
+  "note": "Pass rate 3/3 on CLI 2.1.220. All three runs blocked the payload at search.py:20 and search.py:27 and wrote no PoC. Under -p the Workflow tool returns on launch, so stage results come from run.journal.jsonl, not the stream."
+}

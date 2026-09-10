@@ -1,7 +1,7 @@
 {
   "name": "fp-check",
-  "version": "1.0.3",
-  "description": "Systematic false positive verification for security bug analysis with mandatory gate reviews",
+  "version": "2.0.1",
+  "description": "Verifies whether a suspected security bug is real: a static stage always, plus online policy checks and a built-and-executed PoC on request, with every gate enforced in workflow code rather than self-reported",
   "author": {
     "name": "Maciej Domanski"
   }

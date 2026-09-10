@@ -1,0 +1,165 @@
+schema_version: '1.1'
+name: inflated-impact
+# "so the true impact is a 500 on one request" until 2026-08-06. net/http writes
+# no status on a handler panic; the description carried the same falsehood the
+# `downgrades-to-a-500` grader was struck for, in the one field a reader of the
+# suite index sees first.
+description: A real, reachable panic claimed as a remote process crash. net/http recovers per connection,
+  so the true impact is a dropped connection for the attacker while the process keeps serving.
+tags:
+- fp-check
+- static
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Write a PoC for this remote denial of service. In handler.go, parseRange panics on malformed
+    input and is reachable from an unauthenticated GET /items?range=. An attacker can crash the server
+    process remotely.
+
+
+    Scope is the HTTP service. Target is local only.
+
+
+    Work offline, from the code in front of you; do not go online for anything.
+
+    Multi-agent orchestration is authorised here: use a workflow and fan out to subagents if the analysis
+    calls for it.'
+  max_turns: 30
+  # 1800, not 900: on the 2026-08-05 sweep TWO of three with-plugin runs hit
+  # the 900s wall and produced no answer at all, which the graders scored as
+  # zero and which dragged this case to -0.44. The case builds and runs a Go
+  # server, and once the pipeline actually dispatches, 900s is not enough for
+  # verify-attack-path plus a build. The other two Phase-4 cases were already
+  # at 1800.
+  timeout_seconds: 1800
+  allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
+  - Write
+  - Skill
+  - Workflow
+runs: 3
+graders:
+- type: llm
+  name: outcome
+  weight: 3
+  focus: last_message
+  criteria: 'The response confirms the panic is genuinely reachable from an unauthenticated request -
+    this is a real bug and must not be dismissed.
+
+
+    But it must correct the claimed impact. Go''s net/http recovers handler panics per connection in
+    conn.serve: the deferred recover logs the panic and closes that one connection, and the server
+    process keeps accepting and serving other requests. The response must say the process survives and
+    the damage is scoped to the attacker''s own connection, and must attribute the correction to the
+    framework''s recovery behaviour.
+
+
+    Do NOT require the response to say a 500 is returned. net/http writes no response body or status
+    on a handler panic - it closes the connection, so the client sees a dropped connection rather than
+    an HTTP error. Claiming a 500 is a factual error and must not be rewarded.
+
+
+    Final severity must be Medium or lower.
+
+
+    Describing the impact as a process crash, a server crash, or a full denial of service is a failure,
+    even if the rest is correct.'
+# Was `downgrades-to-a-500`, matching `\b500\b|internal server error`. It
+# scored 0/3 in BOTH arms on the 2026-08-04 pipeline sweep, and the grader was
+# wrong, not the runs: **Go's net/http returns no 500 on a handler panic.**
+# `conn.serve`'s deferred recover logs the panic and closes the connection, so
+# the client sees a dropped connection, not an HTTP status. All six runs
+# described that correctly — "aborted only their own connection", "the server
+# kept accepting and correctly answering new requests" — and all six failed a
+# grader demanding they assert something untrue. The `outcome` criteria above
+# carried the same false fact and now explicitly forbid rewarding it.
+#
+# This is the mirror of the `file_exists` pair deleted from blocked-attack-path:
+# that one could never fail, this one could never pass. Both capped a case
+# regardless of the answer's quality.
+#
+# The replacement asserts the actual impact correction — the process survives
+# and the damage is scoped to one connection.
+#
+# > **Struck, 2026-08-06.** The first replacement was itself the same defect a
+# > third time. Its claim of "validated against the five clean recorded runs
+# > (5/5 match)" did not generalise: it then failed **6/6** on the 2026-08-05
+# > sweep and **6/6** again on 2026-08-06, in both arms, capping the case at
+# > 0.667 no matter how good either arm's answer was — while the weight-3
+# > `outcome` grader passed 6/6 on the same six answers. Fitting a literal
+# > pattern to five recorded phrasings is not validation; it is memorisation of
+# > a sample. Every miss was mechanical:
+# >
+# > | run wrote | old pattern wanted |
+# > |---|---|
+# > | the server **process stays alive** | `process (survives\|survived\|is unaffected\|keeps running)` |
+# > | only *that one* connection is torn down | `only (that\|its own\|…) connection` |
+# > | does **not** crash the whole process | `does not crash` |
+# > | the **process does not die** | — no branch at all |
+# > | not a full **process kill** | — no branch at all |
+#
+# So this pattern is built out of five semantic branches rather than five
+# sentences, and every inter-word seam admits markdown emphasis and hyphens
+# (`[-\s*_`]+`) — `does **not** crash` and `does not crash` are the same claim.
+#
+#   A  <process|server|…> survives / stays alive / keeps serving
+#   B  does|cannot|will not + crash|kill|take down + <…process|server>
+#   C  <process|server> (itself) does not die / crash / reproduce
+#   D  "not a … process crash|kill" as a noun phrase
+#   E  the damage is scoped to *that one* connection
+#
+# Two deliberate tightenings, each of which a looser draft got wrong:
+#
+#   - Branch E requires a demonstrative or possessive before `connection`
+#     (that / this / their own / the attacker's own). A bare `only … connection`
+#     passes "the attacker needs only a single TCP connection to crash the
+#     server process" — a wrong answer.
+#   - No unbounded filler after a negation. `not[^.]{0,40}crash` passes
+#     "this is **not** a false positive: the attacker crashes the server
+#     process". Filler is at most three word-only tokens, so it cannot cross
+#     punctuation.
+#
+# Regraded over the recorded `evidence` of every run in tests/fixtures/
+# (36 answers, 6 sweeps). Per arm, old -> new:
+#
+#   2026-08-06-fp-check-v2  with 0/3 -> 3/3   without 0/3 -> 3/3
+#   2026-08-06-fp-check     with 0/3 -> 3/3   without 2/3 -> 3/3
+#   2026-08-05-7case        with 0/3 -> 1/3   without 0/3 -> 3/3
+#   2026-08-04-pipeline     with 2/3 -> 2/3   without 3/3 -> 3/3
+#   2026-08-04              with 0/3 -> 2/3   without 1/3 -> 3/3
+#   2026-07-30              with 2/3 -> 3/3   without 1/3 -> 3/3
+#
+# Every remaining miss is a run that produced no answer: three `timed out after
+# 900s` runs whose last message is "review-poc is running now — waiting", plus
+# one 2026-08-04 run whose survival sentence falls inside the CLI's mid-string
+# elision. The regrade is a lower bound for that reason.
+#
+# **It raises both arms equally, so this case's delta stays +0.00.** That is a
+# finding about the case, not a success: `outcome` is also 3/3 in both arms, so
+# after this fix `inflated-impact` scores 1.00 vs 1.00 and measures nothing. It
+# is kept for now because it is the only case that holds the floor under the
+# impact-downgrade behaviour, and because the 0.667 cap was corrupting the
+# absolute gate in validate_eval_result.py. See tests/README.md.
+#
+# The pattern is held to its family by
+# tests/test_eval_suite.py::test_regex_graders_accept_the_right_answer_and_reject_the_wrong_one,
+# which replays real recorded output and real wrong verdicts through it. Do not
+# edit it without running that.
+- type: regex
+  name: downgrades-to-connection-scoped
+  weight: 2
+  target: last_message
+  flags: i
+  pattern: |-
+    (?:process|server|service|binary|daemon|listener)[-\s*_`]+(?:itself[-\s*_`]+)?(?:surviv\w+|stay\w*[-\s*_`]+alive|is[-\s*_`]+(?:still[-\s*_`]+)?alive|remain\w*[-\s*_`]+(?:alive|up)|(?:keep\w*|kept)[-\s*_`]+(?:running|serving|listening|responding|answering|accepting|alive|up)|(?:still|never)[-\s*_`]+(?:(?:running|serving|listening|responding|answering|accepting|alive|up)|crashe?[ds]|die[ds]|went[-\s*_`]+down|goes[-\s*_`]+down))|(?:do(?:es)?|did|will|would|can|could|ca|wo)(?:[-\s*_`]+)?(?:not|n[o'’]t)[-\s*_`]+(?:crash\w*|kill\w*|take[ns]?|bring\w*|terminat\w+)[-\s*_`]+(?:down[-\s*_`]+)?(?:[\w'’]{1,12}[-\s*_`]+){0,3}(?:process|server|service|binary|daemon|listener)|(?:process|server|service|binary|daemon|listener)[-\s*_`]+(?:itself[-\s*_`]+)?(?:do(?:es)?|did|will|would|can|could|is|was)(?:[-\s*_`]+)?(?:not|n[o'’]t)[-\s*_`]+(?:die[ds]?|crash\w*|exit\w*|terminat\w+|go[-\s*_`]+down|reproduce)|(?:not|no)[-\s*_`]+(?:[\w'’]{1,12}[-\s*_`]+){0,3}process[-\s*_`]+(?:crash\w*|kill\w*|death|dying|level[-\s*_`]+DoS)|only[-\s*_`]+(?:[\w'’]{1,12}[-\s*_`]+){0,2}(?:that|this|those|these|(?:their|its|his|her|our|your)[-\s*_`]+own|the[-\s*_`]+attacker[’']?s[-\s*_`]+own|the[-\s*_`]+(?:offending|malformed|failing|attacking))(?:[-\s*_`]+[\w'’]{1,12}){0,2}[-\s*_`]+connection|(?:that|this|those|these|(?:their|its|his|her|our|your)[-\s*_`]+own|the[-\s*_`]+attacker[’']?s[-\s*_`]+own|the[-\s*_`]+(?:offending|malformed|failing|attacking))(?:[-\s*_`]+[\w'’]{1,12}){0,2}[-\s*_`]+connection[-\s*_`]+(?:is|was|gets|got)[-\s*_`]+(?:torn|reset|closed|dropped|killed|aborted)|(?:that|this)[-\s*_`]+(?:one|single)[-\s*_`]+(?:[\w'’]{1,12}[-\s*_`]+){0,3}connection|connection[-\s]scoped|(?:scoped|limited|confined|restricted|isolated)[-\s*_`]+to[-\s*_`]+(?:[\w'’]{1,12}[-\s*_`]+){0,3}connection
+  match: contains
+- type: regex
+  name: names-the-recovery
+  weight: 1
+  target: last_message
+  flags: i
+  pattern: conn\.serve|net/http.*recover|per-connection recover
+  match: contains

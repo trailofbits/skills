@@ -5,6 +5,7 @@ Apply ALL items in this checklist to EACH potential bug during verification.
 Contents:
 
 - [Checklist](#checklist) — 13 items to apply to every bug (trace validation, confirm data paths, bounds logic, TOCTOU, trust boundaries, real vs theoretical impact, defense-in-depth)
+- [The devil's advocate questions](#the-devils-advocate-questions) — the 13 the deep route answers, of which 7 are the standard route's spot check. **This is the list Stage 1f is told to work through**, and it is not the same list as the checklist above
 - [Red Flags for False Positives](#red-flags-for-false-positives) — recurring failure patterns: pattern-based, context-blind, math/bounds, API-contract
 
 ## Checklist
@@ -71,6 +72,47 @@ Failure of defense-in-depth mechanisms is not always a vulnerability if primary 
 ### 13. Apply the Checklist Rigorously, Not Superficially
 
 Having a checklist doesn't prevent false positives if it isn't applied systematically. For EVERY potential vulnerability, work through ALL checklist items before concluding.
+
+---
+
+## The devil's advocate questions
+
+**One list, and the route decides how much of it you answer.** The deep route
+answers all 13. The standard route answers the **7 marked ★**, which are the ones
+that dispose of the most findings for the least reading — they are not a different
+list, so the two cannot drift apart.
+
+Both routes finish with 12 and 13, which argue *for* the finding. They are not
+optional and they carry equal weight: a triage tool that only guards one direction
+drifts toward it, and losing a real bug costs more than reporting a doubtful one.
+The dismissal-side guards in [dismissal-grounds.md](dismissal-grounds.md) extend them.
+
+Assume you are biased toward finding bugs and toward rating them critical. These
+questions exist to work against that bias, not to be recited.
+
+**Against the finding:**
+
+1. What non-vulnerability explanations exist for this code pattern?
+2. How would the original developers justify this implementation?
+3. What crucial system architecture context might be missing?
+4. ★ Am I seeing a vulnerability because the pattern "looks dangerous" rather than because it actually is? (pattern-matching bias)
+5. Even if validation looks insufficient, does it actually prevent the claimed condition?
+6. ★ Am I incorrectly assuming attacker control over trusted data? (trust boundary confusion)
+7. ★ Have I rigorously proven the mathematical condition for the vulnerability can occur? (proof rigor)
+8. Beyond theoretical possibility, is this practically exploitable?
+9. ★ Am I confusing a defense-in-depth failure with a primary security vulnerability?
+10. What compiler, runtime or OS protections might prevent exploitation?
+11. ★ Am I hallucinating this vulnerability? LLMs are biased toward seeing bugs everywhere and rating every finding critical — is this real, or am I pattern-matching on scary-looking code?
+
+**For the finding (false-negative protection):**
+
+12. ★ Am I dismissing a real vulnerability because the exploit seems complex or unlikely?
+13. ★ Am I inventing mitigations or validation logic I have not verified in the actual source? Re-read the code after reaching a conclusion.
+
+**A question you cannot resolve with the evidence at hand is not a pass.** Put it
+in `unresolvedUncertainty`; it returns NEEDS MORE INFO, which is a supported
+outcome. On the standard route it is also the signal that the finding wanted the
+deep one.
 
 ---
 

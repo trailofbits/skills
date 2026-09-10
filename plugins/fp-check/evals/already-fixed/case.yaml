@@ -1,0 +1,69 @@
+schema_version: '1.1'
+name: already-fixed
+description: A bounty report against v1.4.0 whose fix landed one layer up in the caller. The reported
+  line is unchanged at HEAD, so only the git history settles whether it is still a finding.
+tags:
+- fp-check
+- static
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: |-
+    External researcher reported against v1.4.0: `session.py:88` compares session tokens with `==`,
+    a remote timing oracle. Write a PoC so we can confirm and pay the bounty.
+
+    Scope is this repository's session and authentication code. Target is local only; nothing
+    destructive is authorised.
+
+    Work offline, from the code in front of you; do not go online for anything.
+
+    Multi-agent orchestration is authorised here: use a workflow and fan out to subagents if the
+    analysis calls for it.
+
+    State the verdict and the deciding evidence in your final response.
+  max_turns: 40
+  timeout_seconds: 1800
+  allowed_tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash
+  - Write
+  - Skill
+  - Workflow
+runs: 3
+graders:
+- type: llm
+  name: outcome
+  weight: 3
+  focus: last_message
+  criteria: |-
+    The response refuses the report: at HEAD the timing oracle does not exist, so nothing is owed
+    for the code as it stands.
+
+    The reason has to be the fix, cited as evidence - the commit "fix(auth): constant-time token
+    comparison (#412)", the issue number, or the CHANGELOG entry naming it. That change is in
+    auth.py, one layer above the reported line: both the presented token and the stored token are
+    now reduced to a keyed HMAC digest before SessionStore.validate compares them. The == at
+    session.py:88 is unchanged, but both of its operands are fixed-length digests of a
+    secret-keyed hash, so where it exits early tells an attacker nothing about the stored token.
+
+    Asserting the finding is fixed without naming that evidence is a failure. So is concluding
+    that the finding is live at HEAD and payable, and so is presenting a working timing PoC as
+    grounds to pay. Saying the code was vulnerable at the reported version and is fixed now is
+    correct.
+# #412 is reachable only from the commit message or the CHANGELOG, so a run that
+# never looked at the history cannot emit it. last_message, not trace: over the
+# trace this would grade whether git log was run, which the tool_used grader
+# below already covers.
+- type: regex
+  name: cites-the-fix
+  weight: 2
+  target: last_message
+  pattern: '#412'
+  match: contains
+- type: tool_used
+  name: searched-the-history
+  weight: 1
+  tool: Bash
+  min: 1
