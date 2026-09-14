@@ -206,6 +206,35 @@ def test_patch_file_mode_applies_in_isolated_worktree(tmp_path: Path) -> None:
     assert git(repo, "status", "--short") == ""
 
 
+@pytest.mark.parametrize(
+    "summary", ["ASCII finding", "Unicode finding: \u2018quote\u2019 \u6f0f\u6d1e"]
+)
+def test_s2_plan_and_report_use_utf8_with_ascii_locale(tmp_path: Path, ppv, summary: str) -> None:
+    repo, _, _ = create_repo(tmp_path)
+    plan = tmp_path / "case" / "plan.json"
+    value = scaffold(repo, plan)
+    value["finding"]["summary"] = summary
+    behavior = next(check for check in value["checks"] if check["kind"] == "behavior")
+    behavior["argv"] = [sys.executable, "-c", "import app; print(app.sanitize('<'))"]
+    ppv.write_json(plan, value)
+    output = tmp_path / "results"
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "run", "--plan", str(plan), "--output", str(output)],
+        env={
+            **os.environ,
+            "PYTHONUTF8": "0",
+            "PYTHONCOERCECLOCALE": "0",
+            "LC_ALL": "C",
+        },
+        capture_output=True,
+    )
+    assert result.returncode == 2, result.stderr.decode("utf-8", errors="replace")
+    evidence = json.loads((output / "result.json").read_text(encoding="utf-8"))
+    assert evidence["verdict"]["code"] == "S2"
+    assert evidence["finding"]["summary"] == summary
+    assert summary in (output / "report.md").read_text(encoding="utf-8")
+
+
 def test_plan_rejects_shell_strings_and_missing_categories(tmp_path: Path, ppv) -> None:
     repo, _, _ = create_repo(tmp_path)
     plan_path = tmp_path / "case" / "plan.json"
@@ -914,7 +943,7 @@ def test_reports_are_verdict_and_evidence_level_specific(ppv) -> None:
             assert f"**Evidence level:** {level} — {ppv.EVIDENCE_LEVEL_SUMMARIES[level]}" in report
             assert ppv.VERDICT_SUMMARIES[code] in report
             if code != "S1":
-                assert "S1 means the supplied evidence passed" not in report
+                assert ppv.VERDICT_SUMMARIES["S1"] not in report
 
 
 def test_patch_inside_pinned_submodule_is_initialized_without_fetch(tmp_path: Path) -> None:

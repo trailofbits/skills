@@ -53,13 +53,14 @@ the patch author, an upstream implementation, or the original proof of concept a
    compiled or analyzed but the reported behavior is not executed, or `runtime` when the checks
    execute the reported behavior and its safety assertions.
 3. Inspect the finding, diff, callers, sibling paths, cleanup/error paths, and existing tests.
-   Populate `checks` in the generated plan. Run `print-schema` for the exact machine contract:
+   Populate `checks` in the generated plan. Run `print-schema` for the structural schema:
 
    ```bash
    uv run {baseDir}/scripts/post_patch_validation.py print-schema
    ```
 
-4. Validate the plan before executing code:
+4. Run `validate-plan` for the complete validation, including coverage, command restrictions,
+   and pinned inputs, before executing code:
 
    ```bash
    uv run {baseDir}/scripts/post_patch_validation.py validate-plan \
@@ -94,6 +95,8 @@ The runner rejects incomplete plans. Supply at least one check of every kind:
 Commands are argv arrays, never shell strings. Put complex setup in a checked-in or plan artifact
 script and invoke it with `{plan_dir}`. The runner fixes locale/timezone/hash-seed inputs, executes
 checks in lexical ID order, records raw stdout/stderr, and never edits the original worktree.
+Each check's `timeout_seconds` defaults to 300 and accepts integers from 1 through 3600.
+Exceeding the timeout makes the run INCONCLUSIVE.
 Every plan also contains a sorted `submodules` array (`[]` when none). Scaffolding infers affected
 Gitlinks from the changed-file inventory. The runner initializes those pinned commits from the
 source repository's existing Git module objects, never from `.gitmodules` network URLs; initialize
@@ -153,9 +156,11 @@ scratch tree is archived under the deterministic `results/scratch/<check-id-and-
 private plan copy is discarded, and every readable argv element that resolves to a file is hashed
 in `argv_files`. Files inside the isolated plan or checkout roots are additionally retained under
 `results/helpers/<sha256>` up to 16 MiB; the record explains why any other file was not archived.
-Keep helper code under the plan's `checks/` directory or checked into the target repository so its
-bytes are reviewable. Plan symlinks, the machine plan containing commit pins, and prior result trees
-are excluded from the per-invocation copies. The clean snapshot remains only in runner memory, and
+Use a dedicated directory for `plan.json`: its sibling files and directories are copied into each
+invocation's `{plan_dir}`. Keep helper code under that directory's `checks/` directory or checked
+into the target repository so its bytes are reviewable. The machine plan containing commit pins,
+the current output directory, and detected prior result trees are excluded; symlinks are rejected.
+The clean snapshot remains only in runner memory, and
 exploit/variant sides execute in random order while evidence filenames remain deterministic.
 Stdout/stderr use anonymous or randomly named capture descriptors and are copied to the named
 evidence files only after the child exits, so fd inspection cannot disclose the side label.

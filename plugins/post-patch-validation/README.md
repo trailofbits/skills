@@ -154,7 +154,7 @@ local target the user has authorized.
 Run the Python runner tests, eval grader tests, and workflow tests from this repository's root:
 
 ```bash
-bash plugins/post-patch-validation/tests/run_tests.sh
+bash plugins/post-patch-validation/tests/run-all.sh
 node plugins/post-patch-validation/tests/workflow_logic.test.mjs
 ```
 

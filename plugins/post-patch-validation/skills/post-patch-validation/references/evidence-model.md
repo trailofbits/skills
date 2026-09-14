@@ -113,8 +113,8 @@ the root cause.
 
 Use a stable benign input whose behavior should not change. The runner compares the selected
 stdout, stderr, or combined stream byte-for-byte across base and patch. Put timestamps, random
-IDs, addresses, and ordering behind a deterministic harness; do not hide them with ad hoc output
-scrubbing.
+IDs, absolute paths, addresses, and ordering behind a deterministic harness; do not hide them with
+ad hoc output scrubbing. Checkout, plan, and scratch paths differ between invocations.
 
 ### New-vulnerability evidence
 
@@ -127,6 +127,9 @@ error handling, authorization, bounds, and state transitions adjacent to changed
 Run the narrow deterministic project suite first, then broader tests, sanitizers, or a bounded
 fuzz corpus when available. Pin seeds, corpus, worker count, and iteration/time budgets. A suite
 supplements targeted evidence; it does not replace it.
+
+Suite checks run only on the patched revision. A suite failure can produce S2 even when the
+failure predates the patch; that result alone does not establish a regression caused by the patch.
 
 ## Classification
 

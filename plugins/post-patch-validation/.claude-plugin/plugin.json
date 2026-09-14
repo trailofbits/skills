@@ -1,6 +1,6 @@
 {
   "name": "post-patch-validation",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Validates security patches against baseline exploits, root-cause variants, behavior contracts, regressions, and new-vulnerability checks using isolated worktrees and deterministic S1-S5 evidence classification. Bundles a validate-patch dynamic workflow for Claude Code.",
   "author": {
     "name": "Scott Arciszewski",

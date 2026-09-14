@@ -268,8 +268,8 @@ def write_json(path: Path, value: Any) -> None:
 
 def load_json(path: Path) -> dict[str, Any]:
     try:
-        value = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise PlanError(f"cannot read JSON from {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise PlanError("plan root must be a JSON object")
@@ -1681,7 +1681,7 @@ def markdown_report(result: dict[str, Any]) -> str:
 def artifact_manifest(output: Path) -> dict[str, Any]:
     files = []
     for path in sorted(p for p in output.rglob("*") if p.is_file()):
-        if path.name == "artifact-manifest.json":
+        if path == output / "artifact-manifest.json":
             continue
         files.append(
             {
@@ -1870,7 +1870,7 @@ def run_plan(args: argparse.Namespace) -> int:
         "verdict": verdict,
     }
     write_json(output / "result.json", result)
-    (output / "report.md").write_text(markdown_report(result))
+    (output / "report.md").write_text(markdown_report(result), encoding="utf-8")
     write_json(output / "artifact-manifest.json", artifact_manifest(output))
     print(json.dumps({"result": str(output / "result.json"), "verdict": verdict}, indent=2))
     return int(verdict["exit_code"])
@@ -1898,8 +1898,14 @@ def validate_plan_command(args: argparse.Namespace) -> None:
     )
 
 
+class PlanArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        self.print_usage(sys.stderr)
+        self.exit(64, f"{self.prog}: error: {message}\n")
+
+
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(description=__doc__)
+    root = PlanArgumentParser(description=__doc__)
     subparsers = root.add_subparsers(dest="command", required=True)
     scaffold = subparsers.add_parser("scaffold", help="pin a patch and write an incomplete plan")
     scaffold.add_argument("--repo", required=True)
