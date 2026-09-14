@@ -1,0 +1,5 @@
+[project]
+name = "review-walkthrough-renderer"
+version = "1.2.1"
+requires-python = ">=3.11"
+dependencies = []

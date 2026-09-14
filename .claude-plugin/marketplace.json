@@ -273,9 +273,20 @@
       "source": "./plugins/insecure-defaults"
     },
     {
+      "name": "review-walkthrough",
+      "version": "1.2.1",
+      "description": "Generates an interactive HTML walkthrough for reviewing code changes. Use only when explicitly called.",
+      "author": {
+        "name": "Facundo Tuesca",
+        "email": "opensource@trailofbits.com",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/review-walkthrough"
+    },
+    {
       "name": "second-opinion",
-      "version": "1.8.0",
-      "description": "Runs code reviews using external LLM CLIs (OpenAI Codex, Google Antigravity) on uncommitted changes, branch diffs, or specific commits. Bundles Codex's built-in MCP server for direct tool access.",
+      "version": "1.8.1",
+      "description": "Gets independent code reviews from Codex or Antigravity for uncommitted changes, branch diffs, and commits.",
       "author": {
         "name": "Dan Guido"
       },

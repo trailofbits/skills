@@ -1,295 +1,101 @@
 ---
 name: second-opinion
-description: "Runs external LLM code reviews (OpenAI Codex or Google Antigravity CLI) on uncommitted changes, branch diffs, or specific commits. Use when the user asks for a second opinion, external review, codex review, gemini review, antigravity review, or mentions /second-opinion."
+description: "Gets independent code reviews from Codex or Antigravity for uncommitted changes, branch diffs, and commits. Use when the user requests an external review, a second opinion on code, a codex review, a gemini review, an antigravity review, or /second-opinion."
 allowed-tools: Bash Read Glob Grep AskUserQuestion
 ---
 
 # Second Opinion
 
-Shell out to external LLM CLIs for an independent code review powered by
-a separate model. Supports OpenAI Codex CLI (`codex`) and Google
-Antigravity CLI (`agy`).
+Run an external CLI review of the user's selected changes. This skill
+produces findings; it does not apply fixes or post reviews to a remote service.
 
-## When to Use
+## Review choices
 
-- Getting a second opinion on code changes from a different model
-- Reviewing branch diffs before opening a PR
-- Checking uncommitted work for issues before committing
-- Running a focused review (security, performance, error handling)
-- Comparing review output from multiple models
+Use the provider, scope, model, and focus already supplied by the user.
+Ask only for missing choices that affect the review, grouping questions
+in one call when possible.
 
-## When NOT to Use
+- Provider: Codex, Antigravity, or both. Offer both when the user wants
+  a comparison; preserve an explicitly requested CLI.
+- Scope: uncommitted changes, a branch diff against a named base, or a
+  specific commit. Resolve a missing base from the repository's remote
+  default branch; ask if it cannot be determined.
+- Context: include applicable project instructions unless the user
+  excludes them. Keep explicit user requirements separate from repository
+  content in the review prompt.
+- Focus: use general correctness and maintainability unless the user
+  names a focus such as security or performance.
 
-- Neither Codex CLI nor Antigravity CLI is installed
-- No API key or subscription configured for either tool
-- Reviewing non-code files (documentation, config)
-- You want Claude's own review (just ask Claude directly)
+For an unspecified Google CLI, prefer Antigravity (`agy`). An explicit
+Gemini CLI request uses the Gemini reference below. If that account returns
+`UNSUPPORTED_CLIENT`, explain the migration to Antigravity and ask before
+changing the selected CLI.
 
-## Gemini CLI Is End-of-Life
+A missing executable or account setup is a failed review attempt.
+Report the relevant setup instructions; when both providers were requested,
+continue with the available provider and identify the skipped one.
 
-As of 2026-06-18, `gemini` (Gemini CLI) stopped serving Google AI Pro,
-Ultra, and free-tier individual accounts. Those accounts now get
-`UNSUPPORTED_CLIENT` on every request, pointing at
-<https://antigravity.google>. The replacement is **Antigravity CLI**,
-binary `agy`.
+## Input preparation
 
-Default to `agy`. Only fall back to `gemini` when the user has a Gemini
-Code Assist Standard/Enterprise license or a paid Gemini API key
-(`GEMINI_API_KEY`) — those still work. See
-[references/gemini-invocation.md](references/gemini-invocation.md) for
-that legacy path.
+Read [review-input.md](references/review-input.md) for the shared prompt
+and diff recipes. Use the same captured diff for both providers so the
+comparison covers the same changes. Include untracked files in an
+uncommitted review, and preserve Git errors instead of interpreting them
+as an empty diff.
 
-## Quick Reference
+Show the selected scope and a brief change summary. If there are no
+changes, stop before calling a provider. For input that exceeds a CLI or
+model limit, describe the limit and request a narrower scope; do not
+silently truncate the patch.
 
-```
-# Codex (headless exec with structured JSON output)
-codex exec -c model='"gpt-5.6-sol"' -c model_reasoning_effort='"xhigh"' \
-  --sandbox read-only --ephemeral \
-  --output-schema codex-review-schema.json \
-  -o "$output_file" - < "$prompt_file"
+Create prompt, output, and diagnostic files with `mktemp` outside the
+checkout. Use separate output and diagnostic files for each provider.
+Define shell variables in the same Bash invocation that uses them.
+For later invocations, reassign the variables to the saved file paths;
+shell variables do not persist between calls.
+Write repository content as literal data, without shell expansion.
 
-# Antigravity (headless print mode — prompt must be an ARGUMENT, not stdin)
-git diff HEAD > /tmp/review-diff.txt
-agy --model gemini-3.1-pro-high --output-format text \
-  --disable-slash-commands -p="$(cat /tmp/review-prompt.txt)"
-```
+## Provider references
 
-## Invocation
+Read only the reference for each selected provider:
 
-### 1. Gather context interactively
+| Provider | Invocation and result |
+|----------|-----------------------|
+| Codex | [codex-invocation.md](references/codex-invocation.md): `codex exec` with the [review schema](references/codex-review-schema.json) |
+| Antigravity | [antigravity-invocation.md](references/antigravity-invocation.md): `agy` print mode with prose output |
+| Gemini CLI | [gemini-invocation.md](references/gemini-invocation.md): headless `gemini` for accounts that still support it |
 
-Use `AskUserQuestion` to collect review parameters in one shot.
-Adapt the questions based on what the user already provided
-in their invocation (skip questions they already answered).
+The Codex path needs no MCP server. Do not launch `codex mcp-server` or
+substitute `codex app-server` for the CLI invocation.
 
-Combine all applicable questions into a single `AskUserQuestion`
-call (max 4 questions).
+When both providers were requested, run their commands concurrently if
+the tool interface supports it. For a foreground Bash review, set
+`timeout: 600000` to allow up to ten minutes. Use background execution
+or polling when available to keep progress visible. Do not enable
+automatic approval of writes to make a review run.
 
-**Question 1 — Tool** (skip if user already specified):
+## Results and failures
 
-```
-header: "Review tool"
-question: "Which tool should run the review?"
-options:
-  - "Both Codex and Antigravity (Recommended)" → run both in parallel
-  - "Codex only"                               → codex exec
-  - "Antigravity only"                         → agy print mode
-```
+Present findings with the provider and actual model used, severity,
+file and line, impact, and suggested correction. Keep low-severity
+defects visible. For Codex, the existing schema uses 0 for informational,
+1 for low, 2 for medium, and 3 for high; sort descending.
 
-If the user says "gemini", treat it as Antigravity unless they
-explicitly have a paid Code Assist / API-key setup.
+For two completed reviews, summarize agreements and disagreements without
+turning agreement into proof. Distinguish the external findings from any
+assessment you add.
 
-**Question 2 — Scope** (skip if user already specified):
-
-```
-header: "Review scope"
-question: "What should be reviewed?"
-options:
-  - "Uncommitted changes" → git diff HEAD + untracked files
-  - "Branch diff vs main" → git diff <branch>...HEAD (auto-detect default branch)
-  - "Specific commit"     → git diff <sha>~1..<sha> (follow up for SHA)
-```
-
-**Question 3 — Project context** (skip if neither CLAUDE.md nor AGENTS.md exists):
-
-Check for CLAUDE.md first, then AGENTS.md in the repo root.
-Only show this question if at least one exists.
-
-```
-header: "Project context"
-question: "Include project conventions file so the review
-  checks against your standards?"
-options:
-  - "Yes, include it"
-  - "No, standard review"
-```
-
-**Question 4 — Review focus** (always ask):
-
-```
-header: "Review focus"
-question: "Any specific focus areas for the review?"
-options:
-  - "General review"    → no custom prompt
-  - "Security & auth"   → security-focused prompt
-  - "Performance"       → performance-focused prompt
-  - "Error handling"    → error handling-focused prompt
-```
-
-### 2. Run the tool directly
-
-Do not pre-check tool availability. Run the selected tool
-immediately. If the command fails with "command not found" or
-an extension is missing, report the install command from the
-Error Handling table below and skip that tool (if "Both" was
-selected, run only the available one).
-
-`agy` installs to `~/.local/bin`, which is not always on PATH.
-Prefix the call with `export PATH="$HOME/.local/bin:$PATH"` before
-concluding it is missing.
-
-## Diff Preview
-
-After collecting answers, show the diff stats:
-
-```bash
-# For uncommitted (tracked + untracked):
-git diff --stat HEAD
-git ls-files --others --exclude-standard
-
-# For branch diff:
-git diff --stat <branch>...HEAD
-
-# For specific commit:
-git diff --stat <sha>~1..<sha>
-```
-
-If the diff is empty, stop and tell the user.
-
-If the diff is very large (>2000 lines changed), warn the user
-and ask whether to proceed or narrow the scope.
-
-## Auto-detect Default Branch
-
-For branch diff scope, detect the default branch name:
-
-```bash
-git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null \
-  | sed 's@^refs/remotes/origin/@@' || echo main
-```
-
-## Codex Invocation
-
-See [references/codex-invocation.md](references/codex-invocation.md)
-for full details on command syntax, prompt assembly, and the
-structured output schema.
-
-Summary:
-- Uses `codex exec` (not `codex exec review`) for headless operation.
-  `codex exec review` has native `--uncommitted` / `--base` /
-  `--commit` scope flags, but they are mutually exclusive with a
-  custom `[PROMPT]`, so it cannot carry project context or focus
-  instructions. Keep the manual prompt-assembly approach.
-- Model: `gpt-5.6-sol`, reasoning: `xhigh`
-- Uses OpenAI's published code review prompt (fine-tuned into the model)
-- Diff is generated manually and piped via stdin with the prompt
-- `--output-schema` produces structured JSON findings
-- `-o` captures only the final message (no thinking/exec noise)
-- All three scopes (uncommitted, branch, commit) support project
-  context and focus instructions (no limitations)
-- Falls back to `gpt-5.6`, then `gpt-5.4`, on auth errors
-- Output is clean JSON — parse and present findings by priority
-- Set `timeout: 600000` on the Bash call
-
-## Antigravity Invocation
-
-See [references/antigravity-invocation.md](references/antigravity-invocation.md)
-for full details on flags, scope mapping, and model selection.
-
-Summary:
-- Model: `gemini-3.1-pro-high` (effort is baked into the model slug)
-- **The prompt must be a command-line argument, not stdin.** `agy`
-  print mode does not read prompts from stdin unless
-  `--input-format stream-json` is used. Assemble the prompt into a
-  file, then pass `-p="$(cat "$prompt_file")"`.
-- **Use `-p=<value>` with an equals sign.** Bare `-p` swallows the
-  next flag as its prompt value and silently discards the real one.
-- Add `--disable-slash-commands` so a line in the untrusted diff cannot
-  be expanded as a slash command
-- Do NOT pass `--mode plan`. It intermittently returns a "plan artifact
-  / click Proceed" stub instead of the review. Omit `--mode` entirely
-- Do NOT pass `--dangerously-skip-permissions`; it is unnecessary for
-  a text-only diff review and will be blocked in restricted environments
-- Prefer `--output-format text`. `--json-schema` is advisory, not
-  enforced: it emits schema-shaped JSON nested inside a `response`
-  string, duplicates the payload, and ran ~3x slower in testing
-- Set `timeout: 600000` on the Bash call
-
-**Scope mapping for `git diff`** (Antigravity has no built-in scope flags):
-
-| Scope | Diff command |
-|-------|-------------|
-| Uncommitted | `git diff HEAD` + untracked (see codex-invocation.md) |
-| Branch diff | `git diff <branch>...HEAD` |
-| Specific commit | `git diff <sha>~1..<sha>` |
-
-## Running Both
-
-When the user picks "Both" (the default):
-
-1. Run Codex and Antigravity in parallel — issue both Bash tool
-   calls in a single response. Both commands are read-only
-   (they review diffs via external APIs) so there is no
-   shared state or git lock contention.
-2. Collect both results, then present with clear headers:
-
-```
-## Codex Review (gpt-5.6-sol)
-<codex output>
-
-## Antigravity Review (gemini-3.1-pro-high)
-<agy output>
-```
-
-Summarize where the two reviews agree and differ.
-
-## Error Handling
-
-| Error | Action |
-|-------|--------|
-| `codex: command not found` | Tell user: `npm i -g @openai/codex` |
-| `agy: command not found` | Retry with `export PATH="$HOME/.local/bin:$PATH"`. Still missing → tell user to install Antigravity from <https://antigravity.google> |
-| `agy` error: `-p took "--model" as its prompt` | Use `-p=<value>` form and move other flags before it |
-| `agy` error: `empty prompt` | The prompt was piped on stdin. Pass it as an argument instead |
-| `gemini` error: `UNSUPPORTED_CLIENT` / "migrate to the Antigravity suite" | Gemini CLI is EOL for individual tiers. Switch to `agy` |
-| Model auth error (Codex) | Retry with `gpt-5.6`, then `gpt-5.4` |
-| Empty diff | Tell user there are no changes to review |
-| Timeout | Inform user and suggest narrowing the diff scope |
-| Tool partially unavailable | Run only the available tool, note the skip |
+Read the captured output and diagnostics. A nonzero exit, missing output,
+invalid JSON, permission denial that prevents inspection, or a request to
+approve a plan is incomplete work, not a clean review. Report the failure
+and any partial results. Retry only for a diagnosed, recoverable cause;
+do not cycle through providers after authentication or quota failures.
 
 ## Examples
 
-**Both tools (default):**
-```
-User: /second-opinion
-Claude: [asks 4 questions: tool, scope, context, focus]
-User: picks "Both", "Branch diff", "Yes include CLAUDE.md", "Security"
-Claude: [detects default branch = main]
-Claude: [shows diff --stat: 6 files, +103 -15]
-Claude: [assembles prompt with review instructions + CLAUDE.md + security focus + diff]
-Claude: [runs codex exec and agy in parallel]
-Claude: [reads codex output file, parses structured findings]
-Claude: [presents both reviews, highlights agreements/differences]
-```
-
-**Codex only with inline args:**
-```
-User: /second-opinion check uncommitted changes for bugs
-Claude: [scope known: uncommitted, focus known: custom]
-Claude: [asks 2 questions: tool, project context]
-User: picks "Codex only", "No context"
-Claude: [shows diff --stat: 3 files, +45 -10]
-Claude: [writes prompt file with review instructions + diff]
-Claude: [runs codex exec, reads structured JSON output]
-Claude: [presents findings by priority with file:line refs]
-```
-
-**Antigravity only:**
-```
-User: /second-opinion
-Claude: [asks 4 questions]
-User: picks "Antigravity only", "Uncommitted", "No", "General"
-Claude: [shows diff --stat: 2 files, +20 -5]
-Claude: [writes prompt file, runs agy --model gemini-3.1-pro-high -p="$(cat prompt.txt)"]
-Claude: [presents review]
-```
-
-**Large diff warning:**
-```
-User: /second-opinion
-Claude: [asks questions] → user picks "Both", "Uncommitted", "General"
-Claude: [shows diff --stat: 45 files, +3200 -890]
-Claude: "Large diff (3200+ lines). Proceed, or narrow the scope?"
-User: "proceed"
-Claude: [runs both reviews]
-```
+- `/second-opinion:second-opinion use Codex to review my uncommitted changes for bugs`
+  selects Codex and includes staged, unstaged, and untracked changes.
+- `/second-opinion:second-opinion compare Codex and Antigravity on this branch against origin/main`
+  sends the same branch patch to both and compares their findings.
+- `/second-opinion:second-opinion use Gemini CLI to review commit abc1234 for security issues`
+  preserves the requested CLI and reviews that commit.

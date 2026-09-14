@@ -1,70 +1,73 @@
 # second-opinion
 
-Run code reviews using external LLM CLIs (OpenAI Codex, Google Antigravity) on uncommitted changes, branch diffs, or specific commits.
+Get an independent review of uncommitted changes, a branch diff, or a
+commit using OpenAI Codex or Google Antigravity. The `second-opinion`
+skill can also use Gemini CLI when the selected account supports it.
 
-## Prerequisites
+## Setup
 
-### OpenAI Codex CLI
+Install and authenticate the CLI you intend to use:
 
-- [Codex CLI](https://github.com/openai/codex) installed: `npm i -g @openai/codex`
-- OpenAI API key or ChatGPT Plus subscription configured for Codex
+| Provider | Setup |
+|----------|-------|
+| OpenAI Codex | Install with `npm i -g @openai/codex` and configure a supported ChatGPT account or API authentication |
+| Google Antigravity | Follow the [CLI installation guide](https://antigravity.google/docs/cli/getting-started); the executable is `agy` |
+| Gemini CLI | Install with `npm i -g @google/gemini-cli` and configure a supported Code Assist, API-key, or Vertex AI account |
 
-### Google Antigravity CLI
+Antigravity is the default Google path. If Gemini CLI returns
+`UNSUPPORTED_CLIENT` with an Antigravity migration message, that
+account cannot use the Gemini CLI path. Review extensions are not required.
 
-- [Antigravity](https://antigravity.google) installed; binary is `agy`
-  (installs to `~/.local/bin`, which may need adding to PATH)
-- Google account authenticated (`agy models` should list models)
-- No extensions required
+Install the plugin in Claude Code:
 
-### Google Gemini CLI (legacy — paid tiers only)
-
-Gemini CLI stopped serving individual accounts (AI Pro, Ultra, free) on
-2026-06-18; they now get `UNSUPPORTED_CLIENT` and are pointed at
-Antigravity. Only Gemini Code Assist Standard/Enterprise licenses or a
-paid `GEMINI_API_KEY` still work.
-
-- [Gemini CLI](https://github.com/google-gemini/gemini-cli) installed: `npm i -g @google/gemini-cli`
-- Code review extension: `gemini extensions install https://github.com/gemini-cli-extensions/code-review`
-- Security extension: `gemini extensions install https://github.com/gemini-cli-extensions/security`
-- Headless runs need `--skip-trust` or `GEMINI_CLI_TRUST_WORKSPACE=true`
-
-## Installation
-
-```
+```text
 /plugin marketplace add trailofbits/skills
-/plugin install second-opinion
+/plugin install second-opinion@trailofbits
 ```
 
 ## Usage
 
-```
-/second-opinion
-```
+Invoke the `second-opinion` skill with the provider and scope:
 
-The command will prompt for:
-
-1. **Review tool** — Codex, Gemini, or both (default)
-2. **Review scope** — uncommitted changes, branch diff, or specific commit
-3. **Project context** — optionally include CLAUDE.md/AGENTS.md for project-aware review
-4. **Review focus** — general, security, performance, or error handling
-
-### Quick invocation
-
-```
-/second-opinion check the uncommitted changes for security issues
+```text
+/second-opinion:second-opinion use Codex to review uncommitted changes for bugs
+/second-opinion:second-opinion compare Codex and Antigravity against origin/main
+/second-opinion:second-opinion use Gemini CLI to review commit abc1234 for security issues
 ```
 
-Inline arguments pre-fill the scope and focus, skipping redundant questions.
+The skill uses choices already given and asks for missing provider or
+scope details. General review is the default focus. Applicable project
+instructions are included unless you exclude them.
 
-## How It Works
+Uncommitted reviews include staged, unstaged, and untracked changes.
+When you select both providers, each receives the same captured patch.
+Results identify the provider, model, findings, and any gaps in coverage.
 
-Shells out to `codex review` and/or `gemini` CLI with high-capability model configurations. When both tools are selected (the default), runs Codex first then Gemini, presenting results side by side for comparison.
+## Execution
 
-## Codex MCP Tools
+Codex runs through `codex exec` with a read-only sandbox and structured
+JSON findings. Antigravity runs in print mode and returns prose.
+Gemini CLI uses a headless prompt for supported accounts.
 
-This plugin bundles Codex CLI's built-in MCP server (`codex mcp-server`), which auto-starts when the plugin is installed and provides two MCP tools:
+The skill reports findings without applying fixes or publishing a review.
+Authentication errors, denied inspection, and missing output are reported
+as incomplete reviews.
 
-- **codex** — start a new Codex session with a prompt, model, sandbox, and approval policy settings
-- **codex-reply** — continue an existing session by thread ID for multi-turn conversations
+## Upgrading an installation with a failed Codex MCP server
 
-These tools work independently of the `/second-opinion` slash command. Use them when you want direct, programmatic access to Codex without the interactive prompt workflow.
+Version 1.8.1 removes the plugin's automatic Codex MCP registration.
+Codex CLI 0.154.0 dropped the server entry point, as recorded in the
+[OpenAI changelog](https://learn.chatgpt.com/docs/changelog). External
+reviews use the CLI directly and do not require an MCP connection.
+
+If Claude Code reports `CONNECTION_CLOSED` for the plugin's Codex server,
+refresh the marketplace and update the installed plugin:
+
+```bash
+claude plugin marketplace update trailofbits
+claude plugin update second-opinion@trailofbits
+```
+
+Restart Claude Code after updating so it drops the old server
+registration. The separate `codex` and `codex-reply` MCP tools are no
+longer part of the plugin.

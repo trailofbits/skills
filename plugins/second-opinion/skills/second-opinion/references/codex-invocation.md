@@ -1,115 +1,18 @@
-# Codex CLI Invocation
+# Codex Invocation
 
-## Default Configuration
+Use `codex exec` with the prepared prompt on stdin. It supports a
+custom focus and project context alongside a manually captured diff.
+The built-in `codex exec review` scope flags cannot be combined with
+its positional prompt, so they do not replace this invocation.
 
-- Model: `gpt-5.6-sol`
-- Reasoning effort: `xhigh`
+The default remains `gpt-5.6-sol` with `xhigh` reasoning. Preserve an
+explicit model or effort supplied by the user. The flags below were
+checked with Codex CLI 0.154.0 `--help` on 2026-09-14.
 
-Verified against `codex-cli` 0.149.1. The `gpt-5.6` family exposes
-`gpt-5.6`, `gpt-5.6-sol`, `gpt-5.6-luna`, `gpt-5.6-terra`, and
-`gpt-5.6-pro`. `sol` is the general-purpose choice and the one the
-Codex CLI's own default config selected on the machine this was
-verified on.
+## Command
 
-Valid `model_reasoning_effort` values are now `none`, `minimal`, `low`,
-`medium`, `high`, `xhigh`, `max`, `ultra`. `xhigh` is the right default
-for review — `max`/`ultra` cost substantially more wall time for
-marginal gain on a diff-sized input.
-
-## Why Not `codex exec review`
-
-`codex exec review` now has native scope flags (`--uncommitted`,
-`--base <BRANCH>`, `--commit <SHA>`) and supports `--output-schema`,
-`-o`, and `--ephemeral`. It looks like a simplification, but those
-scope flags are **mutually exclusive with the `[PROMPT]` argument**:
-
-```
-error: the argument '--uncommitted' cannot be used with '[PROMPT]'
-```
-
-That makes it impossible to inject project conventions (CLAUDE.md /
-AGENTS.md) or a focus area alongside a scope flag. Keep the manual
-`codex exec` prompt-assembly approach below, which supports context
-and focus for all three scopes.
-
-## Approach
-
-Use `codex exec` in headless mode with the published code review
-prompt, structured JSON output, and `-o` (`--output-last-message`)
-to capture only the final review. This avoids the verbose
-`[thinking]` and `[exec]` blocks that `codex review` dumps to
-stdout.
-
-## Review Prompt
-
-Use this prompt verbatim — it is from OpenAI's [Build Code Review
-with the Codex SDK](https://developers.openai.com/cookbook/examples/codex/build_code_review_with_codex_sdk)
-cookbook, and GPT-5.4 and later (including the 5.6 family)
-received specific training on it:
-
-```
-You are acting as a reviewer for a proposed code change made by another engineer.
-Focus on issues that impact correctness, performance, security, maintainability, or developer experience.
-Flag only actionable issues introduced by the pull request.
-When you flag an issue, provide a short, direct explanation and cite the affected file and line range.
-Prioritize severe issues and avoid nit-level comments unless they block understanding of the diff.
-After listing findings, produce an overall correctness verdict ("patch is correct" or "patch is incorrect") with a concise justification and a confidence score between 0 and 1.
-Ensure that file citations and line numbers are exactly correct using the tools available; if they are incorrect your comments will be rejected.
-```
-
-## Prompt Assembly
-
-Create temp files for the prompt and output:
-
-```bash
-prompt_file="$(mktemp)"
-output_file="$(mktemp)"
-stderr_log="$(mktemp)"
-```
-
-Write the prompt file with these sections in order:
-
-```
-<review prompt from above>
-
-<If project context was requested>
-Project conventions and standards:
----
-<full contents of CLAUDE.md or AGENTS.md>
----
-
-<If focus area was selected or custom text provided>
-Focus: <focus area instructions>
-
-Diff to review:
----
-<git diff output for the selected scope>
----
-```
-
-### Generating the diff
-
-| Scope | Command |
-|-------|---------|
-| Uncommitted (tracked) | `git diff HEAD` |
-| Uncommitted (untracked) | `git ls-files --others --exclude-standard` — for each file, append `git diff --no-index /dev/null <file>` |
-| Branch diff | `git diff <branch>...HEAD` |
-| Specific commit | `git diff <sha>~1..<sha>` |
-
-**Uncommitted scope must include untracked files.** `git diff HEAD`
-alone only shows changes to tracked files. New files that haven't
-been staged would be silently excluded. Generate the full diff:
-
-```bash
-{
-  git diff HEAD
-  git ls-files --others --exclude-standard | while IFS= read -r f; do
-    git diff --no-index /dev/null "$f" 2>/dev/null || true
-  done
-}
-```
-
-## Base Command
+With `prompt_file`, `output_file`, and `stderr_log` already created
+outside the checkout, run from the repository root:
 
 ```bash
 codex exec \
@@ -117,71 +20,47 @@ codex exec \
   -c model_reasoning_effort='"xhigh"' \
   --sandbox read-only \
   --ephemeral \
-  --output-schema {baseDir}/references/codex-review-schema.json \
+  --output-schema "{baseDir}/references/codex-review-schema.json" \
   -o "$output_file" \
   - < "$prompt_file" \
-  > /dev/null 2>"$stderr_log"
+  > /dev/null 2> "$stderr_log"
 ```
 
-Then read `$output_file` with the Read tool. If empty or missing,
-read `$stderr_log` to diagnose the failure.
+`-o` saves the final response while diagnostics remain in
+`stderr_log`. `--output-schema` requests structured findings.
+`--ephemeral` avoids persisting a review session.
 
-## Output Format
+These options are documented in OpenAI's
+[non-interactive mode guide](https://learn.chatgpt.com/docs/non-interactive-mode).
+No MCP server is involved. The
+[Codex changelog](https://learn.chatgpt.com/docs/changelog) records removal
+of `codex mcp-server` in CLI 0.154.0.
 
-The output is structured JSON matching `codex-review-schema.json`:
+## Result handling
 
-```json
-{
-  "findings": [
-    {
-      "title": "Short description (max 80 chars)",
-      "body": "Detailed explanation",
-      "confidence_score": 0.95,
-      "priority": 1,
-      "code_location": {
-        "file_path": "src/main.rs",
-        "line_range": { "start": 42, "end": 48 }
-      }
-    }
-  ],
-  "overall_correctness": "patch is correct",
-  "overall_explanation": "Summary of the review",
-  "overall_confidence_score": 0.9
-}
-```
+Parse `output_file` as JSON. Use the returned findings, explanation,
+and confidence rather than CLI progress messages. An empty findings
+array is meaningful only after the invocation completed and returned a
+valid review.
 
-Priority levels: 0 = informational, 1 = low, 2 = medium, 3 = high.
+The shipped schema uses higher numbers for higher severity:
+0 informational, 1 low, 2 medium, 3 high. This is not the P0-critical
+convention used by some other review formats. Do not invert it when
+presenting findings.
 
-### Presenting Results
+## Failure handling
 
-Parse the JSON and present findings grouped by priority (highest
-first). For each finding, show:
+| Failure | Response |
+|---------|----------|
+| Executable missing | Report that Codex must be installed and authenticated; installation command: `npm i -g @openai/codex` |
+| Authentication or quota error | Report the error and stop this provider; changing models does not repair missing credentials or exhausted quota |
+| Default model unavailable | If the user did not pin a model, retry once with `gpt-5.6` and disclose the substitution |
+| Explicit model unavailable | Report the failure and ask for a replacement |
+| Nonzero exit, empty file, or invalid JSON | Read diagnostics and report an incomplete review |
+| Sandbox denied a needed read or command | Report the coverage gap; do not ignore it or remove the sandbox |
+| Timeout | Preserve partial output and report the timeout; suggest a narrower scope |
 
-- **Title** with file:line reference
-- **Body** explanation
-- **Confidence** as a percentage
-
-End with the overall verdict and confidence.
-
-If the output file is empty or missing, read `$stderr_log` to
-diagnose the failure.
-
-## Model Fallback
-
-If `gpt-5.6-sol` fails with an auth error (e.g., "not supported
-when using Codex with a ChatGPT account"), retry in order:
-`gpt-5.6`, then `gpt-5.4`. Log the fallback for the user.
-
-`gpt-5.6-pro` is deliberately not in the fallback chain: it is a
-higher-tier, slower model, so it is a poor automatic substitute for an
-auth failure. Untested here — reach for it only on explicit request.
-
-## Error Handling
-
-| Error | Action |
-|-------|--------|
-| `codex: command not found` | Tell user: `npm i -g @openai/codex` |
-| Model auth error | Retry with `gpt-5.6`, then `gpt-5.4` |
-| Timeout | Suggest narrowing the diff scope |
-| `EPERM` / sandbox errors | Expected — `codex exec` runs sandboxed. Ignore these. |
-| Empty/missing output file | Read `$stderr_log` to diagnose the failure |
+A model reported as "not supported when using Codex with a ChatGPT account"
+is a model-entitlement failure. Use the model-unavailable response above:
+retry only when the user did not pin a model. This differs from missing
+or invalid credentials and exhausted quota, which stop the provider.

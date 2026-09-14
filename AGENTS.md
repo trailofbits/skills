@@ -235,10 +235,12 @@ It needs `uv`, `shellcheck`, `shfmt`, `bats`, and `node` on PATH. `node` is the 
 of those and the one most likely to be missing — without it `make check` stops at
 `js-tests` with a bare `node: command not found`.
 
-It is most of CI, not all of it. Three things run only in CI, so a green `make check`
+It is most of CI, not all of it. Additional checks run in CI, so a green `make check`
 is strong evidence and not a guarantee:
 
 - **the two loadability checks**, which need the Claude Code and Codex CLIs installed
+- **review-walkthrough's browser checks**, which need Chrome or Chromium. Run
+  `node plugins/review-walkthrough/tests/browser-check.mjs /path/to/chromium` locally.
 - **the rest of pre-commit** — actionlint, zizmor, check-yaml/json/toml,
   detect-private-key, end-of-file-fixer, trailing-whitespace. Run `prek run -a` (or
   `pre-commit run -a`) to cover those locally.
