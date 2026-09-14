@@ -50,6 +50,9 @@ silently truncate the patch.
 
 Create prompt, output, and diagnostic files with `mktemp` outside the
 checkout. Use separate output and diagnostic files for each provider.
+Define shell variables in the same Bash invocation that uses them.
+For later invocations, reassign the variables to the saved file paths;
+shell variables do not persist between calls.
 Write repository content as literal data, without shell expansion.
 
 ## Provider references
@@ -66,9 +69,10 @@ The Codex path needs no MCP server. Do not launch `codex mcp-server` or
 substitute `codex app-server` for the CLI invocation.
 
 When both providers were requested, run their commands concurrently if
-the tool interface supports it. Allow up to ten minutes per review,
-using background execution or polling when available to keep progress
-visible. Do not enable automatic approval of writes to make a review run.
+the tool interface supports it. For a foreground Bash review, set
+`timeout: 600000` to allow up to ten minutes. Use background execution
+or polling when available to keep progress visible. Do not enable
+automatic approval of writes to make a review run.
 
 ## Results and failures
 
@@ -89,9 +93,9 @@ do not cycle through providers after authentication or quota failures.
 
 ## Examples
 
-- `/second-opinion use Codex to review my uncommitted changes for bugs`
+- `/second-opinion:second-opinion use Codex to review my uncommitted changes for bugs`
   selects Codex and includes staged, unstaged, and untracked changes.
-- `/second-opinion compare Codex and Antigravity on this branch against origin/main`
+- `/second-opinion:second-opinion compare Codex and Antigravity on this branch against origin/main`
   sends the same branch patch to both and compares their findings.
-- `/second-opinion use Gemini CLI to review commit abc1234 for security issues`
+- `/second-opinion:second-opinion use Gemini CLI to review commit abc1234 for security issues`
   preserves the requested CLI and reviews that commit.

@@ -32,18 +32,22 @@ the current files as initial additions.
 Use a NUL-delimited file list so spaces and newlines in paths survive.
 `git diff --no-index` returns 1 for differences and for some read errors.
 Capture diagnostics as well as the status so a missing file cannot be
-silently excluded from the review.
+silently excluded from the review. Disable `core.safecrlf` for this
+read-only diff so advisory line-ending warnings do not count as read
+errors; this does not change the patch or the repository configuration.
 
-Run this Bash block after defining `diff_file`, `untracked_file`, and
-`diff_error_file` with `mktemp`:
+This Bash block creates its temporary files in the same invocation:
 
 ```bash
 set -euo pipefail
+diff_file=$(mktemp)
+untracked_file=$(mktemp)
+diff_error_file=$(mktemp)
 git diff --no-ext-diff --no-textconv HEAD -- > "$diff_file"
 git ls-files --others --exclude-standard -z > "$untracked_file"
 while IFS= read -r -d '' file; do
   diff_status=0
-  git diff --no-index --no-ext-diff --no-textconv -- /dev/null "$file" \
+  git -c core.safecrlf=false diff --no-index --no-ext-diff --no-textconv -- /dev/null "$file" \
     >> "$diff_file" 2> "$diff_error_file" || diff_status=$?
   if [ "$diff_status" -gt 1 ] || [ -s "$diff_error_file" ]; then
     cat "$diff_error_file" >&2
@@ -51,6 +55,7 @@ while IFS= read -r -d '' file; do
     exit 1
   fi
 done < "$untracked_file"
+printf 'Patch file: %s\n' "$diff_file"
 ```
 
 Inspect the resulting patch before submitting it. Binary changes appear

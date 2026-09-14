@@ -7,7 +7,7 @@ its positional prompt, so they do not replace this invocation.
 
 The default remains `gpt-5.6-sol` with `xhigh` reasoning. Preserve an
 explicit model or effort supplied by the user. The flags below were
-checked against Codex CLI 0.154.0 on 2026-09-14.
+checked with Codex CLI 0.154.0 `--help` on 2026-09-14.
 
 ## Command
 
@@ -59,3 +59,8 @@ presenting findings.
 | Nonzero exit, empty file, or invalid JSON | Read diagnostics and report an incomplete review |
 | Sandbox denied a needed read or command | Report the coverage gap; do not ignore it or remove the sandbox |
 | Timeout | Preserve partial output and report the timeout; suggest a narrower scope |
+
+A model reported as "not supported when using Codex with a ChatGPT account"
+is a model-entitlement failure. Use the model-unavailable response above:
+retry only when the user did not pin a model. This differs from missing
+or invalid credentials and exhausted quota, which stop the provider.

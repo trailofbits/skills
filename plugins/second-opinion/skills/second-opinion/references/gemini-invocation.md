@@ -24,8 +24,8 @@ gemini \
 ```
 
 The prompt flag selects headless mode and stdin supplies the captured
-patch, focus, and project context. These flags were checked against
-Gemini CLI 0.53.0 on 2026-09-14. See the
+patch, focus, and project context. These flags were checked with
+Gemini CLI 0.59.0 `--help` on 2026-09-14. See the
 [headless mode reference](https://geminicli.com/docs/cli/headless/).
 
 A plain prompt supports general, security, performance, and error-handling
