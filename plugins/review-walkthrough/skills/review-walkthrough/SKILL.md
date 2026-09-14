@@ -70,9 +70,9 @@ prose or snippets as `&lt;` and `&gt;`. Backticks and Markdown fences are litera
 text here. Supported inline tags also include `<sup>`, `<sub>`, `<kbd>`, `<del>`,
 and `<a href="https://…">`. The page sanitizes fragments and converts them to
 Markdown when preparing a PR comment. Only safe link targets survive; arbitrary
-attributes, scripts, and images do not. Keep exported findings in prose, lists,
-and code blocks; tables render on the page but lose their table structure when
-converted to Markdown.
+attributes, scripts, and images do not. Tables export as text rows with cell
+separators; captions and row order are preserved. Prefer prose, lists, and code
+blocks when their structure is sufficient.
 
 Anchor findings to a file in the same step and a line in that file's displayed
 diff. Use `side: "RIGHT"` for additions or new-file context and `side: "LEFT"`
@@ -117,4 +117,5 @@ Open the output with `open` on macOS or `xdg-open` on Linux when a browser is
 available, and tell the user its path. In a headless run, report the file without
 opening it. When PR metadata is present, the page lets the user copy a `gh api`
 command for their selected comments. It does not execute the command or post
-anything to GitHub.
+anything to GitHub. Comment and Request Changes require a review summary before
+the command can be copied; the summary is optional for Approve.

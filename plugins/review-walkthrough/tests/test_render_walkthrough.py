@@ -29,6 +29,8 @@ def repo(tmp_path):
     git(path, "init", "-q")
     git(path, "config", "user.name", "Walkthrough Fixture")
     git(path, "config", "user.email", "fixture@example.invalid")
+    git(path, "config", "commit.gpgsign", "false")
+    git(path, "config", "diff.renames", "true")
     (path / "a.txt").write_text("old\ncontext\n", encoding="utf-8")
     (path / "deleted.txt").write_text("deleted\n", encoding="utf-8")
     (path / "image.bin").write_bytes(b"\x00old")
@@ -39,7 +41,7 @@ def repo(tmp_path):
 
 
 def patch_data(repo):
-    patch = git(repo, "diff", "--no-ext-diff", "--no-textconv", "HEAD", "--").decode()
+    patch = git(repo, "diff", "--no-ext-diff", "--no-textconv", "--no-color", "HEAD", "--").decode()
     blocks = renderer.split_diff(patch)
     paths = renderer.patch_paths(patch, len(blocks))
     data = {

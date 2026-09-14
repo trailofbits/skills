@@ -49,6 +49,14 @@ test('inline code spans preserve Markdown punctuation and variable backtick deli
   assert.equal(context.markdownToHtml('lone ``'), '<p>lone ``</p>');
 });
 
+test('escaped punctuation stays literal within formatted prose', () => {
+  const literal = '# title, 1. item, - item, a|b &copy;';
+  const md = '**' + context.escapeMarkdown(literal) + '**';
+  assert.equal(context.markdownToHtml(md), '<p><strong>' + context.escape(literal) + '</strong></p>');
+  assert.equal(context.markdownToHtml('**before `a * b` after**'), '<p><strong>before <code>a * b</code> after</strong></p>');
+  assert.equal(context.markdownInline('\u0000 **' + context.escapeMarkdown('# literal') + '**'), '\u0000 <strong># literal</strong>');
+});
+
 test('review payload preserves line side, ranges, and literal comment text', () => {
   const comment = {
     file: unusualPath, startLine: 3, endLine: 5, side: 'LEFT', startSide: 'LEFT',

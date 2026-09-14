@@ -29,6 +29,7 @@ async function browserChecks() {
   const mount = document.createElement('div');
   document.body.appendChild(mount);
   window.testExecuted = false;
+  document.getElementById('reviewBody').value = 'Review summary';
 
   check('malformed active markup stays inert in the browser', () => {
     const payloads = [
@@ -96,6 +97,34 @@ async function browserChecks() {
     equal(htmlToMarkdown('<a href="https://example.com/a(b)">link</a>'), '[link](https://example.com/a%28b%29)');
   });
 
+  check('table captions, cells, and rows remain separate in exported comments', () => {
+    const review = REVIEWS[0][0];
+    const original = review.body;
+    try {
+      review.body = '<p>Before</p><table><caption>People</caption><thead><tr><th>Name</th><th>Age</th></tr></thead><tbody><tr><td>Alice</td><td>30</td></tr><tr><td>Bob</td><td>25</td></tr></tbody><tfoot><tr><td>Total</td><td>2</td></tr></tfoot></table><p>After</p>';
+      convertReviewToComment(0, 0);
+      const body = buildReviewPayload().comments[0].body;
+      truth(body.replace(/\n{3,}/g, '\n\n').includes('Before\n\nPeople\n\nName | Age  \nAlice | 30  \nBob | 25  \nTotal | 2\n\nAfter'), body);
+      truth(!body.includes('Alice30'), 'Table cells fused');
+      equal(htmlToMarkdown('<table><tr><td><code>a|b</code></td><td></td><td>x | y</td></tr></table>'), '`a|b` |  | x \\| y');
+    } finally {
+      review.body = original;
+      pendingComments = [];
+      render();
+    }
+  });
+
+  check('export retains blockquotes and literal Markdown punctuation', () => {
+    const fragment = '<blockquote><p>Quoted</p><p>Again</p></blockquote><p># Heading</p><p>- Literal</p><p>1. Literal</p><p><strong>Keep # and | literal.</strong></p>';
+    const md = htmlToMarkdown(fragment);
+    truth(md.includes('> Quoted\n> \n> Again'), md);
+    truth(md.includes('\\# Heading') && md.includes('\\- Literal') && md.includes('1\\. Literal'), md);
+    mount.innerHTML = markdownToHtml(md);
+    equal(mount.querySelector('blockquote').textContent, 'QuotedAgain');
+    equal(mount.querySelector('strong').textContent, 'Keep # and | literal.');
+    truth(!mount.querySelector('h1,ol,ul'), 'Literal prose became block markup');
+  });
+
   Element.prototype.scrollIntoView = function() { window.lastScrolled = this; };
   check('finding links safely navigate paths with quotes and shell characters', () => {
     const link = document.querySelectorAll('.review-item-file')[1];
@@ -145,6 +174,92 @@ async function browserChecks() {
     removeComment(0);
   });
 
+  check('converting a finding tracks the correct button through navigation and removal', () => {
+    const original = REVIEWS[0].slice();
+    try {
+      REVIEWS[0].unshift({ severity: 'low', title: 'Unanchored', body: '<p>General note.</p>' });
+      render();
+      let buttons = document.querySelectorAll('#review .btn-convert-comment');
+      buttons[0].click();
+      equal(pendingComments.length, 1);
+      truth(buttons[0].disabled, 'Clicked finding remains enabled');
+      truth(!buttons[1].disabled, 'A different finding was disabled');
+      buttons[0].click();
+      equal(pendingComments.length, 1);
+      render();
+      buttons = document.querySelectorAll('#review .btn-convert-comment');
+      truth(buttons[0].disabled, 'Rerender lost the converted state');
+      convertReviewToComment(0, 1);
+      equal(pendingComments.length, 1);
+      removeComment(0);
+      truth(!document.querySelector('#review .btn-convert-comment').disabled, 'Removing the comment did not reenable its finding');
+    } finally {
+      REVIEWS[0].splice(0, REVIEWS[0].length, ...original);
+      pendingComments = [];
+      render();
+    }
+  });
+
+  check('comment and request-changes reviews require a summary before copying', () => {
+    const event = document.getElementById('reviewEvent');
+    const summary = document.getElementById('reviewBody');
+    const copy = document.getElementById('btnCopyCommand');
+    const box = document.getElementById('ghCommandBox');
+    pendingComments = [{ file: 'both.txt', endLine: 1, side: 'RIGHT', body: 'Inline finding', stepIndex: 0 }];
+    try {
+      for (const value of ['COMMENT', 'REQUEST_CHANGES']) {
+        event.value = value;
+        summary.value = '   ';
+        event.dispatchEvent(new Event('change'));
+        truth(summary.required && copy.disabled, value + ' accepted a blank summary');
+        truth(!box.textContent.includes('gh api'), 'Invalid command remains copyable');
+        let rejected = false;
+        try { buildGhCommand(); } catch (error) { rejected = /summary/i.test(error.message); }
+        truth(rejected, 'Command builder accepted missing summary');
+        summary.value = 'Please address the inline finding.';
+        summary.dispatchEvent(new Event('input'));
+        truth(!copy.disabled && box.textContent.includes('gh api'), 'Valid review cannot be copied');
+        equal(buildReviewPayload().body, summary.value);
+      }
+      event.value = 'APPROVE';
+      summary.value = '';
+      event.dispatchEvent(new Event('change'));
+      truth(!summary.required && !copy.disabled, 'Approval requires an unnecessary summary');
+      equal(buildReviewPayload().event, 'APPROVE');
+      pendingComments = [];
+      renderCommentsTab();
+      truth(copy.disabled && !box.textContent, 'Empty review retains a stale command');
+    } finally {
+      event.value = 'COMMENT';
+      summary.value = 'Review summary';
+      pendingComments = [];
+      render();
+    }
+  });
+
+  check('navigation shortcuts leave a focused dropdown alone', () => {
+    const event = document.getElementById('reviewEvent');
+    STEPS.push({ ...STEPS[0], sha: 'step-2' });
+    EXPLANATIONS.push(EXPLANATIONS[0]);
+    REVIEWS.push([]);
+    try {
+      event.focus();
+      event.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      equal(current, 0);
+      event.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true }));
+      equal(current, 0);
+      event.blur();
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true }));
+      equal(current, 1);
+    } finally {
+      current = 0;
+      STEPS.pop();
+      EXPLANATIONS.pop();
+      REVIEWS.pop();
+      render();
+    }
+  });
+
   await new Promise(resolve => setTimeout(resolve, 100));
   check('sanitized fragments never execute after browser events', () => equal(window.testExecuted, false));
   const output = document.createElement('output');
@@ -168,7 +283,7 @@ try {
   const result = /<output id="frontend-results">([^<]+)<\/output>/.exec(run.stdout);
   assert.ok(result, 'Browser did not execute the tests.\n' + run.stderr);
   const checks = JSON.parse(Buffer.from(result[1], 'base64').toString('utf8'));
-  assert.ok(checks.length >= 10, 'Browser test discovery returned too few checks');
+  assert.ok(checks.length >= 15, 'Browser test discovery returned too few checks');
   for (const check of checks) {
     process.stdout.write(`${check.passed ? 'PASS' : 'FAIL'} ${check.name}\n`);
     if (!check.passed) process.stderr.write(check.error + '\n');

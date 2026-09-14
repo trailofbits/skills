@@ -42,9 +42,16 @@ measure uplift against a baseline without the plugin.
 
 The ordering regexes use `b/`-prefixed diff paths, so imports cannot satisfy them.
 A `"message":` key separates steps; grouping related files in the same step is
-allowed. The first-step hunk check and placeholder check are inexpensive artifact
-checks. The renderer validates every file's complete diff, matching it against
-the captured patch, and checks line anchors, ranges, and sides.
+allowed. The first-step patch check accepts hunk headers and empty-file creation
+metadata, since an empty `__init__.py` can be the first step. The renderer validates
+every file's complete diff, matching it against the captured patch, and checks
+line anchors, ranges, and sides.
+
+`tests/test_eval_graders.py` builds the real fixture and renders its complete
+patch, then exercises all five regex graders with JavaScript's regex engine.
+It checks valid step arrangements, each grader's corresponding defect, and
+empty or missing artifacts. A discovery guard and nonempty-pattern assertions
+prevent the self-test from passing without testing the shipped patterns.
 
 The semantic judge reads only the explanation and review data. Its rubric excludes
 escaping, array alignment, anchors, and ordering, which are handled by code and

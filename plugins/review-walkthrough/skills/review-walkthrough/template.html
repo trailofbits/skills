@@ -150,7 +150,7 @@
   /* Hide + button on lines that are already selected or have form open */
   .commenting-enabled .diff-line.selected .line-add-btn { display: none; }
 
-  /* Show + button on all lines in same file during drag */
+  /* Hide add buttons during line selection. */
   .commenting-enabled.dragging .diff-line .line-add-btn { display: none; }
 
   /* Prevent text selection during drag */
@@ -831,8 +831,8 @@
     <div class="top-tab-pane" id="paneComments">
       <div id="commentsList"></div>
       <div class="submit-section" id="submitSection">
-        <label for="reviewBody">Review summary (optional)</label>
-        <textarea id="reviewBody" placeholder="Overall review comment..."></textarea>
+        <label for="reviewBody" id="reviewBodyLabel">Review summary (required)</label>
+        <textarea id="reviewBody" placeholder="Overall review comment..." required></textarea>
         <label for="reviewEvent">Review action</label>
         <select id="reviewEvent">
           <option value="COMMENT">Comment</option>
@@ -1128,9 +1128,7 @@ function render() {
 
   document.getElementById('commitTitle').textContent = step.message;
   document.getElementById('stepLabel').textContent =
-    'Step ' + (current + 1)
-    + (step.sha && !step.sha.startsWith('step-')
-       ? ' \u00b7 ' + step.sha : '');
+    'Step ' + (current + 1);
   document.getElementById('fileTags').innerHTML = step.files
     .map(function(f) {
       return '<span class="file-tag">'
@@ -1159,6 +1157,7 @@ function render() {
           var convertBtn = '';
           if (PR_META && r.file && r.line) {
             convertBtn = '<button class="btn-convert-comment"'
+              + ' data-review-index="' + ri + '"'
               + ' onclick="convertReviewToComment(' + current + ',' + ri + ')"'
               + '>Add as comment</button>';
           }
@@ -1195,6 +1194,7 @@ function render() {
     nextBtn.disabled = false;
   }
 
+  updateReviewButtons();
   renderCommentsTab();
 }
 
@@ -1318,6 +1318,7 @@ function submitComment() {
 
 function removeComment(idx) {
   pendingComments.splice(idx, 1);
+  updateReviewButtons();
   renderCommentMarkers();
   renderInlineComments();
   renderCommentsTab();
@@ -1331,7 +1332,7 @@ var INLINE_HTML_OK =
   /^(sup|sub|kbd|mark|ins|abbr|small|var|samp|q|cite|dfn|time|u)$/i;
 
 function escapeMarkdown(text) {
-  return text.replace(/[\\`*_~\[\]<>]/g, '\\$&');
+  return text.replace(/[\\`*_~\[\]<>#|+.!()=&-]/g, '\\$&');
 }
 
 function codeFence(text, minimum) {
@@ -1359,6 +1360,15 @@ function htmlToMarkdown(html) {
       var padding = /^[ `]|[ `]$/.test(text) ? ' ' : '';
       return ticks + padding + text + padding + ticks;
     }
+    if (tag === 'tr') {
+      return Array.from(node.children).map(function(cell) {
+        return convert(cell).trim();
+      }).join(' | ') + '  \n';
+    }
+    if (/^(table|thead|tbody|tfoot)$/.test(tag)) {
+      var rows = Array.from(node.children).map(convert).join('');
+      return tag === 'table' ? '\n\n' + rows.trim() + '\n\n' : rows;
+    }
     var inner = Array.from(node.childNodes).map(convert).join('');
     if (tag === 'strong' || tag === 'b') return '**' + inner + '**';
     if (tag === 'em' || tag === 'i') return '_' + inner + '_';
@@ -1375,7 +1385,12 @@ function htmlToMarkdown(html) {
     if (tag === 'br') return '  \n';
     if (tag === 'li') return '- ' + inner.trim() + '\n';
     if (tag === 'hr') return '\n\n---\n\n';
-    if (/^(p|div|ul|ol|h[1-6]|pre|blockquote|dl|dt|dd)$/.test(tag)) return inner.trim() + '\n\n';
+    if (tag === 'blockquote') {
+      return '\n\n' + inner.trim().split('\n').map(function(line) {
+        return '> ' + line;
+      }).join('\n') + '\n\n';
+    }
+    if (/^(p|div|ul|ol|h[1-6]|caption|dl|dt|dd)$/.test(tag)) return inner.trim() + '\n\n';
     return inner;
   }
   return Array.from(source.content.childNodes).map(convert).join('').trim();
@@ -1384,10 +1399,10 @@ function htmlToMarkdown(html) {
 // Render formatting only outside code spans. Escaped Markdown punctuation stays
 // literal, including characters quoted from a finding's HTML body.
 function markdownInline(text) {
-  var html = '';
-  var token = /\\([\\`*_~\[\]<>])|(?<!`)(`+)(?!`)([\s\S]*?)(?<!`)\2(?!`)/g;
-  var cursor = 0;
-  var match;
+  var token = /\\([\\`*_~\[\]<>#|+.!()=&-])|(?<!`)(`+)(?!`)([\s\S]*?)(?<!`)\2(?!`)/g;
+  var protectedParts = [];
+  var marker = '\u0000';
+  while (text.includes(marker)) marker += '\u0000';
   function format(part) {
     return escape(part)
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
@@ -1396,18 +1411,22 @@ function markdownInline(text) {
       .replace(/&lt;(\/?)(sup|sub|kbd|mark|ins|abbr|small|var|samp|q|cite|dfn|time|u)&gt;/gi, '<$1$2>')
       .replace(/\n/g, '<br>');
   }
-  while ((match = token.exec(text)) !== null) {
-    html += format(text.slice(cursor, match.index));
-    if (match[1]) {
-      html += escape(match[1]);
+  var marked = text.replace(token, function(_match, literal, _ticks, code) {
+    var fragment;
+    if (literal) {
+      fragment = escape(literal);
     } else {
-      var code = match[3].replace(/\n/g, ' ');
+      code = code.replace(/\n/g, ' ');
       if (/^ .* $/.test(code) && /[^ ]/.test(code)) code = code.slice(1, -1);
-      html += '<code>' + escape(code) + '</code>';
+      fragment = '<code>' + escape(code) + '</code>';
     }
-    cursor = token.lastIndex;
-  }
-  return html + format(text.slice(cursor));
+    protectedParts.push(fragment);
+    return marker + (protectedParts.length - 1) + marker;
+  });
+  // Restore literal punctuation and code after formatting their surrounding text.
+  return format(marked).split(marker).map(function(part, index) {
+    return index % 2 ? protectedParts[Number(part)] : part;
+  }).join('');
 }
 
 // Fences are handled before paragraph and inline formatting, so blank lines,
@@ -1421,6 +1440,17 @@ function markdownToHtml(md) {
     paragraph = [];
   }
   for (var i = 0; i < lines.length; i++) {
+    if (/^ {0,3}>/.test(lines[i])) {
+      flush();
+      var quote = [];
+      do {
+        quote.push(lines[i].replace(/^ {0,3}> ?/, ''));
+        i++;
+      } while (i < lines.length && /^ {0,3}>/.test(lines[i]));
+      i--;
+      html += '<blockquote>' + markdownToHtml(quote.join('\n')) + '</blockquote>';
+      continue;
+    }
     var fence = /^ {0,3}(`{3,}|~{3,})[^`]*$/.exec(lines[i]);
     if (fence) {
       flush();
@@ -1438,9 +1468,23 @@ function markdownToHtml(md) {
   return html;
 }
 
+function hasReviewComment(stepIdx, reviewIdx) {
+  return pendingComments.some(function(comment) {
+    return comment.stepIndex === stepIdx && comment.reviewIndex === reviewIdx;
+  });
+}
+
+function updateReviewButtons() {
+  document.querySelectorAll('#review .btn-convert-comment').forEach(function(button) {
+    var added = hasReviewComment(current, Number(button.dataset.reviewIndex));
+    button.disabled = added;
+    button.textContent = added ? 'Added' : 'Add as comment';
+  });
+}
+
 function convertReviewToComment(stepIdx, reviewIdx) {
   var r = REVIEWS[stepIdx][reviewIdx];
-  if (!r || !r.file || !r.line) return;
+  if (!r || !r.file || !r.line || hasReviewComment(stepIdx, reviewIdx)) return;
 
   var endLine = r.end_line || r.line;
   var body = '**' + escapeMarkdown(r.title) + '** (' + r.severity.toUpperCase() + ')\n\n'
@@ -1453,19 +1497,15 @@ function convertReviewToComment(stepIdx, reviewIdx) {
     side: r.side,
     startSide: r.side,
     body: body,
-    stepIndex: stepIdx
+    stepIndex: stepIdx,
+    reviewIndex: reviewIdx
   });
 
   renderCommentMarkers();
   renderInlineComments();
   renderCommentsTab();
 
-  // Disable the button to indicate it was converted.
-  var btns = document.querySelectorAll('#review .btn-convert-comment');
-  if (btns[reviewIdx]) {
-    btns[reviewIdx].disabled = true;
-    btns[reviewIdx].textContent = 'Added';
-  }
+  updateReviewButtons();
 
   showToast('Review converted to comment');
 
@@ -1562,18 +1602,15 @@ function renderCommentsTab() {
 
   var list = document.getElementById('commentsList');
   var badge = document.getElementById('commentBadge');
-  var copyBtn = document.getElementById('btnCopyCommand');
-  var cmdBox = document.getElementById('ghCommandBox');
 
   badge.textContent = pendingComments.length;
   badge.style.display = pendingComments.length > 0 ? 'inline-block' : 'none';
-  copyBtn.disabled = pendingComments.length === 0;
+  updateCommandBox();
 
   if (pendingComments.length === 0) {
     list.innerHTML = '<p class="comments-empty">'
       + 'No comments yet. Click the <strong>+</strong> icon '
       + 'on any diff line to add a review comment.</p>';
-    cmdBox.classList.remove('visible');
     return;
   }
 
@@ -1594,10 +1631,15 @@ function renderCommentsTab() {
   }
 
   list.innerHTML = html;
-  updateCommandBox();
+}
+
+function reviewSummaryMissing() {
+  return document.getElementById('reviewEvent').value !== 'APPROVE'
+    && !document.getElementById('reviewBody').value.trim();
 }
 
 function buildReviewPayload() {
+  if (reviewSummaryMissing()) throw new Error('Add a review summary for Comment or Request Changes.');
   var event = document.getElementById('reviewEvent').value;
   var body = document.getElementById('reviewBody').value.trim();
   var comments = pendingComments.map(function(c) {
@@ -1639,16 +1681,23 @@ function shellQuote(value) {
 
 function updateCommandBox() {
   var box = document.getElementById('ghCommandBox');
-  if (pendingComments.length > 0) {
+  var needsSummary = document.getElementById('reviewEvent').value !== 'APPROVE';
+  document.getElementById('reviewBody').required = needsSummary;
+  document.getElementById('reviewBodyLabel').textContent =
+    'Review summary (' + (needsSummary ? 'required' : 'optional') + ')';
+  var ready = pendingComments.length > 0 && !reviewSummaryMissing();
+  document.getElementById('btnCopyCommand').disabled = !ready;
+  if (ready) {
     box.textContent = buildGhCommand();
     box.classList.add('visible');
   } else {
+    box.textContent = '';
     box.classList.remove('visible');
   }
 }
 
 function copyReviewCommand() {
-  if (pendingComments.length === 0) return;
+  if (pendingComments.length === 0 || reviewSummaryMissing()) return;
   var cmd = buildGhCommand();
   function fallback() {
     var box = document.getElementById('ghCommandBox');
@@ -1801,8 +1850,8 @@ document.getElementById('reviewBody').addEventListener('input', updateCommandBox
 // --- Keyboard navigation ---
 
 document.addEventListener('keydown', function(e) {
-  // Don't navigate when typing in a textarea/input
-  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')
+  // Leave keyboard input to the focused form control.
+  if (/^(TEXTAREA|INPUT|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable)
     return;
   if (e.key === 'ArrowRight' || e.key === 'j') navigate(1);
   if (e.key === 'ArrowLeft' || e.key === 'k') navigate(-1);

@@ -26,6 +26,9 @@ reports unresolved refs or an empty diff. It leaves the checkout unchanged.
 - Editable comments and a copyable `gh api` command when matching PR metadata is
   available. The page does not submit a review; the user executes the command.
 
+Comment and Request Changes require a review summary before the command can be
+copied. Approve permits an empty summary.
+
 The output is a self-contained HTML file outside the checkout. The skill opens it
 in the browser when one is available and otherwise reports the path. Review input
 is passed to the bundled renderer as JSON. The renderer checks that the steps
