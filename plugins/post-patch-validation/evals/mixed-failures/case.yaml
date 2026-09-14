@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: mixed-failures
+description: A patch misses repeated markup and strips legitimate whitespace. Both failures must be reported.
+tags: [post-patch-validation, mixed-failures]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  max_turns: 60
+  timeout_seconds: 1800
+  allowed_tools: [Read, Write, Edit, Bash, Glob, Grep, Skill, Workflow]
+  prompt: |-
+    Use the post-patch-validation skill to validate HEAD against the vulnerable tag.
+
+    Finding PPV-EVAL-4: render(value) must escape every attacker-controlled "<" character
+    while preserving legitimate text exactly, including surrounding whitespace. The original
+    payload was a single "<". Validate the root cause and the surrounding behavior. The target
+    is this local repository and you are authorized to execute its code. Write the plan under
+    post-patch-validation/plan.json and results under post-patch-validation/results.
+    Do not stop to ask questions.
+graders:
+  - name: result-exists
+    type: file_exists
+    path: post-patch-validation/results/result.json
+    exists: true
+    weight: 1
+  - name: variant-finding-retained
+    type: regex
+    target: {source: file, path: post-patch-validation/results/result.json}
+    pattern: '"assessment":\s*\{\s*"findings":\s*\[(?:\s*\{[^{}]*\}\s*,)*\s*\{\s*"check_id":\s*"[^"\n]+",\s*"kind":\s*"variant",\s*"message":\s*"[^"\n]+"\s*\}'
+    match: contains
+    weight: 2
+  - name: behavior-finding-retained
+    type: regex
+    target: {source: file, path: post-patch-validation/results/result.json}
+    pattern: '"assessment":\s*\{\s*"findings":\s*\[(?:\s*\{[^{}]*\}\s*,)*\s*\{\s*"check_id":\s*"[^"\n]+",\s*"kind":\s*"behavior",\s*"message":\s*"[^"\n]+"\s*\}'
+    match: contains
+    weight: 2

@@ -1,100 +1,128 @@
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 from pathlib import Path
 
 import yaml
+from test_runner import run, scaffold
 
 EVALS = Path(__file__).resolve().parents[1] / "evals"
-EXPECTED = {"complete-fix", "missed-variant", "behavior-regression"}
-GOLDENS = {
-    "complete-fix": (
-        '{"code": "S1"} | `03-variant` | variant | pass | pass |',
-        '{"code": "S3"} | `03-variant` | variant | pass | fail |',
-    ),
-    "missed-variant": (
-        '{"code": "S3"} | `03-variant` | variant | pass | fail |',
-        '{"code": "S1"} | `03-variant` | variant | pass | pass |',
-    ),
-    "behavior-regression": (
-        '{"code": "S2"}\n| `04-behavior` | behavior | pass | pass | changed |',
-        '{"code": "S1"}\n| `04-behavior` | behavior | pass | pass | same |',
-    ),
-}
-
-# The shape that broke the original result.json grader: a variant that PASSED on the patch,
-# followed by an unrelated check that failed. `[\s\S]*?` backtracks across the check boundary,
-# so the old pattern read this as "the variant failed". Report rows cannot span checks.
-SPANNING_DEFECT = """\
-| `02-exploit-original` | exploit | pass | pass | — |
-| `03-variant-repeated` | variant | pass | pass | — |
-| `05-regression-empty` | regression | pass | fail | — |
-"""
+EXPECTED = {"complete-fix", "missed-variant", "behavior-regression", "mixed-failures"}
 
 
-def test_three_outcome_evals_have_deterministic_graders() -> None:
-    cases = sorted(EVALS.glob("*/case.yaml"))
-    assert {path.parent.name for path in cases} == EXPECTED
-    for path in cases:
-        case = yaml.safe_load(path.read_text())
-        assert case["name"] == path.parent.name
+def artifact(case: str) -> tuple[dict, str]:
+    kinds = {
+        "complete-fix": [],
+        "missed-variant": ["variant"],
+        "behavior-regression": ["behavior"],
+        "mixed-failures": ["variant", "behavior"],
+    }[case]
+    findings = [
+        {"check_id": f"check-{kind}", "kind": kind, "message": "The assertion failed."}
+        for kind in kinds
+    ]
+    result = {
+        "schema_version": "2.0",
+        "assessment": {
+            "status": "complete",
+            "findings": findings,
+            "gaps": [],
+            "human_review_required": True,
+        },
+        # Declared checks alone cannot satisfy a finding grader.
+        "checks": [{"id": "check-variant", "kind": "variant", "runs": {}}],
+    }
+    variant = "did not match" if "variant" in kinds else "matched"
+    behavior = "changed" if "behavior" in kinds else "same"
+    report = (
+        f"| `check-variant` | variant | matched | {variant} | not compared |\n"
+        f"| `check-behavior` | behavior | matched | matched | {behavior} |\n"
+    )
+    return result, report
+
+
+def cases() -> list[dict]:
+    paths = sorted(EVALS.glob("*/case.yaml"))
+    assert {path.parent.name for path in paths} == EXPECTED
+    return [yaml.safe_load(path.read_text()) for path in paths]
+
+
+def test_four_evals_grade_saved_artifacts_without_model_judges() -> None:
+    for case in cases():
         assert case["runs"] == 3
         assert case["execution"]["timeout_seconds"] == 1800
-        graders = case["graders"]
-        assert any(grader["type"] == "file_exists" for grader in graders)
-        assert any(grader["type"] == "regex" for grader in graders)
-        assert all(grader["type"] != "llm" for grader in graders)
+        assert any(g["type"] == "file_exists" for g in case["graders"])
+        regexes = [g for g in case["graders"] if g["type"] == "regex"]
+        assert len(regexes) == 2
+        assert all(g["target"]["source"] == "file" for g in regexes)
+        assert all(g["type"] != "llm" for g in case["graders"])
 
 
-def test_eval_regexes_accept_goldens_and_reject_defects() -> None:
+def test_graders_require_actual_assessment_fields_and_observations() -> None:
     asserted = 0
-    for path in sorted(EVALS.glob("*/case.yaml")):
-        case = yaml.safe_load(path.read_text())
-        golden, defective = GOLDENS[case["name"]]
+    for case in cases():
+        result, report = artifact(case["name"])
+        opposite = "missed-variant" if case["name"] == "complete-fix" else "complete-fix"
+        bad_result, bad_report = artifact(opposite)
         for grader in case["graders"]:
             if grader["type"] != "regex":
                 continue
             pattern = re.compile(grader["pattern"])
+            is_json = grader["target"]["path"].endswith("result.json")
+            golden = json.dumps(result, sort_keys=True, indent=2) if is_json else report
+            defective = json.dumps(bad_result, sort_keys=True) if is_json else bad_report
             assert pattern.search(golden), grader["name"]
             assert not pattern.search(defective), grader["name"]
+            assert not pattern.search(
+                "All checks passed. Found a variant and a behavior regression."
+            )
+            if is_json:
+                assert not pattern.search(json.dumps({"checks": result["checks"]}))
             asserted += 1
-    assert asserted == 6
+    assert asserted == 8
 
 
-def test_variant_graders_cannot_match_across_check_boundaries() -> None:
-    """A passing variant plus any later failing check must not read as an unfixed variant."""
-    old_pattern = r'"kind":\s*"variant"[\s\S]*?"patched":\s*\{[\s\S]*?"matched":\s*false'
-    spanning_json = (
-        '"kind": "variant", "runs": {"patched": {"matched": true}}, '
-        '"kind": "regression", "runs": {"patched": {"matched": false}}'
-    )
-    assert re.search(old_pattern, spanning_json), "fixture no longer reproduces the old defect"
-
-    case = yaml.safe_load((EVALS / "missed-variant" / "case.yaml").read_text())
-    patterns = [g["pattern"] for g in case["graders"] if g["type"] == "regex"]
-    variant = [p for p in patterns if "variant" in p]
-    assert variant, "missed-variant lost its variant grader"
-    genuine = SPANNING_DEFECT.replace("variant | pass | pass", "variant | pass | fail")
-    for pattern in variant:
-        assert not re.search(pattern, SPANNING_DEFECT)
-        assert re.search(pattern, genuine)
+def test_mixed_failure_eval_rejects_either_dropped_finding() -> None:
+    case = next(c for c in cases() if c["name"] == "mixed-failures")
+    for kind in ("variant", "behavior"):
+        result, _ = artifact(case["name"])
+        result["assessment"]["findings"] = [
+            item for item in result["assessment"]["findings"] if item["kind"] != kind
+        ]
+        # A copied raw check or a reviewer concern cannot replace a runner finding.
+        result["checks"].append({"check_id": "decoy", "kind": kind, "message": "failed"})
+        grader = next(g for g in case["graders"] if g["name"] == f"{kind}-finding-retained")
+        assert not re.search(grader["pattern"], json.dumps(result, sort_keys=True))
 
 
-def test_behavior_grader_accepts_either_s2_signal() -> None:
-    case = yaml.safe_load((EVALS / "behavior-regression" / "case.yaml").read_text())
-    pattern = next(
-        grader["pattern"]
-        for grader in case["graders"]
-        if grader["name"] == "behavior-row-shows-regression"
-    )
-    for row in (
-        "| `04-behavior` | behavior | pass | pass | changed |",
-        "| `04-behavior` | behavior | pass | fail | same |",
-        "| `04-behavior` | behavior | pass | fail | changed |",
+def test_complete_eval_rejects_empty_or_incomplete_evidence() -> None:
+    case = next(c for c in cases() if c["name"] == "complete-fix")
+    grader = next(g for g in case["graders"] if g["name"] == "complete-without-findings-or-gaps")
+    for assessment in (
+        {},
+        {"status": "incomplete", "findings": [], "gaps": [], "human_review_required": True},
+        {
+            "status": "complete",
+            "findings": [],
+            "gaps": [{"check_id": None, "reason": "missing"}],
+            "human_review_required": True,
+        },
     ):
-        assert re.search(pattern, row)
-    assert not re.search(pattern, "| `04-behavior` | behavior | pass | pass | same |")
+        assert not re.search(
+            grader["pattern"], json.dumps({"assessment": assessment}, sort_keys=True)
+        )
+
+
+def test_variant_observation_cannot_match_a_later_failure() -> None:
+    case = next(c for c in cases() if c["name"] == "missed-variant")
+    grader = next(g for g in case["graders"] if g["name"] == "variant-observation")
+    report = (
+        "| `variant` | variant | matched | matched | not compared |\n"
+        "| `regression` | regression | matched | did not match | not compared |\n"
+    )
+    assert not re.search(grader["pattern"], report)
 
 
 def test_eval_scaffolds_create_clean_two_commit_repositories(tmp_path: Path) -> None:
@@ -126,5 +154,31 @@ def test_eval_scaffolds_create_clean_two_commit_repositories(tmp_path: Path) -> 
         ).stdout
         assert base != head
         assert status == ""
+        plan = workdir / "post-patch-validation" / "plan.json"
+        value = scaffold(workdir, plan)
+        for check in value["checks"]:
+            check["argv"] = [
+                arg.replace("import app", "import renderer as app")
+                .replace("app.sanitize", "app.render")
+                .replace("app.py", "renderer.py")
+                for arg in check["argv"]
+            ]
+            if check["kind"] == "behavior":
+                check["argv"][-1] = check["argv"][-1].replace("'safe'", "' safe '")
+            if check["kind"] == "security":
+                # Already-escaped text must not be corrupted by the markup repair.
+                check["argv"][-1] = "import renderer; assert renderer.render('&lt;') == '&lt;'"
+        plan.write_text(json.dumps(value))
+        output = workdir / "post-patch-validation" / "results"
+        completed = run(plan, output)
+        expected_exit = 0 if directory.name == "complete-fix" else 1
+        assert completed.returncode == expected_exit, completed.stderr
+        case = yaml.safe_load((directory / "case.yaml").read_text())
+        for grader in case["graders"]:
+            if grader["type"] == "file_exists":
+                assert (workdir / grader["path"]).is_file()
+            else:
+                text = (workdir / grader["target"]["path"]).read_text()
+                assert re.search(grader["pattern"], text), grader["name"]
         ran += 1
-    assert ran == 3
+    assert ran == 4

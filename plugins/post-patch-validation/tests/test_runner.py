@@ -167,7 +167,7 @@ def run(plan: Path, output: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_complete_ref_patch_is_s1_and_reproducible(tmp_path: Path) -> None:
+def test_complete_ref_patch_passes_and_is_reproducible(tmp_path: Path) -> None:
     repo, _, _ = create_repo(tmp_path)
     plan = tmp_path / "case" / "plan.json"
     scaffold(repo, plan)
@@ -178,8 +178,10 @@ def test_complete_ref_patch_is_s1_and_reproducible(tmp_path: Path) -> None:
     assert run(plan, second).returncode == 0
 
     result = json.loads((first / "result.json").read_text())
-    assert result["verdict"]["code"] == "S1"
-    assert result["verdict"]["human_review_required"] is True
+    assert result["schema_version"] == "2.0"
+    assert result["assessment"]["status"] == "complete"
+    assert result["assessment"]["findings"] == []
+    assert result["assessment"]["human_review_required"] is True
     assert all(result["coverage"][kind] >= 1 for kind in result["coverage"])
     for name in ["result.json", "report.md", "artifact-manifest.json"]:
         assert (first / name).read_bytes() == (second / name).read_bytes()
@@ -200,8 +202,10 @@ def test_patch_file_mode_applies_in_isolated_worktree(tmp_path: Path) -> None:
     scaffold(repo, plan, patch_file=patch_file)
     assert run(plan, tmp_path / "patch-results").returncode == 0
     assert (
-        json.loads((tmp_path / "patch-results" / "result.json").read_text())["verdict"]["code"]
-        == "S1"
+        json.loads((tmp_path / "patch-results" / "result.json").read_text())["assessment"][
+            "findings"
+        ]
+        == []
     )
     assert git(repo, "status", "--short") == ""
 
@@ -209,7 +213,9 @@ def test_patch_file_mode_applies_in_isolated_worktree(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "summary", ["ASCII finding", "Unicode finding: \u2018quote\u2019 \u6f0f\u6d1e"]
 )
-def test_s2_plan_and_report_use_utf8_with_ascii_locale(tmp_path: Path, ppv, summary: str) -> None:
+def test_failure_plan_and_report_use_utf8_with_ascii_locale(
+    tmp_path: Path, ppv, summary: str
+) -> None:
     repo, _, _ = create_repo(tmp_path)
     plan = tmp_path / "case" / "plan.json"
     value = scaffold(repo, plan)
@@ -228,9 +234,9 @@ def test_s2_plan_and_report_use_utf8_with_ascii_locale(tmp_path: Path, ppv, summ
         },
         capture_output=True,
     )
-    assert result.returncode == 2, result.stderr.decode("utf-8", errors="replace")
+    assert result.returncode == 1, result.stderr.decode("utf-8", errors="replace")
     evidence = json.loads((output / "result.json").read_text(encoding="utf-8"))
-    assert evidence["verdict"]["code"] == "S2"
+    assert [item["kind"] for item in evidence["assessment"]["findings"]] == ["behavior"]
     assert evidence["finding"]["summary"] == summary
     assert summary in (output / "report.md").read_text(encoding="utf-8")
 
@@ -262,69 +268,6 @@ def test_plan_rejects_shell_strings_and_missing_categories(tmp_path: Path, ppv) 
     del value["submodules"]
     with pytest.raises(ppv.PlanError, match="submodules"):
         ppv.validate_plan(value)
-
-
-def observation(
-    kind: str, *, base: bool = True, patched: bool = True, marker: bool = True
-) -> dict[str, object]:
-    needs_marker = kind in {"exploit", "variant"}
-    runs: dict[str, dict[str, object]] = {}
-    if kind != "suite":
-        runs["base"] = {"status": "completed", "matched": base}
-    runs["patched"] = {"status": "completed", "matched": patched}
-    for run in runs.values():
-        run["marker"] = marker if needs_marker else None
-    result: dict[str, object] = {"id": f"check-{kind}", "kind": kind, "runs": runs}
-    if kind == "behavior":
-        result["comparison"] = {"matched": patched}
-    return result
-
-
-@pytest.mark.parametrize(
-    ("changes", "expected"),
-    [
-        ({}, "S1"),
-        ({"behavior": False}, "S2"),
-        ({"variant": False}, "S3"),
-        ({"security": False}, "S4"),
-        ({"variant": False, "security": False}, "S5"),
-    ],
-)
-def test_classification_matrix(ppv, changes: dict[str, bool], expected: str) -> None:
-    evidence = [observation(kind, patched=changes.get(kind, True)) for kind in ppv.KINDS]
-    assert ppv.classify(evidence)["code"] == expected
-
-
-def test_baseline_mismatch_is_inconclusive(ppv) -> None:
-    evidence = [observation(kind, base=kind != "exploit") for kind in ppv.KINDS]
-    assert ppv.classify(evidence)["code"] == "INCONCLUSIVE"
-
-
-@pytest.mark.parametrize("kind", ["exploit", "variant"])
-def test_unmarked_assertion_is_inconclusive_not_evidence(ppv, kind: str) -> None:
-    """A nonzero base exit without the marker is a broken harness, not a reproduction.
-
-    Without this the runner cannot tell `assert` from `ModuleNotFoundError`, so a harness that
-    never reached its assertion on base and happens to exit zero on patch reads as a clean fix.
-    """
-    evidence = [observation(other, marker=other != kind) for other in ppv.KINDS]
-    verdict = ppv.classify(evidence)
-    assert verdict["code"] == "INCONCLUSIVE"
-    assert f"check-{kind}:base:marker_missing" in verdict["reasons"][0]
-
-
-def test_broken_patched_control_is_inconclusive_not_s2(ppv) -> None:
-    """If the benign harness stops working on the patched side, nothing there is trustworthy."""
-    evidence = [observation(kind, patched=kind != "control") for kind in ppv.KINDS]
-    verdict = ppv.classify(evidence)
-    assert verdict["code"] == "INCONCLUSIVE"
-    assert "check-control:patched:control_failed" in verdict["reasons"][0]
-
-
-def test_suite_failure_is_still_s2(ppv) -> None:
-    """The control carve-out must not swallow the ordinary non-security regression signal."""
-    evidence = [observation(kind, patched=kind != "suite") for kind in ppv.KINDS]
-    assert ppv.classify(evidence)["code"] == "S2"
 
 
 def test_shell_command_strings_are_rejected_behind_env(ppv) -> None:
@@ -412,7 +355,7 @@ def test_exploit_checks_may_not_see_which_revision_they_run_on(ppv, tmp_path: Pa
         with pytest.raises(ppv.PlanError, match="may not reference the revision"):
             ppv.validate_plan(value)
 
-    # The same reference is fine on a kind whose verdict does not turn on base-versus-patch.
+    # The same reference is fine on a kind whose assessment does not turn on base-versus-patch.
     value = json.loads(plan_path.read_text())
     next(c for c in value["checks"] if c["kind"] == "suite")["env"] = {"WHICH": "{side}"}
     ppv.validate_plan(value)
@@ -454,7 +397,7 @@ def test_side_is_withheld_from_exploit_checks_at_runtime(tmp_path: Path) -> None
     result = json.loads((output / "result.json").read_text())
     exploit_run = next(c for c in result["checks"] if c["kind"] == "exploit")["runs"]["base"]
     # The probe exits 0 when side-blinding holds, and an exploit must fail on base, so a green
-    # blinding check reads as S3 here. What matters is that the probe's assertions all held.
+    # blinding check leaves a reproduction gap. The probe's own assertions must all hold.
     assert exploit_run["marker"] is True
     assert exploit_run["exit_code"] == 0
 
@@ -485,7 +428,7 @@ def test_output_descriptor_path_cannot_manufacture_s1(tmp_path: Path) -> None:
     output = tmp_path / "results"
     assert run(plan_path, output).returncode != 0
     result = json.loads((output / "result.json").read_text())
-    assert result["verdict"]["code"] != "S1"
+    assert result["assessment"]["status"] == "incomplete"
     for check in result["checks"]:
         if check["kind"] in {"exploit", "variant"}:
             for invocation in check["runs"].values():
@@ -591,7 +534,7 @@ def test_allow_env_reaches_the_checks_and_is_recorded(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     recorded = json.loads((output / "result.json").read_text())["inputs"]["forwarded_env"]
     assert recorded == {"FIXTURE_HOME": "/opt/fixture"}
-    assert "**Forwarded environment:** FIXTURE_HOME" in (output / "report.md").read_text()
+    assert "Forwarded environment: FIXTURE_HOME" in (output / "report.md").read_text()
 
 
 def test_moved_ref_fails_closed(tmp_path: Path) -> None:
@@ -729,9 +672,9 @@ def test_scratch_state_cannot_reveal_base_then_patch_order(tmp_path: Path) -> No
     plan_path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
 
     output = tmp_path / "results"
-    assert run(plan_path, output).returncode == 3
+    assert run(plan_path, output).returncode == 1
     result = json.loads((output / "result.json").read_text())
-    assert result["verdict"]["code"] == "S3"
+    assert {item["kind"] for item in result["assessment"]["findings"]} == {"exploit", "variant"}
     for check in result["checks"]:
         if check["kind"] in {"exploit", "variant"}:
             assert check["runs"]["base"]["exit_code"] == 1
@@ -757,9 +700,9 @@ def test_plan_directory_state_cannot_reveal_base_then_patch_order(tmp_path: Path
     plan_path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
 
     output = tmp_path / "results"
-    assert run(plan_path, output).returncode == 3
+    assert run(plan_path, output).returncode == 1
     result = json.loads((output / "result.json").read_text())
-    assert result["verdict"]["code"] == "S3"
+    assert {item["kind"] for item in result["assessment"]["findings"]} == {"exploit", "variant"}
     for check in result["checks"]:
         if check["kind"] in {"exploit", "variant"}:
             assert check["runs"]["base"]["exit_code"] == 1
@@ -785,9 +728,9 @@ def test_checkout_ancestor_state_cannot_reveal_base_then_patch_order(tmp_path: P
     plan_path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
 
     output = tmp_path / "results"
-    assert run(plan_path, output).returncode == 3
+    assert run(plan_path, output).returncode == 1
     result = json.loads((output / "result.json").read_text())
-    assert result["verdict"]["code"] == "S3"
+    assert {item["kind"] for item in result["assessment"]["findings"]} == {"exploit", "variant"}
     for check in result["checks"]:
         if check["kind"] in {"exploit", "variant"}:
             assert check["runs"]["base"]["exit_code"] == 1
@@ -916,34 +859,6 @@ def test_worktree_metadata_lock_io_errors_are_plan_errors(tmp_path: Path, ppv, m
         ppv.worktree_metadata_lock(repo),
     ):
         pass
-
-
-def test_reports_are_verdict_and_evidence_level_specific(ppv) -> None:
-    for level in ppv.EVIDENCE_LEVELS:
-        for code, (label, exit_code) in ppv.VERDICTS.items():
-            result = {
-                "finding": {"id": "TEST", "summary": "summary"},
-                "inputs": {
-                    "base_commit": "0" * 40,
-                    "patch_sha256": "0" * 64,
-                    "evidence_level": level,
-                    "submodules": {},
-                    "forwarded_env": {},
-                },
-                "checks": [],
-                "verdict": {
-                    "code": code,
-                    "label": label,
-                    "exit_code": exit_code,
-                    "human_review_required": True,
-                    "reasons": ["fixture"],
-                },
-            }
-            report = ppv.markdown_report(result)
-            assert f"**Evidence level:** {level} — {ppv.EVIDENCE_LEVEL_SUMMARIES[level]}" in report
-            assert ppv.VERDICT_SUMMARIES[code] in report
-            if code != "S1":
-                assert ppv.VERDICT_SUMMARIES["S1"] not in report
 
 
 def test_patch_inside_pinned_submodule_is_initialized_without_fetch(tmp_path: Path) -> None:

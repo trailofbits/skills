@@ -7,11 +7,11 @@
 
 The plan contains argv arrays, never shell strings. The runner pins both Git inputs,
 materializes isolated worktrees, executes checks in lexical order, preserves raw evidence,
-and maps observations to S1-S5 or INCONCLUSIVE.
+and reports every supported failure and validation gap.
 
 Exploit and variant checks must print PPV_REACHED before evaluating their safety assertion.
 A nonzero exit alone proves nothing: an import error, a failed build, and a failed assertion
-are indistinguishable by exit code, so an unmarked run is INCONCLUSIVE rather than evidence.
+are indistinguishable by exit code, so an unmarked run leaves a validation gap.
 """
 
 from __future__ import annotations
@@ -35,6 +35,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 SCHEMA_VERSION = "1.0"
+RESULT_SCHEMA_VERSION = "2.0"
 ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$")
 ENV_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 HEX_RE = re.compile(r"^[0-9a-f]{40,64}$")
@@ -64,7 +65,7 @@ BASE_ENV_KEYS = {
     "XDG_CACHE_HOME",
 }
 GIT_PREFIX = ("git", "-c", f"core.hooksPath={os.devnull}")
-# Kinds whose verdict depends on a *failed safety assertion* rather than a nonzero exit.
+# Kinds whose assessment depends on a *failed safety assertion* rather than a nonzero exit.
 # A crashed, mis-imported, or never-built harness also exits nonzero, so those kinds must
 # prove they reached the assertion by emitting REACHED_MARKER before evaluating it.
 MARKER_KINDS = frozenset({"exploit", "variant"})
@@ -139,28 +140,12 @@ EXPECTED_BY_KIND = {
     "behavior": {"base": "zero", "patched": "zero"},
     "regression": {"base": "zero", "patched": "zero"},
     "security": {"base": "zero", "patched": "zero"},
-    "suite": {"patched": "zero"},
-}
-VERDICTS = {
-    "S1": ("clean_fix", 0),
-    "S2": ("fixed_with_behavior_change", 2),
-    "S3": ("not_fixed", 3),
-    "S4": ("fixed_with_new_vulnerability", 4),
-    "S5": ("not_fixed_and_new_vulnerability", 5),
-    "INCONCLUSIVE": ("inconclusive", 10),
-}
-VERDICT_SUMMARIES = {
-    "S1": "All supplied remediation, behavior, regression, security, and suite evidence passed.",
-    "S2": "Remediation evidence passed, but behavior, regression, or suite evidence failed.",
-    "S3": "At least one original exploit or root-cause variant remains unfixed.",
-    "S4": "Remediation evidence passed, but the patch introduced a new security failure.",
-    "S5": "The patch remains incomplete and introduced a new security failure.",
-    "INCONCLUSIVE": "The evidence was invalid or incomplete; do not interpret this as a pass.",
+    "suite": {"base": "zero", "patched": "zero"},
 }
 EVIDENCE_LEVEL_SUMMARIES = {
-    "source": "source checks only; target behavior was not compiled or executed",
-    "build": "target code was built or analyzed, but the reported behavior was not executed",
-    "runtime": "the reported behavior and its safety assertions were executed",
+    "source": "source or patch invariants, without compiling or executing target behavior",
+    "build": "target compilation or analysis, without executing the reported behavior",
+    "runtime": "execution of the reported behavior and its safety assertions",
 }
 
 PLAN_SCHEMA: dict[str, Any] = {
@@ -1150,6 +1135,28 @@ def execute_check(
         shutil.rmtree(runtime_plan_root, ignore_errors=True)
 
 
+def observe_check(
+    check: dict[str, Any], side: str, checkout: Path, context: ExecContext, sequence: int
+) -> dict[str, Any]:
+    try:
+        return execute_check(check, side, checkout, context, sequence)
+    except (PlanError, OSError) as exc:
+        return {
+            "side": side,
+            "argv": check["argv"],
+            "cwd": check["cwd"],
+            "status": "execution_error",
+            "exit_code": None,
+            "expected": EXPECTED_BY_KIND[check["kind"]][side],
+            "matched": False,
+            "marker": None,
+            "error": str(exc),
+            "argv_files": [],
+            "stdout": None,
+            "stderr": None,
+        }
+
+
 def behavior_comparison(
     check: dict[str, Any], runs: dict[str, dict[str, Any]], artifacts: Path
 ) -> dict[str, Any]:
@@ -1173,85 +1180,116 @@ def behavior_comparison(
     }
 
 
-def classify(
+def run_gap(check: dict[str, Any], side: str) -> str | None:
+    run = check["runs"].get(side)
+    if run is None:
+        return f"{side}: required run is missing."
+    if run["status"] != "completed":
+        detail = run.get("error") or "inspect the saved execution record"
+        return f"{side}: {run['status']}: {detail}"
+    if check["kind"] in MARKER_KINDS and run.get("marker") is not True:
+        return f"{side}: marker_missing; the safety assertion was not reached."
+    return None
+
+
+def needs_suite_baseline(check: dict[str, Any]) -> bool:
+    patched = check["runs"].get("patched")
+    return (
+        check["kind"] == "suite"
+        and patched is not None
+        and patched["status"] == "completed"
+        and not patched["matched"]
+    )
+
+
+def baseline_gap(check: dict[str, Any]) -> str | None:
+    base = check["runs"].get("base")
+    if base is None or base["matched"]:
+        return None
+    if check["kind"] in MARKER_KINDS:
+        return "The safety assertion did not fail on baseline; reproduction is missing."
+    if check["kind"] == "suite":
+        return "The suite also fails on baseline; attribution to the patch is unresolved."
+    return "The baseline check failed; a new failure cannot be attributed to the patch."
+
+
+def check_gaps(check: dict[str, Any]) -> list[dict[str, str]]:
+    sides = ("base", "patched") if needs_suite_baseline(check) else SIDES_BY_KIND[check["kind"]]
+    reasons = [reason for side in sides if (reason := run_gap(check, side))]
+    if reasons:
+        return [{"check_id": check["id"], "reason": reason} for reason in reasons]
+    if reason := baseline_gap(check):
+        reasons.append(reason)
+    if check["kind"] == "control" and not check["runs"]["patched"]["matched"]:
+        reasons.append("The patched harness control failed.")
+    if check["kind"] == "behavior" and "comparison" not in check:
+        reasons.append("Behavior comparison is missing.")
+    return [{"check_id": check["id"], "reason": reason} for reason in reasons]
+
+
+def assess_check(check: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """Assess one check without letting another check hide its evidence."""
+    gaps = check_gaps(check)
+    if gaps:
+        return [], gaps
+    kind = check["kind"]
+    changed = kind == "behavior" and not check["comparison"]["matched"]
+    if check["runs"]["patched"]["matched"] and not changed:
+        return [], []
+    messages = {
+        "exploit": "The original safety assertion still fails on the patched revision.",
+        "variant": "The variant safety assertion still fails on the patched revision.",
+        "behavior": "Behavior that should remain unchanged differs or fails after the patch.",
+        "regression": "The regression check passes on baseline and fails after the patch.",
+        "security": "The security check passes on baseline and fails after the patch.",
+        "suite": "The suite passes on baseline and fails after the patch.",
+    }
+    return [{"check_id": check["id"], "kind": kind, "message": messages[kind]}], []
+
+
+def assess_checks(
     checks: Sequence[dict[str, Any]], cleanup_errors: Sequence[str] = ()
 ) -> dict[str, Any]:
-    infrastructure = []
-    baseline = []
-    not_fixed = []
-    behavior = []
-    new_security = []
-    if cleanup_errors:
-        infrastructure.extend(f"cleanup: {item}" for item in cleanup_errors)
+    findings: list[dict[str, str]] = []
+    gaps: list[dict[str, Any]] = []
+    missing = sorted(set(KINDS) - {check["kind"] for check in checks})
+    if missing:
+        gaps.append(
+            {"check_id": None, "reason": "Missing required check kinds: " + ", ".join(missing)}
+        )
+    controls_valid = "control" not in missing
     for check in checks:
-        runs = check["runs"]
-        for side, run in runs.items():
-            if run["status"] != "completed":
-                infrastructure.append(f"{check['id']}:{side}:{run['status']}")
-            # A nonzero exit alone cannot distinguish a failed safety assertion from a harness
-            # that never ran. Without the marker the observation is unusable in either direction.
-            elif check["kind"] in MARKER_KINDS and run.get("marker") is not True:
-                infrastructure.append(f"{check['id']}:{side}:marker_missing")
-        base = runs.get("base")
-        patched = runs.get("patched")
-        if base is not None and not base["matched"]:
-            baseline.append(check["id"])
-            continue
-        # A control failure on the patched side means the benign harness itself stopped working
-        # there, so every other patched observation is suspect. That is a validity problem, not
-        # a behavior regression, and must not be reported as "fixed with behavior change".
-        if check["kind"] == "control" and patched and not patched["matched"]:
-            infrastructure.append(f"{check['id']}:patched:control_failed")
-        elif check["kind"] in {"exploit", "variant"} and patched and not patched["matched"]:
-            not_fixed.append(check["id"])
-        elif check["kind"] == "security" and patched and not patched["matched"]:
-            new_security.append(check["id"])
-        elif (
-            check["kind"] in {"behavior", "regression", "suite"}
-            and patched
-            and not patched["matched"]
-        ):
-            behavior.append(check["id"])
-        if check["kind"] == "behavior" and not check.get("comparison", {}).get("matched", False):
-            behavior.append(f"{check['id']}:output")
-    if infrastructure or baseline:
-        code = "INCONCLUSIVE"
-        reasons = [
-            *(
-                ["execution or cleanup did not complete: " + ", ".join(infrastructure)]
-                if infrastructure
-                else []
-            ),
-            *(["baseline evidence did not match: " + ", ".join(baseline)] if baseline else []),
-        ]
-    elif not_fixed and new_security:
-        code = "S5"
-        reasons = [
-            "unfixed exploit or variant: " + ", ".join(not_fixed),
-            "new security failure: " + ", ".join(new_security),
-        ]
-    elif not_fixed:
-        code = "S3"
-        reasons = ["unfixed exploit or variant: " + ", ".join(not_fixed)]
-    elif new_security:
-        code = "S4"
-        reasons = ["new security failure: " + ", ".join(new_security)]
-    elif behavior:
-        code = "S2"
-        reasons = ["behavior or regression failure: " + ", ".join(sorted(set(behavior)))]
-    else:
-        code = "S1"
-        reasons = [
-            "all required baseline, fix, behavior, regression, security, and suite evidence passed"
-        ]
-    label, exit_code = VERDICTS[code]
+        check_findings, check_gaps = assess_check(check)
+        findings.extend(check_findings)
+        gaps.extend(check_gaps)
+        if check["kind"] == "control" and check_gaps:
+            controls_valid = False
+    # Plans have global controls, with no per-check dependency declarations. If one fails,
+    # retain observations but withhold every conclusion that assumes a working harness.
+    if not controls_valid:
+        gaps.extend(
+            {
+                "check_id": finding["check_id"],
+                "reason": "Failed or missing harness controls prevent interpreting this failure.",
+            }
+            for finding in findings
+        )
+        findings = []
+    gaps.extend(
+        {"check_id": None, "reason": f"Cleanup failed: {error}"} for error in cleanup_errors
+    )
     return {
-        "code": code,
-        "label": label,
-        "exit_code": exit_code,
+        "status": "incomplete" if gaps else "complete",
+        "findings": findings,
+        "gaps": gaps,
         "human_review_required": True,
-        "reasons": reasons,
     }
+
+
+def assessment_exit_code(assessment: dict[str, Any]) -> int:
+    if assessment["status"] == "incomplete":
+        return 10
+    return 1 if assessment["findings"] else 0
 
 
 @contextmanager
@@ -1616,62 +1654,98 @@ def remove_worktree(repo: Path, path: Path) -> str | None:
     return result.stderr.decode(errors="replace").strip() or f"exit {result.returncode}"
 
 
+def report_observation(check: dict[str, Any], side: str) -> str:
+    if side not in check["runs"]:
+        return "not run"
+    if run_gap(check, side):
+        return "incomplete"
+    return "matched" if check["runs"][side]["matched"] else "did not match"
+
+
+def assessment_summary(assessment: dict[str, Any]) -> str:
+    findings = assessment["findings"]
+    if findings:
+        noun = "failure" if len(findings) == 1 else "failures"
+        return f"The supplied checks found {len(findings)} {noun} to investigate and repair."
+    if assessment["gaps"]:
+        return "Validation is incomplete. No supported patch failure was established."
+    return "All supplied checks passed. Human review is still required."
+
+
 def markdown_report(result: dict[str, Any]) -> str:
-    verdict = result["verdict"]
+    assessment = result["assessment"]
+    findings = assessment["findings"]
+    gaps = assessment["gaps"]
+    level = result["inputs"]["evidence_level"]
     lines = [
         "# Post-Patch Validation",
         "",
-        f"**Verdict:** {verdict['code']} — {verdict['label'].replace('_', ' ')}",
+        assessment_summary(assessment),
         "",
-        f"**Evidence level:** {result['inputs']['evidence_level']} — "
-        + EVIDENCE_LEVEL_SUMMARIES[result["inputs"]["evidence_level"]],
+        f"Declared evidence level: {level} ({EVIDENCE_LEVEL_SUMMARIES[level]}).",
         "",
-        "**Human review required:** yes",
+        f"Assessment: {assessment['status']}. Human review is required.",
         "",
-        f"**Finding:** {result['finding']['id']} — {result['finding']['summary']}",
-        "",
-        f"**Base commit:** `{result['inputs']['base_commit']}`",
-        "",
-        f"**Patch SHA-256:** `{result['inputs']['patch_sha256']}`",
-        "",
-        "**Submodules:** " + (", ".join(sorted(result["inputs"]["submodules"])) or "none"),
-        "",
-        "**Forwarded environment:** "
-        + (", ".join(sorted(result["inputs"]["forwarded_env"])) or "none"),
-        "",
-        "## Reasons",
+        "## Findings",
         "",
     ]
-    lines.extend(f"- {reason}" for reason in verdict["reasons"])
+    lines.extend(f"- `{item['check_id']}` ({item['kind']}): {item['message']}" for item in findings)
+    if not findings:
+        lines.append("No supported failures in the supplied checks.")
+    lines.extend(["", "## Validation gaps", ""])
+    for gap in gaps:
+        label = f"`{gap['check_id']}`" if gap["check_id"] else "Run"
+        lines.append(f"- {label}: {gap['reason']}")
+    if not gaps:
+        lines.append("All required checks produced usable evidence.")
     lines.extend(
         [
             "",
             "## Evidence",
             "",
-            "| Check | Kind | Base | Patched | Comparison |",
+            f"Finding: {result['finding']['id']}: {result['finding']['summary']}",
+            "",
+            f"Base commit: `{result['inputs']['base_commit']}`",
+            "",
+            f"Patch SHA-256: `{result['inputs']['patch_sha256']}`",
+            "",
+            "Submodules: " + (", ".join(sorted(result["inputs"]["submodules"])) or "none"),
+            "",
+            "Forwarded environment: "
+            + (", ".join(sorted(result["inputs"]["forwarded_env"])) or "none"),
+            "",
+            "The table records whether each run matched its expected result. For exploits and",
+            "variants, a matched baseline means the safety assertion failed as expected.",
+            "Observations require the controls and comparisons described in the findings and gaps.",
+            "",
+            "| Check | Kind | Base expectation | Patched expectation | Output comparison |",
             "|---|---|---|---|---|",
         ]
     )
     for check in result["checks"]:
-        base = check["runs"].get("base")
-        patched = check["runs"].get("patched")
-        base_text = "—" if base is None else ("pass" if base["matched"] else "fail")
-        patch_text = "—" if patched is None else ("pass" if patched["matched"] else "fail")
+        base_text = report_observation(check, "base")
+        patch_text = report_observation(check, "patched")
         comparison = check.get("comparison")
-        compare_text = (
-            "—" if comparison is None else ("same" if comparison["matched"] else "changed")
-        )
+        compare_text = "not compared"
+        if comparison is not None:
+            compare_text = "same" if comparison["matched"] else "changed"
         lines.append(
             f"| `{check['id']}` | {check['kind']} | {base_text} | {patch_text} | {compare_text} |"
         )
+    lines.extend(["", "## Next steps", ""])
+    if findings or gaps:
+        lines.extend(
+            [
+                "Return findings to the patch author and investigate validation gaps.",
+                "After revising the patch or checks, pin the new inputs and save a fresh run.",
+                "",
+            ]
+        )
     lines.extend(
         [
-            "",
-            "## Interpretation",
-            "",
-            VERDICT_SUMMARIES[verdict["code"]],
-            "The evidence level limits what this verdict establishes, and human review remains",
-            "required to find omitted paths or an incorrectly specified safety assertion.",
+            "Review the saved assertions and omitted paths before accepting the patch. A complete",
+            "assessment means the supplied checks produced usable evidence.",
+            "It does not establish that coverage is exhaustive.",
             "",
         ]
     )
@@ -1809,7 +1883,7 @@ def run_plan(args: argparse.Namespace) -> int:
             observed: dict[str, dict[str, Any]] = {}
             for side in execution_sides:
                 checkout = base_checkout if side == "base" else patched_checkout
-                observed[side] = execute_check(
+                observed[side] = observe_check(
                     check,
                     side,
                     checkout,
@@ -1817,6 +1891,9 @@ def run_plan(args: argparse.Namespace) -> int:
                     side_sequences[side],
                 )
             runs = {side: observed[side] for side in logical_sides}
+            if needs_suite_baseline({"kind": check["kind"], "runs": runs}):
+                sequence += 1
+                runs["base"] = observe_check(check, "base", base_checkout, context, sequence)
             item: dict[str, Any] = {
                 "id": check["id"],
                 "kind": check["kind"],
@@ -1824,12 +1901,12 @@ def run_plan(args: argparse.Namespace) -> int:
                 "covers": check["covers"],
                 "runs": runs,
             }
-            if check["kind"] == "behavior":
+            if check["kind"] == "behavior" and all(
+                run["status"] == "completed" for run in runs.values()
+            ):
                 item["comparison"] = behavior_comparison(check, runs, output)
             evidence.append(item)
     finally:
-        primary_error_active = sys.exc_info()[0] is not None
-        cleanup_lock_error: PlanError | None = None
         try:
             with worktree_metadata_lock(repo):
                 for checkout in reversed(created):
@@ -1842,16 +1919,14 @@ def run_plan(args: argparse.Namespace) -> int:
                 except PlanError as exc:
                     cleanup_errors.append(f"prune: {exc}")
         except PlanError as exc:
-            cleanup_lock_error = exc
+            cleanup_errors.append(f"worktree metadata lock: {exc}")
         finally:
             close_worktree_owner(owner)
             for temp_root in temp_roots:
                 shutil.rmtree(temp_root, ignore_errors=True)
-        if cleanup_lock_error is not None and not primary_error_active:
-            raise cleanup_lock_error
-    verdict = classify(evidence, cleanup_errors)
+    assessment = assess_checks(evidence, cleanup_errors)
     result = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": RESULT_SCHEMA_VERSION,
         "case_id": plan["case_id"],
         "finding": plan["finding"],
         "inputs": {
@@ -1867,13 +1942,13 @@ def run_plan(args: argparse.Namespace) -> int:
         "coverage": {kind: sum(check["kind"] == kind for check in evidence) for kind in KINDS},
         "checks": evidence,
         "cleanup_errors": cleanup_errors,
-        "verdict": verdict,
+        "assessment": assessment,
     }
     write_json(output / "result.json", result)
     (output / "report.md").write_text(markdown_report(result), encoding="utf-8")
     write_json(output / "artifact-manifest.json", artifact_manifest(output))
-    print(json.dumps({"result": str(output / "result.json"), "verdict": verdict}, indent=2))
-    return int(verdict["exit_code"])
+    print(json.dumps({"result": str(output / "result.json"), "assessment": assessment}, indent=2))
+    return assessment_exit_code(assessment)
 
 
 def validate_plan_command(args: argparse.Namespace) -> None:

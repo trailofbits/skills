@@ -11,9 +11,10 @@ allowed-tools: Read Write Edit Grep Glob Bash Workflow
 
 # Post-Patch Validation
 
-Treat the patch as an untrusted hypothesis. Produce executable evidence in isolated Git
-worktrees, then let the bundled runner assign the verdict. Never infer success from the diff,
-the patch author, an upstream implementation, or the original proof of concept alone.
+Validate a security patch against the reported bug and the surrounding code it affects. Give the
+patch author reproducible failures to fix and identify what still needs testing. Apply the same
+checks to human and agent patches. The diff, author, upstream implementation, and original proof
+of concept alone cannot establish correctness.
 
 ## When to Use
 
@@ -21,7 +22,7 @@ the patch author, an upstream implementation, or the original proof of concept a
 - An AI-generated patch needs validation before human review or merge.
 - A fix may cover one exploit path while missing variants of the same root cause.
 - A security fix may alter legitimate behavior or introduce a new vulnerability.
-- Another pipeline needs a deterministic final patch-validation gate.
+- A patch author needs concrete failures and coverage gaps before another revision.
 
 ## When NOT to Use
 
@@ -75,8 +76,11 @@ the patch author, an upstream implementation, or the original proof of concept a
      --output post-patch-validation/results
    ```
 
-6. Report `result.json`, `report.md`, the exact verdict, and every failing or inconclusive
-   check. An S1 result is ready for human review; it is not permission to merge.
+6. Report `result.json`, `report.md`, the evidence level, and the complete `assessment`.
+   Return each finding to the patch author with its check ID, assertion, and saved logs. Identify
+   each validation gap separately, including gaps that coexist with supported findings. After
+   the author revises the patch, pin the new inputs and save a fresh validation run. Preserve the
+   prior evidence. Passing supplied checks still requires human review before acceptance.
 
 ## Evidence Contract
 
@@ -96,7 +100,7 @@ Commands are argv arrays, never shell strings. Put complex setup in a checked-in
 script and invoke it with `{plan_dir}`. The runner fixes locale/timezone/hash-seed inputs, executes
 checks in lexical ID order, records raw stdout/stderr, and never edits the original worktree.
 Each check's `timeout_seconds` defaults to 300 and accepts integers from 1 through 3600.
-Exceeding the timeout makes the run INCONCLUSIVE.
+Exceeding the timeout leaves a validation gap. A timeout alone does not establish a regression.
 Every plan also contains a sorted `submodules` array (`[]` when none). Scaffolding infers affected
 Gitlinks from the changed-file inventory. The runner initializes those pinned commits from the
 source repository's existing Git module objects, never from `.gitmodules` network URLs; initialize
@@ -110,14 +114,14 @@ runner. Every `exploit` and `variant` check must print and flush `PPV_REACHED` i
 before it evaluates its assertion, on both revisions:
 
 ```json
-"argv": ["python3", "-c", "import app; print('PPV_REACHED', flush=True); assert app.render('<') == '&lt;'"]
+"argv": ["python3", "-c", "import app; value = app.render('<'); print('PPV_REACHED', flush=True); assert value == '&lt;'"]
 ```
 
 The token is also in the environment as `PPV_REACHED_MARKER`. It must land on **stdout, as a line
 of its own**. Stderr is not scanned, because a Python `SyntaxError` traceback echoes the offending
 source and would otherwise satisfy the check for a harness that executed nothing. A run without it
-is recorded as `marker_missing` and the whole result is INCONCLUSIVE. Flush explicitly: a harness
-whose payload segfaults or calls `_exit` loses buffered output and forfeits its own evidence.
+leaves a `marker_missing` gap. Independent findings from other checks remain in the result.
+Flush explicitly: a harness whose payload segfaults or calls `_exit` loses buffered output and forfeits its own evidence.
 
 These checks also run **side-blind**. `{side}` is not expanded for them, `PPV_SIDE` is absent from
 their environment, the checkout directory is randomly named, and the plan validator rejects any
@@ -142,7 +146,7 @@ Forwarded names and values are recorded in `result.json`. A requested variable t
 error, not an empty string. Two classes are refused outright: names that read as credentials
 (`*SECRET*`, `*TOKEN*`, `*API_KEY*`, …), because the value would be written into the result; and
 names that change what executes (`LD_PRELOAD`, `BASH_ENV`, `NODE_OPTIONS`, `GIT_SSH_COMMAND`, …),
-because forwarding those would quietly dismantle the isolation the verdict rests on.
+because those variables can change which code executes.
 The runner's fixed variables and every `PPV_*` name are also reserved and cannot be forwarded.
 
 Placeholders expanded in `argv` and per-check `env` values: `{checkout}` (the revision under test),
@@ -177,7 +181,7 @@ recovery, inspect `git worktree list`, then use `git worktree unlock <path>` and
 `git worktree remove --force <path>` (or `git worktree prune` after the path is gone).
 
 Read [evidence-model.md](references/evidence-model.md) when designing coverage, selecting
-variants, or interpreting S1-S5 and INCONCLUSIVE. Do not read it for routine CLI execution.
+variants, or interpreting findings and validation gaps. Do not read it for routine CLI execution.
 
 ## Coverage Rules
 
@@ -191,14 +195,32 @@ variants, or interpreting S1-S5 and INCONCLUSIVE. Do not read it for routine CLI
   error types/messages, timing, and compatibility separately as `behavior` or `regression` checks;
   otherwise an unrelated contract change can masquerade as proof that the vulnerability remains.
 - Keep the `control` harness benign and make it exercise the changed component. It
-  is the only check that says the worktree can run at all, and its failure is INCONCLUSIVE.
+  establishes that the harness works on both revisions. Failed controls leave gaps and prevent
+  attributing other failures to the patch. The raw observations remain available for review.
 - Use `behavior` only for behavior that should remain unchanged. Exact output comparison is
   deliberate; move unstable values behind a deterministic test harness instead of normalizing
   them away in prose.
 - Make `security` checks pass on the vulnerable base before treating a patched failure as newly
-  introduced. Otherwise the runner returns INCONCLUSIVE rather than inventing causality.
+  introduced. A failed baseline leaves attribution unresolved.
 - Do not edit the patch during validation. Return failures to the patch author and start a new,
   freshly pinned run.
+
+## Reading the result
+
+`result.json` schema 2.0 contains an `assessment` with `status`, `findings`, `gaps`, and
+`human_review_required`. Status is `complete` when all required checks produced usable evidence,
+even if some checks found failures. Status is `incomplete` when any gap remains. Findings name the
+check ID, check kind, and failed expectation. Gaps name the check ID and missing evidence, with a
+null check ID for run-level problems such as cleanup failures.
+
+Suite checks run on the patched revision first. A completed failure triggers the same check on
+baseline. If baseline passes, report the failure after the patch. If both fail, preserve both logs
+and report that attribution is unresolved. Do not assume matching exit codes mean the same failure.
+
+The runner exits 0 for complete checks with no findings, 1 for complete checks with findings,
+10 for incomplete validation, and 64 for invalid inputs. Read the artifact even after exit 10:
+it can contain supported findings alongside gaps. Source or build evidence cannot establish
+runtime behavior. State the evidence level alongside any passing result.
 
 ## Claude Dynamic Workflow
 
@@ -219,8 +241,11 @@ Workflow({
 
 Use `patchFile` instead of `patchRef` when appropriate. The workflow uses fixed coverage
 lenses to propose checks and a fixed executor to run this skill. Agents may author test
-artifacts, but they do not vote on the S-score: only the Python runner classifies evidence.
-It cannot ask questions after launch, so pass every input up front.
+artifacts. The Python runner records findings and gaps, and reviewers report coverage or evidence
+concerns separately. `NEEDS_REPAIR` returns supported failures even when other checks left gaps.
+`BLOCKED` means evidence is incomplete without a supported failure. Passing checks advance to
+`READY_FOR_HUMAN_REVIEW` only after both evidence reviews approve, otherwise `REVIEW_REQUIRED`.
+The workflow cannot ask questions after launch, so pass every input up front.
 
 ## Rationalizations to Reject
 
@@ -231,6 +256,6 @@ It cannot ask questions after launch, so pass every input up front.
 | "The full suite passes" | Prove baseline reproduction and targeted behavior explicitly |
 | "This matches the upstream/canonical patch" | Treat provenance as context, not evidence |
 | "The diff is tiny" | Exercise callers, failure paths, and teardown affected by the change |
-| "The validator says S1" | Preserve artifacts and require human review |
+| "All supplied checks passed" | Preserve artifacts and require human review |
 | "A flaky rerun passed" | Keep the first pinned result; fix nondeterminism before retrying |
-| "There is no obvious variant" | Inspect sibling sites and boundaries; otherwise stop INCONCLUSIVE |
+| "There is no obvious variant" | Inspect sibling sites and boundaries; otherwise report the missing coverage |

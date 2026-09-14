@@ -22,15 +22,15 @@ graders:
     path: post-patch-validation/results/result.json
     exists: true
     weight: 1
-  - name: behavior-change-verdict
+  - name: behavior-finding
     type: regex
     target: {source: file, path: post-patch-validation/results/result.json}
-    pattern: '"code":\s*"S2"'
+    pattern: '"assessment":\s*\{\s*"findings":\s*\[(?:\s*\{[^{}]*\}\s*,)*\s*\{\s*"check_id":\s*"[^"\n]+",\s*"kind":\s*"behavior",\s*"message":\s*"[^"\n]+"\s*\}'
     match: contains
     weight: 2
-  - name: behavior-row-shows-regression
+  - name: behavior-observation
     type: regex
     target: {source: file, path: post-patch-validation/results/report.md}
-    pattern: '\|\s*`[^`]+`\s*\|\s*behavior\s*\|\s*pass\s*\|\s*(?:fail\s*\|\s*(?:same|changed)|pass\s*\|\s*changed)\s*\|'
+    pattern: '\|\s*behavior\s*\|\s*matched\s*\|\s*(?:did not match\s*\|\s*(?:same|changed)|matched\s*\|\s*changed)\s*\|'
     match: contains
     weight: 1

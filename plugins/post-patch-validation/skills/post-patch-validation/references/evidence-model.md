@@ -6,29 +6,24 @@ Use this reference while authoring the validation plan or interpreting its resul
 
 - Design basis
 - Building independent evidence
-- Classification
+- Assessment
 - Human handoff
 
 ## Design basis
 
-Patch correctness is not binary. Empirical reviews of model-generated vulnerability patches
-show recurring failures: fixing only the demonstrated path, changing legitimate behavior,
-introducing a second vulnerability, accepting incorrect guidance despite contrary evidence,
-and copying a flawed upstream pattern. Validators also disagree often enough that a prose-only
-second opinion is not a reliable gate.
+Validate a security patch against the reported bug and the surrounding code it affects. Give the
+patch author reproducible failures to fix and identify what still needs testing. A useful result
+helps the author decide what to change and helps a reviewer see what was actually exercised.
 
-This skill therefore separates two jobs:
+Agents or humans choose the assertions. The runner pins the inputs, executes those assertions,
+and preserves observations. It reports every supported failure and every gap independently.
+A missed variant and a regression can both need repair. An unrelated timeout should not hide them.
 
-1. Agents or humans identify the root cause and author candidate checks.
-2. Code pins the inputs, executes the checks, preserves the evidence, and assigns the verdict.
-
-The runner is deliberately strict. Missing evidence is INCONCLUSIVE, not an optimistic pass.
-
-Every result also states its evidence level. `source` means only source or patch invariants ran;
-`build` means target code was compiled or analyzed without executing the reported behavior; and
-`runtime` means the reported behavior and its safety assertions executed. This is a declared scope,
-not a verdict multiplier: even S1 establishes no more than its stated evidence level and supplied
-coverage.
+The result's evidence level describes what ran. `source` means only source or patch invariants
+were checked. `build` means target code was compiled or analyzed without executing the reported
+behavior. `runtime` means the reported behavior and its safety assertions executed. This is a
+declared scope that reviewers must check against the artifacts. Passing source checks does not
+establish runtime behavior.
 
 ## Building independent evidence
 
@@ -40,11 +35,11 @@ pass against the patch. A test that never reproduced the vulnerability cannot es
 The exit code alone cannot carry that claim. `ImportError`, a failed build, a missing shared
 library, a typo'd module name, and a failed assertion all exit nonzero, and the runner sees only
 the number. Treating any nonzero base exit as reproduction is how a harness that never executed
-becomes an S1: it "fails" on base for an unrelated reason, then "passes" on the patch where the
+appears to validate a patch: it "fails" on base for an unrelated reason, then "passes" on the patch where the
 same unrelated reason happens not to bite.
 
 So `exploit` and `variant` checks must print `PPV_REACHED`, flushed, immediately before evaluating
-the assertion. A nonzero run without the marker is `marker_missing` and the result is INCONCLUSIVE.
+the assertion. A run without the marker leaves a `marker_missing` gap, regardless of its exit code.
 Place the marker after setup and after reaching the vulnerable call, immediately before
 the comparison, because everything between the marker and the assertion is still unproven. Flush
 explicitly; a payload that segfaults or calls `_exit` discards buffered output and its own evidence
@@ -66,13 +61,12 @@ every result. `argv_files` records each file's argv index, original argument, SH
 optional archived path, and any reason it could not be archived. Readable files under the isolated
 plan and checkout roots are archived up to 16 MiB; external paths are hashed but never copied, so a
 data-file argument cannot silently vendor a host credential into the evidence. `argv0_sha256` also
-records the resolved executable digest for compatibility with earlier result readers.
+records the resolved executable digest.
 
 Keep that postcondition to the security invariant. Whether the operation remains live, returns an
 exact error type or message, meets a timing property, or stays compatible with existing callers is
 important, but it is separate behavior/regression evidence. Combining those contracts into an
-exploit assertion lets a benign compatibility change manufacture S3 even when the security
-invariant is fixed.
+exploit assertion can make a compatibility change look like a surviving security flaw.
 
 Each base or patched invocation receives a fresh opaque scratch directory and an isolated copy of
 a clean plan-artifact snapshot. The snapshot excludes the machine plan containing revision pins,
@@ -90,7 +84,7 @@ or fd 2 does not reveal the logical side or retained evidence directory.
 This is evidence isolation, not an operating-system sandbox. Checks execute with the caller's
 privileges and could deliberately communicate through arbitrary host paths, services, or process
 inspection. A deliberately adversarial check can also inspect source differences or Git metadata
-in the revision it must execute. Review the archived helper bytes before trusting a verdict, and
+in the revision it must execute. Review the archived helper bytes before interpreting a result, and
 run untrusted helpers inside a sandbox chosen for the target's threat model.
 
 ### Root-cause variants
@@ -128,27 +122,68 @@ Run the narrow deterministic project suite first, then broader tests, sanitizers
 fuzz corpus when available. Pin seeds, corpus, worker count, and iteration/time budgets. A suite
 supplements targeted evidence; it does not replace it.
 
-Suite checks run only on the patched revision. A suite failure can produce S2 even when the
-failure predates the patch; that result alone does not establish a regression caused by the patch.
+Suite checks run on the patched revision first. If the command completes and fails, the runner
+runs the same check on baseline. A baseline pass supports reporting a failure after the patch.
+If both fail, the runner records an attribution gap and preserves both logs. Two nonzero exits
+do not establish that the failures are identical. A missing command or timeout also leaves a gap.
+A timeout alone cannot establish a performance regression.
 
-## Classification
+## Assessment
 
-| Code | Meaning | Deterministic condition |
-|---|---|---|
-| S1 | Clean fix | Exploit and variants fixed; behavior and security checks pass |
-| S2 | Fixed with behavior change | Exploit and variants fixed; behavior, regression, or suite fails |
-| S3 | Not fixed | Exploit or variant still fails on the patch; no new security failure |
-| S4 | Fixed with new vulnerability | Exploit and variants fixed; a base-clean security check fails on patch |
-| S5 | Not fixed and new vulnerability | S3 and S4 conditions both hold |
-| INCONCLUSIVE | Evidence cannot support a class | Missing category, baseline failure, missing marker, patched-side control failure, timeout, execution error, pin mismatch, or cleanup failure |
+The assessment separates supported failures from missing or invalid evidence:
 
-Classification precedence is S5, S3/S4 as applicable, S2, then S1. A behavior regression does
-not conceal an unfixed vulnerability. Every result sets `human_review_required` to true.
+| Evidence | Result |
+|---|---|
+| Original or variant safety assertion reproduces on baseline and still fails on patch | Finding for that exploit or variant check |
+| Behavior meant to stay unchanged differs between revisions | Behavior finding |
+| Regression or security check passes on baseline and fails on patch | Finding for that check |
+| Suite completes and fails on patch, then passes on baseline | Suite finding |
+| Suite fails on both revisions | Attribution gap with both logs preserved |
+| Missing reproduction, required run, assertion marker, or behavior comparison | Gap for the affected check |
+| Failed harness control | Gap, with dependent conclusions withheld |
+| Timeout, execution error, or cleanup failure | Gap, with independent findings retained |
 
-`control` is deliberately not an S2 signal. Its job is to show that both worktrees can execute
-the component at all, so a control failure on the patched side invalidates every other patched
-observation rather than describing a behavior change. Reporting that as "fixed with behavior
-change" would assert a fix on the strength of a harness that demonstrably stopped working.
+The plan declares global harness controls. Until it can express narrower dependencies, a failed
+control invalidates conclusions from all other checks. Their raw observations remain in `checks`.
+Reviewers can diagnose a broken harness without treating its output as a confirmed patch defect.
+
+Result schema 2.0 replaces the former grade with this object:
+
+```json
+{
+  "assessment": {
+    "status": "incomplete",
+    "findings": [
+      {
+        "check_id": "cancellation-path",
+        "kind": "variant",
+        "message": "The variant safety assertion still fails on the patched revision."
+      }
+    ],
+    "gaps": [
+      {
+        "check_id": "project-suite",
+        "reason": "patched: execution_error: the test command could not start"
+      }
+    ],
+    "human_review_required": true
+  }
+}
+```
+
+Every finding references a recorded check. A gap references its check or uses `check_id: null`
+for a run-level problem such as cleanup or missing coverage. The detailed check records contain
+commands, expected and observed exits, markers, saved output paths, and hashes. The `matched`
+field alone is an observation, not a finding: baseline reproduction and working controls are also
+required. A check that could not start may have null output paths and an error in its run record.
+
+`complete` means all required checks produced usable evidence. It does not mean they all passed.
+`incomplete` means at least one gap remains and can coexist with supported findings. No precedence
+rule removes a finding because another finding or gap exists. Every result requires human review.
+
+The CLI exits 0 for complete validation with no findings, 1 for complete validation with findings,
+10 when gaps remain, and 64 for invalid inputs. Invalid plans and changed input pins are rejected
+before execution and may produce no result artifact. Plan and artifact-manifest schemas remain 1.0.
 
 ### Environment determinism
 
@@ -176,6 +211,10 @@ Give the reviewer:
 - archived per-invocation scratch trees;
 - `artifact-manifest.json` for integrity;
 - any coverage concern that was not converted into an executable check.
+
+Return each finding with its check ID and logs to the patch author. Identify the missing evidence
+behind each gap. After a revision, pin the new patch and save a fresh result without overwriting
+the earlier run. This gives authors a repair target and reviewers a record of what changed.
 
 Human review should inspect whether the declared root-cause surface is complete. The runner can
 prove that the supplied checks behaved as claimed; it cannot prove that an omitted path does not

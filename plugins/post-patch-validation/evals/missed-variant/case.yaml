@@ -23,18 +23,15 @@ graders:
     path: post-patch-validation/results/result.json
     exists: true
     weight: 1
-  - name: not-fixed-verdict
+  - name: variant-finding
     type: regex
     target: {source: file, path: post-patch-validation/results/result.json}
-    pattern: '"code":\s*"S3"'
+    pattern: '"assessment":\s*\{\s*"findings":\s*\[(?:\s*\{[^{}]*\}\s*,)*\s*\{\s*"check_id":\s*"[^"\n]+",\s*"kind":\s*"variant",\s*"message":\s*"[^"\n]+"\s*\}'
     match: contains
     weight: 2
-  # Graded on the report's one-row-per-check table, not result.json. The obvious JSON regex
-  # (`"kind": "variant"` ... `"matched": false`) backtracks across check boundaries, so a
-  # PASSING variant plus any later failing check satisfies it. A table row cannot span checks.
-  - name: variant-failed-on-patch
+  - name: variant-observation
     type: regex
     target: {source: file, path: post-patch-validation/results/report.md}
-    pattern: '\|\s*variant\s*\|\s*pass\s*\|\s*fail\s*\|'
+    pattern: '\|\s*variant\s*\|\s*matched\s*\|\s*did not match\s*\|'
     match: contains
     weight: 1

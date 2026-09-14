@@ -1,12 +1,12 @@
 # Post-Patch Validation
 
-Validates an existing security patch as an untrusted hypothesis. The plugin proves the original
-failure on a pinned baseline, exercises at least one root-cause variant, checks behavior and
-adjacent security properties, runs the project suite, and produces an evidence-backed S1-S5 or
-INCONCLUSIVE verdict.
+Validate a security patch against the reported bug and the surrounding code it affects. Give the
+patch author reproducible failures to fix and identify what still needs testing.
 
-The portable `post-patch-validation` skill works with agents that support Agent Skills. Claude
-Code users also get a bundled dynamic workflow.
+The `post-patch-validation` agent skill tests human and agent patches against pinned revisions.
+It checks the original bug, variants of its root cause, behavior that should remain unchanged,
+and failures the patch could introduce. Each result preserves the assertions and execution logs
+so an author can repair the patch and a reviewer can assess the evidence.
 
 ## Installation
 
@@ -15,17 +15,21 @@ Code users also get a bundled dynamic workflow.
 /plugin install post-patch-validation@trailofbits
 ```
 
+The portable skill works with agents that support Agent Skills. Claude Code users also get the
+bundled `/post-patch-validation:validate-patch` dynamic workflow.
+
 ## Skill usage
 
 Ask an agent to validate a patch and provide:
 
-- the vulnerable base commit or tag;
-- the patched commit, tag, or patch file;
-- the finding or a local path containing it;
-- authorization to execute the local project and its tests.
+- The vulnerable base commit or tag.
+- The patched commit, tag, or patch file.
+- The finding or a local path containing it.
+- Authorization to execute the local project and its tests.
 
-The skill scaffolds a JSON plan, requires executable evidence for seven categories, runs each
-check in isolated Git worktrees, and writes:
+The skill creates a pinned JSON plan, authors checks, and runs them in isolated Git worktrees.
+It returns every supported failure and every validation gap. The author can then revise the patch
+and request a fresh validation against the new inputs. Earlier results remain available for review.
 
 ```text
 post-patch-validation/
@@ -37,57 +41,67 @@ post-patch-validation/
     ├── report.md
     ├── result.json
     ├── helpers/
-    │   └── <sha256>                  # invoked file bytes, content-addressed
+    │   └── <sha256>
     ├── scratch/
-    │   └── <check-id-and-side>/      # archived per-invocation writable state
+    │   └── <check-id-and-side>/
     └── 001-<check-id>-<side>.stdout / .stderr
 ```
 
-The Python runner uses argv arrays rather than shell command strings. It pins commit and patch
-hashes, disables Git hooks while materializing worktrees, fixes locale/timezone/hash-seed inputs,
-executes checks in lexical order, and preserves raw output. Each check invocation receives a fresh
-opaque scratch directory and a private copy of its plan artifacts; base and patched worktrees also
-use separate validator-owned roots. Scratch is archived only after exit, while the private plan
-copy is discarded; the clean source snapshot remains only in runner memory. Exploit and variant
-sides execute in random order with stable evidence filenames; stdout/stderr are copied from
-anonymous or random capture descriptors into those named files only after exit. Every argv element
-that resolves to a readable file is hashed. Files inside the isolated plan or checkout roots are
-also stored under `helpers/<sha256>` for review, up to a 16 MiB limit; `argv_files` says why an
-external, unreadable, or oversized file was not archived. Git worktree metadata changes are
-serialized and active worktrees are locked, while independent validations may execute their checks
-concurrently. The runner exits 0 only for S1; S2-S5 use their score as the exit code and
-INCONCLUSIVE uses 10. Invalid or moved inputs use 64.
+## Reading a result
 
-These controls isolate runner-managed evidence state; they are not a host sandbox. Checks retain
-the caller's privileges, so execute untrusted helper code inside an appropriate OS or container
-sandbox.
+`result.json` contains an `assessment` with four fields:
 
-Two rules exist because an exit code carries less information than it appears to:
+| Field | Meaning |
+|---|---|
+| `status` | `complete` when all required checks produced usable evidence, otherwise `incomplete` |
+| `findings` | Each supported failure, with its check ID, kind, and message |
+| `gaps` | Missing or invalid evidence, with the affected check ID and reason |
+| `human_review_required` | Always `true` |
 
-- `exploit` and `variant` checks must print `PPV_REACHED` before their assertion. A build error
-  and a failed assertion both exit nonzero, so an unmarked run is INCONCLUSIVE rather than proof
-  that the vulnerability reproduced.
-- Checks run under a fixed minimal environment. Real toolchains get what they need through
-  `--allow-env NAME`, which records the forwarded name and value in `result.json`.
+Completeness describes the evidence, including evidence of failure. A missed variant and a
+regression both appear in the findings. An unrelated timeout adds a gap without removing either
+finding. Failed harness controls prevent attributing other failures to the patch, while preserving
+all raw observations.
 
-Every plan declares an evidence level: `source`, `build`, or `runtime`. Reports display it beside
-verdict-specific interpretation text so an S1 from source inspection cannot be mistaken for runtime
-proof. Exploit and variant checks assert only the security invariant; liveness, exact error behavior,
-timing, and compatibility belong in behavior or regression checks.
+The project suite runs on the patch first. A completed failure triggers a baseline run. A baseline
+pass supports reporting a failure after the patch. If both revisions fail, the result records an
+attribution gap and keeps both logs. A timeout alone does not establish a regression.
 
-Scaffolding also records affected Git submodules as sorted relative paths. Their pinned commits are
-initialized from module objects already present in the source repository, without contacting the
-URLs in `.gitmodules`, and both base and patched pins are recorded in `result.json`.
+When the supplied checks pass, the report says: “All supplied checks passed. Human review is still
+required.” It displays the evidence level alongside that statement: `source`, `build`, or `runtime`.
+Passing source checks cannot establish runtime behavior. Reviewers must still assess the
+assertions and any omitted paths.
 
-Active validation worktrees are locked against concurrent pruning with random owner tokens backed
-by kernel file locks, so PID reuse cannot confuse stale-owner detection. After a forced
-termination, the next run unlocks stale validator-owned registrations; `git worktree unlock`,
-followed by `git worktree remove --force` or `git worktree prune`, provides manual recovery.
+| Exit code | Meaning |
+|---|---|
+| `0` | Complete validation with no findings |
+| `1` | Complete validation with findings |
+| `10` | Incomplete validation, possibly with supported findings |
+| `64` | Invalid inputs, including a rejected plan or changed input pins |
+
+Always read the result artifact after exit 10. Invalid inputs may be rejected before a result exists.
+
+## Evidence safeguards
+
+The runner pins commits and patch hashes, disables Git hooks, uses argv arrays, and preserves raw
+output. Exploit and variant checks must reproduce the unsafe behavior on baseline and emit
+`PPV_REACHED` immediately before their safety assertion. A missing marker leaves a gap.
+
+Each invocation receives private scratch and plan directories. Exploit and variant checks cannot
+use runner-provided side labels. Their execution order is randomized, while evidence filenames
+remain stable. Invoked helper files are hashed and archived when they are inside the plan or
+checkout and within the size limit. The result records unarchived files for review.
+
+Checks use a fixed minimal environment. `--allow-env NAME` forwards required toolchain variables
+and records their values, so credentials are refused. Affected submodules use locally available
+pinned objects without contacting remote URLs. Worktree metadata locks protect concurrent runs.
+
+These measures isolate evidence state. Checks still run with the caller's privileges. Run untrusted
+helper code inside an appropriate OS or container sandbox.
 
 ## Claude Dynamic Workflow
 
-Claude Code exposes `/post-patch-validation:validate-patch`. For structured inputs, ask Claude
-to invoke the `Workflow` tool with the following arguments:
+Invoke `/post-patch-validation:validate-patch`, or pass structured inputs to the `Workflow` tool:
 
 ```javascript
 Workflow({
@@ -101,64 +115,40 @@ Workflow({
 })
 ```
 
-The `Workflow` tool's `name` omits the leading slash. See the
-[workflow documentation](https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin)
-for plugin command naming.
+Use `patchFile` instead of `patchRef` for a patch artifact. `patchRef` defaults to `HEAD`, while
+`baseRef` is required. Dynamic workflows must be enabled, and all inputs must be supplied before
+launch. The workflow pins the inputs, gathers coverage proposals, authors checks, executes the
+runner, and has two reviewers assess coverage and evidence integrity.
 
-Use `patchFile` instead of `patchRef` for a patch artifact; supplying both is rejected. `patchRef`
-defaults to `HEAD`, but `baseRef` is always required because a validator that guesses the vulnerable
-baseline cannot prove reproduction.
-
-The workflow has five fixed phases and at most nine agents:
-
-| Phase | Work |
+| Workflow status | Next action |
 |---|---|
-| Inventory | Pin the inputs and scaffold the plan with the Python runner |
-| Coverage | Four read-only lenses map exploit variants, behavior, adjacent security, and test infrastructure |
-| Plan | One agent turns proposals into executable artifacts and passes `validate-plan` |
-| Execute | One agent invokes the deterministic runner and returns its exact result |
-| Review | Two read-only reviewers flag omitted paths or evidence that did not exercise real code |
+| `NEEDS_REPAIR` | Return the findings to the patch author and investigate any accompanying gaps |
+| `BLOCKED` | Resolve missing inputs or evidence before drawing a conclusion |
+| `REVIEW_REQUIRED` | Address missing or negative evidence reviews after supplied checks passed |
+| `READY_FOR_HUMAN_REVIEW` | Present passing checks and completed evidence reviews to a human |
 
-The review agents cannot change the S-score. They can only keep an S1 result in
-`REVIEW_REQUIRED` rather than advancing it to `READY_FOR_HUMAN_REVIEW`.
+The handoff preserves the runner's assessment and includes artifact paths. Reviewer concerns stay
+separate from the recorded findings and gaps. The workflow does not edit the patch or approve a merge.
 
-Dynamic workflows must be enabled in Claude Code. The workflow cannot ask questions after
-launch, so pass the base and patch inputs up front.
+## Version 0.2.0 output changes
 
-## Verdicts
+Result schema 2.0 replaces `verdict` with `assessment`. Consumers must read `findings` and `gaps`
+instead of a grade. Exit codes are now 0, 1, 10, and 64 as described above. The workflow returns
+`assessment` instead of `deterministicVerdict` and uses the statuses listed above. No legacy grade
+aliases are emitted. The plan and artifact-manifest schemas remain 1.0.
 
-| Verdict | Meaning |
-|---|---|
-| S1 | Fix and variants pass without observed behavior/security regression |
-| S2 | Fix passes but behavior, regression, or suite evidence fails |
-| S3 | Original exploit or a root-cause variant remains unfixed |
-| S4 | Fix passes but a base-clean security property fails on the patch |
-| S5 | Patch is both incomplete and introduces a new security failure |
-| INCONCLUSIVE | Baseline, marker, control, execution, pinning, coverage, or cleanup evidence is invalid |
+## Requirements and development
 
-Every verdict requires human review. S1 means the supplied checks passed; it cannot prove that a
-human or agent supplied every relevant path.
+The runner needs Git 2.36 or later, Python 3.11 or later, `uv`, and the target project's local build
+and test dependencies. Its Python runtime uses only the standard library.
 
-## Requirements
-
-- Git 2.36 or later (for lock reasons and NUL-delimited porcelain worktree metadata)
-- Python 3.11 or later
-- `uv`
-- The target project's local build and test dependencies
-
-No remote-target mode is provided. The validator executes repository code, so run it only for a
-local target the user has authorized.
-
-## Development
-
-Run the Python runner tests, eval grader tests, and workflow tests from this repository's root:
+Run the focused checks from the repository root:
 
 ```bash
 bash plugins/post-patch-validation/tests/run-all.sh
-node plugins/post-patch-validation/tests/workflow_logic.test.mjs
+node --test plugins/post-patch-validation/tests/workflow_logic.test.mjs
 ```
 
-The Python suite uses `pytest` and `PyYAML` through `uv`; the runtime runner uses only the Python
-standard library. `make check` discovers both suites. The three cases under `evals/` exercise a
-complete fix, a missed variant, and a behavior regression. Their grader and scaffold tests run
-locally without model calls; live Claude plugin evals require a separate invocation.
+`make check` discovers both suites. The four cases under `evals/` exercise passing checks, a missed
+variant, a behavior regression, and simultaneous failures. Their artifact graders and scaffold
+tests run locally without model calls. Live Claude plugin evals require a separate invocation.

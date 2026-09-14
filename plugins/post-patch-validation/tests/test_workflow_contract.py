@@ -68,11 +68,11 @@ def test_workflow_has_no_nondeterministic_or_self_verification_scaffolding() -> 
         assert banned not in text
 
 
-def test_machine_verdict_is_not_changed_by_reviewers() -> None:
+def test_machine_assessment_is_not_changed_by_reviewers() -> None:
     text = source()
-    assert "const status = finalStatus(execution.verdict, reviews)" in text
-    assert "deterministicVerdict: execution.verdict" in text
-    assert "if (verdict !== 'S1') return 'REJECTED'" in text
+    assert "const status = finalStatus(execution.assessment, reviews)" in text
+    assert "assessment: execution.assessment" in text
+    assert "schema: EXECUTION_SCHEMA" in text
 
 
 def test_workflow_carries_evidence_scope_and_check_contracts() -> None:

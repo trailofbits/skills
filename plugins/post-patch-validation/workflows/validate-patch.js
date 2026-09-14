@@ -1,14 +1,14 @@
 export const meta = {
   name: 'validate-patch',
   description:
-    'Build and execute an evidence plan for an existing security patch, then return the deterministic S1-S5 verdict plus independent coverage concerns',
+    'Build and execute an evidence plan for an existing security patch, then return findings, validation gaps, and independent coverage concerns',
   whenToUse:
     'Use after a security patch exists. Pass finding, baseRef, and patchRef or patchFile. The workflow runs local project code and cannot ask for missing input after launch.',
   phases: [
     { title: 'Inventory', detail: 'Pin the finding, baseline, patch, diff hash, and changed files' },
     { title: 'Coverage', detail: 'Map variants, behavior, adjacent security, and test infrastructure' },
     { title: 'Plan', detail: 'Create executable checks and pass the machine plan validator' },
-    { title: 'Execute', detail: 'Run checks in isolated worktrees and assign the S-score in Python' },
+    { title: 'Execute', detail: 'Run checks in isolated worktrees and record findings and gaps' },
     { title: 'Review', detail: 'Flag omitted paths or evidence that did not exercise real code' },
   ],
 }
@@ -90,17 +90,52 @@ const PLAN_SCHEMA = {
   },
 }
 
+const ASSESSMENT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['status', 'findings', 'gaps', 'human_review_required'],
+  properties: {
+    status: { enum: ['complete', 'incomplete'] },
+    findings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['check_id', 'kind', 'message'],
+        properties: {
+          check_id: { type: 'string' },
+          kind: { enum: ['exploit', 'variant', 'behavior', 'regression', 'security', 'suite'] },
+          message: { type: 'string' },
+        },
+      },
+    },
+    gaps: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['check_id', 'reason'],
+        properties: {
+          check_id: { type: ['string', 'null'] },
+          reason: { type: 'string' },
+        },
+      },
+    },
+    human_review_required: { const: true },
+  },
+}
+
 const EXECUTION_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['resultPath', 'reportPath', 'verdict', 'label', 'evidenceLevel', 'reasons'],
+  required: ['hasResult'],
   properties: {
+    hasResult: { type: 'boolean' },
+    blocker: { type: 'string' },
     resultPath: { type: 'string' },
     reportPath: { type: 'string' },
-    verdict: { enum: ['S1', 'S2', 'S3', 'S4', 'S5', 'INCONCLUSIVE'] },
-    label: { type: 'string' },
+    assessment: ASSESSMENT_SCHEMA,
     evidenceLevel: { enum: ['source', 'build', 'runtime'] },
-    reasons: { type: 'array', items: { type: 'string' } },
   },
 }
 
@@ -113,7 +148,7 @@ const REVIEW_SCHEMA = {
     approved: { type: 'boolean' },
     concerns: { type: 'array', items: { type: 'string' } },
     // A reviewer that read nothing cannot approve anything. Without minItems an agent could
-    // return approved:true with empty arrays and advance an S1 having inspected no evidence.
+    // return approved:true with empty arrays and approve a result having inspected no evidence.
     evidenceRead: { type: 'array', items: { type: 'string' }, minItems: 1 },
   },
 }
@@ -147,8 +182,9 @@ function argProblems(value) {
   return problems
 }
 
-function finalStatus(verdict, reviews) {
-  if (verdict !== 'S1') return 'REJECTED'
+function finalStatus(assessment, reviews) {
+  if (assessment.findings.length) return 'NEEDS_REPAIR'
+  if (assessment.status !== 'complete' || assessment.gaps.length) return 'BLOCKED'
   if (!Array.isArray(reviews) || reviews.length !== 2) return 'REVIEW_REQUIRED'
   if (reviews.some(review => !review || !review.approved)) return 'REVIEW_REQUIRED'
   // Approval only counts when the reviewer names what it read. An empty evidenceRead is a
@@ -165,7 +201,6 @@ if (problems.length) {
   log(`BLOCKED: missing or unsafe workflow input: ${problems.join(', ')}`)
   return {
     status: 'BLOCKED',
-    deterministicVerdict: 'INCONCLUSIVE',
     humanReviewRequired: true,
     reason: `Supply structured args before launch: ${problems.join(', ')}`,
   }
@@ -197,7 +232,6 @@ time with no pipes or chained shell operators. Return the values printed by scaf
 if (!inventory) {
   return {
     status: 'BLOCKED',
-    deterministicVerdict: 'INCONCLUSIVE',
     humanReviewRequired: true,
     reason: 'inventory agent returned no pinned plan',
   }
@@ -248,7 +282,6 @@ Do not write tests yet; the Plan phase owns all artifacts.`,
 if (proposals.length !== LENSES.length || proposals.some(value => !value)) {
   return {
     status: 'BLOCKED',
-    deterministicVerdict: 'INCONCLUSIVE',
     humanReviewRequired: true,
     reason: 'one or more fixed coverage lenses returned no result',
   }
@@ -270,8 +303,10 @@ redirections, or chained commands, and write only under {scratch}. The {side} pl
 PPV_SIDE are unavailable to exploit and variant checks. Every helper must invoke real project code.
 Sort checks by ID and supply every required kind. Exploit and variant safety
 assertions must fail on the vulnerable base and pass on the patch, and each must print PPV_REACHED
-flushed immediately before its assertion or the runner will return INCONCLUSIVE. Security checks
-must pass on both revisions. Behavior output must be stable enough for exact comparison.
+flushed immediately before its assertion or that check leaves a validation gap. Security checks
+must pass on both revisions. Behavior checks cover only contracts that should remain unchanged,
+and their output must be stable enough for exact comparison. Suite checks run on the patch first.
+If a suite completes and fails, the runner also runs it on baseline to assess attribution.
 
 Replace the scaffolded source evidence_level with the highest level the completed checks honestly
 support: keep source when only source or patch invariants run, use build when target code is
@@ -294,7 +329,6 @@ invent a check: return complete=false with the blocker and preserve the incomple
 if (!planned || !planned.complete) {
   return {
     status: 'BLOCKED',
-    deterministicVerdict: 'INCONCLUSIVE',
     humanReviewRequired: true,
     reason: planned ? planned.blocker || planned.validationOutput : 'plan agent returned nothing',
     planPath: planned ? planned.planPath : inventory.planPath,
@@ -315,18 +349,24 @@ const execution = await agent(
   output: ${input.workdir}/results
   extra flags: ${allowEnvFlags || '(none)'}
 
-The runner intentionally exits nonzero for S2-S5 and INCONCLUSIVE. A nonzero Bash result is not a
-reason to rerun it. Read result.json after the command, return its exact verdict, label, evidence
-level, reasons, and artifact paths, and do not edit the plan, patch, checks, or result.`,
+The runner exits 0 for complete checks without findings, 1 for complete checks with findings,
+10 for incomplete validation, and 64 for invalid inputs. An incomplete result can still contain
+supported findings. A nonzero Bash result is not a reason to rerun it. Read result.json and return
+hasResult=true with its exact assessment object, evidence level, and artifact paths. Preserve
+every finding and gap. If the runner produced no result artifact, return hasResult=false with
+its error as blocker. Do not invent an assessment for a run that did not produce one.
+Do not edit the plan, patch, checks, or result.`,
   { schema: EXECUTION_SCHEMA, label: 'execute', phase: 'Execute' },
 )
 
-if (!execution) {
+if (
+  !execution || !execution.hasResult || !execution.assessment ||
+  !execution.resultPath || !execution.reportPath || !execution.evidenceLevel
+) {
   return {
     status: 'BLOCKED',
-    deterministicVerdict: 'INCONCLUSIVE',
     humanReviewRequired: true,
-    reason: 'execution agent returned no machine result',
+    reason: execution?.blocker || 'execution agent returned no machine result',
     planPath: planned.planPath,
   }
 }
@@ -353,8 +393,9 @@ const reviews = await parallel(
 
 Your lens is ${lens.key}: ${lens.brief}
 
-The Python verdict is ${execution.verdict}. You cannot change or vote on that S-score. Set
-approved=false when the supplied evidence is incomplete or invalid under your lens, list concrete
+The runner assessment is ${JSON.stringify(execution.assessment)}. Preserve this recorded result.
+Keep reviewer concerns separate from its findings and gaps. Set approved=false when the supplied
+evidence is incomplete or invalid under your lens, list concrete
 concerns with file/function/check IDs, and list every artifact you actually read. Missing evidence
 is a concern, not consent. Do not run the validation again and do not edit artifacts.`,
       { schema: REVIEW_SCHEMA, label: `review:${lens.key}`, phase: 'Review' },
@@ -362,13 +403,11 @@ is a concern, not consent. Do not run the validation again and do not edit artif
   ),
 )
 
-const status = finalStatus(execution.verdict, reviews)
+const status = finalStatus(execution.assessment, reviews)
 return {
   status,
-  deterministicVerdict: execution.verdict,
-  verdictLabel: execution.label,
+  assessment: execution.assessment,
   evidenceLevel: execution.evidenceLevel,
-  reasons: execution.reasons,
   humanReviewRequired: true,
   planPath: planned.planPath,
   resultPath: execution.resultPath,

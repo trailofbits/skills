@@ -1,7 +1,7 @@
 schema_version: "1.1"
 name: complete-fix
 description: A patch fixes the original unsafe character and the repeated-character variant without changing benign behavior.
-tags: [post-patch-validation, clean-fix]
+tags: [post-patch-validation, passing-checks]
 runs: 3
 context:
   scaffold_script: scaffold.sh
@@ -23,17 +23,15 @@ graders:
     path: post-patch-validation/results/result.json
     exists: true
     weight: 1
-  - name: clean-fix-verdict
+  - name: complete-without-findings-or-gaps
     type: regex
     target: {source: file, path: post-patch-validation/results/result.json}
-    pattern: '"code":\s*"S1"'
+    pattern: '"assessment":\s*\{\s*"findings":\s*\[\s*\],\s*"gaps":\s*\[\s*\],\s*"human_review_required":\s*true,\s*"status":\s*"complete"\s*\}'
     match: contains
     weight: 2
-  # `"kind": "variant"` in result.json only proves a variant check was declared. The report row
-  # proves it did the job: failed as expected on the vulnerable base, then passed on the patch.
   - name: variant-reproduced-then-fixed
     type: regex
     target: {source: file, path: post-patch-validation/results/report.md}
-    pattern: '\|\s*variant\s*\|\s*pass\s*\|\s*pass\s*\|'
+    pattern: '\|\s*variant\s*\|\s*matched\s*\|\s*matched\s*\|'
     match: contains
     weight: 1
