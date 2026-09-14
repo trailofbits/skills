@@ -1,46 +1,67 @@
-# Mutation Testing — Campaign Configuration (mewt/muton)
+# Mutation Testing
 
-Helps configure [mewt](https://github.com/trailofbits/mewt) or [muton](https://github.com/trailofbits/muton) mutation testing campaigns — scoping targets, tuning timeouts, and optimizing long-running runs so you can execute `mewt run` or `muton run` with confidence.
+Configure mutation testing campaigns, explain what surviving mutations reveal about tests, and investigate potential bugs in the affected code.
 
-> **Note**: muton and mewt share identical interfaces but target different languages — mewt for general-purpose languages, muton for TON smart contracts (Tact, Tolk, FunC). All commands and configuration patterns in this plugin apply to both tools. File names change accordingly: `mewt.toml` → `muton.toml`, `mewt.sqlite` → `muton.sqlite`.
+The plugin ships one skill, `mutation-testing`. Invoke it with `/mutation-testing:mutation-testing` or ask for help with a mutation testing campaign or its results.
 
-The plugin ships one skill, `mutation-testing`, which the triggers below fire. Invoke it
-directly with `/mutation-testing:mutation-testing`.
+## Workflows
 
-## What It Does
+| Request | What the skill does |
+|---------|---------------------|
+| Set up or optimize a campaign | Configures mewt or muton, checks target selection, measures test duration, and tunes timeouts and per-target test commands. |
+| Analyze completed results | Reads the source and tests for each survivor, distinguishes equivalent changes from testing gaps, and recommends specific assertions or inputs in `mutation-testing-report.md`. |
+| Investigate potential bugs | Uses survivors to prioritize investigation of the original code. Requires a reproduced proof of concept before describing a bug as confirmed. |
 
-Walks through a 5-phase configuration workflow:
-
-1. **Initialize and validate targets** — run `mewt init`, review auto-generated config, fix include/ignore patterns
-2. **Generate mutants and assess scope** — count mutants, time the test command, estimate campaign duration
-3. **Decide on optimization** — choose between full run, targeted components, high/medium severity only, or two-phase campaign
-4. **Validate test command and timeout** — verify the command works; set manual timeout for recompilation-heavy languages (Solidity/Foundry, heavy C++)
-5. **Final validation checklist** — confirm config, mutant count, target selection, and timeout before running
-
-## When to Use
-
-- Setting up a new mutation testing campaign
-- Optimizing a campaign that would take too long to run
-- Diagnosing why no mutants are generated or why the test command fails
+A surviving mutation means the tests did not detect a deliberate change. It can reveal a testing gap or an equivalent implementation. It does not by itself establish a bug in the original code. The analysis workflow recommends test improvements without implementing them.
 
 ## Prerequisites
 
-- [mewt](https://github.com/trailofbits/mewt) v3.0.0+ or [muton](https://github.com/trailofbits/muton) v3.0.0+ installed
-- A test suite runnable from the command line
-- Source code in a supported language:
-  - **mewt**: Rust, Solidity, Go, TypeScript, JavaScript
-  - **muton**: Tact, Tolk, FunC (TON smart contract languages)
+Campaign setup uses [mewt](https://github.com/trailofbits/mewt) or [muton](https://github.com/trailofbits/muton), plus a runnable test suite. Examples follow the mewt 4.x API. Check the installed tool's `--help` for supported flags and language labels. For muton projects, substitute `muton`, `muton.toml`, and `muton.sqlite` in the examples.
 
-## Example Usage
+Analyzing saved results does not require either tool to be installed. Supply the campaign output, the source at the mutation sites, and the relevant tests. The analysis workflow also accepts results from other mutation testing tools.
 
+## Examples
+
+- "Help me set up mewt for this Rust project."
+- "Configure muton for this FunC codebase."
+- "My mutation campaign would take 30 hours. Help me reduce its scope."
+- "Which of these surviving mutants are equivalent, and what tests are missing?"
+- "Investigate the original code around these surviving authorization mutations."
+
+## Validation
+
+The bundled eval uses a captured campaign against a deliberately weak Rust test suite. It requires the agent to distinguish `balance > 0` from two mutations: `balance != 0` is equivalent for `u64`, while `balance >= 0` differs at zero. It also checks authorization, balance-accounting, and logging gaps. The fixture can be analyzed without cargo or mewt.
+
+Run the report-validator tests from the repository root:
+
+```bash
+uv run --no-project --with pytest python -m pytest plugins/mutation-testing/tests -q --import-mode=importlib
+DETERMINISTIC_ONLY=1 uv run --no-project bash plugins/mutation-testing/tests/smoke-test.sh
 ```
-User: "Help me set up mewt for this Solidity project"
-User: "Configure muton for this FunC codebase"
-User: "My mewt campaign would take 30 hours — how do I optimize it?"
-→ Guides through configuration, scope assessment, and optimization
+
+The deterministic checks accept a correct report and reject reports that misclassify either comparison. They test the grader, not the skill's effectiveness. The optional model eval checks the agent's report against the same validator:
+
+```bash
+# Requires Claude Code with plugin eval support and ANTHROPIC_API_KEY.
+uv run --no-project bash plugins/mutation-testing/tests/smoke-test.sh
+```
+
+The model eval retains reports locally and makes API calls. Its model, judge, run count, and cost ceiling can be set with `MODEL`, `JUDGE_MODEL`, `RUNS`, and `MAX_COST_USD`. A passing fixture does not establish improvement over an agent without the skill.
+
+To reproduce the captured campaign, work on a separate copy:
+
+```bash
+mutation_fixture_dir="$(mktemp -d)/vault"
+cp -R plugins/mutation-testing/evals/weak-suite-analysis/fixture "$mutation_fixture_dir"
+cd "$mutation_fixture_dir"
+cargo test
+mewt mutate
+mewt run
+mewt results
 ```
 
 ## References
 
-- [mewt GitHub Repository](https://github.com/trailofbits/mewt)
-- [Use mutation testing to find the bugs your tests don't catch](https://blog.trailofbits.com/2025/09/18/use-mutation-testing-to-find-the-bugs-your-tests-dont-catch/) — Trail of Bits blog post
+- [mewt](https://github.com/trailofbits/mewt)
+- [muton](https://github.com/trailofbits/muton)
+- [Use mutation testing to find the bugs your tests don't catch](https://blog.trailofbits.com/2025/09/18/use-mutation-testing-to-find-the-bugs-your-tests-dont-catch/)

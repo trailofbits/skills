@@ -1,0 +1,16 @@
+ Campaign Status Report
+
+ Per-Target Breakdown:
+ =====================
+
+ Target: src/lib.rs
+   Mutants: 29 total, 24 tested, 0 untested
+   Outcomes: 16 caught, 8 uncaught, 0 timeout, 5 skipped
+   Catch rates: High: 100.0%, Medium: 40.0%, Low: 77.8%
+
+ Campaign-Wide Summary:
+ ======================
+ Targets: 1
+ Mutants: 29 total, 24 tested (100.0% complete), 0 untested
+ Outcomes: 16 caught, 8 uncaught, 0 timeout, 5 skipped
+ Catch rates by severity: High: 100.0%, Medium: 40.0%, Low: 77.8%

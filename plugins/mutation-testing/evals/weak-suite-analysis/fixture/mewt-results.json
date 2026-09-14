@@ -1,0 +1,196 @@
+{
+  "results": [
+    {
+      "mutant": {
+        "id": 6,
+        "target_id": 1,
+        "mutation_slug": "CR",
+        "byte_offset": 623,
+        "line_offset": 23,
+        "old_text": "if !is_admin {\n        return Err(VaultError::Unauthorized);\n    }",
+        "new_text": "/* if !is_admin {\n        return Err(VaultError::Unauthorized);\n    } */"
+      },
+      "target": {
+        "id": 1,
+        "path": "src/lib.rs",
+        "file_hash": "19692a0e9cb9936de3f842c8e56f09a14404e217f97f88d2c74fefa47071d032",
+        "language": "rust"
+      },
+      "outcome": {
+        "mutant_id": 6,
+        "status": "Uncaught",
+        "output": "STDOUT:\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 2 tests\ntest admin_can_withdraw ... ok\ntest reports_available_funds ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\n\nSTDERR:\n   Compiling vault v0.1.0 (/private/tmp/mt-capture4)\nwarning: unused variable: `is_admin`\n  --> src/lib.rs:23:53\n   |\n23 | pub fn withdraw(account: &mut Account, amount: u64, is_admin: bool) -> Result<u64, VaultError> {\n   |                                                     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_is_admin`\n   |\n   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `vault` (lib) generated 1 warning (run `cargo fix --lib -p vault` to apply 1 suggestion)\nwarning: `vault` (lib test) generated 1 warning (1 duplicate)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s\n     Running unittests src/lib.rs (target/debug/deps/vault-c294bc705c311082)\n     Running tests/vault.rs (target/debug/deps/vault-bd8993767c33eea4)\n   Doc-tests vault\n",
+        "time": "2026-07-31T21:40:32.778538Z",
+        "duration_ms": 1146
+      }
+    },
+    {
+      "mutant": {
+        "id": 11,
+        "target_id": 1,
+        "mutation_slug": "IF",
+        "byte_offset": 626,
+        "line_offset": 23,
+        "old_text": "!is_admin",
+        "new_text": "false"
+      },
+      "target": {
+        "id": 1,
+        "path": "src/lib.rs",
+        "file_hash": "19692a0e9cb9936de3f842c8e56f09a14404e217f97f88d2c74fefa47071d032",
+        "language": "rust"
+      },
+      "outcome": {
+        "mutant_id": 11,
+        "status": "Uncaught",
+        "output": "STDOUT:\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 2 tests\ntest admin_can_withdraw ... ok\ntest reports_available_funds ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\n\nSTDERR:\n   Compiling vault v0.1.0 (/private/tmp/mt-capture4)\nwarning: unused variable: `is_admin`\n  --> src/lib.rs:23:53\n   |\n23 | pub fn withdraw(account: &mut Account, amount: u64, is_admin: bool) -> Result<u64, VaultError> {\n   |                                                     ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_is_admin`\n   |\n   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `vault` (lib) generated 1 warning (run `cargo fix --lib -p vault` to apply 1 suggestion)\nwarning: `vault` (lib test) generated 1 warning (1 duplicate)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s\n     Running unittests src/lib.rs (target/debug/deps/vault-c294bc705c311082)\n     Running tests/vault.rs (target/debug/deps/vault-bd8993767c33eea4)\n   Doc-tests vault\n",
+        "time": "2026-07-31T21:40:33.925672Z",
+        "duration_ms": 1143
+      }
+    },
+    {
+      "mutant": {
+        "id": 7,
+        "target_id": 1,
+        "mutation_slug": "CR",
+        "byte_offset": 694,
+        "line_offset": 26,
+        "old_text": "if amount > account.balance {\n        return Err(VaultError::InsufficientFunds);\n    }",
+        "new_text": "/* if amount > account.balance {\n        return Err(VaultError::InsufficientFunds);\n    } */"
+      },
+      "target": {
+        "id": 1,
+        "path": "src/lib.rs",
+        "file_hash": "19692a0e9cb9936de3f842c8e56f09a14404e217f97f88d2c74fefa47071d032",
+        "language": "rust"
+      },
+      "outcome": {
+        "mutant_id": 7,
+        "status": "Uncaught",
+        "output": "STDOUT:\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 2 tests\ntest admin_can_withdraw ... ok\ntest reports_available_funds ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\n\nSTDERR:\n   Compiling vault v0.1.0 (/private/tmp/mt-capture4)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s\n     Running unittests src/lib.rs (target/debug/deps/vault-c294bc705c311082)\n     Running tests/vault.rs (target/debug/deps/vault-bd8993767c33eea4)\n   Doc-tests vault\n",
+        "time": "2026-07-31T21:40:37.566056Z",
+        "duration_ms": 1148
+      }
+    },
+    {
+      "mutant": {
+        "id": 12,
+        "target_id": 1,
+        "mutation_slug": "IF",
+        "byte_offset": 697,
+        "line_offset": 26,
+        "old_text": "amount > account.balance",
+        "new_text": "false"
+      },
+      "target": {
+        "id": 1,
+        "path": "src/lib.rs",
+        "file_hash": "19692a0e9cb9936de3f842c8e56f09a14404e217f97f88d2c74fefa47071d032",
+        "language": "rust"
+      },
+      "outcome": {
+        "mutant_id": 12,
+        "status": "Uncaught",
+        "output": "STDOUT:\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 2 tests\ntest admin_can_withdraw ... ok\ntest reports_available_funds ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\n\nSTDERR:\n   Compiling vault v0.1.0 (/private/tmp/mt-capture4)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s\n     Running unittests src/lib.rs (target/debug/deps/vault-c294bc705c311082)\n     Running tests/vault.rs (target/debug/deps/vault-bd8993767c33eea4)\n   Doc-tests vault\n",
+        "time": "2026-07-31T21:40:38.707316Z",
+        "duration_ms": 1136
+      }
+    },
+    {
+      "mutant": {
+        "id": 9,
+        "target_id": 1,
+        "mutation_slug": "CR",
+        "byte_offset": 816,
+        "line_offset": 30,
+        "old_text": "record_withdrawal(amount);",
+        "new_text": "/* record_withdrawal(amount); */"
+      },
+      "target": {
+        "id": 1,
+        "path": "src/lib.rs",
+        "file_hash": "19692a0e9cb9936de3f842c8e56f09a14404e217f97f88d2c74fefa47071d032",
+        "language": "rust"
+      },
+      "outcome": {
+        "mutant_id": 9,
+        "status": "Uncaught",
+        "output": "STDOUT:\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 2 tests\ntest admin_can_withdraw ... ok\ntest reports_available_funds ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\n\nSTDERR:\n   Compiling vault v0.1.0 (/private/tmp/mt-capture4)\nwarning: function `record_withdrawal` is never used\n  --> src/lib.rs:40:4\n   |\n40 | fn record_withdrawal(amount: u64) {\n   |    ^^^^^^^^^^^^^^^^^\n   |\n   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `vault` (lib) generated 1 warning\nwarning: `vault` (lib test) generated 1 warning (1 duplicate)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.21s\n     Running unittests src/lib.rs (target/debug/deps/vault-c294bc705c311082)\n     Running tests/vault.rs (target/debug/deps/vault-bd8993767c33eea4)\n   Doc-tests vault\n",
+        "time": "2026-07-31T21:40:42.035607Z",
+        "duration_ms": 1133
+      }
+    },
+    {
+      "mutant": {
+        "id": 25,
+        "target_id": 1,
+        "mutation_slug": "COS",
+        "byte_offset": 985,
+        "line_offset": 36,
+        "old_text": ">",
+        "new_text": "!="
+      },
+      "target": {
+        "id": 1,
+        "path": "src/lib.rs",
+        "file_hash": "19692a0e9cb9936de3f842c8e56f09a14404e217f97f88d2c74fefa47071d032",
+        "language": "rust"
+      },
+      "outcome": {
+        "mutant_id": 25,
+        "status": "Uncaught",
+        "output": "STDOUT:\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 2 tests\ntest admin_can_withdraw ... ok\ntest reports_available_funds ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\n\nSTDERR:\n   Compiling vault v0.1.0 (/private/tmp/mt-capture4)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.21s\n     Running unittests src/lib.rs (target/debug/deps/vault-c294bc705c311082)\n     Running tests/vault.rs (target/debug/deps/vault-bd8993767c33eea4)\n   Doc-tests vault\n",
+        "time": "2026-07-31T21:40:49.036082Z",
+        "duration_ms": 1256
+      }
+    },
+    {
+      "mutant": {
+        "id": 28,
+        "target_id": 1,
+        "mutation_slug": "COS",
+        "byte_offset": 985,
+        "line_offset": 36,
+        "old_text": ">",
+        "new_text": ">="
+      },
+      "target": {
+        "id": 1,
+        "path": "src/lib.rs",
+        "file_hash": "19692a0e9cb9936de3f842c8e56f09a14404e217f97f88d2c74fefa47071d032",
+        "language": "rust"
+      },
+      "outcome": {
+        "mutant_id": 28,
+        "status": "Uncaught",
+        "output": "STDOUT:\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 2 tests\ntest reports_available_funds ... ok\ntest admin_can_withdraw ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\n\nSTDERR:\n   Compiling vault v0.1.0 (/private/tmp/mt-capture4)\nwarning: comparison is useless due to type limits\n  --> src/lib.rs:37:5\n   |\n37 |     balance >= 0\n   |     ^^^^^^^^^^^^\n   |\n   = note: `#[warn(unused_comparisons)]` on by default\n\nwarning: `vault` (lib) generated 1 warning\nwarning: `vault` (lib test) generated 1 warning (1 duplicate)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s\n     Running unittests src/lib.rs (target/debug/deps/vault-c294bc705c311082)\n     Running tests/vault.rs (target/debug/deps/vault-bd8993767c33eea4)\n   Doc-tests vault\n",
+        "time": "2026-07-31T21:40:53.944843Z",
+        "duration_ms": 1148
+      }
+    },
+    {
+      "mutant": {
+        "id": 10,
+        "target_id": 1,
+        "mutation_slug": "CR",
+        "byte_offset": 1032,
+        "line_offset": 40,
+        "old_text": "eprintln!(\"withdrew {amount}\");",
+        "new_text": "/* eprintln!(\"withdrew {amount}\"); */"
+      },
+      "target": {
+        "id": 1,
+        "path": "src/lib.rs",
+        "file_hash": "19692a0e9cb9936de3f842c8e56f09a14404e217f97f88d2c74fefa47071d032",
+        "language": "rust"
+      },
+      "outcome": {
+        "mutant_id": 10,
+        "status": "Uncaught",
+        "output": "STDOUT:\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 2 tests\ntest admin_can_withdraw ... ok\ntest reports_available_funds ... ok\n\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n\n\n\nSTDERR:\n   Compiling vault v0.1.0 (/private/tmp/mt-capture4)\nwarning: unused variable: `amount`\n  --> src/lib.rs:40:22\n   |\n40 | fn record_withdrawal(amount: u64) {\n   |                      ^^^^^^ help: if this is intentional, prefix it with an underscore: `_amount`\n   |\n   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default\n\nwarning: `vault` (lib) generated 1 warning (run `cargo fix --lib -p vault` to apply 1 suggestion)\nwarning: `vault` (lib test) generated 1 warning (1 duplicate)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s\n     Running unittests src/lib.rs (target/debug/deps/vault-c294bc705c311082)\n     Running tests/vault.rs (target/debug/deps/vault-bd8993767c33eea4)\n   Doc-tests vault\n",
+        "time": "2026-07-31T21:40:43.087013Z",
+        "duration_ms": 1047
+      }
+    }
+  ]
+}

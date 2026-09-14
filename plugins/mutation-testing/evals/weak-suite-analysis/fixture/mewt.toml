@@ -1,0 +1,7 @@
+db = "mewt.sqlite"
+
+[targets]
+include = ["src/**/*.rs"]
+
+[test]
+cmd = "cargo test"

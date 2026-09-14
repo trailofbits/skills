@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: weak-suite-analysis
+description: >-
+  Analyze a captured mewt campaign against a deliberately weak Rust test suite.
+  The survivor set contains a matched pair on one line — `balance > 0` mutated to
+  `!= 0` (genuinely equivalent for u64) and to `>= 0` (a real gap at balance == 0)
+  — so a run that filters both, or neither, has broken equivalence reasoning.
+context:
+  # Resolves to <case dir>/fixture and is passed as --add-dir, so the campaign
+  # output and the source at each mutation site are both readable without a
+  # scaffold_script. Nothing here needs cargo or mewt to run.
+  add_dirs:
+    - fixture
