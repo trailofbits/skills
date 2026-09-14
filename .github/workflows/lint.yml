@@ -91,8 +91,9 @@ jobs:
         # suite turns that into a failure rather than a skip; this makes it not happen.
         with:
           node-version: "22"
-      - name: Install pytest and semgrep
+      - name: Install pytest, PyYAML, and semgrep
         # The rust-review / c-review test files are pytest-based.
+        # post-patch-validation tests parse YAML eval cases with PyYAML.
         #
         # semgrep grades semgrep-rule-variant-creator's golden variant fixtures, which are
         # otherwise checked only structurally: its grader skips when semgrep is absent, so
@@ -104,7 +105,7 @@ jobs:
         # less than none. A release that stops grading those two rules is also a result worth
         # having rather than one to hold off: a parser moving behind Pro is the failure that
         # plugin exists to catch.
-        run: python3 -m pip install pytest semgrep
+        run: python3 -m pip install pytest pyyaml semgrep
       - name: Install uv
         # c-review's scripts are PEP 723 and run under `uv run`; its parser tests
         # fail rather than skip when uv is missing, on purpose — a skipped parser

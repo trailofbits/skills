@@ -27,6 +27,7 @@
 /plugins/modern-python/ @Ninja3047 @dguido @kz-tob
 /plugins/mutation-testing/ @bohendo @dguido @kz-tob
 /plugins/open-sourcing/ @ESultanik @dguido @kz-tob
+/plugins/post-patch-validation/ @tob-scott-a @dguido @kz-tob
 /plugins/property-based-testing/ @hbrodin @dguido @kz-tob
 /plugins/rust-review/ @zi0Black @GrosQuildu @dguido @kz-tob
 /plugins/code-improver/ @GrosQuildu @dguido @kz-tob

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Post-Patch Validation"
+  short_description: "Validate security patches with reproducible evidence"
+  default_prompt: "Use $post-patch-validation to validate this security patch against the finding and its variants."

@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: missed-variant
+description: A patch handles the demonstrated single character but misses repeated instances of the same root cause.
+tags: [post-patch-validation, missed-variant]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  max_turns: 60
+  timeout_seconds: 1800
+  allowed_tools: [Read, Write, Edit, Bash, Glob, Grep, Skill, Workflow]
+  prompt: |-
+    Use the post-patch-validation skill to validate HEAD against the vulnerable tag.
+
+    Finding PPV-EVAL-2: render(value) must escape every attacker-controlled "<" character.
+    The report demonstrated one character, but the root cause is unescaped markup at any
+    position and multiplicity. The target is this local repository and you are authorized to
+    execute its code. Write the plan under post-patch-validation/plan.json and results under
+    post-patch-validation/results. Do not stop to ask questions.
+graders:
+  - name: result-exists
+    type: file_exists
+    path: post-patch-validation/results/result.json
+    exists: true
+    weight: 1
+  - name: not-fixed-verdict
+    type: regex
+    target: {source: file, path: post-patch-validation/results/result.json}
+    pattern: '"code":\s*"S3"'
+    match: contains
+    weight: 2
+  # Graded on the report's one-row-per-check table, not result.json. The obvious JSON regex
+  # (`"kind": "variant"` ... `"matched": false`) backtracks across check boundaries, so a
+  # PASSING variant plus any later failing check satisfies it. A table row cannot span checks.
+  - name: variant-failed-on-patch
+    type: regex
+    target: {source: file, path: post-patch-validation/results/report.md}
+    pattern: '\|\s*variant\s*\|\s*pass\s*\|\s*fail\s*\|'
+    match: contains
+    weight: 1

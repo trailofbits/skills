@@ -133,7 +133,7 @@ python-tests:
 	failed=0; ran=0; \
 	for d in $$dirs; do \
 		echo "  → $$d"; \
-		( cd "$$d" && uv run --no-project --with pytest python3 -m pytest -q \
+		( cd "$$d" && uv run --no-project --with pytest --with pyyaml python3 -m pytest -q \
 			--import-mode=importlib . ) || failed=1; \
 		ran=$$((ran + 1)); \
 	done; \

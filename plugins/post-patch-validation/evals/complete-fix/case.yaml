@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: complete-fix
+description: A patch fixes the original unsafe character and the repeated-character variant without changing benign behavior.
+tags: [post-patch-validation, clean-fix]
+runs: 3
+context:
+  scaffold_script: scaffold.sh
+execution:
+  max_turns: 60
+  timeout_seconds: 1800
+  allowed_tools: [Read, Write, Edit, Bash, Glob, Grep, Skill, Workflow]
+  prompt: |-
+    Use the post-patch-validation skill to validate HEAD against the vulnerable tag.
+
+    Finding PPV-EVAL-1: render(value) returns attacker-controlled "<" characters without
+    escaping them, enabling markup injection. The demonstrated payload is a single "<".
+    Validate the root cause, not only that payload. The target is this local repository and
+    you are authorized to execute its code. Write the plan under post-patch-validation/plan.json
+    and results under post-patch-validation/results. Do not stop to ask questions.
+graders:
+  - name: result-exists
+    type: file_exists
+    path: post-patch-validation/results/result.json
+    exists: true
+    weight: 1
+  - name: clean-fix-verdict
+    type: regex
+    target: {source: file, path: post-patch-validation/results/result.json}
+    pattern: '"code":\s*"S1"'
+    match: contains
+    weight: 2
+  # `"kind": "variant"` in result.json only proves a variant check was declared. The report row
+  # proves it did the job: failed as expected on the vulnerable base, then passed on the patch.
+  - name: variant-reproduced-then-fixed
+    type: regex
+    target: {source: file, path: post-patch-validation/results/report.md}
+    pattern: '\|\s*variant\s*\|\s*pass\s*\|\s*pass\s*\|'
+    match: contains
+    weight: 1

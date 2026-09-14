@@ -136,6 +136,17 @@
       "source": "./plugins/mutation-testing"
     },
     {
+      "name": "post-patch-validation",
+      "version": "0.1.0",
+      "description": "Validates security patches against baseline exploits, root-cause variants, behavior contracts, regressions, and new-vulnerability checks using isolated worktrees and deterministic S1-S5 evidence classification. Bundles a validate-patch dynamic workflow for Claude Code.",
+      "author": {
+        "name": "Scott Arciszewski",
+        "email": "scott.arciszewski@trailofbits.com",
+        "url": "https://github.com/tob-scott-a"
+      },
+      "source": "./plugins/post-patch-validation"
+    },
+    {
       "name": "property-based-testing",
       "description": "Write, review, and triage property-based tests — Hypothesis, fast-check, proptest, and Echidna or Medusa for Solidity invariants",
       "version": "1.2.0",
