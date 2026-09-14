@@ -1,0 +1,5 @@
+# The README tells you to copy this fixture out before reproducing the
+# campaign. This is the backstop for when you forget.
+/target
+mewt.sqlite
+Cargo.lock
