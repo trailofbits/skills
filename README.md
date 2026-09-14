@@ -115,6 +115,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | [modern-cpp](plugins/modern-cpp/) | Modern C++ best practices (C++20/23/26) with compiler hardening and safe idioms |
 | [modern-python](plugins/modern-python/) | Modern Python tooling and best practices with uv, ruff, and pytest |
 | [open-sourcing](plugins/open-sourcing/) | Prepare a repository for public release: secrets hygiene, licensing, CI readiness, and release automation |
+| [review-walkthrough](plugins/review-walkthrough/) | Generate an interactive walkthrough of branch changes with ordered diffs, explanations, and anchored review findings |
 | [second-opinion](plugins/second-opinion/) | Get independent reviews from Codex or Antigravity for uncommitted changes, branch diffs, and commits |
 
 ### Team Management

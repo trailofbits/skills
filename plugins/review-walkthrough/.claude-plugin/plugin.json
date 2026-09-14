@@ -1,0 +1,10 @@
+{
+  "name": "review-walkthrough",
+  "version": "1.2.0",
+  "description": "Generates an interactive HTML walkthrough for reviewing code changes. Use only when explicitly called.",
+  "author": {
+    "name": "Facundo Tuesca",
+    "email": "opensource@trailofbits.com",
+    "url": "https://github.com/trailofbits"
+  }
+}

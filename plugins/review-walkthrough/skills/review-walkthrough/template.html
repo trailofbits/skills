@@ -1,0 +1,1821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TITLE_PLACEHOLDER - Code Review Walkthrough</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --accent-dim: #1f6feb33;
+    --green: #3fb950;
+    --green-bg: #12261e;
+    --red: #f85149;
+    --red-bg: #2d1214;
+    --line-num: #484f58;
+    --progress-bg: #21262d;
+    --tag-bg: #1f6feb22;
+    --yellow: #d29922;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    flex-shrink: 0;
+  }
+
+  .header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .header-top h1 { font-size: 16px; font-weight: 600; }
+  .step-counter { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+
+  .progress-bar { display: flex; gap: 4px; height: 4px; }
+
+  .progress-segment {
+    flex: 1;
+    background: var(--progress-bg);
+    border-radius: 2px;
+    transition: background 0.3s;
+    cursor: pointer;
+  }
+
+  .progress-segment.visited { background: var(--accent); opacity: 0.5; }
+  .progress-segment.active { background: var(--accent); opacity: 1; }
+
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  .diff-pane {
+    flex: 1;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 20px;
+  }
+
+  .diff-file { margin-bottom: 2px; }
+
+  .diff-file-header {
+    background: var(--bg-tertiary);
+    padding: 8px 16px;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  .diff-hunk-header {
+    background: var(--accent-dim);
+    color: var(--accent);
+    padding: 4px 16px;
+    font-size: 11px;
+  }
+
+  .diff-line {
+    padding: 0 16px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    display: flex;
+  }
+
+  .diff-line .line-num {
+    color: var(--line-num);
+    min-width: 50px;
+    text-align: right;
+    padding-right: 16px;
+    user-select: none;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .diff-line .line-content { flex: 1; min-width: 0; }
+  .diff-line.addition { background: var(--green-bg); color: var(--green); }
+  .diff-line.deletion { background: var(--red-bg); color: var(--red); }
+  .diff-line.context { color: var(--text-muted); }
+
+  /* Line commenting — + button */
+  .line-add-btn {
+    display: none;
+    position: absolute;
+    left: 2px;
+    top: 0;
+    width: 20px;
+    height: 20px;
+    background: #1f6feb;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
+    z-index: 2;
+  }
+
+  .line-add-btn:hover { background: #388bfd; }
+
+  .commenting-enabled .diff-line:hover .line-add-btn {
+    display: block;
+  }
+
+  /* Hide + button on lines that are already selected or have form open */
+  .commenting-enabled .diff-line.selected .line-add-btn { display: none; }
+
+  /* Show + button on all lines in same file during drag */
+  .commenting-enabled.dragging .diff-line .line-add-btn { display: none; }
+
+  /* Prevent text selection during drag */
+  .dragging { user-select: none; }
+
+  /* Line selection highlight */
+  .diff-line.selected {
+    background: rgba(31, 111, 235, 0.15) !important;
+  }
+  .diff-line.selected .line-content { color: var(--text) !important; }
+
+  /* Comment marker for lines with pending comments */
+  .diff-line.has-comment .line-num::after {
+    content: '';
+    position: absolute;
+    right: 6px;
+    top: 7px;
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+
+  /* Inline comment form */
+  .inline-comment-form {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin: 4px 16px 8px 16px;
+    overflow: hidden;
+  }
+
+  .comment-form-header {
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+
+  .comment-form-header code {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    color: var(--accent);
+  }
+
+  .inline-comment-form textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 10px 12px;
+    background: var(--bg);
+    color: var(--text);
+    border: none;
+    border-bottom: 1px solid var(--border);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+  }
+
+  .inline-comment-form textarea:focus {
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+
+  .inline-comment-form textarea::placeholder { color: var(--text-muted); }
+
+  .comment-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .comment-form-actions button {
+    padding: 5px 14px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: all 0.15s;
+  }
+
+  .btn-cancel {
+    background: transparent;
+    color: var(--text-muted);
+  }
+
+  .btn-cancel:hover { color: var(--text); border-color: var(--text-muted); }
+
+  .btn-add-comment {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .btn-add-comment:hover { opacity: 0.9; }
+  .btn-add-comment:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .explanation-pane {
+    width: 420px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .commit-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
+
+  .commit-sha {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+
+  .file-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+
+  .file-tag {
+    font-size: 11px;
+    font-family: "SF Mono", Menlo, monospace;
+    padding: 2px 8px;
+    background: var(--tag-bg);
+    color: var(--accent);
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tab-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  .tab-content { display: none; font-size: 14px; line-height: 1.7; flex: 1; overflow-y: auto; }
+  .tab-content.active { display: block; }
+
+  .explanation { font-size: 14px; line-height: 1.7; flex: 1; }
+  .explanation p { margin-bottom: 12px; }
+  .explanation strong { color: var(--accent); font-weight: 600; }
+
+  .explanation code {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+
+  .explanation ul, .explanation ol { margin-bottom: 12px; padding-left: 20px; }
+  .explanation li { margin-bottom: 4px; }
+
+  .explanation pre {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin: 8px 0;
+    overflow-x: auto;
+  }
+
+  /* A <code> inside <pre> should not get the inline pill treatment. */
+  .explanation pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: inherit;
+  }
+
+  .review-item { margin-bottom: 16px; padding: 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); }
+  .review-item.severity-high { border-left: 3px solid var(--red); }
+  .review-item.severity-medium { border-left: 3px solid var(--yellow); }
+  .review-item.severity-low { border-left: 3px solid var(--text-muted); }
+  .review-item .review-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .review-severity { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .review-severity.high { color: var(--red); }
+  .review-severity.medium { color: var(--yellow); }
+  .review-severity.low { color: var(--text-muted); }
+  .review-item p { margin-bottom: 8px; }
+  .review-item p:last-child { margin-bottom: 0; }
+  .review-body { margin-bottom: 8px; }
+  .review-body > pre:last-child { margin-bottom: 0; }
+  .review-no-issues { color: var(--green); font-style: italic; }
+
+  .review-item-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+  }
+
+  .review-item-file {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+
+  .review-item-file:hover { color: var(--accent); }
+
+  .review-item-file code {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 11px;
+  }
+
+  .btn-convert-comment {
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-convert-comment:hover {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+  }
+
+  .btn-convert-comment:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  /* Inline user comments in diff pane */
+  .inline-user-comment {
+    margin: 0;
+    padding: 10px 16px 10px 20px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .inline-user-comment-body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .inline-user-comment-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 2px;
+  }
+
+  /* Rendered Markdown, shared by the diff overlay and the comments list. */
+  .comment-md { color: var(--text); word-break: break-word; }
+  .comment-md p { margin: 0 0 6px 0; }
+  .comment-md p:last-child { margin-bottom: 0; }
+  .comment-md strong { font-weight: 600; }
+
+  .comment-md code {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    background: var(--bg-tertiary);
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+
+  .comment-md pre {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 8px;
+    margin: 6px 0;
+    overflow-x: auto;
+  }
+
+  .comment-md pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: inherit;
+  }
+
+  .inline-user-comment-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
+  .inline-user-comment-actions button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+    border-radius: 3px;
+    line-height: 1;
+  }
+
+  .inline-user-comment-actions button:hover { background: var(--bg-tertiary); }
+  .inline-user-comment-actions .btn-edit:hover { color: var(--accent); }
+  .inline-user-comment-actions .btn-delete:hover { color: var(--red); }
+
+  .inline-user-comment textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: 6px 8px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+  }
+
+  .inline-user-comment .edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .inline-user-comment .edit-actions button {
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+  }
+
+  .inline-user-comment .edit-actions .btn-save {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .inline-user-comment .edit-actions .btn-save:hover { opacity: 0.9; }
+
+  .inline-user-comment .edit-actions .btn-edit-cancel {
+    background: transparent;
+    color: var(--text-muted);
+  }
+
+  .inline-user-comment .edit-actions .btn-edit-cancel:hover { color: var(--text); }
+
+  /* Comment badge on tab */
+  .comment-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: #000;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 16px;
+    height: 16px;
+    line-height: 16px;
+    text-align: center;
+    border-radius: 8px;
+    margin-left: 6px;
+    padding: 0 5px;
+  }
+
+  /* Pending comments list in Comments tab */
+  .pending-comment-item {
+    margin-bottom: 12px;
+    padding: 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-secondary);
+    position: relative;
+  }
+
+  .pending-comment-file {
+    display: block;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 4px;
+    text-decoration: none;
+  }
+
+  .pending-comment-file:hover { text-decoration: underline; }
+
+  .pending-comment-body {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    word-break: break-word;
+  }
+
+  .pending-comment-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .pending-comment-delete:hover { color: var(--red); background: var(--bg-tertiary); }
+
+  .comments-empty {
+    color: var(--text-muted);
+    font-size: 13px;
+    font-style: italic;
+    margin-bottom: 16px;
+  }
+
+  /* Submit review section */
+  .submit-section {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .submit-section label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+
+  .submit-section textarea {
+    width: 100%;
+    min-height: 50px;
+    padding: 8px 10px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+    margin-bottom: 10px;
+  }
+
+  .submit-section textarea:focus { border-color: var(--accent); }
+  .submit-section textarea::placeholder { color: var(--text-muted); }
+
+  .submit-section select {
+    width: 100%;
+    padding: 7px 10px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 13px;
+    margin-bottom: 12px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .submit-section select:focus { border-color: var(--accent); }
+
+  .btn-copy-command {
+    width: 100%;
+    padding: 10px 16px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .btn-copy-command:hover { opacity: 0.9; }
+  .btn-copy-command:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .gh-command-box {
+    margin-top: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 10px 12px;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-muted);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+  }
+
+  .gh-command-box.visible { display: block; }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent);
+    color: #000;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .nav-buttons { display: flex; gap: 10px; margin-top: 20px; flex-shrink: 0; }
+
+  .nav-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .nav-btn:hover:not(:disabled) { background: var(--bg-tertiary); border-color: var(--accent); }
+
+  .nav-btn.primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .nav-btn.primary:hover { opacity: 0.9; background: var(--accent); }
+  .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .kbd-hint { text-align: center; font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+
+  /* Top-level tabs (Step / Comments) */
+  .top-tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+    flex-shrink: 0;
+  }
+
+  .top-tab-btn {
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .top-tab-btn:hover { color: var(--text); }
+  .top-tab-btn.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  .top-tab-pane {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  .top-tab-pane.active {
+    display: flex;
+  }
+
+  kbd {
+    font-family: "SF Mono", Menlo, monospace;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--line-num); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <h1>TITLE_PLACEHOLDER</h1>
+    <span class="step-counter" id="stepCounter"></span>
+  </div>
+  <div class="progress-bar" id="progressBar"></div>
+</header>
+
+<div class="main">
+  <div class="diff-pane" id="diffPane"></div>
+  <div class="explanation-pane">
+    <div class="top-tab-bar" id="topTabBar">
+      <button class="top-tab-btn active" id="topTabStep" onclick="switchTopTab('step')">Step</button>
+      <button class="top-tab-btn" id="topTabComments" onclick="switchTopTab('comments')" style="display:none">
+        Comments <span class="comment-badge" id="commentBadge" style="display:none">0</span>
+      </button>
+    </div>
+    <div class="top-tab-pane active" id="paneStep">
+      <div class="commit-title" id="commitTitle"></div>
+      <div class="commit-sha" id="stepLabel"></div>
+      <div class="file-tags" id="fileTags"></div>
+      <div class="tab-bar" id="tabBar">
+        <button class="tab-btn active" id="tabExplain" onclick="switchTab('explain')">Explanation</button>
+        <button class="tab-btn" id="tabReview" onclick="switchTab('review')">Review</button>
+      </div>
+      <div class="tab-content active" id="contentExplain">
+        <div class="explanation" id="explanation"></div>
+      </div>
+      <div class="tab-content" id="contentReview">
+        <div class="explanation" id="review"></div>
+      </div>
+      <div class="nav-buttons">
+        <button class="nav-btn" id="prevBtn" onclick="navigate(-1)">Previous</button>
+        <button class="nav-btn primary" id="nextBtn" onclick="navigate(1)">Next</button>
+      </div>
+      <div class="kbd-hint"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> to navigate</div>
+    </div>
+    <div class="top-tab-pane" id="paneComments">
+      <div id="commentsList"></div>
+      <div class="submit-section" id="submitSection">
+        <label for="reviewBody">Review summary (optional)</label>
+        <textarea id="reviewBody" placeholder="Overall review comment..."></textarea>
+        <label for="reviewEvent">Review action</label>
+        <select id="reviewEvent">
+          <option value="COMMENT">Comment</option>
+          <option value="APPROVE">Approve</option>
+          <option value="REQUEST_CHANGES">Request Changes</option>
+        </select>
+        <button class="btn-copy-command" id="btnCopyCommand" onclick="copyReviewCommand()" disabled>
+          Copy gh command to clipboard
+        </button>
+        <div class="gh-command-box" id="ghCommandBox"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STEPS = STEPS_PLACEHOLDER;
+const EXPLANATIONS = EXPLANATIONS_PLACEHOLDER;
+const REVIEWS = REVIEWS_PLACEHOLDER;
+const PR_META = PR_META_PLACEHOLDER;
+
+let current = 0;
+let activeTab = 'explain';
+let pendingComments = [];
+let selectionStart = null; // {el, file, line, side}
+let commentFormEl = null;
+
+function escape(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Tags a review body or explanation is allowed to keep: everything the comment
+// converter handles, plus the block markup that only ever renders on the page,
+// minus <img>. Nothing here loads or runs anything, so <img>,
+// <iframe>, <object> and <script> have no reason to be in a self-contained page of
+// text about code.
+var FRAGMENT_TAGS_OK =
+  /^(?:code|pre|strong|b|em|i|li|br|p|div|ul|ol|h[1-6]|del|s|strike|a|sup|sub|kbd|mark|ins|abbr|small|var|samp|q|cite|dfn|time|u|span|table|thead|tbody|tfoot|tr|td|th|caption|blockquote|hr|dl|dt|dd|big|tt|figure|figcaption|details|summary)$/i;
+
+var SAFE_HREF = /^(?:https?:\/\/|mailto:|#|\/)/i;
+
+// Parse in an inert template, then rebuild allowed HTML. A browser accepts many
+// tag spellings that a regular expression misses. Never insert the parsed tree.
+// Disallowed elements remain visible as text because reviews discuss code.
+function sanitizeFragment(html) {
+  var source = document.createElement('template');
+  source.innerHTML = String(html == null ? '' : html);
+  var result = document.createElement('div');
+  function append(node, parent) {
+    if (node.nodeType === 3) {
+      parent.appendChild(document.createTextNode(node.textContent));
+    } else if (node.nodeType === 1) {
+      if (node.namespaceURI !== 'http://www.w3.org/1999/xhtml'
+          || !FRAGMENT_TAGS_OK.test(node.localName)) {
+        parent.appendChild(document.createTextNode(node.outerHTML));
+        return;
+      }
+      var clean = document.createElement(node.localName);
+      if (node.localName === 'a') {
+        var href = (node.getAttribute('href') || '').trim();
+        if (SAFE_HREF.test(href)) clean.setAttribute('href', href);
+      }
+      Array.from(node.childNodes).forEach(function(child) { append(child, clean); });
+      parent.appendChild(clean);
+    }
+  }
+  Array.from(source.content.childNodes).forEach(function(node) { append(node, result); });
+  return result.innerHTML;
+}
+
+function renderDiff(diffText, files) {
+  var lines = diffText.split('\n');
+  var html = '';
+  var currentFile = '';
+  var fileIndex = 0;
+  var inHunk = false;
+  var hunkIndex = 0;
+  var lineNumOld = 0, lineNumNew = 0;
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+
+    if (line.startsWith('diff --git ')) {
+      if (currentFile) html += '</div>';
+      currentFile = files[fileIndex++];
+      inHunk = false;
+      html += '<div class="diff-file"><div class="diff-file-header">'
+        + escape(currentFile) + '</div>';
+      continue;
+    } else if (line.startsWith('@@')) {
+      var m = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+      if (m) {
+        lineNumOld = parseInt(m[1]);
+        lineNumNew = parseInt(m[2]);
+        inHunk = true;
+        hunkIndex++;
+        html += '<div class="diff-hunk-header">'
+          + escape(line) + '</div>';
+      }
+      continue;
+    }
+
+    if (!currentFile) continue;
+    if (!inHunk || !/^[ +\-]/.test(line)) {
+      if (line) html += '<div class="diff-hunk-header">' + escape(line) + '</div>';
+      continue;
+    }
+
+    var cls, num, side, oldNum = '', newNum = '';
+    if (line.startsWith('+')) {
+      cls = 'addition'; num = lineNumNew; side = 'RIGHT';
+      newNum = lineNumNew;
+      lineNumNew++;
+    } else if (line.startsWith('-')) {
+      cls = 'deletion'; num = lineNumOld; side = 'LEFT';
+      oldNum = lineNumOld;
+      lineNumOld++;
+    } else {
+      cls = 'context'; num = lineNumNew; side = 'RIGHT';
+      oldNum = lineNumOld;
+      newNum = lineNumNew;
+      lineNumOld++;
+      lineNumNew++;
+    }
+
+    html += '<div class="diff-line ' + cls + '"'
+      + ' data-file="' + escape(currentFile) + '"'
+      + ' data-line="' + num + '"'
+      + ' data-old-line="' + oldNum + '"'
+      + ' data-new-line="' + newNum + '"'
+      + ' data-hunk="' + hunkIndex + '"'
+      + ' data-side="' + side + '">'
+      + '<span class="line-num">'
+      + '<button class="line-add-btn" title="Add review comment">+</button>'
+      + num + '</span>'
+      + '<span class="line-content">'
+      + escape(line || ' ') + '</span></div>';
+  }
+
+  return html + (currentFile ? '</div>' : '');
+}
+
+function lineOnSide(el, side) {
+  return Number(side === 'LEFT' ? el.dataset.oldLine : el.dataset.newLine);
+}
+
+function renderCommentMarkers() {
+  var lines = document.querySelectorAll('#diffPane .diff-line');
+  for (var i = 0; i < lines.length; i++) {
+    var el = lines[i];
+    var file = el.dataset.file;
+    var hasComment = pendingComments.some(function(c) {
+      if (c.file !== file) return false;
+      var start = c.startLine || c.endLine;
+      var num = lineOnSide(el, c.side);
+      return num > 0 && num >= start && num <= c.endLine;
+    });
+    el.classList.toggle('has-comment', hasComment);
+  }
+}
+
+function renderInlineComments() {
+  // Remove any previously rendered inline user comments.
+  document.querySelectorAll('#diffPane .inline-user-comment')
+    .forEach(function(el) { el.remove(); });
+
+  var stepComments = pendingComments.filter(function(c) {
+    return c.stepIndex === current;
+  });
+  if (stepComments.length === 0) return;
+
+  var allLines = Array.from(
+    document.querySelectorAll('#diffPane .diff-line')
+  );
+
+  for (var ci = 0; ci < stepComments.length; ci++) {
+    var c = stepComments[ci];
+    // Find the global index of this comment in pendingComments for delete.
+    var globalIdx = pendingComments.indexOf(c);
+
+    // Find the last diff-line matching endLine + file.
+    var targetEl = null;
+    for (var li = allLines.length - 1; li >= 0; li--) {
+      var el = allLines[li];
+      if (el.dataset.file === c.file
+          && lineOnSide(el, c.side) === c.endLine) {
+        targetEl = el;
+        break;
+      }
+    }
+    if (!targetEl) continue;
+
+    var lineLabel = c.startLine
+      ? c.file + ':' + c.startLine + '-' + c.endLine
+      : c.file + ':' + c.endLine;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'inline-user-comment';
+    overlay.dataset.commentIdx = globalIdx;
+    overlay.innerHTML =
+      '<div class="inline-user-comment-body">'
+      + '<div class="inline-user-comment-label">'
+      + escape(lineLabel) + '</div>'
+      + '<div class="comment-md">' + markdownToHtml(c.body) + '</div>'
+      + '</div>'
+      + '<div class="inline-user-comment-actions">'
+      + '<button class="btn-edit"'
+      + ' onclick="editInlineComment(' + globalIdx + ', this)"'
+      + ' title="Edit comment">&#9998;</button>'
+      + '<button class="btn-delete"'
+      + ' onclick="removeComment(' + globalIdx + ')"'
+      + ' title="Remove comment">&times;</button>'
+      + '</div>';
+
+    targetEl.insertAdjacentElement('afterend', overlay);
+  }
+}
+
+function editInlineComment(idx, btn) {
+  var overlay = btn.closest('.inline-user-comment');
+  var bodyEl = overlay.querySelector('.inline-user-comment-body');
+  var actionsEl = overlay.querySelector('.inline-user-comment-actions');
+  var currentText = pendingComments[idx].body;
+
+  // Hide the actions buttons and replace body content with a textarea.
+  actionsEl.style.display = 'none';
+  bodyEl.querySelector('.comment-md').style.display = 'none';
+
+  var textarea = document.createElement('textarea');
+  textarea.value = currentText;
+  bodyEl.appendChild(textarea);
+  textarea.focus();
+  textarea.setSelectionRange(currentText.length, currentText.length);
+
+  var editActions = document.createElement('div');
+  editActions.className = 'edit-actions';
+  editActions.innerHTML =
+    '<button class="btn-edit-cancel">Cancel</button>'
+    + '<button class="btn-save">Save</button>';
+  bodyEl.appendChild(editActions);
+
+  function save() {
+    var newText = textarea.value.trim();
+    if (newText) {
+      pendingComments[idx].body = newText;
+    }
+    cleanup();
+    renderInlineComments();
+    renderCommentsTab();
+  }
+
+  function cancel() {
+    cleanup();
+    actionsEl.style.display = '';
+    bodyEl.querySelector('.comment-md').style.display = '';
+  }
+
+  function cleanup() {
+    textarea.remove();
+    editActions.remove();
+  }
+
+  editActions.querySelector('.btn-save').addEventListener('click', save);
+  editActions.querySelector('.btn-edit-cancel').addEventListener('click', cancel);
+  textarea.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') cancel();
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save();
+  });
+}
+
+function render() {
+  var step = STEPS[current];
+
+  document.getElementById('stepCounter').textContent =
+    (current + 1) + ' / ' + STEPS.length;
+
+  var bar = document.getElementById('progressBar');
+  bar.innerHTML = STEPS.map(function(_, i) {
+    var cls = i < current ? 'visited'
+      : i === current ? 'active' : '';
+    return '<div class="progress-segment ' + cls
+      + '" onclick="goTo(' + i + ')" title="Step ' + (i+1)
+      + ': ' + escape(STEPS[i].message) + '"></div>';
+  }).join('');
+
+  closeCommentForm();
+  document.getElementById('diffPane').innerHTML = renderDiff(step.diff, step.files);
+  document.getElementById('diffPane').scrollTop = 0;
+  renderCommentMarkers();
+  renderInlineComments();
+
+  document.getElementById('commitTitle').textContent = step.message;
+  document.getElementById('stepLabel').textContent =
+    'Step ' + (current + 1)
+    + (step.sha && !step.sha.startsWith('step-')
+       ? ' \u00b7 ' + step.sha : '');
+  document.getElementById('fileTags').innerHTML = step.files
+    .map(function(f) {
+      return '<span class="file-tag">'
+        + escape(f.split('/').pop()) + '</span>';
+    }).join('');
+  document.getElementById('explanation').innerHTML =
+    sanitizeFragment(EXPLANATIONS[current]) || '<p>No explanation available.</p>';
+  var stepReviewContent = REVIEWS[current];
+  if (Array.isArray(stepReviewContent)) {
+    if (stepReviewContent.length === 0) {
+      document.getElementById('review').innerHTML =
+        '<p class="review-no-issues">No review comments for this step.</p>';
+    } else {
+      document.getElementById('review').innerHTML =
+        stepReviewContent.map(function(r, ri) {
+          var fileLabel = '';
+          if (r.file) {
+            fileLabel = '<a class="review-item-file" href="#"'
+              + ' onclick="jumpToReview(' + current + ',' + ri + '); return false;">'
+              + '<code>'
+              + escape(r.file)
+              + (r.line ? ':' + r.line : '')
+              + (r.end_line ? '-' + r.end_line : '')
+              + '</code></a>';
+          }
+          var convertBtn = '';
+          if (PR_META && r.file && r.line) {
+            convertBtn = '<button class="btn-convert-comment"'
+              + ' onclick="convertReviewToComment(' + current + ',' + ri + ')"'
+              + '>Add as comment</button>';
+          }
+          var footer = '';
+          if (fileLabel || convertBtn) {
+            footer = '<div class="review-item-footer">'
+              + (fileLabel || '<span></span>') + convertBtn + '</div>';
+          }
+          return '<div class="review-item severity-'
+            + escape(r.severity) + '">'
+            + '<div class="review-header">'
+            + '<span class="review-severity ' + escape(r.severity)
+            + '">' + escape(r.severity).toUpperCase() + '</span>'
+            + '</div>'
+            + '<div class="review-body"><strong>' + escape(r.title)
+            + '</strong> \u2014 ' + sanitizeFragment(r.body) + '</div>'
+            + footer
+            + '</div>';
+        }).join('');
+    }
+  } else {
+    document.getElementById('review').innerHTML =
+      sanitizeFragment(stepReviewContent)
+      || '<p class="review-no-issues">No review comments for this step.</p>';
+  }
+
+  document.getElementById('prevBtn').disabled = current === 0;
+  var nextBtn = document.getElementById('nextBtn');
+  if (current === STEPS.length - 1) {
+    nextBtn.textContent = 'Done';
+    nextBtn.disabled = true;
+  } else {
+    nextBtn.textContent = 'Next \u2192';
+    nextBtn.disabled = false;
+  }
+
+  renderCommentsTab();
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tabExplain')
+    .classList.toggle('active', tab === 'explain');
+  document.getElementById('tabReview')
+    .classList.toggle('active', tab === 'review');
+  document.getElementById('contentExplain')
+    .classList.toggle('active', tab === 'explain');
+  document.getElementById('contentReview')
+    .classList.toggle('active', tab === 'review');
+}
+
+function switchTopTab(tab) {
+  document.getElementById('topTabStep')
+    .classList.toggle('active', tab === 'step');
+  document.getElementById('topTabComments')
+    .classList.toggle('active', tab === 'comments');
+  document.getElementById('paneStep')
+    .classList.toggle('active', tab === 'step');
+  document.getElementById('paneComments')
+    .classList.toggle('active', tab === 'comments');
+}
+
+function navigate(dir) {
+  var next = current + dir;
+  if (next >= 0 && next < STEPS.length) {
+    current = next;
+    render();
+  }
+}
+
+function goTo(i) { current = i; render(); }
+
+// --- Commenting ---
+
+function closeCommentForm() {
+  if (commentFormEl) {
+    commentFormEl.remove();
+    commentFormEl = null;
+  }
+  document.querySelectorAll('#diffPane .diff-line.selected')
+    .forEach(function(el) { el.classList.remove('selected'); });
+  selectionStart = null;
+}
+
+function showCommentForm(file, startLine, endLine, side, afterEl) {
+  var lineLabel = startLine && startLine !== endLine
+    ? 'lines ' + startLine + '-' + endLine
+    : 'line ' + endLine;
+
+  var form = document.createElement('div');
+  form.className = 'inline-comment-form';
+  form.innerHTML =
+    '<div class="comment-form-header">'
+    + 'Comment on <code>' + escape(file) + '</code> ' + lineLabel
+    + '</div>'
+    + '<textarea id="commentTextarea" placeholder="Leave a review comment..."></textarea>'
+    + '<div class="comment-form-actions">'
+    + '<button class="btn-cancel" onclick="closeCommentForm()">Cancel</button>'
+    + '<button class="btn-add-comment" id="btnAddComment" onclick="submitComment()" disabled>'
+    + 'Add Comment</button>'
+    + '</div>';
+
+  afterEl.insertAdjacentElement('afterend', form);
+  commentFormEl = form;
+
+  // Store context for submitComment
+  form.dataset.file = file;
+  form.dataset.startLine = startLine || '';
+  form.dataset.endLine = endLine;
+  form.dataset.side = side;
+  form.dataset.startSide = startLine
+    ? (selectionStart ? selectionStart.side : side)
+    : '';
+
+  var textarea = form.querySelector('textarea');
+  textarea.focus();
+  textarea.addEventListener('input', function() {
+    form.querySelector('#btnAddComment').disabled =
+      !textarea.value.trim();
+  });
+  textarea.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeCommentForm();
+    } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      if (textarea.value.trim()) submitComment();
+    }
+  });
+}
+
+function submitComment() {
+  if (!commentFormEl) return;
+  var body = commentFormEl.querySelector('textarea').value.trim();
+  if (!body) return;
+
+  var startLine = commentFormEl.dataset.startLine
+    ? parseInt(commentFormEl.dataset.startLine) : null;
+  var endLine = parseInt(commentFormEl.dataset.endLine);
+  var side = commentFormEl.dataset.side;
+  var startSide = commentFormEl.dataset.startSide || side;
+
+  pendingComments.push({
+    file: commentFormEl.dataset.file,
+    startLine: startLine && startLine !== endLine ? startLine : null,
+    endLine: endLine,
+    side: side,
+    startSide: startSide,
+    body: body,
+    stepIndex: current
+  });
+
+  closeCommentForm();
+  renderCommentMarkers();
+  renderInlineComments();
+  renderCommentsTab();
+  showToast('Comment added');
+}
+
+function removeComment(idx) {
+  pendingComments.splice(idx, 1);
+  renderCommentMarkers();
+  renderInlineComments();
+  renderCommentsTab();
+}
+
+// Inline tags with no Markdown spelling. GitHub-flavoured Markdown renders
+// inline HTML, so these survive the trip verbatim instead of being discarded --
+// dropping them used to turn 2<sup>64</sup> into 264, a different number posted
+// under a comment that looked correct on the page.
+var INLINE_HTML_OK =
+  /^(sup|sub|kbd|mark|ins|abbr|small|var|samp|q|cite|dfn|time|u)$/i;
+
+function escapeMarkdown(text) {
+  return text.replace(/[\\`*_~\[\]<>]/g, '\\$&');
+}
+
+function codeFence(text, minimum) {
+  var runs = text.match(/`+/g) || [];
+  return '`'.repeat(runs.reduce(function(longest, run) {
+    return Math.max(longest, run.length + 1);
+  }, minimum));
+}
+
+// Walk the sanitized DOM so code text is never processed as formatting or tags.
+function htmlToMarkdown(html) {
+  var source = document.createElement('template');
+  source.innerHTML = sanitizeFragment(html);
+  function convert(node) {
+    if (node.nodeType === 3) return escapeMarkdown(node.textContent.replace(/\s+/g, ' '));
+    if (node.nodeType !== 1) return '';
+    var tag = node.localName;
+    var text = node.textContent;
+    if (tag === 'pre') {
+      var fence = codeFence(text, 3);
+      return '\n\n' + fence + '\n' + text + (text.endsWith('\n') ? '' : '\n') + fence + '\n\n';
+    }
+    if (tag === 'code') {
+      var ticks = codeFence(text, 1);
+      var padding = /^[ `]|[ `]$/.test(text) ? ' ' : '';
+      return ticks + padding + text + padding + ticks;
+    }
+    var inner = Array.from(node.childNodes).map(convert).join('');
+    if (tag === 'strong' || tag === 'b') return '**' + inner + '**';
+    if (tag === 'em' || tag === 'i') return '_' + inner + '_';
+    if (/^(del|s|strike)$/.test(tag)) return '~~' + inner + '~~';
+    if (tag === 'a' && node.hasAttribute('href')) {
+      var href = node.getAttribute('href').replace(/[\\()\s]/g, function(character) {
+        if (character === '(') return '%28';
+        if (character === ')') return '%29';
+        return encodeURIComponent(character);
+      });
+      return '[' + inner + '](' + href + ')';
+    }
+    if (INLINE_HTML_OK.test(tag)) return '<' + tag + '>' + inner + '</' + tag + '>';
+    if (tag === 'br') return '  \n';
+    if (tag === 'li') return '- ' + inner.trim() + '\n';
+    if (tag === 'hr') return '\n\n---\n\n';
+    if (/^(p|div|ul|ol|h[1-6]|pre|blockquote|dl|dt|dd)$/.test(tag)) return inner.trim() + '\n\n';
+    return inner;
+  }
+  return Array.from(source.content.childNodes).map(convert).join('').trim();
+}
+
+// Render formatting only outside code spans. Escaped Markdown punctuation stays
+// literal, including characters quoted from a finding's HTML body.
+function markdownInline(text) {
+  var html = '';
+  var token = /\\([\\`*_~\[\]<>])|(?<!`)(`+)(?!`)([\s\S]*?)(?<!`)\2(?!`)/g;
+  var cursor = 0;
+  var match;
+  function format(part) {
+    return escape(part)
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+      .replace(/(^|[\s(])_([^_\n]+)_(?=[\s.,;:!?)]|$)/g, '$1<em>$2</em>')
+      .replace(/&lt;(\/?)(sup|sub|kbd|mark|ins|abbr|small|var|samp|q|cite|dfn|time|u)&gt;/gi, '<$1$2>')
+      .replace(/\n/g, '<br>');
+  }
+  while ((match = token.exec(text)) !== null) {
+    html += format(text.slice(cursor, match.index));
+    if (match[1]) {
+      html += escape(match[1]);
+    } else {
+      var code = match[3].replace(/\n/g, ' ');
+      if (/^ .* $/.test(code) && /[^ ]/.test(code)) code = code.slice(1, -1);
+      html += '<code>' + escape(code) + '</code>';
+    }
+    cursor = token.lastIndex;
+  }
+  return html + format(text.slice(cursor));
+}
+
+// Fences are handled before paragraph and inline formatting, so blank lines,
+// indentation, Markdown markers, and literal HTML inside code remain unchanged.
+function markdownToHtml(md) {
+  var lines = String(md == null ? '' : md).replace(/\r\n?/g, '\n').split('\n');
+  var html = '';
+  var paragraph = [];
+  function flush() {
+    if (paragraph.length) html += '<p>' + markdownInline(paragraph.join('\n')) + '</p>';
+    paragraph = [];
+  }
+  for (var i = 0; i < lines.length; i++) {
+    var fence = /^ {0,3}(`{3,}|~{3,})[^`]*$/.exec(lines[i]);
+    if (fence) {
+      flush();
+      var code = [];
+      var closing = new RegExp('^ {0,3}' + fence[1][0] + '{' + fence[1].length + ',}\\s*$');
+      while (++i < lines.length && !closing.test(lines[i])) code.push(lines[i]);
+      html += '<pre><code>' + escape(code.join('\n')) + '</code></pre>';
+    } else if (!lines[i].trim()) {
+      flush();
+    } else {
+      paragraph.push(lines[i]);
+    }
+  }
+  flush();
+  return html;
+}
+
+function convertReviewToComment(stepIdx, reviewIdx) {
+  var r = REVIEWS[stepIdx][reviewIdx];
+  if (!r || !r.file || !r.line) return;
+
+  var endLine = r.end_line || r.line;
+  var body = '**' + escapeMarkdown(r.title) + '** (' + r.severity.toUpperCase() + ')\n\n'
+    + htmlToMarkdown(r.body);
+
+  pendingComments.push({
+    file: r.file,
+    startLine: r.end_line && r.line !== r.end_line ? r.line : null,
+    endLine: endLine,
+    side: r.side,
+    startSide: r.side,
+    body: body,
+    stepIndex: stepIdx
+  });
+
+  renderCommentMarkers();
+  renderInlineComments();
+  renderCommentsTab();
+
+  // Disable the button to indicate it was converted.
+  var btns = document.querySelectorAll('#review .btn-convert-comment');
+  if (btns[reviewIdx]) {
+    btns[reviewIdx].disabled = true;
+    btns[reviewIdx].textContent = 'Added';
+  }
+
+  showToast('Review converted to comment');
+
+  // Scroll the diff to the newly added inline comment.
+  var newIdx = pendingComments.length - 1;
+  var overlay = document.querySelector(
+    '#diffPane .inline-user-comment[data-comment-idx="' + newIdx + '"]'
+  );
+  if (overlay) {
+    overlay.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    overlay.style.outline = '2px solid var(--accent)';
+    setTimeout(function() { overlay.style.outline = ''; }, 1500);
+  }
+}
+
+function jumpToReview(stepIdx, reviewIdx) {
+  var review = REVIEWS[stepIdx][reviewIdx];
+  jumpToLine(review.file, review.line, review.end_line, review.side);
+}
+
+function jumpToLine(file, line, endLine, side) {
+  if (!endLine || endLine < line) endLine = line;
+  var allLines = document.querySelectorAll('#diffPane .diff-line');
+  var matched = [];
+  for (var i = 0; i < allLines.length; i++) {
+    var el = allLines[i];
+    var num = lineOnSide(el, side);
+    if (el.dataset.file === file && num > 0 && num >= line && num <= endLine) {
+      matched.push(el);
+    }
+  }
+  if (matched.length === 0) return;
+  matched[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  // Remove any previous highlight overlay.
+  var prev = document.getElementById('jumpHighlight');
+  if (prev) prev.remove();
+
+  var pane = document.getElementById('diffPane');
+  var paneRect = pane.getBoundingClientRect();
+  var scrollTop = pane.scrollTop;
+  var firstRect = matched[0].getBoundingClientRect();
+  var lastRect = matched[matched.length - 1].getBoundingClientRect();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'jumpHighlight';
+  overlay.style.cssText =
+    'position:absolute;'
+    + 'top:' + (firstRect.top - paneRect.top + scrollTop) + 'px;'
+    + 'left:0;'
+    + 'width:' + pane.scrollWidth + 'px;'
+    + 'height:' + (lastRect.bottom - firstRect.top) + 'px;'
+    + 'border:2px solid var(--accent);'
+    + 'border-radius:4px;'
+    + 'pointer-events:none;'
+    + 'z-index:3;'
+    + 'transition:opacity 0.3s;';
+  pane.style.position = 'relative';
+  pane.appendChild(overlay);
+
+  setTimeout(function() {
+    overlay.style.opacity = '0';
+    setTimeout(function() { overlay.remove(); }, 300);
+  }, 1500);
+}
+
+function jumpToComment(idx) {
+  var c = pendingComments[idx];
+  if (!c) return;
+
+  // Switch to the Step tab so the diff is visible.
+  switchTopTab('step');
+
+  // Navigate to the step where the comment was made.
+  if (c.stepIndex !== current) {
+    current = c.stepIndex;
+    render();
+  }
+
+  // Find the inline comment overlay and scroll to it.
+  var overlay = document.querySelector(
+    '#diffPane .inline-user-comment[data-comment-idx="' + idx + '"]'
+  );
+  if (overlay) {
+    overlay.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Flash highlight.
+    overlay.style.outline = '2px solid var(--accent)';
+    setTimeout(function() { overlay.style.outline = ''; }, 1500);
+  }
+}
+
+function renderCommentsTab() {
+  if (!PR_META) return;
+
+  var list = document.getElementById('commentsList');
+  var badge = document.getElementById('commentBadge');
+  var copyBtn = document.getElementById('btnCopyCommand');
+  var cmdBox = document.getElementById('ghCommandBox');
+
+  badge.textContent = pendingComments.length;
+  badge.style.display = pendingComments.length > 0 ? 'inline-block' : 'none';
+  copyBtn.disabled = pendingComments.length === 0;
+
+  if (pendingComments.length === 0) {
+    list.innerHTML = '<p class="comments-empty">'
+      + 'No comments yet. Click the <strong>+</strong> icon '
+      + 'on any diff line to add a review comment.</p>';
+    cmdBox.classList.remove('visible');
+    return;
+  }
+
+  var html = '';
+  for (var i = 0; i < pendingComments.length; i++) {
+    var c = pendingComments[i];
+    var lineLabel = c.startLine
+      ? 'L' + c.startLine + '-L' + c.endLine
+      : 'L' + c.endLine;
+    html += '<div class="pending-comment-item">'
+      + '<button class="pending-comment-delete" onclick="removeComment('
+      + i + ')" title="Remove comment">&times;</button>'
+      + '<a class="pending-comment-file" href="#" onclick="jumpToComment('
+      + i + '); return false;">'
+      + escape(c.file) + ':' + lineLabel + '</a>'
+      + '<div class="pending-comment-body comment-md">'
+      + markdownToHtml(c.body) + '</div></div>';
+  }
+
+  list.innerHTML = html;
+  updateCommandBox();
+}
+
+function buildReviewPayload() {
+  var event = document.getElementById('reviewEvent').value;
+  var body = document.getElementById('reviewBody').value.trim();
+  var comments = pendingComments.map(function(c) {
+    var obj = {
+      path: c.file,
+      line: c.endLine,
+      side: c.side,
+      body: c.body
+    };
+    if (c.startLine) {
+      obj.start_line = c.startLine;
+      obj.start_side = c.startSide;
+    }
+    return obj;
+  });
+
+  var payload = {
+    commit_id: PR_META.head_sha,
+    event: event,
+    comments: comments
+  };
+  if (body) payload.body = body;
+  return payload;
+}
+
+function buildGhCommand() {
+  var payload = buildReviewPayload();
+  var json = JSON.stringify(payload, null, 2);
+  var endpoint = 'repos/' + PR_META.owner + '/' + PR_META.repo
+    + '/pulls/' + PR_META.pr_number + '/reviews';
+  // printf preserves JSON backslashes in bash, zsh, and POSIX shells.
+  return "printf '%s\\n' " + shellQuote(json) + ' | gh api ' + shellQuote(endpoint)
+    + ' --method POST --input -';
+}
+
+function shellQuote(value) {
+  return "'" + value.replace(/'/g, "'\\''") + "'";
+}
+
+function updateCommandBox() {
+  var box = document.getElementById('ghCommandBox');
+  if (pendingComments.length > 0) {
+    box.textContent = buildGhCommand();
+    box.classList.add('visible');
+  } else {
+    box.classList.remove('visible');
+  }
+}
+
+function copyReviewCommand() {
+  if (pendingComments.length === 0) return;
+  var cmd = buildGhCommand();
+  function fallback() {
+    var box = document.getElementById('ghCommandBox');
+    var range = document.createRange();
+    range.selectNodeContents(box);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    showToast('Could not copy. Select and copy the command manually.');
+  }
+  if (!navigator.clipboard) {
+    fallback();
+    return;
+  }
+  navigator.clipboard.writeText(cmd).then(function() {
+    showToast('Copied to clipboard — paste in your terminal');
+  }, fallback);
+}
+
+function showToast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(function() {
+    el.classList.remove('show');
+  }, 2500);
+}
+
+// --- Diff drag selection ---
+
+var dragState = null; // {file, anchorEl, anchorIdx, allLines}
+
+function getDiffLines() {
+  return Array.from(document.querySelectorAll('#diffPane .diff-line'));
+}
+
+function selectRange(allLines, fromIdx, toIdx) {
+  var lo = Math.min(fromIdx, toIdx);
+  var hi = Math.max(fromIdx, toIdx);
+  allLines.forEach(function(el, i) {
+    el.classList.toggle('selected', i >= lo && i <= hi);
+  });
+}
+
+var diffPane = document.getElementById('diffPane');
+
+diffPane.addEventListener('mousedown', function(e) {
+  // Start drag from + button or from line-num area
+  var btn = e.target.closest('.line-add-btn');
+  if (!btn || !PR_META) return;
+
+  e.preventDefault(); // prevent text selection
+
+  var lineEl = btn.closest('.diff-line');
+  var file = lineEl.dataset.file;
+
+  closeCommentForm();
+
+  var allLines = getDiffLines();
+  var idx = allLines.indexOf(lineEl);
+  if (idx === -1) return;
+
+  lineEl.classList.add('selected');
+  dragState = { file: file, anchorEl: lineEl, anchorIdx: idx, allLines: allLines };
+  diffPane.classList.add('dragging');
+});
+
+document.addEventListener('mousemove', function(e) {
+  if (!dragState) return;
+
+  // Find the diff-line under the cursor
+  var el = document.elementFromPoint(e.clientX, e.clientY);
+  if (!el) return;
+  var lineEl = el.closest('.diff-line');
+  if (!lineEl || lineEl.dataset.file !== dragState.file) return;
+  // A GitHub range must have both endpoints on the same side in one hunk.
+  if (lineEl.dataset.hunk !== dragState.anchorEl.dataset.hunk
+      || !lineOnSide(lineEl, dragState.anchorEl.dataset.side)) return;
+
+  var idx = dragState.allLines.indexOf(lineEl);
+  if (idx === -1) return;
+  var lo = Math.min(idx, dragState.anchorIdx);
+  var hi = Math.max(idx, dragState.anchorIdx);
+  if (dragState.allLines.slice(lo, hi + 1).some(function(row) {
+    return !lineOnSide(row, dragState.anchorEl.dataset.side);
+  })) return;
+
+  selectRange(dragState.allLines, dragState.anchorIdx, idx);
+});
+
+document.addEventListener('mouseup', function(e) {
+  if (!dragState) return;
+
+  diffPane.classList.remove('dragging');
+
+  var allLines = dragState.allLines;
+  var anchorSide = dragState.anchorEl.dataset.side;
+  var file = dragState.file;
+  dragState = null;
+
+  // Find the selected range
+  var selected = allLines.filter(function(el) {
+    return el.classList.contains('selected');
+  });
+  if (selected.length === 0) return;
+
+  var firstEl = selected[0];
+  var lastEl = selected[selected.length - 1];
+
+  // All selected must be same file (clamp at file boundary)
+  if (firstEl.dataset.file !== file || lastEl.dataset.file !== file) {
+    // Re-select only lines in the anchor's file
+    selected = selected.filter(function(el) {
+      return el.dataset.file === file;
+    });
+    if (selected.length === 0) return;
+    // Clear out-of-file selections
+    allLines.forEach(function(el) {
+      if (el.dataset.file !== file) el.classList.remove('selected');
+    });
+    firstEl = selected[0];
+    lastEl = selected[selected.length - 1];
+  }
+
+  var startLine = lineOnSide(firstEl, anchorSide);
+  var endLine = lineOnSide(lastEl, anchorSide);
+  var side = anchorSide;
+
+  selectionStart = {
+    el: firstEl,
+    file: file,
+    line: startLine,
+    side: side
+  };
+
+  showCommentForm(
+    file,
+    selected.length > 1 ? startLine : null,
+    endLine,
+    side,
+    lastEl
+  );
+});
+
+// Update command preview when review options change
+document.getElementById('reviewEvent').addEventListener('change', updateCommandBox);
+document.getElementById('reviewBody').addEventListener('input', updateCommandBox);
+
+// --- Keyboard navigation ---
+
+document.addEventListener('keydown', function(e) {
+  // Don't navigate when typing in a textarea/input
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')
+    return;
+  if (e.key === 'ArrowRight' || e.key === 'j') navigate(1);
+  if (e.key === 'ArrowLeft' || e.key === 'k') navigate(-1);
+});
+
+// --- Init ---
+
+if (PR_META) {
+  document.getElementById('diffPane').classList.add('commenting-enabled');
+  document.getElementById('topTabComments').style.display = '';
+}
+
+render();
+</script>
+</body>
+</html>

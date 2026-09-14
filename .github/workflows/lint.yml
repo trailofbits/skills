@@ -219,3 +219,8 @@ jobs:
           done
           echo "Ran ${#suites[@]} JS suite(s)"
           exit "$failed"
+      - name: Test review walkthrough in Chrome
+        shell: bash
+        run: |
+          walkthrough_chrome=$(command -v google-chrome)
+          node plugins/review-walkthrough/tests/browser-check.mjs "$walkthrough_chrome"

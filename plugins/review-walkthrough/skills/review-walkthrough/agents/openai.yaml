@@ -1,0 +1,7 @@
+interface:
+  display_name: "Review Walkthrough"
+  short_description: "Review changes in an interactive walkthrough"
+  default_prompt: "Use $review-walkthrough to review the current branch."
+
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: rate-limit-walkthrough
+description: >-
+  Walkthrough of a seven-file rate-limiting feature with an unambiguous
+  dependency order (config -> bucket -> middleware -> tests) and a seeded refill
+  bug at a fixed line, so step ordering and review anchoring are both checkable
+  without a judge.
+tags: [walkthrough, artifact]
+runs: 3
+
+context:
+  # Path relative to this case directory. Requires --scaffold; see evals/README.md.
+  scaffold_script: ./scaffold.sh
+
+expected_outcome: >-
+  walkthrough.html exists, contains no unsubstituted placeholder, orders the
+  steps so definitions precede their consumers and tests come last, and anchors
+  a review comment to the unclamped refill in ratelimit/bucket.py.
