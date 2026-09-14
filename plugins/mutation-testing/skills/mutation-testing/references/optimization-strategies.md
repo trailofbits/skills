@@ -45,10 +45,10 @@ Re-run `mewt mutate` and check new count.
 **1. Get mutant counts per component:**
 
 ```bash
-# Use single quotes to prevent shell glob expansion
-mewt print mutants --target 'src/auth/**/*.rs' | wc -l
-mewt print mutants --target 'src/core/**/*.rs' | wc -l
-mewt print mutants --target 'src/utils/**/*.rs' | wc -l
+# Quote globs to prevent shell expansion. IDs output contains one mutant per line.
+mewt print mutants --target 'src/auth/**/*.rs' --format ids | wc -l
+mewt print mutants --target 'src/core/**/*.rs' --format ids | wc -l
+mewt print mutants --target 'src/utils/**/*.rs' --format ids | wc -l
 ```
 
 Present breakdown to user:
@@ -67,13 +67,13 @@ Total: 1150 mutants, ~2.3 hrs worst-case
 mewt print config | grep mutations
 
 # Count by severity level
-mewt print mutants --severity high | wc -l
-mewt print mutants --severity medium | wc -l
-mewt print mutants --severity low | wc -l
+mewt print mutants --severity high --format ids | wc -l
+mewt print mutants --severity medium --format ids | wc -l
+mewt print mutants --severity low --format ids | wc -l
 
 # Or count specific mutation types
-mewt print mutants --mutation-types ER | wc -l
-mewt print mutants --mutation-types CR | wc -l
+mewt print mutants --mutation-types ER --format ids | wc -l
+mewt print mutants --mutation-types CR --format ids | wc -l
 
 # Compare to total
 mewt print mutants | wc -l
@@ -117,6 +117,7 @@ include = ["src/auth/**/*.rs"]
 ```
 
 After editing `mewt.toml`, purge removed targets then mutate any newly included files:
+Preserve any results that must be retained and confirm that discarding the affected campaign data is authorized before purging.
 ```bash
 mewt purge        # removes targets no longer matching [targets].include/ignore
 mewt mutate src/  # adds mutants for any newly included files
@@ -195,22 +196,22 @@ See Two-Phase Campaigns section below for detailed setup.
 # timeout = 60
 
 # PHASE 1: Targeted tests
-[[test.per_target]]
+[[per_target]]
 glob = "src/auth/*.rs"
-cmd = "cargo test auth::unit"
-timeout = 10
+test.cmd = "cargo test auth::unit"
+test.timeout = 10
 
-[[test.per_target]]
+[[per_target]]
 glob = "src/core/*.rs"
-cmd = "cargo test core::unit"
-timeout = 15
+test.cmd = "cargo test core::unit"
+test.timeout = 15
 
 # Catch-all: full suite for any file not matched above.
 # Required unless [targets] is scoped to exactly the globs listed above.
-[[test.per_target]]
+[[per_target]]
 glob = "**/*.rs"
-cmd = "cargo test"
-timeout = 60
+test.cmd = "cargo test"
+test.timeout = 60
 ```
 
 **Rationale:** Phase 1 uses fast targeted tests. Phase 2 re-tests only the survivors with the comprehensive suite.
@@ -231,7 +232,7 @@ Wait for completion.
    ```
 
 2. **Update mewt.toml:**
-   - Comment out all `[[test.per_target]]` sections (including the catch-all)
+   - Comment out all `[[per_target]]` sections (including the catch-all)
    - Uncomment Phase 2 `[test]` section
 
 3. **Re-test with full suite:**
@@ -275,26 +276,26 @@ cmd = "go test ./..."
 timeout = 45
 
 # ALTERNATIVE: Targeted tests per file (fast, may miss cross-module failures)
-[[test.per_target]]
+[[per_target]]
 glob = "auth/*.go"
-cmd = "go test ./auth"
-timeout = 10
+test.cmd = "go test ./auth"
+test.timeout = 10
 
-[[test.per_target]]
+[[per_target]]
 glob = "core/*.go"
-cmd = "go test ./core"
-timeout = 15
+test.cmd = "go test ./core"
+test.timeout = 15
 
-[[test.per_target]]
+[[per_target]]
 glob = "utils/*.go"
-cmd = "go test ./utils"
-timeout = 8
+test.cmd = "go test ./utils"
+test.timeout = 8
 
 # Catch-all for unmatched files
-[[test.per_target]]
+[[per_target]]
 glob = "*.go"
-cmd = "go test ./..."
-timeout = 45
+test.cmd = "go test ./..."
+test.timeout = 45
 ```
 
 **Ordering matters:** First match wins. Place most specific patterns first, catch-all last.

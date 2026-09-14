@@ -23,6 +23,8 @@ Configure mewt so the user can run `mewt run` with optimal settings that balance
 
    Note: If working with a config in a non-standard location, use `--config path/to/mewt.toml`. The parent directory of the config file becomes the working directory, and relative paths in the config resolve from there.
 
+   Examples use mewt 4.x. Check the installed tool's `--help` before using unfamiliar flags. For muton, use its command name and configuration filename.
+
 2. **Review auto-generated configuration:**
    ```bash
    mewt print config
@@ -106,6 +108,7 @@ Read `references/optimization-strategies.md` for detailed strategies and example
 3. Present options to user with time estimates (full campaign / target critical components / high-severity only / two-phase)
 4. Apply chosen optimization to `mewt.toml`
 5. **If `[targets]` or `[run].mutations` changed**, update the database and recalculate duration:
+   Purging deletes saved mutants and outcomes. Preserve results that need to be retained and confirm that discarding the affected campaign data is authorized before purging.
    - **Target scope narrowed** (Option B): purge removed targets, then mutate any newly included files:
      ```bash
      mewt purge           # removes targets no longer in [targets].include/ignore
@@ -211,11 +214,13 @@ cmd = "npm test"
 # timeout = 30  # Optional: auto-calculated if omitted (2× baseline)
 
 # Per-target rules (first match wins)
-[[test.per_target]]
+[[per_target]]
 glob = "src/core/*.js"
-cmd = "npm test -- core"
-timeout = 20
+test.cmd = "npm test -- core"
+test.timeout = 20
 ```
+
+Use top-level `[[per_target]]` rules with `test.cmd` and `test.timeout`. Run `mewt print config` after editing to catch invalid TOML and confirm the effective settings.
 
 ### Target Configuration Examples
 

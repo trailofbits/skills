@@ -126,8 +126,8 @@
     },
     {
       "name": "mutation-testing",
-      "version": "1.0.3",
-      "description": "Configures mewt or muton mutation testing campaigns — scopes targets, tunes timeouts, and optimizes long-running runs. Use when the user mentions mewt, muton, mutation testing, or wants to configure or optimize a mutation testing campaign.",
+      "version": "1.9.0",
+      "description": "Configures mewt or muton campaigns, analyzes surviving mutants, and investigates bugs exposed by testing gaps. Use when setting up mutation testing, reviewing campaign results, identifying equivalent mutants, or finding bugs from surviving mutations.",
       "author": {
         "name": "Trail of Bits",
         "email": "opensource@trailofbits.com",
