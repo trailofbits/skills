@@ -1,10 +1,16 @@
 {
   "name": "git-cleanup",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "description": "Safely analyzes and cleans up local git branches and worktrees by categorizing them as merged, squash-merged, superseded, or active work.",
   "author": {
     "name": "Henrik Brodin",
     "email": "opensource@trailofbits.com",
     "url": "https://github.com/trailofbits"
+  },
+  "interface": {
+    "displayName": "Git Cleanup",
+    "shortDescription": "Safely analyzes and cleans up local git branches and worktrees by categorizing them as merged, squash-merged, superseded, or active work.",
+    "longDescription": "Safely analyzes and cleans up local git branches and worktrees by categorizing them as merged, squash-merged, superseded, or active work.",
+    "developerName": "Henrik Brodin"
   }
 }

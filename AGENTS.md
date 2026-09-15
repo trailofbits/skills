@@ -37,7 +37,7 @@ delegating a lookup you could do directly costs a round trip and buys nothing.
 
 ### Codex Compatibility
 
-This repository uses Claude plugin marketplace metadata as the canonical source for both Claude Code and Codex. Codex supports `.claude-plugin/marketplace.json` and `plugins/<name>/.claude-plugin/plugin.json` directly, so do not add duplicate Codex-only sidecar metadata.
+This repository uses Claude plugin marketplace metadata as the canonical source for Claude Code, Codex, and ChatGPT workspace imports. Codex supports `.claude-plugin/marketplace.json` and `plugins/<name>/.claude-plugin/plugin.json` directly, so do not add duplicate Codex-only sidecar metadata.
 
 Rules:
 
@@ -45,6 +45,15 @@ Rules:
   `plugins/<name>/.codex-plugin/`. The validator enforces this — sidecars drift out of
   sync with the canonical metadata, which is why the last set was removed in #173.
 - Keep plugin components at the plugin root using Codex-compatible default paths: `skills/`, `hooks/hooks.json`, `.mcp.json`, and `.app.json`.
+- Include ChatGPT listing metadata in each canonical plugin manifest's `interface`
+  object: `displayName`, `shortDescription`, `longDescription`, and `developerName`.
+  These JSON keys are camelCase even when import errors report snake_case names.
+  Omit unknown optional author contacts instead of setting `email` or `url` to `""`.
+  The validator enforces workspace package limits from the
+  [OpenAI submission error reference](https://developers.openai.com/plugins/deploy/submission-errors#listing-and-interface-errors),
+  not the stricter public-directory listing limits.
+  Claude Code ignores `interface`; the Claude loadability check permits only that
+  specific unknown-field warning and still rejects other warnings and errors.
 - If a plugin needs MCP configuration, put it in `.mcp.json` at the plugin root rather than embedding an object in `.claude-plugin/plugin.json`.
 - Both loadability checks run in CI, not in `make check` — they need the Claude Code
   and Codex CLIs installed, which is not a reasonable local prerequisite. Run them by

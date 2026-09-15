@@ -1,9 +1,15 @@
 {
   "name": "constant-time-analysis",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Detect compiler-induced timing side-channels in cryptographic code",
   "author": {
     "name": "Scott Arciszewski",
     "url": "https://github.com/trailofbits"
+  },
+  "interface": {
+    "displayName": "Constant-Time Analysis",
+    "shortDescription": "Detect compiler-induced timing side-channels in cryptographic code",
+    "longDescription": "Detect compiler-induced timing side-channels in cryptographic code",
+    "developerName": "Scott Arciszewski"
   }
 }

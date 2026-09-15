@@ -1,10 +1,16 @@
 {
   "name": "modern-cpp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Modern C++ best practices (C++20/23/26). Use when writing C++ code, creating new C++ projects, or modernizing legacy C++ patterns.",
   "author": {
     "name": "Julius Alexandre",
     "email": "opensource@trailofbits.com",
     "url": "https://github.com/trailofbits"
+  },
+  "interface": {
+    "displayName": "Modern C++",
+    "shortDescription": "Modern C++ best practices (C++20/23/26). Use when writing C++ code, creating new C++ projects, or modernizing legacy C++ patterns.",
+    "longDescription": "Modern C++ best practices (C++20/23/26). Use when writing C++ code, creating new C++ projects, or modernizing legacy C++ patterns.",
+    "developerName": "Julius Alexandre"
   }
 }

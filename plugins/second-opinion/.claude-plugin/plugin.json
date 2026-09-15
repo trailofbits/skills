@@ -1,8 +1,14 @@
 {
   "name": "second-opinion",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "description": "Gets independent code reviews from Codex or Antigravity for uncommitted changes, branch diffs, and commits.",
   "author": {
     "name": "Dan Guido"
+  },
+  "interface": {
+    "displayName": "Second Opinion",
+    "shortDescription": "Gets independent code reviews from Codex or Antigravity for uncommitted changes, branch diffs, and commits.",
+    "longDescription": "Gets independent code reviews from Codex or Antigravity for uncommitted changes, branch diffs, and commits.",
+    "developerName": "Dan Guido"
   }
 }

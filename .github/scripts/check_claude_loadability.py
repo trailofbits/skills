@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -49,6 +50,51 @@ def parse_json_output(output: str, context: str) -> Any:
         if not starts:
             raise
         return json.loads(text[min(starts) :])
+
+
+def validation_issues(report: dict[str, Any]) -> list[str]:
+    """Retain strict validation except for our intentional OpenAI interface field."""
+    manifest = report.get("manifest")
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("warnings"), list):
+        return ["missing manifest validation results"]
+    if not isinstance(manifest.get("errors"), list):
+        return ["missing manifest validation errors"]
+    issues = []
+    if report.get("success") is not True:
+        issues.append("Claude manifest validation failed")
+    for result in [manifest, *report.get("contents", [])]:
+        issues.extend(str(error) for error in result.get("errors", []))
+        for warning in result.get("warnings", []):
+            # Claude documents that unknown top-level fields are ignored at load
+            # time. ChatGPT needs interface in the shared manifest, and our repo
+            # validator checks its contents. No other warning is exempt.
+            if (
+                result is manifest
+                and (
+                    (manifest.get("type") == "plugin" and warning.get("path") == "interface")
+                    or (
+                        manifest.get("type") == "marketplace"
+                        and re.fullmatch(
+                            r"plugins\[\d+\] plugin\.json → interface", warning.get("path", "")
+                        )
+                    )
+                )
+                and warning.get("message")
+                == "Unknown field 'interface'. Claude Code ignores it at load time."
+            ):
+                continue
+            issues.append(str(warning))
+    return issues
+
+
+def validate_manifest(claude_bin: str, repo: Path, env: dict[str, str], path: Path) -> None:
+    report = parse_json_output(
+        run_claude(claude_bin, repo, env, ["plugin", "validate", "--json", str(path)]),
+        "claude plugin validate --json",
+    )
+    issues = validation_issues(report)
+    if issues:
+        raise RuntimeError(f"{path}: " + "; ".join(issues))
 
 
 def expected_mcp_servers(plugin_root: Path, errors: list[str]) -> set[str]:
@@ -127,12 +173,7 @@ def main() -> int:
         env = os.environ.copy()
         env.update({"HOME": str(home), "CLAUDE_CONFIG_DIR": str(config_dir)})
 
-        run_claude(
-            claude_bin,
-            repo,
-            env,
-            ["plugin", "validate", "--strict", str(repo / MARKETPLACE)],
-        )
+        validate_manifest(claude_bin, repo, env, repo / MARKETPLACE)
         run_claude(claude_bin, repo, env, ["plugin", "marketplace", "add", str(repo)])
         available = parse_json_output(
             run_claude(claude_bin, repo, env, ["plugin", "list", "--available", "--json"]),
@@ -145,11 +186,11 @@ def main() -> int:
             errors.append("missing available plugins: " + ", ".join(missing_available))
 
         for plugin_name in plugin_names:
-            run_claude(
+            validate_manifest(
                 claude_bin,
                 repo,
                 env,
-                ["plugin", "validate", "--strict", str(repo / "plugins" / plugin_name / MANIFEST)],
+                repo / "plugins" / plugin_name / MANIFEST,
             )
             run_claude(
                 claude_bin,

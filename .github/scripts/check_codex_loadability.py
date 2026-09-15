@@ -244,6 +244,13 @@ def main() -> int:
                 continue
 
             loaded_skills = len(plugin.get("skills", []))
+            expected_interface = json.loads((plugin_root / MANIFEST).read_text(encoding="utf-8"))[
+                "interface"
+            ]
+            loaded_interface = plugin.get("summary", {}).get("interface") or {}
+            for key, value in expected_interface.items():
+                if loaded_interface.get(key) != value:
+                    errors.append(f"{plugin_name}: loaded interface.{key} differs from manifest")
             loaded_mcp_value = plugin.get("mcpServers", {})
             loaded_mcp = (
                 set(loaded_mcp_value) if isinstance(loaded_mcp_value, (dict, list)) else set()

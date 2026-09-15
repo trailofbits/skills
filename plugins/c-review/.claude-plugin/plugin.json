@@ -1,6 +1,6 @@
 {
   "name": "c-review",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Comprehensive C/C++ security code review, with coverage verified against a parse of the source",
   "author": {
     "name": "Paweł Płatek"
@@ -16,5 +16,11 @@
     "macos",
     "posix",
     "windows"
-  ]
+  ],
+  "interface": {
+    "displayName": "C/C++ Review",
+    "shortDescription": "Comprehensive C/C++ security code review, with coverage verified against a parse of the source",
+    "longDescription": "Comprehensive C/C++ security code review, with coverage verified against a parse of the source",
+    "developerName": "Paweł Płatek"
+  }
 }

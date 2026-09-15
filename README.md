@@ -30,6 +30,14 @@ codex plugin list
 codex plugin add <plugin-name>@trailofbits
 ```
 
+### ChatGPT Workspace Marketplace
+
+Use this repository's `.claude-plugin/marketplace.json` for workspace imports.
+Each plugin's canonical `.claude-plugin/plugin.json` includes the `interface`
+listing fields required by ChatGPT. Claude Code ignores this extra metadata.
+After a metadata fix is published, sync the repository again in your workspace
+marketplace to retry failed imports.
+
 ### Local Development
 
 To add the marketplace locally (e.g., for testing or development), navigate to the **parent directory** of this repository:

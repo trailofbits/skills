@@ -1,10 +1,16 @@
 {
   "name": "burpsuite-project-parser",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Search and extract data from Burp Suite project files (.burp) for security analysis",
   "author": {
     "name": "Will Vandevanter",
     "email": "opensource@trailofbits.com",
     "url": "https://github.com/trailofbits"
+  },
+  "interface": {
+    "displayName": "Burp Suite Project Parser",
+    "shortDescription": "Search and extract data from Burp Suite project files (.burp) for security analysis",
+    "longDescription": "Search and extract data from Burp Suite project files (.burp) for security analysis",
+    "developerName": "Will Vandevanter"
   }
 }

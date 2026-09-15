@@ -164,7 +164,7 @@ SCAN_SKIP_DIRS = frozenset({".venv", "venv", "node_modules", "__pycache__", ".gi
 
 # Floor for --self-test, set to the exact number of assertions the fixtures run. There is
 # no slack on purpose: dropping one has to be a deliberate edit here, not a silent loss.
-SELF_TEST_MINIMUM = 96
+SELF_TEST_MINIMUM = 145
 
 
 @dataclass
@@ -351,6 +351,52 @@ def validate_plugin_json(
     elif not SEMVER_PATTERN.match(str(plugin_data["version"])):
         errors.append(f"version '{plugin_data['version']}' is not MAJOR.MINOR.PATCH")
 
+    errors.extend(validate_import_metadata(plugin_data))
+    return errors
+
+
+def validate_import_metadata(plugin_data: dict) -> list[str]:
+    """Check listing text required by ChatGPT workspace package imports.
+
+    Use package limits, not the stricter public-directory submission limits:
+    https://developers.openai.com/plugins/deploy/submission-errors
+    The importer reports snake_case paths, but manifest keys are camelCase.
+    """
+    errors: list[str] = []
+
+    def text_field(data: dict, key: str, prefix: str, limit: int) -> None:
+        value = data.get(key)
+        if not isinstance(value, str) or not value.strip():
+            errors.append(f"{prefix}{key} must be a non-empty string")
+        elif len(value) > limit:
+            errors.append(f"{prefix}{key} exceeds {limit} characters")
+
+    text_field(plugin_data, "description", "", 1024)
+    interface = plugin_data.get("interface")
+    if not isinstance(interface, dict):
+        errors.append("interface must be an object with ChatGPT listing metadata")
+    else:
+        for key, limit in (
+            ("displayName", 80),
+            ("shortDescription", 240),
+            ("longDescription", 4000),
+            ("developerName", 120),
+        ):
+            text_field(interface, key, "interface.", limit)
+        short = interface.get("shortDescription")
+        if isinstance(short, str) and short and short.splitlines() != [short]:
+            errors.append("interface.shortDescription must fit on one line")
+
+    author = plugin_data.get("author")
+    if not isinstance(author, dict):
+        errors.append("author must be an object with a non-empty name")
+    else:
+        text_field(author, "name", "author.", 120)
+        # Optional means omitted, not an empty placeholder. Do not invent contact
+        # information to satisfy the importer.
+        for key, limit in (("email", 320), ("url", 2048)):
+            if key in author:
+                text_field(author, key, "author.", limit)
     return errors
 
 
@@ -1241,6 +1287,13 @@ def _build_demo(root: Path, name: str = "demo") -> Path:
                 "name": name,
                 "version": "1.0.0",
                 "description": "A demo plugin.",
+                "author": {"name": "Demo Author"},
+                "interface": {
+                    "displayName": "Demo",
+                    "shortDescription": "A demo plugin.",
+                    "longDescription": "A demo plugin.",
+                    "developerName": "Demo Author",
+                },
             }
         ),
     )
@@ -1304,6 +1357,62 @@ def _self_test_errors(ran: list[str]) -> None:
         plugin = _build_demo(root)
         _check(ran, "clean fixture produces no errors", not _errors_for(root))
         _check(ran, "clean fixture produces no warnings", not _warnings_for(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        plugin = _build_demo(root)
+        manifest_path = plugin / ".claude-plugin" / "plugin.json"
+        original = manifest_path.read_text()
+
+        def check_metadata(label: str, data: dict, expected: str) -> None:
+            manifest_path.write_text(json.dumps(data))
+            _check(ran, label, any(expected in e for e in _errors_for(root)))
+
+        for key in ("interface", "author"):
+            for value in (None, "", [], 7):
+                data = json.loads(original)
+                data[key] = value
+                check_metadata(f"{key} rejects {value!r}", data, f"{key} must be an object")
+            data = json.loads(original)
+            del data[key]
+            check_metadata(f"missing {key}", data, f"{key} must be an object")
+
+        for key, limit in (
+            ("displayName", 80),
+            ("shortDescription", 240),
+            ("longDescription", 4000),
+            ("developerName", 120),
+        ):
+            for value in (None, "", " \t\n", 7, "x" * (limit + 1)):
+                data = json.loads(original)
+                data["interface"][key] = value
+                check_metadata(f"invalid interface.{key}: {value!r}", data, f"interface.{key}")
+            data = json.loads(original)
+            del data["interface"][key]
+            check_metadata(f"missing interface.{key}", data, f"interface.{key}")
+
+        data = json.loads(original)
+        data["interface"]["display_name"] = data["interface"].pop("displayName")
+        check_metadata("snake_case display name rejected", data, "interface.displayName")
+        data = json.loads(original)
+        data["interface"]["shortDescription"] = "First line\nSecond line"
+        check_metadata("multiline short description", data, "must fit on one line")
+        data["interface"]["shortDescription"] = "Trailing newline\n"
+        check_metadata("short description with trailing newline", data, "must fit on one line")
+        for key in ("name", "email", "url"):
+            for value in ("", " \t", None):
+                data = json.loads(original)
+                data["author"][key] = value
+                check_metadata(f"invalid author.{key}: {value!r}", data, f"author.{key}")
+        data = json.loads(original)
+        data["description"] = "x" * 1025
+        check_metadata("description package limit", data, "description exceeds 1024")
+        data = json.loads(original)
+        data["author"].update(email="author@example.com", url="https://example.com")
+        manifest_path.write_text(json.dumps(data))
+        _check(ran, "non-empty optional author contacts accepted", not _errors_for(root))
+        manifest_path.write_text(original)
+        _check(ran, "optional author contacts can be omitted", not _errors_for(root))
 
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

@@ -1,10 +1,16 @@
 {
   "name": "writing-lean-proofs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Structured Lean 4 proof writing and library design following Mathlib conventions",
   "author": {
     "name": "Fredrik Dahlgren",
     "email": "opensource@trailofbits.com",
     "url": "https://github.com/trailofbits"
+  },
+  "interface": {
+    "displayName": "Writing Lean Proofs",
+    "shortDescription": "Structured Lean 4 proof writing and library design following Mathlib conventions",
+    "longDescription": "Structured Lean 4 proof writing and library design following Mathlib conventions",
+    "developerName": "Fredrik Dahlgren"
   }
 }
