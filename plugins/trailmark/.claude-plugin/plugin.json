@@ -1,6 +1,6 @@
 {
   "name": "trailmark",
-  "version": "0.11.3",
+  "version": "0.11.4",
   "description": "Builds source and binary code graphs for security analysis, context slicing, mutation testing, cryptographic protocol modeling, finding triage, and variant analysis.",
   "author": {
     "name": "Scott Arciszewski",

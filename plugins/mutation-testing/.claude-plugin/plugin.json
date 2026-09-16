@@ -1,6 +1,6 @@
 {
   "name": "mutation-testing",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "description": "Configures mewt or muton campaigns, analyzes surviving mutants, and investigates bugs exposed by testing gaps. Use when setting up mutation testing, reviewing campaign results, identifying equivalent mutants, or finding bugs from surviving mutations.",
   "author": {
     "name": "Trail of Bits",

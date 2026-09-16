@@ -47,7 +47,12 @@ Rules:
 - Keep plugin components at the plugin root using Codex-compatible default paths: `skills/`, `hooks/hooks.json`, `.mcp.json`, and `.app.json`.
 - Include ChatGPT listing metadata in each canonical plugin manifest's `interface`
   object: `displayName`, `shortDescription`, `longDescription`, and `developerName`.
-  These JSON keys are camelCase even when import errors report snake_case names.
+  These plugin JSON keys are camelCase. Skill interfaces in
+  `skills/<skill>/agents/openai.yaml` use snake_case instead: when that optional file
+  exists, `interface.display_name` and `interface.short_description` must both be
+  non-empty strings. An icon-only file fails ChatGPT import. The
+  `interface.display_name` error refers to this skill file, not the plugin manifest.
+  `validate_skill_interfaces.py` checks these files in `make check`, pre-commit, and CI.
   Omit unknown optional author contacts instead of setting `email` or `url` to `""`.
   The validator enforces workspace package limits from the
   [OpenAI submission error reference](https://developers.openai.com/plugins/deploy/submission-errors#listing-and-interface-errors),

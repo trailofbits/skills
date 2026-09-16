@@ -27,6 +27,7 @@ self-test:
 	@echo "→ validator self-test"
 	@uv run --no-project python3 .github/scripts/validate_plugin_metadata.py --self-test
 	@uv run --no-project python3 .github/scripts/test_check_claude_loadability.py
+	@uv run --no-project --with pyyaml python3 .github/scripts/validate_skill_interfaces.py --self-test
 
 ## eval-self-tests: prove each plugin's eval harness still measures what it claims
 # Same reasoning as the target above, applied to evals rather than validators. An
@@ -199,6 +200,7 @@ evals:
 validate:
 	@echo "→ validate plugin metadata"
 	@uv run --no-project python3 .github/scripts/validate_plugin_metadata.py
+	@uv run --no-project --with pyyaml python3 .github/scripts/validate_skill_interfaces.py
 
 ## fix: apply the formatting CI would otherwise reject
 fix:

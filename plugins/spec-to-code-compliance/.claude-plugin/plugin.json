@@ -1,6 +1,6 @@
 {
   "name": "spec-to-code-compliance",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Check code against the documentation that specifies it: one agent per requirement, divergences refuted before they are reported, evidence cited to the line",
   "author": {
     "name": "Omar Inuwa",

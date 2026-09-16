@@ -360,7 +360,8 @@ def validate_import_metadata(plugin_data: dict) -> list[str]:
 
     Use package limits, not the stricter public-directory submission limits:
     https://developers.openai.com/plugins/deploy/submission-errors
-    The importer reports snake_case paths, but manifest keys are camelCase.
+    Plugin manifest keys are camelCase. Skill agents/openai.yaml fields are
+    snake_case and are checked separately by validate_skill_interfaces.py.
     """
     errors: list[str] = []
 

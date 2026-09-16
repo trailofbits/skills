@@ -1,6 +1,6 @@
 {
   "name": "semgrep-rule-creator",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Create custom Semgrep rules for detecting bug patterns and security vulnerabilities",
   "author": {
     "name": "Maciej Domanski"

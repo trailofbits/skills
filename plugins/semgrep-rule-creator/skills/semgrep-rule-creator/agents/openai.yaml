@@ -1,4 +1,6 @@
 interface:
+  display_name: "Semgrep Rule Creator"
+  short_description: "Create Semgrep rules for bugs and security vulnerabilities"
   icon_small: "assets/trail-of-bits-mark.svg"
   icon_large: "assets/trail-of-bits-mark.svg"
   brand_color: "#D83A34"

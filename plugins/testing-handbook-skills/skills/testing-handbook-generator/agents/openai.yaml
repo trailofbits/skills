@@ -1,4 +1,6 @@
 interface:
+  display_name: "Testing Handbook Skill Generator"
+  short_description: "Create skills from the Trail of Bits Testing Handbook"
   icon_small: "assets/trail-of-bits-mark.svg"
   icon_large: "assets/trail-of-bits-mark.svg"
   brand_color: "#D83A34"

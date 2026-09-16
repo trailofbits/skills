@@ -106,6 +106,10 @@ jobs:
         # having rather than one to hold off: a parser moving behind Pro is the failure that
         # plugin exists to catch.
         run: python3 -m pip install pytest pyyaml semgrep
+      - name: Validate skill interface metadata
+        run: |
+          python3 .github/scripts/validate_skill_interfaces.py --self-test
+          python3 .github/scripts/validate_skill_interfaces.py
       - name: Install uv
         # c-review's scripts are PEP 723 and run under `uv run`; its parser tests
         # fail rather than skip when uv is missing, on purpose — a skipped parser
