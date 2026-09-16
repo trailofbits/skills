@@ -45,20 +45,12 @@ Rules:
   `plugins/<name>/.codex-plugin/`. The validator enforces this — sidecars drift out of
   sync with the canonical metadata, which is why the last set was removed in #173.
 - Keep plugin components at the plugin root using Codex-compatible default paths: `skills/`, `hooks/hooks.json`, `.mcp.json`, and `.app.json`.
-- Include ChatGPT listing metadata in each canonical plugin manifest's `interface`
-  object: `displayName`, `shortDescription`, `longDescription`, and `developerName`.
-  These plugin JSON keys are camelCase. Skill interfaces in
-  `skills/<skill>/agents/openai.yaml` use snake_case instead: when that optional file
+- Skill interfaces in `skills/<skill>/agents/openai.yaml` use snake_case: when that optional file
   exists, `interface.display_name` and `interface.short_description` must both be
   non-empty strings. An icon-only file fails ChatGPT import. The
   `interface.display_name` error refers to this skill file, not the plugin manifest.
   `validate_skill_interfaces.py` checks these files in `make check`, pre-commit, and CI.
-  Omit unknown optional author contacts instead of setting `email` or `url` to `""`.
-  The validator enforces workspace package limits from the
-  [OpenAI submission error reference](https://developers.openai.com/plugins/deploy/submission-errors#listing-and-interface-errors),
-  not the stricter public-directory listing limits.
-  Claude Code ignores `interface`; the Claude loadability check permits only that
-  specific unknown-field warning and still rejects other warnings and errors.
+- Omit unknown optional author contacts instead of setting `email` or `url` to `""`.
 - If a plugin needs MCP configuration, put it in `.mcp.json` at the plugin root rather than embedding an object in `.claude-plugin/plugin.json`.
 - Both loadability checks run in CI, not in `make check` — they need the Claude Code
   and Codex CLIs installed, which is not a reasonable local prerequisite. Run them by

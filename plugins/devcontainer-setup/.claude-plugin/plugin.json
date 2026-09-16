@@ -5,11 +5,5 @@
   "author": {
     "name": "Alexis Challande",
     "url": "https://github.com/trailofbits"
-  },
-  "interface": {
-    "displayName": "Devcontainer Setup",
-    "shortDescription": "Create pre-configured devcontainers with Claude Code and language-specific tooling",
-    "longDescription": "Create pre-configured devcontainers with Claude Code and language-specific tooling",
-    "developerName": "Alexis Challande"
   }
 }

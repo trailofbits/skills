@@ -4,11 +4,5 @@
   "description": "Skills from the Trail of Bits Application Security Testing Handbook (appsec.guide)",
   "author": {
     "name": "Paweł Płatek"
-  },
-  "interface": {
-    "displayName": "Testing Handbook Skills",
-    "shortDescription": "Skills from the Trail of Bits Application Security Testing Handbook (appsec.guide)",
-    "longDescription": "Skills from the Trail of Bits Application Security Testing Handbook (appsec.guide)",
-    "developerName": "Paweł Płatek"
   }
 }

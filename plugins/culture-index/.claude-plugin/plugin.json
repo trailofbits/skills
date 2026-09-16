@@ -4,11 +4,5 @@
   "description": "Interprets Culture Index survey results for individuals and teams",
   "author": {
     "name": "Dan Guido"
-  },
-  "interface": {
-    "displayName": "Culture Index",
-    "shortDescription": "Interprets Culture Index survey results for individuals and teams",
-    "longDescription": "Interprets Culture Index survey results for individuals and teams",
-    "developerName": "Dan Guido"
   }
 }

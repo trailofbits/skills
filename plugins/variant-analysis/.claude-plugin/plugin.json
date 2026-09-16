@@ -4,11 +4,5 @@
   "description": "Find similar vulnerabilities and bugs across codebases using pattern-based analysis",
   "author": {
     "name": "Axel Mierczuk"
-  },
-  "interface": {
-    "displayName": "Variant Analysis",
-    "shortDescription": "Find similar vulnerabilities and bugs across codebases using pattern-based analysis",
-    "longDescription": "Find similar vulnerabilities and bugs across codebases using pattern-based analysis",
-    "developerName": "Axel Mierczuk"
   }
 }

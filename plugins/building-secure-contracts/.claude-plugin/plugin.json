@@ -6,11 +6,5 @@
     "name": "Omar Inuwa && Paweł Płatek",
     "email": "opensource@trailofbits.com",
     "url": "https://github.com/trailofbits"
-  },
-  "interface": {
-    "displayName": "Building Secure Contracts",
-    "shortDescription": "Comprehensive smart contract security toolkit based on Trail of Bits' Building Secure Contracts framework. Includes vulnerability scanners for 6 blockchains and 5 development guideline assistants.",
-    "longDescription": "Comprehensive smart contract security toolkit based on Trail of Bits' Building Secure Contracts framework. Includes vulnerability scanners for 6 blockchains and 5 development guideline assistants.",
-    "developerName": "Omar Inuwa && Paweł Płatek"
   }
 }

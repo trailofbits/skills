@@ -72,14 +72,16 @@ repos:
 
       - id: validate-skill-interfaces
         name: validate skill interface metadata
-        entry: uv run --no-project --with pyyaml python3 .github/scripts/validate_skill_interfaces.py
-        language: system
+        entry: python3 .github/scripts/validate_skill_interfaces.py
+        language: python
+        additional_dependencies: ["pyyaml>=6.0"]
         pass_filenames: false
         files: ^(plugins/|\.github/scripts/validate_skill_interfaces\.py)$
 
       - id: skill-interface-validator-self-test
         name: skill interface validator self-test
-        entry: uv run --no-project --with pyyaml python3 .github/scripts/validate_skill_interfaces.py --self-test
-        language: system
+        entry: python3 .github/scripts/validate_skill_interfaces.py --self-test
+        language: python
+        additional_dependencies: ["pyyaml>=6.0"]
         pass_filenames: false
         files: ^(\.github/scripts/validate_skill_interfaces\.py|Makefile|\.pre-commit-config\.yaml)$

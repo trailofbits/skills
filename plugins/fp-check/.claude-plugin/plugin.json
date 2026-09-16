@@ -4,11 +4,5 @@
   "description": "Systematic false positive verification for security bug analysis with mandatory gate reviews",
   "author": {
     "name": "Maciej Domanski"
-  },
-  "interface": {
-    "displayName": "False Positive Check",
-    "shortDescription": "Systematic false positive verification for security bug analysis with mandatory gate reviews",
-    "longDescription": "Systematic false positive verification for security bug analysis with mandatory gate reviews",
-    "developerName": "Maciej Domanski"
   }
 }

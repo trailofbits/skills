@@ -6,11 +6,5 @@
     "name": "Omar Inuwa",
     "email": "opensource@trailofbits.com",
     "url": "https://github.com/trailofbits"
-  },
-  "interface": {
-    "displayName": "Spec-to-Code Compliance",
-    "shortDescription": "Check code against the documentation that specifies it: one agent per requirement, divergences refuted before they are reported, evidence cited to the line",
-    "longDescription": "Check code against the documentation that specifies it: one agent per requirement, divergences refuted before they are reported, evidence cited to the line",
-    "developerName": "Omar Inuwa"
   }
 }

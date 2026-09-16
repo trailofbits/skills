@@ -164,7 +164,7 @@ SCAN_SKIP_DIRS = frozenset({".venv", "venv", "node_modules", "__pycache__", ".gi
 
 # Floor for --self-test, set to the exact number of assertions the fixtures run. There is
 # no slack on purpose: dropping one has to be a deliberate edit here, not a silent loss.
-SELF_TEST_MINIMUM = 145
+SELF_TEST_MINIMUM = 113
 
 
 @dataclass
@@ -356,12 +356,12 @@ def validate_plugin_json(
 
 
 def validate_import_metadata(plugin_data: dict) -> list[str]:
-    """Check listing text required by ChatGPT workspace package imports.
+    """Check plugin descriptions and author contacts for workspace imports.
 
     Use package limits, not the stricter public-directory submission limits:
     https://developers.openai.com/plugins/deploy/submission-errors
-    Plugin manifest keys are camelCase. Skill agents/openai.yaml fields are
-    snake_case and are checked separately by validate_skill_interfaces.py.
+    Skill agents/openai.yaml interfaces are checked separately by
+    validate_skill_interfaces.py.
     """
     errors: list[str] = []
 
@@ -373,21 +373,6 @@ def validate_import_metadata(plugin_data: dict) -> list[str]:
             errors.append(f"{prefix}{key} exceeds {limit} characters")
 
     text_field(plugin_data, "description", "", 1024)
-    interface = plugin_data.get("interface")
-    if not isinstance(interface, dict):
-        errors.append("interface must be an object with ChatGPT listing metadata")
-    else:
-        for key, limit in (
-            ("displayName", 80),
-            ("shortDescription", 240),
-            ("longDescription", 4000),
-            ("developerName", 120),
-        ):
-            text_field(interface, key, "interface.", limit)
-        short = interface.get("shortDescription")
-        if isinstance(short, str) and short and short.splitlines() != [short]:
-            errors.append("interface.shortDescription must fit on one line")
-
     author = plugin_data.get("author")
     if not isinstance(author, dict):
         errors.append("author must be an object with a non-empty name")
@@ -1289,12 +1274,6 @@ def _build_demo(root: Path, name: str = "demo") -> Path:
                 "version": "1.0.0",
                 "description": "A demo plugin.",
                 "author": {"name": "Demo Author"},
-                "interface": {
-                    "displayName": "Demo",
-                    "shortDescription": "A demo plugin.",
-                    "longDescription": "A demo plugin.",
-                    "developerName": "Demo Author",
-                },
             }
         ),
     )
@@ -1369,37 +1348,14 @@ def _self_test_errors(ran: list[str]) -> None:
             manifest_path.write_text(json.dumps(data))
             _check(ran, label, any(expected in e for e in _errors_for(root)))
 
-        for key in ("interface", "author"):
-            for value in (None, "", [], 7):
-                data = json.loads(original)
-                data[key] = value
-                check_metadata(f"{key} rejects {value!r}", data, f"{key} must be an object")
+        for value in (None, "", [], 7):
             data = json.loads(original)
-            del data[key]
-            check_metadata(f"missing {key}", data, f"{key} must be an object")
-
-        for key, limit in (
-            ("displayName", 80),
-            ("shortDescription", 240),
-            ("longDescription", 4000),
-            ("developerName", 120),
-        ):
-            for value in (None, "", " \t\n", 7, "x" * (limit + 1)):
-                data = json.loads(original)
-                data["interface"][key] = value
-                check_metadata(f"invalid interface.{key}: {value!r}", data, f"interface.{key}")
-            data = json.loads(original)
-            del data["interface"][key]
-            check_metadata(f"missing interface.{key}", data, f"interface.{key}")
-
+            data["author"] = value
+            check_metadata(f"author rejects {value!r}", data, "author must be an object")
         data = json.loads(original)
-        data["interface"]["display_name"] = data["interface"].pop("displayName")
-        check_metadata("snake_case display name rejected", data, "interface.displayName")
-        data = json.loads(original)
-        data["interface"]["shortDescription"] = "First line\nSecond line"
-        check_metadata("multiline short description", data, "must fit on one line")
-        data["interface"]["shortDescription"] = "Trailing newline\n"
-        check_metadata("short description with trailing newline", data, "must fit on one line")
+        del data["author"]
+        check_metadata("missing author", data, "author must be an object")
+
         for key in ("name", "email", "url"):
             for value in ("", " \t", None):
                 data = json.loads(original)

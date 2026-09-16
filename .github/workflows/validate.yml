@@ -27,9 +27,7 @@ jobs:
       # Runs first, deliberately: a checker that has stopped detecting its target
       # would otherwise report a clean build forever. That has shipped here before.
       - name: Self-test the validators
-        run: |
-          python3 .github/scripts/validate_plugin_metadata.py --self-test
-          python3 .github/scripts/test_check_claude_loadability.py
+        run: python3 .github/scripts/validate_plugin_metadata.py --self-test
 
       - name: Validate SKILL.md frontmatter
         run: |

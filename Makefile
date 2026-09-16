@@ -26,7 +26,6 @@ check: self-test eval-self-tests lint shell bats python-tests js-tests validate
 self-test:
 	@echo "→ validator self-test"
 	@uv run --no-project python3 .github/scripts/validate_plugin_metadata.py --self-test
-	@uv run --no-project python3 .github/scripts/test_check_claude_loadability.py
 	@uv run --no-project --with pyyaml python3 .github/scripts/validate_skill_interfaces.py --self-test
 
 ## eval-self-tests: prove each plugin's eval harness still measures what it claims

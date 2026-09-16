@@ -5,11 +5,5 @@
   "author": {
     "name": "Trail of Bits",
     "email": "opensource@trailofbits.com"
-  },
-  "interface": {
-    "displayName": "YARA-X Authoring",
-    "shortDescription": "YARA-X detection rule authoring with linting and quality analysis",
-    "longDescription": "YARA-X detection rule authoring with linting and quality analysis",
-    "developerName": "Trail of Bits"
   }
 }

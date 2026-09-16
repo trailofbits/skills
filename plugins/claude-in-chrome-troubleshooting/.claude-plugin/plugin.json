@@ -4,11 +4,5 @@
   "description": "Diagnose and fix Claude in Chrome MCP extension connectivity issues",
   "author": {
     "name": "Dan Guido"
-  },
-  "interface": {
-    "displayName": "Claude in Chrome Troubleshooting",
-    "shortDescription": "Diagnose and fix Claude in Chrome MCP extension connectivity issues",
-    "longDescription": "Diagnose and fix Claude in Chrome MCP extension connectivity issues",
-    "developerName": "Dan Guido"
   }
 }

@@ -5,11 +5,5 @@
   "author": {
     "name": "Scott Arciszewski",
     "url": "https://github.com/tob-scott-a"
-  },
-  "interface": {
-    "displayName": "Let Fate Decide",
-    "shortDescription": "Uses a cryptographically random Tarot spread to guide next steps when plans or prompts are ambiguous.",
-    "longDescription": "Draws the 12 Houses of the Zodiac Tarot spread using cryptographic randomness to add 100+ bits of entropy to vague or underspecified planning. Interprets the spread to guide next steps. Use when feeling lucky, invoking heart-of-the-cards energy, or when prompts are ambiguous.",
-    "developerName": "Scott Arciszewski"
   }
 }

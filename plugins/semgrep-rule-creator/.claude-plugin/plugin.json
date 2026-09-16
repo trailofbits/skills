@@ -4,11 +4,5 @@
   "description": "Create custom Semgrep rules for detecting bug patterns and security vulnerabilities",
   "author": {
     "name": "Maciej Domanski"
-  },
-  "interface": {
-    "displayName": "Semgrep Rule Creator",
-    "shortDescription": "Create custom Semgrep rules for detecting bug patterns and security vulnerabilities",
-    "longDescription": "Create custom Semgrep rules for detecting bug patterns and security vulnerabilities",
-    "developerName": "Maciej Domanski"
   }
 }

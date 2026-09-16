@@ -6,11 +6,5 @@
     "name": "Trail of Bits",
     "email": "opensource@trailofbits.com",
     "url": "https://github.com/trailofbits"
-  },
-  "interface": {
-    "displayName": "Sharp Edges",
-    "shortDescription": "Identify error-prone APIs, dangerous configurations, and footgun designs that enable security mistakes",
-    "longDescription": "Identify error-prone APIs, dangerous configurations, and footgun designs that enable security mistakes",
-    "developerName": "Trail of Bits"
   }
 }

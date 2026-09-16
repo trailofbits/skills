@@ -6,11 +6,5 @@
     "name": "Omar Inuwa",
     "email": "opensource@trailofbits.com",
     "url": "https://github.com/trailofbits"
-  },
-  "interface": {
-    "displayName": "Audit Context Building",
-    "shortDescription": "Understand a codebase before looking for bugs in it. Reads it function by function, records what each one assumes and depends on, and saves the write-ups to files instead of filling up the conversation.",
-    "longDescription": "Understand a codebase before looking for bugs in it. Reads it function by function, records what each one assumes and depends on, and saves the write-ups to files instead of filling up the conversation.",
-    "developerName": "Omar Inuwa"
   }
 }

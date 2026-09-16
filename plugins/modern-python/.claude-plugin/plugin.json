@@ -6,11 +6,5 @@
     "name": "William Tan",
     "email": "opensource@trailofbits.com",
     "url": "https://github.com/trailofbits"
-  },
-  "interface": {
-    "displayName": "Modern Python",
-    "shortDescription": "Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools.",
-    "longDescription": "Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools.",
-    "developerName": "William Tan"
   }
 }

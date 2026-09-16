@@ -6,11 +6,5 @@
     "name": "Omar Inuwa",
     "email": "opensource@trailofbits.com",
     "url": "https://github.com/trailofbits"
-  },
-  "interface": {
-    "displayName": "Differential Review",
-    "shortDescription": "Security-focused differential review of code changes with git history analysis and blast radius estimation",
-    "longDescription": "Security-focused differential review of code changes with git history analysis and blast radius estimation",
-    "developerName": "Omar Inuwa"
   }
 }
