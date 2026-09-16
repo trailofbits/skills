@@ -26,7 +26,9 @@ jobs:
 
       # Runs first, deliberately: a checker that has stopped detecting its target
       # would otherwise report a clean build forever. That has shipped here before.
-      - name: Self-test the validators
+      # Skill interface validation and its self-tests run in lint.yml's Python
+      # tests job, which already installs their PyYAML dependency.
+      - name: Self-test the plugin metadata validator
         run: python3 .github/scripts/validate_plugin_metadata.py --self-test
 
       - name: Validate SKILL.md frontmatter

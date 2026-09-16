@@ -47,9 +47,11 @@ Rules:
 - Keep plugin components at the plugin root using Codex-compatible default paths: `skills/`, `hooks/hooks.json`, `.mcp.json`, and `.app.json`.
 - Skill interfaces in `skills/<skill>/agents/openai.yaml` use snake_case: when that optional file
   exists, `interface.display_name` and `interface.short_description` must both be
-  non-empty strings. An icon-only file fails ChatGPT import. The
-  `interface.display_name` error refers to this skill file, not the plugin manifest.
-  `validate_skill_interfaces.py` checks these files in `make check`, pre-commit, and CI.
+  non-empty strings. OpenAI documents these requirements and their error messages in
+  [Skill agent metadata errors](https://developers.openai.com/plugins/deploy/submission-errors#skill-agent-metadata-errors).
+  An icon-only file fails these requirements.
+  `validate_skill_interfaces.py` checks these files in `make check`, pre-commit, and
+  the Python tests job in `lint.yml`, which already installs PyYAML.
 - Omit unknown optional author contacts instead of setting `email` or `url` to `""`.
 - If a plugin needs MCP configuration, put it in `.mcp.json` at the plugin root rather than embedding an object in `.claude-plugin/plugin.json`.
 - Both loadability checks run in CI, not in `make check` — they need the Claude Code
@@ -233,9 +235,9 @@ See [API.md](references/API.md) for complete method documentation.
 make check
 ```
 
-That runs the validator self-test, the eval-harness self-tests, ruff, shellcheck,
-shfmt, bats, the plugin Python suites, the plugin `*.test.mjs` suites, and the plugin
-validator.
+That runs the plugin metadata and skill interface validator self-tests, the
+eval-harness self-tests, ruff, shellcheck, shfmt, bats, the plugin Python suites,
+the plugin `*.test.mjs` suites, and both validators.
 
 It needs `uv`, `shellcheck`, `shfmt`, `bats`, and `node` on PATH. `node` is the newest
 of those and the one most likely to be missing — without it `make check` stops at
