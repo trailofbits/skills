@@ -1,16 +1,10 @@
 {
   "name": "dwarf-expert",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Analyze DWARF debug information: parse and search DIEs with dwarfdump and readelf, verify debug info integrity, and write DWARF parsing code",
   "author": {
     "name": "Evan Hellman",
     "email": "opensource@trailofbits.com",
     "url": "https://github.com/trailofbits"
-  },
-  "interface": {
-    "displayName": "DWARF Expert",
-    "shortDescription": "Analyze DWARF debug information: parse and search DIEs with dwarfdump and readelf, verify debug info integrity, and write DWARF parsing code",
-    "longDescription": "Analyze DWARF debug information: parse and search DIEs with dwarfdump and readelf, verify debug info integrity, and write DWARF parsing code",
-    "developerName": "Evan Hellman"
   }
 }

@@ -1,16 +1,10 @@
 {
   "name": "gh-cli",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "Intercepts GitHub URL fetches (WebFetch and MCP fetch tools) and curl/wget commands, redirecting to the authenticated gh CLI.",
   "author": {
     "name": "William Tan",
     "email": "opensource@trailofbits.com",
     "url": "https://github.com/trailofbits"
-  },
-  "interface": {
-    "displayName": "GitHub CLI",
-    "shortDescription": "Intercepts GitHub URL fetches (WebFetch and MCP fetch tools) and curl/wget commands, redirecting to the authenticated gh CLI.",
-    "longDescription": "Intercepts GitHub URL fetches (WebFetch and MCP fetch tools) and curl/wget commands, redirecting to the authenticated gh CLI.",
-    "developerName": "William Tan"
   }
 }

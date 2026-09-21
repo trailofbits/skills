@@ -45,15 +45,14 @@ Rules:
   `plugins/<name>/.codex-plugin/`. The validator enforces this — sidecars drift out of
   sync with the canonical metadata, which is why the last set was removed in #173.
 - Keep plugin components at the plugin root using Codex-compatible default paths: `skills/`, `hooks/hooks.json`, `.mcp.json`, and `.app.json`.
-- Include ChatGPT listing metadata in each canonical plugin manifest's `interface`
-  object: `displayName`, `shortDescription`, `longDescription`, and `developerName`.
-  These JSON keys are camelCase even when import errors report snake_case names.
-  Omit unknown optional author contacts instead of setting `email` or `url` to `""`.
-  The validator enforces workspace package limits from the
-  [OpenAI submission error reference](https://developers.openai.com/plugins/deploy/submission-errors#listing-and-interface-errors),
-  not the stricter public-directory listing limits.
-  Claude Code ignores `interface`; the Claude loadability check permits only that
-  specific unknown-field warning and still rejects other warnings and errors.
+- Skill interfaces in `skills/<skill>/agents/openai.yaml` use snake_case: when that optional file
+  exists, `interface.display_name` and `interface.short_description` must both be
+  non-empty strings. OpenAI documents these requirements and their error messages in
+  [Skill agent metadata errors](https://developers.openai.com/plugins/deploy/submission-errors#skill-agent-metadata-errors).
+  An icon-only file fails these requirements.
+  `validate_skill_interfaces.py` checks these files in `make check`, pre-commit, and
+  the Python tests job in `lint.yml`, which already installs PyYAML.
+- Omit unknown optional author contacts instead of setting `email` or `url` to `""`.
 - If a plugin needs MCP configuration, put it in `.mcp.json` at the plugin root rather than embedding an object in `.claude-plugin/plugin.json`.
 - Both loadability checks run in CI, not in `make check` — they need the Claude Code
   and Codex CLIs installed, which is not a reasonable local prerequisite. Run them by
@@ -236,9 +235,9 @@ See [API.md](references/API.md) for complete method documentation.
 make check
 ```
 
-That runs the validator self-test, the eval-harness self-tests, ruff, shellcheck,
-shfmt, bats, the plugin Python suites, the plugin `*.test.mjs` suites, and the plugin
-validator.
+That runs the plugin metadata and skill interface validator self-tests, the
+eval-harness self-tests, ruff, shellcheck, shfmt, bats, the plugin Python suites,
+the plugin `*.test.mjs` suites, and both validators.
 
 It needs `uv`, `shellcheck`, `shfmt`, `bats`, and `node` on PATH. `node` is the newest
 of those and the one most likely to be missing — without it `make check` stops at

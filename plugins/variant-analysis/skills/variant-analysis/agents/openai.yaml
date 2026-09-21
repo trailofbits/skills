@@ -1,4 +1,6 @@
 interface:
+  display_name: "Variant Analysis"
+  short_description: "Find other instances of a known vulnerability or bug pattern"
   icon_small: "assets/trail-of-bits-mark.svg"
   icon_large: "assets/trail-of-bits-mark.svg"
   brand_color: "#D83A34"

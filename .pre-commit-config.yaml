@@ -69,3 +69,19 @@ repos:
         language: system
         pass_filenames: false
         files: ^(\.github/scripts/validate_plugin_metadata\.py|Makefile|\.pre-commit-config\.yaml)$
+
+      - id: validate-skill-interfaces
+        name: validate skill interface metadata
+        entry: python3 .github/scripts/validate_skill_interfaces.py
+        language: python
+        additional_dependencies: ["pyyaml>=6.0"]
+        pass_filenames: false
+        files: ^(plugins/|\.github/scripts/validate_skill_interfaces\.py$)
+
+      - id: skill-interface-validator-self-test
+        name: skill interface validator self-test
+        entry: python3 .github/scripts/validate_skill_interfaces.py --self-test
+        language: python
+        additional_dependencies: ["pyyaml>=6.0"]
+        pass_filenames: false
+        files: ^(\.github/scripts/validate_skill_interfaces\.py|Makefile|\.pre-commit-config\.yaml)$

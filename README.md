@@ -33,8 +33,8 @@ codex plugin add <plugin-name>@trailofbits
 ### ChatGPT Workspace Marketplace
 
 Use this repository's `.claude-plugin/marketplace.json` for workspace imports.
-Each plugin's canonical `.claude-plugin/plugin.json` includes the `interface`
-listing fields required by ChatGPT. Claude Code ignores this extra metadata.
+Skills that include `agents/openai.yaml` also need `interface.display_name` and
+`interface.short_description` in that YAML file; plugin metadata does not supply them.
 After a metadata fix is published, sync the repository again in your workspace
 marketplace to retry failed imports.
 
