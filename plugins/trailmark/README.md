@@ -89,6 +89,7 @@ trailmark/
     ├── vector-forge/                 # Mutation-driven test vector generation
     │   └── references/
     ├── graph-evolution/              # Structural diff
+    │   ├── scripts/evolve.py         # Build, diff, classify, report
     │   └── scripts/graph_diff.py
     ├── trailmark-review-gate/         # Structural review gates
     ├── mermaid-to-proverif/          # Sequence diagram → ProVerif
