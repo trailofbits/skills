@@ -24,6 +24,11 @@ The skill will:
 2. Generate `.devcontainer/` configuration files
 3. Provide instructions for starting the container
 
+Generation is done by `skills/devcontainer-setup/scripts/scaffold.py`, run with
+`uv run --no-project`, so `uv` must be installed on the host. The helper copies the shipped
+templates, merges the language configuration, and refuses to overwrite an existing
+`.devcontainer/`.
+
 ## Generated Files
 
 | File | Purpose |
