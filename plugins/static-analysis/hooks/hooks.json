@@ -1,0 +1,16 @@
+{
+  "description": "Keep large raw SARIF files out of model context; use sarif-parsing's compact helper instead.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT:-.}/hooks/block-large-sarif-read.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

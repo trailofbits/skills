@@ -35,13 +35,15 @@ from sarif_helpers import (
     extract_findings,
     filter_by_level,
     find_rule,
+    get_rules,
     load_sarif,
     resolve_level,
 )
 
 RESOURCES = Path(__file__).resolve().parent
-SKILL = RESOURCES.parent / "SKILL.md"
 JQ_QUERIES = RESOURCES / "jq-queries.md"
+CI_GATE_DOC = RESOURCES / "ci-gate.md"
+CI_GATE = re.compile(r"HIGH_COUNT=\$\(jq '\n(.*?)\n\s*' results\.sarif\)", re.DOTALL)
 NO_LEVEL = RESOURCES / "fixtures/codeql-no-level.sarif"
 WITH_LEVEL = RESOURCES / "fixtures/levels-on-results.sarif"
 
@@ -51,8 +53,6 @@ NAIVE_GATE = '[.runs[].results[] | select(.level == "error")] | length'
 
 FENCE = re.compile(r"^```[a-z]*\n(.*?)^```", re.MULTILINE | re.DOTALL)
 LEVEL_FN = re.compile(r"LEVEL_FN='\n(.*?)'\n", re.DOTALL)
-# The GitHub Actions gate, which inlines its own copy of the resolver.
-CI_GATE = re.compile(r"HIGH_COUNT=\$\(jq '\n(.*?)\n\s*' results\.sarif\)", re.DOTALL)
 
 
 def results_of(sarif: dict) -> list[dict]:
@@ -155,6 +155,25 @@ def test_unmatched_rule_falls_back_to_sarif_default():
     assert find_rule({"ruleId": "r"}, run) is None
 
 
+def test_legacy_sarif_20_rule_map_resolves_by_rule_id():
+    """SARIF 2.0 stores resource rules in an object, not a 2.1-style list."""
+    run = {
+        "tool": {"name": "LegacyTool"},
+        "resources": {
+            "rules": {
+                "legacy/error": {
+                    "id": "legacy/error",
+                    "configuration": {"defaultLevel": "error"},
+                }
+            }
+        },
+        "results": [{"ruleId": "legacy/error", "message": {"text": "legacy"}}],
+    }
+    sarif = {"version": "2.0.0", "runs": [run]}
+    assert resolve_level(run["results"][0], run) == "error"
+    assert get_rules(sarif)["legacy/error"]["configuration"]["defaultLevel"] == "error"
+
+
 @pytest.mark.parametrize("index", [9, -1])
 def test_rule_index_outside_the_array_falls_back_to_rule_id(index):
     """-1 is SARIF's "no rule", and it is the dangerous one: `$rules[-1]` in jq is the
@@ -193,19 +212,11 @@ def test_jq_and_python_resolution_agree():
         assert from_jq == [f.level for f in extract_findings(load_sarif(fixture))]
 
 
-def test_skill_and_reference_publish_the_same_resolution():
-    assert documented_level_fn(SKILL) == documented_level_fn(JQ_QUERIES)
-
-
-def test_the_github_actions_gate_runs_and_counts_the_inherited_error():
-    """The gate from issue #262, run as published. It inlines its own copy of the
-    resolver because a workflow step has no shell variable to paste into, so comparing
-    the LEVEL_FN blocks does not cover it."""
-    match = CI_GATE.search(SKILL.read_text())
-    assert match, "the GitHub Actions gate is no longer where this test reads it"
-    program = match.group(1)
-    assert jq(program, NO_LEVEL) == "1"
-    assert jq(program, WITH_LEVEL) == "1"
+def test_skill_routes_severity_to_the_tested_helper():
+    """The short entrypoint must not teach a bare result.level read."""
+    skill = (RESOURCES.parent / "SKILL.md").read_text()
+    assert "Never filter on `result.level` directly" in skill
+    assert "sarif_helpers.py" in skill
 
 
 def test_documented_jq_does_not_read_the_last_rule_for_rule_index_minus_one(tmp_path):
@@ -268,14 +279,14 @@ def test_no_documented_jq_command_filters_on_bare_result_level():
     second one counts the resolutions that must still be there.
     """
     scanned, resolutions = 0, 0
-    for doc in (SKILL, JQ_QUERIES):
+    for doc in (JQ_QUERIES,):
         text = doc.read_text()
         offenders, blocks = unresolved_severity(text)
         assert offenders == [], f"{doc.name}: unresolved severity in {offenders}"
         scanned += blocks
         resolutions += text.count("level($run)")
     assert scanned >= 10, f"only {scanned} jq blocks found; block discovery is broken"
-    assert resolutions >= 15, f"only {resolutions} resolved queries left in the docs"
+    assert resolutions >= 10, f"only {resolutions} resolved queries left in the docs"
 
 
 def test_the_severity_guard_still_detects_a_regression():
@@ -300,7 +311,12 @@ def result_at(uri: str) -> dict:
         "ruleId": "py/sql-injection",
         "message": {"text": "This query depends on a user-provided value."},
         "locations": [
-            {"physicalLocation": {"artifactLocation": {"uri": uri}, "region": {"startLine": 42}}}
+            {
+                "physicalLocation": {
+                    "artifactLocation": {"uri": uri},
+                    "region": {"startLine": 42},
+                }
+            }
         ],
     }
 
@@ -318,7 +334,10 @@ def test_deduplicate_keeps_a_finding_from_each_directory():
         "runs": [
             {
                 "tool": {"driver": {"name": "CodeQL"}},
-                "results": [result_at("app/auth/login.py"), result_at("app/admin/login.py")],
+                "results": [
+                    result_at("app/auth/login.py"),
+                    result_at("app/admin/login.py"),
+                ],
             }
         ],
     }
@@ -335,3 +354,16 @@ def test_fingerprint_still_matches_the_same_finding_twice():
     assert compute_fingerprint(result_at("app/auth/login.py")) == compute_fingerprint(
         result_at("app/auth/login.py")
     )
+
+
+def test_the_github_actions_gate_runs_and_counts_the_inherited_error():
+    """Exercise the issue-#262 CI gate restored in resources/ci-gate.md.
+
+    It inlines its own resolver because a workflow step has no shell variable to paste
+    into, so comparing the LEVEL_FN blocks does not cover it.
+    """
+    match = CI_GATE.search(CI_GATE_DOC.read_text())
+    assert match, "the GitHub Actions gate is no longer in resources/ci-gate.md"
+    program = match.group(1)
+    assert jq(program, NO_LEVEL) == "1"
+    assert jq(program, WITH_LEVEL) == "1"
