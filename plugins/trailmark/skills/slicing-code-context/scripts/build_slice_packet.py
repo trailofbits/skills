@@ -601,6 +601,7 @@ def packet_dict(
     omitted_count: int,
     omitted_truncated: bool,
     warnings: list[str],
+    task: str | None = None,
 ) -> dict[str, Any]:
     """Construct a serializable packet from admitted raw spans."""
     merged = merge_spans(spans)
@@ -627,6 +628,7 @@ def packet_dict(
             "depth": depth,
             "anchors": anchor_ids,
             "peer": peer_id,
+            "task": task,
         },
         "budget": {
             "limit_estimated_tokens": budget_tokens,
@@ -653,6 +655,7 @@ def render_markdown(packet: dict[str, Any]) -> str:
         f"- Target: `{selection['target_dir']}`",
         f"- Mode: `{selection['mode']}` (depth {selection['depth']})",
         f"- Anchors: `{', '.join(selection['anchors'])}`",
+        *([f"- Task: {selection['task']}"] if selection.get("task") else []),
         (
             f"- Budget: {budget['used_estimated_tokens']} / "
             f"{budget['limit_estimated_tokens']} estimated tokens"
@@ -757,6 +760,7 @@ def build_bounded_packet(
     output_format: str,
     initial_omitted: list[dict[str, Any]],
     warnings: list[str],
+    task: str | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Admit whole spans by priority while keeping the rendered packet bounded."""
     mandatory = sorted(
@@ -789,6 +793,7 @@ def build_bounded_packet(
             omitted_count=omitted_count,
             omitted_truncated=truncated,
             warnings=warnings,
+            task=task,
         )
 
     admitted = list(mandatory)
@@ -931,6 +936,7 @@ def construct_packet(
     language: str,
     detected_languages: list[str],
     output_format: str,
+    task: str | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Resolve anchors, select graph context, and render a bounded packet."""
     if not symbols and not line_range_values:
@@ -1021,6 +1027,7 @@ def construct_packet(
         output_format=output_format,
         initial_omitted=omitted,
         warnings=warnings,
+        task=task,
     )
 
 
@@ -1055,6 +1062,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--language", default="auto")
     parser.add_argument("--format", choices=("json", "markdown"), default="json")
+    parser.add_argument(
+        "--task",
+        help="Worker task text carried in selection.task, for workers that receive only the packet",
+    )
     return parser.parse_args(argv)
 
 
@@ -1082,6 +1093,7 @@ def main(argv: list[str] | None = None) -> int:
             language=args.language,
             detected_languages=detected_languages,
             output_format=args.format,
+            task=args.task,
         )
     except SlicePacketError as exc:
         payload = {

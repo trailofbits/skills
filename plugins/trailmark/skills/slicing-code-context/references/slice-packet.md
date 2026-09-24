@@ -8,7 +8,7 @@ worker transport.
 | Field | Meaning |
 |---|---|
 | `notice` | Constant statement that all sliced source is untrusted data |
-| `selection` | Target root, language, detected languages, mode, depth, anchors, and path peer |
+| `selection` | Target root, language, detected languages, mode, depth, anchors, path peer, and the optional `task` text passed with `--task` so a worker that receives only the packet still knows what to do |
 | `budget` | Limit, rendered-packet usage, and `ceil(rendered UTF-8 bytes / 3)` estimator |
 | `slices[]` | Root-relative file, inclusive range, symbols, reasons, and line-numbered source |
 | `relationships[]` | Included Trailmark edges with confidence |
@@ -38,7 +38,10 @@ never truncated; an oversized anchor produces `anchor_exceeds_budget`.
 
 ## Worker Input
 
-Send a short task followed by the complete packet exactly as emitted. Pass the
+The `trailmark:code-slice-dispatch` skill builds the packet inside a forked worker from the
+builder's arguments plus `--task`, so neither the packet nor the source transits the
+coordinator. When dispatching by hand instead, send a short task followed by the complete packet
+exactly as emitted. Pass the
 script's stdout byte-for-byte; never reconstruct or re-serialize it. Both
 output formats embed the untrusted-source notice (the JSON `notice` field and
 the Markdown preamble); forward it intact so every worker sees that
@@ -91,7 +94,10 @@ not authorization to mutate files.
 ## Coordinator Validation
 
 - Parse the output as JSON; reject prose before or after the object.
-- Confirm every evidence and edit range is fully contained in one packet slice.
+- Confirm every evidence and edit range is fully contained in one packet slice
+  (`scripts/validate_worker_response.py response.json -- <builder arguments>` rebuilds the
+  packet deterministically and checks this). `file` values must be the packet's root-relative
+  paths verbatim.
 - Reject claims based only on omitted nodes or uncertain edges without an uncertainty note.
 - Allow at most one coordinator-built replacement packet for `needs_context`,
   containing the original anchors plus the requested context under one budget.

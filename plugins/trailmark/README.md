@@ -55,6 +55,7 @@ uv tool install trailmark
 |-------|-------------|
 | `trailmark` | Build and query multi-language source/binary code graphs with pre-analysis passes, version feature gates, proxy nodes, type/reference queries, cross-language link configuration, and structural traversal helpers |
 | `slicing-code-context` | Build bounded graph-informed source packets and delegate focused work to constrained subagents |
+| `code-slice-dispatch` | Forked, tool-less Haiku worker that builds one slice packet inside the fork and returns cited JSON; invoked by `slicing-code-context` |
 | `diagramming-code` | Generate Mermaid diagrams from code graphs (call graphs, class hierarchies, complexity heatmaps, data flow); v0.4 native diagram support is feature-gated |
 | `crypto-protocol-diagram` | Extract protocol message flow from source code or specs (RFC, ProVerif, Tamarin) into sequence diagrams |
 | `genotoxic` | Triage mutation testing results using graph analysis — classify survived mutants as false positives, missing tests, or fuzzing targets |
@@ -81,6 +82,7 @@ trailmark/
 └── skills/
     ├── trailmark/                    # Core graph querying
     ├── slicing-code-context/         # Bounded source slicing and worker delegation
+    ├── code-slice-dispatch/          # Forked worker run: packet built in the fork, JSON back
     ├── diagramming-code/             # Mermaid diagram generation
     │   └── scripts/diagram.py
     ├── crypto-protocol-diagram/      # Protocol flow extraction
