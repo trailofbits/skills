@@ -14,11 +14,101 @@ if ! [[ $cmd =~ (^|[[:space:];|&])(curl|wget)[[:space:]] ]]; then
   exit 0
 fi
 
-# Check if the curl/wget targets a GitHub URL
-github_pattern='https?://(github\.com|api\.github\.com|raw\.githubusercontent\.com|gist\.github\.com)/'
-if ! [[ $cmd =~ $github_pattern ]]; then
+# Cheap bail-out before any scrubbing. This hook runs on every Bash call, and
+# a command with no GitHub hostname anywhere in it cannot have a GitHub target.
+if ! [[ $cmd =~ (github\.com|githubusercontent\.com) ]]; then
   exit 0
 fi
+
+# Narrow the command down to what curl/wget is actually fetching.
+#
+# Testing the whole command string for "contains a GitHub URL" denies commands
+# that never fetch from GitHub at all:
+#
+#   cat > s.sh <<EOF ... curl https://api.github.com/... ... EOF
+#       authoring a script, not fetching
+#   curl https://example.com/x  # see https://github.com/o/r/issues/1
+#       the fetch goes to example.com; GitHub is only named in a comment
+#   curl "https://r.jina.ai/?url=https://github.com/o/r/pulls"
+#       the host is the reader service, not GitHub
+#
+# So: drop heredoc bodies and comments, then keep only the URLs whose *host*
+# is GitHub.
+#
+# Deliberately NOT narrowed to the text following curl/wget. Splitting the
+# command at ; | & to find "the curl part" loses URLs behind a quoted flag
+# value containing one of those characters, and misses
+#   U=https://api.github.com/...; curl "$U"
+# entirely. Scanning every URL in the command keeps the original coverage;
+# the host check alone is what removes the false positives.
+#
+# Comment stripping is quote-aware, or a '#' inside a quoted header value
+# would truncate the line and hide the real target. An unterminated heredoc
+# falls back to the raw command rather than silently swallowing the rest.
+scrubbed=$(printf '%s\n' "$cmd" | awk '
+  function strip_comment(s,   i, c, n, q, out) {
+    q = ""; n = length(s)
+    for (i = 1; i <= n; i++) {
+      c = substr(s, i, 1)
+      # Inside double quotes a backslash escapes the next character, so a
+      # \" must not be read as the closing quote.
+      if (q == "\"" && c == "\\" && i < n) {
+        out = out c substr(s, i + 1, 1)
+        i++
+        continue
+      }
+      if (q == "") {
+        if (c == "\"" || c == "'\''") { q = c }
+        else if (c == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[ \t]/)) { break }
+      } else if (c == q) { q = "" }
+      out = out c
+    }
+    return out
+  }
+  inhd {
+    if ($0 ~ "^[[:space:]]*" delim "[[:space:]]*$") { inhd = 0 }
+    next
+  }
+  {
+    line = $0
+    probe = line
+    # More than one heredoc opened on a line needs a delimiter queue. Rather
+    # than half-track it, bail out and let the caller scan the raw command.
+    if (gsub(/<<-?[[:space:]]*['\''"]?[A-Za-z_]/, "&", probe) > 1) { exit 3 }
+    if (match(line, /<<-?[[:space:]]*['\''"]?[A-Za-z_][A-Za-z0-9_]*/)) {
+      tag = substr(line, RSTART, RLENGTH)
+      gsub(/^<<-?[[:space:]]*['\''"]?/, "", tag)
+      delim = tag; inhd = 1
+    }
+    print strip_comment(line)
+  }
+  END { if (inhd) exit 3 }
+') || scrubbed="$cmd"
+
+targets=$(printf '%s\n' "$scrubbed" | grep -oE 'https?://[^[:space:]"'\''`)]+' || true)
+
+[[ -z "$targets" ]] && exit 0
+
+gh_targets=""
+while IFS= read -r url; do
+  [[ -z "$url" ]] && continue
+  host="${url#*://}"
+  host="${host%%/*}"
+  host="${host%%\?*}"
+  host="${host##*@}"
+  host="${host%%:*}"
+  case "$host" in
+    github.com | api.github.com | raw.githubusercontent.com | gist.github.com)
+      gh_targets="${gh_targets:+${gh_targets}
+}${url}"
+      ;;
+  esac
+done <<<"$targets"
+
+[[ -z "$gh_targets" ]] && exit 0
+
+# From here on, match against the GitHub targets only — never the whole command.
+cmd="$gh_targets"
 
 # Build a contextual suggestion
 suggestion="Use \`gh api\` or other \`gh\` subcommands instead of curl/wget for GitHub URLs"

@@ -94,7 +94,7 @@
     },
     {
       "name": "gh-cli",
-      "version": "1.6.2",
+      "version": "1.6.3",
       "description": "Intercepts GitHub URL fetches (WebFetch and MCP fetch tools) and curl/wget commands, redirecting to the authenticated gh CLI.",
       "author": {
         "name": "William Tan",

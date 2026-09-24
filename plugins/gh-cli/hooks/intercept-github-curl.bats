@@ -259,3 +259,89 @@ load test_helper
   assert_suggestion_contains "Do NOT use"
   assert_suggestion_contains "base64-decode file contents"
 }
+
+# =============================================================================
+# Allow: GitHub URL present, but not as a curl/wget target
+#
+# These commands do not fetch from GitHub. Matching the whole command string
+# for a GitHub URL denied them; the hook now inspects only the URLs that are
+# actually passed to curl/wget, and only their host.
+# =============================================================================
+
+@test "curl: allows a heredoc that writes a curl-to-GitHub line into a file" {
+  run_curl_hook "$(printf 'cat > script.sh <<EOF\ncurl -s https://api.github.com/repos/owner/repo/pulls\nEOF')"
+  assert_allow
+}
+
+@test "curl: allows a non-GitHub fetch whose comment mentions a GitHub URL" {
+  run_curl_hook "curl -s https://example.com/data # see https://github.com/owner/repo/issues/1"
+  assert_allow
+}
+
+@test "curl: allows a non-GitHub host carrying a GitHub URL in its query string" {
+  run_curl_hook "curl -s 'https://r.jina.ai/?url=https://github.com/owner/repo/pulls'"
+  assert_allow
+}
+
+@test "curl: allows a GitHub Enterprise host that merely contains github" {
+  run_curl_hook "curl -s https://github.enterprise.internal/api/v3/repos/owner/repo/pulls"
+  assert_allow
+}
+
+# =============================================================================
+# Deny is unaffected when the GitHub URL really is the target
+# =============================================================================
+
+@test "curl: still denies when a GitHub target follows a non-GitHub one" {
+  run_curl_hook "curl -s https://example.com/a https://api.github.com/repos/owner/repo/issues"
+  assert_deny
+}
+
+@test "curl: still denies a GitHub target in a quoted argument" {
+  run_curl_hook "curl -s 'https://api.github.com/repos/owner/repo/pulls'"
+  assert_deny
+}
+
+# =============================================================================
+# Deny coverage that narrowing must not lose
+#
+# Scanning only the text after curl/wget looks appealing but drops real
+# targets: a quoted flag value containing ; | & truncates the scan, and a URL
+# held in a variable never appears next to curl at all. These lock in the
+# coverage the whole-command scan already had.
+# =============================================================================
+
+@test "curl: denies a GitHub URL assigned to a variable and fetched indirectly" {
+  run_curl_hook 'U=https://api.github.com/repos/owner/repo/pulls; curl -s "$U"'
+  assert_deny
+}
+
+@test "curl: denies when a quoted flag value contains an ampersand" {
+  run_curl_hook 'curl -G -d "a=1&b=2" https://api.github.com/repos/owner/repo/pulls'
+  assert_deny
+}
+
+@test "curl: denies when a quoted header value contains a hash" {
+  run_curl_hook 'curl -H "X-Note: a # b" https://api.github.com/repos/owner/repo/pulls'
+  assert_deny
+}
+
+@test "curl: denies when a quoted header value contains a pipe" {
+  run_curl_hook 'curl -H "X-Note: x|y" https://api.github.com/repos/owner/repo/pulls'
+  assert_deny
+}
+
+@test "curl: denies when a heredoc is never terminated" {
+  run_curl_hook "$(printf 'cat <<EOF\ncurl https://api.github.com/repos/owner/repo/pulls')"
+  assert_deny
+}
+
+@test "curl: denies when an escaped quote precedes a hash in a header value" {
+  run_curl_hook 'curl -H "a \" # b" https://api.github.com/repos/owner/repo/pulls'
+  assert_deny
+}
+
+@test "curl: denies when two heredocs open on one line" {
+  run_curl_hook "$(printf 'cat <<A > x; cat <<B > y\ncurl https://api.github.com/repos/owner/repo/pulls\nA\nB')"
+  assert_deny
+}
