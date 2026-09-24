@@ -109,7 +109,7 @@ test('the full workflow handoff preserves every finding and gap beside reviewer 
     human_review_required: true,
   }
   const execution = {
-    hasResult: true, assessment, evidenceLevel: 'runtime',
+    hasResult: true, evidenceVerified: true, assessment, evidenceLevel: 'runtime',
     resultPath: 'results/result.json', reportPath: 'results/report.md',
   }
   const before = JSON.stringify(execution)
@@ -139,7 +139,7 @@ test('the full workflow handoff preserves every finding and gap beside reviewer 
   assert.equal(result.resultPath, execution.resultPath)
   assert.equal(result.reviews.length, 2)
   assert.deepEqual(plain(result.reviews[0].concerns), ['A sibling path is untested.'])
-  deliveredExecution = { hasResult: false, blocker: 'The patch pin changed before execution.' }
+  deliveredExecution = { hasResult: false, evidenceVerified: false, blocker: 'The patch pin changed before execution.' }
   const blocked = await run(
     { finding: 'test finding', baseRef: 'base', patchRef: 'patched' },
     () => {}, () => {}, agent, tasks => Promise.all(tasks.map(task => task())),
