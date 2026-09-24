@@ -6,7 +6,7 @@ Detailed workflow for creating production-quality Semgrep rules.
 
 Before writing any code:
 
-1. **Fetch external documentation**: See [Documentation](../SKILL.md#documentation) for required reading
+1. **Resolve syntax questions as needed**: See [Rule design](../SKILL.md#rule-design) for local references and links to the full documentation
 2. **Understand the exact bug pattern and explain the bug for a junior developer**: What vulnerability, issue or pattern should be detected?
 3. **Identify the target language**: What is specific about the bug and that language?
 4. **Determine the approach**:
