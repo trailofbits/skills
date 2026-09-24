@@ -1,206 +1,93 @@
 ---
 name: firebase-apk-scanner
-description: Scans Android APKs for Firebase security misconfigurations including open databases, storage buckets, authentication issues, and exposed cloud functions. Use when analyzing APK files for Firebase vulnerabilities, performing mobile app security audits, or testing Firebase endpoint security. For authorized security research only.
+description: Scans authorized Android APKs for Firebase misconfigurations. Use when analyzing APK files for Firebase vulnerabilities, mobile app security audits, or testing Firebase endpoints.
 argument-hint: [apk-file-or-directory]
-allowed-tools: Bash({baseDir}/scanner.sh:*) Bash(apktool:*) Bash(curl:*) Read Grep Glob
+allowed-tools: Bash({baseDir}/scanner.sh:*) Bash(apktool:*) Bash(curl:*) Bash(jq:*) Read Grep Glob
 disable-model-invocation: true
 ---
 
 # Firebase APK Security Scanner
 
-You are a Firebase security analyst. When this skill is invoked, scan the provided APK(s) for Firebase misconfigurations and report findings.
-
-## When to Use
-
-- Auditing Android applications for Firebase security misconfigurations
-- Testing Firebase endpoints extracted from APKs (Realtime Database, Firestore, Storage)
-- Checking authentication security (open signup, anonymous auth, email enumeration)
-- Enumerating Cloud Functions and testing for unauthenticated access
-- Mobile app security assessments involving Firebase backends
-- Authorized penetration testing of Firebase-backed applications
-
-## When NOT to Use
-
-- Scanning apps you do not have explicit authorization to test
-- Testing production Firebase projects without written permission
-- When you only need to extract Firebase config without testing (use manual grep/strings instead)
-- For non-Android targets (iOS, web apps) - this skill is APK-specific
-- When the target app does not use Firebase
+Scan only APKs the user is authorized to test. Do not test production Firebase
+projects without written permission.
 
 ## Rationalizations to Reject
 
-When auditing, reject these common rationalizations that lead to missed or downplayed findings:
-
-- **"The database is read-only so it's fine"** - Data exposure is still a critical finding; PII, API keys, and business data may be leaked
-- **"It's just anonymous auth, not real accounts"** - Anonymous tokens bypass `auth != null` rules and can access "authenticated-only" resources
-- **"The API key is public anyway"** - A public API key does not justify open database rules or disabled auth restrictions
-- **"There's no sensitive data in there"** - You cannot know what data will be stored in the future; insecure rules are vulnerabilities regardless of current content
-- **"It's an internal app"** - APKs can be extracted from any device; "internal" apps are not protected from reverse engineering
-- **"We'll fix it before launch"** - Document the finding; pre-launch vulnerabilities frequently ship to production
-
-## Reference Documentation
-
-For detailed vulnerability patterns and exploitation techniques, consult:
-- [Vulnerability Patterns Reference](references/vulnerabilities.md)
-
-## How to Use This Skill
-
-The user will provide an APK file or directory: `$ARGUMENTS`
+- “The database is read-only” — exposed data is still a critical finding.
+- “Anonymous auth is not real accounts” — its tokens can bypass `auth != null` rules.
+- “The API key is public anyway” — that does not justify open backend rules.
+- “There is no sensitive data yet” — insecure rules remain vulnerabilities.
+- “It is an internal app” — APKs can be extracted from devices.
+- “We will fix it before launch” — document the finding now.
 
 ## Workflow
 
-### Step 1: Validate Input
+1. Confirm the supplied APK path exists. If `$ARGUMENTS` is empty, ask for it.
 
-First, verify the target exists:
+   ```bash
+   ls -la "$ARGUMENTS"
+   ```
 
-```bash
-ls -la $ARGUMENTS
-```
+2. Run the bundled scanner. It decompiles the APK, extracts Firebase
+   configuration, tests discovered endpoints, and writes text and JSON reports.
 
-If `$ARGUMENTS` is empty, ask the user to provide an APK path.
+   ```bash
+   {baseDir}/scanner.sh "$ARGUMENTS"
+   ```
 
-### Step 2: Run the Scanner
+   Record the exact output directory printed as `Results saved to: ...`. Do not
+   glob `firebase_scan_*`: previous scans may still be in the working directory.
 
-Execute the bundled scanner script on the target:
+3. If that output directory contains `scan_report.json`, read it even when the
+   scanner exits non-zero: an all-failed or `NO_CONFIG` scan intentionally exits
+   non-zero after writing its report. Use the manual fallback only when no report
+   was written or the scanner is unavailable.
 
-```bash
-{baseDir}/scanner.sh $ARGUMENTS
-```
+   Extract the summary, status, configuration, and vulnerability identifiers:
 
-The scanner will:
-1. Decompile the APK using apktool
-2. Extract Firebase configuration from all sources (google-services.json, XML resources, assets, smali code, DEX strings)
-3. Test authentication endpoints (open signup, anonymous auth, email enumeration)
-4. Test Realtime Database (unauthenticated read/write, auth bypass)
-5. Test Firestore (document access, collection enumeration)
-6. Test Storage buckets (listing, write access)
-7. Test Cloud Functions (enumeration, unauthenticated access)
-8. Test Remote Config exposure
-9. Generate reports in text and JSON format
+   ```bash
+   report="/exact/path/printed/by/scanner/scan_report.json"
+   jq '{total_apks, vulnerable_apks, failed_apks, untested_apks,
+        total_vulnerabilities,
+        results: [.results[] | {apk, status,
+          config: (.config // {} | {project_ids, database_urls, storage_buckets,
+            api_keys, auth_domains, function_names}),
+          vulnerabilities}]}' "$report"
+   ```
 
-### Step 3: Present Results
+   Replace the path above with the exact report path from step 2. Include API
+   keys and auth domains when extracted: they are evidence from the APK and may
+   be needed to explain or reproduce an exposed endpoint.
 
-After the scanner completes, read and summarize the results:
+4. Report the scan summary, extracted configuration, vulnerabilities, and
+   specific remediation. Read [vulnerabilities.md](references/vulnerabilities.md)
+   only when explaining a finding or its remediation.
 
-```bash
-cat firebase_scan_*/scan_report.txt
-```
+   `failed_apks` and `untested_apks` were not tested. Report both explicitly;
+   neither is vulnerable nor clean. A `NO_CONFIG` result means Firebase may be
+   absent, or the configuration may be obfuscated or packed beyond extraction.
 
-Present findings in this format:
+   Assign severity as follows: critical for unauthenticated database read/write,
+   Storage write, or private-app open signup; high for anonymous auth, bucket
+   listing, or collection enumeration; medium for email enumeration, exposed
+   Cloud Functions, or Remote Config; low for other information disclosure.
+   Include the scanner's per-APK evidence files when reporting a vulnerability.
 
----
+5. The scanner tests every discovered Realtime Database, Firestore, and Storage
+   endpoint, but authentication, Cloud Functions, and Remote Config currently
+   use only the first discovered API key or project. Cloud Function tests use
+   `us-central1`. For every additional project or relevant region, state that it
+   was not covered and, when authorized, test it manually. The scanner removes
+   its own test data; remove any data created during manual testing too.
 
-## Scan Summary
+6. If the scanner is unavailable or produces no report, read
+   [manual-fallback.md](references/manual-fallback.md). Keep tests authorized,
+   clean up any created test data, test all discovered projects, and report the
+   failure or untested state rather than calling it clean.
 
-| Metric | Value |
-|--------|-------|
-| APKs Scanned | X |
-| Vulnerable | X |
-| Failed to scan | X |
-| No Firebase config | X |
-| Total Issues | X |
+## Scope
 
-Take these from `failed_apks` and `untested_apks` in `scan_report.json`. Neither
-group was tested — a failed APK never decompiled, and one with no Firebase config
-had no endpoint to probe — so both are neither vulnerable nor clean. Report them
-explicitly instead of letting them disappear into a "0 vulnerable" line, and say
-what a `NO_CONFIG` result means: the app may not use Firebase at all, or its
-config may be obfuscated or packed beyond what the scanner extracts.
-
-## Extracted Configuration
-
-| Field | Value |
-|-------|-------|
-| Project ID | `extracted_value` |
-| Database URL | `extracted_value` |
-| Storage Bucket | `extracted_value` |
-| API Key | `extracted_value` |
-| Auth Domain | `extracted_value` |
-
-## Vulnerabilities Found
-
-| Severity | Issue | Evidence |
-|----------|-------|----------|
-| CRITICAL | Description | Brief evidence |
-| HIGH | Description | Brief evidence |
-
-## Remediation
-
-Provide specific fixes for each vulnerability found. Reference the [Vulnerability Patterns](references/vulnerabilities.md) for secure code examples.
-
----
-
-## Manual Testing (If Scanner Fails)
-
-If the scanner script is unavailable or fails, perform manual extraction and testing:
-
-### Extract Configuration
-
-Search for Firebase config in decompiled APK:
-
-```bash
-# Decompile
-apktool d -f -o ./decompiled $ARGUMENTS
-
-# Find google-services.json
-find ./decompiled -name "google-services.json"
-
-# Search XML resources
-grep -r "firebaseio.com\|appspot.com\|AIza" ./decompiled/res/
-
-# Search assets (hybrid apps)
-grep -r "firebaseio.com\|AIza" ./decompiled/assets/
-```
-
-### Test Endpoints
-
-Once you have the PROJECT_ID and API_KEY:
-
-**Authentication:**
-```bash
-# Test open signup
-curl -s -X POST -H "Content-Type: application/json" \
-  -d '{"email":"test@test.com","password":"Test123!","returnSecureToken":true}' \
-  "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=API_KEY"
-
-# Test anonymous auth
-curl -s -X POST -H "Content-Type: application/json" \
-  -d '{"returnSecureToken":true}' \
-  "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=API_KEY"
-```
-
-**Database:**
-```bash
-# Realtime Database read
-curl -s "https://PROJECT_ID.firebaseio.com/.json"
-
-# Firestore read
-curl -s "https://firestore.googleapis.com/v1/projects/PROJECT_ID/databases/(default)/documents"
-```
-
-**Storage:**
-```bash
-# List bucket
-curl -s "https://firebasestorage.googleapis.com/v0/b/PROJECT_ID.appspot.com/o"
-```
-
-**Remote Config:**
-```bash
-curl -s -H "x-goog-api-key: API_KEY" \
-  "https://firebaseremoteconfig.googleapis.com/v1/projects/PROJECT_ID/remoteConfig"
-```
-
-## Severity Classification
-
-- **CRITICAL**: Unauthenticated database read/write, storage write, open signup on private apps
-- **HIGH**: Anonymous auth enabled, storage bucket listing, collection enumeration
-- **MEDIUM**: Email enumeration, accessible cloud functions, remote config exposure
-- **LOW**: Information disclosure without sensitive data
-
-## Important Guidelines
-
-1. **Authorization required** - Only scan APKs you have permission to test
-2. **Clean up test data** - The scanner automatically removes test entries it creates
-3. **Save tokens** - If anonymous auth succeeds, use the token for authenticated bypass testing
-4. **Test all regions** - Cloud Functions may be deployed to us-central1, europe-west1, asia-east1, etc.
-5. **Multiple instances** - Some apps use multiple Firebase projects; test all discovered configurations
+Use this for Android Firebase assessments: Realtime Database, Firestore, Storage,
+authentication, Cloud Functions, and Remote Config. For configuration-only
+requests, extract configuration without testing endpoints. Do not use it for
+iOS, web targets, or APKs that do not use Firebase.
