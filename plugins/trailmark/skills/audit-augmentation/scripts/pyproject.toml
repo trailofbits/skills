@@ -1,0 +1,8 @@
+[project]
+name = "trailmark-audit-augmentation"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = ["trailmark"]
+
+[dependency-groups]
+dev = ["ruff>=0.14.13,<1"]
