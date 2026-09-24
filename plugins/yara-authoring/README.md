@@ -64,6 +64,21 @@ Two Python scripts under `skills/yara-rule-authoring/scripts/`, run with `uv`. B
 accept a file or a directory, and both exit non-zero if the path yields no rules to
 inspect rather than reporting a clean run over nothing.
 
+### review.sh
+
+Run syntax, formatting, lint, and atom checks together without modifying the rules:
+
+```bash
+bash skills/yara-rule-authoring/scripts/review.sh rule.yar > review.json
+bash skills/yara-rule-authoring/scripts/review.sh rules/ > review.json
+```
+
+The helper requires Bash and `jq` in addition to `uv` and the `yr` CLI. It checks
+directories recursively and emits each command's exit status and complete combined
+stdout/stderr as JSON. A failed check makes the helper exit non-zero after writing
+the report; missing or empty inputs also fail. The individual commands below remain
+available for focused checks and their existing options.
+
 ### yara_lint.py
 
 Compiles each rule with YARA-X, then checks style, metadata, and anti-patterns.
