@@ -75,6 +75,26 @@ If there is no concrete code anchor, stop and ask for one.
 For input handling details, see
 [references/input-normalization.md](references/input-normalization.md).
 
+### Steps 2–4 in one call
+
+For file/line anchors, run the bundled script. It builds the graph and preanalysis once,
+binds every finding, and prints the Graph Evidence fields as JSON: all matching nodes and the
+primary (narrowest) one, entrypoint paths with each entrypoint's trust level, `tainted` /
+`entrypoint_reachable` / `privilege_boundary` / `high_blast_radius` membership, callers,
+callees, downstream nodes, and the Trailmark version. Pass several findings in one call rather
+than rebuilding the graph per finding.
+
+```bash
+uv run {baseDir}/scripts/evidence_packet.py --target <dir> --finding <file>:<line>[-<end>] [--finding ...] [--language auto] [--out evidence.json]
+```
+
+A finding that binds to nothing comes back with `bound_node: null` and the reason. The
+script judges nothing: read the bound code and its callers, decide attacker control, and
+treat an empty path list as a limitation to explain (dynamic dispatch, proxies, missing
+entrypoint models), not as proof. Use the steps below for inputs the script does not take
+(function names, SARIF via `audit-augmentation`) and for queries it does not run
+(`connect_subgraphs`).
+
 ### Step 2: Build Or Reuse The Graph
 
 Use the public `trailmark` skill workflow. Prefer an existing fresh exported
