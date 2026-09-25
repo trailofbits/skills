@@ -46,6 +46,8 @@ Pick the workflow, then load it together with the references listed for it. Work
 - [references/blockchain-patterns.md](references/blockchain-patterns.md) — **only** for Solidity, Move, FunC/Tolk, Cairo, or Solana Rust targets
 - [references/input-formats.md](references/input-formats.md) — unless the results came from mewt or muton. Foreign tool output may not be self-describing; this covers the parsing anchors for slither-mutate, mull, and dextool-mutate
 
+Load the workflow and the references that apply first. Then, for mewt/muton results, run `uv run {baseDir}/scripts/survivors.py --results <results.json> --status <status.txt>` (or with no flags inside the campaign directory). One call prints the campaign totals, every uncaught mutant with its 1-based line, original and mutated text and the tests that passed against it, the numbered source around each site, and the test files. That output replaces reading the results JSON, the status file, the mutated files and the tests; Read only a function that runs past a window or a test file marked "not shown".
+
 **Anything else** → run `mewt --help` or `mewt <subcommand> --help`, then assist directly.
 
 ---
@@ -72,6 +74,7 @@ mewt results --status Uncaught        # Uncaught | TestFail | Skipped | Timeout
 mewt results --line 42
 
 # Investigate and re-test
+uv run {baseDir}/scripts/survivors.py    # Every survivor + source around each site, one call
 mewt print mutant --id [id]              # View the mutated code
 mewt test --ids [ids]                    # Re-test specific mutants
 mewt test --ids-file uncaught_ids.txt    # Re-test IDs from a file, or '-' for stdin
