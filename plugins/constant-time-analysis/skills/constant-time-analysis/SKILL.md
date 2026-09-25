@@ -62,6 +62,14 @@ Narrow a large file to the routines that handle secrets with a regex, for exampl
 
 **Run natively compiled code (C, C++, Go, Rust, Swift) at more than one `--arch` and `--opt-level`.** Division timing and branch lowering are architecture- and optimization-dependent: x86_64 `IDIV` and arm64 `SDIV` differ, and a `cmov` at `-O2` can become a branch at `-O0`. A single clean run proves one configuration safe, not the code.
 
+`sweep.py` runs that matrix in one call — every `--arch` × `--opt-level` pair (default `x86_64,arm64` × `O0,O1,O2,O3,Os,Oz`) as separate analyzer runs, each full JSON payload saved under `--out` (default `ct-sweep/`). It prints one status line per configuration, including any that could not run, and a merged worklist of every flagged instruction by function with the configurations that emitted it:
+
+```bash
+uv run {baseDir}/ct_analyzer/sweep.py --warnings [--archs x86_64,arm64] [--levels O0,O2,Os,Oz] [--func <regex>] [--compiler <name>] <source_file>
+```
+
+It accepts `--compiler`, `--func` and `--extra-flags` like the analyzer and runs bytecode languages once. Exit 0 means every configuration passed, 1 means at least one failed, and 2 means one could not run; treat that configuration as unanalyzed, not clean.
+
 **How `--arch` crosses depends on the toolchain.** clang crosses with `--target` and needs no second compiler, but any source that includes libc headers also needs that target's C library headers — `libc6-dev-riscv64-cross` and friends — or it fails with `bits/libc-header-start.h file not found`. Go cross-builds through `GOARCH`, though `go tool objdump` has no riscv64 disassembler. A GNU cross toolchain is a *separate binary*, so gcc needs it named explicitly — `--compiler x86_64-linux-gnu-gcc`, `--compiler riscv64-linux-gnu-gcc` — and nothing is substituted for you, so the report always names the binary that ran. rustc needs the target's standard library (`rustup target add`), and Swift on Linux targets only the host. Compare against the toolchain that builds your product, not whichever cross build a distribution packages.
 
 **Re-run the whole sweep on the fix, across compilers, targets and every level including `Os` and `Oz`.** Any fix that works by handing the compiler a constant divisor to strength-reduce is a fix only where the compiler chooses to cooperate, and that choice varies more than it looks. Replacing `key_coef / (2 * gamma2)` with a `#define`d divisor still emits a real divide here:
@@ -90,10 +98,10 @@ Coverage is not uniform, and the gaps change what a clean report means:
 
 Since findings and silence both depend on the configuration, say which compiler, architecture, and optimization level produced a result when reporting it.
 
-To sweep a directory, loop in the shell — the analyzer is a deterministic script, one invocation per file:
+To sweep a directory, loop in the shell, one sweep (or analyzer run) per file:
 
 ```bash
-for f in src/crypto/*.c; do uv run {baseDir}/ct_analyzer/analyzer.py --warnings --json "$f"; done
+for f in src/crypto/*.c; do uv run {baseDir}/ct_analyzer/sweep.py --warnings --out "ct-sweep/$(basename "$f")" "$f"; done
 ```
 
 ### Prerequisites
