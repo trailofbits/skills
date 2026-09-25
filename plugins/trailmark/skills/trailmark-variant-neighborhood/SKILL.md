@@ -62,6 +62,27 @@ root cause in plain language.
 
 If the seed has no concrete graph binding, stop before inventing variants.
 
+### Steps 1–3 in one call
+
+Run the bundled script with the seed's file and line (or its Trailmark node id). It builds the
+graph once, binds the seed, expands every dimension below, attaches the ranking signals
+(reachability with trust level, taint, privilege boundary, blast radius, distance, penalty
+flags), moves test/mock/generated/vendor nodes to `exclusions`, and applies the per-dimension
+cap, listing what the cap dropped:
+
+```bash
+uv run {baseDir}/scripts/neighborhood.py --target <dir> --seed <file>:<line> [--cap 10] [--language auto] [--out neighborhood.json]
+```
+
+Its order is a signal sort, not a verdict. Read each candidate's code before ranking: a
+candidate shares the seed's root cause only if the same unsafe data reaches the same kind of
+operation, so a caller of the sink that passes constants ranks low even when reachable, and
+an override that the graph cannot reach through dynamic dispatch can still rank high. Keep
+the "candidate, not finding" wording. The candidate list holds at most the capped set per
+dimension that the script returns; name the nodes it dropped under Exclusions and
+Limitations rather than ranking them. Test, mock, generated and vendor code stays out of the
+candidate list however it was found (script, grep, or reading), and goes under exclusions.
+
 ### Step 2: Expand Neighborhoods
 
 Use the dimensions in
