@@ -73,6 +73,9 @@ ct-analyzer --opt-level O3 crypto.c
 # Cross-compile for ARM64
 ct-analyzer --arch arm64 crypto.c
 
+# Every arch x level pair in one call (default x86_64,arm64 x O0..Oz); full payloads in ct-sweep/
+uv run ct_analyzer/sweep.py --warnings --archs x86_64,arm64 --levels O0,O2,Os,Oz crypto.c
+
 # Include conditional branch warnings
 ct-analyzer --warnings crypto.c
 

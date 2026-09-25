@@ -58,7 +58,8 @@ skills/constant-time-analysis/
     └── ruby.md           # Ruby analysis (YARV)
 ```
 
-The analyzer tool is located at `ct_analyzer/analyzer.py` in the plugin root. Its
+The analyzer tool is located at `ct_analyzer/analyzer.py` in the plugin root, with
+`ct_analyzer/sweep.py` to run it across architectures and optimization levels in one call. Its
 test suite and samples live in `ct_analyzer/tests/`:
 
 - `test_samples/` — vulnerable and constant-time inputs for detector tests
