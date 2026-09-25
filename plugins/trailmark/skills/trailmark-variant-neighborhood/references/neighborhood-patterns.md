@@ -16,18 +16,23 @@ targets, not findings.
 ## Query Sketches
 
 ```python
+# Trailmark 0.5 returns node dicts from callers_of/callees_of; pass ids back into queries
+# (passing the dict raises TypeError: unhashable type 'dict').
+def ids(nodes):
+    return [n["id"] if isinstance(n, dict) else n for n in nodes]
+
 seed = "{bound_node}"
-callers = engine.callers_of(seed)
-callees = engine.callees_of(seed)
+callers = ids(engine.callers_of(seed))
+callees = ids(engine.callees_of(seed))
 
 same_caller_candidates = []
 for caller in callers:
-    same_caller_candidates.extend(engine.callees_of(caller))
+    same_caller_candidates.extend(ids(engine.callees_of(caller)))
 
 same_sink_candidates = []
 for callee in callees:
     if is_sensitive_sink(callee):
-        same_sink_candidates.extend(engine.callers_of(callee))
+        same_sink_candidates.extend(ids(engine.callers_of(callee)))
 
 paths = engine.entrypoint_paths_to(seed)
 
