@@ -1,6 +1,6 @@
 ---
 name: agentic-actions-auditor
-description: "Audits GitHub Actions workflows for security vulnerabilities in AI agent integrations including Claude Code Action, Gemini CLI, OpenAI Codex, and GitHub AI Inference. Detects attack vectors where attacker-controlled input reaches AI agents running in CI/CD pipelines, including env var intermediary patterns, direct expression injection, dangerous sandbox configurations, and wildcard user allowlists. Use when reviewing workflow files that invoke AI coding agents, auditing CI/CD pipeline security for prompt injection risks, or evaluating agentic action configurations."
+description: "Audits GitHub Actions workflows for security vulnerabilities in AI agent integrations including Claude Code Action, Gemini CLI, OpenAI Codex, and GitHub AI Inference. Detects attack vectors where attacker-controlled input reaches AI agents running in CI/CD pipelines, including env var intermediary patterns, direct expression injection, dangerous sandbox configurations, wildcard user allowlists, and tool patterns whose target is unbounded. Use when reviewing workflow files that invoke AI coding agents, auditing CI/CD pipeline security for prompt injection risks, or evaluating agentic action configurations."
 allowed-tools: Read Grep Glob Bash
 ---
 
@@ -242,6 +242,7 @@ Then check each vector against the security context captured in Step 3:
 | G | Eval of AI Output | `eval`, `exec`, or `$()` in `run:` step consuming `steps.*.outputs.*` | [{baseDir}/references/vector-g-eval-of-ai-output.md]({baseDir}/references/vector-g-eval-of-ai-output.md) |
 | H | Dangerous Sandbox Configs | `danger-full-access`, `Bash(*)`, `--yolo`, `safety-strategy: unsafe` | [{baseDir}/references/vector-h-dangerous-sandbox-configs.md]({baseDir}/references/vector-h-dangerous-sandbox-configs.md) |
 | I | Wildcard Allowlists | `allowed_non_write_users: "*"`, `allow-users: "*"` | [{baseDir}/references/vector-i-wildcard-allowlists.md]({baseDir}/references/vector-i-wildcard-allowlists.md) |
+| J | Unbounded Tool Targets | `Bash(gh issue edit:*)` -- a mutating tool pattern that names its verb but not its target | [{baseDir}/references/vector-j-unbounded-tool-targets.md]({baseDir}/references/vector-j-unbounded-tool-targets.md) |
 
 For each vector, read the referenced file and apply its detection heuristic against the security context captured in Step 3. For each finding, record: the vector letter and name, the specific evidence from the workflow, the data flow path from attacker input to AI agent, and the affected workflow file and step.
 

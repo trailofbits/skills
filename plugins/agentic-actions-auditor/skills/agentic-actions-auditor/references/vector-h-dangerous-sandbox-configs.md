@@ -94,7 +94,7 @@ Three actions with dangerous configurations (from research Example 8):
 
 ## False Positives
 
-- **Specific restricted tool patterns** in Claude: `--allowedTools "Bash(npm test:*)"` or `--allowedTools "Bash(echo:*)"` -- these are restrictive, not dangerous (though they may be exploitable via Vector F for subshell expansion)
+- **Specific restricted tool patterns** in Claude: `--allowedTools "Bash(npm test:*)"` or `--allowedTools "Bash(echo:*)"` -- these are restrictive, not dangerous (though they may be exploitable via Vector F for subshell expansion). Note that "specific" here means specific in its *verb*: a pattern can name a mutating command and still match any target, which is [Vector J](vector-j-unbounded-tool-targets.md) rather than a false positive. `Bash(npm test:*)` is bounded; `Bash(gh issue edit:*)` is not.
 - **Codex workspace-scoped sandbox:** `sandbox: workspace-write` allows writes but within a workspace boundary, not full system access
 - **Gemini specific tool lists:** `coreTools` containing specific tools but NOT `run_shell_command` -- tool-specific restrictions, not full sandbox disable
 - **Default configurations:** Actions without explicit sandbox/safety config fields -- defaults are generally safe (Claude defaults to restricted tools, Codex defaults to `sandbox: workspace-write`, Gemini defaults to sandbox enabled)
