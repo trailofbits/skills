@@ -493,6 +493,11 @@ const reported = await agent(
     '7. If .excludePattern in scans.json is non-empty, give it a line too. Every scan skipped',
     '   that pattern, and semgrep matches it anywhere in the tree, so a target with its own',
     '   directory of the same name lost those files as well. It reads as clean coverage.',
+    '',
+    '8. If .oversized in scans.json is non-empty, every path in it needs naming. Those files are',
+    '   larger than .maxTargetBytes, so semgrep skipped them without writing a paths.skipped',
+    '   entry or an error, and they report 0 findings exactly like a file that was opened and',
+    '   found clean. Say they were not scanned rather than reporting them as clean.',
   ].join('\n'),
   { label: 'report', schema: REPORT_SCHEMA },
 )

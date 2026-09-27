@@ -11,6 +11,14 @@ readonly METRICS_OFF="--metrics=off"
 # references/scan-modes.md, not here.
 SEVERITY_FLAGS=(--severity WARNING --severity ERROR)
 readonly DEFAULT_JOBS=4
+# semgrep drops any file larger than --max-target-bytes and reports NOTHING about it: no
+# paths.skipped entry, no error, and the file is simply absent from .paths.scanned. A scan that
+# never opened a 1 MB bundle therefore records `findings: 0` next to a plausible filesScanned
+# count, which is indistinguishable from a file that was opened and found clean. semgrep's own
+# default is 1,000,000 bytes, which generated sources, single-file bundles, vendored blobs and
+# legacy monoliths pass routinely, so the limit is set explicitly here, recorded in scans.json,
+# and the files it still drops are named — see the oversized report below.
+readonly DEFAULT_MAX_TARGET_BYTES=20000000
 
 # A semgrep join rule carries `mode: join` and the `join:` block that mode needs, and requiring
 # both is what keeps the prune below off a rule that merely mentions the words. Each is anchored
@@ -32,12 +40,18 @@ Usage: run-scans.sh --target DIR --output-dir DIR --mode MODE --rulesets FILE [o
   --rulesets FILE    JSON: {"baseline":[...], "<language>":[...], "third_party":["https://..."]}
   --pro              add --pro to every command (Semgrep Pro engine)
   --jobs N           concurrent semgrep processes (default 4)
+  --max-target-bytes N
+                     skip files larger than N bytes; 0 means no limit, as it does in
+                     semgrep (default 20000000). semgrep's own default is 1000000 and
+                     it drops the file with no trace in the JSON
   --dry-run          print the commands that would run, then exit; clones nothing
 
 Writes OUTPUT_DIR/scans.json:
   {scans:[{lang,ruleset,json,sarif,findings,filesScanned,partial,exitCode}],
-   failed:[...], skipped:[...], unscoped:[lang], alsoShared:["lang/ruleset"]}
+   failed:[...], skipped:[...], unscoped:[lang], alsoShared:["lang/ruleset"],
+   maxTargetBytes:N, oversized:[path]}
   partial is a scan that wrote complete output while some of its rules failed to compile.
+  oversized names the files an --include glob selected that are too large for semgrep to open.
 USAGE
 }
 
@@ -145,6 +159,7 @@ count_lines() {
 
 TARGET="" OUTPUT_DIR="" MODE="" RULESETS_FILE="" PRO="" DRY_RUN=""
 JOBS=$DEFAULT_JOBS
+MAX_TARGET_BYTES=$DEFAULT_MAX_TARGET_BYTES
 while [ $# -gt 0 ]; do
   case "$1" in
     --target)
@@ -165,6 +180,10 @@ while [ $# -gt 0 ]; do
       ;;
     --jobs)
       JOBS=${2:-}
+      shift 2
+      ;;
+    --max-target-bytes)
+      MAX_TARGET_BYTES=${2:-}
       shift 2
       ;;
     --pro)
@@ -198,6 +217,12 @@ fi
 jq -e . "$RULESETS_FILE" >/dev/null 2>&1 || die "--rulesets is not valid JSON: $RULESETS_FILE"
 case "$JOBS" in '' | *[!0-9]*) die "--jobs must be a positive integer, got '${JOBS}'" ;; esac
 [ "$JOBS" -ge 1 ] || die "--jobs must be at least 1"
+# Bytes only. semgrep also takes '1.5MB', but the oversized report below has to compare the
+# limit against a file size, so a suffixed value would have to be parsed twice and the two
+# readings could disagree. 0 is accepted and means no limit, which is what semgrep does with it.
+case "$MAX_TARGET_BYTES" in
+  '' | *[!0-9]*) die "--max-target-bytes must be a whole number of bytes, got '${MAX_TARGET_BYTES}'" ;;
+esac
 
 # Both paths resolve the same way before being compared. Resolving only one makes the equality
 # and inside-the-target checks miss on any symlinked path (every /var path on macOS), and the
@@ -294,11 +319,13 @@ UNSCOPED="$WORK/unscoped.txt"
 # exactly like p/gosec would have. semgrep counts what it opened in .paths.scanned, so the two
 # can be told apart and the ones that covered nothing named.
 COVERED_NOTHING="$WORK/covered-nothing.txt"
+OVERSIZED="$WORK/oversized.txt"
 : >"$SCAN_LIST"
 : >"$SKIPPED"
 : >"$ALSO_SHARED"
 : >"$UNSCOPED"
 : >"$COVERED_NOTHING"
+: >"$OVERSIZED"
 
 # Stems are the filename half of every output path and the key results are matched on, so a
 # collision would let one scan's result be read as another's.
@@ -522,6 +549,7 @@ build_argv() {
   ARGV=(semgrep)
   [ -z "$PRO" ] || ARGV+=(--pro)
   ARGV+=("$METRICS_OFF")
+  ARGV+=(--max-target-bytes "$MAX_TARGET_BYTES")
   [ "$MODE" != "important-only" ] || ARGV+=("${SEVERITY_FLAGS[@]}")
   # Unquoted on purpose: includes is a space-separated glob list and must word-split here.
   # shellcheck disable=SC2086
@@ -552,6 +580,59 @@ if [ -n "$DRY_RUN" ]; then
     printf '\n'
   done <"$SCAN_LIST"
   exit 0
+fi
+
+# ------------------------------------------------------------- oversized files
+# What semgrep refused to open, as against what it opened and found clean. filesScanned counts
+# the second and nothing in the JSON reports the first, so a file over the limit reads as a file
+# that is clean. Named here for the reason coveredNothing and excludePattern are: a gap only
+# stderr knows about is a gap the report calls coverage.
+#
+# Scoped to the --include globs this run actually passes, because those are the files a scan
+# claimed to cover. The cross-language rulesets take no --include and semgrep decides for itself
+# which files it can parse, so their share of the gap is not enumerable from here;
+# references/scan-modes.md says so, and maxTargetBytes is in the report for a reader to check by
+# hand. includes_for only ever emits basename patterns, which is what makes -name enough.
+scoped_globs() {
+  cut -f5 "$SCAN_LIST" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' '
+}
+
+# The globs are read into an array rather than left to word-split: unquoted expansion is
+# pathname expansion too, and these patterns are meant to match under the target, not the CWD.
+find_oversized() { # <limit> <globs> -> paths relative to TARGET, one per line
+  local limit=$1 globs=$2 g f
+  local gl nameargs prune
+  # 0 disables semgrep's own filter, so nothing is dropped for its size and there is no gap to
+  # report. Guarded rather than left to `find -size +0c`, which matches every non-empty file.
+  [ "$limit" -gt 0 ] || return 0
+  gl=()
+  nameargs=()
+  prune=()
+  [ -n "$(printf '%s' "$globs" | tr -d ' ')" ] || return 0
+  IFS=' ' read -r -a gl <<<"$globs"
+  for g in ${gl[@]+"${gl[@]}"}; do
+    [ -n "$g" ] || continue
+    if [ ${#nameargs[@]} -eq 0 ]; then
+      nameargs=(-name "$g")
+    else
+      nameargs+=(-o -name "$g")
+    fi
+  done
+  [ ${#nameargs[@]} -gt 0 ] || return 0
+  # The output directory is already --exclude'd from every scan, so a file inside it is not a
+  # coverage gap; listing it would put this run's own raw JSON in the report.
+  [ -z "$EXCLUDE_PATTERN" ] || prune=(-name "$EXCLUDE_PATTERN" -prune -o)
+  find "$TARGET" ${prune[@]+"${prune[@]}"} -type f -size +"${limit}"c \
+    \( "${nameargs[@]}" \) -print 2>/dev/null | while IFS= read -r f; do
+    printf '%s\n' "${f#"$TARGET"/}"
+  done | sort
+}
+
+OVERSIZED_LIST=$(find_oversized "$MAX_TARGET_BYTES" "$(scoped_globs)")
+printf '%s\n' "$OVERSIZED_LIST" >"$OVERSIZED"
+if [ -n "$OVERSIZED_LIST" ]; then
+  echo "note: $(count_lines "$OVERSIZED_LIST") file(s) exceed --max-target-bytes" >&2
+  echo "      ($MAX_TARGET_BYTES) and no scan will open them; see .oversized in scans.json." >&2
 fi
 
 # ------------------------------------------------------------------- run the scans
@@ -680,15 +761,18 @@ jq -n \
   --rawfile alsoSharedRaw "$ALSO_SHARED" \
   --rawfile unscopedRaw "$UNSCOPED" \
   --rawfile coveredNothingRaw "$COVERED_NOTHING" \
+  --rawfile oversizedRaw "$OVERSIZED" \
+  --argjson maxTargetBytes "$MAX_TARGET_BYTES" \
   '{
      outputDir: $outputDir, rawDir: $rawDir, reposPath: $reposPath, mode: $mode, pro: $pro,
-     excludePattern: $excludePattern,
+     excludePattern: $excludePattern, maxTargetBytes: $maxTargetBytes,
      scans: $scans, failed: $failed,
      skipped: ($skippedRaw | split("\n") | map(select(length > 0)) | map(split("\t"))
                | map({ruleset: .[0], reason: (.[1] // "clone failed")})),
      alsoShared: ($alsoSharedRaw | split("\n") | map(select(length > 0)) | unique),
      unscoped: ($unscopedRaw | split("\n") | map(select(length > 0)) | unique),
-     coveredNothing: ($coveredNothingRaw | split("\n") | map(select(length > 0)) | unique)
+     coveredNothing: ($coveredNothingRaw | split("\n") | map(select(length > 0)) | unique),
+     oversized: ($oversizedRaw | split("\n") | map(select(length > 0)) | unique)
    }' >"$OUTPUT_ROOT/scans.json"
 
 n_ok=$(jq '.scans | length' "$OUTPUT_ROOT/scans.json")

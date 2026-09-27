@@ -16,7 +16,7 @@ command -v uv >/dev/null 2>&1 || {
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
-readonly EXPECTED_ASSERTIONS=93
+readonly EXPECTED_ASSERTIONS=104
 
 command -v jq >/dev/null 2>&1 || {
   echo "run_scan_tests.sh: jq not found — required" >&2
@@ -573,6 +573,81 @@ ok "$([ -e "$WORK/filter/results.sarif" ] && echo 1 || echo 0)" \
   "the merge must write nothing while a scan is unfiltered"
 contains "$MERGE_ERR" "python-broken-important.json" \
   "the merge error must name the scan that has no filtered JSON"
+
+# ---------------------------------------------------------------------- the file size limit
+# semgrep skips any file over --max-target-bytes and writes nothing about it: no paths.skipped
+# entry, no error, and the file absent from paths.scanned. `findings: 0` for a file that was
+# never opened reads exactly like a file that was opened and found clean.
+echo "→ the file size limit"
+
+unset STUB_PATHS
+export STUB_RC=0 STUB_RESULTS=''
+
+out=$(dry "$BASIC")
+n=$(printf '%s\n' "$out" | grep -c -- '--max-target-bytes 20000000')
+eq "$n" "2" "an explicit limit must be on every command rather than semgrep's 1 MB default"
+
+out=$(dry "$BASIC" --max-target-bytes 12345)
+n=$(printf '%s\n' "$out" | grep -c -- '--max-target-bytes 12345')
+eq "$n" "2" "an overridden limit must reach every command"
+
+# semgrep takes '1.5MB' as well as a byte count, but the oversized report has to compare the
+# limit against a file size, so a suffixed value is refused rather than parsed a second way.
+msg=$(fails bash "$SCRIPT" --target "$TARGET" --output-dir "$WORK/out" --mode run-all \
+  --rulesets "$BASIC" --max-target-bytes 5MB --dry-run)
+ok $? "a suffixed --max-target-bytes must be rejected rather than reinterpreted"
+contains "$msg" "whole number of bytes" "the message must say what form the value takes"
+
+# semgrep reads 0 as no limit at all, so it is passed through rather than refused.
+out=$(dry "$BASIC" --max-target-bytes 0)
+n=$(printf '%s\n' "$out" | grep -c -- '--max-target-bytes 0')
+eq "$n" "2" "zero must reach every command, since semgrep reads it as no limit"
+
+# The files over the limit are named, because filesScanned counts what semgrep opened and can
+# say nothing about what it refused. A small limit over small fixtures: the behaviour does not
+# depend on the size, and a suite that wrote a 20 MB file to prove it would earn nothing.
+BIGT="$WORK/bigproj"
+mkdir -p "$BIGT/src" "$BIGT/out"
+pad='padding that exists only to push this fixture past the limit
+'
+big="$pad$pad$pad$pad"
+big="$big$big"
+printf 'x = 1\n' >"$BIGT/src/small.py"
+printf '%s' "$big" >"$BIGT/src/big.py"
+printf '%s' "$big" >"$BIGT/src/big.txt"
+printf '%s' "$big" >"$BIGT/out/vendored.py"
+
+PATH="$WORK/bin:$PATH" bash "$SCRIPT" --target "$BIGT" --output-dir "$BIGT/out" \
+  --mode run-all --rulesets "$ONE" --jobs 2 --max-target-bytes 100 >/dev/null 2>&1
+BIGJSON="$BIGT/out/scans.json"
+ok "$([ -f "$BIGJSON" ] && echo 0 || echo 1)" "a target holding oversized files must still write scans.json"
+eq "$(jq -r '.maxTargetBytes' "$BIGJSON" 2>/dev/null || echo NOFILE)" "100" \
+  "scans.json must record the limit the scans actually ran with"
+# One path exactly: small.py is under the limit, big.txt matches no --include glob, and
+# out/vendored.py sits in the excluded output directory, so none of the three is a coverage gap.
+eq "$(jq -r '.oversized | join(",")' "$BIGJSON" 2>/dev/null || echo NOFILE)" "src/big.py" \
+  "a file over the limit that an --include glob selected must be named in oversized"
+
+PATH="$WORK/bin:$PATH" bash "$SCRIPT" --target "$BIGT" --output-dir "$WORK/big2" \
+  --mode run-all --rulesets "$ONE" --jobs 2 --max-target-bytes 100000 >/dev/null 2>&1
+eq "$(jq '.oversized | length' "$WORK/big2/scans.json" 2>/dev/null || echo NOFILE)" "0" \
+  "a limit nothing exceeds must leave oversized empty"
+
+# A cross-language ruleset takes no --include and semgrep alone decides which files it can
+# parse, so its share of the gap is not enumerable here. Pinned so the limitation stays a
+# decision rather than becoming a surprise.
+# No limit means nothing was dropped for its size, so the report must stay empty rather than
+# listing every non-empty file the globs matched — which is what `find -size +0c` would give.
+PATH="$WORK/bin:$PATH" bash "$SCRIPT" --target "$BIGT" --output-dir "$WORK/big4" \
+  --mode run-all --rulesets "$ONE" --jobs 2 --max-target-bytes 0 >/dev/null 2>&1
+eq "$(jq '.oversized | length' "$WORK/big4/scans.json" 2>/dev/null || echo NOFILE)" "0" \
+  "a disabled limit must leave oversized empty, not list every file"
+
+BASEONLY=$(plan baseonly '{"baseline":["p/security-audit"],"third_party":[]}')
+PATH="$WORK/bin:$PATH" bash "$SCRIPT" --target "$BIGT" --output-dir "$WORK/big3" \
+  --mode run-all --rulesets "$BASEONLY" --jobs 2 --max-target-bytes 100 >/dev/null 2>&1
+eq "$(jq '.oversized | length' "$WORK/big3/scans.json" 2>/dev/null || echo NOFILE)" "0" \
+  "a plan with no --include globs must leave oversized empty by design"
 
 TOTAL=$((PASS + FAIL))
 echo

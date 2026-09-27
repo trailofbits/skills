@@ -140,7 +140,33 @@ set would drop real findings from the primary deliverable with nothing downstrea
 
 - **Run all**: no severity flags
 - **Important only**: `--severity WARNING --severity ERROR`
+- **Both**: `--max-target-bytes 20000000` (see below)
 
 That pre-filter is applied by semgrep at scan time, before the metadata post-filter above. A
 rule shipping with CLI severity INFO is dropped by the flag and never reaches the filter that
 would have kept it.
+
+### File Size Limit
+
+semgrep skips any file larger than `--max-target-bytes` and says nothing about it in `--json`
+output: no `paths.skipped` entry, no error, and the file is absent from `paths.scanned`. A 1 MB
+bundle therefore reports `findings: 0` exactly as a file that was opened and found clean does.
+The reason is only reachable through `--verbose`, which the scanner does not use.
+
+`run-scans.sh` sets the limit explicitly at 20,000,000 bytes rather than leaning on semgrep's
+1,000,000-byte default, which generated sources, single-file bundles and legacy monoliths pass
+routinely. Override it with `--max-target-bytes N` when a target holds larger sources, or with
+`--max-target-bytes 0` to lift the limit entirely, which is what semgrep does with a zero. The
+effective value is recorded as `maxTargetBytes` in `scans.json`. Bytes only: semgrep also accepts
+`1.5MB`, and the scanner refuses that form rather than parsing the size a second way to build the
+report below.
+
+Files an `--include` glob selected that are still over the limit are listed as `oversized` in
+`scans.json`, and they belong in the report: a scan that did not open a file has not cleared it.
+Report them as a coverage gap, not as a clean result. Raising the limit re-scans them at the cost
+of memory and time, so a deliberate decision to leave one out is fine as long as it is written
+down.
+
+Cross-language rulesets (`p/security-audit`, `p/secrets`, third-party repos) take no `--include`,
+and semgrep alone decides which files it can parse, so `oversized` cannot enumerate their share
+of the gap. `maxTargetBytes` is in the report so that part can be checked by hand.

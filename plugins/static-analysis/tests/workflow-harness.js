@@ -314,6 +314,9 @@ const SCENARIOS = {
       // so unless the report carries the line, the shortfall has nothing pointing at it.
       [/unparseable/.test(prompts.report), "SARIF files missing from the merge must be reported"],
       [/excludePattern/.test(prompts.report), "the pattern excluded from every scan must be reported"],
+      // A file over --max-target-bytes is skipped with nothing in the JSON to say so, so left
+      // out of the report it is indistinguishable from a file that was scanned and was clean.
+      [/oversized/.test(prompts.report), "files too large for semgrep to open must be reported"],
       // A partial ruleset is a success in scans.json with its findings in the merge, so the
       // rules that never compiled found nothing and nothing in the report says they did not run.
       [/Ran Partially/.test(prompts.report), "rulesets whose rules partly failed to compile must be reported"],
@@ -339,6 +342,7 @@ const MUTATIONS = [
   ["stop reporting rulesets that covered nothing", (s) => s.replace(/\n\s*'\s*\.coveredNothing gets its own section[\s\S]*?clean audit\.',/, "")],
   ["stop reporting unparseable SARIF", (s) => s.replace(/\n\s*'6\. Read the merge command[\s\S]*?not in the merge\.',/, "")],
   ["stop reporting the exclude pattern", (s) => s.replace(/\n\s*'7\. If \.excludePattern[\s\S]*?clean coverage\.',/, "")],
+  ["stop reporting oversized files", (s) => s.replace(/\n\s*'8\. If \.oversized[\s\S]*?as clean\.',/, "")],
   ["stop reporting partial rulesets", (s) => s.replace(/\n\s*'\s*Rulesets with partial=true[\s\S]*?scans\.json"`,/, "")],
   ["stop reading the partial count", (s) => s.replace(/\n\s*`\s*jq '\[\.scans\[\] \| select\(\.partial\)\][\s\S]*?scans\.json"`,/, "")],
 ];

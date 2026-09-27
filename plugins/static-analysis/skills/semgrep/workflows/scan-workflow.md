@@ -323,6 +323,8 @@ and the severity flags are all its job, not yours. It writes `$OUTPUT_DIR/scans.
 | `unscoped` | Languages with no `--include` globs, which ran against every file |
 | `alsoShared` | Rulesets dropped from a language because the same ruleset is already running unscoped over the whole target. Coverage is unaffected; report them so a per-ruleset accounting adds up |
 | `excludePattern` | Set when the output directory sits inside the target: the pattern passed as `--exclude` to every scan, or `""`. semgrep matches it anywhere in the tree, so `out` also drops `src/out/`. **Must be shown when non-empty.** |
+| `maxTargetBytes` | The `--max-target-bytes` every scan ran with. semgrep opens no file larger than this |
+| `oversized` | Files an `--include` glob selected that are larger than `maxTargetBytes`. semgrep skipped them with no `paths.skipped` entry and no error, so they report 0 findings exactly like a file that was opened and found clean. A scan that did not open a file has not cleared it. **Must be shown.** |
 | `reposPath` | The clone directory Step 5 deletes |
 
 **A non-zero exit means no scan succeeded.** The script exits 1 when `scans` is empty, so a run
@@ -438,6 +440,12 @@ one finding flagged by two rulesets is one row in the merge and two in that sum]
 - <language>/<ruleset> — matched no file in the target, so it reports 0 findings without having
   looked at anything. Check the plan against the languages Step 1 detected: this is what a
   ruleset for a language the target does not contain looks like
+
+### Too Large To Scan:
+[omit when oversized is empty]
+- <path> — larger than maxTargetBytes, so semgrep never opened it and no ruleset covered it.
+  Not a clean result: re-run with a higher --max-target-bytes, or say in the report that the
+  file was left unscanned
 
 ### Missing From The Merge:
 [omit when the merge printed no "unparseable:" line]
