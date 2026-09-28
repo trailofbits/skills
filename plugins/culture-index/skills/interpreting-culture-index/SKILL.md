@@ -1,6 +1,6 @@
 ---
 name: interpreting-culture-index
-description: Interprets Culture Index (CI) surveys, behavioral profiles, and personality assessment data. Supports individual profile interpretation, team composition analysis (gas/brake/glue), burnout detection, profile comparison, hiring profiles, manager coaching, interview transcript analysis for trait prediction, candidate debrief, onboarding planning, and conflict mediation. Accepts extracted JSON or PDF input via OpenCV extraction script.
+description: Interprets Culture Index (CI) surveys, behavioral profiles, and personality assessment data. Supports individual profile interpretation, team composition analysis (gas/brake/glue), burnout detection, profile comparison, hiring profiles, manager coaching, interview transcript analysis for trait prediction, candidate debrief, onboarding planning, and conflict mediation. Accepts extracted JSON or PDF input via OpenCV extraction script. Use when the user shares a Culture Index PDF or JSON profile, asks what someone's CI traits mean, compares Culture Index profiles across a team or against a hiring profile, or asks about burnout risk from Survey-versus-Job gaps.
 allowed-tools: Bash Read Grep Glob Write
 ---
 
