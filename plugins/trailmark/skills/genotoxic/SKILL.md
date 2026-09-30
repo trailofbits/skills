@@ -199,6 +199,29 @@ Map each removal to a production function using the algorithm in
 
 ## Phase 3: Triage Findings
 
+Run the bundled triage script on the survived mutants (and necessist
+removals, if any). It builds the graph and preanalysis once, binds every
+record to its containing function, applies the graph rules below, maps
+removals to production functions, and marks corroborated functions:
+
+```bash
+uv run {baseDir}/scripts/genotoxic_triage.py --target {targetDir} --mutants outcomes.json [--necessist removals.json] [--language auto] [--out triage.json]
+```
+
+`--mutants` takes Universal Mutant Records (see
+[references/mutation-frameworks.md](references/mutation-frameworks.md)) or
+`mewt results --format json` output. Each record comes back with its
+`graph_bucket`, the reason, and the evidence for the report (node, CC,
+production and test callers, entrypoint paths with trust level, taint,
+privilege boundary, blast radius). Do not retype the functions in
+graph-analysis.md.
+
+The script does not judge semantics. Read the code at every mutant and
+move equivalent mutants and cosmetic changes (logging or display strings;
+`logging_hint` marks likely ones) to False Positives with the reason,
+whatever their graph bucket. For each remaining finding, keep the graph
+bucket unless the code gives a stated reason to change it.
+
 For each survived mutant and each necessist removal, determine its
 triage bucket using graph data. Necessist removals must first be mapped
 to a production function (see
@@ -245,8 +268,9 @@ to classify it. The classification logic checks: no callers → false
 positive, privilege boundary → fuzzing, high CC + tainted → fuzzing,
 high blast radius → fuzzing, otherwise → missing tests.
 
-See [references/graph-analysis.md](references/graph-analysis.md) for
-the `batch_triage` implementation and node mapping functions.
+`scripts/genotoxic_triage.py` implements this; see
+[references/graph-analysis.md](references/graph-analysis.md) for the
+underlying queries.
 
 ---
 

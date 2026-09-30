@@ -57,7 +57,7 @@ uv tool install trailmark
 | `slicing-code-context` | Build bounded graph-informed source packets and delegate focused work to constrained subagents |
 | `diagramming-code` | Generate Mermaid diagrams from code graphs (call graphs, class hierarchies, complexity heatmaps, data flow); v0.4 native diagram support is feature-gated |
 | `crypto-protocol-diagram` | Extract protocol message flow from source code or specs (RFC, ProVerif, Tamarin) into sequence diagrams |
-| `genotoxic` | Triage mutation testing results using graph analysis — classify survived mutants as false positives, missing tests, or fuzzing targets |
+| `genotoxic` | Triage mutation testing results using graph analysis — classify survived mutants as false positives, missing tests, or fuzzing targets; `scripts/genotoxic_triage.py` applies the graph rules in one call |
 | `vector-forge` | Mutation-driven test vector generation — find coverage gaps via mutation testing, then generate Wycheproof-style vectors that close them |
 | `graph-evolution` | Compare code graphs at two snapshots to surface security-relevant structural changes text diffs miss |
 | `trailmark-review-gate` | Apply PASS/WARN/FAIL/UNKNOWN structural gate rules to branch, PR, fix, or release diffs |

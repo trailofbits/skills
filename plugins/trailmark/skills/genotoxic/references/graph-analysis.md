@@ -21,15 +21,23 @@ and assign them to the correct triage bucket.
 Each survived mutant has a `file_path` and `line` number. Map it to the
 containing function in the trailmark graph:
 
+`scripts/genotoxic_triage.py` ships this mapping and the batch triage
+below; use it rather than retyping the code. Two details matter when
+matching by hand: Trailmark records paths as it was given them
+(`./src/x.py` for `--target .`), so normalize both sides, and bind only
+`function`/`method` nodes, since unresolved call-site proxies also carry
+locations.
+
 ```python
 def find_containing_node(nodes: dict, file_path: str, line: int):
     """Find the graph node that contains a given source line."""
+    want = file_path.removeprefix("./")
     candidates = []
     for node_id, node in nodes.items():
         loc = node.get("location", {})
-        if not loc:
+        if not loc or node.get("kind") not in ("function", "method"):
             continue
-        if loc["file_path"] != file_path:
+        if loc["file_path"].removeprefix("./") != want:
             continue
         if loc["start_line"] <= line <= loc["end_line"]:
             candidates.append((node_id, node))
