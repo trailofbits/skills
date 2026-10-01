@@ -61,7 +61,7 @@ uv tool install trailmark
 | `vector-forge` | Mutation-driven test vector generation — find coverage gaps via mutation testing, then generate Wycheproof-style vectors that close them |
 | `graph-evolution` | Compare code graphs at two snapshots to surface security-relevant structural changes text diffs miss |
 | `trailmark-review-gate` | Apply PASS/WARN/FAIL/UNKNOWN structural gate rules to branch, PR, fix, or release diffs |
-| `mermaid-to-proverif` | Convert Mermaid sequence diagrams into ProVerif formal verification models |
+| `mermaid-to-proverif` | Convert Mermaid sequence diagrams into ProVerif formal verification models and verify them with `scripts/verify_pv.py` |
 | `audit-augmentation` | Project SARIF, weAudit, and v0.4 binary-analysis graph findings onto code graphs as annotations and subgraphs |
 | `trailmark-finding-triage` | Triage one finding, SARIF result, weAudit annotation, suspicious function, or report excerpt with reachability, taint, privilege-boundary, and blast-radius evidence |
 | `trailmark-variant-neighborhood` | Expand one seed issue into graph-derived variant candidates for variant-analysis, Semgrep, CodeQL, or manual review |
