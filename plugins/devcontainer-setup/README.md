@@ -24,6 +24,13 @@ The skill will:
 2. Generate `.devcontainer/` configuration files
 3. Provide instructions for starting the container
 
+Generation is done by `skills/devcontainer-setup/scripts/scaffold.py`, run with
+`uv run --no-project`. Hosts without uv can use the documented Python 3.11+ stdlib fallback.
+Preview with `--dry-run`, then reuse those options to write. The helper copies the shipped
+templates, merges the language configuration, and refuses to overwrite an existing
+`.devcontainer/`. A safe explicit `--name` overrides manifest naming without needing to read
+an invalid inferred name. It does not validate that the project's build manifests are usable.
+
 ## Generated Files
 
 | File | Purpose |
@@ -56,12 +63,15 @@ devc destroy [-f]   Remove container, volumes, and image
 
 | Language | Detection | Configuration |
 |----------|-----------|---------------|
-| Python | `pyproject.toml`, `*.py` | Python 3.13 via uv (in Dockerfile) |
+| Python | root `pyproject.toml`, `requirements.txt`, `setup.py`; or `*.py` without a root package manifest | Python 3.13 via uv (overridable); container-owned environment for pyproject projects |
 | Node/TypeScript | `package.json`, `tsconfig.json` | Node 22 via fnm (in Dockerfile) |
 | Rust | `Cargo.toml` | Devcontainer feature |
-| Go | `go.mod` | Devcontainer feature |
+| Go | root `go.mod` or `go.sum` | Devcontainer feature; install only with `go.mod` |
 
-Multi-language projects automatically get all detected configurations merged.
+Multi-language projects get all root-package configurations merged. Preview with
+`scaffold.py --dry-run` before writing; nested monorepo packages need an explicit package root
+or custom working-directory configuration. Detection skips symlinks and reports unreadable
+directories. Existing configurations and host Python environments are preserved.
 
 ## Security Model
 
@@ -78,5 +88,6 @@ The devcontainer provides **filesystem isolation** with **network isolation** ca
 
 ## Reference Material
 
+- `references/languages.md` - Language detection, setup commands and overrides
 - `references/dockerfile-best-practices.md` - Docker optimization tips
 - `references/features-vs-dockerfile.md` - When to use features vs Dockerfile
