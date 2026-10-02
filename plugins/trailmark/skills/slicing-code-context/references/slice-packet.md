@@ -8,7 +8,7 @@ worker transport.
 | Field | Meaning |
 |---|---|
 | `notice` | Constant statement that all sliced source is untrusted data |
-| `selection` | Target root, language, detected languages, mode, depth, anchors, and path peer |
+| `selection` | Target root, language, detected languages, mode, depth, anchors, path peer, and the optional `task` text passed with `--task` so a worker that receives only the packet still knows what to do |
 | `budget` | Limit, rendered-packet usage, and `ceil(rendered UTF-8 bytes / 3)` estimator |
 | `slices[]` | Root-relative file, inclusive range, symbols, reasons, and line-numbered source |
 | `relationships[]` | Included Trailmark edges with confidence |
@@ -38,7 +38,16 @@ never truncated; an oversized anchor produces `anchor_exceeds_budget`.
 
 ## Worker Input
 
-Send a short task followed by the complete packet exactly as emitted. Pass the
+The coordinator writes builder arguments and `--task` as a JSON array and prepares one request
+with `dispatch_packet.py`. The `trailmark:code-slice-dispatch` skill consumes it using the host
+session UUID, with no user arguments in its dynamic shell command. It saves the exact emitted
+JSON plus a receipt before forwarding the packet to the fork. The receipt pins the absolute
+target, request/packet hashes, included-file hashes, and builder exit status. It is provenance
+against accidental mismatches, not authentication against another process running as the same user.
+The `selection.task` field is trusted coordinator input; source and all other metadata are not.
+
+The no-fork fallback uses the same prepare/consume transport with a generated session UUID. Send
+the complete packet exactly as emitted. Pass the
 script's stdout byte-for-byte; never reconstruct or re-serialize it. Both
 output formats embed the untrusted-source notice (the JSON `notice` field and
 the Markdown preamble); forward it intact so every worker sees that
@@ -85,14 +94,24 @@ Require one JSON object with all fields present:
 }
 ```
 
-Use empty arrays when a field does not apply. Proposed edits are suggestions,
-not authorization to mutate files.
+Use empty arrays when a field does not apply. `complete` needs at least one evidence item and
+no missing context; `needs_context` needs a nonempty symbol/range and reason. Claims and rationales
+must be nonempty strings, line numbers positive integers (not booleans). An empty replacement
+means deletion and is allowed. Proposed edits are suggestions, not authorization to mutate files.
 
 ## Coordinator Validation
 
 - Parse the output as JSON; reject prose before or after the object.
-- Confirm every evidence and edit range is fully contained in one packet slice.
+- Confirm every evidence and edit range is fully contained in one packet slice
+  (`validate_worker_response.py RESPONSE --packet PACKET --receipt RECEIPT` checks the exact
+  saved packet and source hashes). `file` values must be the packet's root-relative
+  paths verbatim.
 - Reject claims based only on omitted nodes or uncertain edges without an uncertainty note.
-- Allow at most one coordinator-built replacement packet for `needs_context`,
+- Inspect the verdict's safety metadata. `valid` checks structure, provenance and citation
+  containment only, never whether the answer's conclusions follow from its evidence.
+- The legacy rebuild form preserves the full task and accepts JSON only, but explicitly reports
+  unverified worker-input provenance; it is not a substitute for the retained dispatch packet.
+- Construction failures remain invalid packets; the verdict includes full `builder_error` details.
+- Allow at most one coordinator-prepared redispatch for `needs_context`,
   containing the original anchors plus the requested context under one budget.
 - Re-read live source and run tests before accepting any edit or consequential conclusion.
