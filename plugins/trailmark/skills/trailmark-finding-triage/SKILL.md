@@ -75,6 +75,36 @@ If there is no concrete code anchor, stop and ask for one.
 For input handling details, see
 [references/input-normalization.md](references/input-normalization.md).
 
+### Steps 2–4 in one call
+
+For file/line anchors, run the bundled script. It builds the graph and preanalysis once,
+binds every finding, and prints the Graph Evidence fields as JSON: all matching nodes and the
+primary (narrowest) one, entrypoint paths with each entrypoint's trust level, `tainted` /
+`entrypoint_reachable` / `privilege_boundary` / `high_blast_radius` membership, callers,
+callees, downstream nodes, and the Trailmark version. Pass several findings in one call rather
+than rebuilding the graph per finding.
+
+```bash
+uv run --no-project "{baseDir}/scripts/evidence_packet.py" --target <dir> --finding <file>:<line>[-<end>] --out evidence.json [--finding ...] [--language auto]
+```
+
+With `--out`, the complete packet stays on disk and stdout contains only delivery
+counts. Read relevant finding records from that file. Without `--out`, stdout is
+the full packet. Relative anchors may be target- or working-directory-relative;
+ambiguous existing paths are rejected. Choose `--path-base target` or `cwd`, or
+use an absolute path. Lines must be positive and ordered; column syntax is not
+supported. Containers cover module/class/contract declarations when no callable
+overlaps. Inspect `binding_kind`, all matches, unavailable signals and parser
+diagnostic limitations before judging the result. A zero-node graph is a failure.
+Batching shares graph work only: write a separate human verdict for each finding.
+
+A finding that binds to nothing comes back with `bound_node: null` and the reason. The
+script judges nothing: read the bound code and its callers, decide attacker control, and
+treat an empty path list as a limitation to explain (dynamic dispatch, proxies, missing
+entrypoint models), not as proof. Use the steps below for inputs the script does not take
+(function names, SARIF via `audit-augmentation`) and for queries it does not run
+(`connect_subgraphs`).
+
 ### Step 2: Build Or Reuse The Graph
 
 Use the public `trailmark` skill workflow. Prefer an existing fresh exported
