@@ -178,6 +178,8 @@ graph TB
     fuzzing-obstacles --> libfuzzer
     fuzzing-obstacles --> aflpp
     fuzzing-obstacles --> cargo-fuzz
+    fuzzing-obstacles --> libafl
+    fuzzing-obstacles --> ossfuzz
     ossfuzz --> libfuzzer
     ossfuzz --> aflpp
     ossfuzz --> cargo-fuzz
@@ -190,6 +192,9 @@ graph TB
     harness-writing --> fuzzing-obstacles
     fuzzing-dictionary --> coverage-analysis
     fuzzing-dictionary --> harness-writing
+    fuzzing-obstacles --> harness-writing
+    fuzzing-obstacles --> coverage-analysis
+    fuzzing-obstacles --> fuzzing-dictionary
     address-sanitizer --> coverage-analysis
     ossfuzz --> address-sanitizer
     ossfuzz --> coverage-analysis
