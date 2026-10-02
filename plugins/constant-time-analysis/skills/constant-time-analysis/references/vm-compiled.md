@@ -38,19 +38,19 @@ Bytecode (.class/.dll)
 
 ```bash
 # Java
-uv run {baseDir}/ct_analyzer/analyzer.py CryptoUtils.java
+uv run {baseDir}/../../ct_analyzer/analyzer.py CryptoUtils.java
 
 # C#
-uv run {baseDir}/ct_analyzer/analyzer.py CryptoUtils.cs
+uv run {baseDir}/../../ct_analyzer/analyzer.py CryptoUtils.cs
 
 # Include conditional branch warnings
-uv run {baseDir}/ct_analyzer/analyzer.py --warnings CryptoUtils.java
+uv run {baseDir}/../../ct_analyzer/analyzer.py --warnings CryptoUtils.java
 
 # Filter to specific methods
-uv run {baseDir}/ct_analyzer/analyzer.py --func 'sign|verify' CryptoUtils.java
+uv run {baseDir}/../../ct_analyzer/analyzer.py --func 'sign|verify' CryptoUtils.java
 
 # CI-friendly JSON output
-uv run {baseDir}/ct_analyzer/analyzer.py --json CryptoUtils.java
+uv run {baseDir}/../../ct_analyzer/analyzer.py --json CryptoUtils.java
 ```
 
 Note: The `--arch` and `--opt-level` flags do not apply to VM-compiled languages.
