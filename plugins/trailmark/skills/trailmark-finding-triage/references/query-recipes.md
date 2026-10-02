@@ -43,9 +43,14 @@ language, proxy, dynamic dispatch, or missing-entrypoint modeling gaps.
 ## Taint And Privilege Boundaries
 
 ```python
-tainted = node_id in set(engine.subgraph("tainted"))
-boundary = node_id in set(engine.subgraph("privilege_boundary"))
-entry_reachable = node_id in set(engine.subgraph("entrypoint_reachable"))
+# Trailmark 0.5 returns node dicts from subgraph(), so compare ids; `set(engine.subgraph(...))`
+# raises TypeError (unhashable dict). The helper also accepts plain id lists.
+def ids(name):
+    return {n["id"] if isinstance(n, dict) else n for n in engine.subgraph(name)}
+
+tainted = node_id in ids("tainted")
+boundary = node_id in ids("privilege_boundary")
+entry_reachable = node_id in ids("entrypoint_reachable")
 ```
 
 When `connect_subgraphs()` exists, use it to find paths from tainted nodes to
@@ -57,7 +62,7 @@ paths.
 ```python
 callers = engine.callers_of(node_id)
 callees = engine.callees_of(node_id)
-high_blast = node_id in set(engine.subgraph("high_blast_radius"))
+high_blast = node_id in ids("high_blast_radius")
 
 downstream = engine.reachable_from(node_id)
 ```
