@@ -71,6 +71,21 @@ const FAILURES = [];
 const ok = (cond, msg) => (cond ? PASS++ : FAILURES.push(msg));
 
 const SCENARIOS = {
+  "an explicit output directory stays consistent through the fresh build": async (src) => {
+    const outputDir = "/proj/chosen output";
+    const detect = { ...DETECT, outputDir, dbPath: `${outputDir}/codeql.db` };
+    const { out, prompts } = await run(src, {
+      args: JSON.stringify({ target: "/proj", out: outputDir, lang: "cpp" }), detect,
+    });
+    return [
+      [prompts.detect.includes(`Output directory: ${outputDir}`), "detect must receive the requested output"],
+      [prompts.detect.includes("Use the output directory given above"), "an explicit out must not allocate another default"],
+      [prompts["build:1"].includes(outputDir), "build must use the same output directory"],
+      [prompts.assess.includes(outputDir), "quality assessment must use that directory"],
+      [out && out.outputDir === outputDir && out.dbPath === detect.dbPath, "returned paths must agree"],
+    ];
+  },
+
   "a first-rung success stops the ladder": async (src) => {
     const { out, order } = await run(src, {});
     return [

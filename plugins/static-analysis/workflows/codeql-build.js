@@ -219,7 +219,7 @@ const detected = await agent(
     '   profile if the database cannot be built.',
     (input.out || '').trim()
       ? '4. Use the output directory given above. mkdir -p it and resolve it absolutely.'
-      : '4. Pick the output directory with the block under "Output Directory" in $SKILL_DIR/SKILL.md, leaving USER_SPECIFIED_DIR unset so it auto-increments. mkdir -p and resolve it absolutely.',
+      : '4. Run "$SKILL_DIR/scripts/resolve_output_dir.sh" with no arguments once. Use its returned absolute output path; do not allocate another directory.',
     '   Set dbPath to <outputDir>/codeql.db.',
     '',
     '5. Detect the language by counting source files, and report the CodeQL identifier for it',
