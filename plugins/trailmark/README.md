@@ -49,6 +49,16 @@ uv tool install trailmark
 # Python snippets: uv run --with trailmark python -   (a tool env is not importable)
 ```
 
+The `trailmark-summary` helper uses an existing trusted interpreter that already
+has Trailmark installed; it does not use the `uv run --with` snippet route above,
+resolve packages, or create a target environment. It inspects trusted launcher
+metadata and global Python candidates without running a target-local executable.
+For layouts it cannot discover (including copied Windows launchers), pass
+`--python=PATH` with the absolute path to the trusted installation's interpreter.
+Both the complete native summary text and API summary come from one graph in that
+installation. Python 3.11+ must already be available. Empty or unsupported targets
+return exit 2 with diagnostic JSON, including in an optional `--out` file.
+
 ## Skills
 
 | Skill | Description |
@@ -97,6 +107,7 @@ trailmark/
     ├── trailmark-finding-triage/      # Single-finding evidence packets
     ├── trailmark-variant-neighborhood/ # Variant candidate neighborhoods
     ├── trailmark-summary/            # Quick overview for vivisect/galvanize
+    │   └── scripts/summary.py        # Existing-installation summary collector
     └── trailmark-structural/         # Full structural analysis
 ```
 

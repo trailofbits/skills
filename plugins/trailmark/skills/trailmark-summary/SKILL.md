@@ -1,99 +1,50 @@
 ---
 name: trailmark-summary
-description: "Runs a Trailmark summary analysis on a codebase. Returns auto-detected languages, entry point count, and dependency list. Use when vivisect or galvanize needs a quick structural overview. Triggers: trailmark summary, code summary, structural overview."
+description: "Runs a Trailmark summary or code summary: detected languages, entrypoint count, and dependencies. Use for a quick structural overview, including vivisect or galvanize preparation."
 allowed-tools: Bash Read Grep Glob
 ---
 
 # Trailmark Summary
 
-Runs `trailmark analyze --language auto --summary` on a target directory.
-This is a v0.2-safe workflow; do not require Trailmark 0.4.0 just to produce a
-summary.
+Run the bundled helper on the target directory passed in `args`:
 
-## When to Use
+```bash
+uv run --no-project --no-python-downloads "{baseDir}/scripts/summary.py" "{args}"
+```
 
-- Vivisect Phase 0 needs a quick structural overview before decomposition
-- Galvanize Phase 1 needs detected languages and entry point count
-- Quick orientation on an unfamiliar codebase before deeper analysis
+If `{baseDir}` is left literal, use `"${CLAUDE_SKILL_DIR}/scripts/summary.py"`
+instead. When neither is supplied by the runtime, use the loaded skill's actual
+directory; do not search for or execute a helper inside the audit target.
 
-## When NOT to Use
+The helper finds an existing trusted Python installation, detects languages using
+the parse API (including its legacy location), and builds one graph. The installed
+Trailmark CLI's summary renderer and API both consume that graph, so the text,
+metadata and version come from the same installation. It never runs a project-local
+`trailmark` executable or `uv run` probe, installs packages, or creates a target `.venv`.
+Python 3.11+ must already be available. An optional `--out PATH` saves the complete JSON.
 
-- Full structural analysis with all passes needed (use `trailmark-structural`)
-- Detailed code graph queries (use the main `trailmark` skill directly)
-- You need hotspot scores or taint data (use `trailmark-structural`)
+Automatic discovery excludes executables inside the target or current directory.
+For a trusted installation in another layout, use `--python=PATH` with its absolute path.
+This explicitly opts into that interpreter: do not point it at an untrusted repository's
+environment. The native summary renderer must be available; report an unsupported API
+instead of fabricating summary fields. A failed `--out` write returns nonzero but keeps
+the computed JSON on stdout.
+
+Return `languages` and the complete `summary_text` without dropping any summary
+fields. Include `version` in the returned metadata when available; a missing
+version command is not a failure. `summary` also retains the complete API result
+for downstream consumers.
+
+If `languages` is empty, the helper exits 2 and preserves the diagnostic JSON on
+stdout and in `--out`. Report "Trailmark found no supported languages under
+target" and stop. Other helper failures return nonzero; report the installation or analysis error
+and stop. Do not install Trailmark or substitute manual analysis.
 
 ## Rationalizations to Reject
 
-| Rationalization | Why It's Wrong | Required Action |
-|-----------------|----------------|-----------------|
-| "I can read the code manually instead" | Manual reading misses parser-based language detection, dependency data, and entry point enumeration | Install and run trailmark |
-| "Language detection doesn't matter" | Wrong language selection produces empty or partial analysis | Use Trailmark's parser-based detection or `--language auto` |
-| "Partial output is good enough" | Missing any of the three required outputs (detected languages, entry points, dependencies) means incomplete analysis | Verify all three are present |
-| "Tool isn't installed, I'll skip it" | This skill exists specifically to run trailmark | Report the installation gap instead of skipping |
+- Manual reading does not replace parser-based language detection and enumeration.
+- Partial output omits required evidence: languages, entrypoints, and dependencies
+  must all be present. Report gaps instead of inventing values.
 
-## Usage
-
-The target directory is passed via the `args` parameter.
-
-## Execution
-
-**Step 1: Check that trailmark is available.**
-
-```bash
-trailmark analyze --help 2>/dev/null || \
-  uv run trailmark analyze --help 2>/dev/null
-```
-
-If neither command works, report "trailmark is not installed"
-and return. Do NOT run `pip install`, `uv pip install`,
-`git clone`, or any install command. The user must install
-trailmark themselves.
-
-Optionally record the version if the installed build supports it:
-
-```bash
-trailmark --version 2>/dev/null || uv run trailmark --version 2>/dev/null || true
-```
-
-Do not fail if the version command is missing; older v0.2.x builds may still
-support the summary workflow.
-
-**Step 2: Detect languages with Trailmark's parse API.**
-
-```bash
-python3 - "{args}" <<'PY'
-import json
-import sys
-
-try:
-    from trailmark.parse import detect_languages  # canonical location since 0.3.x
-except ModuleNotFoundError:
-    # v0.2.x predates trailmark.parse; the same function lives in query.api
-    from trailmark.query.api import detect_languages
-
-print(json.dumps(detect_languages(sys.argv[1])))
-PY
-```
-
-If the import fails, rerun the same snippet with `uv run --with trailmark python - "{args}"`.
-If the result is `[]`, report "Trailmark found no supported languages under
-target" and return.
-
-**Step 3: Run the summary with auto-detection.**
-
-```bash
-trailmark analyze --language auto --summary {args} 2>&1 || \
-  uv run trailmark analyze --language auto --summary {args} 2>&1
-```
-
-**Step 4: Verify the output.**
-
-The output must include ALL THREE of:
-1. Detected languages from Step 2
-2. `Entrypoints:` line from the summary output
-3. `Dependencies:` line from the summary output
-
-If any are missing, report the gap. Do not fabricate output.
-
-Return the detected language list plus the full Trailmark summary output.
-If a version string was available, include it in the returned metadata.
+Use `trailmark-structural` for all pre-analysis passes, hotspot scores, and taint
+data; use the main `trailmark` skill for targeted graph queries.
