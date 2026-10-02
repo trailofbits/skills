@@ -73,7 +73,7 @@ mechanically.
 
 Be precise about what it proves, though. It is a *skill-content* gate, not proof the
 linter ran. The codes are not secret — `references/style-guide.md` tabulates all nineteen,
-and `SKILL.md` names `E002` and `W009` in prose — so an agent could in principle map the
+and `SKILL.md` routes reviewers to that table — so an agent could in principle map the
 defects to codes by reading the reference and never invoke `yara_lint.py`. The 0/3 result
 when the Scripts section is removed is still real: with nothing pointing at the linter,
 runs did not go looking for the table either.
@@ -133,7 +133,8 @@ skips the comment guard below will score a false pass rather than fail loudly.
 - **`filesize` and magic-byte graders check that the pre-filter exists, not that it is
   well chosen.** They accept every notation the skill promotes — `500KB`, `2MB`,
   `400_000`, `0x80000`, a bare byte count of three digits or more — and both spellings of
-  the PE magic, `uint16(0) == 0x5A4D` and `uint16be(0) == 0x4D5A` (SKILL.md:63). SKILL.md
+  the PE magic, `uint16(0) == 0x5A4D` and `uint16be(0) == 0x4D5A` (the skill's
+  `references/platform-guidance.md`, Platform-specific rule decisions). That reference
   lists numeric underscores as a v1.5.0+ feature rather than recommending them as style,
   but agents emit the form, so the grader accepts it.
 
@@ -173,5 +174,10 @@ skips the comment guard below will score a false pass rather than fail loudly.
   kept only because it would catch a genuine regression into approving a bad rule. An
   earlier `ran-the-linter` grader was dropped outright: it regex-matched the script name in
   the reply, so it failed runs that had demonstrably run the linter but summarised without
-  naming the file. `reports-linter-codes` already proves execution, since the codes cannot
-  be guessed.
+  naming the file. `reports-linter-codes` measures reported codes, not execution;
+  they can be obtained from the public reference table. Inspect tool transcripts
+  when making an execution claim.
+
+The stored numbers above describe the historical skill, not the current repaired
+helper/procedure. Case 06 and automatic triggering have not been rerun for these
+repairs; deterministic script tests cannot replace those model evaluations.

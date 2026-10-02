@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -27,12 +28,21 @@ from yara_rules import extract_rule_names
 from yara_rules import rule_less_files
 
 
-def analyze_file(file_path: Path, *, verbose: bool = False) -> tuple[int, bool]:
+def analyze_file(
+    file_path: Path, *, verbose: bool = False, use_color: bool | None = None
+) -> tuple[int, bool]:
     """Analyze a YARA file and print results.
 
     Returns `(rules_analysed, failed)`. Whether analysing zero rules is an error
     is decided across the whole run in `main`, not here -- see `coverage_error`.
     """
+    if use_color is None:
+        use_color = sys.stdout.isatty() and "NO_COLOR" not in os.environ
+    red, yellow, blue, reset, bold = (
+        ("\033[91m", "\033[93m", "\033[94m", "\033[0m", "\033[1m")
+        if use_color
+        else ("", "", "", "", "")
+    )
     try:
         content = file_path.read_text()
     except OSError as e:
@@ -48,7 +58,7 @@ def analyze_file(file_path: Path, *, verbose: bool = False) -> tuple[int, bool]:
         # Keep going: the atom report is still useful, and yara_lint.py is where
         # compilation failures are meant to be reported. But a file that does not
         # compile must never be reported as clean, so `compiled` gates the ✓ below.
-        print(f"\033[91mYARA-X compilation error in {file_path}:\033[0m {e}", file=sys.stderr)
+        print(f"{red}YARA-X compilation error in {file_path}:{reset} {e}", file=sys.stderr)
         compiled = False
 
     has_issues = False
@@ -59,7 +69,7 @@ def analyze_file(file_path: Path, *, verbose: bool = False) -> tuple[int, bool]:
         analyses = list(analyze_rule(rule_name, content))
 
         if verbose or any(a.issues for a in analyses):
-            print(f"\n\033[1m{rule_name}\033[0m")
+            print(f"\n{bold}{rule_name}{reset}")
 
         for analysis in analyses:
             if not analysis.issues and not verbose:
@@ -72,9 +82,9 @@ def analyze_file(file_path: Path, *, verbose: bool = False) -> tuple[int, bool]:
                 print(f"  {analysis.string_id}: {analysis.byte_count} bytes{atom_info}")
 
             for issue in analysis.issues:
-                color = {"error": "\033[91m", "warning": "\033[93m"}.get(issue.severity, "\033[94m")
+                color = {"error": red, "warning": yellow}.get(issue.severity, blue)
                 print(
-                    f"    {color}{issue.severity.upper()}\033[0m {issue.string_id}: {issue.message}"
+                    f"    {color}{issue.severity.upper()}{reset} {issue.string_id}: {issue.message}"
                 )
                 if issue.suggestion:
                     print(f"           Suggestion: {issue.suggestion}")
@@ -97,6 +107,7 @@ def analyze_file(file_path: Path, *, verbose: bool = False) -> tuple[int, bool]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="YARA-X string atom quality analyzer")
     parser.add_argument("path", type=Path, help="YARA file or directory to analyze")
+    parser.add_argument("--no-color", action="store_true", help="Disable terminal colors")
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Show all strings, not just issues"
     )
@@ -110,7 +121,11 @@ def main() -> int:
     failed = False
     rule_counts: dict[str, int] = {}
     for yar_file in files:
-        rules, file_failed = analyze_file(yar_file, verbose=args.verbose)
+        rules, file_failed = analyze_file(
+            yar_file,
+            verbose=args.verbose,
+            use_color=not args.no_color and sys.stdout.isatty() and "NO_COLOR" not in os.environ,
+        )
         rule_counts[str(yar_file)] = rules
         failed = failed or file_failed
 
