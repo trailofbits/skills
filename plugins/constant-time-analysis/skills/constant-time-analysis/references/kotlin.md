@@ -32,16 +32,16 @@ Bytecode (.class files)
 
 ```bash
 # Analyze Kotlin source
-uv run {baseDir}/ct_analyzer/analyzer.py CryptoUtils.kt
+uv run {baseDir}/../../ct_analyzer/analyzer.py CryptoUtils.kt
 
 # Include conditional branch warnings
-uv run {baseDir}/ct_analyzer/analyzer.py --warnings CryptoUtils.kt
+uv run {baseDir}/../../ct_analyzer/analyzer.py --warnings CryptoUtils.kt
 
 # Filter to specific functions
-uv run {baseDir}/ct_analyzer/analyzer.py --func 'sign|verify' CryptoUtils.kt
+uv run {baseDir}/../../ct_analyzer/analyzer.py --func 'sign|verify' CryptoUtils.kt
 
 # CI-friendly JSON output
-uv run {baseDir}/ct_analyzer/analyzer.py --json CryptoUtils.kt
+uv run {baseDir}/../../ct_analyzer/analyzer.py --json CryptoUtils.kt
 ```
 
 Note: The `--arch` and `--opt-level` flags do not apply to Kotlin as it compiles to JVM bytecode.

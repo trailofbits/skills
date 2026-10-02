@@ -10,16 +10,16 @@ Analysis guidance for Python scripts. Uses the `dis` module to analyze CPython b
 
 ```bash
 # Analyze Python file
-uv run {baseDir}/ct_analyzer/analyzer.py crypto.py
+uv run {baseDir}/../../ct_analyzer/analyzer.py crypto.py
 
 # Include warning-level violations
-uv run {baseDir}/ct_analyzer/analyzer.py --warnings crypto.py
+uv run {baseDir}/../../ct_analyzer/analyzer.py --warnings crypto.py
 
 # Filter to specific functions
-uv run {baseDir}/ct_analyzer/analyzer.py --func 'encrypt|sign' crypto.py
+uv run {baseDir}/../../ct_analyzer/analyzer.py --func 'encrypt|sign' crypto.py
 
 # JSON output for CI
-uv run {baseDir}/ct_analyzer/analyzer.py --json crypto.py
+uv run {baseDir}/../../ct_analyzer/analyzer.py --json crypto.py
 ```
 
 ## Dangerous Operations
