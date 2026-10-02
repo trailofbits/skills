@@ -77,8 +77,21 @@ def test_machine_assessment_is_not_changed_by_reviewers() -> None:
 
 def test_workflow_carries_evidence_scope_and_check_contracts() -> None:
     text = source()
-    assert "--evidence-level source" in text
+    assert "'--evidence-level', 'source'" in text
     assert "evidenceLevel: execution.evidenceLevel" in text
     assert "Exploit and variant assertions must" in text
     assert "liveness, exact error type, timing, and compatibility" in text
     assert "Preserve the scaffolded submodules list" in text
+
+
+def test_workflow_routes_mechanical_phases_to_haiku_and_keeps_four_lenses() -> None:
+    text = source()
+    for key in ("root-cause", "behavior", "adjacent-security", "harness"):
+        assert f"key: '{key}'" in text
+    assert text.count("key: '") == 6  # four coverage lenses and two independent reviews
+    assert text.count("model: 'haiku', effort: 'low'") == 2  # inventory and execute only
+    assert "model: 'sonnet'" not in text  # judgement phases keep the session's model and effort
+    assert "git diff -U3" in text
+    assert "verify_evidence.py" in text
+    assert "evidenceVerified" in text
+    assert "JSON.stringify(inventoryArgv)" in text and "JSON.stringify(executionArgv)" in text

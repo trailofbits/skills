@@ -128,9 +128,10 @@ const ASSESSMENT_SCHEMA = {
 const EXECUTION_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['hasResult'],
+  required: ['hasResult', 'evidenceVerified'],
   properties: {
     hasResult: { type: 'boolean' },
+    evidenceVerified: { type: 'boolean' },
     blocker: { type: 'string' },
     resultPath: { type: 'string' },
     reportPath: { type: 'string' },
@@ -208,25 +209,30 @@ if (problems.length) {
 
 phase('Inventory')
 
-const patchOption = input.patchFile
-  ? `--patch-file ${JSON.stringify(input.patchFile)}`
-  : `--patched-ref ${JSON.stringify(input.patchRef)}`
+// Exact argv arrays for the two mechanical phases: the agent only replaces two placeholders and
+// copies back what the script printed, so it runs on Haiku at low effort.
+const inventoryArgv = [
+  'uv', 'run', '{baseDir}/scripts/post_patch_validation.py', 'scaffold', '--repo', '.',
+  '--base-ref', input.baseRef,
+  ...(input.patchFile ? ['--patch-file', input.patchFile] : ['--patched-ref', input.patchRef]),
+  '--finding-id', '<stable finding ID>', '--finding-summary', '<root cause and impact>',
+  '--evidence-level', 'source', '--output', `${input.workdir}/plan.json`,
+]
 
 const inventory = await agent(
   `Load the post-patch-validation skill and perform only its scaffold step in the current Git
 repository. This is a local validation; do not use the network and do not modify tracked project
 files. Read the finding if it is a path, reduce it to one root-cause-and-impact sentence, and run
-the bundled Python script with these inputs:
+the bundled Python script. Run exactly this argv array after replacing the two angle-bracket
+placeholders from the finding; do not use pipes, shell strings, or chained operators:
 
-  finding: ${input.finding}
-  base ref: ${input.baseRef}
-  patch option: ${patchOption}
-  scaffold flag: --evidence-level source
-  plan path: ${input.workdir}/plan.json
+${JSON.stringify(inventoryArgv)}
 
-Use the finding's stable ID when one exists; otherwise use "patch-finding". Run one command at a
-time with no pipes or chained shell operators. Return the values printed by scaffold.`,
-  { schema: INVENTORY_SCHEMA, label: 'inventory', phase: 'Inventory' },
+The finding is: ${input.finding}
+
+Use the finding's stable ID when one exists; otherwise use "patch-finding". Return the values
+printed by scaffold.`,
+  { schema: INVENTORY_SCHEMA, label: 'inventory', phase: 'Inventory', model: 'haiku', effort: 'low' },
 )
 
 if (!inventory) {
@@ -265,8 +271,10 @@ const LENSES = [
 const proposals = await parallel(
   LENSES.map(lens => () =>
     agent(
-      `Read the finding, the pinned plan at ${inventory.planPath}, the changed files, and both Git
-revisions without checking either revision out over the user's working tree. Work read-only.
+      `Read the finding, the pinned plan at ${inventory.planPath}, the changed-file names, and the
+relevant ${input.baseRef}...${input.patchRef || 'patch'} hunks with git diff -U3. Read adjacent
+source only when a hunk identifies it. Do not check either revision out over the user's working
+tree. Work read-only.
 
 Your coverage lens is ${lens.key}: ${lens.brief}
 
@@ -337,31 +345,40 @@ if (!planned || !planned.complete) {
 
 phase('Execute')
 
-const allowEnvFlags = (Array.isArray(planned.allowEnv) ? planned.allowEnv : [])
+const allowEnvArgv = (Array.isArray(planned.allowEnv) ? planned.allowEnv : [])
   .filter(name => /^[A-Za-z_][A-Za-z0-9_]*$/.test(name))
-  .map(name => `--allow-env ${name}`)
-  .join(' ')
+  .flatMap(name => ['--allow-env', name])
+const executionArgv = [
+  'uv', 'run', '{baseDir}/scripts/post_patch_validation.py', 'run', '--plan', planned.planPath,
+  '--output', `${input.workdir}/results`, ...allowEnvArgv,
+]
+const verifyArgv = [
+  'uv', 'run', '{baseDir}/scripts/verify_evidence.py', '--results', `${input.workdir}/results`,
+]
 
 const execution = await agent(
-  `Load the post-patch-validation skill and execute its Python runner exactly once:
+  `Load the post-patch-validation skill. Run the evidence runner exactly once using this argv array;
+then run the deterministic verifier using the second argv array. Do not use pipes, shell strings,
+or chained operators:
 
-  plan: ${planned.planPath}
-  output: ${input.workdir}/results
-  extra flags: ${allowEnvFlags || '(none)'}
+runner: ${JSON.stringify(executionArgv)}
+verifier: ${JSON.stringify(verifyArgv)}
 
 The runner exits 0 for complete checks without findings, 1 for complete checks with findings,
 10 for incomplete validation, and 64 for invalid inputs. An incomplete result can still contain
 supported findings. A nonzero Bash result is not a reason to rerun it. Read result.json and return
 hasResult=true with its exact assessment object, evidence level, and artifact paths. Preserve
-every finding and gap. If the runner produced no result artifact, return hasResult=false with
-its error as blocker. Do not invent an assessment for a run that did not produce one.
+every finding and gap. Set evidenceVerified=true only when the verifier exits 0. If the runner
+produced no result artifact or the verifier failed, return hasResult=false with its error as blocker.
+Do not invent an assessment for a run that did not produce one.
 Do not edit the plan, patch, checks, or result.`,
-  { schema: EXECUTION_SCHEMA, label: 'execute', phase: 'Execute' },
+  { schema: EXECUTION_SCHEMA, label: 'execute', phase: 'Execute', model: 'haiku', effort: 'low' },
 )
 
 if (
   !execution || !execution.hasResult || !execution.assessment ||
-  !execution.resultPath || !execution.reportPath || !execution.evidenceLevel
+  !execution.resultPath || !execution.reportPath || !execution.evidenceLevel ||
+  !execution.evidenceVerified
 ) {
   return {
     status: 'BLOCKED',
@@ -382,7 +399,7 @@ const REVIEW_LENSES = [
   {
     key: 'evidence-integrity',
     brief:
-      'Read result.json, patch.diff, plan.snapshot.json, the raw logs, and every content-addressed helper artifact referenced by each run\'s argv_files (including scripts passed to interpreters, not only argv[0]). Verify the recorded hashes, and reject a relevant helper whose argv_files record has no artifact. Reject mocks, reimplemented vulnerable logic, a test that never invokes real project code, empty output, a harness that prints the marker without exercising the vulnerable path, or commands whose observations do not support their declared kind.',
+      'Read result.json, patch.diff, plan.snapshot.json, the raw logs, and the relevant content-addressed helper artifacts referenced by argv_files (including scripts passed to interpreters, not only argv[0]). verify_evidence.py has already confirmed that archived bytes match the recorded hashes: judge only whether a helper is a mock, reimplements vulnerable logic, never invokes real project code, has empty output, prints the marker without exercising the vulnerable path, or does not support its declared check kind. A relevant helper whose argv_files record has no artifact is a concern.',
   },
 ]
 
