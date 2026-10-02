@@ -12,4 +12,4 @@ line-length = 100
 target-version = "py312"
 
 [tool.pytest.ini_options]
-testpaths = ["test_build_slice_packet.py"]
+testpaths = ["."]
