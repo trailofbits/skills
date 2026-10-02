@@ -138,18 +138,18 @@ Classify structural findings by security impact:
 
 | Severity | Criteria |
 |----------|----------|
-| **CRITICAL** | New tainted path to sensitive function, removed auth boundary |
-| **HIGH** | New entrypoint + high blast radius, CC increase > 10 on tainted node |
+| **CRITICAL** | Source-confirmed exploitable impact, such as removal of effective authorization; not graph structure alone |
+| **HIGH** | New untrusted entrypoint or newly reachable sensitive-name node; CC increase > 3 on a tainted node (review proposals) |
 | **MEDIUM** | New call edges crossing trust boundaries, moderate CC increase |
 | **LOW** | Added nodes without entrypoint reachability, cosmetic changes |
 | **INFO** | Dead code removal, complexity reductions, positive changes |
 
 ---
 
-## Example: Critical Finding
+## Example: Structural Review Candidate
 
 ```markdown
-### [CRITICAL] New untrusted path to database query
+### [HIGH] New untrusted path to database query
 
 **What changed:** Function `parse_user_input` (added) calls
 `execute_query` (existing, tainted). This edge did not exist in the
@@ -161,8 +161,9 @@ before snapshot.
 - `parse_user_input` is in `tainted` subgraph
 - `parse_user_input` CC = 12 (above fuzzing threshold)
 
-**Security impact:** Untrusted external input can now reach database
-query execution through a complex, high-blast-radius path.
+**Security impact:** The call graph now connects an untrusted entrypoint to
+query execution. Inspect argument flow and query construction before claiming
+attacker control or exploitability; the graph alone does not prove either.
 
 **Recommendation:**
 1. Verify input validation on `parse_user_input`
