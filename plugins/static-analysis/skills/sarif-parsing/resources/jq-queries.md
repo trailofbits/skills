@@ -18,15 +18,19 @@ on `ruleIndex` when the tool populates it, on `ruleId` when it does not.
 LEVEL_FN='
   def rule($run):
     . as $r
-    | ($run.tool.driver.rules // []) as $rules
-    | (if ($r.ruleIndex | type) == "number" and $r.ruleIndex >= 0
+    | (($run.tool.driver.rules // $run.resources.rules // [])
+       | if type == "object" then to_entries | map(.value + {id: (.value.id // .key)}) else . end) as $rules
+    | (if ($r.ruleIndex | type) == "number" and $r.ruleIndex >= 0 and $r.ruleIndex == ($r.ruleIndex | floor)
        then $rules[$r.ruleIndex] else null end)
       // first($rules[] | select(.id == $r.ruleId))
       // null;
   def level($run):
     . as $r
     | if ($r.kind // "fail") != "fail" then "none"
-      else ($r.level // rule($run).defaultConfiguration.level // "warning") end;
+      else ($r.level // rule($run).defaultConfiguration.level // rule($run).configuration.defaultLevel // "warning") end;
+  if (.runs | type) != "array" then error("incomplete scan: missing runs")
+  elif any(.runs[]; (.results | type) != "array" or any(.invocations[]?; .executionSuccessful == false))
+  then error("failed or incomplete scan") else . end |
 '
 
 # Severity of every result, whichever way the tool recorded it

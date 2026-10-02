@@ -41,10 +41,13 @@ Use this plugin when you need to:
 - CI/CD integration with baseline scanning
 
 ### SARIF Parsing
-- Understand SARIF 2.1.0 structure
+- Process SARIF 2.1.0 and supported legacy 2.0 rule layouts
 - Resolve a result's severity from the rule it inherits it from, which CodeQL relies on
 - Quick analysis using jq for CLI queries
-- Python scripting with pysarif and sarif-tools
+- Bundled standard-library Python CLI: summary, filter, dedupe, diff, and CSV
+- Use `uv run --no-project skills/sarif-parsing/resources/sarif_helpers.py --help` from this plugin
+- Failed/incomplete scans exit nonzero; dedupe/diff previews show severity and omitted counts
+- A jq-dependent Read hook blocks raw `*.sarif`/`*.sarif.json` files over 200 KiB
 - Aggregate and deduplicate results from multiple files
 - CI/CD integration patterns
 
