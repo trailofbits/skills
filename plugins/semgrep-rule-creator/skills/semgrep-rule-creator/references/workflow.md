@@ -6,7 +6,7 @@ Detailed workflow for creating production-quality Semgrep rules.
 
 Before writing any code:
 
-1. **Fetch external documentation**: See [Documentation](../SKILL.md#documentation) for required reading
+1. **Resolve syntax questions as needed**: Follow the main skill's reference routing for syntax and advanced features.
 2. **Understand the exact bug pattern and explain the bug for a junior developer**: What vulnerability, issue or pattern should be detected?
 3. **Identify the target language**: What is specific about the bug and that language?
 4. **Determine the approach**:
@@ -25,7 +25,7 @@ Taint mode is a powerful feature in Semgrep that can track the flow of data from
 
 **Why test-first?** Writing tests before the rule forces you to think about both vulnerable AND safe cases. Rules written without tests often have hidden false positives (matching safe cases) or false negatives (missing vulnerable variants). Tests make these visible immediately.
 
-Create directory and test file with annotations (`# ruleid:`, `# ok:` only). See [quick-reference.md]({baseDir}/references/quick-reference.md#test-file-annotations) for full syntax.
+Create directory and test file with annotations (`# ruleid:`, `# ok:` only), using the syntax reference linked from the main skill when needed.
 
 ### Directory Structure
 
@@ -50,7 +50,10 @@ You must include test cases for:
 - Unrelated code (must not match) - normal code with no relation to the rule's target pattern
 - Nested structures (e.g., inside if statements, loops, try/catch blocks, callbacks)
 
-## Step 3: Analyze AST Structure
+## Step 3: Inspect the AST When Needed
+
+Dump the AST when syntax is uncertain or a match has an unexpected shape; an already-understood
+simple pattern does not need a separate AST inspection.
 
 **Why analyze AST?** Semgrep matches against the AST, not raw text. Code that looks similar may parse differently (e.g., `foo.bar()` vs `foo().bar`). The AST dump shows exactly what Semgrep sees, preventing patterns that fail due to unexpected tree structure. Understanding how exactly Semgrep parses code is crucial for writing precise patterns.
 
@@ -67,7 +70,7 @@ Example output helps understand:
 
 Choose the appropriate pattern operators and write the rule.
 
-For pattern operator syntax (basic matching, scope operators, metavariable filters, focus), see [quick-reference.md](quick-reference.md).
+Use the main skill's quick reference for pattern operators, scope, metavariables, and focus.
 
 ### Validate and Test
 
@@ -78,6 +81,9 @@ semgrep --validate --config <rule-id>.yaml
 ```
 
 #### Run Tests
+
+Validation can contact the registry for lint rules. If network/authentication prevents validation,
+keep the diagnostic and report the check as blocked, even if local matching tests succeed.
 
 ```bash
 cd <rule-directory>
@@ -91,6 +97,11 @@ semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
 ```
 
 #### Debug Failures
+
+Require at least one positive and one negative annotation for the actual rule ID and a nonzero
+graded test count. Exit 0 with "No unit tests found" is not a passing suite. As a control, test a
+temporary deliberately nonmatching rule copy: it must fail on the positive cases. Do not ship
+the control or weaken expectations to make it pass.
 
 If tests fail, check:
 1. **Missed lines**: Rule didn't match when it should
@@ -126,13 +137,9 @@ For debugging taint mode rules:
 semgrep --dataflow-traces --config <rule-id>.yaml <rule-id>.<ext>
 ```
 
-**Verification checkpoint**: Output MUST show "All tests passed". **Only proceed when validation passes**.
-
-
-**Verification checkpoint**: Proceed to Step 6: Optimize the Rule when:
-- "All tests passed"
-- No "missed lines" (false negatives)
-- No "incorrect lines" (false positives)
+Proceed after nonzero tests pass with no missed or incorrect lines. If taint mode or pattern
+matching cannot express the required distinction, switch approaches and rerun all cases.
+Keep engine/language limitations explicit; changing modes does not justify dropping coverage.
 
 ### Common Fixes
 
@@ -143,6 +150,10 @@ semgrep --dataflow-traces --config <rule-id>.yaml <rule-id>.<ext>
 | Wrong line matched | Adjust `focus-metavariable` |
 | Taint not flowing | Check sanitizers aren't too broad |
 | Taint false positive | Add sanitizer pattern |
+
+Avoid solving a broad match by hard-coding one sample. For example, `pattern: $F(...)` also
+matches safe calls, while `pattern: subprocess.run("curl example.test", shell=True)` misses other
+commands. Match the dangerous API/option and test varied arguments plus `shell=False` controls.
 
 ## Step 6: Optimize the Rule
 
@@ -232,6 +243,9 @@ semgrep --test --config <rule-id>.yaml <rule-id>.<ext>
 
 ## Step 7: Final Run
 Run the Semgrep rule you created using: `semgrep --config <rule-id>.yaml <rule-id>.<ext>`.
+
+Compare the complete finding set with annotated positive lines, with no matches on negative
+lines. Do not validate only the total finding count.
 
 Ensure that message:
  1. Contains a short and concise explanation of the matched pattern

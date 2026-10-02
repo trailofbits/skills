@@ -1,0 +1,6 @@
+rules:
+  - id: code-quality
+    languages: [python]
+    severity: WARNING
+    message: Use the application logger instead of print.
+    pattern: print(...)

@@ -1,0 +1,14 @@
+rules:
+  - id: propagation
+    languages: [python]
+    severity: ERROR
+    message: Unchecked value in collection reaches consume.
+    mode: taint
+    pattern-sources:
+      - pattern: source()
+    pattern-propagators:
+      - pattern: $COLLECTION.add($VALUE)
+        from: $VALUE
+        to: $COLLECTION
+    pattern-sinks:
+      - pattern: consume(...)
