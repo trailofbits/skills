@@ -1,0 +1,18 @@
+rules:
+  - id: side-effects
+    languages: [python]
+    severity: ERROR
+    message: Unchecked value reaches consume.
+    mode: taint
+    pattern-sources:
+      - patterns:
+          - pattern: populate($X)
+          - focus-metavariable: $X
+        by-side-effect: true
+    pattern-sanitizers:
+      - patterns:
+          - pattern: validate_or_raise($X)
+          - focus-metavariable: $X
+        by-side-effect: true
+    pattern-sinks:
+      - pattern: consume(...)

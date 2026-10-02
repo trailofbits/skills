@@ -1,6 +1,6 @@
 # Semgrep Rule Creator
 
-Create production-quality Semgrep rules for detecting bug patterns and security vulnerabilities.
+Create production-quality Semgrep rules for bugs, security, code quality, and coding standards.
 
 **Author:** Maciej Domanski
 
@@ -23,7 +23,7 @@ Use this skill when you need to:
 - Guides test-driven rule development (write tests first, then iterate)
 - Analyzes AST structure to help craft precise patterns
 - Supports both taint mode (data flow) and pattern matching approaches
-- Includes comprehensive reference documentation from Semgrep docs
+- Routes advanced taint questions to the relevant official documentation
 - Provides common vulnerability patterns by language
 
 ## Prerequisites
@@ -44,5 +44,5 @@ Then run `/semgrep-rule-creator:semgrep-rule` to walk through building a rule.
 ## Related Skills
 
 - `semgrep-rule-variant-creator` - Port existing Semgrep rules to new target languages
-- `static-analysis` - General static analysis toolkit with Semgrep, CodeQL, and SARIF parsing
+- `semgrep` in the `static-analysis` plugin - Run existing Semgrep rulesets
 - `variant-analysis` - Find similar vulnerabilities across codebases

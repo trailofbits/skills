@@ -1,0 +1,15 @@
+rules:
+  - id: labels
+    languages: [python]
+    severity: ERROR
+    message: Input transformed into query text reaches consume.
+    mode: taint
+    pattern-sources:
+      - pattern: source()
+        label: INPUT
+      - pattern: as_query(...)
+        requires: INPUT
+        label: QUERY
+    pattern-sinks:
+      - pattern: consume(...)
+        requires: QUERY
