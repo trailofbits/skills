@@ -60,13 +60,37 @@ Guides authoring of YARA-X rules for malware detection with expert judgment.
 
 ## Scripts
 
-Two Python scripts under `skills/yara-rule-authoring/scripts/`, run with `uv`. Both
-accept a file or a directory, and both exit non-zero if the path yields no rules to
-inspect rather than reporting a clean run over nothing.
+The Bash review helper runs the two Python checkers plus the YARA-X CLI. The
+Python commands are documented separately below.
+
+### review.sh
+
+Run syntax, formatting, lint, and atom checks together without modifying the rules:
+
+```bash
+review_dir=$(mktemp -d)
+printf 'Review output directory: %s\n' "$review_dir"
+bash skills/yara-rule-authoring/scripts/review.sh rules/ > "$review_dir/review.json"
+```
+
+Run that checkout-relative command from the plugin root, or use the skill's
+`{baseDir}`-qualified command. Pass a single rule file instead of `rules/` when needed.
+
+The helper requires Bash and `jq` 1.6+ in addition to `uv` and the `yr` CLI. It checks
+directories recursively and emits each command's exit status and complete combined
+stdout/stderr in a JSON **string** per check, not a nested lint JSON object. Do not
+parse an `output` string as JSON: it can include compiler errors or other diagnostics.
+A failed check makes the helper exit non-zero after writing
+the report; missing, unreadable or empty inputs give all four checks explicit not-run
+statuses. Missing/old jq exits 2 before JSON can be produced. Directory recursion was
+integration-tested with YARA-X 1.20.0; older versions must support `--recursive` on
+both `check` and `fmt`. The individual commands below remain
+available for focused checks and their existing options.
 
 ### yara_lint.py
 
-Compiles each rule with YARA-X, then checks style, metadata, and anti-patterns.
+The two Python scripts accept a file or directory and fail if no rules are inspected.
+The linter compiles each rule with YARA-X, then checks style, metadata, and anti-patterns.
 See [style-guide.md](skills/yara-rule-authoring/references/style-guide.md#linter-error-codes)
 for the full code table.
 
@@ -83,10 +107,14 @@ Evaluates string quality for efficient atom extraction:
 ```bash
 uv run skills/yara-rule-authoring/scripts/atom_analyzer.py rule.yar
 uv run skills/yara-rule-authoring/scripts/atom_analyzer.py --verbose rule.yar
+uv run skills/yara-rule-authoring/scripts/atom_analyzer.py --no-color rule.yar
 ```
 
 Both import `yara_rules.py`, a dependency-free module holding the parsing and
 analysis logic. `test_yara_rules.py` covers it; `make python-tests` picks it up.
+Redirected atom reports omit terminal color automatically; `--no-color` and
+`NO_COLOR` also disable it. Historical bundled examples are not deployment-ready
+templates; see [their current review notes](skills/yara-rule-authoring/references/example-review.md).
 
 ## Reference Documentation
 
@@ -109,8 +137,12 @@ analysis logic. `test_yara_rules.py` covers it; `make python-tests` picks it up.
 ## Requirements
 
 - Python 3.11+
+- Bash and jq 1.6+ for the combined review helper
 - [uv](https://github.com/astral-sh/uv) for running scripts
 - [YARA-X](https://virustotal.github.io/yara-x/) CLI (`yr`)
+
+The real review integration tests require all these tools; missing prerequisites
+are test failures, not silent skips. No malware download or execution is needed.
 
 The scripts use PEP 723 inline metadata, so dependencies are resolved automatically by `uv run`.
 

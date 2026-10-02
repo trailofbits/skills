@@ -294,7 +294,7 @@
     },
     {
       "name": "yara-authoring",
-      "version": "2.1.3",
+      "version": "2.2.0",
       "description": "YARA-X detection rule authoring with linting and quality analysis",
       "author": {
         "name": "Trail of Bits",
