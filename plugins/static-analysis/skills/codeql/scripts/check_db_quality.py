@@ -348,6 +348,17 @@ def main(argv: list[str] | None = None) -> int:
         metrics = assess(args.database, args.max_error_ratio)
     except QualityFailure as error:
         print(f"ERROR: {error}", file=sys.stderr)
+        if args.format == "json":
+            print(
+                json.dumps(
+                    {
+                        "status": "failed",
+                        "error": str(error),
+                        "exit_code": error.exit_code,
+                        "max_error_ratio": args.max_error_ratio,
+                    }
+                )
+            )
         return error.exit_code
 
     if args.format == "json":

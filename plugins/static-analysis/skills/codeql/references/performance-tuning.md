@@ -12,7 +12,11 @@ variable in MB; the other two are flags.
 | | `32000`–`64000` | Large, 1M+ LoC |
 | `--threads` | `0` | Use every core — the default choice |
 | | `8` | Shared machine; leave headroom for other work |
-| `--timeout` | `600000` | Milliseconds. Ten minutes catches a runaway query without killing legitimate deep taint tracking |
+| `--timeout` | `600` | Seconds. Limits query-evaluation work, not the total scan's wall-clock time |
+
+The timeout uses seconds, as documented by `codeql database analyze --help -v` and the
+[CodeQL CLI manual](https://docs.github.com/code-security/codeql-cli/manual/database-analyze).
+It is not a campaign spending limit; some queries contain separately timed evaluation phases.
 
 ## Evaluator Diagnostics
 
