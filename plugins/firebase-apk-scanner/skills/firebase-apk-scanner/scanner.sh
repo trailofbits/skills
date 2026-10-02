@@ -1208,7 +1208,8 @@ process_apk() {
     echo "$apk_vulns" | tr ' ' '\n' | grep -v '^$' >"${apk_result_dir}/vulnerabilities.txt"
     local vuln_count
     vuln_count=$(echo "$apk_vulns" | wc -w | tr -d ' ')
-    log_vuln "APK IS VULNERABLE: $apk_name ($vuln_count issues)"
+    # This summarizes findings already counted by their individual checks.
+    log_error "APK IS VULNERABLE: $apk_name ($vuln_count issues)"
   else
     echo "SECURE" >"${apk_result_dir}/status.txt"
     log_success "APK appears secure: $apk_name"
