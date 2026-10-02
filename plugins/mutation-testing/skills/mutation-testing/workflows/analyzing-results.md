@@ -43,7 +43,7 @@ This workflow is tool-agnostic and language-agnostic. It is used together with t
 2. Confirm it is mutation testing output — expect file paths, line numbers, and a status field.
 3. Extract each surviving mutant: file path, line number, original code, mutated code, mutation operator if available. Filter to surviving/uncaught status only.
 
-For mewt/muton projects, `mewt results --format json` gives uncaught mutants directly.
+For mewt/muton projects, run the skill's `scripts/survivors.py` (`uv run <skill dir>/scripts/survivors.py --results <results.json> --status <status.txt>`, or with no flags inside the campaign directory, where it calls `mewt results --format json` and `mewt status` itself). It lists every uncaught mutant with id, slug, 1-based line range, original and mutated text and the tests that passed against it, plus the campaign totals and the test files, so the results JSON does not need to be read. Do not re-derive line numbers from `line_offset` (it is 0-based).
 
 **Exit:** Structured list of surviving mutants.
 
@@ -53,7 +53,7 @@ For mewt/muton projects, `mewt results --format json` gives uncaught mutants dir
 
 **Entry:** Phase 1 complete.
 
-Group mutants by source file to batch Read calls, then read each mutation site and establish: what the code does, the types involved, whether the code is reachable, and whether it is security-sensitive, financial, business logic, or observability.
+When `survivors.py` was used, its numbered source windows and test files are the context: Read further only where a function extends past a window or a test file is marked "not shown". Otherwise, group mutants by source file to batch Read calls and read each mutation site. Either way, establish: what the code does, the types involved, whether the code is reachable, and whether it is security-sensitive, financial, business logic, or observability.
 
 **Exit:** Context gathered for every mutant.
 
