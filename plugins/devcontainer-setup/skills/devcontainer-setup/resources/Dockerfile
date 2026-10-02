@@ -86,8 +86,11 @@ RUN uv tool install ast-grep-cli
 
 # Install fnm (Fast Node Manager) and Node 22
 ARG NODE_VERSION=22
+# Pin fnm rather than taking its installer's default of "latest", matching the
+# versioned installs above. The installer's --release flag selects the tag.
+ARG FNM_VERSION=1.39.0
 ENV FNM_DIR="/home/vscode/.fnm"
-RUN curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "$FNM_DIR" --skip-shell && \
+RUN curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "$FNM_DIR" --skip-shell --release "v${FNM_VERSION}" && \
   export PATH="$FNM_DIR:$PATH" && \
   eval "$(fnm env)" && \
   fnm install ${NODE_VERSION} && \
