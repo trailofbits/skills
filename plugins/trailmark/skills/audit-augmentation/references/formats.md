@@ -119,3 +119,35 @@ root
 weAudit uses **0-indexed** line numbers. Trailmark uses **1-indexed** (from
 tree-sitter). The augmentation module adds 1 to both `startLine` and `endLine`
 during conversion.
+
+## Paths and combining inputs
+
+Use the same source root for every input. SARIF `artifactLocation.uri` and
+weAudit `locations[].path` must identify files under that root; inspect unmatched
+counts before interpreting missing intersections. URI bases and encoded paths
+must be resolved using the producing tool's SARIF conventions, not by blindly
+stripping prefixes.
+Trailmark's normal matching supports relative paths, absolute paths and `file://`
+URIs. It selects nodes by path and line overlap, preferring the tightest span.
+
+To combine SARIF files, concatenate their complete `runs` arrays. Keep each run's
+tool/rules/artifacts tables with its results so `ruleIndex` and artifact indices
+remain valid. Do not concatenate results across different rule tables.
+
+For weAudit, concatenate `treeEntries` and `resolvedEntries` only after reconciling
+source roots. Preserve each entry's author (including authors previously inferred
+from `clientRemote`) and all details and locations. Do not overwrite earlier entries.
+
+For several binary graphs, call `engine.augment_binary(path)` for each on the same
+engine after pre-analysis. The format has `artifact`, `functions`, and `calls`:
+
+```json
+{"artifact": {"name": "program"}, "functions": [{"symbol": "parse", "source": {"file": "src/parser.py", "line": 10}}], "calls": []}
+```
+
+Use `engine.findings()` and `engine.annotations_of(node_id)` on that same engine
+to inspect full messages, severities, sources and locations. A compact intersection
+is not a replacement for those annotations when writing an audit finding.
+Annotations carry `kind` (`finding` or `audit_note`), a source such as
+`sarif:<tool>` or `weaudit:<author>`, and a compact description such as
+`[SEVERITY] rule-id: message (tool)`. Preserve the full description when reporting evidence.
