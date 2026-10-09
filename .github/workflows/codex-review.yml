@@ -1,0 +1,114 @@
+name: Codex PR Review
+
+# Base-owned workflow, prompt and publisher; PR commits are read only as git blobs.
+# Maintainers can comment @codex review or manually apply deep-review. No label writes.
+# These privileged triggers load only base-owned code; heads remain git objects.
+# Analysis has no write permissions, and a separate deterministic job owns posting.
+on: # zizmor: ignore[dangerous-triggers]
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, labeled]
+  issue_comment:
+    types: [created]
+
+permissions: {}
+concurrency:
+  # Unauthenticated comment/label events must not cancel an automatic review.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number }}-${{ (github.event_name == 'issue_comment' || github.event.action == 'labeled') && github.run_id || 'fast' }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Prepare review
+    if: >-
+      (github.event_name == 'pull_request_target'
+       && github.event.pull_request.draft == false
+       && github.event.pull_request.head.repo.fork == false
+       && github.event.pull_request.head.repo.full_name == github.repository
+       && (github.event.action != 'labeled' || github.event.label.name == 'deep-review'))
+      || (github.event_name == 'issue_comment' && github.event.issue.pull_request
+          && github.event.comment.body == '@codex review')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ready: ${{ steps.prepare.outputs.ready }}
+      mode: ${{ steps.prepare.outputs.mode }}
+      context: ${{ steps.prepare.outputs.context }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # issue_comment's github.sha is the trusted default-branch commit.
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/codex_review.py prepare
+
+  analyze:
+    name: Analyze review
+    needs: prepare
+    if: needs.prepare.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ needs.prepare.outputs.mode == 'deep' && 30 || 20 }}
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      result: ${{ steps.codex.outputs.final-message }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Gather immutable evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_CONTEXT: ${{ needs.prepare.outputs.context }}
+        run: python3 .github/scripts/codex_review.py evidence
+      - name: Check for API key
+        env:
+          OPENAI_CODEX_API_KEY: ${{ secrets.OPENAI_CODEX_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_CODEX_API_KEY" ]; then
+            echo '::error::OPENAI_CODEX_API_KEY is not available to this repository.'
+            exit 1
+          fi
+      - id: codex
+        uses: openai/codex-action@86365089eb2b84e0a8fb0717b304f8bdcb13b20e # v1.12
+        with:
+          openai-api-key: ${{ secrets.OPENAI_CODEX_API_KEY }}
+          prompt-file: .github/codex/review.md
+          output-schema-file: .github/codex/review-schema.json
+          permission-profile: :read-only
+          safety-strategy: drop-sudo
+          effort: ${{ needs.prepare.outputs.mode == 'deep' && 'medium' || 'low' }}
+
+  publish:
+    name: Publish advisory review
+    needs: [prepare, analyze]
+    if: always() && needs.prepare.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: ${{ github.workflow }}-publish-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          persist-credentials: false
+      - name: Validate and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_CONTEXT: ${{ needs.prepare.outputs.context }}
+          REVIEW_RESULT: ${{ needs.analyze.outputs.result }}
+        run: python3 .github/scripts/codex_review.py publish

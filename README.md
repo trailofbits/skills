@@ -155,6 +155,10 @@ We welcome contributions! See [AGENTS.md](AGENTS.md) for skill authoring guideli
 run `make check` before you push — it runs most of CI locally (see AGENTS.md for
 what it does not cover).
 
+Codex provides advisory fast reviews for eligible PRs from this repository. Maintainers
+with write access can request another fast review by commenting `@codex review`, or a
+deeper review by applying the `deep-review` label. Fork PRs are excluded.
+
 ## License
 
 This work is licensed under a [Creative Commons Attribution-ShareAlike 4.0 International License](https://creativecommons.org/licenses/by-sa/4.0/). Made by [Trail of Bits](https://www.trailofbits.com/).
