@@ -37,13 +37,13 @@
       "source": "./plugins/burpsuite-project-parser"
     },
     {
-      "name": "claude-in-chrome-troubleshooting",
-      "version": "1.1.4",
+      "name": "chrome-mcp-troubleshooting",
+      "version": "1.1.5",
       "description": "Diagnose and fix Claude in Chrome MCP extension connectivity issues",
       "author": {
         "name": "Dan Guido"
       },
-      "source": "./plugins/claude-in-chrome-troubleshooting"
+      "source": "./plugins/chrome-mcp-troubleshooting"
     },
     {
       "name": "constant-time-analysis",
