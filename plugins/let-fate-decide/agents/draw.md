@@ -15,8 +15,12 @@ of options for fate to choose between).
 
 **Step 1:** Draw cards with content in ONE Bash call.
 
+Resolve [the drawing script](../skills/let-fate-decide/scripts/draw_cards.py)
+from this agent file's installed location. Replace `<resolved-script-path>`
+with that absolute path, keeping the quotes.
+
 ```bash
-uv run --no-config "${CLAUDE_PLUGIN_ROOT}/skills/let-fate-decide/scripts/draw_cards.py" --content
+uv run --no-config "<resolved-script-path>" --content
 ```
 
 The `--content` flag includes house reference text and card
