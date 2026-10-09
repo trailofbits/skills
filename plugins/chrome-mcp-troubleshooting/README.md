@@ -1,4 +1,4 @@
-# Claude in Chrome Troubleshooting
+# Chrome MCP Troubleshooting
 
 Diagnose and fix Claude in Chrome MCP extension connectivity issues.
 
@@ -23,12 +23,16 @@ Diagnose and fix Claude in Chrome MCP extension connectivity issues.
 ## Installation
 
 ```
-/plugin install trailofbits/skills/plugins/claude-in-chrome-troubleshooting
+/plugin marketplace add trailofbits/skills
+/plugin install chrome-mcp-troubleshooting@trailofbits
 ```
 
 The plugin ships one skill, `chrome-mcp-troubleshooting`. It triggers on its own when
 the symptoms above appear; invoke it directly with
-`/claude-in-chrome-troubleshooting:chrome-mcp-troubleshooting`.
+`/chrome-mcp-troubleshooting:chrome-mcp-troubleshooting`.
+
+Replaces `claude-in-chrome-troubleshooting`. If installed, uninstall the old plugin
+and install this one using the commands above.
 
 ## License
 

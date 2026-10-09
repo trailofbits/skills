@@ -136,7 +136,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 
 | Plugin | Description |
 |--------|-------------|
-| [claude-in-chrome-troubleshooting](plugins/claude-in-chrome-troubleshooting/) | Diagnose and fix Claude in Chrome MCP extension connectivity issues |
+| [chrome-mcp-troubleshooting](plugins/chrome-mcp-troubleshooting/) | Diagnose and fix Claude in Chrome MCP extension connectivity issues |
 
 ## Trophy Case
 
