@@ -545,15 +545,17 @@ done <"$WORK/langs.txt"
 # leaves no shell-quoting surface for a ruleset or path to escape through.
 ARGV=()
 build_argv() {
-  local config=$1 includes=$2 json=$3 sarif=$4 g
+  local config=$1 includes=$2 json=$3 sarif=$4 g gl=()
   ARGV=(semgrep)
   [ -z "$PRO" ] || ARGV+=(--pro)
   ARGV+=("$METRICS_OFF")
   ARGV+=(--max-target-bytes "$MAX_TARGET_BYTES")
   [ "$MODE" != "important-only" ] || ARGV+=("${SEVERITY_FLAGS[@]}")
-  # Unquoted on purpose: includes is a space-separated glob list and must word-split here.
-  # shellcheck disable=SC2086
-  for g in $includes; do ARGV+=("--include=$g"); done
+  # includes is a space-separated glob list. Split it with read rather than an unquoted
+  # expansion, which would also glob each pattern against the working directory and replace
+  # it with whatever filenames happen to match there.
+  IFS=' ' read -r -a gl <<<"$includes"
+  for g in ${gl[@]+"${gl[@]}"}; do ARGV+=("--include=$g"); done
   # On every command including the unscoped cross-language ones: those are precisely the
   # rulesets that would otherwise read the cloned rule repositories.
   [ -z "$EXCLUDE_ARG" ] || ARGV+=("$EXCLUDE_ARG")
