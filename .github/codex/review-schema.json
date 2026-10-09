@@ -1,0 +1,123 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": [
+        "fast",
+        "deep"
+      ]
+    },
+    "pr_number": {
+      "type": "integer"
+    },
+    "base_sha": {
+      "type": "string"
+    },
+    "head_sha": {
+      "type": "string"
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "covered_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unread_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "P1",
+              "P2",
+              "P3",
+              "P4"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "defect": {
+            "type": "string"
+          },
+          "failure": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "severity",
+          "path",
+          "line",
+          "defect",
+          "failure"
+        ]
+      }
+    },
+    "highest_severity": {
+      "type": "string",
+      "enum": [
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "NONE"
+      ]
+    },
+    "assessment": {
+      "type": "string"
+    },
+    "file_reviews": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "changes": {
+            "type": "string"
+          },
+          "assessment": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "changes",
+          "assessment"
+        ]
+      }
+    }
+  },
+  "required": [
+    "mode",
+    "pr_number",
+    "base_sha",
+    "head_sha",
+    "complete",
+    "covered_files",
+    "unread_files",
+    "assessment",
+    "file_reviews",
+    "findings",
+    "highest_severity"
+  ]
+}
