@@ -141,6 +141,22 @@ jobs:
             libc6-dev-arm64-cross
           sudo apt-get install -y --no-install-recommends llvm-19 \
             || sudo apt-get install -y --no-install-recommends llvm
+      - name: Install YARA-X for rule-review integration tests
+        # These tests execute the actual CLI and fail if it is absent. Keep the
+        # release and digest together; this is also the locally tested version.
+        env:
+          YARA_X_VERSION: "1.20.0"
+          YARA_X_SHA256: "cabb8df46492fff59c51261302c71ed9cb2cef393d3f0ca560801a34a8e24cbe"
+        run: |
+          set -euo pipefail
+          yara_x_dir=$(mktemp -d "$RUNNER_TEMP/yara-x.XXXXXX")
+          curl --fail --show-error --location --retry 3 \
+            "https://github.com/VirusTotal/yara-x/releases/download/v${YARA_X_VERSION}/yara-x-v${YARA_X_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+            --output "$yara_x_dir/yara-x.tar.gz"
+          printf '%s  %s\n' "$YARA_X_SHA256" "$yara_x_dir/yara-x.tar.gz" | sha256sum --check
+          tar -xzf "$yara_x_dir/yara-x.tar.gz" -C "$yara_x_dir"
+          "$yara_x_dir/yr" --version
+          echo "$yara_x_dir" >> "$GITHUB_PATH"
       - name: Discover and run plugin Python tests
         shell: bash
         run: |
