@@ -42,6 +42,7 @@ When auditing, reject these common rationalizations that lead to missed or downp
 
 For detailed vulnerability patterns and exploitation techniques, consult:
 - [Vulnerability Patterns Reference](references/vulnerabilities.md)
+- [Manual Testing](references/manual-fallback.md) (only when the scanner wrote no report)
 
 ## How to Use This Skill
 
@@ -87,8 +88,8 @@ directory.
 
 The scanner exits nonzero after writing its report when no APK could be tested
 (every APK failed to decompile or had no Firebase config). If a report was
-written, present it even on a nonzero exit; use the manual testing below only
-when no report exists.
+written, present it even on a nonzero exit; use the manual testing in
+[references/manual-fallback.md](references/manual-fallback.md) only when no report exists.
 
 State what the scanner did not cover: it probes Cloud Functions only in
 `us-central1`, and tests auth, Cloud Functions and Remote Config only for the
@@ -140,63 +141,8 @@ Provide specific fixes for each vulnerability found. Reference the [Vulnerabilit
 
 ## Manual Testing (If Scanner Fails)
 
-If the scanner script is unavailable or fails, perform manual extraction and testing:
-
-### Extract Configuration
-
-Search for Firebase config in decompiled APK:
-
-```bash
-# Decompile
-apktool d -f -o ./decompiled "$ARGUMENTS"
-
-# Find google-services.json
-find ./decompiled -name "google-services.json"
-
-# Search XML resources
-grep -r "firebaseio.com\|appspot.com\|AIza" ./decompiled/res/
-
-# Search assets (hybrid apps)
-grep -r "firebaseio.com\|AIza" ./decompiled/assets/
-```
-
-### Test Endpoints
-
-Once you have the PROJECT_ID and API_KEY:
-
-**Authentication:**
-```bash
-# Test open signup
-curl -s -X POST -H "Content-Type: application/json" \
-  -d '{"email":"test@test.com","password":"Test123!","returnSecureToken":true}' \
-  "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=API_KEY"
-
-# Test anonymous auth
-curl -s -X POST -H "Content-Type: application/json" \
-  -d '{"returnSecureToken":true}' \
-  "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=API_KEY"
-```
-
-**Database:**
-```bash
-# Realtime Database read
-curl -s "https://PROJECT_ID.firebaseio.com/.json"
-
-# Firestore read
-curl -s "https://firestore.googleapis.com/v1/projects/PROJECT_ID/databases/(default)/documents"
-```
-
-**Storage:**
-```bash
-# List bucket
-curl -s "https://firebasestorage.googleapis.com/v0/b/PROJECT_ID.appspot.com/o"
-```
-
-**Remote Config:**
-```bash
-curl -s -H "x-goog-api-key: API_KEY" \
-  "https://firebaseremoteconfig.googleapis.com/v1/projects/PROJECT_ID/remoteConfig"
-```
+Only when the scanner wrote no report: follow
+[references/manual-fallback.md](references/manual-fallback.md).
 
 ## Severity Classification
 
