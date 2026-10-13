@@ -54,7 +54,7 @@ The user will provide an APK file or directory: `$ARGUMENTS`
 First, verify the target exists:
 
 ```bash
-ls -la $ARGUMENTS
+ls -la "$ARGUMENTS"
 ```
 
 If `$ARGUMENTS` is empty, ask the user to provide an APK path.
@@ -64,7 +64,7 @@ If `$ARGUMENTS` is empty, ask the user to provide an APK path.
 Execute the bundled scanner script on the target:
 
 ```bash
-{baseDir}/scanner.sh $ARGUMENTS
+{baseDir}/scanner.sh "$ARGUMENTS"
 ```
 
 The scanner will:
@@ -80,11 +80,19 @@ The scanner will:
 
 ### Step 3: Present Results
 
-After the scanner completes, read and summarize the results:
+After the scanner completes, read `scan_report.json` (and `scan_report.txt` for
+the narrative) in the exact directory it printed as `Results saved to:`. Do not
+use a `firebase_scan_*` glob: it also matches every earlier scan in the current
+directory.
 
-```bash
-cat firebase_scan_*/scan_report.txt
-```
+The scanner exits nonzero after writing its report when no APK could be tested
+(every APK failed to decompile or had no Firebase config). If a report was
+written, present it even on a nonzero exit; use the manual testing below only
+when no report exists.
+
+State what the scanner did not cover: it probes Cloud Functions only in
+`us-central1`, and tests auth, Cloud Functions and Remote Config only for the
+first project ID and API key it extracted.
 
 Present findings in this format:
 
@@ -140,7 +148,7 @@ Search for Firebase config in decompiled APK:
 
 ```bash
 # Decompile
-apktool d -f -o ./decompiled $ARGUMENTS
+apktool d -f -o ./decompiled "$ARGUMENTS"
 
 # Find google-services.json
 find ./decompiled -name "google-services.json"
