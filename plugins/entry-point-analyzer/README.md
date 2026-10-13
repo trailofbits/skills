@@ -24,7 +24,7 @@ The skill categorizes entry points into four levels:
 1. **Public (Unrestricted)** — Callable by anyone; highest audit priority
 2. **Role-Restricted** — Limited to specific roles (admin, governance, guardian, etc.)
 3. **Review Required** — Ambiguous access patterns needing manual verification
-4. **Contract-Only** — Internal integration points (callbacks, hooks)
+4. **Contract-Only** — Functions with enforced caller checks tied to integration contracts
 
 ## Output
 

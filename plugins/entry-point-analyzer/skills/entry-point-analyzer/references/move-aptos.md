@@ -2,15 +2,20 @@
 
 ## Entry Point Identification (State-Changing Only)
 
-In Move, `public` functions can be invoked from transaction scripts (Aptos) and typically modify state. In addition, all `entry` functions are entrypoints. Package-protected (`public package`) and friend (`friend` or `public friend`) functions should be excluded.
+Include state-changing `public fun`, `public entry fun`, and `entry fun` functions.
+Aptos transaction scripts can call public functions without the `entry` modifier.
+Inspect bodies and callees for state effects rather than assuming visibility
+implies mutation. Private non-entry, `public(package)`, and `public(friend)`
+functions are not independent transaction entry points; trace them when reachable
+from an included function.
 
 ### Aptos Move
 ```move
 // Public entry functions are entry points
 public entry fun transfer(from: &signer, to: address, amount: u64) { }
 
-// Public functions callable by other modules
-public fun helper(): u64 { }
+// Public functions callable by modules and transaction scripts
+public fun read_value(): u64 { 0 } // Read-only body: exclude from this inventory
 
 // Entry-only functions (can't be called by other modules)
 entry fun private_entry(account: &signer) { }
@@ -21,7 +26,7 @@ entry fun private_entry(account: &signer) { }
 |------------|----------|-------|
 | `public entry fun` | **Yes** | Transaction entry point (state-changing) |
 | `entry fun` | **Yes** | Transaction-only entry point |
-| `public fun` | No | Module-callable only, not direct entry |
+| `public fun` | **Yes**, if state-changing | Callable through transaction scripts or other modules |
 | `fun` (private) | No | Not externally callable |
 | `public(friend) fun` | No | Friend modules only |
 
@@ -60,7 +65,7 @@ public entry fun admin_action(admin: &signer) acquires AdminCap {
 | `exists<AdminCap>(addr)` | Admin (capability) |
 | `exists<GovernanceCap>(addr)` | Governance |
 | `exists<GuardianCap>(addr)` | Guardian |
-| `&signer` with no checks | Review Required |
+| `&signer` with no role checks | Public; record which signer's resources it can access |
 
 ## Contract-Only Detection
 
@@ -77,7 +82,7 @@ friend other_module;
 ```move
 // Functions designed for other modules
 public fun on_transfer_hook(amount: u64): bool {
-    // Called by token module
+    // Intended for token modules, but public visibility also permits scripts
 }
 ```
 
@@ -86,11 +91,12 @@ public fun on_transfer_hook(amount: u64): bool {
 ### Aptos
 1. Parse all `.move` files
 2. Find `module` declarations
-3. Extract functions with `public entry` or `entry` visibility
+3. Extract `public fun`, `public entry fun`, and `entry fun`; exclude read-only bodies
 4. Check function body for:
    - `signer::address_of` comparisons → Role-based
    - `exists<*Cap>` checks → Capability-based
-   - No access checks → Public (Unrestricted)
+   - No caller-role checks → Public (Unrestricted); a signer argument alone is not an admin check
+5. Record capability and signer requirements, including whether callers can obtain the required values
 
 ## Move-Specific Considerations
 

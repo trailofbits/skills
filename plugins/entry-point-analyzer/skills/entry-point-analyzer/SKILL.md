@@ -41,9 +41,14 @@ This skill focuses exclusively on functions that can modify state. **Excluded:**
 | Solidity | `view`, `pure` functions |
 | Vyper | `@view`, `@pure` functions |
 | Solana | Functions without `mut` account references |
-| Move | Non-entry `public fun` (module-callable only) |
+| Move | Read-only function bodies; visibility alone does not establish mutability |
 | TON | `get` methods (FunC), read-only receivers (Tact) |
 | CosmWasm | `query` entry point and its handlers |
+
+Include state-changing Move `public fun` even without `entry`: Aptos transaction
+scripts and Sui programmable transaction blocks can reach them. Trace callees when
+needed to determine state effects, and record signer, capability, and object
+ownership requirements separately from visibility.
 
 **Why exclude read-only functions?** They cannot directly cause loss of funds or state corruption. While they may leak information, the primary audit focus is on functions that can change state.
 
@@ -108,7 +113,8 @@ Load the appropriate reference file(s) based on detected language before analysi
 Classify each state-changing entry point into one of these categories:
 
 ### 1. Public (Unrestricted)
-Functions callable by anyone without restrictions.
+Functions with no caller-identity or role restriction. Record state conditions such as pause
+flags separately; they do not make a function privileged.
 
 ### 2. Role-Restricted
 Functions limited to specific roles. Common patterns to detect:
@@ -117,11 +123,16 @@ Functions limited to specific roles. Common patterns to detect:
 - When role is ambiguous, flag as **"Restricted (review required)"** with the restriction pattern noted
 
 ### 3. Contract-Only (Internal Integration Points)
-Functions callable only by other contracts, not by EOAs. Indicators:
-- Callbacks: `onERC721Received`, `uniswapV3SwapCallback`, `flashLoanCallback`
-- Interface implementations with contract-caller checks
-- Functions that revert if `tx.origin == msg.sender`
-- Cross-contract hooks
+Functions whose enforced caller restrictions limit them to other contracts. Cite
+the actual check and the identity or provenance of the permitted caller. A
+callback name, implemented interface, or intended integration is not access control.
+
+- A callback without caller checks is **Public (Unrestricted)**.
+- A check against a configured address is **Restricted (Review Required)** if its
+  identity is unresolved; use **Contract-Only** when that address is established as
+  the integration contract.
+- `msg.sender != tx.origin` establishes a call-path condition, not authentication
+  of a trusted protocol. Record that condition without inferring a trusted caller.
 
 ## Output Format
 

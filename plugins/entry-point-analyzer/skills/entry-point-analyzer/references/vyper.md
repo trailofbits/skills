@@ -94,6 +94,10 @@ def mint(to: address, amount: uint256):
 ## Contract-Only Detection
 
 ### Callback Functions
+
+A callback name does not restrict callers. Classify the body's actual assertions;
+an unguarded state-changing callback is Public (Unrestricted).
+
 ```vyper
 @external
 def onERC721Received(...) -> bytes4:
@@ -108,7 +112,7 @@ def uniswapV3SwapCallback(amount0: int256, amount1: int256, data: Bytes[...]):
 ### Contract-Caller Checks
 ```vyper
 assert msg.sender == self.pool, "Only pool"
-assert msg.sender != tx.origin, "No EOA"  # Vyper 0.3.7+
+assert msg.sender != tx.origin, "No direct call"  # Call-path condition, not protocol authentication
 ```
 
 ## Extraction Strategy
@@ -124,7 +128,9 @@ assert msg.sender != tx.origin, "No EOA"  # Vyper 0.3.7+
    - No access assertions → Public (Unrestricted)
    - `msg.sender == self.X` → Check what X is
    - `self.mapping[msg.sender]` → Review Required
-   - Known callback name → Contract-Only
+   - Caller pinned to an established integration contract → Contract-Only
+   - Caller checked against an unresolved configured address → Review Required
+   - Callback name without caller checks → Public (Unrestricted)
 
 ## Vyper-Specific Considerations
 
