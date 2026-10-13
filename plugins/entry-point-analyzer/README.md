@@ -1,6 +1,6 @@
 # Entry Point Analyzer
 
-A Claude skill for systematically identifying **state-changing** entry points in smart contract codebases to guide security audits.
+A Codex skill for systematically identifying **state-changing** entry points in smart contract codebases to guide security audits.
 
 ## Purpose
 
@@ -43,9 +43,14 @@ Trigger the skill with requests like:
 - "List audit flows for src/core/"
 - "What privileged operations exist in this project?"
 
-Or invoke either entry point directly:
-- Skill — `/entry-point-analyzer:entry-point-analyzer`
-- Command — `/entry-point-analyzer:entry-points [directory-path]`
+Or invoke the skill directly in Codex:
+
+```text
+Use $entry-point-analyzer to analyze src/core/.
+```
+
+The former `/entry-point-analyzer:entry-points` command is removed; pass the
+directory in the skill prompt instead.
 
 ## Directory Filtering
 
@@ -69,9 +74,14 @@ The skill infers roles from common patterns:
 
 ## Installation
 
+```sh
+codex plugin marketplace add trailofbits/skills
+codex plugin add entry-point-analyzer@trailofbits
 ```
-/plugin install trailofbits/skills/plugins/entry-point-analyzer
-```
+
+Start a new Codex session after installation. The skill includes its language
+references and can run without Slither; if Slither is installed, it uses the
+entry-points printer before manual access-control classification.
 
 ## License
 

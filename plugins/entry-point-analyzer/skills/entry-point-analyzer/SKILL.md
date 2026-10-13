@@ -1,12 +1,18 @@
 ---
 name: entry-point-analyzer
 description: Analyzes smart contract codebases to identify state-changing entry points for security auditing. Detects externally callable functions that modify state, categorizes them by access level (public, admin, role-restricted, contract-only), and generates structured audit reports. Excludes view/pure/read-only functions. Use when auditing smart contracts (Solidity, Vyper, Solana/Rust, Move, TON, CosmWasm) or when asked to find entry points, audit flows, external functions, access control patterns, or privileged operations.
-allowed-tools: Read Grep Glob Bash
 ---
 
 # Entry Point Analyzer
 
 Systematically identify all **state-changing** entry points in a smart contract codebase to guide security audits.
+
+## Execution in Codex
+
+Use the available file-reading, search, and shell tools. Resolve bundled reference
+links relative to this SKILL.md, not the audited repository. Slither is optional;
+use manual inspection if it is unavailable or fails. Report unreadable source or
+reference files as coverage gaps. Runtime permissions come from the workspace.
 
 ## When to Use
 
@@ -87,13 +93,13 @@ If `which slither` returns nothing, proceed with manual analysis using the langu
 
 | Extension | Language | Reference |
 |-----------|----------|-----------|
-| `.sol` | Solidity | [{baseDir}/references/solidity.md]({baseDir}/references/solidity.md) |
-| `.vy` | Vyper | [{baseDir}/references/vyper.md]({baseDir}/references/vyper.md) |
-| `.rs` + `Cargo.toml` with `solana-program` | Solana (Rust) | [{baseDir}/references/solana.md]({baseDir}/references/solana.md) |
-| `.move` + `Move.toml` with `edition` | [{baseDir}/references/move-sui.md]({baseDir}/references/move-sui.md) |
-| `.move` + `Move.toml` with `Aptos` | [{baseDir}/references/move-aptos.md]({baseDir}/references/move-aptos.md) |
-| `.fc`, `.func`, `.tact` | TON (FunC/Tact) | [{baseDir}/references/ton.md]({baseDir}/references/ton.md) |
-| `.rs` + `Cargo.toml` with `cosmwasm-std` | CosmWasm | [{baseDir}/references/cosmwasm.md]({baseDir}/references/cosmwasm.md) |
+| `.sol` | Solidity | [references/solidity.md](references/solidity.md) |
+| `.vy` | Vyper | [references/vyper.md](references/vyper.md) |
+| `.rs` + `Cargo.toml` with `solana-program` | Solana (Rust) | [references/solana.md](references/solana.md) |
+| `.move` + `Move.toml` with `edition` | Move (Sui) | [references/move-sui.md](references/move-sui.md) |
+| `.move` + `Move.toml` with `Aptos` | Move (Aptos) | [references/move-aptos.md](references/move-aptos.md) |
+| `.fc`, `.func`, `.tact` | TON (FunC/Tact) | [references/ton.md](references/ton.md) |
+| `.rs` + `Cargo.toml` with `cosmwasm-std` | CosmWasm | [references/cosmwasm.md](references/cosmwasm.md) |
 
 Load the appropriate reference file(s) based on detected language before analysis.
 
