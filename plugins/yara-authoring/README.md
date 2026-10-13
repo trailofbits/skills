@@ -64,6 +64,19 @@ Two Python scripts under `skills/yara-rule-authoring/scripts/`, run with `uv`. B
 accept a file or a directory, and both exit non-zero if the path yields no rules to
 inspect rather than reporting a clean run over nothing.
 
+### review.sh
+
+Runs `yr check`, `yr fmt --check`, the linter and the atom analyzer in one call and
+prints one JSON object with each check's exit status and complete output:
+
+```bash
+bash skills/yara-rule-authoring/scripts/review.sh rules/
+```
+
+It needs Bash, `jq` 1.6+, `uv` and the `yr` CLI, exits 1 when any check fails and 2
+when the input is missing, empty or unreadable (nothing inspected), and never modifies
+the rules.
+
 ### yara_lint.py
 
 Compiles each rule with YARA-X, then checks style, metadata, and anti-patterns.
@@ -83,7 +96,10 @@ Evaluates string quality for efficient atom extraction:
 ```bash
 uv run skills/yara-rule-authoring/scripts/atom_analyzer.py rule.yar
 uv run skills/yara-rule-authoring/scripts/atom_analyzer.py --verbose rule.yar
+uv run skills/yara-rule-authoring/scripts/atom_analyzer.py --no-color rule.yar
 ```
+
+Colour is used only on a terminal; piped output and `NO_COLOR` turn it off.
 
 Both import `yara_rules.py`, a dependency-free module holding the parsing and
 analysis logic. `test_yara_rules.py` covers it; `make python-tests` picks it up.
