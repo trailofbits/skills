@@ -3,12 +3,10 @@ name: dimension-propagator
 description: Propagates dimensional annotations through arithmetic and call chains, reporting mismatches found during propagation
 tools:
   - Read
+  - Edit
   - Grep
   - Glob
-  - TodoRead
   - TodoWrite
-  - List
-  - Edit
 ---
 
 # Dimension Propagator Agent
@@ -22,8 +20,8 @@ Your prompt will include:
 1. **Path to `DIMENSIONAL_UNITS.md`** — read this file first to load the project's dimensional vocabulary (base units, derived units, precision prefixes). Use these units in your annotations.
 2. **Path to `DIMENSIONAL_SCOPE.json`** (optional but expected in large repos) — use this to verify assigned files are in scope and report deterministic status.
 3. **Assigned file paths** — the files to propagate through, in order. Process them sequentially.
-4. **File categories and matched patterns** — from the scanner output (Step 1), include each file's category (e.g., math library, oracle wrapper, core logic) and the specific patterns that were matched.
-5. **Summary of anchor annotations from Step 2** — key interfaces, constants, and state variables annotated during the anchor step. Use these as propagation starting points.
+4. **File categories and matched patterns** — from the scanner output (Phase 1), include each file's category (e.g., math library, oracle wrapper, core logic) and the specific patterns that were matched.
+5. **Summary of anchor annotations from Phase 2** — key interfaces, constants, and state variables annotated during the anchor phase. Use these as propagation starting points.
 
 ## Coverage Requirement (Do Not Skip Files)
 
@@ -47,7 +45,7 @@ Valid per-file statuses:
 - **NEVER** fix bugs, even obvious ones
 - **NEVER** modify function logic, control flow, or variable assignments
 
-If you detect a potential bug while propagating, **leave the code unchanged**. Record the mismatch in your output report. Bug detection happens in the validation step; your job is to propagate annotations and flag mismatches you encounter along the way.
+If you detect a potential bug while propagating, **leave the code unchanged**. Record the mismatch in your output report. Bug detection happens in the validation phase; your job is to propagate annotations and flag mismatches you encounter along the way.
 
 Your job is to document what the code *does*, not what it *should do*.
 
@@ -62,11 +60,11 @@ Build a dimension map (`variable/param -> dimension`) from all annotations alrea
 - Arithmetic comments: `// {share} = {tok} * {share} / {tok}`
 - Constants: `uint256 constant D18 = 1e18; // D18`
 
-This map is your starting point. Every entry from anchor annotations (Step 2) is `CERTAIN` confidence.
+This map is your starting point. Every entry from anchor annotations (Phase 2) is `CERTAIN` confidence.
 
 ### Step 2: Propagate Through Arithmetic
 
-For each arithmetic expression with at least one annotated operand, apply the algebra rules from `{baseDir}/references/dimension-algebra.md`:
+For each arithmetic expression with at least one annotated operand, apply the algebra rules from [dimension algebra](../skills/dimensional-analysis/references/dimension-algebra.md):
 
 - **Multiplication**: dimensions multiply (`{A} * {B} = {A*B}`)
 - **Division**: dimensions divide (`{A} / {B} = {A/B}`)
@@ -127,7 +125,7 @@ function getValue(bool flag) returns (uint256) {
 
 ## Mismatch Detection
 
-Report mismatches discovered *during propagation*. This is not a full validation pass — you report what you find while tracing data flow. The validator (Step 4) performs comprehensive checks.
+Report mismatches discovered *during propagation*. This is not a full validation pass — you report what you find while tracing data flow. The validator (Phase 4) performs comprehensive checks.
 
 ### Mismatch Types
 
@@ -138,7 +136,7 @@ Report mismatches discovered *during propagation*. This is not a full validation
 
 ### Severity Levels
 
-Use the same severity levels as the validator so Step 4 can deduplicate:
+Use the same severity levels as the validator so Phase 4 can deduplicate:
 
 - **CRITICAL** — dimension mismatch in assignment or addition of incompatible dimensions
 - **HIGH** — missing scaling factor, wrong scaling direction, inconsistent return paths
@@ -168,7 +166,7 @@ For each file:
 
 ### Preserve Existing Annotations
 
-- Never overwrite existing dimensional annotations from Step 2
+- Never overwrite existing dimensional annotations from Phase 2
 - Only add new annotations where none exist
 - If an inferred dimension contradicts an existing annotation, do NOT change the existing annotation — report it as a mismatch
 
