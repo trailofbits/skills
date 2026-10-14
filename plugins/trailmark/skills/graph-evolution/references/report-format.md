@@ -140,7 +140,7 @@ Classify structural findings by security impact:
 |----------|----------|
 | **CRITICAL** | New tainted path to sensitive function, removed auth boundary |
 | **HIGH** | New entrypoint + high blast radius, CC increase > 10 on tainted node |
-| **MEDIUM** | New call edges crossing trust boundaries, moderate CC increase |
+| **MEDIUM** | New call edges crossing trust boundaries, moderate CC increase (> 3) |
 | **LOW** | Added nodes without entrypoint reachability, cosmetic changes |
 | **INFO** | Dead code removal, complexity reductions, positive changes |
 
