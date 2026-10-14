@@ -364,6 +364,14 @@ uv run {baseDir}/scripts/yara_lint.py suspect.yar      # style, metadata, YARA-X
 uv run {baseDir}/scripts/atom_analyzer.py suspect.yar  # atom quality per string
 ```
 
+Shortcut: `{baseDir}/scripts/review.sh suspect.yar` (a rule file or a directory)
+runs `yr check`, `yr fmt --check`, the linter and the atom analyzer in one call
+and prints one JSON object, `{"target": ..., "checks": {"yr_check", "yr_format",
+"lint", "atoms"}}`, each with `status` (the tool's exit code) and its `output`.
+It exits 0 when every check passes, 1 when any check fails, and 2 for a missing,
+empty or unreadable input (nothing was inspected). Quote the codes from
+`checks.lint.output` exactly as with the separate scripts.
+
 They catch the mechanical faults — short strings, FP-prone substrings, unbounded quantifiers, expensive terms ahead of cheap ones — so your attention goes to the judgement calls they cannot make: whether the strings identify *this* family, and whether the condition can fire on generic strings alone. Report findings by code (`E002`, `W009`) so the author can look each one up in [style-guide.md](references/style-guide.md).
 
 See [testing.md](references/testing.md) for the validation workflow and [rule-development.md](workflows/rule-development.md) for the full step-by-step guide.
@@ -403,6 +411,7 @@ Before deploying any rule:
 ```bash
 uv run {baseDir}/scripts/yara_lint.py rule.yar      # validate style/metadata
 uv run {baseDir}/scripts/atom_analyzer.py rule.yar  # check string quality
+{baseDir}/scripts/review.sh rule.yar                # all four checks, one JSON result
 ```
 
 See [README.md](../../README.md#scripts) for detailed script documentation.
