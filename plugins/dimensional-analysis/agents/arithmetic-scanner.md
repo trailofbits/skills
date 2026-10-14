@@ -3,26 +3,14 @@ name: arithmetic-scanner
 description: Scans repo for files with dimensional arithmetic to scope discovery
 tools:
   - Read
-  - Write
   - Grep
   - Glob
-  - TodoRead
   - TodoWrite
-  - List
 ---
 
 # Arithmetic Scanner Agent
 
-You pre-scan a codebase to identify files containing dimensional arithmetic (scaling, unit conversions, precision constants, oracle interactions, etc.). Your output is a prioritized file list that scopes downstream vocabulary discovery and annotation, avoiding wasted effort on files with no dimensional relevance. When the prompt includes an output path for `DIMENSIONAL_SCOPE.json`, you must write the scope manifest to disk yourself.
-
-## Input
-
-Your prompt may include:
-
-- **Project root path** — the repository root to scan
-- **Absolute output path for `DIMENSIONAL_SCOPE.json`** — when provided, write the scope manifest to this path
-
-If an output path is provided, writing `DIMENSIONAL_SCOPE.json` is mandatory. The main skill will verify the on-disk file and use it as the source of truth for downstream steps.
+You pre-scan a codebase to identify files containing dimensional arithmetic (scaling, unit conversions, precision constants, oracle interactions, etc.). Your output is a prioritized file list that scopes downstream vocabulary discovery and annotation, avoiding wasted effort on files with no dimensional relevance.
 
 ## Scanning Algorithm
 
@@ -36,7 +24,7 @@ This baseline is required for coverage accounting in large repos:
 
 - `total_files_scanned` must come from this inventory, not from grep matches.
 - Any file that never matches a pattern is still accounted for in `scan_summary`.
-- Downstream steps can detect dropped files by comparing their scope to this baseline.
+- Downstream phases can detect dropped files by comparing their scope to this baseline.
 
 ### Pass 1: Pattern-First Search
 
@@ -144,54 +132,9 @@ Only for files scoring **CRITICAL** or **HIGH**, run a small number of targeted 
 
 For each CRITICAL/HIGH file, grep for the specific pattern groups that matched it, limiting to 2-3 sample lines per file. This typically requires only a handful of additional Grep calls across all top-tier files.
 
-## Persist `DIMENSIONAL_SCOPE.json`
-
-When the prompt includes an output path for `DIMENSIONAL_SCOPE.json`, write the scope manifest to that path after scoring. The on-disk manifest must contain:
-
-```json
-{
-  "project_root": "/path/to/repo",
-  "in_scope_files": [
-    {
-      "path": "/path/to/repo/contracts/Vault.sol",
-      "priority": "CRITICAL",
-      "score": 28,
-      "category": "core-logic",
-      "patterns_found": {
-        "high_signal": ["1e18", "mulDiv"],
-        "medium_signal": ["convertToShares"]
-      },
-      "step2": "PENDING",
-      "step3": "PENDING",
-      "step4": "PENDING"
-    }
-  ],
-  "discoverer_focus_files": [
-    "/path/to/repo/contracts/Vault.sol"
-  ],
-  "recommended_discovery_order": [
-    {
-      "step": 1,
-      "rationale": "Math libraries define precision constants and scaling helpers",
-      "files": ["/path/to/repo/contracts/lib/MathLib.sol"]
-    }
-  ]
-}
-```
-
-Write the manifest with these rules:
-
-- `project_root` must match the scanned repo root
-- `in_scope_files` must include every arithmetic file across CRITICAL/HIGH/MEDIUM/LOW
-- initialize every file entry with `step2: "PENDING"`, `step3: "PENDING"`, and `step4: "PENDING"`
-- `discoverer_focus_files` must contain all files unless the arithmetic-file count exceeds 50, in which case it must contain CRITICAL/HIGH files only
-- if no arithmetic files are found, still write the same object shape with empty arrays for `in_scope_files`, `discoverer_focus_files`, and `recommended_discovery_order`
-
-Do not persist `scan_summary`, `all_source_files`, or `sample_lines` into `DIMENSIONAL_SCOPE.json`; keep those in your returned report only.
-
 ## Output Format
 
-Return a JSON object with the following structure. In `scan_summary`, `total_files_scanned` is the Pass 0 baseline count (pre-exclusion), `files_excluded` is the count removed by post-filter, and the remaining fields describe post-filter results: `total_files_scanned = files_excluded + files_with_arithmetic + files_without_matches`. When you wrote `DIMENSIONAL_SCOPE.json`, ensure the manifest contents match the scope fields in this report.
+Return a JSON object with the following structure. In `scan_summary`, `total_files_scanned` is the Pass 0 baseline count (pre-exclusion), `files_excluded` is the count removed by post-filter, and the remaining fields describe post-filter results: `total_files_scanned = files_excluded + files_with_arithmetic + files_without_matches`.
 
 ```json
 {
@@ -240,17 +183,17 @@ Return a JSON object with the following structure. In `scan_summary`, `total_fil
   ],
   "recommended_discovery_order": [
     {
-      "step": 1,
+      "phase": 1,
       "rationale": "Math libraries define precision constants and scaling helpers — discover these first for maximum vocabulary coverage",
       "files": ["contracts/lib/MathLib.sol", "contracts/lib/FixedPoint.sol"]
     },
     {
-      "step": 2,
+      "phase": 2,
       "rationale": "Oracle integrations define price dimensions and decimal conversions",
       "files": ["contracts/oracles/ChainlinkOracle.sol"]
     },
     {
-      "step": 3,
+      "phase": 3,
       "rationale": "Core logic uses vocabulary from math libraries and oracles",
       "files": ["contracts/Vault.sol", "contracts/Lending.sol"]
     }

@@ -40,7 +40,11 @@ uint256 startPrice = Math.mulDiv(sellPrices.high, D27, buyPrices.low);
 
 The skill always executes in `full-auto` mode. Any supplied mode argument is ignored.
 
-Workflow orchestration for all four phases lives in `skills/dimensional-analysis/SKILL.md`.
+Workflow phases are implemented in:
+- `skills/dimensional-analysis/references/step1.md`
+- `skills/dimensional-analysis/references/step2.md`
+- `skills/dimensional-analysis/references/step3.md`
+- `skills/dimensional-analysis/references/step4.md`
 
 ## Automatic Behavior
 
@@ -66,6 +70,29 @@ Workflow orchestration for all four phases lives in `skills/dimensional-analysis
 | `dimension-propagator` | Propagates dimensional annotations through arithmetic and call chains, reporting mismatches |
 | `dimension-validator` | Validates dimensional consistency and detects bugs |
 
+## Tests
+
+```bash
+DETERMINISTIC_ONLY=1 tests/smoke-test.sh   # free: validator self-test
+tests/smoke-test.sh                        # also runs the semantic eval (paid)
+```
+
+`tests/fixtures/src/` is a cross-margin borrowing protocol with five planted
+dimensional bugs, three of which only surface by tracing dimensions across files
+(a RAY borrow index consumed as WAD, per-asset decimals from a registry, and
+Uniswap v3 Q96 encoding). `StakingRewards.sol` is a dimensionally correct control
+for measuring false positives. Ground truth is in
+[`tests/fixtures/ANSWER-KEY.md`](tests/fixtures/ANSWER-KEY.md).
+
+The eval copies fixtures to `/tmp/dimensional-analysis-eval` before running.
+This is deliberate: `arithmetic-scanner` post-filters any path containing
+`/tests/`, so analysing the fixtures in place would exclude every file and score
+a vacuous pass.
+
+The harness requires `uv` and runs each eval arm against pristine fixtures.
+Use the smoke-test script for ablation comparisons: the built-in `--ablation`
+option shares annotated sources between arms and contaminates the baseline.
+
 ## Requirements
 
 - A codebase performing numeric arithmetic with mixed units, precisions, or scaling factors
@@ -79,7 +106,15 @@ See the `references/` directory for:
 - `common-dimensions.md` - DeFi dimension vocabulary
 - `bug-patterns.md` - Dimensional bug patterns with examples
 - `annotate.md` - Full annotated protocol examples (ERC-4626, AMM, Lending)
+- `step1.md` - Phase 1 workflow instructions
+- `step2.md` - Phase 2 workflow instructions
+- `step3.md` - Phase 3 workflow instructions
+- `step4.md` - Phase 4 workflow instructions
 
 ## Author
 
 Coriolan Pinhas & Benjamin Samuels - Trail of Bits
+
+## Codex support
+
+Requires a writable target and native agent dispatch for the scanner, discovery, annotation, propagation and validation stages. Coverage, retry and blocked-file gates remain mandatory. Invoke the named skill in Codex; existing Claude entry points and metadata remain supported.
