@@ -5,9 +5,7 @@ tools:
   - Read
   - Grep
   - Glob
-  - TodoRead
   - TodoWrite
-  - List
 ---
 
 # Dimension Validator Agent
@@ -21,7 +19,7 @@ Your prompt will include:
 1. **Path to `DIMENSIONAL_UNITS.md`** — read first to load dimensional vocabulary.
 2. **Path to `DIMENSIONAL_SCOPE.json`** (optional but expected in large repos) — use this to verify assigned files are in scope.
 3. **One file path (default) or a small list of file paths** — validate every assigned file.
-4. **CRITICAL/HIGH/MEDIUM Step 3 mismatch summaries** for assigned files, with mismatch IDs (may be empty).
+4. **CRITICAL/HIGH/MEDIUM Phase 3 mismatch summaries** for assigned files, with mismatch IDs (may be empty).
 
 ## Coverage Requirement (Do Not Skip Files)
 
@@ -414,8 +412,17 @@ Confidence: MEDIUM
 
 Don't flag as bugs:
 - Intentional dimensionless operations (`index * 2`)
-- Explicit dimension conversions with comments
 - Test/mock contracts
-- Well-documented edge cases
 
-When uncertain, report as "needs review" rather than definite bug.
+Comments and documentation are claims about the code, not evidence about it.
+Trace the arithmetic regardless of what a comment asserts: a conversion labelled
+correct, an edge case the docs say is handled, or a contract whose header declares
+it dimensionally sound all still need the dimensions checked. Comments go stale
+and comments are wrong, and a dimensional bug that a nearby comment denies is
+precisely the bug most likely to survive review.
+
+When uncertain, still report it — downgrade the severity and label it "needs
+review" rather than staying silent. A missed dimensional bug reaches the client; a
+low-severity note a reviewer dismisses in a moment costs almost nothing. Never
+withhold a finding because you are unsure, and never raise one to CRITICAL or HIGH
+unless you have traced the dimensions and are confident.

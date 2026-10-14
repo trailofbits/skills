@@ -345,7 +345,7 @@
     },
     {
       "name": "let-fate-decide",
-      "version": "1.2.5",
+      "version": "1.2.6",
       "description": "Draws the 12 Houses of the Zodiac Tarot spread using cryptographic randomness to add 100+ bits of entropy to vague or underspecified planning. Interprets the spread to guide next steps. Use when feeling lucky, invoking heart-of-the-cards energy, or when prompts are ambiguous.",
       "author": {
         "name": "Scott Arciszewski",
@@ -383,8 +383,8 @@
     },
     {
       "name": "dimensional-analysis",
-      "version": "3.0.3",
-      "description": "Annotates codebases with dimensional analysis comments documenting units, dimensions, and decimal scaling. Use when someone asks to annotate units in a codebase, perform a dimensional analysis, or find vulnerabilities in a DeFi protocol. Prevents dimensional mismatches and catches formula bugs early.",
+      "version": "3.1.0",
+      "description": "Audits code for unit and decimal-scaling bugs and annotates it with dimensional comments recording the units of each value. Use when someone asks to audit or review code for unit confusion, decimals or scaling mismatches, WAD/RAY scale errors, or the wrong token's decimals; to annotate units in a codebase; or to perform a dimensional analysis of a DeFi protocol, offchain code, or other arithmetic-heavy codebase. Catches formulas that combine values carrying different units or scales.",
       "author": {
         "name": "Coriolan Pinhas & Benjamin Samuels",
         "email": "opensource@trailofbits.com",
