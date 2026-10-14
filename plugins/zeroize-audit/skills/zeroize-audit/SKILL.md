@@ -4,7 +4,7 @@ description: "Detects missing zeroization of sensitive data in source code and i
 allowed-tools: Read Grep Glob Bash Write Task AskUserQuestion mcp__serena__activate_project mcp__serena__find_symbol mcp__serena__find_referencing_symbols mcp__serena__get_symbols_overview
 ---
 
-# zeroize-audit — Claude Skill
+# zeroize-audit
 
 ## When to Use
 - Auditing cryptographic implementations (keys, seeds, nonces, secrets)
@@ -21,13 +21,23 @@ allowed-tools: Read Grep Glob Bash Write Task AskUserQuestion mcp__serena__activ
 
 ---
 
+## Execution Contract
+
+Use the agent environment's available tools for file access, shell commands, worker execution, and user input. The `allowed-tools` entry and role-file frontmatter are legacy host metadata; they do not define another environment's tool names or grant permissions there.
+
+- **Resolve resources.** Set `baseDir` to the absolute directory containing this `SKILL.md`. Confirm the linked [input schema](schemas/input.json) and [orchestrator prompt](prompts/task.md) exist there. `{baseDir}`, `{workdir}`, and `{{input}}` are notation for values the orchestrator must substitute, not environment variables or automatic host expansion. Resolve relative Markdown links against the directory of the file containing them; resolve `{baseDir}/…` paths against the skill directory. Pass resolved paths to workers and shell commands.
+- **Launch a role.** Read the role prompt linked in the Agent Architecture table. When the environment has a registered worker for the role, use its `zeroize-audit:<role-name>` identifier (for example, `zeroize-audit:0-preflight`); otherwise create an independent worker with the Markdown body of that prompt, the current phase's instructions, and its parameter values. Always include the resolved `baseDir` and, once created, `workdir`, even when a phase table does not repeat them. Resolve resource references using the rules above before delegation. Worker file/search/shell actions use the environment's actual tool schemas and permissions. The role's name identifies its instructions, not a required dispatch API or model.
+- **Wait for results.** Retain each worker's handle and wait through the environment's completion mechanism. A launch acknowledgement is not completion. Read the phase's required artifacts before updating its completion state or starting a dependent phase. On worker failure or unavailable dispatch, apply only that phase's documented fallback; otherwise record the failure in the existing run state and report the affected phase as blocked.
+- **Concurrency.** Respect available concurrency and phase barriers. Run workers sequentially when parallel execution is unavailable. Per-TU compiler workers write to separate directories and may run concurrently.
+- **Collect decisions.** Use the environment's user-input facility or ask in the conversation. When a phase requires an answer, wait for it; do not substitute a default or elapsed time for the user's decision. Preserve the validation and verification outcomes when recording any accepted or rejected PoC result.
+
 ## How to Run
 
 On a request like "audit this crate for secrets left in memory" or "check that this C library actually wipes its keys":
 
-1. **Collect inputs.** Map the request onto the Inputs table below (full schema: `{baseDir}/schemas/input.json`). `path` is required, plus at least one of `compile_db` (C/C++) or `cargo_manifest` (Rust); if neither is given or derivable from the repo, ask the user, because preflight stops the run without one. Leave all other fields at their defaults unless the user says otherwise.
-2. **Read the orchestrator prompt, `{baseDir}/prompts/task.md`**, substituting the collected inputs for its `{{placeholder}}` values. You act as the orchestrator it describes: it defines state recovery, the phase loop, early termination, and error handling. Read `{baseDir}/prompts/system.md` alongside it for the shared working-directory layout and the agent error protocol every phase depends on.
-3. **Execute its phase loop.** Run Phases 0-7 sequentially. Before each phase, read that phase's workflow file from `{baseDir}/workflows/phase-{N}-{name}.md` and follow its Preconditions, Instructions, State Update, and Error Handling sections. Each workflow specifies which agent to spawn via `Task` and with what parameters. Honor the per-phase skip conditions and the early-termination rules in task.md.
+1. **Collect inputs.** Map the request onto the Inputs table below (full schema: [schemas/input.json](schemas/input.json)). `path` is required, plus at least one of `compile_db` (C/C++) or `cargo_manifest` (Rust); if neither is given or derivable from the repo, ask the user, because preflight stops the run without one. Leave all other fields at their defaults unless the user says otherwise.
+2. **Read the [orchestrator prompt](prompts/task.md)**, substituting the collected inputs for its `{{placeholder}}` values. You act as the orchestrator it describes: it defines state recovery, the phase loop, early termination, and error handling. Read the [shared instructions](prompts/system.md) alongside it for the shared working-directory layout and the agent error protocol every phase depends on.
+3. **Execute its phase loop.** Run Phases 0-7 sequentially. Before each phase, read that phase's workflow file from `{baseDir}/workflows/phase-{N}-{name}.md` and follow its Preconditions, Instructions, State Update, and Error Handling sections. Each workflow specifies the role prompt and parameters to use under the Execution Contract above. Honor the per-phase skip conditions and the early-termination rules in task.md.
 4. **Return the report** (Phase 8, inline): read `{workdir}/report/final-report.md` and return its contents as the skill output.
 
 To resume an interrupted run: if a `workdir` is known from prior context, read `{workdir}/orchestrator-state.json` and continue from its `current_phase` instead of starting at Phase 0 (see the Recovery section of task.md).
@@ -53,7 +63,7 @@ Detect missing zeroization of sensitive data in source code and identify zeroiza
 
 ## Inputs
 
-See `{baseDir}/schemas/input.json` for the full schema. Key fields:
+See [schemas/input.json](schemas/input.json) for the full schema. Key fields:
 
 | Field | Required | Default | Description |
 |---|---|---|---|
@@ -164,21 +174,21 @@ Findings are grouped by required evidence. Only attempt findings for which the r
 
 ## Agent Architecture
 
-The analysis pipeline uses 11 agents across 8 phases, invoked by the orchestrator (`{baseDir}/prompts/task.md`) via `Task`. Agents write persistent finding files to a shared working directory (`/tmp/zeroize-audit-{run_id}/`), enabling parallel execution and protecting against context pressure.
+The analysis pipeline uses 11 worker roles across 8 phases, launched by the [orchestrator](prompts/task.md) using the Execution Contract above. Agents write persistent finding files to a shared working directory (`/tmp/zeroize-audit-{run_id}/`), enabling parallel execution and protecting against context pressure.
 
 | Agent | Phase | Purpose | Output Directory |
 |---|---|---|---|
-| `0-preflight` | Phase 0 | Preflight checks (tools, toolchain, compile DB, crate build), config merge, workdir creation, TU enumeration | `{workdir}/` |
-| `1-mcp-resolver` | Phase 1, Wave 1 (C/C++ only) | Resolve symbols, types, and cross-file references via Serena MCP | `mcp-evidence/` |
-| `2-source-analyzer` | Phase 1, Wave 2a (C/C++ only) | Identify sensitive objects, detect wipes, validate correctness, data-flow/heap | `source-analysis/` |
-| `2b-rust-source-analyzer` | Phase 1, Wave 2b (Rust only, parallel with 2a) | Rustdoc JSON trait-aware analysis + dangerous API grep | `source-analysis/` |
-| `3-tu-compiler-analyzer` | Phase 2, Wave 3 (C/C++ only, N parallel) | Per-TU IR diff, assembly, semantic IR, CFG analysis | `compiler-analysis/{tu_hash}/` |
-| `3b-rust-compiler-analyzer` | Phase 2, Wave 3R (Rust only, single agent) | Crate-level MIR, LLVM IR, and assembly analysis | `rust-compiler-analysis/` |
-| `4-report-assembler` | Phase 3 (interim) + Phase 6 (final) | Collect findings from all agents, apply confidence gates; merge PoC results and produce final report | `report/` |
-| `5-poc-generator` | Phase 4 | Craft bespoke proof-of-concept programs (C/C++: all categories; Rust: MISSING_SOURCE_ZEROIZE, SECRET_COPY, PARTIAL_WIPE) | `poc/` |
-| `5b-poc-validator` | Phase 5 | Compile and run all PoCs | `poc/` |
-| `5c-poc-verifier` | Phase 5 | Verify each PoC proves its claimed finding | `poc/` |
-| `6-test-generator` | Phase 7 (optional) | Generate runtime validation test harnesses | `tests/` |
+| [0-preflight](../../agents/0-preflight.md) | Phase 0 | Preflight checks (tools, toolchain, compile DB, crate build), config merge, workdir creation, TU enumeration | `{workdir}/` |
+| [1-mcp-resolver](../../agents/1-mcp-resolver.md) | Phase 1, Wave 1 (C/C++ only) | Resolve symbols, types, and cross-file references via Serena MCP | `mcp-evidence/` |
+| [2-source-analyzer](../../agents/2-source-analyzer.md) | Phase 1, Wave 2a (C/C++ only) | Identify sensitive objects, detect wipes, validate correctness, data-flow/heap | `source-analysis/` |
+| [2b-rust-source-analyzer](../../agents/2b-rust-source-analyzer.md) | Phase 1, Wave 2b (Rust only, parallel with 2a) | Rustdoc JSON trait-aware analysis + dangerous API grep | `source-analysis/` |
+| [3-tu-compiler-analyzer](../../agents/3-tu-compiler-analyzer.md) | Phase 2, Wave 3 (C/C++ only, N parallel) | Per-TU IR diff, assembly, semantic IR, CFG analysis | `compiler-analysis/{tu_hash}/` |
+| [3b-rust-compiler-analyzer](../../agents/3b-rust-compiler-analyzer.md) | Phase 2, Wave 3R (Rust only, single agent) | Crate-level MIR, LLVM IR, and assembly analysis | `rust-compiler-analysis/` |
+| [4-report-assembler](../../agents/4-report-assembler.md) | Phase 3 (interim) + Phase 6 (final) | Collect findings from all agents, apply confidence gates; merge PoC results and produce final report | `report/` |
+| [5-poc-generator](../../agents/5-poc-generator.md) | Phase 4 | Craft bespoke proof-of-concept programs (C/C++: all categories; Rust: MISSING_SOURCE_ZEROIZE, SECRET_COPY, PARTIAL_WIPE) | `poc/` |
+| [5b-poc-validator](../../agents/5b-poc-validator.md) | Phase 5 | Compile and run all PoCs | `poc/` |
+| [5c-poc-verifier](../../agents/5c-poc-verifier.md) | Phase 5 | Verify each PoC proves its claimed finding | `poc/` |
+| [6-test-generator](../../agents/6-test-generator.md) | Phase 7 (optional) | Generate runtime validation test harnesses | `tests/` |
 
 The orchestrator reads one per-phase workflow file from `{baseDir}/workflows/` at a time, and maintains `orchestrator-state.json` for recovery after context compression. Agents receive configuration by file path (`config_path`), not by value.
 
@@ -197,7 +207,7 @@ Phase 4: Wave 5:  5-poc-generator             (C/C++: all categories; Rust: MISS
 Phase 5: PoC Validation & Verification
            Step 1: 5b-poc-validator agent      (compile and run all PoCs)
            Step 2: 5c-poc-verifier agent       (verify each PoC proves its claimed finding)
-           Step 3: Orchestrator presents verification failures to user via AskUserQuestion
+           Step 3: Orchestrator asks the user to accept or reject failed verification
            Step 4: Orchestrator merges all results into poc_final_results.json
 Phase 6: Wave 6: 4-report-assembler           (mode=final → merge PoC results, final-report.md)
 Phase 7: Wave 7: 6-test-generator             (optional)
