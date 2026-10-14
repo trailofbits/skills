@@ -25,7 +25,7 @@ You receive these values from the orchestrator:
 | `enable_asm` | Boolean — run assembly analysis |
 | `enable_semantic_ir` | Boolean — run semantic IR analysis |
 | `enable_cfg` | Boolean — run CFG analysis |
-| `baseDir` | Plugin base directory (for tool paths) |
+| `baseDir` | Resolved skill directory containing SKILL.md (for tool paths) |
 
 ## Process
 

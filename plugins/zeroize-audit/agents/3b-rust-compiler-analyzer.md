@@ -23,7 +23,7 @@ You receive these values from the orchestrator:
 | `opt_levels` | Optimization levels to analyze (e.g. `["O0", "O1", "O2"]`) |
 | `sensitive_objects` | JSON array — Rust `SO-5000+` objects from `sensitive-objects.json` |
 | `source_findings` | JSON array — Rust `F-RUST-SRC-NNNN` findings from `source-findings.json` |
-| `baseDir` | Plugin base directory (for tool paths) |
+| `baseDir` | Resolved skill directory containing SKILL.md (for tool paths) |
 
 ## Process
 

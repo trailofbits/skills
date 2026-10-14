@@ -23,7 +23,7 @@ You receive these values from the orchestrator:
 | `final_report` | Path to `{workdir}/report/findings.json` |
 | `poc_categories` | Finding categories for which to generate PoCs |
 | `poc_output_dir` | Output directory for PoCs (default: `{workdir}/poc/`) |
-| `baseDir` | Plugin base directory (for tool paths) |
+| `baseDir` | Resolved skill directory containing SKILL.md (for tool paths) |
 
 ## Process
 

@@ -22,6 +22,8 @@ Inputs:
 
 ## Execution Protocol
 
+Follow the [Execution Contract](../SKILL.md#execution-contract) for resource resolution, role dispatch, completion waits, concurrency, and required user decisions. Carry those instructions into each worker along with its role prompt and phase parameters.
+
 ### Recovery
 
 If a `workdir` is known from prior context, read `{workdir}/orchestrator-state.json` to recover state after context compression:

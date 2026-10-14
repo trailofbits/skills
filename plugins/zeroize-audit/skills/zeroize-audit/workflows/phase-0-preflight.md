@@ -6,7 +6,7 @@ None — this is the first phase.
 
 ## Instructions
 
-Spawn agent `zeroize-audit:0-preflight` via `Task` (`subagent_type: "zeroize-audit:0-preflight"`) with:
+Launch the [0-preflight role](../../../agents/0-preflight.md) using the [Execution Contract](../SKILL.md#execution-contract) with:
 
 | Parameter | Value |
 |---|---|

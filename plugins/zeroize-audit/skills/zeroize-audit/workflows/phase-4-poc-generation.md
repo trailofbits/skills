@@ -6,7 +6,7 @@
 
 ## Instructions
 
-Spawn agent `zeroize-audit:5-poc-generator` via `Task` (`subagent_type: "zeroize-audit:5-poc-generator"`) with:
+Launch the [5-poc-generator role](../../../agents/5-poc-generator.md) using the [Execution Contract](../SKILL.md#execution-contract) with:
 
 | Parameter | Value |
 |---|---|
