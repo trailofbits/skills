@@ -55,7 +55,7 @@ Convert to slug: lowercase, replace spaces/underscores with hyphens.
 
 | Language | Detection Files |
 |----------|-----------------|
-| Python | `pyproject.toml`, `*.py` |
+| Python | `pyproject.toml`, `requirements.txt`, `setup.py`, `*.py` |
 | Node/TypeScript | `package.json`, `tsconfig.json` |
 | Rust | `Cargo.toml` |
 | Go | `go.mod`, `go.sum` |
@@ -69,14 +69,38 @@ If multiple languages are detected, configure all of them in the following prior
 3. **Rust** - Uses devcontainer feature
 4. **Go** - Uses devcontainer feature
 
-For multi-language `postCreateCommand`, chain all setup commands:
+For multi-language `postCreateCommand`, chain all setup commands. Python's
+environment setup comes first, then the post-install script, then the other
+languages in the priority order above:
 ```
-uv run /opt/post_install.py && uv sync && npm ci
+rm -rf .venv && uv sync && uv run --no-project /opt/post_install.py && npm ci
 ```
 
 Extensions and settings from all detected languages should be merged into the configuration.
 
 ## Phase 2: Generate Configuration
+
+### Shortcut: Scaffold Helper
+
+Use this first. The bundled helper applies every rule in this skill (name and
+slug inference, language detection, the template substitutions, the
+language-specific extensions, settings, features, volumes, and the
+`postCreateCommand` order) and writes the five files without retyping the
+templates:
+
+```bash
+uv run --no-project {baseDir}/scripts/scaffold.py . --dry-run
+uv run --no-project {baseDir}/scripts/scaffold.py .
+```
+
+- Read the `--dry-run` preview first. Override what it inferred with
+  `--name`, `--slug`, or `--langs python,node,rust,go`.
+- If `pyproject.toml` requires a Python other than the template's 3.13, pass
+  `--python-version X.Y`.
+- It refuses to overwrite an existing `.devcontainer/`, and it validates the
+  result (all five files, valid JSON, no placeholders left) before reporting.
+- If `uv` is unavailable, run it with `python3` (3.11+). If the helper fails,
+  follow the manual steps below; they are the rules it implements.
 
 Start with base templates from `resources/` directory. Substitute:
 
@@ -139,7 +163,7 @@ Add to `customizations.vscode.settings`:
 **postCreateCommand:**
 If `pyproject.toml` exists, chain commands:
 ```
-rm -rf .venv && uv sync && uv run /opt/post_install.py
+rm -rf .venv && uv sync && uv run --no-project /opt/post_install.py
 ```
 
 ---
@@ -167,11 +191,13 @@ Add to `customizations.vscode.settings`:
 ```
 
 **postCreateCommand:**
-Detect package manager from lockfile and chain with base command:
-- `pnpm-lock.yaml` → `uv run /opt/post_install.py && pnpm install --frozen-lockfile`
-- `yarn.lock` → `uv run /opt/post_install.py && yarn install --frozen-lockfile`
-- `package-lock.json` → `uv run /opt/post_install.py && npm ci`
-- No lockfile → `uv run /opt/post_install.py && npm install`
+Detect package manager from lockfile and chain with base command. The base
+image installs Node through fnm, which provides `corepack` but no `pnpm` or
+`yarn` shim, so call those through `corepack`:
+- `pnpm-lock.yaml` → `uv run --no-project /opt/post_install.py && COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install --frozen-lockfile`
+- `yarn.lock` → `uv run --no-project /opt/post_install.py && COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack yarn install --frozen-lockfile`
+- `package-lock.json` → `uv run --no-project /opt/post_install.py && npm ci`
+- No lockfile → `uv run --no-project /opt/post_install.py && npm install`
 
 ---
 
@@ -203,11 +229,11 @@ Add to `customizations.vscode.settings`:
 **postCreateCommand:**
 If `Cargo.lock` exists, use locked builds:
 ```
-uv run /opt/post_install.py && cargo build --locked
+uv run --no-project /opt/post_install.py && cargo build --locked
 ```
 If no lockfile, use standard build:
 ```
-uv run /opt/post_install.py && cargo build
+uv run --no-project /opt/post_install.py && cargo build
 ```
 
 ---
@@ -241,7 +267,7 @@ Add to `customizations.vscode.settings`:
 
 **postCreateCommand:**
 ```
-uv run /opt/post_install.py && go mod download
+uv run --no-project /opt/post_install.py && go mod download
 ```
 
 ---
@@ -284,7 +310,8 @@ Generate these files in the project's `.devcontainer/` directory:
 
 ## Validation Checklist
 
-Before presenting files to the user, verify:
+The scaffold helper runs checks 1-3 itself. Before presenting files to the
+user, verify:
 
 1. All `{{PROJECT_NAME}}` placeholders are replaced with the human-readable name
 2. All `{{PROJECT_SLUG}}` placeholders are replaced with the slugified name

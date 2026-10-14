@@ -24,6 +24,10 @@ The skill will:
 2. Generate `.devcontainer/` configuration files
 3. Provide instructions for starting the container
 
+The skill's scaffold helper, `skills/devcontainer-setup/scripts/scaffold.py`, applies the same
+rules in one call (`uv run --no-project`, or Python 3.11+ directly). Preview with `--dry-run`;
+it refuses to overwrite an existing `.devcontainer/`.
+
 ## Generated Files
 
 | File | Purpose |
@@ -56,7 +60,7 @@ devc destroy [-f]   Remove container, volumes, and image
 
 | Language | Detection | Configuration |
 |----------|-----------|---------------|
-| Python | `pyproject.toml`, `*.py` | Python 3.13 via uv (in Dockerfile) |
+| Python | `pyproject.toml`, `requirements.txt`, `setup.py`, `*.py` | Python 3.13 via uv (in Dockerfile) |
 | Node/TypeScript | `package.json`, `tsconfig.json` | Node 22 via fnm (in Dockerfile) |
 | Rust | `Cargo.toml` | Devcontainer feature |
 | Go | `go.mod` | Devcontainer feature |
