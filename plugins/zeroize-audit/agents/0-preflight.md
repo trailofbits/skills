@@ -30,7 +30,7 @@ You receive these values from the orchestrator:
 | `opt_levels` | Optimization levels (e.g. `["O0", "O1", "O2"]`) |
 | `poc_categories` | Finding categories for PoC generation |
 | `poc_output_dir` | Output directory for PoCs |
-| `baseDir` | Plugin base directory |
+| `baseDir` | Resolved skill directory containing SKILL.md |
 
 ## Process
 

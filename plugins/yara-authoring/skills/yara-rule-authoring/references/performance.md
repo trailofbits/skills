@@ -1,6 +1,8 @@
 # YARA-X Performance Guidelines
 
 Understanding how YARA-X works internally helps you write rules that scan fast.
+Resolve `<resolved-atom-analyzer-path>` to the absolute path of the
+[atom analyzer](../scripts/atom_analyzer.py) in the installed skill before using the command below.
 
 > **YARA-X Performance:** YARA-X is 5-10x faster than legacy YARA for regex-heavy rules due to its Rust-based regex engine. The atom extraction and matching principles remain the same.
 
@@ -281,7 +283,7 @@ done
 Use the atom analyzer script:
 
 ```bash
-uv run {baseDir}/scripts/atom_analyzer.py rule.yar
+uv run "<resolved-atom-analyzer-path>" rule.yar
 ```
 
 ## Real-World Examples
