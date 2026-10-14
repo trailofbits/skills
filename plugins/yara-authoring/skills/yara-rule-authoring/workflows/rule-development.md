@@ -1,6 +1,8 @@
 # YARA Rule Development Workflow
 
 This guide walks through the complete process of developing a production-quality YARA-X rule, from sample collection to deployment.
+Resolve `<resolved-yara-lint-path>` to the absolute path of the
+[linter](../scripts/yara_lint.py) in the installed skill before using the command below.
 
 ## Overview
 
@@ -292,7 +294,7 @@ yr fmt -w rule.yar
 
 ```bash
 # Run the skill's linter
-uv run {baseDir}/scripts/yara_lint.py rule.yar
+uv run "<resolved-yara-lint-path>" rule.yar
 ```
 
 **All three must pass before proceeding.**
