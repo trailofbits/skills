@@ -97,6 +97,7 @@ trailmark/
     ├── trailmark-finding-triage/      # Single-finding evidence packets
     ├── trailmark-variant-neighborhood/ # Variant candidate neighborhoods
     ├── trailmark-summary/            # Quick overview for vivisect/galvanize
+    │   └── scripts/summary.py        # One-call summary from an existing installation
     └── trailmark-structural/         # Full structural analysis
 ```
 

@@ -35,6 +35,25 @@ summary.
 
 The target directory is passed via the `args` parameter.
 
+## Shortcut
+
+Run the bundled helper first. It finds the Python that already has Trailmark
+(the `trailmark` launcher's interpreter or a global one), installs nothing,
+never runs a project-local `trailmark` or creates a `.venv`, and builds one
+graph for both the language list and the summary:
+
+```bash
+uv run --no-project --no-python-downloads "{baseDir}/scripts/summary.py" "{args}"
+```
+
+- **Exit 0:** return `languages` and the complete `summary_text` (plus
+  `version` when present). The helper has already checked that `Entrypoints:`
+  and `Dependencies:` are present, so skip Steps 1-4.
+- **Exit 2:** report "Trailmark found no supported languages under target" and
+  return.
+- **Any other result:** follow Steps 1-4 below, still without installing
+  anything. Pass `--python=PATH` only for an interpreter you trust.
+
 ## Execution
 
 **Step 1: Check that trailmark is available.**
@@ -75,15 +94,19 @@ print(json.dumps(detect_languages(sys.argv[1])))
 PY
 ```
 
-If the import fails, rerun the same snippet with `uv run --with trailmark python - "{args}"`.
+If the import fails (a `uv tool install` environment is not importable from
+the system `python3`), rerun the same snippet with the interpreter from the
+CLI's shebang, which needs no install:
+`"$(head -1 "$(command -v trailmark)" | sed 's/^#!//')" - "{args}"`.
+If that also fails, report "trailmark is not installed" and return.
 If the result is `[]`, report "Trailmark found no supported languages under
 target" and return.
 
 **Step 3: Run the summary with auto-detection.**
 
 ```bash
-trailmark analyze --language auto --summary {args} 2>&1 || \
-  uv run trailmark analyze --language auto --summary {args} 2>&1
+trailmark analyze --language auto --summary "{args}" 2>&1 || \
+  uv run trailmark analyze --language auto --summary "{args}" 2>&1
 ```
 
 **Step 4: Verify the output.**
