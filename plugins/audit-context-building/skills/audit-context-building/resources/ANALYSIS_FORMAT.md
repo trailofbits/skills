@@ -7,7 +7,7 @@ write it down.
 
 One document per function, sections in this order, separated by `---`:
 
-```markdown
+````markdown
 ## `functionName` in path/to/file.ext (L40-L88)
 
 **Purpose:** Its role in the system and what breaks without it.
@@ -22,10 +22,10 @@ One document per function, sections in this order, separated by `---`:
 
 **Block-by-Block:**
 
-​```language
+```language
 // L52-L54
 <the code>
-​```
+```
 - **What:** one sentence.
 - **Why here:** what its position in the order buys.
 - **Assumes:** what must hold for it to be correct.
@@ -41,7 +41,7 @@ One document per function, sections in this order, separated by `---`:
 
 **Open Questions:**
 - unclear; need to inspect X
-```
+````
 
 ## Conventions
 

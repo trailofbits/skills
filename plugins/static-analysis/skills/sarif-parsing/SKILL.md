@@ -378,7 +378,7 @@ Validate before processing to catch malformed files:
 
 ```bash
 # Using ajv-cli
-npm install -g ajv-cli
+npm install -g ajv-cli@5.0.0
 ajv validate -s sarif-schema-2.1.0.json -d results.sarif
 
 # Using Python jsonschema

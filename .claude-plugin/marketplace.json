@@ -12,7 +12,7 @@
     {
       "name": "audit-context-building",
       "description": "Understand a codebase before looking for bugs in it. Reads it function by function, records what each one assumes and depends on, and saves the write-ups to files instead of filling up the conversation.",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "author": {
         "name": "Omar Inuwa"
       },
@@ -20,7 +20,7 @@
     },
     {
       "name": "building-secure-contracts",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "description": "Comprehensive smart contract security toolkit based on Trail of Bits' Building Secure Contracts framework. Includes vulnerability scanners for 6 blockchains and 5 development guideline assistants.",
       "author": {
         "name": "Omar Inuwa && Paweł Płatek"
@@ -47,7 +47,7 @@
     },
     {
       "name": "constant-time-analysis",
-      "version": "0.2.6",
+      "version": "0.2.7",
       "description": "Detect compiler-induced timing side-channels in cryptographic code",
       "author": {
         "name": "Scott Arciszewski",
@@ -94,7 +94,7 @@
     },
     {
       "name": "gh-cli",
-      "version": "1.6.2",
+      "version": "1.6.3",
       "description": "Intercepts GitHub URL fetches (WebFetch and MCP fetch tools) and curl/wget commands, redirecting to the authenticated gh CLI.",
       "author": {
         "name": "William Tan",
@@ -188,7 +188,7 @@
     },
     {
       "name": "static-analysis",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
       "author": {
         "name": "Axel Mierczuk & Paweł Płatek"
@@ -198,7 +198,7 @@
     {
       "name": "spec-to-code-compliance",
       "description": "Check code against the documentation that specifies it: one agent per requirement, divergences refuted before they are reported, evidence cited to the line",
-      "version": "2.0.2",
+      "version": "2.0.3",
       "author": {
         "name": "Omar Inuwa"
       },
@@ -215,7 +215,7 @@
     },
     {
       "name": "trailmark",
-      "version": "0.11.4",
+      "version": "0.11.5",
       "description": "Builds source and binary code graphs for security analysis, context slicing, mutation testing, cryptographic protocol modeling, finding triage, and variant analysis.",
       "author": {
         "name": "Scott Arciszewski",
@@ -252,8 +252,8 @@
     },
     {
       "name": "modern-python",
-      "version": "1.6.2",
-      "description": "Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools.",
+      "version": "1.6.3",
+      "description": "Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools. Enabling it adds session-wide PATH shims that block bare pip and pipx, python <script>, python -m pip and uv pip in every project, printing the uv command to use instead.",
       "author": {
         "name": "William Tan",
         "email": "opensource@trailofbits.com",
@@ -334,7 +334,7 @@
     },
     {
       "name": "zeroize-audit",
-      "version": "0.3.3",
+      "version": "0.3.4",
       "description": "Detects missing or compiler-optimized zeroization of sensitive data with assembly and control-flow analysis",
       "author": {
         "name": "Trail of Bits",
@@ -374,7 +374,7 @@
     },
     {
       "name": "fp-check",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "description": "Systematic false positive verification for security bug analysis with mandatory gate reviews",
       "author": {
         "name": "Maciej Domanski"

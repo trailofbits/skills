@@ -182,7 +182,7 @@ JavaScript analysis uses V8 bytecode via Node.js `--print-bytecode`. TypeScript 
 node --version
 
 # TypeScript compiler (optional, for .ts files)
-npm install -g typescript
+npm install -g typescript@5.9.3
 ```
 
 ### Python Analysis

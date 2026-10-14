@@ -39,6 +39,8 @@ Modern Python tooling and best practices using uv, ruff, ty, and pytest. Based o
 
 This plugin includes a `SessionStart` hook that prepends PATH shims for `python`, `pip`, `pipx`, and `uv`. When Claude runs a bare `python`, `pip`, or `pipx` command, the shell resolves to the shim, which prints an error with the correct `uv` alternative and exits non-zero. The suggested alternative always uses the exact command name `python` (never `python3`) so it also works outside a project; see the header comment in [`hooks/shims/python`](hooks/shims/python) for the full rationale.
 
+The shims apply for the whole session in every project while the plugin is enabled, including projects that do not use uv, and they block these commands for any tool that runs them, not only for Claude. Disable the plugin in projects that need plain `pip`.
+
 The shims sit on PATH, so they see every subprocess a tool spawns, not only what Claude types. That is why the intercepted set is narrow: it covers the invocations `uv run` and `uv add` genuinely replace, and passes the rest through to the real binary. `python -c`, `python -m <module>` and `python -` read a program from the command line, an installed module, or stdin, so none of them resolves a script against a project's dependencies; `uv pip` carrying `--project`, `--directory` or `--target` is a tool building an environment it owns. Redirecting those broke real tooling, including `prek` hook installation and any script piping into `python3 -` ([#207](https://github.com/trailofbits/skills/issues/207)).
 
 | Intercepted Command | Suggested Alternative |
