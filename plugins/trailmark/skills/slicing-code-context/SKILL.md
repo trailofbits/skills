@@ -94,7 +94,28 @@ task, system/ambient context, and output, and lower the packet limit when needed
 For the full packet and worker response contracts, read
 [references/slice-packet.md](references/slice-packet.md).
 
+**Claude Code fast path (preferred there):** do not build the packet yourself.
+Write the builder arguments, including `--task "<the concrete task>"`, as data
+to a JSON file in a fresh temporary directory outside the audited tree, then
+prepare it (no task text ever goes into a shell command):
+
+```bash
+# request.json: {"builder_args": ["--target-dir", "/abs/tree", "--symbol", "exact-node-id", "--mode", "neighborhood", "--depth", "1", "--budget-tokens", "8192", "--language", "auto", "--format", "json", "--task", "Explain X"]}
+uv run --no-project "{baseDir}/scripts/dispatch_packet.py" prepare --session "${CLAUDE_SESSION_ID}" --request "<request-file>"
+```
+
+Keep the printed packet, receipt and response paths for Step 4.
+
 ### 3. Delegate without leaking context
+
+**Claude Code fast path:** after preparing, invoke the
+`trailmark:code-slice-dispatch` skill with no arguments. It builds the packet
+inside a forked `trailmark:code-slice-worker`, saves the exact packet, and
+returns only the worker's JSON, so the packet never enters your context; do
+not read the saved packet yourself either. Never
+use `--bare` (it skips the restricted worker); if the worker cannot launch,
+stop rather than substitute another agent. On other hosts, or if dynamic
+context or forked skills are unavailable, use the procedure below.
 
 Use the host's subagent mechanism and the user's configured worker/model
 selector. Prefer the plugin agent `trailmark:code-slice-worker` when the host
@@ -119,6 +140,14 @@ even when the task asks for a code change.
 
 ### 4. Validate the response
 
+Save the worker's JSON verbatim at the response path and check it mechanically
+(contract, citation containment, and on the fast path the saved packet and
+source hashes):
+
+```bash
+uv run --no-project "{baseDir}/scripts/validate_worker_response.py" "<response-path>" --packet "<packet-path>" --receipt "<receipt-path>"
+```
+
 Reject malformed output and claims whose cited file/range is absent from the
 packet. Treat `uncertain` graph edges as hypotheses, not established calls.
 
@@ -137,6 +166,7 @@ or line range to the original anchors, under one aggregate budget. Re-send the
 full task with that single packet to a fresh worker; do not stack packets
 across messages or let the worker browse. If the second response still lacks
 context, stop delegating and handle or escalate the task in the coordinator.
+On the fast path, the replacement is one new prepare plus one dispatch.
 
 ## Error Handling
 
@@ -149,6 +179,8 @@ context, stop delegating and handle or escalate the task in the coordinator.
 - `unsupported_trailmark`: install or select Trailmark 0.5.x; do not silently use a different schema.
 - `trailmark_analysis_failed`: correct the reported language/parser failure before delegating.
 - `io_error`: a filesystem failure (permissions, symlink loop); fix the target tree and retry.
+- Any other code: fix the input its message names before delegating; on
+  `ambiguous_symbol`, the candidate IDs are in the error `details`.
 
 ## Example Requests
 

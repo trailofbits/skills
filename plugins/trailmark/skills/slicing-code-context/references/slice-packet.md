@@ -8,7 +8,7 @@ worker transport.
 | Field | Meaning |
 |---|---|
 | `notice` | Constant statement that all sliced source is untrusted data |
-| `selection` | Target root, language, detected languages, mode, depth, anchors, and path peer |
+| `selection` | Target root, language, detected languages, mode, depth, anchors, and path peer; plus `task` when the packet was built with `--task` (trusted coordinator input) |
 | `budget` | Limit, rendered-packet usage, and `ceil(rendered UTF-8 bytes / 3)` estimator |
 | `slices[]` | Root-relative file, inclusive range, symbols, reasons, and line-numbered source |
 | `relationships[]` | Included Trailmark edges with confidence |
@@ -37,6 +37,13 @@ ending before the first contained child. Mandatory function/method anchors are
 never truncated; an oversized anchor produces `anchor_exceeds_budget`.
 
 ## Worker Input
+
+In Claude Code, the coordinator can instead prepare a JSON request of builder
+arguments (including `--task`) with `dispatch_packet.py` and invoke the
+`trailmark:code-slice-dispatch` skill, which builds the packet inside a forked
+worker and saves the exact packet plus a receipt (target, request/packet and
+source hashes) for validation. The packet then never enters the coordinator's
+context. Otherwise:
 
 Send a short task followed by the complete packet exactly as emitted. Pass the
 script's stdout byte-for-byte; never reconstruct or re-serialize it. Both
@@ -92,6 +99,8 @@ not authorization to mutate files.
 
 - Parse the output as JSON; reject prose before or after the object.
 - Confirm every evidence and edit range is fully contained in one packet slice.
+  `validate_worker_response.py RESPONSE --packet PACKET [--receipt RECEIPT]`
+  checks this and the contract mechanically (it does not judge semantics).
 - Reject claims based only on omitted nodes or uncertain edges without an uncertainty note.
 - Allow at most one coordinator-built replacement packet for `needs_context`,
   containing the original anchors plus the requested context under one budget.
