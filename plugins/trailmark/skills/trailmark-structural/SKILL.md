@@ -63,10 +63,17 @@ trailmark --version 2>/dev/null || uv run trailmark --version 2>/dev/null || tru
 
 Do not fail if this command is missing; use API feature probes below.
 
+**Steps 2 and 3 run Python snippets that import Trailmark.** Run them with
+the interpreter named in the `trailmark` CLI's shebang, which is the Python
+Trailmark is installed in; a `uv tool install` environment is not importable
+from the system `python3`. If `trailmark` is not on PATH or that interpreter
+cannot import it, run the snippet with `python3` instead. If neither works,
+report "trailmark is not installed" and return; do not install anything.
+
 **Step 2: Detect languages with Trailmark's parse API.**
 
 ```bash
-python3 - "{args}" <<'PY'
+"$(head -1 "$(command -v trailmark)" | sed 's/^#!//')" - "{args}" <<'PY'
 import json
 import sys
 
@@ -80,17 +87,15 @@ print(json.dumps(detect_languages(sys.argv[1])))
 PY
 ```
 
-If the import fails, rerun the same snippet with `uv run --with trailmark python - "{args}"`.
 If the result is `[]`, report "Trailmark found no supported languages under
 target" and return.
 
 **Step 3: Run the full structural analysis via `QueryEngine`.**
 
-Run this snippet with `python3`. If the import fails, rerun the same snippet
-under `uv run --with trailmark python - "{args}"`.
+Run this snippet with the same interpreter as Step 2.
 
 ```bash
-python3 - "{args}" <<'PY'
+"$(head -1 "$(command -v trailmark)" | sed 's/^#!//')" - "{args}" <<'PY'
 import json
 import sys
 
