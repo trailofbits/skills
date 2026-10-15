@@ -10,16 +10,16 @@ Analysis guidance for Ruby scripts. Uses YARV (Yet Another Ruby VM) instruction 
 
 ```bash
 # Analyze Ruby file
-uv run {baseDir}/ct_analyzer/analyzer.py crypto.rb
+uv run {baseDir}/../../ct_analyzer/analyzer.py crypto.rb
 
 # Include warning-level violations
-uv run {baseDir}/ct_analyzer/analyzer.py --warnings crypto.rb
+uv run {baseDir}/../../ct_analyzer/analyzer.py --warnings crypto.rb
 
 # Filter to specific functions
-uv run {baseDir}/ct_analyzer/analyzer.py --func 'encrypt|sign' crypto.rb
+uv run {baseDir}/../../ct_analyzer/analyzer.py --func 'encrypt|sign' crypto.rb
 
 # JSON output for CI
-uv run {baseDir}/ct_analyzer/analyzer.py --json crypto.rb
+uv run {baseDir}/../../ct_analyzer/analyzer.py --json crypto.rb
 ```
 
 ## Dangerous Operations

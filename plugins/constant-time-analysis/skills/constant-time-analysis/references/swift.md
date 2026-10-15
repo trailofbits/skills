@@ -29,23 +29,23 @@ Source Code (.swift)
 
 ```bash
 # Analyze Swift for native architecture
-uv run {baseDir}/ct_analyzer/analyzer.py crypto.swift
+uv run {baseDir}/../../ct_analyzer/analyzer.py crypto.swift
 
 # Analyze for iOS device (arm64)
-uv run {baseDir}/ct_analyzer/analyzer.py --arch arm64 crypto.swift
+uv run {baseDir}/../../ct_analyzer/analyzer.py --arch arm64 crypto.swift
 
 # Analyze for Intel Mac
-uv run {baseDir}/ct_analyzer/analyzer.py --arch x86_64 crypto.swift
+uv run {baseDir}/../../ct_analyzer/analyzer.py --arch x86_64 crypto.swift
 
 # Test multiple optimization levels (RECOMMENDED)
-uv run {baseDir}/ct_analyzer/analyzer.py --opt-level O0 crypto.swift
-uv run {baseDir}/ct_analyzer/analyzer.py --opt-level O2 crypto.swift
+uv run {baseDir}/../../ct_analyzer/analyzer.py --opt-level O0 crypto.swift
+uv run {baseDir}/../../ct_analyzer/analyzer.py --opt-level O2 crypto.swift
 
 # Include conditional branch warnings
-uv run {baseDir}/ct_analyzer/analyzer.py --warnings crypto.swift
+uv run {baseDir}/../../ct_analyzer/analyzer.py --warnings crypto.swift
 
 # CI-friendly JSON output
-uv run {baseDir}/ct_analyzer/analyzer.py --json crypto.swift
+uv run {baseDir}/../../ct_analyzer/analyzer.py --json crypto.swift
 ```
 
 ## Dangerous Instructions by Architecture
@@ -250,10 +250,10 @@ For analyzing code targeting different architectures:
 
 ```bash
 # Analyze for iOS device
-uv run {baseDir}/ct_analyzer/analyzer.py --arch arm64 crypto.swift
+uv run {baseDir}/../../ct_analyzer/analyzer.py --arch arm64 crypto.swift
 
 # Analyze for iOS simulator
-uv run {baseDir}/ct_analyzer/analyzer.py --arch x86_64 crypto.swift
+uv run {baseDir}/../../ct_analyzer/analyzer.py --arch x86_64 crypto.swift
 ```
 
 ## Common Mistakes
@@ -274,10 +274,10 @@ Always test your cryptographic code on actual target architectures:
 
 ```bash
 # Apple Silicon Mac (arm64)
-uv run {baseDir}/ct_analyzer/analyzer.py crypto.swift
+uv run {baseDir}/../../ct_analyzer/analyzer.py crypto.swift
 
 # Cross-compile for Intel
-uv run {baseDir}/ct_analyzer/analyzer.py --arch x86_64 crypto.swift
+uv run {baseDir}/../../ct_analyzer/analyzer.py --arch x86_64 crypto.swift
 ```
 
 ## Further Reading

@@ -6,30 +6,30 @@ Analysis guidance for C, C++, Go, and Rust. These languages compile to native as
 
 ```bash
 # C/C++ (default: clang, native architecture)
-uv run {baseDir}/ct_analyzer/analyzer.py crypto.c
+uv run {baseDir}/../../ct_analyzer/analyzer.py crypto.c
 
 # Go
-uv run {baseDir}/ct_analyzer/analyzer.py crypto.go
+uv run {baseDir}/../../ct_analyzer/analyzer.py crypto.go
 
 # Rust
-uv run {baseDir}/ct_analyzer/analyzer.py crypto.rs
+uv run {baseDir}/../../ct_analyzer/analyzer.py crypto.rs
 
 # Cross-architecture testing (RECOMMENDED)
-uv run {baseDir}/ct_analyzer/analyzer.py --arch x86_64 crypto.c
-uv run {baseDir}/ct_analyzer/analyzer.py --arch arm64 crypto.c
+uv run {baseDir}/../../ct_analyzer/analyzer.py --arch x86_64 crypto.c
+uv run {baseDir}/../../ct_analyzer/analyzer.py --arch arm64 crypto.c
 
 # Multiple optimization levels
-uv run {baseDir}/ct_analyzer/analyzer.py --opt-level O0 crypto.c
-uv run {baseDir}/ct_analyzer/analyzer.py --opt-level O3 crypto.c
+uv run {baseDir}/../../ct_analyzer/analyzer.py --opt-level O0 crypto.c
+uv run {baseDir}/../../ct_analyzer/analyzer.py --opt-level O3 crypto.c
 
 # Include conditional branch warnings
-uv run {baseDir}/ct_analyzer/analyzer.py --warnings crypto.c
+uv run {baseDir}/../../ct_analyzer/analyzer.py --warnings crypto.c
 
 # Filter to specific functions
-uv run {baseDir}/ct_analyzer/analyzer.py --func 'sign|verify|decrypt' crypto.c
+uv run {baseDir}/../../ct_analyzer/analyzer.py --func 'sign|verify|decrypt' crypto.c
 
 # CI-friendly JSON output
-uv run {baseDir}/ct_analyzer/analyzer.py --json crypto.c
+uv run {baseDir}/../../ct_analyzer/analyzer.py --json crypto.c
 ```
 
 ## Supported Compilers
