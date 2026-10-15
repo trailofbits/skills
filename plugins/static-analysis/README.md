@@ -78,6 +78,8 @@ the same `references/`, so a ruleset added to `rulesets.md` reaches both.
 |--------|---------|
 | `skills/semgrep/scripts/run-scans.sh` | Builds every semgrep command from the selected rulesets, clones the third-party rule repos, runs the scans in batches and writes `scans.json` |
 | `skills/semgrep/scripts/merge_sarif.py` | Merges the per-scan SARIF into one `results.sarif` |
+| `skills/codeql/scripts/codeql_pipeline.sh` | Optional shortcut for the CodeQL run-analysis Steps 4–5: quality gate, suite, analysis and important-only filter in one call, plus `summary.json` and `report.json` |
+| `skills/codeql/scripts/process_results.py` | Summarizes and filters CodeQL SARIF for the pipeline |
 
 Generating the commands in one place is what makes `--metrics=off`, the `--include` scoping
 rule, and the output-directory `--exclude` properties of the code rather than instructions a
