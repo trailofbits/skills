@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 SARIF Parsing Helper Functions
 
@@ -5,8 +9,11 @@ Reusable utilities for working with SARIF files.
 No external dependencies beyond standard library.
 """
 
+import argparse
+import csv
 import hashlib
 import json
+import sys
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -280,13 +287,22 @@ def compute_fingerprint(result: dict, include_message: bool = True) -> str:
     return hashlib.sha256("|".join(components).encode()).hexdigest()[:16]
 
 
+def finding_key(f: Finding) -> tuple[str | None, str, str]:
+    """Identity for dedupe and diff: a fingerprint is only meaningful within its tool and rule.
+
+    Two different rules can report the same `partialFingerprints` value (it hashes the
+    source line, not the rule), so the fingerprint alone would merge different findings.
+    """
+    return (f.tool_name, f.rule_id, f.fingerprint or compute_fingerprint(f.raw))
+
+
 def deduplicate(findings: list[Finding]) -> list[Finding]:
     """Remove duplicate findings based on fingerprints."""
     seen = set()
     unique = []
 
     for f in findings:
-        key = f.fingerprint or compute_fingerprint(f.raw)
+        key = finding_key(f)
         if key not in seen:
             seen.add(key)
             unique.append(f)
@@ -320,16 +336,12 @@ def diff_findings(
         - fixed: findings in baseline but not current
         - unchanged: findings in both
     """
-    baseline_fps = {f.fingerprint or compute_fingerprint(f.raw) for f in baseline}
-    current_fps = {f.fingerprint or compute_fingerprint(f.raw) for f in current}
+    baseline_fps = {finding_key(f) for f in baseline}
+    current_fps = {finding_key(f) for f in current}
 
-    new = [f for f in current if (f.fingerprint or compute_fingerprint(f.raw)) not in baseline_fps]
-    fixed = [
-        f for f in baseline if (f.fingerprint or compute_fingerprint(f.raw)) not in current_fps
-    ]
-    unchanged = [
-        f for f in current if (f.fingerprint or compute_fingerprint(f.raw)) in baseline_fps
-    ]
+    new = [f for f in current if finding_key(f) not in baseline_fps]
+    fixed = [f for f in baseline if finding_key(f) not in current_fps]
+    unchanged = [f for f in current if finding_key(f) in baseline_fps]
 
     return new, fixed, unchanged
 
@@ -343,7 +355,7 @@ def get_rules(sarif: dict) -> dict[str, dict]:
     return rules
 
 
-def to_csv_rows(findings: list[Finding]) -> list[list[str]]:
+def to_csv_rows(findings: list[Finding], spreadsheet_safe: bool = False) -> list[list[str]]:
     """Convert findings to CSV-ready rows."""
     rows = [["rule_id", "level", "file", "line", "message"]]
     for f in findings:
@@ -356,6 +368,17 @@ def to_csv_rows(findings: list[Finding]) -> list[list[str]]:
                 f.message.replace("\n", " ")[:200],
             ]
         )
+    if spreadsheet_safe:
+        return [
+            [
+                ("'" + cell)
+                if cell.lstrip().startswith(("=", "+", "-", "@"))
+                or cell.startswith(("\t", "\r", "\n"))
+                else cell
+                for cell in row
+            ]
+            for row in rows
+        ]
     return rows
 
 
@@ -371,21 +394,94 @@ def summary(findings: list[Finding]) -> dict:
 
 
 # Example usage
-if __name__ == "__main__":
-    import sys
+def finding_record(finding: Finding) -> dict[str, Any]:
+    """Return the compact, JSON-safe part of a finding for CLI output."""
+    return {
+        "rule_id": finding.rule_id,
+        "level": finding.level,
+        "message": finding.message,
+        "file": finding.file_path,
+        "line": finding.start_line,
+        "end_line": finding.end_line,
+        "fingerprint": finding.fingerprint or compute_fingerprint(finding.raw),
+        "tool": finding.tool_name,
+    }
 
-    if len(sys.argv) < 2:
-        print("Usage: uv run --no-project sarif_helpers.py <sarif_file>")
-        sys.exit(1)
 
-    sarif = load_sarif(sys.argv[1])
+def select_findings(
+    findings: list[Finding],
+    levels: list[str] | None = None,
+    rules: list[str] | None = None,
+    path: str | None = None,
+) -> list[Finding]:
+    """Apply CLI filters without bypassing resolved severity."""
+    selected = findings
+    if levels:
+        selected = filter_by_level(selected, *levels)
+    if rules:
+        selected = filter_by_rule(selected, *rules)
+    if path:
+        selected = filter_by_file(selected, path)
+    return sort_by_severity(selected)
 
-    if not validate_version(sarif):
-        print("Warning: SARIF version is not 2.1.0")
 
-    findings = extract_findings(sarif)
+def limited_records(findings: list[Finding], limit: int) -> list[dict[str, Any]]:
+    """Bound model-facing output; zero explicitly means no limit."""
     findings = sort_by_severity(findings)
+    shown = findings if limit == 0 else findings[:limit]
+    return [finding_record(finding) for finding in shown]
 
+
+def compact_summary(findings: list[Finding], top_rules: int) -> dict[str, Any]:
+    """Return summary statistics without sending an unbounded rule map to a model."""
+    stats = summary(findings)
+    ranked = sorted(stats["by_rule"].items(), key=lambda item: (-item[1], item[0]))
+    shown = ranked if top_rules == 0 else ranked[:top_rules]
+    return {
+        "total": stats["total"],
+        "by_level": stats["by_level"],
+        "files_affected": stats["files_affected"],
+        "rules_triggered": stats["rules_triggered"],
+        "top_rules": [{"rule_id": rule, "count": count} for rule, count in shown],
+    }
+
+
+def preview(findings: list[Finding], limit: int) -> dict[str, Any]:
+    records = limited_records(findings, limit)
+    return {
+        "total": len(findings),
+        "returned": len(records),
+        "omitted": len(findings) - len(records),
+        "by_level": count_by_level(findings),
+        "findings": records,
+    }
+
+
+def load_findings(path: str | Path) -> list[Finding]:
+    """Load one SARIF file for the CLI, refusing input that cannot be a complete scan."""
+    sarif = load_sarif(path)
+    if sarif.get("version") not in {"2.0.0", "2.1.0"}:
+        raise ValueError(f"unsupported SARIF version in {path}; expected 2.0.0 or 2.1.0")
+    runs = sarif.get("runs")
+    if not isinstance(runs, list):
+        raise ValueError(f"incomplete scan in {path}: runs must be an array")
+    for index, run in enumerate(runs):
+        if not isinstance(run, dict):
+            raise ValueError(f"invalid scan in {path}: run {index} is not an object")
+        # A run without `results` contributes none, as in the library; an explicit null
+        # or non-array means the scan did not complete.
+        if "results" in run and not isinstance(run["results"], list):
+            raise ValueError(f"incomplete scan in {path}: run {index} has null or invalid results")
+        invocations = run.get("invocations") or []
+        if any(isinstance(i, dict) and i.get("executionSuccessful") is False for i in invocations):
+            raise ValueError(
+                f"failed scan in {path}: run {index} reports executionSuccessful=false"
+            )
+    return extract_findings(sarif)
+
+
+def print_legacy_summary(findings: list[Finding]) -> None:
+    """Preserve the helper's original human-readable direct-invocation output."""
     print("\nSummary:")
     stats = summary(findings)
     print(f"  Total findings: {stats['total']}")
@@ -394,7 +490,151 @@ if __name__ == "__main__":
     print("\nBy severity:")
     for level, count in stats["by_level"].items():
         print(f"  {level}: {count}")
-
     print("\nTop 5 rules:")
-    for rule, count in sorted(stats["by_rule"].items(), key=lambda x: -x[1])[:5]:
+    for rule, count in sorted(stats["by_rule"].items(), key=lambda item: -item[1])[:5]:
         print(f"  {rule}: {count}")
+
+
+def nonnegative(value: str) -> int:
+    number = int(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError("must be nonnegative (zero means all)")
+    return number
+
+
+def parser() -> argparse.ArgumentParser:
+    cli = argparse.ArgumentParser(
+        description="Summarize, filter, deduplicate, diff, or export SARIF findings."
+    )
+    commands = cli.add_subparsers(dest="command", required=True)
+
+    summary_parser = commands.add_parser("summary", help="print finding counts as JSON")
+    summary_parser.add_argument("sarif")
+    summary_parser.add_argument(
+        "--top-rules",
+        type=nonnegative,
+        default=20,
+        help="number of rule counts to include; zero explicitly includes all",
+    )
+
+    filter_parser = commands.add_parser("filter", help="print compact matching findings as JSON")
+    filter_parser.add_argument("sarif")
+    filter_parser.add_argument("--level", action="append", dest="levels")
+    filter_parser.add_argument("--rule", action="append", dest="rules")
+    filter_parser.add_argument("--path")
+    filter_parser.add_argument("--limit", type=nonnegative, default=100)
+
+    dedupe_parser = commands.add_parser(
+        "dedupe", help="remove duplicate findings across SARIF files"
+    )
+    dedupe_parser.add_argument("sarif", nargs="+")
+    dedupe_parser.add_argument("--limit", type=nonnegative, default=100)
+
+    diff_parser = commands.add_parser("diff", help="compare baseline and current SARIF files")
+    diff_parser.add_argument("baseline")
+    diff_parser.add_argument("current")
+    diff_parser.add_argument("--limit", type=nonnegative, default=100)
+
+    csv_parser = commands.add_parser("csv", help="write compact findings as CSV to stdout")
+    csv_parser.add_argument("sarif")
+    csv_parser.add_argument("--level", action="append", dest="levels")
+    csv_parser.add_argument("--rule", action="append", dest="rules")
+    csv_parser.add_argument("--path")
+    csv_parser.add_argument(
+        "--raw-cells",
+        action="store_true",
+        help="disable spreadsheet formula escaping; use only for trusted machine consumers",
+    )
+    return cli
+
+
+def _main(argv: list[str] | None = None) -> int:
+    """Run the command-line interface.
+
+    Supplying a SARIF path without a command preserves the helper's former
+    human-readable direct-invocation output. Named commands return compact JSON.
+    """
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv:
+        print("Usage: uv run --no-project sarif_helpers.py <sarif_file>")
+        return 1
+    if len(argv) == 1 and Path(argv[0]).is_file():
+        sarif = load_sarif(argv[0])
+        if not validate_version(sarif):
+            print("Warning: SARIF version is not 2.1.0")
+        print_legacy_summary(sort_by_severity(extract_findings(sarif)))
+        return 0
+    args = parser().parse_args(argv)
+
+    if args.command == "summary":
+        print(
+            json.dumps(
+                compact_summary(load_findings(args.sarif), args.top_rules),
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if args.command == "filter":
+        selected = select_findings(load_findings(args.sarif), args.levels, args.rules, args.path)
+        print(
+            json.dumps(
+                preview(selected, args.limit),
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if args.command == "dedupe":
+        findings = [finding for path in args.sarif for finding in load_findings(path)]
+        unique = deduplicate(findings)
+        print(
+            json.dumps(
+                {
+                    "total": len(findings),
+                    "unique": len(unique),
+                    "omitted": len(unique) - len(limited_records(unique, args.limit)),
+                    "by_level": count_by_level(unique),
+                    "returned": len(limited_records(unique, args.limit)),
+                    "findings": limited_records(unique, args.limit),
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if args.command == "diff":
+        new, fixed, unchanged = diff_findings(
+            load_findings(args.baseline), load_findings(args.current)
+        )
+        print(
+            json.dumps(
+                {
+                    "new": preview(new, args.limit),
+                    "fixed": preview(fixed, args.limit),
+                    "unchanged": preview(unchanged, args.limit),
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if args.command == "csv":
+        findings = select_findings(load_findings(args.sarif), args.levels, args.rules, args.path)
+        writer = csv.writer(sys.stdout)
+        writer.writerows(to_csv_rows(findings, spreadsheet_safe=not args.raw_cells))
+        return 0
+
+    raise AssertionError(f"unhandled command: {args.command}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    try:
+        return _main(argv)
+    except (OSError, ValueError, TypeError) as error:
+        print(json.dumps({"status": "error", "error": str(error)}))
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

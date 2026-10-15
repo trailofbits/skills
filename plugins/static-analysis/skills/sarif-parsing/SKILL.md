@@ -30,6 +30,29 @@ Do NOT use this skill for:
 - Analyzing source code directly (SARIF is for processing existing scan results)
 - Triaging findings without SARIF input (use variant-analysis or audit skills)
 
+## Shortcut: Bundled CLI
+
+Start here. The bundled helper answers the common questions in one call each,
+with severity resolved from the rule when `result.level` is absent, and returns
+compact JSON instead of the whole file:
+
+```bash
+H={baseDir}/resources/sarif_helpers.py
+uv run --no-project "$H" summary results.sarif                 # counts by level, top rules
+uv run --no-project "$H" filter results.sarif --level error    # matching findings (--rule, --path)
+uv run --no-project "$H" dedupe a.sarif b.sarif                # unique findings across files
+uv run --no-project "$H" diff baseline.sarif current.sarif     # new / fixed / unchanged
+uv run --no-project "$H" csv results.sarif > findings.csv      # CSV, formula cells escaped
+```
+
+- Lists are capped by `--limit` (default 100; `0` means all) and `summary` by
+  `--top-rules` (default 20); the JSON reports how many were omitted.
+- Exit 2 with `{"status": "error", ...}` means the input is not a complete scan
+  (null `results`, `executionSuccessful: false`, unsupported version).
+  Treat it as incomplete, never as clean.
+- Read raw SARIF only when no command fits; it is often very large. Write
+  Python against the library (below) for anything else.
+
 ## SARIF Structure Overview
 
 SARIF 2.1.0 is the current OASIS standard. Every SARIF file has this hierarchical structure:
@@ -205,6 +228,7 @@ warnings = report.get_issue_type_histogram_for_severity("warning")
 
 # Filter by severity. sarif-tools hands back raw result dicts, and a result's level may
 # live on its rule, so resolve it against the run instead of reading r["level"].
+# Run with PYTHONPATH={baseDir}/resources so `sarif_helpers` is importable.
 from sarif_helpers import extract_findings, filter_by_level, load_sarif
 
 high_severity = filter_by_level(extract_findings(load_sarif("results.sarif")), "error")
@@ -216,18 +240,18 @@ high_severity = filter_by_level(extract_findings(load_sarif("results.sarif")), "
 # Summary of findings
 sarif summary results.sarif
 
-# List all results with details
+# List the SARIF files found in files or directories
 sarif ls results.sarif
 
-# Get results by severity
-sarif ls --level error results.sarif
+# Results by severity: sarif-tools has no level filter; use filter_by_level
+# (above) or the jq queries in resources/jq-queries.md
 
 # Diff two SARIF files (find new/fixed issues)
 sarif diff baseline.sarif current.sarif
 
 # Convert to other formats
-sarif csv results.sarif > results.csv
-sarif html results.sarif > report.html
+sarif csv -o results.csv results.sarif
+sarif html -o report.html results.sarif
 ```
 
 ## Strategy 4: Aggregating Multiple SARIF Files
@@ -441,17 +465,14 @@ def validate_sarif(sarif_path: str, schema_path: str) -> bool:
 ### Fail on New Issues
 
 ```python
-from sarif import loader
+# Run with PYTHONPATH={baseDir}/resources so `sarif_helpers` is importable.
+from sarif_helpers import diff_findings, extract_findings, load_sarif
 
 def check_for_regressions(baseline: str, current: str) -> int:
     """Return count of new issues not in baseline."""
-    baseline_data = loader.load_sarif_file(baseline)
-    current_data = loader.load_sarif_file(current)
-
-    baseline_fps = {get_fingerprint(r) for r in baseline_data.get_results()}
-    new_issues = [r for r in current_data.get_results()
-                  if get_fingerprint(r) not in baseline_fps]
-
+    new_issues, _, _ = diff_findings(
+        extract_findings(load_sarif(baseline)), extract_findings(load_sarif(current))
+    )
     return len(new_issues)
 ```
 
