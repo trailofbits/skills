@@ -1,7 +1,11 @@
-# zeroize-audit (Claude Skill)
+# zeroize-audit
 
 Audits C/C++/Rust code for missing zeroization and compiler-removed wipes.
 Pipeline: source scan → MCP/LSP semantic context → IR diff → assembly/MIR checks.
+
+## Agent Environment Support
+
+The [execution contract](skills/zeroize-audit/SKILL.md#execution-contract) describes how to run the skill in other agent environments using their available tools.
 
 ## Findings
 

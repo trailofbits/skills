@@ -19,7 +19,7 @@ You receive these values from the orchestrator:
 | `compile_db` | Path to `compile_commands.json` |
 | `config_path` | Path to merged config file (`{workdir}/merged-config.yaml`) |
 | `final_report` | Path to `{workdir}/report/findings.json` |
-| `baseDir` | Plugin base directory (for tool paths) |
+| `baseDir` | Resolved skill directory containing SKILL.md (for tool paths) |
 
 ## Process
 

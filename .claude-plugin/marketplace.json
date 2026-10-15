@@ -85,7 +85,7 @@
     },
     {
       "name": "firebase-apk-scanner",
-      "version": "2.2.2",
+      "version": "2.2.3",
       "description": "Scan Android APKs for Firebase security misconfigurations including open databases, storage buckets, authentication issues, and exposed cloud functions. For authorized security research only.",
       "author": {
         "name": "Nick Sellier"
@@ -215,7 +215,7 @@
     },
     {
       "name": "trailmark",
-      "version": "0.11.4",
+      "version": "0.12.2",
       "description": "Builds source and binary code graphs for security analysis, context slicing, mutation testing, cryptographic protocol modeling, finding triage, and variant analysis.",
       "author": {
         "name": "Scott Arciszewski",
@@ -294,7 +294,7 @@
     },
     {
       "name": "yara-authoring",
-      "version": "2.1.3",
+      "version": "2.2.1",
       "description": "YARA-X detection rule authoring with linting and quality analysis",
       "author": {
         "name": "Trail of Bits",
@@ -334,7 +334,7 @@
     },
     {
       "name": "zeroize-audit",
-      "version": "0.3.3",
+      "version": "0.4.0",
       "description": "Detects missing or compiler-optimized zeroization of sensitive data with assembly and control-flow analysis",
       "author": {
         "name": "Trail of Bits",
