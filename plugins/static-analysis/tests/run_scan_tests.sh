@@ -16,7 +16,7 @@ command -v uv >/dev/null 2>&1 || {
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$PLUGIN_ROOT/skills/semgrep/scripts/run-scans.sh"
-readonly EXPECTED_ASSERTIONS=104
+readonly EXPECTED_ASSERTIONS=106
 
 command -v jq >/dev/null 2>&1 || {
   echo "run_scan_tests.sh: jq not found — required" >&2
@@ -181,6 +181,17 @@ py_cmd=$(printf '%s\n' "$out" | grep 'p/python')
 contains "$py_cmd" '"--include=*.py"' "language rulesets must be scoped with --include"
 contains "$py_cmd" '"--include=*.pyi"' "every glob for the language must be present"
 contains "$baseline_cmd" 'raw/all-security-audit.json' "cross-language output stems start with all-"
+
+# The globs must reach semgrep as written. Split by an unquoted expansion, each one was also
+# matched against the working directory, so running from a directory holding .mjs files
+# replaced *.mjs with those filenames and the target's .mjs files were never scanned.
+DECOYDIR="$WORK/decoy-cwd"
+mkdir -p "$DECOYDIR"
+touch "$DECOYDIR/decoy-one.mjs" "$DECOYDIR/decoy-two.mjs"
+JSPLAN=$(plan jsplan '{"baseline":[],"javascript":["p/javascript"],"third_party":[]}')
+out=$(cd "$DECOYDIR" && dry "$JSPLAN")
+contains "$out" '"--include=*.mjs"' "an --include glob must not be expanded against the working directory"
+lacks "$out" "decoy-one.mjs" "filenames from the working directory must never become --include values"
 
 out=$(dry "$BASIC" --mode important-only)
 n=$(printf '%s\n' "$out" | grep -c -- '--severity WARNING --severity ERROR')

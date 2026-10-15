@@ -59,8 +59,8 @@ For each detected language, add the primary ruleset. If a framework is detected,
 | Detection | Primary Ruleset | Framework Rulesets | Pro Rule Count |
 |-----------|-----------------|-------------------|----------------|
 | `.py` | `p/python` | `p/django`, `p/flask`, `p/fastapi` | 710+ |
-| `.js`, `.jsx` | `p/javascript` | `p/react`, `p/nodejs`, `p/express`, `p/nextjs`, `p/angular` | 250+ (JS), 70+ (JSX) |
-| `.ts`, `.tsx` | `p/typescript` | `p/react`, `p/nodejs`, `p/express`, `p/nextjs`, `p/angular` | 230+ |
+| `.js`, `.jsx` | `p/javascript` | `p/react`, `p/nodejs`, `p/expressjs`, `p/nextjs`, `p/angular` | 250+ (JS), 70+ (JSX) |
+| `.ts`, `.tsx` | `p/typescript` | `p/react`, `p/nodejs`, `p/expressjs`, `p/nextjs`, `p/angular` | 230+ |
 | `.go` | `p/golang` | `p/go` (alias) | 80+ |
 | `.java` | `p/java` | `p/spring`, `p/findsecbugs` | 190+ |
 | `.kt` | `p/kotlin` | `p/spring` | 60+ |
@@ -100,7 +100,7 @@ For each detected language, add the primary ruleset. If a framework is detected,
 | React | `package.json` with react dependency, `.jsx`/`.tsx` files | `p/react` |
 | Next.js | `next.config.js`, `pages/` or `app/` directory | `p/nextjs` |
 | Angular | `angular.json`, `@angular/` dependencies | `p/angular` |
-| Express | `express` in package.json, `app.use()` patterns | `p/express` |
+| Express | `express` in package.json, `app.use()` patterns | `p/expressjs` |
 | NestJS | `@nestjs/` dependencies, `@Controller` decorators | `p/nodejs` |
 | Spring | `pom.xml` with spring, `@SpringBootApplication` | `p/spring` |
 | Rails | `Gemfile` with rails, `config/routes.rb` | `p/rails` |
