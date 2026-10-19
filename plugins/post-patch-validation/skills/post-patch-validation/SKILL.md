@@ -239,6 +239,8 @@ Workflow({
 })
 ```
 
+**Outside Claude Code** this skill's workflow is not supported: it writes inside `.git`, which Codex's sandbox does not let its workers write. Follow this skill's steps directly instead.
+
 Use `patchFile` instead of `patchRef` when appropriate. The workflow uses fixed coverage
 lenses to propose checks and a fixed executor to run this skill. Agents may author test
 artifacts. The Python runner records findings and gaps, and reviewers report coverage or evidence

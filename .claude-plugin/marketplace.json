@@ -12,7 +12,7 @@
     {
       "name": "audit-context-building",
       "description": "Understand a codebase before looking for bugs in it. Reads it function by function, records what each one assumes and depends on, and saves the write-ups to files instead of filling up the conversation.",
-      "version": "2.0.2",
+      "version": "2.1.0",
       "author": {
         "name": "Omar Inuwa"
       },
@@ -137,7 +137,7 @@
     },
     {
       "name": "post-patch-validation",
-      "version": "0.2.2",
+      "version": "0.3.0",
       "description": "Validates security patches against the reported bug, root-cause variants, and surrounding behavior. Returns reproducible failures to repair and validation gaps, with pinned inputs and saved evidence. Bundles a validate-patch dynamic workflow for Claude Code.",
       "author": {
         "name": "Scott Arciszewski",
@@ -167,7 +167,7 @@
     },
     {
       "name": "semgrep-rule-variant-creator",
-      "version": "1.1.4",
+      "version": "1.2.0",
       "description": "Creates language variants of existing Semgrep rules with proper applicability analysis and test-driven validation",
       "author": {
         "name": "Maciej Domanski",
@@ -188,7 +188,7 @@
     },
     {
       "name": "static-analysis",
-      "version": "1.5.0",
+      "version": "1.6.0",
       "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
       "author": {
         "name": "Axel Mierczuk & Paweł Płatek"
@@ -198,7 +198,7 @@
     {
       "name": "spec-to-code-compliance",
       "description": "Check code against the documentation that specifies it: one agent per requirement, divergences refuted before they are reported, evidence cited to the line",
-      "version": "2.0.2",
+      "version": "2.1.0",
       "author": {
         "name": "Omar Inuwa"
       },
@@ -225,7 +225,7 @@
     },
     {
       "name": "variant-analysis",
-      "version": "2.0.4",
+      "version": "2.1.0",
       "description": "Find similar vulnerabilities and bugs across codebases using pattern-based analysis",
       "author": {
         "name": "Axel Mierczuk"
@@ -234,7 +234,7 @@
     },
     {
       "name": "c-review",
-      "version": "2.0.4",
+      "version": "2.1.0",
       "description": "Comprehensive C/C++ security code review, with coverage verified against a parse of the source",
       "author": {
         "name": "Paweł Płatek"
@@ -263,7 +263,7 @@
     },
     {
       "name": "insecure-defaults",
-      "version": "2.0.3",
+      "version": "2.1.0",
       "description": "Detects insecure default configurations including hardcoded credentials, fallback secrets, weak authentication defaults, and dangerous values in production",
       "author": {
         "name": "Trail of Bits",
@@ -305,7 +305,7 @@
     },
     {
       "name": "git-cleanup",
-      "version": "2.3.3",
+      "version": "2.4.0",
       "description": "Safely analyzes and cleans up local git branches and worktrees by categorizing them as merged, squash-merged, superseded, or active work.",
       "author": {
         "name": "Henrik Brodin",
@@ -364,7 +364,7 @@
     },
     {
       "name": "code-improver",
-      "version": "1.0.3",
+      "version": "1.1.0",
       "description": "Improves code targets — skills, plugins, or a branch's changes — through an autonomous review-and-fix workflow with a pluggable reviewer (any installed skill or agent), a cross-round findings ledger, oscillation escalation, and a mechanical scope guard.",
       "author": {
         "name": "Paweł Płatek",
@@ -449,7 +449,7 @@
     },
     {
       "name": "workflow-runner",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "description": "Runs this marketplace's JavaScript workflows on Codex, where Claude Code's native Workflow tool is unavailable: one headless worker per agent() call inside Codex's own sandbox, with recorded, resumable runs. Gemini CLI support is experimental.",
       "author": {
         "name": "Markus Schiffermuller",

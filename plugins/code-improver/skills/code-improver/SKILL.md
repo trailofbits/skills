@@ -62,7 +62,9 @@ The workflow runs in the background and needs no babysitting: it reviews, fixes,
 re-reviews, checks scope after every fix round, and can only complete on a clean review.
 It never commits; all changes stay in the working tree.
 
-**If the Workflow tool is unavailable or denied, stop and say so.** Do not improvise the
+**Outside Claude Code** (no `Workflow` tool): run this skill's workflow with the `workflow-runner:run-workflow` skill. If that skill is not installed, say so and stop.
+
+**If the Workflow tool is denied, stop and say so.** Do not improvise the
 loop inline with direct edits — the ledger, scope guard, and escalation guarantees live
 in the workflow, and an inline imitation has none of them.
 

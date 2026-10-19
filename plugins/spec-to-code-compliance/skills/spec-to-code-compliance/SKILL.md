@@ -36,6 +36,8 @@ specification directly or widen the fan-out, ask for the run with those values â
 ./contracts against SPEC.md, checking 20 requirements" â€” and they reach the script as `{path, spec, limit}`.
 Typing the object literally after the slash command does not work; it arrives as a string and becomes the path.
 
+**Outside Claude Code** (no `Workflow` tool): run this skill's workflow with the `workflow-runner:run-workflow` skill. If that skill is not installed, say so and stop.
+
 It finds the documents, splits them into individually checkable requirements, gives each requirement its own
 agent to hunt the code with, has independent agents try to refute every divergence before it is reported, and
 writes `spec-compliance/REPORT.md` plus one file per requirement under `spec-compliance/requirements/`. Only

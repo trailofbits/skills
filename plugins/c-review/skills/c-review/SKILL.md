@@ -87,6 +87,8 @@ Workflow({
 })
 ```
 
+**Outside Claude Code** this skill's workflow is not supported: its review agents must have no shell (see the plugin README), and a Codex worker can always run code. Say so and stop.
+
 `findingScopeRootAbs` is the `scope_abs` from Phase 1 and is not optional in practice:
 omitted, the workflow tells the assembler no absolute root is known and a finding filed as
 `/repo/expat/lib/xmlparse.c` stops merging with the same bug filed as `xmlparse.c`.

@@ -219,6 +219,8 @@ Use it when the build is the long, uncertain part and you want it driven to a co
 [build-database.md](workflows/build-database.md) by hand when you want a say in which method is
 tried, or when a build failure needs interpreting as it happens.
 
+**Outside Claude Code** (no `Workflow` tool): run this skill's workflow with the `workflow-runner:run-workflow` skill. If that skill is not installed, say so and stop. It needs network access: it downloads CodeQL query packs.
+
 ### Auto-Detection Logic
 
 **If user explicitly specifies** what to do (e.g., "build a database", "run analysis on ./my-db"), execute that workflow directly. **Do NOT call `AskUserQuestion` for database selection if the user's prompt already makes their intent clear** — e.g., "build a new database", "analyze the codeql database in static_analysis_codeql_2", "run a full scan from scratch".

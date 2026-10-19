@@ -55,6 +55,8 @@ reports every language as passed having read no guidance at all.
 }
 ```
 
+**Outside Claude Code** (no `Workflow` tool): run this skill's workflow with the `workflow-runner:run-workflow` skill. If that skill is not installed, say so and stop.
+
 A workflow script cannot expand `{baseDir}` or `${CLAUDE_PLUGIN_ROOT}`, and has no filesystem
 access to notice that it did not; an installed plugin does not sit in the user's project
 either, so `referencesDir` is the only route by which the references below reach the phase

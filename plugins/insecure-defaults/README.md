@@ -17,7 +17,8 @@ Audits a codebase for insecure default configuration, tracing each candidate bef
 /insecure-defaults:audit src/config/app.py    # one file
 ```
 
-Argument is a file or a directory. Optional; defaults to `.`.
+Argument is a file or a directory. Optional; defaults to `.`. On Codex, invoke the
+`insecure-defaults` skill instead; it needs the [workflow-runner](../workflow-runner/) plugin.
 
 Whatever you point at is the target, however test-like it looks: a run scoped to `tests/` audits the tests. Exclusions (fixtures, docs, vendored code) apply only outside the scope you named.
 

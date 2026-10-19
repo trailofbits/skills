@@ -28,7 +28,7 @@ The workflow is strictly read-only. Both confirmation gates and every `git branc
 
 ## When to Use
 
-Invoke with `/git-cleanup` when you have accumulated many local branches and worktrees that need cleanup.
+Invoke with `/git-cleanup` when you have accumulated many local branches and worktrees that need cleanup. On Codex, invoke the `git-cleanup-workflow` skill instead; it needs the [workflow-runner](../workflow-runner/) plugin.
 
 **Important**: the command sets `disable-model-invocation: true`, so Claude cannot invoke it on its own — it runs only when you type it. That flag is what closes autonomous invocation; the `description` in the frontmatter is matchable text and would otherwise let a cleanup-shaped request trigger a plugin whose job is `git branch -D`.
 
@@ -53,6 +53,7 @@ claude plugins:add trailofbits/skills/git-cleanup
 | Path | Role |
 |------|------|
 | `commands/git-cleanup.md` | The `/git-cleanup` entry point: gates, confirmations, and the deletions |
+| `skills/git-cleanup-workflow/SKILL.md` | The same command for Codex, which loads skills but not commands |
 | `workflows/analyze-branches.js` | The dynamic workflow, shipping as `/git-cleanup:git-cleanup-analysis` — workflows are namespaced by `meta.name`, not the filename. Read-only — it never deletes |
 | `references/merge-evidence.md` | What counts as proof a branch is merged, read by the agents and the fallback path |
 | `tests/analyze-branches.test.mjs` | Stubs every agent and asserts the triage, clustering, and failure handling |

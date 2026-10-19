@@ -32,6 +32,8 @@ The analysis is long, and this context needs to survive to use it. Dispatch it:
 - **A single function** — dispatch the `audit-context-building:function-analyzer` agent at it. It writes its
   prose to disk and returns a record.
 
+**Outside Claude Code** (no `Workflow` tool): run this skill's workflow with the `workflow-runner:run-workflow` skill. If that skill is not installed, say so and stop.
+
 Then work from what comes back: the index, the unenforced assumptions, the open questions. Read a function's
 file when you need its detail.
 
