@@ -109,7 +109,7 @@ repository's 11 workflows use:
 | `phase()`, `log()`, `args` | As native |
 | `budget` | `total` is `null` unless `--token-budget` is set. Once it is, no new agent starts after the reported output tokens reach it; agents already running finish, so a run can overshoot by what they use |
 | `Date.now()`, `Math.random()` | Throw, as native, so a resumed run cannot diverge |
-| Resume | Recorded agents replay up to the first one that changed or failed; that one and every agent after it run again, including after edits to the script |
+| Resume | Recorded agents replay up to the first call with no completed record (new, changed or failed); that one and every agent after it run again, including after edits to the script. Calls are matched by prompt and options, not position, because a pipeline's call order depends on timing: reordering calls does not rerun them |
 
 Supported `agent()` options are `schema`, `label`, `phase`, `model`, `effort` and
 `agentType`. Named agents load from `agents/*.md` in the workflow's plugin or a

@@ -96,8 +96,9 @@ To stop a run, because the user asks or it is clearly going wrong, use
 `node <runner> --cancel <run directory>`. Workers stop and the run becomes
 `interrupted`, so it can be resumed.
 
-Resume follows Claude Code's rule: recorded agents replay up to the first one that changed
-or failed, and that agent and every one after it run again. Edits to the workflow script
+Resume follows Claude Code's rule: recorded agents replay up to the first call that is
+new, changed or failed, and that call and every one after it run again. Calls are matched
+by prompt and options, not position, so reordering calls does not rerun them. Edits to the workflow script
 are picked up the same way. It refuses if the runner or the run's settings changed. If
 files in the target changed since the run started, start a new run instead: replayed
 results describe the old files.
