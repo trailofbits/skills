@@ -1,0 +1,3 @@
+interface:
+  display_name: "Workflow Runner"
+  short_description: "Run plugin workflows on Codex and Gemini CLI"
