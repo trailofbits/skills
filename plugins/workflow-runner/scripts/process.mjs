@@ -105,4 +105,3 @@ export function runProcess(command, args, { cwd, env, input = '', timeoutMs, sig
     child.stdin.end(input);
   });
 }
-

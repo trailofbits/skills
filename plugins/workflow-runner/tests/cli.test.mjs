@@ -188,7 +188,8 @@ test('--resume needs only the run directory', async t => {
   const first = await cli([f.script, '--out', f.out, '--cwd', f.cwd, '--backend', 'codex', '--executable', fakeCli, '--timeout-ms', '500']);
   assert.equal(first.code, 0, first.stderr);
   assert.deepEqual(first.json.result, ['one', null], 'the hung worker timed out to null');
-  const again = await cli(['--resume', f.out]);
+  // --executable again: CI has no codex on PATH, and a resume never reuses the recorded one.
+  const again = await cli(['--resume', f.out, '--executable', fakeCli]);
   assert.match(again.stderr, /already completed/);
   const misuse = await cli(['--resume', f.out, '--model', 'x']);
   assert.match(misuse.stderr, /takes only a run directory/);
