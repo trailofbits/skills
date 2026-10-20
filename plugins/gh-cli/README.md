@@ -82,3 +82,22 @@ Cloned repositories are stored in session-scoped temp directories (`$TMPDIR/gh-c
 /plugin marketplace add trailofbits/skills
 /plugin install gh-cli
 ```
+
+## Calcifier recipe for `gh-cli`
+
+The [`gh-cli` Python recipe](skills/gh-cli/.calcifier/recipe.py) was generated with Calcifier 0.1.0. It pins the source skill and its packaged resources so source changes can be detected before execution.
+
+Install [Calcifier](https://github.com/trailofbits/calcifier) with Python 3.13 or later, and configure the `worker` role(s) in an agent-config v1 file following [the provider setup](https://github.com/trailofbits/calcifier/blob/main/docs/providers.md). Review the generated Python before granting trust.
+
+Run the portable check from this plugin directory:
+
+```sh
+calcifier lint skills/gh-cli/.calcifier/recipe.py --portable
+```
+
+Then use `calcifier exec` with the recipe path, `--agent-config agents.json`, and one `--input NAME=VALUE` for each required input below. Add `--trust` only after reviewing the recipe; execution records consent for those exact bytes.
+
+| Input | Type | Default |
+| --- | --- | --- |
+| `task` | `str` | Required |
+| `working_directory` | `str` | `'.'` |
