@@ -1,0 +1,3 @@
+# Replace these illustrative GitHub references with the changes you want reviewed.
+example/widget#42
+example/widget@0123456789abcdef0123456789abcdef01234567

@@ -157,6 +157,16 @@
       "source": "./plugins/property-based-testing"
     },
     {
+      "name": "regression-hunt",
+      "version": "1.2.0",
+      "description": "Agent-orchestrated skills for finding, reproducing and adjudicating regressions in PRs or commits.",
+      "author": {
+        "name": "Trail of Bits",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/regression-hunt"
+    },
+    {
       "name": "semgrep-rule-creator",
       "version": "1.2.6",
       "description": "Create custom Semgrep rules for detecting bug patterns and security vulnerabilities",
