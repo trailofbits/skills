@@ -31,6 +31,7 @@ updates:
     directories:
       - /plugins/constant-time-analysis
       - /plugins/culture-index/skills/interpreting-culture-index/scripts
+      - /plugins/patching-bugs
       - /plugins/regression-hunt
       - /plugins/testing-handbook-skills/scripts
       - /plugins/trailmark/skills/slicing-code-context/scripts
