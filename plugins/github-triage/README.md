@@ -122,3 +122,24 @@ Claude: [Closes #123 with the cited comment, skips the cross-link,
         "Closed #123. Skipped the #140 ↔ #145 link. Saved 37 outstanding
          issues to github-triage-acme-widget-20260625.md."
 ```
+
+## Calcifier recipe for `github-triage`
+
+The [`github-triage` Python recipe](skills/github-triage/.calcifier/recipe.py) was generated with Calcifier 0.1.0. It pins the source skill and its packaged resources so source changes can be detected before execution.
+
+Install [Calcifier](https://github.com/trailofbits/calcifier) with Python 3.13 or later, and configure the `worker` role(s) in an agent-config v1 file following [the provider setup](https://github.com/trailofbits/calcifier/blob/main/docs/providers.md). Review the generated Python before granting trust.
+
+Run the portable check from this plugin directory:
+
+```sh
+calcifier lint skills/github-triage/.calcifier/recipe.py --portable
+```
+
+Then use `calcifier exec` with the recipe path, `--agent-config agents.json`, and one `--input NAME=VALUE` for each required input below. Add `--trust` only after reviewing the recipe; execution records consent for those exact bytes.
+
+| Input | Type | Default |
+| --- | --- | --- |
+| `working_directory` | `str` | `'.'` |
+| `display_cutoff` | `int` | `32` |
+
+Depending on the execution path, tool providers may also be needed for `Bash`, `Read`, `Grep`, `Agent`, `AskUserQuestion`, `Write`. See the provider setup for `--tool-config`.
