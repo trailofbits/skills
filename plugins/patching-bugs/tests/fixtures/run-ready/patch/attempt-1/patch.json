@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "attempt": 1,
+  "baseline_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "patch_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "files_changed": 2,
+  "lines_added": 2,
+  "lines_removed": 1,
+  "variants": [],
+  "suite_before": {
+    "command": "pytest",
+    "passed": 9,
+    "failed": 1,
+    "skipped": 0
+  },
+  "suite_after": {
+    "command": "pytest",
+    "passed": 10,
+    "failed": 0,
+    "skipped": 0
+  },
+  "agent": "patcher"
+}

@@ -91,8 +91,10 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 |--------|-------------|
 | [constant-time-analysis](plugins/constant-time-analysis/) | Detect compiler-induced timing side-channels in cryptographic code |
 | [mutation-testing](plugins/mutation-testing/) | Configure mutation testing, analyze surviving mutants, and investigate bugs in weakly tested code |
+| [patching-bugs](plugins/patching-bugs/) | Reproduce and validate one known bug, commit a scoped patch, and produce reviewable proof and regression reports |
 | [post-patch-validation](plugins/post-patch-validation/) | Help patch authors find missed variants and regressions, with reproducible failures and explicit validation gaps |
 | [property-based-testing](plugins/property-based-testing/) | Write, review, and triage property-based tests — Hypothesis, fast-check, proptest, and Echidna or Medusa for Solidity invariants |
+| [regression-hunt](plugins/regression-hunt/) | Find and validate regressions across PRs and commits using discovery, reproduction, and replayed evidence |
 | [spec-to-code-compliance](plugins/spec-to-code-compliance/) | Check code against the documentation that specifies it, across contracts, C/C++, services, and firmware |
 | [writing-lean-proofs](plugins/writing-lean-proofs/) | Write structured Lean 4 proofs and design Lean libraries following Mathlib conventions |
 | [zeroize-audit](plugins/zeroize-audit/) | Detect missing or compiler-eliminated zeroization of secrets in C/C++ and Rust |
