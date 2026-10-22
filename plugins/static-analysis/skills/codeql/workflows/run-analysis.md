@@ -316,11 +316,11 @@ Report to user:
 
 ### Coverage Note:
 [compiled languages only (cpp, csharp, go, java, kotlin, rust); omit for python, js/ts, ruby]
-- This database contains only code the build compiled. Anything the build skipped — unbuilt
-  files, or `#ifdef`/`cfg` branches it left disabled — was never analyzed. (A `none` build,
-  per Extraction, also weakens dataflow.) If the finding count is low or zero, suspect
-  incomplete extraction rather than clean code: broaden the build and rebuild; don't substitute
-  another analyzer.
+- Coverage depends on the Extraction mode above. autobuild/manual captures only compiled code —
+  unbuilt files and disabled `#ifdef`/`cfg` branches are absent. `none` extracts source without a
+  build, so it reaches unbuilt files, but still drops disabled branches and gives weaker dataflow.
+  If the finding count is low or zero, suspect incomplete extraction rather than clean code:
+  broaden the build and rebuild; don't substitute another analyzer.
 
 ### Output Files:
 - SARIF (final): $OUTPUT_DIR/results/results.sarif
