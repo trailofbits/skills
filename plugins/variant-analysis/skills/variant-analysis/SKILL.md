@@ -56,6 +56,8 @@ Each stage reads the reference above that matches its job.
 Use the workflow when the codebase is large or the root cause has many manifestations. Work
 the steps directly when the search is narrow or you want a say in each generalization.
 
+**Outside Claude Code** (no `Workflow` tool): run this skill's workflow with the `workflow-runner:run-workflow` skill. If that skill is not installed, say so and stop.
+
 ## What Makes Hunts Fail
 
 1. **Narrow scope** — searching only the module the original bug was in

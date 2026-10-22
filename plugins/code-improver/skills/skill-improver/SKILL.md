@@ -29,20 +29,9 @@ The user provided: `$ARGUMENTS` (if empty, take the target skill from the conver
 
 ### 2. Resolve the loop script
 
-The loop is the dynamic workflow `workflows/improve.js` in this plugin. Launch it by
-path: `scriptPath` takes a resolved absolute path, and the Workflow tool's `name` resolves
-built-in and project workflows, so a marketplace-installed one may not answer to
-`code-improver:improve`. Try in order, first hit wins — the home directories come before
-`.` so an installed copy beats a checkout of this marketplace:
-
-1. `Bash: ls -d -- "${CLAUDE_PLUGIN_ROOT}/workflows/improve.js"`
-2. `Bash: ls -d -- "${CODEX_PLUGIN_ROOT}/workflows/improve.js"` (if that variable is set instead)
-3. `Bash: find ~/.claude ~/.codex . -maxdepth 7 -path '*/code-improver/workflows/improve.js' -print -quit 2>/dev/null`
-
-Use the path exactly as printed. Its plugin directory — the path with
-`/workflows/improve.js` removed — is `pluginRoot`. If all three come back empty, try
-`{name: "code-improver:improve"}` once; if that is unavailable too, stop and say the loop
-could not be located. Do not assemble a path by hand and do not improvise the loop.
+Resolve [`improve.js`](../../workflows/improve.js) from this SKILL.md's installed location
+to an absolute path and confirm the file exists. Its plugin directory is `pluginRoot`.
+Use this exact plugin copy; if the file is missing, stop.
 
 ### 3. Invoke the workflow
 
@@ -62,8 +51,7 @@ Run it with the Workflow tool, `{scriptPath: "<the path from step 2>", args: {..
 ```
 
 - `maxRounds` only if the user asked for a different cap (`--max-rounds N`).
-- `pluginRoot` lets the run find its metrics collector; omit the key only if step 2 fell
-  through to the workflow name — the workflow then searches for itself.
+- `pluginRoot` is the resolved plugin directory from step 2, for the metrics collector.
 - `scope` (repo-relative globs) only if the user restricted or widened what the loop may
   touch; by default the workflow scopes to the skill's plugin directory.
 - `decision` only on continuation (below).
@@ -72,7 +60,9 @@ The workflow runs in the background and needs no babysitting: it reviews, fixes,
 re-reviews, checks scope after every fix round, and can only complete on a clean review.
 It never commits; all changes stay in the working tree.
 
-**If the Workflow tool is unavailable or denied, stop and say so.** Do not improvise the
+**Outside Claude Code** (no `Workflow` tool): run this skill's workflow with the `workflow-runner:run-workflow` skill. If that skill is not installed, say so and stop.
+
+**If the Workflow tool is denied, stop and say so.** Do not improvise the
 loop inline with direct edits — the ledger, scope guard, and escalation guarantees live
 in the workflow, and an inline imitation has none of them (observed failure: an inline
 fallback "fixed" a finding by weakening the documented guarantee, exactly what the loop

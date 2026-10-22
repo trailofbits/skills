@@ -1,0 +1,5 @@
+interface:
+  display_name: "Insecure Defaults"
+  short_description: "Audit for fallback secrets and fail-open defaults"
+policy:
+  allow_implicit_invocation: false

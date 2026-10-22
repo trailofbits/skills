@@ -164,6 +164,8 @@ detect languages and Pro, select rulesets from [rulesets.md](references/rulesets
 /static-analysis:semgrep-scan {"target": "/abs/path", "mode": "run-all"}
 ```
 
+**Outside Claude Code** (no `Workflow` tool): run this skill's workflow with the `workflow-runner:run-workflow` skill. If that skill is not installed, say so and stop. It needs network access: it downloads the selected registry rulesets.
+
 **It does not stop for ruleset approval.** Invoking it with a target is the opt-in, the same
 way `/variant-analysis:variants` works. That is safe to do because the scan is read-only over
 the target — no `--autofix`, every write inside the output directory — so the approval gate

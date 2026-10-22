@@ -72,9 +72,8 @@ first.
 
 ## Requirements
 
-- **Claude Code with dynamic-workflow support** — the loop is a workflow script. Other
-  clients (e.g. Codex) are not supported: the skills may still load through marketplace
-  compatibility, but the loop is unavailable.
+- **Claude Code with dynamic-workflow support** — the loop is a workflow script. On Codex
+  or Gemini CLI, install the [workflow-runner](../workflow-runner/) plugin to run it.
 - **A reviewer.** The `skill-improver` entry needs the `plugin-dev` plugin
   (`claude-plugins-official` marketplace); `pr-improver`'s default needs
   `pr-review-toolkit`; the generic `code-improver` entry uses whatever skill or agent
