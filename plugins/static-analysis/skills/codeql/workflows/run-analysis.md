@@ -306,12 +306,21 @@ Report to user:
 **Query packs:** <list of query packs used>
 **Model packs:** <list of model packs used, or "None">
 **Threat models:** <list of threat models, or "default (remote)">
+**Extraction:** <buildMode from $DB_NAME/codeql-database.yml: autobuild | manual | none>
 
 ### Results Summary:
 - Total findings: <N>
 - Error: <N>
 - Warning: <N>
 - Note: <N>
+
+### Coverage Note:
+[compiled languages only (cpp, csharp, go, java, kotlin, rust); omit for python, js/ts, ruby]
+- This database contains only code the build compiled. Anything the build skipped — unbuilt
+  files, or `#ifdef`/`cfg` branches it left disabled — was never analyzed. (A `none` build,
+  per Extraction, also weakens dataflow.) If the finding count is low or zero, suspect
+  incomplete extraction rather than clean code: broaden the build and rebuild; don't substitute
+  another analyzer.
 
 ### Output Files:
 - SARIF (final): $OUTPUT_DIR/results/results.sarif
