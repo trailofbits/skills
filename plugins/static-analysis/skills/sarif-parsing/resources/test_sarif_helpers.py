@@ -335,3 +335,56 @@ def test_fingerprint_still_matches_the_same_finding_twice():
     assert compute_fingerprint(result_at("app/auth/login.py")) == compute_fingerprint(
         result_at("app/auth/login.py")
     )
+
+
+def _shared_fingerprint_sarif(*rules_and_paths: tuple[str, str]) -> dict:
+    """Results whose partialFingerprints collide although they are different findings."""
+    results = [
+        {
+            "ruleId": rule,
+            "level": "error",
+            "message": {"text": f"{rule} finding"},
+            "locations": [
+                {
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": path},
+                        "region": {"startLine": 3},
+                    }
+                }
+            ],
+            "partialFingerprints": {"primaryLocationLineHash": "deadbeef:1"},
+        }
+        for rule, path in rules_and_paths
+    ]
+    driver = {"name": "Semgrep", "rules": [{"id": "r1"}, {"id": "r2"}]}
+    return {"version": "2.1.0", "runs": [{"tool": {"driver": driver}, "results": results}]}
+
+
+def test_different_rules_sharing_a_fingerprint_are_not_merged():
+    import sarif_helpers
+
+    current = sarif_helpers.extract_findings(
+        _shared_fingerprint_sarif(("r1", "a.c"), ("r2", "b.c"))
+    )
+    baseline = sarif_helpers.extract_findings(_shared_fingerprint_sarif(("r1", "a.c")))
+    assert len(sarif_helpers.deduplicate(current)) == 2
+    new, fixed, unchanged = sarif_helpers.diff_findings(baseline, current)
+    assert (len(new), len(fixed), len(unchanged)) == (1, 0, 1)
+    assert new[0].rule_id == "r2"
+
+
+def test_documented_regression_gate_runs():
+    """The "Fail on New Issues" snippet must run as written against the bundled helper."""
+    snippet = SKILL.read_text().split("### Fail on New Issues", 1)[1]
+    snippet = snippet.split("```python\n", 1)[1].split("```", 1)[0]
+    namespace: dict = {}
+    exec(compile(snippet, "SKILL.md", "exec"), namespace)
+    fixture = str(RESOURCES / "fixtures" / "codeql-no-level.sarif")
+    assert namespace["check_for_regressions"](fixture, fixture) == 0
+
+
+def test_documented_sarif_tools_commands_exist():
+    """sarif-tools' `ls` has no --level, and csv/html write to -o, not stdout."""
+    skill = SKILL.read_text()
+    assert "sarif ls --level" not in skill
+    assert not re.search(r"sarif (csv|html) \S+ >", skill)
