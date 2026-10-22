@@ -1,8 +1,8 @@
 # Trail of Bits Skills Marketplace
 
-A Claude Code plugin marketplace from Trail of Bits providing skills to enhance AI-assisted security analysis, testing, and development workflows. Codex can load this marketplace through its Claude marketplace compatibility.
+Trail of Bits skills and plugins for AI-assisted security analysis, testing, and development. Install this marketplace in Claude Code or Codex, or import it into your ChatGPT workspace marketplace.
 
-> Also see: [claude-code-config](https://github.com/trailofbits/claude-code-config) · [codex-config](https://github.com/trailofbits/codex-config) · [skills-curated](https://github.com/trailofbits/skills-curated) · [claude-code-devcontainer](https://github.com/trailofbits/claude-code-devcontainer) · [dropkit](https://github.com/trailofbits/dropkit) · [coop](https://github.com/trailofbits/coop)
+> Also see: [claude-code-config](https://github.com/trailofbits/claude-code-config) · [codex-config](https://github.com/trailofbits/codex-config) · [skills-curated](https://github.com/trailofbits/skills-curated) · [trailmark](https://github.com/trailofbits/trailmark) · [calcifier](https://github.com/trailofbits/calcifier) · [coop](https://github.com/trailofbits/coop)
 
 ## Installation
 
