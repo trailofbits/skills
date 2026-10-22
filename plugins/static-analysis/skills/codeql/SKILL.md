@@ -122,7 +122,7 @@ echo "Found ${#FOUND_DBS[@]} existing database(s)"
 # exists prints nothing and reports success.
 for db in "${FOUND_DBS[@]}"; do
   CODEQL_LANG=$(codeql resolve database --format=json -- "$db" 2>/dev/null | jq -r '.languages[0]')
-  CREATED=$(grep '^creationMetadata:' -A5 "$db/codeql-database.yml" 2>/dev/null | grep 'creationTime' | awk '{print $2}')
+  CREATED=$(grep '^creationMetadata:' -A5 "$db/codeql-database.yml" 2>/dev/null | sed -n 's/^ *creationTime: *//p')
   echo "$db — language: $CODEQL_LANG, created: $CREATED"
 done
 ```
@@ -169,6 +169,43 @@ it honours a user-specified directory, which a bare auto-increment does not.
 
 Then execute the full pipeline: **build database → create data extensions → run analysis** using the workflows below.
 
+## Shortcut: Analysis Pipeline
+
+One script can do run-analysis.md Steps 4–5 once the plan is confirmed. Everything before
+it is unchanged: discover or build the database, resolve `OUTPUT_DIR` with the block in
+[Output Directory](#output-directory), and gather and confirm the plan in
+[run-analysis.md](workflows/run-analysis.md) Steps 1–3.
+
+Then run one call, with the confirmed values written in literally, because nothing carries over
+from earlier shells. List every installed third-party pack the plan accepted, not only the ones
+the user named. Repeat `--model-pack`, `--additional-pack` and `--threat-model` once per
+selection, and leave out any the plan has none of:
+
+```bash
+# Accepted analysis plan: substitute the confirmed values.
+"{baseDir}/scripts/codeql_pipeline.sh" \
+  --database "/absolute/selected/database" \
+  --language python \
+  --out "/absolute/output" \
+  --mode run-all \
+  --third-party-packs "vendor/python-queries community/python-queries" \
+  --model-pack acme/python-models \
+  --additional-pack "/absolute/model-directory" \
+  --threat-model remote
+```
+
+It runs the quality gate, generates and verifies the suite, writes `rulesets.txt`, runs the
+analysis, and applies the important-only filter, producing the same `raw/` and `results/` files
+as the manual steps. It also writes `run-status.json` (`complete`, or `failed` with the exit
+code), `quality.json`, `summary.json` (total, counts by level, top rules) and `report.json`
+(adds findings ranked by level and security severity, with locations). Report from those files
+and `rulesets.txt` instead of reading `results.sarif`.
+
+A quality-gate failure exits with the checker's code. Pass `--max-error-ratio` with
+`--quality-reason` only after the user accepts `built-below-threshold`. `--threads`,
+`--timeout` (seconds) and `--rerun` pass through to CodeQL. If the script fails for any other
+reason, continue with run-analysis.md Steps 4–5 by hand.
+
 ## Rationalizations to Reject
 
 These shortcuts lead to missed findings. Do not accept them:
@@ -207,8 +244,11 @@ end to end: detect the language and toolchain, walk the method ladder applying f
 [build-fixes.md](references/build-fixes.md) between rungs, and enforce the quality gate.
 
 ```
-/static-analysis:codeql-build {"target": "/abs/path", "lang": "cpp"}
+/static-analysis:codeql-build {"target": "/abs/path", "out": "/abs/static_analysis_codeql_1", "lang": "cpp"}
 ```
+
+Pass the `OUTPUT_DIR` you already resolved, as an absolute path, in `out`. Without it the
+build auto-increments past the directory you just created and the database lands in `_2`.
 
 It asks nothing. Every method failing, and a database that built but sits below the quality
 threshold, come back as statuses — `no-method-succeeded` and `built-below-threshold` — for you

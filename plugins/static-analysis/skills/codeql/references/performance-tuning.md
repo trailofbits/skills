@@ -12,7 +12,7 @@ variable in MB; the other two are flags.
 | | `32000`–`64000` | Large, 1M+ LoC |
 | `--threads` | `0` | Use every core — the default choice |
 | | `8` | Shared machine; leave headroom for other work |
-| `--timeout` | `600000` | Milliseconds. Ten minutes catches a runaway query without killing legitimate deep taint tracking |
+| `--timeout` | `600` | Seconds. Ten minutes catches a runaway query without killing legitimate deep taint tracking |
 
 ## Evaluator Diagnostics
 
