@@ -141,6 +141,9 @@ Use the `QueryEngine` API to build the graph and run pre-analysis:
 2. Call `engine.preanalysis()` — **mandatory** before triage
 3. Export with `engine.to_json()` for cross-referencing with mutation results
 
+The Phase 3 triage script performs these three steps itself; run them by hand
+only when triaging without it.
+
 If auto-detection is wrong for the target, rerun with an explicit language or
 comma-separated list such as `python,rust`.
 
@@ -193,16 +196,53 @@ Filter to findings where the test **passed after removal**. See
 for framework-specific configuration and the normalized record format.
 
 Map each removal to a production function using the algorithm in
-[references/graph-analysis.md](references/graph-analysis.md).
+[references/graph-analysis.md](references/graph-analysis.md), or pass the
+removals to the Phase 3 triage script, which does the mapping.
 
 ---
 
 ## Phase 3: Triage Findings
 
+Run the bundled triage script on the survived mutants (and necessist
+removals, if any). It builds the graph and preanalysis once, binds every
+record to its containing function, applies the graph rules below, maps
+removals to production functions, and marks corroborated functions:
+
+```bash
+uv run {baseDir}/scripts/genotoxic_triage.py --target {targetDir} --mutants outcomes.json [--necessist removals.json] [--language auto] [--out triage.json]
+```
+
+Source paths inside the records may be relative to `{targetDir}` or to the
+working directory; the `--mutants`, `--necessist` and `--out` file arguments
+are relative to the working directory. With `--out`, the full JSON goes to
+the file and stdout gets a summary.
+
+`--mutants` takes Universal Mutant Records (see
+[references/mutation-frameworks.md](references/mutation-frameworks.md)) or
+`mewt results --format json` output. Each record comes back with its
+`graph_bucket`, the reason, and the evidence for the report (node, CC,
+production and test callers, entrypoint paths with trust level, taint,
+privilege boundary, blast radius). Do not retype the functions in
+graph-analysis.md.
+
+The script does not judge semantics. Read the code at every mutant and
+move equivalent mutants and cosmetic changes (logging or display strings;
+`logging_hint` marks likely ones) to False Positives with the reason,
+whatever their graph bucket. For each remaining finding, keep the graph
+bucket unless the code gives a stated reason to change it.
+
+Two buckets need you before the report: `unbound` mutants (no function in the
+graph contains the line; the script exits 2 when none bind, which usually
+means a wrong `--target` or `--language`) and `needs_review` removals (the
+call names several production functions; pick one from
+`ambiguous_candidates`). A zero-caller function is reported as dead code with
+a caveat: check for callbacks, decorators or dynamic dispatch first.
+
 For each survived mutant and each necessist removal, determine its
 triage bucket using graph data. Necessist removals must first be mapped
-to a production function (see
-[references/graph-analysis.md](references/graph-analysis.md)).
+to a production function (the script does this; see
+[references/graph-analysis.md](references/graph-analysis.md) for the
+manual algorithm).
 
 ### Quick Classification (Mutation Testing)
 
@@ -241,12 +281,13 @@ For detailed criteria, see
 
 For each mutant, map it to its containing graph node and use pre-analysis
 subgraphs (tainted, high_blast_radius, privilege_boundary) from Phase 1
-to classify it. The classification logic checks: no callers → false
-positive, privilege boundary → fuzzing, high CC + tainted → fuzzing,
-high blast radius → fuzzing, otherwise → missing tests.
+to classify it. The classification logic checks: no callers and not an
+entrypoint → false positive, privilege boundary → fuzzing, high CC + tainted
+→ fuzzing, high blast radius with CC > 5 → fuzzing, otherwise → missing tests.
 
-See [references/graph-analysis.md](references/graph-analysis.md) for
-the `batch_triage` implementation and node mapping functions.
+`scripts/genotoxic_triage.py` implements this; see
+[references/graph-analysis.md](references/graph-analysis.md) for the
+underlying queries.
 
 ---
 

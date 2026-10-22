@@ -19,17 +19,21 @@ and assign them to the correct triage bucket.
 ## Mapping Mutants to Graph Nodes
 
 Each survived mutant has a `file_path` and `line` number. Map it to the
-containing function in the trailmark graph:
+containing function in the trailmark graph. Trailmark records paths as it
+was given them (`./src/x.py` for `--target .`), so normalize both sides,
+and bind only `function`/`method` nodes, since unresolved call-site proxies
+also carry locations:
 
 ```python
 def find_containing_node(nodes: dict, file_path: str, line: int):
     """Find the graph node that contains a given source line."""
+    want = file_path.removeprefix("./")
     candidates = []
     for node_id, node in nodes.items():
-        loc = node.get("location", {})
-        if not loc:
+        loc = node.get("location") or {}
+        if not loc or node.get("kind") not in ("function", "method"):
             continue
-        if loc["file_path"] != file_path:
+        if loc["file_path"].removeprefix("./") != want:
             continue
         if loc["start_line"] <= line <= loc["end_line"]:
             candidates.append((node_id, node))
@@ -181,9 +185,16 @@ def complexity_context(engine, node_id: str) -> dict:
 | <5 | Yes | LOW | Missing Tests |
 | <5 | Yes | HIGH+ | Missing Tests (priority) |
 | 5-10 | No | LOW | Missing Tests |
-| 5-10 | No | HIGH+ | Missing Tests (priority) |
-| 5-10 | Yes | Any | Fuzzing Target |
-| >10 | Any | Any | Fuzzing Target |
+| 5-10 | No | HIGH+ | Fuzzing Target |
+| 5-10 | Yes | LOW | Missing Tests (CC 8-10: judgment call, see triage-methodology.md) |
+| 5-10 | Yes | HIGH+ | Fuzzing Target |
+| >10 | Yes | Any | Fuzzing Target |
+| >10 | No | LOW | Missing Tests (priority) |
+| >10 | No | HIGH+ | Fuzzing Target |
+
+These rows follow the fuzzing criteria in triage-methodology.md: CC > 10
+and entrypoint reachable, or high blast radius and CC > 5. A function on a
+privilege boundary is a Fuzzing Target at any CC.
 
 ---
 
@@ -246,6 +257,8 @@ def batch_triage(engine, survived_mutants: list[dict]) -> dict:
         "missing_tests": [],
         "fuzzing_targets": [],
     }
+    # Entrypoints (route handlers, main) have no callers but are not dead code.
+    entrypoints = {ep["node_id"] for ep in engine.attack_surface()}
 
     for mutant in survived_mutants:
         node = find_containing_node(
@@ -259,11 +272,12 @@ def batch_triage(engine, survived_mutants: list[dict]) -> dict:
             continue
 
         node_id = node["id"]
-        callers = engine.callers_of(node_id)
+        # A recursive call is not a caller from elsewhere.
+        callers = [c for c in engine.callers_of(node_id) if c["id"] != node_id]
         cc = node.get("cyclomatic_complexity", 0) or 0
 
         # Dead code
-        if not callers:
+        if not callers and node_id not in entrypoints:
             results["false_positives"].append({
                 **mutant,
                 "reason": "no callers (dead code)",
@@ -271,7 +285,7 @@ def batch_triage(engine, survived_mutants: list[dict]) -> dict:
             })
             continue
 
-        reachable = is_entrypoint_reachable(engine, node_id)
+        reachable = node_id in entrypoints or is_entrypoint_reachable(engine, node_id)
 
         # Fuzzing criteria
         if (cc > 10 and reachable) or (len(callers) > 10 and cc > 5):
