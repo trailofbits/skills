@@ -1,0 +1,10 @@
+{
+  "name": "workflow-runner",
+  "version": "0.1.0",
+  "description": "Runs this marketplace's JavaScript workflows on Codex, where Claude Code's native Workflow tool is unavailable: one headless worker per agent() call inside Codex's own sandbox, with recorded, resumable runs. Gemini CLI support is experimental.",
+  "author": {
+    "name": "Markus Schiffermuller",
+    "email": "opensource@trailofbits.com",
+    "url": "https://github.com/trailofbits"
+  }
+}
