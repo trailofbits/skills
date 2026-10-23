@@ -8,7 +8,7 @@ This plugin provides a security audit skill that analyzes GitHub Actions workflo
 
 ## Attack Vectors Detected
 
-The skill checks for nine categories of security issues:
+The skill checks for ten categories of security issues:
 
 - **A. Env Var Intermediary** -- Attacker data flows through `env:` blocks to AI prompt fields with no visible `${{ }}` expressions
 - **B. Direct Expression Injection** -- `${{ github.event.* }}` expressions embedded directly in AI prompt fields
@@ -19,6 +19,7 @@ The skill checks for nine categories of security issues:
 - **G. Eval of AI Output** -- AI response flows to `eval`, `exec`, or unquoted `$()` in subsequent steps
 - **H. Dangerous Sandbox Configs** -- `danger-full-access`, `Bash(*)`, `--yolo` disable safety protections
 - **I. Wildcard Allowlists** -- `allowed_non_write_users: "*"` or `allow-users: "*"` permit any user to trigger
+- **J. Unbounded Tool Targets** -- a mutating tool pattern such as `Bash(gh issue edit:*)` names its verb but not its target, so an injected instruction can point it at any object rather than the one that triggered the run. The vector behind CVE-2026-44246.
 
 ## Supported AI Actions
 
