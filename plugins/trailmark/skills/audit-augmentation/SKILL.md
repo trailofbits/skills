@@ -2,7 +2,7 @@
 name: audit-augmentation
 description: >
   Augments Trailmark code graphs with external audit findings from SARIF static
-  analysis results, weAudit annotation files, and version-gated Trailmark 0.4.x
+  analysis results, weAudit annotation files, and version-gated Trailmark 0.4+
   binary-analysis graph exports. Maps findings to graph nodes by
   file and line overlap, creates severity-based subgraphs, and enables
   cross-referencing findings with pre-analysis data (blast radius, taint, etc.).
@@ -73,19 +73,29 @@ or external endpoints can also be declared once in `.trailmark/links.toml`
 re-derived per session. Declared external endpoints materialize as
 `proxy.external:<symbol>` nodes on every parse.
 
+On **Trailmark 0.7+**, repeated CLI `--sarif` or `--weaudit` flags retain every
+file's findings. In Python, the default `replace_existing=True` still replaces
+the prior same-format import; pass `replace_existing=False` for subsequent
+files when accumulation is intended. Do not pass that keyword on older builds.
+Imports validate before mutation; inspect unmatched results, indexed SARIF
+artifacts, URI-base relocation, and source-file coverage rather than assuming a
+matched count means every input file was analyzed. `augment --json` writes
+summaries to stderr and graph JSON to stdout; that graph export omits finding
+details, so also query `findings()` or `annotations_of()` while the engine exists.
+
 ## Quick Start
 
 ### CLI
 
 ```bash
 # Augment with SARIF
-uv run trailmark augment {targetDir} --sarif results.sarif
+uv run trailmark augment --language auto {targetDir} --sarif results.sarif
 
 # Augment with weAudit
-uv run trailmark augment {targetDir} --weaudit .vscode/alice.weaudit
+uv run trailmark augment --language auto {targetDir} --weaudit .vscode/alice.weaudit
 
 # Both at once, output JSON
-uv run trailmark augment {targetDir} \
+uv run trailmark augment --language auto {targetDir} \
     --sarif results.sarif \
     --weaudit .vscode/alice.weaudit \
     --json
