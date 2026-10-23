@@ -106,7 +106,7 @@
     {
       "name": "dwarf-expert",
       "description": "Analyze DWARF debug information: parse and search DIEs with dwarfdump and readelf, verify debug info integrity, and write DWARF parsing code",
-      "version": "1.1.2",
+      "version": "1.2.0",
       "author": {
         "name": "Evan Hellman",
         "email": "opensource@trailofbits.com"
