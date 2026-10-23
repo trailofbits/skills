@@ -7,8 +7,11 @@ allowed-tools: Bash Read Grep Glob
 # Trailmark Summary
 
 Runs `trailmark analyze --language auto --summary` on a target directory.
-This is a v0.2-safe workflow; do not require Trailmark 0.4.0 just to produce a
-summary.
+The text-summary baseline works on older builds. On Trailmark 0.7+, prefer
+`analyze --language auto --summary --json`: it includes selected languages,
+inspected source-file counts, entrypoints, dependencies, and parse diagnostics.
+The installed registry includes 39 languages, including the nine new frontends;
+do not infer supported languages from a hardcoded extension list.
 
 ## When to Use
 
@@ -28,7 +31,7 @@ summary.
 |-----------------|----------------|-----------------|
 | "I can read the code manually instead" | Manual reading misses parser-based language detection, dependency data, and entry point enumeration | Install and run trailmark |
 | "Language detection doesn't matter" | Wrong language selection produces empty or partial analysis | Use Trailmark's parser-based detection or `--language auto` |
-| "Partial output is good enough" | Missing any of the three required outputs (detected languages, entry points, dependencies) means incomplete analysis | Verify all three are present |
+| "A clean summary proves complete coverage" | Source counts measure inspected files, and diagnostics do not model every language feature | Report counts, parse limitations, entrypoints, and dependencies together |
 | "Tool isn't installed, I'll skip it" | This skill exists specifically to run trailmark | Report the installation gap instead of skipping |
 
 ## Usage
@@ -86,14 +89,17 @@ trailmark analyze --language auto --summary {args} 2>&1 || \
   uv run trailmark analyze --language auto --summary {args} 2>&1
 ```
 
-**Step 4: Verify the output.**
+On 0.7+, use `trailmark analyze --language auto --summary --json {args}` for
+machine-readable output. Keep `languages`, `source_files`, `source_file_counts`,
+`parse_diagnostics`, `entrypoints`, and `dependencies`. Missing roots and zero
+matching files are failures unless the user deliberately requests an empty
+selection; a comment-only inspected file is valid even with no declarations.
+Use `--resolution` in a separate invocation when unresolved call counts matter.
 
-The output must include ALL THREE of:
-1. Detected languages from Step 2
-2. `Entrypoints:` line from the summary output
-3. `Dependencies:` line from the summary output
+**Step 4: Deliver the required summary fields.**
 
-If any are missing, report the gap. Do not fabricate output.
-
-Return the detected language list plus the full Trailmark summary output.
-If a version string was available, include it in the returned metadata.
+For 0.7 JSON output, return the selected languages, source counts, diagnostics,
+entrypoint count, dependencies, and full summary. For older text output, include
+the detected language list from Step 2 and the summary's `Entrypoints:` and
+`Dependencies:` lines. Report unavailable fields rather than fabricating them.
+Include the installed Trailmark version in the returned metadata when available.

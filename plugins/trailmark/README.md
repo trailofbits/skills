@@ -2,43 +2,58 @@
 
 **Source code graph analysis for security auditing.** Parses code into queryable graphs of functions, classes, and calls, then uses that structure for diagram generation, mutation testing triage, protocol verification, and differential review.
 
-These skills support Trailmark 0.2.x through the 0.5.0 release line. Prefer
-`--language auto`, `trailmark.parse.detect_languages()` (0.3+), and
-`QueryEngine.preanalysis()` for the core workflow. Before using features added
-in v0.4.0 or v0.5.0, check the installed Trailmark version or probe for the
-method/CLI command first.
+Workflow guidance covers Trailmark 0.2.x through 0.7.0, with version gates for
+new APIs. Prefer `--language auto`, `trailmark.parse.detect_languages()` (0.3+),
+and `QueryEngine.preanalysis()` for the core workflow. The plugin version and
+the installed Trailmark version are separate; check the latter before using a
+new parser, keyword argument, or output field.
 
 ## Compatibility
 
-Use this guard before relying on version-gated features:
-
 ```bash
-trailmark --version 2>/dev/null || uv run trailmark --version 2>/dev/null
+trailmark --version || uv run trailmark --version
 ```
 
-Compare the reported version numerically. If it is `0.4.0` or newer, the
-expanded v0.4 feature set is available; `0.5.0` or newer adds the v0.5 set.
-If the command is missing or reports an older version, stay on the v0.2-safe
-baseline — the `trailmark` skill's Version Gate section has the authoritative
-list. (The version CLI itself was added in 0.2.2, so a missing command can
-also mean trailmark is not installed at all.)
+Compare versions numerically. A missing version command can mean Trailmark is
+absent or older than 0.2.2; check `trailmark analyze --help` before selecting a
+fallback. Use method probes for additive APIs, and version checks for changed
+keyword arguments and parser behavior.
 
-v0.4.0 adds expanded parser coverage, explicit proxy nodes for unresolved
-calls, node origins (`source`, `proxy`, `binary`, `synthetic`), new edge kinds
-(`resolves_to`, `type_uses`, `specializes`, `corresponds_to`), subgraph edge
-and connection queries, generic/type-reference queries, the native
-`trailmark diagram` CLI, and binary graph augmentation via `augment_binary()`.
+| Trailmark | Available features |
+|-----------|--------------------|
+| 0.2.x–0.3.x | Core queries, preanalysis, findings, structural diffs; public `trailmark.parse` API in 0.3+ |
+| 0.4+ | Native diagrams, proxies and node origins, type/reference queries, subgraph connections, binary graph imports |
+| 0.5+ | SQL, `.trailmark/links.toml`, external proxies, richer Solidity entrypoint attributes |
+| 0.6+ | Rust lexical/local-item resolution and body-bearing functions in brace-delimited `verus!` blocks |
+| 0.7+ | Nine more language frontends, Solidity state access, call-resolution and parse diagnostics, source-file coverage, export provenance, richer native diffs, and appendable finding imports |
 
-v0.5.0 adds a PostgreSQL-oriented `sql` parser (with node kinds `schema`,
-`table`, `view`, `procedure`), the stable `.trailmark/links.toml`
-configuration for declaring cross-language/FFI/RPC/external links
-(external endpoints become `proxy.external:<symbol>` nodes), repository
-links/proxies/`type_uses` edges for single-language parses, Solidity
-entrypoints from parser metadata (visibility/mutability/overridden-by
-attributes, interfaces excluded), node attributes in `attack_surface()`
-entries, TypeScript constructed-receiver resolution, and C# file-scoped
-namespace support. It adds no new `QueryEngine` methods or CLI commands, so
-gate v0.5 features on the version number, not `hasattr()`.
+Trailmark 0.7.0 supports **39 languages**. Its nine new frontends are Aiken
+(`aiken`), Bash (`bash`), Julia (`julia`), Lua (`lua`), Perl 5 (`perl`),
+PowerShell (`powershell`), R (`r`), VB.NET (`vb`), and Zig (`zig`). Ask the
+installed build's `supported_languages()` and `detect_languages()` what is
+available. Parser support does not imply complete language semantics, entrypoint
+detection, or a mutation framework for that language. See the released
+[language notes](https://github.com/trailofbits/trailmark/blob/v0.7.0/docs/languages.md).
+
+**Bundled packet helpers still use Trailmark 0.5.x.** `slicing-code-context`'s
+`build_slice_packet.py` and `trailmark-finding-triage`'s `evidence_packet.py`
+declare `trailmark>=0.5,<0.6`; slicing also enforces that version at runtime.
+Installing a 0.7 CLI does not update their isolated script environments. Use the
+version-gated manual API workflow for 0.7-only evidence; do not claim those
+helpers contain the new parsers, diagnostics, or storage relationships.
+
+When upgrading to 0.7, rebuild saved graphs and ID-keyed overrides. Generate
+both sides of a code-change comparison with the same Trailmark version and
+language selection: overloads, nested/anonymous callables, namespaces, and
+same-stem files can acquire different IDs. Graph JSON now includes
+`trailmark_version`, `schema_version`, source counts, and parse diagnostics;
+schema version `1` does not promise identical parser behavior across releases.
+Missing roots and zero matching files fail unless explicitly allowed, while a
+valid empty source file still counts as inspected. Empty self-paths do not make
+direct entrypoints unreachable, and uncertain deferred callback edges describe
+possible execution. See the released
+[skills compatibility guide](https://github.com/trailofbits/trailmark/blob/v0.7.0/docs/skills-compatibility.md)
+for the full consumer contract.
 
 ## Prerequisites
 
@@ -108,3 +123,31 @@ trailmark/
 | `differential-review` | Text-level security diff review — complements graph-evolution's structural analysis |
 | `audit-context-building` | Deep architectural context before vulnerability hunting |
 | `variant-analysis` | Search for related candidates after trailmark-finding-triage identifies a repeatable root cause |
+
+## Calcifier recipe for `trailmark-summary`
+
+The [`trailmark-summary` Python recipe](skills/trailmark-summary/.calcifier/recipe.py) was generated with Calcifier 0.2.0. It pins the source skill and its packaged resources so source changes are checked before execution.
+
+Install the matching release with Python 3.13 or later:
+
+```sh
+uv tool install 'calcifier==0.2.0'
+```
+
+The recipe's PEP 723 inline metadata also declares Python >=3.13 and pins `calcifier==0.2.0`. `uv run` can resolve those script dependencies; use `calcifier exec` for reviewed execution with Calcifier's trust checks.
+
+Configure `worker` in a version-1 agent-config file following [the Calcifier 0.2.0 provider setup](https://github.com/trailofbits/calcifier/blob/v0.2.0/docs/providers.md). Worker tools depend on the configured agent provider; host tool providers do not add tools to an agent.
+
+From this plugin directory, check the recipe before execution:
+
+```sh
+calcifier lint skills/trailmark-summary/.calcifier/recipe.py --portable
+```
+
+Review the complete generated Python before granting trust. Run `calcifier exec skills/trailmark-summary/.calcifier/recipe.py` with `--agent-config agents.json` and one `--input NAME=VALUE` for each required input below. Add `--trust` after review to record consent for those exact bytes.
+
+| Input | Type | Default |
+| --- | --- | --- |
+| `args` | `str` | `'.'` |
+
+The recipe declares `Bash`. Configure `--tool-config` for capabilities called through `tool()`, following the provider setup. Host `run_command()` needs no Bash provider unless the recipe also calls `tool("Bash", ...)`.
