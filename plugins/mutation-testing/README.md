@@ -65,3 +65,39 @@ mewt results
 - [mewt](https://github.com/trailofbits/mewt)
 - [muton](https://github.com/trailofbits/muton)
 - [Use mutation testing to find the bugs your tests don't catch](https://blog.trailofbits.com/2025/09/18/use-mutation-testing-to-find-the-bugs-your-tests-dont-catch/)
+
+## Calcifier recipe for `mutation-testing`
+
+The [`mutation-testing` Python recipe](skills/mutation-testing/.calcifier/recipe.py) was generated with Calcifier 0.2.0. It pins the source skill and its packaged resources so source changes are checked before execution.
+
+Install the matching release with Python 3.13 or later:
+
+```sh
+uv tool install 'calcifier==0.2.0'
+```
+
+The recipe's PEP 723 inline metadata also declares Python >=3.13 and pins `calcifier==0.2.0`. `uv run` can resolve those script dependencies; use `calcifier exec` for reviewed execution with Calcifier's trust checks.
+
+Configure `worker` in a version-1 agent-config file following [the Calcifier 0.2.0 provider setup](https://github.com/trailofbits/calcifier/blob/v0.2.0/docs/providers.md). Worker tools depend on the configured agent provider; host tool providers do not add tools to an agent.
+
+From this plugin directory, check the recipe before execution:
+
+```sh
+calcifier lint skills/mutation-testing/.calcifier/recipe.py --portable
+```
+
+Review the complete generated Python before granting trust. Run `calcifier exec skills/mutation-testing/.calcifier/recipe.py` with `--agent-config agents.json` and one `--input NAME=VALUE` for each required input below. Add `--trust` after review to record consent for those exact bytes.
+
+Choose a fresh, dedicated report directory with `--output-dir PATH`. The override protects existing output files; it does not isolate host commands or grant workers additional tools.
+
+| Input | Type | Default |
+| --- | --- | --- |
+| `task` | `str` | Required |
+| `project` | `str` | `'.'` |
+| `workflow` | `Literal['configure', 'hunt', 'analyze', 'assist']` | `'analyze'` |
+| `engine` | `Literal['mewt', 'muton', 'other']` | `'mewt'` |
+| `result_files` | `tuple[str, ...]` | `()` |
+| `results_scope` | `Literal['all', 'survivors-only', 'unknown']` | `'unknown'` |
+| `blockchain` | `bool` | `False` |
+
+The recipe declares `Bash`. Configure `--tool-config` for capabilities called through `tool()`, following the provider setup. Host `run_command()` needs no Bash provider unless the recipe also calls `tool("Bash", ...)`.
