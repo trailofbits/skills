@@ -77,7 +77,7 @@
     {
       "name": "differential-review",
       "description": "Security-focused differential review of code changes with git history analysis and blast radius estimation",
-      "version": "1.1.4",
+      "version": "1.2.0",
       "author": {
         "name": "Omar Inuwa"
       },
