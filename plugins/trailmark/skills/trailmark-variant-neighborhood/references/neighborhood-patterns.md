@@ -22,12 +22,12 @@ callees = engine.callees_of(seed)
 
 same_caller_candidates = []
 for caller in callers:
-    same_caller_candidates.extend(engine.callees_of(caller))
+    same_caller_candidates.extend(engine.callees_of(caller["id"]))
 
 same_sink_candidates = []
 for callee in callees:
     if is_sensitive_sink(callee):
-        same_sink_candidates.extend(engine.callers_of(callee))
+        same_sink_candidates.extend(engine.callers_of(callee["id"]))
 
 paths = engine.entrypoint_paths_to(seed)
 
@@ -56,3 +56,12 @@ For each candidate, preserve:
 - taint and privilege-boundary status
 - shared sink, caller, interface, or type reason
 - exclusion or penalty reason
+
+## Solidity State Neighbors (Trailmark 0.7+)
+
+For a callable seed, use `state_read_by(seed)`/`state_written_by(seed)` to find
+shared assets, then expand each state node with `readers_of(state["id"])` and
+`writers_of(state["id"])`. For a storage seed, start with those accessor queries.
+Keep direct-read/write relationships distinct from call paths and retain the
+same-contract limitation. Rank uncertain deferred callback neighbors as possible
+execution; include direct entrypoint membership even when self-paths are empty.
