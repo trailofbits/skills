@@ -15,6 +15,15 @@ Apply deterministic security gate rules to Trailmark structural diff evidence.
 This skill does not replace line-level review. It produces a compact structural
 packet reviewers can cite while they inspect the code.
 
+For **Trailmark 0.7+**, build both snapshots with the same version and language
+selection, preserve export provenance, and use native diff confidence/signature
+fields plus `source_coverage.before`/`.after`. Inspect parse diagnostics and
+unresolved calls before accepting graph absence. The nine new frontends expand
+supported input; they do not make every syntax form or callback target known.
+Positioned IDs can move with source lines, and uncertain deferred call edges
+represent possible paths. Direct entrypoint membership remains reachable when
+its self-path list is empty.
+
 ## When to Use
 
 - Reviewing a branch, pull request, release diff, or fix commit
@@ -65,8 +74,11 @@ Run `graph-evolution` or equivalent Trailmark before/after graph analysis.
 Both snapshots must run `engine.preanalysis()` so taint, privilege-boundary,
 blast-radius, complexity, and entrypoint signals are available.
 
-Record Trailmark version and any feature probes. If graph construction fails,
-emit `UNKNOWN`.
+Record Trailmark version, language selection, and feature probes. On 0.7,
+use inspected source-file counts to distinguish an empty source file from no
+analysis; zero declarations alone is not failure. If graph construction fails
+or required evidence remains unavailable, emit `UNKNOWN`. Do not opt into
+`allow_empty` merely to obtain a passing gate.
 
 ### Step 3: Normalize Changes
 
