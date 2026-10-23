@@ -9,6 +9,14 @@ Uses mutation testing to systematically identify gaps in test vector
 coverage, then generates new test vectors that close those gaps.
 Measures effectiveness by comparing mutation kill rates before and after.
 
+With **Trailmark 0.7+**, record source-file coverage, parse diagnostics, and
+call-resolution limits before using the graph to rank escaped mutants. The nine
+new frontends expand graph coverage; select a mutation framework independently.
+Rebuild graph IDs after upgrading. Public entrypoints can have zero callers and
+empty self-paths; deferred callback edges describe possible invocation. Neither
+case is evidence to skip an escaped mutant. For Solidity storage targets, include
+direct state readers/writers in the candidate context.
+
 ## When to Use
 
 - Generating test vectors for cryptographic algorithms or protocols
@@ -248,7 +256,7 @@ call graph and apply the genotoxic triage criteria:
 
 | Graph Signal | Classification | Action |
 |--------------|----------------|--------|
-| No callers in graph | **False Positive** | Dead code, skip |
+| No callers in graph | **Needs Reachability Review** | Check direct entrypoints, callbacks, unresolved calls, and source coverage before treating as dead code |
 | Only test callers | **False Positive** | Test infrastructure |
 | Logging/display/formatting | **False Positive** | Cosmetic |
 | Cross-package callers but NOT COVERED | **Cross-Package Gap** | See below |
