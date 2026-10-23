@@ -16,6 +16,11 @@ answers whether the affected code is reachable, what graph evidence supports
 or weakens the claim, and what manual review is still required before calling
 the issue exploitable.
 
+The bundled `evidence_packet.py` still resolves **Trailmark 0.5.x**. For 0.7-only
+languages, storage nodes, coverage, or diagnostics, use the manual API workflow
+below in a 0.7 environment; a newer CLI does not upgrade the script's isolated
+dependency. Preserve the actual version of each evidence source.
+
 ## When to Use
 
 - Triage one static-analysis result before spending PoC time
@@ -113,14 +118,20 @@ graph or `.trailmark/` artifact when present. Otherwise build a graph with
 `language="auto"` or the target's explicit language list, then run
 `engine.preanalysis()`.
 
-Record the Trailmark version or feature probes used. Feature-gate Trailmark
-0.4-only APIs with `hasattr()` or CLI help checks.
+Record the Trailmark version or feature probes used. Gate optional methods
+with `hasattr()` and new keyword arguments by version. On 0.7, inspect source
+counts, `parse_diagnostics()`, and `unresolved_calls()` before judging graph
+absence. Select languages from the installed build, including the nine 0.7
+frontends where applicable. Rebuild stale node IDs after upgrading.
 
 ### Step 3: Bind The Candidate
 
 Bind by file and line overlap first, then function name plus file. If several
 nodes match, list every candidate and select the narrowest enclosing node as
 primary. If no node matches, report a binding limitation instead of guessing.
+On 0.7, bind Solidity storage declarations as `state_variable` nodes; use
+`readers_of()` and `writers_of()` to find accessor functions, then analyze those
+functions' entrypoint paths. Calls-only traversal does not reach storage nodes.
 
 SARIF and weAudit users should reuse the `audit-augmentation` workflow for
 matching and then inspect the annotated node.
@@ -130,7 +141,7 @@ matching and then inspect the annotated node.
 Run the query recipe in
 [references/query-recipes.md](references/query-recipes.md):
 
-- entrypoint paths to the bound node
+- direct entrypoint membership and nontrivial entrypoint paths to the bound node
 - trust level of each path when available
 - membership in `tainted`, `privilege_boundary`, and `high_blast_radius`
   subgraphs
