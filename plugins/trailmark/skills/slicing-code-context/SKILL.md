@@ -11,6 +11,13 @@ response. The bundled Claude agent is a bounded-source fallback, not a strict
 empty-context process: Claude Code also injects repository instructions, git
 status, environment data, and a composed delegation prompt.
 
+Trailmark 0.7 adds nine frontends, new callable IDs, source coverage, and parse
+diagnostics, but this skill's bundled packet builder still requires **0.5.x**.
+Do not silently widen its version gate or claim a 0.7-only language was sliced.
+Use a separately tested packet-builder migration for those inputs. On 0.7 graphs,
+positioned overload IDs and uncertain deferred callback edges need explicit
+handling; rebuild anchors after an upgrade and keep possible paths qualified.
+
 ## When to Use
 
 - Offload explanation, classification, review, or mechanical edit proposals for a function or class
@@ -80,7 +87,7 @@ The PEP 723 script requires Python 3.12+ and resolves Trailmark 0.5.x with
 `uv`. If execution fails, report the error. Do not substitute hand-selected
 source or an unbounded repository dump.
 
-Before delegation, verify:
+The coordinator needs the following packet fields for delegation:
 
 - `budget.used_estimated_tokens <= budget.limit_estimated_tokens`
 - Every slice is inside the target root and has a live line range
