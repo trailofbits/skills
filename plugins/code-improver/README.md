@@ -128,3 +128,47 @@ evals/                    # paid `claude plugin eval` cases (see evals/README.md
 - **No metrics.json** — the run could not find `scripts/collect_metrics.py`; pass
   `pluginRoot` (the skill does this automatically when `${CLAUDE_PLUGIN_ROOT}` is
   substituted).
+
+## Calcifier recipe for `pr-improver`
+
+The [`pr-improver` Python recipe](skills/pr-improver/.calcifier/recipe.py) was generated with Calcifier 0.2.0. It pins the source skill and its packaged resources so source changes are checked before execution.
+
+Install the matching release with Python 3.13 or later:
+
+```sh
+uv tool install 'calcifier==0.2.0'
+```
+
+The recipe's PEP 723 inline metadata also declares Python >=3.13 and pins `calcifier==0.2.0`. `uv run` can resolve those script dependencies; use `calcifier exec` for reviewed execution with Calcifier's trust checks.
+
+Configure `reviewer`, `worker`, `specialist` in a version-1 agent-config file following [the Calcifier 0.2.0 provider setup](https://github.com/trailofbits/calcifier/blob/v0.2.0/docs/providers.md). Worker tools depend on the configured agent provider; host tool providers do not add tools to an agent.
+
+From this plugin directory, check the recipe before execution:
+
+```sh
+calcifier lint skills/pr-improver/.calcifier/recipe.py --portable
+```
+
+Review the complete generated Python before granting trust. Run `calcifier exec skills/pr-improver/.calcifier/recipe.py` with `--agent-config agents.json` and one `--input NAME=VALUE` for each required input below. Add `--trust` after review to record consent for those exact bytes.
+
+Choose a fresh, dedicated report directory with `--output-dir PATH`. The override protects existing output files; it does not isolate host commands or grant workers additional tools.
+
+| Input | Type | Default |
+| --- | --- | --- |
+| `reviewer_protocol` | `str` | Required |
+| `target` | `str` | `'.'` |
+| `base_branch` | `str` | `''` |
+| `reviewer_kind` | `Literal['skill', 'agent']` | `'skill'` |
+| `reviewer_name` | `str` | `'pr-review-toolkit:review-pr'` |
+| `reviewer_notes` | `str` | `''` |
+| `specialist_protocols` | `dict[str, str] \| None` | `None` |
+| `reference_files` | `list[str] \| None` | `None` |
+| `max_rounds` | `int` | `5` |
+| `extra_scope` | `list[str] \| None` | `None` |
+| `version_bump` | `Literal['auto', 'on', 'off']` | `'auto'` |
+| `narration_strip` | `bool` | `True` |
+| `docs_pass` | `bool` | `True` |
+| `decision` | `str` | `''` |
+| `resume_ledger` | `str` | `''` |
+
+The recipe declares `Bash`. Configure `--tool-config` for capabilities called through `tool()`, following the provider setup. Host `run_command()` needs no Bash provider unless the recipe also calls `tool("Bash", ...)`.
