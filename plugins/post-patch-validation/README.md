@@ -152,3 +152,40 @@ node --test plugins/post-patch-validation/tests/workflow_logic.test.mjs
 `make check` discovers both suites. The four cases under `evals/` exercise passing checks, a missed
 variant, a behavior regression, and simultaneous failures. Their artifact graders and scaffold
 tests run locally without model calls. Live Claude plugin evals require a separate invocation.
+
+## Calcifier recipe for `post-patch-validation`
+
+The [`post-patch-validation` Python recipe](skills/post-patch-validation/.calcifier/recipe.py) was generated with Calcifier 0.2.0. It pins the source skill and its packaged resources so source changes are checked before execution.
+
+Install the matching release with Python 3.13 or later:
+
+```sh
+uv tool install 'calcifier==0.2.0'
+```
+
+The recipe's PEP 723 inline metadata also declares Python >=3.13 and pins `calcifier==0.2.0`. `uv run` can resolve those script dependencies; use `calcifier exec` for reviewed execution with Calcifier's trust checks.
+
+Configure `worker` in a version-1 agent-config file following [the Calcifier 0.2.0 provider setup](https://github.com/trailofbits/calcifier/blob/v0.2.0/docs/providers.md). Worker tools depend on the configured agent provider; host tool providers do not add tools to an agent.
+
+From this plugin directory, check the recipe before execution:
+
+```sh
+calcifier lint skills/post-patch-validation/.calcifier/recipe.py --portable
+```
+
+Review the complete generated Python before granting trust. Run `calcifier exec skills/post-patch-validation/.calcifier/recipe.py` with `--agent-config agents.json` and one `--input NAME=VALUE` for each required input below. Add `--trust` after review to record consent for those exact bytes.
+
+Choose a fresh, dedicated report directory with `--output-dir PATH`. The override protects existing output files; it does not isolate host commands or grant workers additional tools.
+
+| Input | Type | Default |
+| --- | --- | --- |
+| `finding` | `str` | Required |
+| `finding_id` | `str` | Required |
+| `base_ref` | `str` | Required |
+| `repository` | `str` | `'.'` |
+| `patched_ref` | `str` | `''` |
+| `patch_file` | `str` | `''` |
+| `execution_authorized` | `bool` | `False` |
+| `allow_env` | `tuple[str, ...]` | `()` |
+
+The recipe declares `Bash`. Configure `--tool-config` for capabilities called through `tool()`, following the provider setup. Host `run_command()` needs no Bash provider unless the recipe also calls `tool("Bash", ...)`.
