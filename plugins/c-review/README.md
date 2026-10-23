@@ -169,3 +169,46 @@ sitting in place looking current.
 Design rationale, the coverage-record rules, the coverage check's threat model and its
 known limitations are in [AGENTS.md](AGENTS.md). Read it before changing a prompt, a gate
 rule or how agents are dispatched — the rules there come from measured failures.
+
+## Calcifier recipe for `c-review`
+
+The [`c-review` Python recipe](skills/c-review/.calcifier/recipe.py) was generated with Calcifier 0.2.0. It pins the source skill and its packaged resources so source changes are checked before execution.
+
+Install the matching release with Python 3.13 or later:
+
+```sh
+uv tool install 'calcifier==0.2.0'
+```
+
+The recipe's PEP 723 inline metadata also declares Python >=3.13 and pins `calcifier==0.2.0`. `uv run` can resolve those script dependencies; use `calcifier exec` for reviewed execution with Calcifier's trust checks.
+
+Configure `worker` in a version-1 agent-config file following [the Calcifier 0.2.0 provider setup](https://github.com/trailofbits/calcifier/blob/v0.2.0/docs/providers.md). Worker tools depend on the configured agent provider; host tool providers do not add tools to an agent.
+
+The producing review workers must have no shell, as required by this plugin's worker scope. Configure `worker` with the built-in Claude provider or an adapter that enforces the same read/write-only contract. Keep enumeration, ledger checks, and assembly in host Python commands; changing the provider must not expose those commands to producing workers.
+
+From this plugin directory, check the recipe before execution:
+
+```sh
+calcifier lint skills/c-review/.calcifier/recipe.py --portable
+```
+
+Review the complete generated Python before granting trust. Run `calcifier exec skills/c-review/.calcifier/recipe.py` with `--agent-config agents.json` and one `--input NAME=VALUE` for each required input below. Add `--trust` after review to record consent for those exact bytes.
+
+Choose a fresh, dedicated report directory with `--output-dir PATH`. The override protects existing output files; it does not isolate host commands or grant workers additional tools.
+
+| Input | Type | Default |
+| --- | --- | --- |
+| `project` | `str` | Required |
+| `threat_model` | `Literal['REMOTE', 'LOCAL_UNPRIVILEGED', 'BOTH']` | Required |
+| `worker_model` | `Literal['haiku', 'sonnet', 'opus', 'inherit']` | Required |
+| `severity_filter` | `Literal['all', 'medium', 'high']` | Required |
+| `scope_subpath` | `str` | `'.'` |
+| `narrow_context` | `bool` | `False` |
+| `max_unit_lines` | `int` | `150` |
+| `lines_per_agent` | `int` | `1500` |
+| `review_agents` | `int \| None` | `None` |
+| `invariant_audit` | `bool` | `False` |
+| `exclude` | `tuple[str, ...]` | `()` |
+| `benchmark_mode` | `bool` | `False` |
+
+The recipe declares `Bash`. Configure `--tool-config` for capabilities called through `tool()`, following the provider setup. Host `run_command()` needs no Bash provider unless the recipe also calls `tool("Bash", ...)`.
