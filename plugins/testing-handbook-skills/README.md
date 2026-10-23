@@ -229,3 +229,41 @@ Paweł Płatek
 ## License
 
 See repository license.
+
+## Calcifier recipe for `constant-time-testing`
+
+The [`constant-time-testing` Python recipe](skills/constant-time-testing/.calcifier/recipe.py) was generated with Calcifier 0.2.0. It pins the source skill and its packaged resources so source changes are checked before execution.
+
+Install the matching release with Python 3.13 or later:
+
+```sh
+uv tool install 'calcifier==0.2.0'
+```
+
+The recipe's PEP 723 inline metadata also declares Python >=3.13 and pins `calcifier==0.2.0`. `uv run` can resolve those script dependencies; use `calcifier exec` for reviewed execution with Calcifier's trust checks.
+
+Configure `worker` in a version-1 agent-config file following [the Calcifier 0.2.0 provider setup](https://github.com/trailofbits/calcifier/blob/v0.2.0/docs/providers.md). Worker tools depend on the configured agent provider; host tool providers do not add tools to an agent.
+
+From this plugin directory, check the recipe before execution:
+
+```sh
+calcifier lint skills/constant-time-testing/.calcifier/recipe.py --portable
+```
+
+Review the complete generated Python before granting trust. Run `calcifier exec skills/constant-time-testing/.calcifier/recipe.py` with `--agent-config agents.json` and one `--input NAME=VALUE` for each required input below. Add `--trust` after review to record consent for those exact bytes.
+
+Choose a fresh, dedicated report directory with `--output-dir PATH`. The override protects existing output files; it does not isolate host commands or grant workers additional tools.
+
+| Input | Type | Default |
+| --- | --- | --- |
+| `project_directory` | `str` | Required |
+| `targets` | `tuple[str, ...]` | Required |
+| `request` | `str` | `'Test the declared implementation for timing leakage.'` |
+| `operation` | `Literal['test', 'remediate', 'ci']` | `'test'` |
+| `dudect_binary` | `str` | `''` |
+| `timecop_binary` | `str` | `''` |
+| `initial_seconds` | `Literal[300, 600]` | `600` |
+| `timeout_program` | `str` | `'timeout'` |
+| `valgrind_program` | `str` | `'valgrind'` |
+
+The recipe declares `Bash`. Configure `--tool-config` for capabilities called through `tool()`, following the provider setup. Host `run_command()` needs no Bash provider unless the recipe also calls `tool("Bash", ...)`.
