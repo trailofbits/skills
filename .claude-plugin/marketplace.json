@@ -12,7 +12,7 @@
     {
       "name": "audit-context-building",
       "description": "Understand a codebase before looking for bugs in it. Reads it function by function, records what each one assumes and depends on, and saves the write-ups to files instead of filling up the conversation.",
-      "version": "2.0.2",
+      "version": "2.1.0",
       "author": {
         "name": "Omar Inuwa"
       },
