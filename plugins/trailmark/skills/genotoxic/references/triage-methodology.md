@@ -21,19 +21,15 @@ these conditions hold:
 
 ### Dead Code
 
-The mutated function has zero callers in the trailmark graph.
-
-```python
-callers = engine.callers_of(node_id)
-if not callers:
-    # Dead code. The mutant is unreachable in production.
-    # Action: flag function for removal, not testing.
-```
-
-**Subtlety:** A function with no *direct* callers may still be reachable
-via dynamic dispatch (reflection, callbacks, decorators). Check edge
-confidence: if all edges to the function are `uncertain`, investigate
-before dismissing.
+Zero graph callers is a review signal, not a dead-code classification.
+Public entrypoints can be invoked directly, self-path queries return `[]`, and
+dynamic dispatch or unsupported syntax can hide callers. Check direct
+`attack_surface()` membership and entrypoint-reachable subgraphs before
+interpreting path absence. On 0.7, inspect source-file counts, parse diagnostics,
+and unresolved call sites as well. Deferred callback edges express possible
+execution, not confirmed invocation; confidence alone does not identify every
+unresolved target. Classify a mutant as dead-code-related only after source and
+execution context establish that it is unreachable in production.
 
 ### Test-Only Code
 
