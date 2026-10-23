@@ -21,6 +21,13 @@ transformations occur at each step, and what protocol phases exist.
 For call graphs, class hierarchies, or module dependency maps, use the
 `diagramming-code` skill instead.
 
+When using Trailmark to navigate implementation code, 0.7 adds Aiken, Bash,
+Julia, Lua, Perl 5, PowerShell, R, VB.NET, and Zig (39 languages total). Choose
+parsers from the installed `supported_languages()` result. Call graphs can
+locate candidate message handlers; unresolved targets and deferred callback
+edges do not establish message order, cryptographic semantics, or an executed
+send. Preserve source/spec evidence for each protocol step.
+
 ## When to Use
 
 - User asks to diagram, visualize, or extract a cryptographic protocol
