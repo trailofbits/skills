@@ -493,3 +493,63 @@ load test_helper
   run_curl_hook "$(printf 'tee -a s.sh <<EOF\ncurl -s https://api.github.com/repos/owner/repo/pulls\nEOF')"
   assert_allow
 }
+
+@test "curl: denies command substitution in an unquoted cat heredoc" {
+  run_curl_hook "$(printf 'cat > s.sh <<EOF\n$(curl -s https://api.github.com/repos/owner/repo/pulls)\nEOF')"
+  assert_deny
+}
+
+@test "curl: denies backticks in an unquoted cat heredoc" {
+  run_curl_hook "$(printf 'cat > s.sh <<EOF\n`curl -s https://api.github.com/repos/owner/repo/pulls`\nEOF')"
+  assert_deny
+}
+
+@test "curl: denies command substitution in an unquoted tee heredoc" {
+  run_curl_hook "$(printf 'tee s.sh <<EOF\n$(curl -s https://api.github.com/repos/owner/repo/pulls)\nEOF')"
+  assert_deny
+}
+
+@test "curl: denies command substitution when the cat redirect trails the marker" {
+  run_curl_hook "$(printf 'cat <<EOF > s.sh\n$(curl -s https://api.github.com/repos/owner/repo/pulls)\nEOF')"
+  assert_deny
+}
+
+@test "curl: allows a quoted heredoc even when the body has a substitution" {
+  run_curl_hook "$(printf 'cat > s.sh <<'\''EOF'\''\n$(curl -s https://api.github.com/repos/owner/repo/pulls)\nEOF')"
+  assert_allow
+}
+
+@test "curl: denies a written script that is run afterwards" {
+  run_curl_hook "$(printf 'cat > s.sh <<'\''EOF'\''\ncurl -s https://api.github.com/repos/owner/repo/pulls\nEOF\nbash s.sh')"
+  assert_deny
+}
+
+@test "curl: denies a written script run on the heredoc line itself" {
+  run_curl_hook "$(printf 'cat > s.sh <<'\''EOF'\''; bash s.sh\ncurl -s https://api.github.com/repos/owner/repo/pulls\nEOF')"
+  assert_deny
+}
+
+@test "curl: denies a written script run with && on the heredoc line" {
+  run_curl_hook "$(printf 'cat > s.sh <<'\''EOF'\'' && sh s.sh\ncurl -s https://api.github.com/repos/owner/repo/pulls\nEOF')"
+  assert_deny
+}
+
+@test "curl: denies a written script that is sourced afterwards" {
+  run_curl_hook "$(printf 'cat > s.sh <<'\''EOF'\''\ncurl -s https://api.github.com/repos/owner/repo/pulls\nEOF\n. ./s.sh')"
+  assert_deny
+}
+
+@test "curl: denies a written script run through a glob" {
+  run_curl_hook "$(printf 'cat > s.sh <<'\''EOF'\''\ncurl -s https://api.github.com/repos/owner/repo/pulls\nEOF\nbash s*')"
+  assert_deny
+}
+
+@test "curl: denies tee with a trailing redirect followed by a run" {
+  run_curl_hook "$(printf 'tee s.sh <<'\''EOF'\'' >/dev/null\ncurl -s https://api.github.com/repos/owner/repo/pulls\nEOF\nsh s.sh')"
+  assert_deny
+}
+
+@test "curl: allows several authoring heredocs and nothing else" {
+  run_curl_hook "$(printf 'cat > a.sh <<'\''EOF'\''\ncurl -s https://api.github.com/repos/owner/repo/pulls\nEOF\ncat > b.sh <<'\''EOF'\''\ncurl -s https://api.github.com/repos/owner/repo/pulls\nEOF')"
+  assert_allow
+}

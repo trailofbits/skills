@@ -93,6 +93,10 @@ scrubbed=$(printf '%s\n' "$cmd" | awk '
     return out
   }
   inhd {
+    # Body of an authoring heredoc. Held back, not decided here: whether it
+    # may be dropped depends on the whole command, which is only known at END.
+    n++
+    kind[n] = "body"; raw[n] = $0; isquoted[n] = quoted
     if ($0 ~ "^[[:space:]]*" delim "[[:space:]]*$") { inhd = 0 }
     next
   }
@@ -116,23 +120,51 @@ scrubbed=$(printf '%s\n' "$cmd" | awk '
     # An unrecognised form is scanned rather than ignored, which is the safe
     # direction. A pipeline disqualifies the line outright, since a pipe can
     # hand the body to an interpreter no matter what the command word is.
+    #
+    # The header must also END at the delimiter. Anything after it
+    # (`<<'\''EOF'\''; bash f`, `&& sh f`) is more command on the same line, and
+    # may run the file that was just written.
     writes_body = 0
     if (line !~ /\|/) {
+      tagend = "<<-?[[:space:]]*['\''\"]?[A-Za-z_][A-Za-z0-9_]*['\''\"]?[[:space:]]*$"
       #  cat > f <<EOF   /  cat >> f <<EOF
-      if (line ~ /^[[:space:]]*cat[[:space:]]+>>?[[:space:]]*[^[:space:]<>|]+[[:space:]]*<</) writes_body = 1
+      if (line ~ ("^[[:space:]]*cat[[:space:]]+>>?[[:space:]]*[^[:space:]<>|;&]+[[:space:]]*" tagend)) writes_body = 1
       #  cat <<EOF > f   (redirect trailing the marker)
-      else if (line ~ /^[[:space:]]*cat[[:space:]]*<<[^[:space:]<>|]+[[:space:]]*>>?[[:space:]]*[^[:space:]<>|]+[[:space:]]*$/) writes_body = 1
+      else if (line ~ /^[[:space:]]*cat[[:space:]]*<<[^[:space:]<>|;&]+[[:space:]]*>>?[[:space:]]*[^[:space:]<>|;&]+[[:space:]]*$/) writes_body = 1
       #  tee f <<EOF     /  tee -a f <<EOF
-      else if (line ~ /^[[:space:]]*tee[[:space:]]+(-a[[:space:]]+)?[^[:space:]<>|]+[[:space:]]*<</) writes_body = 1
+      else if (line ~ ("^[[:space:]]*tee[[:space:]]+(-a[[:space:]]+)?[^[:space:]<>|;&]+[[:space:]]*" tagend)) writes_body = 1
     }
-    if (writes_body && match(line, /<<-?[[:space:]]*['\''"]?[A-Za-z_][A-Za-z0-9_]*/)) {
+    n++
+    raw[n] = line
+    if (writes_body && match(line, /<<-?[[:space:]]*['\''"]?[A-Za-z_][A-Za-z0-9_]*['\''"]?/)) {
       tag = substr(line, RSTART, RLENGTH)
+      quoted = (tag ~ /['\''"]/)
       gsub(/^<<-?[[:space:]]*['\''"]?/, "", tag)
+      gsub(/['\''"]$/, "", tag)
       delim = tag; inhd = 1
+      kind[n] = "header"
+    } else {
+      kind[n] = "other"
+      # Anything that is not a bare authoring heredoc may be what runs the
+      # file written by one, so a command containing such a line keeps every
+      # body for scanning. Blank and comment-only lines run nothing.
+      if (strip_comment(line) !~ /^[[:space:]]*$/) other = 1
     }
-    print strip_comment(line)
   }
-  END { if (inhd) exit 3 }
+  END {
+    if (inhd) exit 3
+    for (i = 1; i <= n; i++) {
+      if (kind[i] == "body" && !other) {
+        # Dropping a body is only sound if nothing in it runs. An UNQUOTED
+        # delimiter still lets the shell expand $( ) and backticks inside the
+        # body, even when the heredoc only feeds cat or tee, so such a line is
+        # kept. A quoted delimiter makes the body inert text.
+        if (!isquoted[i] && raw[i] ~ /\$\(|`/) print raw[i]
+        continue
+      }
+      print strip_comment(raw[i])
+    }
+  }
 ') || scrubbed="$cmd"
 
 # Normalise before extraction. All three forms below reach GitHub in practice
