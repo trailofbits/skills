@@ -94,11 +94,16 @@ trailmark/
     ├── mermaid-to-proverif/          # Sequence diagram → ProVerif
     │   └── examples/
     ├── audit-augmentation/           # SARIF/weAudit integration
+    │   └── scripts/augment_context.py # One-process imports and complete evidence
     ├── trailmark-finding-triage/      # Single-finding evidence packets
     ├── trailmark-variant-neighborhood/ # Variant candidate neighborhoods
     ├── trailmark-summary/            # Quick overview for vivisect/galvanize
     └── trailmark-structural/         # Full structural analysis
 ```
+
+The audit-augmentation helper uses PEP 723 runtime dependencies (manually maintained,
+like the other inline scripts); its project manifest contains only development tools.
+Run its real-tool regressions with `bash plugins/trailmark/tests/run_audit_augmentation_tests.sh`.
 
 ## Related Skills
 
