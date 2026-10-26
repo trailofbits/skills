@@ -1080,9 +1080,15 @@ class AssemblyParser:
         current_file = None
         current_line = None
         instruction_count = 0
+        # Apple clang's annotated labels identify Mach-O output. Only its known
+        # local label forms are excluded; valid L-prefixed functions stay valid.
+        macho = bool(re.search(r"^\s*\w+:\s*;\s*@", assembly_text, re.MULTILINE))
+        exported = set(re.findall(r"^\s*\.globl\s+(\w+)", assembly_text, re.MULTILINE))
 
         for line in assembly_text.split("\n"):
             line = line.strip()
+            if macho and re.match(r"^L(?:BB\d+_\d+|tmp\d+):$", line) and line[:-1] not in exported:
+                continue
 
             # Skip empty lines and comments
             if not line or line.startswith("#") or line.startswith("//") or line.startswith(";"):
@@ -1097,6 +1103,9 @@ class AssemblyParser:
             func_match = (
                 # GCC/Clang: function_name:
                 re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*):$", line)
+                or
+                # Apple clang annotates Mach-O function labels with `; @name`.
+                re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*):\s*;\s*@", line)
                 or
                 # Go objdump: TEXT symbol_name(SB) file
                 re.match(r"^TEXT\s+([^\s(]+)\(SB\)", line)
