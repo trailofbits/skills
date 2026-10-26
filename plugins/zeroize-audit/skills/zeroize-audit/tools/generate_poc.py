@@ -137,13 +137,13 @@ def _get_compile_flags(compile_db: str, src_file: str) -> list[str] | None:
         return None
 
 
-def _count_lines(path: str) -> int:
-    """Return the number of lines in a file, or 0 if unreadable."""
+def _count_lines(path: str) -> int | None:
+    """Return the number of lines, or None if the source cannot be read."""
     try:
         with open(path) as f:
             return sum(1 for _ in f)
     except OSError:
-        return 0
+        return None
 
 
 def _extract_function_signature(src_file: str, line: int) -> str | None:
@@ -346,7 +346,8 @@ class PoCGenerator:
         threshold = self.config.get(
             "source_inclusion_threshold", _DEFAULT_SOURCE_INCLUSION_THRESHOLD
         )
-        return _count_lines(self.src_file) <= threshold
+        line_count = _count_lines(self.src_file)
+        return line_count is not None and line_count <= threshold
 
     def _flags_str(self) -> str:
         flags = _get_compile_flags(self.compile_db, self.src_file)
