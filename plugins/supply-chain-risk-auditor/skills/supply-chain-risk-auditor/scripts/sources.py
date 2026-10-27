@@ -409,12 +409,23 @@ def _npm_install_hooks(version_doc: dict) -> list[str] | None:
     return []
 
 
+def _npm_release_doc(versions: dict, name: str, version: str | None) -> dict | None:
+    """Require a matching manifest identity before interpreting optional fields."""
+    if not isinstance(version, str):
+        return None
+    doc = versions.get(version)
+    if not isinstance(doc, dict) or doc.get("name") != name or doc.get("version") != version:
+        return None
+    return doc
+
+
 def npm_metadata(http: Http, name: str, version: str | None = None) -> dict:
     """Current package metadata and independent selected/latest release measurements.
 
     A missing or malformed release is None, preserving the current package ACL and
-    repository. An absent latest release cannot invalidate an explicit selection.
-    No explicit selection uses latest only when its version document is available.
+    repository. Each manifest must identify the requested package and version. An
+    unusable latest release cannot invalidate an explicit selection. No explicit
+    selection uses latest only when its version document is usable.
 
     Raises:
         NotFound: If the package is not published.
@@ -428,13 +439,13 @@ def npm_metadata(http: Http, name: str, version: str | None = None) -> dict:
     latest = tags.get("latest") if isinstance(tags, dict) else None
     versions = doc.get("versions")
     versions = versions if isinstance(versions, dict) else {}
-    latest_doc = versions.get(latest) if isinstance(latest, str) else None
-    if not isinstance(latest_doc, dict):
-        latest, latest_doc = None, None
+    latest_doc = _npm_release_doc(versions, name, latest)
+    if latest_doc is None:
+        latest = None
     selected = npm_exact_version(version) if version is not None else latest
-    version_doc = versions.get(selected)
+    version_doc = _npm_release_doc(versions, name, selected)
     release = None
-    if isinstance(version_doc, dict):
+    if version_doc is not None:
         deprecated = version_doc.get("deprecated", "")
         release = {
             "version": selected,

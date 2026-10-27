@@ -148,15 +148,36 @@ def test_selected_release_and_package_data_survive_unusable_latest(
     assert meta["repository"] == "github.com/current/fixture"
 
 
-@pytest.mark.parametrize("selected_doc", [None, [], "invalid"])
+@pytest.mark.parametrize(
+    "selected_doc",
+    [
+        None,
+        [],
+        "invalid",
+        {},
+        {"dist": {}},
+        {"name": "fixture"},
+        {"version": "1.0.0"},
+        {"name": "other", "version": "1.0.0"},
+        {"name": "fixture", "version": "9.9.9"},
+        {"name": [], "version": "1.0.0"},
+        {"name": "fixture", "version": []},
+    ],
+)
 def test_missing_or_malformed_selected_release_does_not_borrow_latest(
-    tmp_path: Path, packument: dict, selected_doc: object
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, packument: dict, selected_doc: object
 ):
     packument["versions"]["1.0.0"] = selected_doc
-    meta = sources.npm_metadata(metadata_http(tmp_path, packument), "fixture", "1.0.0")
-    assert meta["release"] is None
-    assert meta["publisher_provenance"] is True
-    assert meta["maintainers"] == ["alice", "bob"]
+    dep, report = collected_project(tmp_path, monkeypatch, packument)
+    for criterion in ("deprecated", "install_script", "provenance"):
+        assert dep["signals"][criterion]["state"] == State.UNASSESSABLE.value
+    assert dep["signals"]["publisher_concentration"]["state"] == State.UNASSESSABLE.value
+    assert (
+        "publishes from CI with provenance" in dep["signals"]["publisher_concentration"]["detail"]
+    )
+    assert dep["repo"] == "github.com/current/fixture"
+    assert dep["signals"]["downloads"]["value"] == 5000
+    assert "no usable release metadata for 1.0.0" in report
 
 
 @pytest.mark.parametrize("doc", [None, [], "invalid"])
@@ -166,7 +187,10 @@ def test_malformed_package_document_is_unavailable(tmp_path: Path, doc: object):
         sources.npm_metadata(http, "fixture", "1.0.0")
 
 
-@pytest.mark.parametrize("latest_doc", [None, [], "invalid"])
+@pytest.mark.parametrize(
+    "latest_doc",
+    [None, [], "invalid", {}, {"name": "other", "version": "2.0.0"}, version_doc("9.9.9")],
+)
 def test_malformed_latest_does_not_hide_selected_release(
     tmp_path: Path, packument: dict, latest_doc: object
 ):
@@ -175,6 +199,7 @@ def test_malformed_latest_does_not_hide_selected_release(
     assert meta["latest"] is None
     assert meta["publisher_provenance"] is None
     assert meta["release"]["version"] == "1.0.0"
+    assert sources.npm_metadata(metadata_http(tmp_path, packument), "fixture")["release"] is None
 
 
 def collected_project(
@@ -193,7 +218,7 @@ def collected_project(
     target = "@scope/fixture" if spec.startswith("npm:") else name
     doc["name"] = target
     for version in doc["versions"].values():
-        if isinstance(version, dict):
+        if isinstance(version, dict) and version.get("name") == "fixture":
             version["name"] = target
     (project / "package.json").write_text(json.dumps({"dependencies": {name: spec}}))
     if locked:
@@ -297,15 +322,33 @@ def test_missing_selected_preserves_current_package_measurements(
     assert "0.5.0" in report and "release metadata" in report
 
 
-def test_missing_latest_preserves_selected_release_and_unknown_publisher(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, packument: dict
+@pytest.mark.parametrize("latest_doc", [None, {}, version_doc("9.9.9")])
+def test_unusable_latest_preserves_selected_release_and_unknown_publisher(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, packument: dict, latest_doc: object
 ):
-    packument["dist-tags"] = {}
+    packument["versions"]["2.0.0"] = latest_doc
     dep, _ = collected_project(tmp_path, monkeypatch, packument)
     assert dep["signals"]["deprecated"]["state"] == State.FLAGGED.value
     assert dep["signals"]["install_script"]["state"] == State.FLAGGED.value
     assert dep["signals"]["publisher_concentration"]["state"] == State.UNASSESSABLE.value
     assert dep["signals"]["advisories"]["state"] == State.CLEAN.value
+
+
+@pytest.mark.parametrize("include_dist", [False, True])
+def test_valid_identity_allows_absent_optional_release_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, packument: dict, include_dist: bool
+):
+    manifest = {"name": "fixture", "version": "1.0.0"}
+    if include_dist:
+        manifest["dist"] = {}
+    packument["versions"]["1.0.0"] = manifest
+    dep, _ = collected_project(tmp_path, monkeypatch, packument)
+    for criterion in ("deprecated", "install_script"):
+        assert dep["signals"][criterion]["state"] == State.CLEAN.value
+        assert dep["signals"][criterion]["value"] is False
+    assert dep["signals"]["provenance"]["state"] == (
+        State.CLEAN.value if include_dist else State.UNASSESSABLE.value
+    )
 
 
 def test_no_selected_or_latest_release_preserves_package_data(tmp_path: Path, packument: dict):

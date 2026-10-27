@@ -29,10 +29,11 @@ a report.
 
 For npm, deprecation, install hooks, and publish provenance describe the release
 selected by the lockfile or exact manifest pin. When neither resolves a version, the
-report labels its latest-release sample. If a selected release is absent from the
-registry, its release properties are unassessable. Publisher concentration uses the
-current package publish ACL and the latest release's provenance, separately from the
-selected release.
+report labels its latest-release sample. A release manifest must identify the requested
+package and version; missing, incomplete, or mismatched manifests leave release
+properties unassessable. Valid manifests may omit optional fields such as `scripts`
+or `deprecated`. Publisher concentration uses the current package publish ACL and the
+latest release's provenance, separately from the selected release.
 
 ## Usage
 

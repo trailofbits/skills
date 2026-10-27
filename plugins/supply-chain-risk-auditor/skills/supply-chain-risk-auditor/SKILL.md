@@ -94,7 +94,8 @@ or framing.
 - **Release properties follow the selected version.** npm deprecation, install hooks,
   and publish provenance describe the lockfile version or exact manifest pin. Preserve
   the report's label when it samples the latest release instead. A selected release
-  missing from the registry leaves its release properties unassessable.
+  missing from the registry or lacking a matching package and version identity leaves
+  its release properties unassessable.
 - **Publisher concentration describes current publishing authority.** It uses the
   current package publish ACL and the latest release's provenance separately from the
   selected release's properties.
