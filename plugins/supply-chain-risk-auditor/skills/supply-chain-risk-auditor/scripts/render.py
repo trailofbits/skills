@@ -54,7 +54,7 @@ LABELS = {
     "archived": "Repository archived",
     "staleness": "Maintenance activity",
     "publisher_concentration": "Publisher concentration",
-    "install_script": "Install-time script execution",
+    "install_script": "Declared install hooks",
     "downloads": "Download volume",
     "dangerous_workflow": "Dangerous CI workflow",
     "token_permissions": "CI token permissions",

@@ -337,12 +337,13 @@ def test_staleness_threshold():
 
 def test_concentration_judgement():
     base = {
-        "provenance": False,
+        "publisher_provenance": False,
         "maintainers": [],
         "human_maintainers": [],
         "automated_maintainers": [],
     }
-    assert _concentration_signal({**base, "provenance": True}).state is State.UNASSESSABLE
+    assert _concentration_signal({**base, "publisher_provenance": True}).state is State.UNASSESSABLE
+    assert _concentration_signal({**base, "publisher_provenance": None}).state is State.UNASSESSABLE
     assert _concentration_signal(base).state is State.UNASSESSABLE
     lone = {
         **base,

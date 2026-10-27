@@ -16,7 +16,7 @@ top, clearly separated from what was measured.
 | Deprecated / yanked releases | direct | npm, PyPI |
 | Archived or abandoned upstream repository | direct | any GitHub-hosted repo |
 | Publisher concentration (registry publish ACL) | direct | npm only — PyPI and Go publish no ACL |
-| Install-time script execution | direct | npm (Go has none by design) |
+| Declared install hooks | direct | npm (Go has none by design) |
 | Dangerous CI workflows, checked-in binaries (OpenSSF Scorecard individual checks) | direct | repos Scorecard covers |
 | Download volume, publish provenance, security policy | direct, informational — measured, never flagged | varies |
 
@@ -26,6 +26,13 @@ and could not be measured. Two rules are enforced by the code rather than by
 convention: unavailable data is never treated as evidence of risk, and an absent
 measurement is never a clean verdict — a run that measures nothing refuses to produce
 a report.
+
+For npm, deprecation, install hooks, and publish provenance describe the release
+selected by the lockfile or exact manifest pin. When neither resolves a version, the
+report labels its latest-release sample. If a selected release is absent from the
+registry, its release properties are unassessable. Publisher concentration uses the
+current package publish ACL and the latest release's provenance, separately from the
+selected release.
 
 ## Usage
 
@@ -59,6 +66,11 @@ reads manifests and lockfiles, and never installs, builds, or executes the proje
 its packages. Whether the pinned set actually installs or imports cleanly is out of
 scope, as are scanning the target's own source, reading dependency source, and license
 compliance.
+
+Install-hook checks inspect `preinstall`, `install`, and `postinstall` in the selected
+release's full registry metadata. A clean result means only "no declared install
+hooks". A release with `gypfile: true` and no declared hooks is unassessable. Package
+tarballs are not inspected, so implicit native builds may remain unknown.
 
 ## Installation
 
