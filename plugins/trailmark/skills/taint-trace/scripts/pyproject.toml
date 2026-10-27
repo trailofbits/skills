@@ -1,0 +1,18 @@
+[project]
+name = "trailmark-taint-trace"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C901", "PLR0912", "PLR0915"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
+
+[tool.pytest.ini_options]
+testpaths = ["test_taint_trace.py", "test_runner.py", "test_graph.py", "test_joern.py", "test_native.py", "test_activation.py", "test_style.py"]
