@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "outcome": {
+      "enum": [
+        "confirmed",
+        "not_confirmed",
+        "inconclusive"
+      ]
+    },
+    "agent": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    }
+  },
+  "required": [
+    "schema_version",
+    "outcome",
+    "agent",
+    "reason"
+  ],
+  "additionalProperties": false
+}

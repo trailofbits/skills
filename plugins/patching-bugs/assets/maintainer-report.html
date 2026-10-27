@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>$report_title · Patch handoff</title>
+<style>$styles</style>
+</head>
+<body>
+<header class="site-header"><div class="wrap"><p>Private local handoff · Code maintainer</p>
+<nav aria-label="Report sections"><a href="#summary">Summary</a><a href="#reproduce">Reproduce</a><a href="#fix">Fix</a><a href="#checks">Checks</a><a href="#patch">Patch</a></nav></div></header>
+<main class="wrap narrow">
+<section id="summary" aria-labelledby="summary-title"><p class="eyebrow">Patch ready for maintainer review</p>
+<h1 id="summary-title">$report_title</h1><p>$claim</p>
+<p><strong>Automated result:</strong> Verified scoped repair. <strong>Auditor decision:</strong> Review the patch, case selection, and disclosure before sharing.</p>
+</section>
+<section id="reproduce" aria-labelledby="reproduce-title"><h2 id="reproduce-title">Reproduce the bug</h2>
+$reported_behavior$reported_gaps</section>
+<section id="fix" aria-labelledby="fix-title"><h2 id="fix-title">Fix</h2><p>$fix_why</p>
+<p><strong>Local commit:</strong> <code>$patch_commit</code></p>$patch_summary</section>
+<section id="checks" aria-labelledby="checks-title"><h2 id="checks-title">Verification and limits</h2>
+$verification_table<h3>Known limits</h3>$limits_html
+<p class="small">These checks establish the recorded scope. The code owner should review the implementation and the auditor's case selection.</p></section>
+<section id="patch" aria-labelledby="patch-title"><h2 id="patch-title">Patch</h2>
+<details><summary>Full patch diff</summary>$diff</details></section>
+<section id="evidence" aria-labelledby="evidence-title"><h2 id="evidence-title">Retained evidence</h2>
+<p class="lede">Linked receipts are embedded below for local review.</p>$evidence_groups</section>
+</main><footer class="wrap">Local patch handoff · No remote publication.</footer>
+</body></html>

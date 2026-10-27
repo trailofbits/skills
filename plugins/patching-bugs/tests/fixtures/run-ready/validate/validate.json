@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "outcome": "confirmed",
+  "agent": "validator",
+  "reason": "The unchanged PoC reproduced"
+}

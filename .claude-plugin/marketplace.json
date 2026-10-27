@@ -136,6 +136,16 @@
       "source": "./plugins/mutation-testing"
     },
     {
+      "name": "patching-bugs",
+      "version": "0.5.1",
+      "description": "Agent-orchestrated workflow to reproduce, patch, prove and regression-check one known bug.",
+      "author": {
+        "name": "Trail of Bits",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/patching-bugs"
+    },
+    {
       "name": "post-patch-validation",
       "version": "0.2.2",
       "description": "Validates security patches against the reported bug, root-cause variants, and surrounding behavior. Returns reproducible failures to repair and validation gaps, with pinned inputs and saved evidence. Bundles a validate-patch dynamic workflow for Claude Code.",
@@ -155,6 +165,16 @@
         "email": "opensource@trailofbits.com"
       },
       "source": "./plugins/property-based-testing"
+    },
+    {
+      "name": "regression-hunt",
+      "version": "1.2.0",
+      "description": "Agent-orchestrated skills for finding, reproducing and adjudicating regressions in PRs or commits.",
+      "author": {
+        "name": "Trail of Bits",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/regression-hunt"
     },
     {
       "name": "semgrep-rule-creator",
@@ -188,7 +208,7 @@
     },
     {
       "name": "static-analysis",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "description": "Static analysis toolkit with CodeQL, Semgrep, and SARIF parsing for security vulnerability detection",
       "author": {
         "name": "Axel Mierczuk & Paweł Płatek"
@@ -383,7 +403,7 @@
     },
     {
       "name": "dimensional-analysis",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "description": "Audits code for unit and decimal-scaling bugs and annotates it with dimensional comments recording the units of each value. Use when someone asks to audit or review code for unit confusion, decimals or scaling mismatches, WAD/RAY scale errors, or the wrong token's decimals; to annotate units in a codebase; or to perform a dimensional analysis of a DeFi protocol, offchain code, or other arithmetic-heavy codebase. Catches formulas that combine values carrying different units or scales.",
       "author": {
         "name": "Coriolan Pinhas & Benjamin Samuels",
@@ -405,7 +425,7 @@
     },
     {
       "name": "github-triage",
-      "version": "0.1.2",
+      "version": "0.2.0",
       "description": "Triages a repository's open GitHub issues and pull requests via the gh CLI: optionally merges ready bot and maintainer-approved PRs and spawns review subagents for unreviewed ones, closes already-resolved issues with referenced explanations, cross-links issues with pending fix PRs, and assigns local-only priority and change-size estimates.",
       "author": {
         "name": "Evan Sultanik",
