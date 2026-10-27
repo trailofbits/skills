@@ -1,4 +1,4 @@
-"""Artifact integrity checks and contracts exercised against installed free engines."""
+"""Artifact integrity checks and contracts exercised against installed engines."""
 
 from __future__ import annotations
 
@@ -159,7 +159,7 @@ def test_saved_run_cannot_drop_native_activation_or_change_engine(tmp_path):
         ("opengrep", "--json", "intrafile", "--taint-intrafile"),
     ],
 )
-def test_semgrep_edition_and_scope_must_match_activation(tmp_path, backend, flag, scope, error):
+def test_semgrep_engine_and_scope_must_match_activation(tmp_path, backend, flag, scope, error):
     semgrep_fixture(tmp_path, "python")
     record = native_run(
         tmp_path,

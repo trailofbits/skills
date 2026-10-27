@@ -11,7 +11,11 @@ from native import COVERAGE_UNKNOWN, JsonObject, normalize
 
 
 def sarif_text(results: list[JsonObject], **run_fields: object) -> str:
-    run = {"tool": {"driver": {"name": "CodeQL"}}, "results": results, **run_fields}
+    rules = [
+        {"id": "js/sql-injection", "properties": {"kind": "path-problem"}},
+        {"id": "js/unused-variable", "properties": {"kind": "problem"}},
+    ]
+    run = {"tool": {"driver": {"name": "CodeQL", "rules": rules}}, "results": results, **run_fields}
     return json.dumps({"version": "2.1.0", "runs": [run]})
 
 
@@ -86,15 +90,59 @@ def test_sarif_invalid_artifact_index_fails(tmp_path: Path, index: object) -> No
         normalize(text, "codeql", tmp_path)
 
 
-def test_codeql_mixed_alerts_only_retain_nonempty_code_flows(tmp_path: Path) -> None:
-    ordinary = sarif_result(flow=False)
+def test_codeql_mixed_alerts_filter_rule_kind_instead_of_code_flows(tmp_path: Path) -> None:
+    ordinary = sarif_result()
     ordinary["ruleId"] = "js/unused-variable"
     empty = sarif_result(flow=False)
     empty["codeFlows"] = []
-    no_location: JsonObject = {"ruleId": "js/ordinary-alert"}
-    text = sarif_text([ordinary, empty, no_location, sarif_result()])
+    no_location: JsonObject = {"ruleId": "js/unused-variable"}
+    text = sarif_text([ordinary, empty, no_location, sarif_result(flow=False)])
     result = normalize(text, "codeql", tmp_path)
-    assert [item["rule_id"] for item in result["findings"]] == ["js/sql-injection"]
+    assert [item["rule_id"] for item in result["findings"]] == ["js/sql-injection"] * 2
+    assert [item["trace"] for item in result["findings"]] == [[], None]
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        {"ruleIndex": 0},
+        {"rule": {"index": 0}},
+        {"rule": {"id": "js/command-line-injection"}},
+        {"rule": {"index": 0, "toolComponent": {"index": 0}}},
+        {"ruleId": "js/command-line-injection"},
+    ],
+)
+@pytest.mark.parametrize("flow", [False, True])
+def test_codeql_path_problem_survives_with_or_without_code_flows(
+    tmp_path: Path, reference: JsonObject, flow: bool
+) -> None:
+    rule = {"id": "js/command-line-injection", "properties": {"kind": "path-problem"}}
+    driver: JsonObject = {"name": "CodeQL", "rules": [rule]}
+    tool: JsonObject = {"driver": driver}
+    reference_rule = reference.get("rule", {})
+    assert isinstance(reference_rule, dict)
+    if "toolComponent" in reference_rule:
+        tool["extensions"] = [{"name": "codeql/javascript-queries", "rules": [rule]}]
+        driver["rules"] = [{"id": "ordinary", "properties": {"kind": "problem"}}]
+    alert = sarif_result(flow=flow)
+    alert.pop("ruleId")
+    alert.update(reference)
+    result = normalize(sarif_text([alert], tool=tool), "codeql", tmp_path)
+    assert [item["rule_id"] for item in result["findings"]] == ["js/command-line-injection"]
+    assert bool(result["findings"][0]["trace"]) is flow
+
+
+@pytest.mark.parametrize("index", [-1, 5, True])
+@pytest.mark.parametrize("extension", [False, True])
+def test_codeql_invalid_rule_references_fail(
+    tmp_path: Path, index: object, extension: bool
+) -> None:
+    alert = sarif_result()
+    alert["rule"] = (
+        {"index": 0, "toolComponent": {"index": index}} if extension else {"index": index}
+    )
+    with pytest.raises(ValueError, match="index"):
+        normalize(sarif_text([alert]), "codeql", tmp_path)
 
 
 @pytest.mark.parametrize("backend", ["semgrep", "joern", "pysa"])
@@ -107,13 +155,28 @@ def test_other_sarif_backends_keep_results_without_code_flows(tmp_path: Path, ba
 def test_sarif_preserves_invocation_errors_and_notifications(tmp_path: Path) -> None:
     invocation = {
         "executionSuccessful": False,
-        "toolExecutionNotifications": [{"level": "error", "message": {"text": "query failed"}}],
-        "toolConfigurationNotifications": [{"level": "warning", "message": {"text": "partial"}}],
+        "toolExecutionNotifications": [
+            {"level": "error", "message": {"text": "query failed"}},
+            *[
+                {"level": "none", "descriptor": {"id": ident}, "message": {"text": ""}}
+                for ident in (
+                    "cli/platform",
+                    "cli/sip-enablement",
+                    "cli/file-coverage-baseline",
+                    "js/baseline/expected-extracted-files",
+                )
+            ],
+        ],
+        "toolConfigurationNotifications": [
+            {"level": "warning", "message": {"text": "partial"}},
+            {"level": "warning", "descriptor": {"id": "missing-model"}, "message": {"text": ""}},
+            {"level": "warning", "message": {"text": "  "}},
+        ],
     }
     result = normalize(sarif_text([], invocations=[invocation]), "codeql", tmp_path)
     assert result["findings"] == []
     assert result["errors"] == ["Native SARIF invocation failed", "query failed"]
-    assert result["limitations"] == ["partial", COVERAGE_UNKNOWN]
+    assert result["limitations"] == ["partial", "missing-model", COVERAGE_UNKNOWN]
 
 
 def test_sarif_zero_runs_fails(tmp_path: Path) -> None:

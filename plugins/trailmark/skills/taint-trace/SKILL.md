@@ -111,7 +111,7 @@ clean results. A fully skipped run has performed no taint analysis.
 | Checker Framework | [Existing Java tainting configurations](references/checker-framework.md) |
 | Semgrep CE/Pro | [Taint rules, language gates, and engine scope](references/semgrep.md) |
 | OpenGrep | [Compatible rules and intrafile analysis](references/opengrep.md) |
-| CodeQL | [Eligible repositories and native model packs](references/codeql.md) |
+| CodeQL | [Native model packs and query configuration](references/codeql.md) |
 
 ## Rationalizations to Reject
 

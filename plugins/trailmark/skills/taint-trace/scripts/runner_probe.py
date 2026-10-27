@@ -160,6 +160,7 @@ def initialize_plan(
     language: str,
     output: Path,
     contract: Path | None,
+    *,
     executable: str | None,
     errors: list[str],
 ) -> tuple[list[JsonObject], list[JsonObject]]:
@@ -186,6 +187,7 @@ def probe_record(
     language: str,
     run_path: Path,
     fixture_files: list[JsonObject],
+    *,
     preparation: list[JsonObject],
     errors: list[str],
 ) -> JsonObject:
@@ -275,7 +277,7 @@ def probe(
     plan.root.mkdir()
     errors: list[str] = []
     files, preparation = initialize_plan(
-        plan, backend, language, output, contract, executable, errors
+        plan, backend, language, output, contract, executable=executable, errors=errors
     )
     proof = probe_record(
         plan,
@@ -283,8 +285,8 @@ def probe(
         language,
         output.with_name(output.name + ".run.json"),
         files,
-        preparation,
-        errors,
+        preparation=preparation,
+        errors=errors,
     )
     probe_baseline(plan, proof, output, errors)
     if not errors:

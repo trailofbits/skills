@@ -187,7 +187,12 @@ jobs:
           failed=0
           for d in "${dirs[@]}"; do
             echo "::group::$d"
-            if ! ( cd "$d" && python3 -m pytest -q --import-mode=importlib . ); then
+            test_command=(python3 -m pytest -q --import-mode=importlib .)
+            if [ -f "$d/requirements-test.txt" ]; then
+              test_command=(uv run --no-project --with pytest --with pyyaml
+                --with-requirements requirements-test.txt "${test_command[@]}")
+            fi
+            if ! ( cd "$d" && "${test_command[@]}" ); then
               failed=1
             fi
             echo "::endgroup::"

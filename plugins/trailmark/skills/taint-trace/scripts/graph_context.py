@@ -109,7 +109,7 @@ def entrypoint_paths(seed: str, incoming: dict, entries: set[str], limit: int) -
 
 
 def structural_slice(
-    graph: JsonObject, seed: str, incoming: dict, outgoing: dict, entries: set[str], limit: int
+    graph: JsonObject, seed: str, incoming: dict, outgoing: dict, entries: set[str], *, limit: int
 ) -> JsonObject:
     selected = nearby_nodes(seed, incoming, outgoing, limit)
     return {
@@ -148,7 +148,7 @@ def neighborhoods(
                 "binding": binding_status(seeds),
                 "matches": seeds,
                 "slices": [
-                    structural_slice(graph, seed, incoming, outgoing, entries, limit)
+                    structural_slice(graph, seed, incoming, outgoing, entries, limit=limit)
                     for seed in seeds[:limit]
                 ],
             }

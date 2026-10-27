@@ -149,7 +149,7 @@ def _validate_manifest(path: Path, stage: str, result: ValidationResult) -> None
         evidence.errors.append(
             "No successfully analyzed components; fully skipped/failed is not success"
         )
-    _validate_models(models, context, target, enriched, stage, evidence.errors)
+    _validate_models(models, context, target, enriched, stage, errors=evidence.errors)
 
 
 def string_array(value: object, *, nonempty: bool = False) -> bool:
@@ -277,6 +277,7 @@ def component_run(
     evidence: ManifestEvidence,
     root: Path,
     graph_files: set[str],
+    *,
     version: str | None,
 ) -> JsonObject:
     from runner import check_run
@@ -301,7 +302,7 @@ def validate_component(
     version = component_proof(component, evidence)
     phases = ["baseline"] if evidence.stage == "baseline" else ["baseline", "enriched"]
     records = {
-        phase: component_run(component, phase, evidence, root, graph_files, version)
+        phase: component_run(component, phase, evidence, root, graph_files, version=version)
         for phase in phases
     }
     if evidence.stage == "complete":
@@ -426,6 +427,7 @@ def _validate_models(
     target: Path,
     enriched: EnrichedRecords,
     stage: str,
+    *,
     errors: list[str],
 ) -> None:
     ids, bindings = set(), set()
