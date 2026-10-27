@@ -1,12 +1,17 @@
 # trailmark
 
-**Source code graph analysis for security auditing.** Parses code into queryable graphs of functions, classes, and calls, then uses that structure for diagram generation, mutation testing triage, protocol verification, and differential review.
+**Source code graph analysis for security auditing.** Parses code into queryable graphs of functions, classes, and calls, then uses that structure for native taint analyzer modeling, diagram generation, mutation testing triage, protocol verification, and differential review.
 
-These skills support Trailmark 0.2.x through the 0.5.0 release line. Prefer
+The original graph skills support Trailmark 0.2.x through the 0.5.0 release line. Prefer
 `--language auto`, `trailmark.parse.detect_languages()` (0.3+), and
 `QueryEngine.preanalysis()` for the core workflow. Before using features added
 in v0.4.0 or v0.5.0, check the installed Trailmark version or probe for the
 method/CLI command first.
+
+`taint-trace` uses `trailmark>=0.7.1,<0.8` from the package index and checks the
+required graph APIs directly. Its launcher needs `uv`; native taint analyzers are
+separate dependencies. See the [backend catalog](skills/taint-trace/references/catalog.md)
+for language routes and capability requirements.
 
 ## Compatibility
 
@@ -65,8 +70,44 @@ uv tool install trailmark
 | `audit-augmentation` | Project SARIF, weAudit, and v0.4 binary-analysis graph findings onto code graphs as annotations and subgraphs |
 | `trailmark-finding-triage` | Triage one finding, SARIF result, weAudit annotation, suspicious function, or report excerpt with reachability, taint, privilege-boundary, and blast-radius evidence; `scripts/evidence_packet.py` builds the evidence for several file/line findings from one graph |
 | `trailmark-variant-neighborhood` | Expand one seed issue into graph-derived variant candidates for variant-analysis, Semgrep, CodeQL, or manual review |
+| `taint-trace` | Use graph and source evidence to add native source/sink/sanitizer/propagation models and annotations, then run an existing taint analyzer |
 | `trailmark-summary` | Quick structural overview (auto-detected languages, entry points, dependencies) for vivisect/galvanize |
 | `trailmark-structural` | Full structural analysis with all pre-analysis passes (blast radius, taint, privilege boundaries, complexity) |
+
+## Taint Analysis Workflow
+
+Invoke `/trailmark:taint-trace` for guidance or `/trailmark:taint-trace-run` for
+staged inventory, capability fixtures, baseline, modeling, native analysis, and
+reporting. Workflow arguments are a JSON object:
+
+```json
+{
+  "target": ".",
+  "languages": ["php"],
+  "backends": {"php": "psalm"},
+  "focus": ["execute_query"]
+}
+```
+
+Languages default to `auto`; backend overrides and sink focus are optional.
+The skill supplies its `skill_dir` when invoking the workflow; checkout users can
+also supply that absolute skill directory explicitly. The workflow otherwise
+resolves only known installed plugin caches.
+
+Artifacts live under the target's `.trailmark/taint-trace/runs/`. Reports separate
+analyzed, limited, skipped, and failed components and retain native findings,
+traces, model provenance, and unresolved graph gaps. Trailmark provides structural
+evidence; the native analyzer computes taint flows. Single-function analysis is
+explicitly limited, and a fully skipped run cannot report success. The skill does
+not execute the target application.
+
+Ordinary checks use deterministic fixtures. Enable native backend tests explicitly:
+`TAINT_TRACE_PSALM`, `TAINT_TRACE_JOERN`, `TAINT_TRACE_SEMGREP`, and
+`TAINT_TRACE_OPENGREP` select executable paths; `1` selects the executable on PATH
+for Semgrep or OpenGrep. Run standalone capability contracts with the commands in
+[artifact handling](skills/taint-trace/references/artifacts.md). The built-in Joern
+probe covers 12 graphable languages and checks native cross-function traces and
+context-specific escaping.
 
 ## Directory Structure
 
@@ -78,6 +119,10 @@ trailmark/
 │   └── code-slice-worker.md          # Bounded worker, no repository tools.
 │                                     # Dispatch as `trailmark:code-slice-worker`
 ├── README.md
+├── workflows/
+│   └── taint-trace-run.js            # /trailmark:taint-trace-run
+├── tests/
+│   └── taint-trace-run.test.mjs       # Staged lifecycle contracts
 └── skills/
     ├── trailmark/                    # Core graph querying
     ├── slicing-code-context/         # Bounded source slicing and worker delegation
@@ -96,6 +141,9 @@ trailmark/
     ├── audit-augmentation/           # SARIF/weAudit integration
     ├── trailmark-finding-triage/      # Single-finding evidence packets
     ├── trailmark-variant-neighborhood/ # Variant candidate neighborhoods
+    ├── taint-trace/                  # Graph-backed native taint models and runner
+    │   ├── references/              # Load only the selected backend
+    │   └── scripts/                 # Context, capability, native evidence, validation
     ├── trailmark-summary/            # Quick overview for vivisect/galvanize
     └── trailmark-structural/         # Full structural analysis
 ```
