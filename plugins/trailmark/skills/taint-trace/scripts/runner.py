@@ -179,7 +179,7 @@ def capture_inputs(request: RunRequest, state: RunState) -> None:
             request.argv,
             request.cwd,
             request.output,
-            state.models,
+            models=state.models,
         )
         state.errors.extend(errors)
         state.limitations.extend(limitations)

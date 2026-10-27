@@ -117,7 +117,7 @@ def dispatch(args: argparse.Namespace) -> JsonObject:
     if args.command == "run":
         return capture_native(args)
     if args.command == "validate":
-        return dict(validate_manifest(args.manifest, args.stage))
+        return {**validate_manifest(args.manifest, args.stage)}
     if args.output.exists():
         raise ValueError("Refusing to overwrite a report")
     return render_report(args.manifest, args.output)

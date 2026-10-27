@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from trailmark.query.api import QueryEngine
 
-pytest.importorskip("trailmark", reason="Run with trailmark>=0.7.1,<0.8 for graph contracts")
 sys.path.insert(0, str(Path(__file__).parent))
 
 from taint_trace import build_context, context_errors, main
@@ -52,8 +52,6 @@ def test_empty_source_tree_fails(tmp_path):
 
 
 def test_missing_capability_fails(tmp_path, monkeypatch):
-    from trailmark.query.api import QueryEngine
-
     monkeypatch.setattr(QueryEngine, "entrypoint_evidence", None)
     with pytest.raises(ValueError, match="required evidence APIs"):
         build_context(tmp_path)

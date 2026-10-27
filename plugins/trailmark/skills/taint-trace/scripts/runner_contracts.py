@@ -60,11 +60,11 @@ def site_findings(sites: dict[str, set[Site]], run: JsonObject) -> list[str]:
     actual = {(item["file"], item["line"], item.get("rule_id")) for item in run.get("findings", [])}
     errors = []
     for category in ("positive", "cross_function", "cross_file"):
-        for site in sorted(sites.get(category, set()), key=str):
+        for site in sorted(sites.get(category, set()), key=lambda item: str(item)):
             if not matches(site, actual):
                 errors.append(f"Native capability finding missing for {category} at {site}")
     positive_files = {site[0] for site in sites.get("positive", set())}
-    for site in sorted(sites.get("negative", set()), key=str):
+    for site in sorted(sites.get("negative", set()), key=lambda item: str(item)):
         if matches(site, actual):
             errors.append(f"Native analyzer reported literal/sanitized negative at {site}")
         if site[0] not in positive_files and site[0] not in (run.get("scanned_files") or []):

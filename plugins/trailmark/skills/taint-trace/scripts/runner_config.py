@@ -166,6 +166,7 @@ def capture_configuration(
     argv: list[str],
     cwd: Path,
     output: Path,
+    *,
     models: list[JsonObject],
 ) -> tuple[list[JsonObject], list[str], list[str], list[str]]:
     if backend in SEMGREP:

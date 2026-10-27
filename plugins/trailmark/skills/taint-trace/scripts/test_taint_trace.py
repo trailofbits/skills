@@ -338,7 +338,7 @@ def test_invalid_models_fail_with_useful_errors(artifacts, mutate, expected):
     mutate(item)
     errors = []
     try:
-        tt._validate_models([item], context(root), root, {}, "baseline", errors)
+        tt._validate_models([item], context(root), root, {}, "baseline", errors=errors)
     except ValueError as exc:
         errors.append(str(exc))
     assert any(expected in e for e in errors)
@@ -350,11 +350,11 @@ def test_duplicate_bindings_and_unsupported_sanitizers(artifacts):
     first, second = model(), model()
     second["id"] = "duplicate"
     errors = []
-    tt._validate_models([first, second], context(root), root, {}, "baseline", errors)
+    tt._validate_models([first, second], context(root), root, {}, "baseline", errors=errors)
     assert any("duplicate" in e for e in errors)
     first.update(role="sanitizer", backend="clang")
     errors = []
-    tt._validate_models([first], context(root), root, {}, "baseline", errors)
+    tt._validate_models([first], context(root), root, {}, "baseline", errors=errors)
     assert any("independent vulnerability" in e for e in errors)
 
 
@@ -411,7 +411,7 @@ def test_model_cannot_use_another_components_enriched_run(artifacts):
     run["component_root"] = str(other)
     errors = []
     tt._validate_models(
-        [model()], context(root), root, {("python", "joern"): [run]}, "complete", errors
+        [model()], context(root), root, {("python", "joern"): [run]}, "complete", errors=errors
     )
     assert any("did not snapshot the model" in error for error in errors)
 

@@ -145,10 +145,53 @@ def _sarif_notifications(run: JsonObject, normalized: NormalizedResult) -> None:
             invocation.get("toolConfigurationNotifications", []), "SARIF notifications"
         )
         for note in notes:
+            if note.get("level") == "none":
+                continue
             message = _object(note.get("message", {}), "SARIF notification message")
-            text = _text(message.get("text", str(note)), "SARIF notification text")
+            text = _text(message.get("text", ""), "SARIF notification text").strip()
+            if not text:
+                descriptor = _object(note.get("descriptor", {}), "SARIF notification descriptor")
+                text = _text(descriptor.get("id", ""), "SARIF notification ID").strip()
+            if not text:
+                continue
             target = "errors" if note.get("level") == "error" else "limitations"
             normalized[target].append(text)
+
+
+def _sarif_rule_component(tool: JsonObject, reference: JsonObject) -> JsonObject:
+    component = _object(reference.get("toolComponent", {}), "SARIF rule tool component")
+    if "index" not in component:
+        return _object(tool.get("driver", {}), "SARIF driver")
+    index = _integer(component["index"], "SARIF tool component index")
+    extensions = _records(tool.get("extensions", []), "SARIF tool extensions")
+    if not 0 <= index < len(extensions):
+        raise ValueError("SARIF tool component index is invalid")
+    return extensions[index]
+
+
+def _sarif_rule(result: JsonObject, tool: JsonObject) -> JsonObject:
+    reference = _object(result.get("rule", {}), "SARIF rule reference")
+    component = _sarif_rule_component(tool, reference)
+    rules = _records(component.get("rules", []), "SARIF rules")
+    index = reference.get("index", result.get("ruleIndex"))
+    if index is not None:
+        index = _integer(index, "SARIF rule index")
+        if not 0 <= index < len(rules):
+            raise ValueError("SARIF rule index is invalid")
+        return rules[index]
+    ident = _text(reference.get("id", result.get("ruleId", "")), "SARIF rule ID")
+    matches = [rule for rule in rules if rule.get("id") == ident]
+    if not ident or len(matches) != 1:
+        raise ValueError("SARIF result has no uniquely resolvable rule metadata")
+    return matches[0]
+
+
+def _codeql_path_result(result: JsonObject, tool: JsonObject) -> JsonObject | None:
+    rule = _sarif_rule(result, tool)
+    properties = _object(rule.get("properties", {}), "SARIF rule properties")
+    if properties.get("kind") != "path-problem":
+        return None
+    return {**result, "ruleId": _text(rule.get("id"), "SARIF rule ID")}
 
 
 def _sarif_finding(
@@ -193,8 +236,10 @@ def sarif(
         bases = _object(run.get("originalUriBaseIds", {}), "SARIF URI bases")
         _sarif_notifications(run, normalized)
         for result in _records(run.get("results", []), "SARIF results"):
-            if backend == "codeql" and not _array(result.get("codeFlows", []), "SARIF code flows"):
-                continue
+            if backend == "codeql":
+                result = _codeql_path_result(result, tool)
+                if result is None:
+                    continue
             normalized["findings"].append(_sarif_finding(result, cwd, artifacts, bases))
     # artifacts is a referenced-file list, not proof of scanned-file coverage.
     return normalized["findings"], normalized["errors"], None, normalized["limitations"]
