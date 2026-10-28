@@ -50,6 +50,36 @@ LANGUAGES: dict[str, list[str]] = {
 }
 CONFIGURED_BACKENDS = {"java": ["infer", "checker-framework"]}
 
+# Restrict the retained, inspected-file inventory to the component language.
+# These are Trailmark 0.7 parser suffixes, including templates and module variants.
+SOURCE_SUFFIXES = {
+    "php": (".php", ".phtml"),
+    "python": (".py",),
+    "c": (".c",),
+    "cpp": (".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx"),
+    "objc": (".m", ".mm"),
+    "java": (".java",),
+    "javascript": (".js", ".jsx", ".mjs", ".cjs"),
+    "typescript": (".ts", ".tsx"),
+    "kotlin": (".kt", ".kts"),
+    "c_sharp": (".cs",),
+    "go": (".go",),
+    "ruby": (".rb",),
+    "swift": (".swift",),
+    "rust": (".rs",),
+    "dart": (".dart",),
+    "bash": (".sh", ".bash"),
+    "lua": (".lua",),
+    "r": (".r",),
+    "julia": (".jl",),
+    "solidity": (".sol",),
+    "circom": (".circom",),
+    "move": (".move",),
+    "vb": (".vb",),
+    "powershell": (".ps1", ".psm1"),
+    "cairo": (".cairo",),
+}
+
 CODEQL_LANGUAGES: set[str] = {
     "c",
     "cpp",
@@ -104,6 +134,15 @@ ALIASES = {
 def canonical_language(language: str) -> str:
     key = language.lower().strip()
     return ALIASES.get(key, key)
+
+
+def language_source(file: str, language: str, selected: set[str]) -> bool:
+    suffix = file[file.rfind(".") :].lower() if "." in file else ""
+    if suffix == ".h":
+        # Trailmark assigns shared headers once, preferring Objective-C over C.
+        owner = "objc" if "objc" in selected else "c" if "c" in selected else None
+        return language == owner
+    return suffix in SOURCE_SUFFIXES.get(language, ())
 
 
 def allowed_backend(backend: str, language: str) -> bool:

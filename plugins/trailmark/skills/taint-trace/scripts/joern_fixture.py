@@ -297,7 +297,12 @@ def fixture_expectations(source: str, file: str, language: str) -> dict[str, Any
             site('html_output("literal")'),
             site("html_output(html_escape(request_value()))"),
         ],
-        "cross_function": [site("html_output(relay_value(request_value()))")],
+        "cross_function": [
+            {
+                **site("html_output(relay_value(request_value()))"),
+                "trace_methods": ["relay_value"],
+            }
+        ],
     }
 
 

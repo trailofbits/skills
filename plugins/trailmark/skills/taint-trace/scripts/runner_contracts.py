@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -93,10 +94,70 @@ def site_scope(sites: dict[str, set[Site]], scope: str) -> list[str]:
     return errors
 
 
+def trace_enters_method(finding: JsonObject, method: str) -> bool:
+    trace = finding.get("trace")
+    if not isinstance(trace, list):
+        return False
+    pattern = rf"(?<![\w$]){re.escape(method)}(?![\w$])"
+    return any(
+        isinstance(node, dict) and re.search(pattern, str(node.get("method", ""))) for node in trace
+    )
+
+
+def trace_site_errors(
+    site: JsonObject, root: Path, run: JsonObject, *, required: bool
+) -> list[str]:
+    methods = site.get("trace_methods", [])
+    if not isinstance(methods, list) or not all(
+        isinstance(method, str) and method.strip() for method in methods
+    ):
+        return ["Capability trace_methods must be a list of nonempty method names"]
+    if required and not methods:
+        return ["Joern cross-function capability needs native trace_methods expectations"]
+    try:
+        expected = anchor(root, site)
+    except (OSError, KeyError, TypeError, ValueError):
+        return []  # read_sites reports invalid source anchors.
+    findings = [
+        item
+        for item in run.get("findings", [])
+        if matches(expected, {(item["file"], item["line"], item.get("rule_id"))})
+    ]
+    if methods and not any(
+        all(trace_enters_method(finding, method) for method in methods) for finding in findings
+    ):
+        return [f"Native capability trace does not enter required methods {methods} at {expected}"]
+    return []
+
+
+def native_trace_errors(proof: JsonObject, run: JsonObject) -> list[str]:
+    expected = proof.get("expect", {})
+    if not isinstance(expected, dict):
+        return []  # read_sites reports invalid expectation structures.
+    errors = []
+    for category in ("cross_function", "cross_file"):
+        sites = expected.get(category, [])
+        if not isinstance(sites, list):
+            continue
+        for site in sites:
+            if not isinstance(site, dict):
+                continue
+            errors.extend(
+                trace_site_errors(
+                    site,
+                    Path(proof["fixture_root"]).resolve(),
+                    run,
+                    required=proof.get("backend") == "joern",
+                )
+            )
+    return errors
+
+
 def expected_sites(proof: JsonObject, run: JsonObject) -> list[str]:
     sites, errors = read_sites(proof)
     errors.extend(site_findings(sites, run))
     errors.extend(site_scope(sites, proof.get("scope", "")))
+    errors.extend(native_trace_errors(proof, run))
     return errors
 
 

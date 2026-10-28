@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from joern_fixture import FIXTURES, QUERY, write_contract
 from runner import check_probe, probe
+from runner_contracts import expected_sites
 
 
 @pytest.mark.parametrize("language", sorted(FIXTURES))
@@ -32,7 +33,40 @@ def test_contract_anchors_and_commands_stay_inside_copied_fixture(tmp_path, lang
     # Native traversal into relay_value is tested; no summary may replace it.
     assert 'FlowSemantic.from("relay_value"' not in QUERY
     assert contract["expect"]["cross_function"]
+    assert contract["expect"]["cross_function"][0]["trace_methods"] == ["relay_value"]
     assert len(contract["expect"]["negative"]) == 2
+
+
+@pytest.mark.parametrize(
+    "trace",
+    [
+        None,
+        [],
+        [{"method": "app.cross_function", "code": "relay_value(value)"}],
+        [{"method": "app.not_relay_value"}],
+    ],
+)
+def test_joern_sink_finding_cannot_replace_native_relay_traversal(tmp_path, trace):
+    source = tmp_path / "probe.py"
+    source.write_text("sink(relay_value(request()))\nsink('literal')\n")
+    cross = {"file": source.name, "line": 1, "trace_methods": ["relay_value"]}
+    proof = {
+        "backend": "joern",
+        "scope": "interprocedural",
+        "fixture_root": str(tmp_path),
+        "expect": {
+            "positive": [cross],
+            "negative": [{"file": source.name, "line": 2}],
+            "cross_function": [cross],
+        },
+    }
+    finding = {"file": str(source), "line": 1, "rule_id": "request-html", "trace": trace}
+    run = {"findings": [finding], "scanned_files": [str(source)]}
+    assert any("trace does not enter" in error for error in expected_sites(proof, run))
+    finding["trace"] = [{"method": "app.relay_value:<return>(str)", "code": "return value"}]
+    assert expected_sites(proof, run) == []
+    del cross["trace_methods"]
+    assert any("needs native trace_methods" in error for error in expected_sites(proof, run))
 
 
 @pytest.mark.parametrize("language", sorted(FIXTURES))

@@ -15,4 +15,4 @@ select = ["E", "F", "I", "UP", "B", "SIM", "C901", "PLR0912", "PLR0915"]
 max-complexity = 8
 
 [tool.pytest.ini_options]
-testpaths = ["test_taint_trace.py", "test_runner.py", "test_graph.py", "test_joern.py", "test_native.py", "test_activation.py", "test_style.py"]
+testpaths = ["test_taint_trace.py", "test_runner.py", "test_graph.py", "test_joern.py", "test_native.py", "test_activation.py", "test_report.py", "test_style.py"]

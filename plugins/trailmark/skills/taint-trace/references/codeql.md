@@ -79,9 +79,13 @@ Unknown measured coverage remains limited.
 
 Require a real query finding at the expected vulnerable location and no finding
 for a literal negative in every enabled language. Test summary propagation,
-sanitization, and cross-function/cross-file behavior wherever claimed. Only SARIF results with native `codeFlows` enter the taint finding set; other
-query alerts are outside that set. Preserve native code flows, query IDs, extraction logs, and SARIF. A model editor accepting
-a tuple or a successful empty query is insufficient.
+sanitization, and cross-function/cross-file behavior wherever claimed. Only SARIF
+results whose native rule metadata has `properties.kind: path-problem` enter the
+taint finding set; other query alerts are outside that set. A path-problem result
+can lack `codeFlows`, including a single-node flow, so finding eligibility alone
+does not establish a multi-step trace. Preserve available native code flows,
+query IDs, extraction logs, and SARIF. A model editor accepting a tuple or a
+successful empty query is insufficient.
 
 Sources: [supported languages](https://codeql.github.com/docs/codeql-overview/supported-languages-and-frameworks/),
 [Java/Kotlin model schema](https://codeql.github.com/docs/codeql-language-guides/customizing-library-models-for-java-and-kotlin/),
