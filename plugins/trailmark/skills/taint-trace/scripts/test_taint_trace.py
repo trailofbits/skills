@@ -473,6 +473,8 @@ def test_original_source_and_configuration_snapshots_survive_edits(artifacts):
     snapshot["configuration_files"] = ["psalm.xml"]
     tt.snapshot_sources(snapshot, root / "original.json")
     assert len(snapshot["source_snapshots"]) == 2
+    assert list(root.rglob("*.py")) == [root / "app.py"]
+    assert list(root.rglob("*.xml")) == [root / "psalm.xml"]
     (root / "app.py").write_text("# annotation added\nchanged\n")
     assert tt.context_errors(snapshot, root) == []
     assert any("Source differs" in e for e in tt.context_errors(snapshot, root, current=True))

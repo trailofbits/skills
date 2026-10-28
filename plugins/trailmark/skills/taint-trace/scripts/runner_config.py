@@ -164,7 +164,8 @@ def argument_binds(path: Path, argv: list[str], cwd: Path, backend: str) -> bool
 def snapshot_files(output: Path, paths: list[Path], kind: str) -> list[JsonObject]:
     captured = []
     for index, path in enumerate(paths):
-        snapshot = output.with_name(f"{output.name}.{kind}-{index}{path.suffix}")
+        # Captured bytes are evidence, not additional source files or loadable rules.
+        snapshot = output.with_name(f"{output.name}.{kind}-{index}{path.suffix}.snapshot")
         shutil.copyfile(path, snapshot)
         captured.append({**artifact(snapshot), "original_path": str(path)})
     return captured

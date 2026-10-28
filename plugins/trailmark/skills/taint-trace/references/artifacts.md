@@ -30,6 +30,14 @@ Keep these artifacts with the original graph so inline edits remain reviewable;
 the helper checks that neither the source changed during extraction nor the stored
 snapshots changed afterward.
 
+Source, model, and configuration copies end in `.snapshot` so extension-based
+source/rule discovery does not load the evidence as additional inputs. Their
+records retain original paths and byte hashes; native commands still load the
+original files. Keep the artifact tree outside native discovery when a tool scans
+unknown extensions or detects languages by content. Older captures retain source
+extensions and must also stay outside native inputs when recapturing a run;
+preserve historical evidence rather than renaming it in place.
+
 Backend IDs are `psalm`, `pysa`, `clang`, `infer`, `joern`, `checker-framework`,
 `semgrep`, `semgrep-pro`, `opengrep`, and `codeql`. A catalog route is a candidate,
 not permission to call an untested backend supported. Graph support is mandatory.

@@ -29,6 +29,7 @@ from runner import (
     run_native,
     version_command,
 )
+from runner_config import snapshot_files
 
 NATIVE_COMMANDS = {
     "joern": ["joern", "--script", "trace.sc"],
@@ -284,6 +285,21 @@ def test_native_artifacts_and_baseline_source_snapshot(tmp_path):
     assert record["findings"][0]["source_line"] == "sink(value);"
     Path(record["native_output"]["path"]).write_text("{}", encoding="utf-8")
     assert any("hash mismatch" in error for error in check_run(record, tmp_path / "run.json"))
+
+
+@pytest.mark.parametrize("suffix", [".php", ".py", ".java", ".go", ".yaml", ".json"])
+def test_input_snapshots_do_not_expand_extension_based_discovery(tmp_path, suffix):
+    source = tmp_path / ("input" + suffix)
+    source.write_bytes(b"original input\n")
+    records = [
+        item
+        for kind in ("model", "config")
+        for item in snapshot_files(tmp_path / "run.json", [source], kind)
+    ]
+    assert list(tmp_path.rglob("*" + suffix)) == [source]
+    for record in records:
+        assert record["original_path"] == str(source)
+        assert Path(record["path"]).read_bytes() == source.read_bytes()
 
 
 def test_immutable_run_refuses_overwrite(tmp_path):
