@@ -70,7 +70,7 @@ uv tool install trailmark
 | `audit-augmentation` | Project SARIF, weAudit, and v0.4 binary-analysis graph findings onto code graphs as annotations and subgraphs |
 | `trailmark-finding-triage` | Triage one finding, SARIF result, weAudit annotation, suspicious function, or report excerpt with reachability, taint, privilege-boundary, and blast-radius evidence; `scripts/evidence_packet.py` builds the evidence for several file/line findings from one graph |
 | `trailmark-variant-neighborhood` | Expand one seed issue into graph-derived variant candidates for variant-analysis, Semgrep, CodeQL, or manual review |
-| `taint-trace` | Use graph and source evidence to add native source/sink/sanitizer/propagation models and annotations, then run an existing taint analyzer |
+| `taint-trace` | Repair native modeling and precision gaps using graph and source evidence, then run an existing taint analyzer |
 | `trailmark-summary` | Quick structural overview (auto-detected languages, entry points, dependencies) for vivisect/galvanize |
 | `trailmark-structural` | Full structural analysis with all pre-analysis passes (blast radius, taint, privilege boundaries, complexity) |
 
@@ -100,6 +100,11 @@ traces, model provenance, and unresolved graph gaps. Trailmark provides structur
 evidence; the native analyzer computes taint flows. Single-function analysis is
 explicitly limited, and a fully skipped run cannot report success. The skill does
 not execute the target application.
+
+Models record a specific native modeling-gap hypothesis as well as source evidence.
+Reports distinguish native warning records from unique flows and leave model benefit
+unmeasured without comparison evidence. Startup controls cover backend-supported
+discovery isolation; inspect explicit executable hooks before running analyzers.
 
 Ordinary checks use deterministic fixtures. Enable native backend tests explicitly:
 `TAINT_TRACE_PSALM`, `TAINT_TRACE_JOERN`, `TAINT_TRACE_SEMGREP`, and

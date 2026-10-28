@@ -192,6 +192,15 @@ def check_optional_capabilities(proof: JsonObject, run: JsonObject) -> list[str]
     return errors
 
 
+def probe_run_identity(run: JsonObject) -> JsonObject:
+    from runner_startup import version_identity
+
+    return {
+        **{key: run.get(key) for key in ("backend", "language", "scope")},
+        "version": version_identity(run),
+    }
+
+
 def check_probe_baseline(proof: JsonObject, run: JsonObject) -> list[str]:
     """Validate the annotation-gap control with the same native executable/version."""
     from runner import check_run
@@ -205,8 +214,9 @@ def check_probe_baseline(proof: JsonObject, run: JsonObject) -> list[str]:
         path = Path(proof["baseline_run"])
         baseline = json.loads(path.read_text(encoding="utf-8"))
         errors.extend(check_run(baseline, path))
-        for key in ("backend", "language", "scope", "version"):
-            if baseline.get(key) != run.get(key):
+        baseline_identity, identity = probe_run_identity(baseline), probe_run_identity(run)
+        for key in baseline_identity:
+            if baseline_identity[key] != identity[key]:
                 errors.append(f"Capability baseline {key} disagrees with enriched probe")
         if baseline.get("phase") != "baseline":
             errors.append("Capability annotation control must reference a baseline invocation")

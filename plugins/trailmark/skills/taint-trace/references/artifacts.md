@@ -133,6 +133,17 @@ Clang plist, Joern's query export, or CodeQL SARIF. Checker Framework uses nativ
 compiler diagnostics. Repeat `--model FILE` to bind model/configuration snapshots
 to the run. Enriched records use `--phase enriched` and a separate output path.
 
+New run records also bind an `execution` artifact containing requested/effective
+analysis and version argv, working directory, configuration files, startup policy,
+and execution assumptions. For Psalm, an absent explicit `--root` selects a private
+empty Composer-discovery root for both commands and an absolute target config;
+root-relative configurations using `resolveFromConfigFile="false"` (or `"0"`) fail before
+startup. Explicit roots and all other backends remain caller-managed. This controls
+automatic discovery, not explicit plugins/autoloaders, interpreter hooks, or process
+permissions. Review those hooks before invocation. Full validation requires this
+artifact and checks its hash and command binding; historical runs without it must
+be recaptured before they can pass the gate.
+
 Allowed scope labels are `intraprocedural`, `intrafile`, `interprocedural`,
 `translation-unit`, and `cross-translation-unit`. Choose the scope established by
 the actual command and capability test. Unknown native file counts stay unknown;
@@ -159,12 +170,19 @@ Every generated model records:
 | `value` | Exact parameter, return, field, or receiver affected |
 | `contexts` | Applicable vulnerability contexts, such as HTML or SQL |
 | `evidence` | Nonempty source/contract observations justifying the model |
+| `modeling_gap` | New models: analyst hypothesis with nonempty `description`, `baseline_evidence` string array, and `expected_effect` |
 | `assumptions` | Explicit unresolved conditions; an empty list is permitted |
 | `artifact` | Target-relative path to analyzer-consumed markup or native model file |
 
 Keep the model's provenance anchor bound to the original evidence, even when inline
 annotations shift its declaration. `rebound_context` records the edited source and
 supports enriched finding locations; it does not replace the original model anchor.
+
+`modeling_gap` is optional for existing schema-version-1 manifests; when present,
+its fields are validated. New workflow models include it. It explains why the
+native analyzer needs the otherwise justified contract; it does not certify a
+benefit. The helper leaves benefit unmeasured. Retain native comparison evidence
+for any analyst claim of recovered flow, resolved binding, or improved precision.
 
 Models supplement existing configuration idempotently. The artifact must actually
 be loaded by the native command. Unsupported sanitizer distinctions must be
@@ -214,5 +232,10 @@ Report analyzer findings separately from modeling assumptions and unresolved
 graph gaps. Compare baseline/enriched findings by native rule and rebound source
 location, preserving traces and model snapshot attribution. A new finding is an
 analyzer result under the added contracts, not automatic proof of exploitability.
+Counts describe native warning records, not unique flows or coverage. Compare
+traces to distinguish extra wrapper locations and shared-call context merging
+from recovered flows; unchanged counts alone cannot establish redundancy either.
+Source file inventories and independent annotation reviews do not measure path
+coverage or prove model utility.
 Include tool versions, effective coverage and exclusions, model changes, finding
 changes, unsupported constructs, callbacks/proxies, and language boundaries.

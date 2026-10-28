@@ -32,6 +32,7 @@ from runner_contracts import check_probe_baseline as check_probe_baseline
 from runner_contracts import expected_sites as expected_sites
 from runner_probe import probe as probe
 from runner_probe import semgrep_command as semgrep_command
+from runner_startup import capture_execution, check_execution, psalm_root_arguments, startup_plan
 
 JsonObject = dict[str, Any]
 ARTIFACT_ERRORS = (
@@ -49,9 +50,11 @@ ARTIFACT_ERRORS = (
 def version_command(backend: str, argv: list[str]) -> list[str]:
     try:
         prefix, _ = invocation(backend, argv)
+        roots = psalm_root_arguments(argv) if backend == "psalm" else []
     except ValueError:
         prefix = argv[:1] or [BACKENDS[backend]["executable"]]
-    return prefix + BACKENDS[backend]["version_args"]
+        roots = []
+    return prefix + roots + BACKENDS[backend]["version_args"]
 
 
 def version_binding_errors(backend: str, argv: list[str], version_argv: list[str]) -> list[str]:
@@ -62,6 +65,8 @@ def version_binding_errors(backend: str, argv: list[str], version_argv: list[str
             return ["Version command must identify the same native executable and environment"]
         if not all(arg in args for arg in BACKENDS[backend]["version_args"]):
             return ["Version command must request the selected native tool's version"]
+        if backend == "psalm" and psalm_root_arguments(argv) != psalm_root_arguments(version_argv):
+            return ["Psalm version command must use the same startup --root as analysis"]
     except ValueError as exc:
         return [str(exc)]
     return []
@@ -135,6 +140,7 @@ class RunRequest:
     models: Sequence[Path] = ()
     timeout: int = 300
     version_argv: list[str] | None = None
+    execution: JsonObject = field(default_factory=dict)
 
 
 @dataclass
@@ -192,8 +198,10 @@ def capture_version(request: RunRequest, state: RunState) -> JsonObject:
     if not argv:
         argv = version_command(request.backend, request.argv) if request.backend in BACKENDS else []
     state.errors.extend(version_binding_errors(request.backend, request.argv, argv))
-    rc, stdout, stderr, errors = execute(argv, request.cwd, min(request.timeout, 30))
-    state.errors.extend(errors)
+    rc, stdout, stderr = None, "", ""
+    if not state.errors:
+        rc, stdout, stderr, errors = execute(argv, request.cwd, min(request.timeout, 30))
+        state.errors.extend(errors)
     if rc != 0 or not (stdout + stderr).strip():
         state.errors.append("Native tool version could not be established")
     if request.backend == "checker-framework":
@@ -288,6 +296,7 @@ def run_record(
         "argv": request.argv,
         "cwd": str(request.cwd),
         "version": version,
+        "execution": request.execution,
         **streams,
         "model_files": state.models,
         "config_files": state.configs,
@@ -320,21 +329,47 @@ def run_native(
         phase,
         scope,
         reserve(output),
-        argv,
+        list(argv),
         cwd.resolve(),
         native_output,
         models,
         timeout,
-        version_argv,
+        list(version_argv) if version_argv is not None else None,
     )
-    state = RunState()
-    engine = initialize_run(request, state)
-    capture_inputs(request, state)
-    version = capture_version(request, state)
-    streams = execute_target(request, state)
-    record = run_record(request, state, engine, version, streams)
-    write_json(request.output, record)
-    return record
+    return execute_request(request)
+
+
+def execute_request(request: RunRequest) -> JsonObject:
+    requested = {
+        "argv": list(request.argv),
+        "version_argv": request.version_argv,
+        "cwd": str(request.cwd),
+    }
+    with startup_plan(
+        request.backend, request.argv, request.cwd, version_argv=request.version_argv
+    ) as startup:
+        request.argv, request.version_argv = startup.argv, startup.version_argv
+        state = RunState(errors=list(startup.errors))
+        engine = initialize_run(request, state)
+        capture_inputs(request, state)
+        if request.version_argv is None and request.backend in BACKENDS:
+            request.version_argv = version_command(request.backend, request.argv)
+        request.execution = capture_execution(
+            request.output,
+            startup,
+            requested=requested,
+            effective={
+                "argv": request.argv,
+                "version_argv": request.version_argv,
+                "cwd": str(request.cwd),
+                "config_files": state.configs,
+            },
+        )
+        version = capture_version(request, state)
+        streams = execute_target(request, state)
+        record = run_record(request, state, engine, version, streams)
+        write_json(request.output, record)
+        return record
 
 
 def check_run_header(record: JsonObject, path: Path) -> list[str]:
@@ -445,6 +480,7 @@ def check_run(record: JsonObject, record_path: Path) -> list[str]:
         errors.extend(check_activation(record))
         errors.extend(check_configuration(record, cwd))
         errors.extend(check_run_native_output(record, cwd))
+        errors.extend(check_execution(record))
     except ARTIFACT_ERRORS as exc:
         errors.append(f"Run artifact cannot be validated: {exc}")
     return errors
