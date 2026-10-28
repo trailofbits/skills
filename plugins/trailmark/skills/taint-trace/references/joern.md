@@ -37,6 +37,13 @@ is no generated propagation summary for that function. Passing these fixtures
 establishes these constructs on the installed frontend, not arbitrary callbacks,
 reflection, framework dispatch, dependency resolution, or cross-language flow.
 
+Joern contracts declare `trace_methods: ["relay_value"]` on the cross-function
+anchor. The gate requires a matching native finding whose trace contains all
+declared method names in its `method` fields, with identifier boundaries.
+Sink location or source text mentioning the relay does not satisfy this check.
+Custom Joern cross-function and cross-file anchors must declare the methods
+whose bodies demonstrate the claimed traversal.
+
 Run the contract for each selected language and installation; another frontend's
 passing result is not a capability proof.
 

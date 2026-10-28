@@ -12,6 +12,7 @@ from trailmark.query.api import QueryEngine
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from manifest_validation import ManifestEvidence, component_inventory, scan_overlap
 from taint_trace import build_context, context_errors, main
 from trace_artifacts import JsonObject
 
@@ -55,6 +56,87 @@ def test_missing_capability_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(QueryEngine, "entrypoint_evidence", None)
     with pytest.raises(ValueError, match="required evidence APIs"):
         build_context(tmp_path)
+
+
+def inventory_evidence(root: Path, snapshot: JsonObject) -> ManifestEvidence:
+    return ManifestEvidence(
+        root,
+        root,
+        snapshot,
+        snapshot,
+        "baseline",
+        {
+            "valid": False,
+            "stage": "baseline",
+            "active_components": 0,
+            "failed_components": 0,
+            "limited_components": 0,
+            "skipped_components": 0,
+            "status": "failed",
+            "errors": [],
+            "limitations": [],
+        },
+    )
+
+
+@pytest.mark.parametrize("component_directory", [".", "web"])
+def test_component_requires_its_own_language_in_native_coverage(tmp_path, component_directory):
+    (tmp_path / "app.py").write_text("def entry(): return input()\n")
+    web = tmp_path / "web"
+    web.mkdir()
+    javascript = web / "app.js"
+    javascript.write_text("function entry() { return request(); }\n")
+    snapshot = build_context(tmp_path, "python,javascript")
+    evidence = inventory_evidence(tmp_path, snapshot)
+    component = {
+        "id": "python-app",
+        "language": "python",
+        "backend": "semgrep",
+        "scope": "intraprocedural",
+        "root": str(tmp_path / component_directory),
+    }
+    _, graph_files = component_inventory(component, evidence)
+    assert str(javascript) not in graph_files
+    scan_overlap({"scanned_files": [str(javascript)]}, graph_files, "baseline", evidence)
+    assert any("zero overlap" in error for error in evidence.errors)
+    if component_directory == "web":
+        assert any("zero graphed source files for python" in error for error in evidence.errors)
+    else:
+        assert graph_files == {str(tmp_path / "app.py")}
+
+
+def test_component_inventory_retains_templates_and_csharp_aliases(tmp_path):
+    (tmp_path / "view.phtml").write_text("<b><?= $_GET['value'] ?></b>\n")
+    (tmp_path / "App.cs").write_text('class App { static string Entry() { return "value"; } }\n')
+    snapshot = build_context(tmp_path, "php,c_sharp")
+    evidence = inventory_evidence(tmp_path, snapshot)
+    for language, filename in [("php", "view.phtml"), ("c#", "App.cs")]:
+        component = {
+            "id": language,
+            "language": language,
+            "backend": "joern",
+            "scope": "interprocedural",
+        }
+        assert component_inventory(component, evidence)[1] == {str(tmp_path / filename)}
+    assert not evidence.errors
+
+
+@pytest.mark.parametrize("selected,owner", [({"c"}, "c"), ({"c", "objc"}, "objc")])
+def test_shared_header_inventory_matches_trailmark_ownership(tmp_path, selected, owner):
+    header = tmp_path / "shared.h"
+    header.write_text("const char *entry(void);\n")
+    snapshot = build_context(tmp_path, ",".join(sorted(selected)))
+    assert snapshot["summary"]["source_file_counts"][owner] == 1
+    evidence = inventory_evidence(tmp_path, snapshot)
+    for language in ("c", "objc", "cpp"):
+        component = {
+            "id": language,
+            "language": language,
+            "backend": "joern",
+            "scope": "interprocedural",
+        }
+        _, files = component_inventory(component, evidence)
+        assert files == ({str(header)} if language == owner else set())
 
 
 def capture(root: Path, output: Path, *, focus: bool = False) -> JsonObject:

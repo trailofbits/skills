@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypedDict
 
-from catalog import SCOPES, allowed_backend, canonical_language
+from catalog import SCOPES, allowed_backend, canonical_language, language_source
 from graph_context import context_errors, rebind_anchor
 from trace_artifacts import JsonObject, digest, local_file, read_json, record_path, relative
 
@@ -196,7 +196,11 @@ def component_inventory(component: JsonObject, evidence: ManifestEvidence) -> tu
     language = canonical_language(component["language"])
     if not allowed_backend(component["backend"], language) or component["scope"] not in SCOPES:
         evidence.errors.append(f"{ident}: unsupported language/backend/scope")
-    if not evidence.context["summary"]["source_file_counts"].get(language):
+    counts = {
+        canonical_language(name): count
+        for name, count in evidence.context["summary"]["source_file_counts"].items()
+    }
+    if not counts.get(language):
         evidence.errors.append(f"{ident}: no Trailmark graph coverage for {language}")
     root = Path(component.get("root", target)).resolve()
     if not root.is_dir() or not root.is_relative_to(target):
@@ -204,10 +208,11 @@ def component_inventory(component: JsonObject, evidence: ManifestEvidence) -> tu
     graph_files = {
         str((target / file).resolve())
         for file in evidence.context["source_hashes"]
-        if (target / file).resolve().is_relative_to(root)
+        if language_source(file, language, set(counts))
+        and (target / file).resolve().is_relative_to(root)
     }
     if not graph_files:
-        evidence.errors.append(f"{ident}: component has zero graphed source files")
+        evidence.errors.append(f"{ident}: component has zero graphed source files for {language}")
     return root, graph_files
 
 
