@@ -30,6 +30,21 @@ same analyzer setup. For sanitizer claims, also retain a positive in an unaffect
 vulnerability context. A reduced fixture demonstrates the tested mechanism; it
 does not establish the effect in the full project until that comparison runs.
 
+## Diagnosing a precision gap
+
+Distinguish a missing application contract, unrelated invocations merged by the
+analyzer, incorrect builtin semantics, and a real flow that is safe in its specific
+use. These require different repairs. A helper annotation cannot fix every native
+model or security-policy decision.
+
+For example, an operation may output data in one mode and return it in another.
+If the analyzer treats both modes as output sinks, marking the returned data as
+escaped would hide unsafe downstream uses. Reproduce the mode distinction with
+native controls and identify a supported conditional model or backend correction.
+Keep an analyzer upgrade's effects separate from annotation effects, with a new
+baseline for the changed version. Preserve a real flow's native record even when
+source review finds its reported use safe; explain that assessment separately.
+
 ## Provenance and comparison
 
 New models record a `modeling_gap` alongside their source `evidence`:
@@ -52,6 +67,11 @@ warning locations. Moving a warning, adding a wrapper sink, or merging different
 calls through one helper can change counts without exposing a new flow. Unchanged
 counts also do not prove redundancy: resolution or trace precision may improve.
 Report the evidence and leave benefit unmeasured when it does not settle the claim.
+
+When evaluating precision, adjudicate native findings and state the denominator.
+The false discovery proportion is `FP / (TP + FP)`; the false-positive rate is
+`FP / (FP + TN)` and also requires enumerated safe cases. A quiet project or a
+failed scan is not a true-negative observation.
 
 ## Setup is part of the result
 

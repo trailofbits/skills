@@ -68,6 +68,8 @@ distinguishable from confirmed calls.
 - Anchor each model to its declaration and exact affected value, vulnerability
   context, source evidence, assumptions, and native artifact. Graph node identities
   and line numbers belong to a snapshot; rebind after edits.
+  When native tags leave conditions or context limits unclear, explain them in a
+  short adjacent comment. Keep detailed graph evidence in the provenance artifacts.
 - Explain propagation with the implementation or dependency contract. Do not create
   a parameter-to-return summary solely because a call path would otherwise break.
 - A sanitizer removes only the threat it actually prevents, under the required
