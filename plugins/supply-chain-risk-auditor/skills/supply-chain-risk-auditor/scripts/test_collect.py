@@ -337,12 +337,13 @@ def test_staleness_threshold():
 
 def test_concentration_judgement():
     base = {
-        "provenance": False,
+        "publisher_provenance": False,
         "maintainers": [],
         "human_maintainers": [],
         "automated_maintainers": [],
     }
-    assert _concentration_signal({**base, "provenance": True}).state is State.UNASSESSABLE
+    assert _concentration_signal({**base, "publisher_provenance": True}).state is State.UNASSESSABLE
+    assert _concentration_signal({**base, "publisher_provenance": None}).state is State.UNASSESSABLE
     assert _concentration_signal(base).state is State.UNASSESSABLE
     lone = {
         **base,
@@ -548,7 +549,7 @@ def seed_full_project(tmp_path: Path) -> Path:
     responses = {
         ("GET", "https://registry.npmjs.org/tiny-dep", ""): {
             "dist-tags": {"latest": "1.2.3"},
-            "versions": {"1.2.3": {"dist": {}}},
+            "versions": {"1.2.3": {"name": "tiny-dep", "version": "1.2.3", "dist": {}}},
             "maintainers": [{"name": "alice"}, {"name": "bob"}],
             "repository": {"url": "git+https://github.com/acme/tiny-dep.git"},
         },
@@ -643,7 +644,7 @@ def test_non_registry_direct_dep_is_never_queried(tmp_path: Path, monkeypatch: p
             # so the assertions below also require the non-registry *reason*
             ("GET", "https://registry.npmjs.org/tiny-dep", ""): {
                 "dist-tags": {"latest": "1.2.3"},
-                "versions": {"1.2.3": {"dist": {}}},
+                "versions": {"1.2.3": {"name": "tiny-dep", "version": "1.2.3", "dist": {}}},
                 "maintainers": [{"name": "alice"}, {"name": "bob"}],
                 "repository": {"url": "git+https://github.com/acme/tiny-dep.git"},
             },

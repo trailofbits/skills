@@ -91,6 +91,20 @@ or framing.
   those rows say what could not be known, not what is wrong.
 - **The coverage table bounds every claim.** "No advisories" means "none among what was
   assessed" — check the assessed count before repeating a clean verdict.
+- **Release properties follow the selected version.** npm deprecation, install hooks,
+  and publish provenance describe the lockfile version or exact manifest pin. Preserve
+  the report's label when it samples the latest release instead. A selected release
+  missing from the registry or lacking a matching package and version identity leaves
+  its release properties unassessable.
+- **Publisher concentration describes current publishing authority.** It uses the
+  current package publish ACL and the latest release's provenance separately from the
+  selected release's properties.
+- **Install-hook coverage is limited to registry metadata.** The npm check reads
+  `preinstall`, `install`, and `postinstall` from the selected release's full metadata.
+  A clean result means only "no declared install hooks". Hookless `gypfile: true`
+  releases are unassessable. Tarballs are not inspected, so implicit native builds may
+  remain unknown; do not describe a clean hook result as proof that installation
+  executes no code.
 - **Quote figures verbatim.** Do not re-derive, round, or embellish the report's
   numbers; every one is reproducible from the artifact.
 - **Absence from the findings is not endorsement.** A dependency with no findings was
