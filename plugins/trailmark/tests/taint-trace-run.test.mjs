@@ -88,6 +88,16 @@ test('a successful run returns the deterministic helper status and preserved rep
   assert.equal(result.validation, `${RUN}/complete-gate.json`)
 })
 
+test('no defensible model gap still runs native comparison and produces a report', async () => {
+  const { result, error, calls } = await run({ overrides: {
+    model: (id) => ({ component_id: id, status: 'unchanged', models_added: 0, reason: 'The baseline already traces the visible wrapper.' }),
+  } })
+  assert.equal(error, null)
+  assert.deepEqual(calls, ['resolve', 'inventory', 'prepare', 'model:api', 'analyze:api', 'finish'])
+  assert.equal(result.active_components, 1)
+  assert.equal(result.report, `${RUN}/report.md`)
+})
+
 test('malformed inputs fail before any agent can run', async () => {
   for (const args of [
     'please scan this project', [], { target: '' }, { languages: [] }, { languages: 'PHP and Python' },

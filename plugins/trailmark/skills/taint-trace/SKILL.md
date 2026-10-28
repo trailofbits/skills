@@ -1,6 +1,6 @@
 ---
 name: taint-trace
-description: "Improves taint-analysis coverage by using Trailmark graphs to add analyzer-consumed source, sink, sanitizer, propagation, and type models, then runs an existing taint analyzer. Use when an existing taint analyzer misses flows because sources, sinks, sanitizers, or wrappers are not modeled."
+description: "Improves taint-analysis coverage and precision by using Trailmark graphs to repair native source, sink, sanitizer, propagation, and type models, then runs an existing taint analyzer. Use when analysis misses flows, cannot resolve framework bindings, or produces false positives from imprecise models."
 allowed-tools: Read Grep Glob Bash Edit Write
 ---
 
@@ -60,6 +60,11 @@ distinguishable from confirmed calls.
 - Add the smallest supported contract that repairs an observed modeling gap.
   Prefer native attributes/docblocks when supported; otherwise use native stubs,
   configuration, semantics, or rules. Comments the analyzer ignores are not models.
+- Establish why the analyzer needs the contract: retain baseline evidence of a
+  missing binding, unresolved type, opaque boundary, or precision problem, and
+  state the expected observable effect. Source evidence can justify a contract
+  without showing that it adds value. Leave already understood wrappers unchanged;
+  there is no annotation quota. See [model quality](references/model-quality.md).
 - Anchor each model to its declaration and exact affected value, vulnerability
   context, source evidence, assumptions, and native artifact. Graph node identities
   and line numbers belong to a snapshot; rebind after edits.
@@ -85,6 +90,10 @@ native model syntax and use real positive/negative capability fixtures for the
 selected language and backend. Required contracts are in
 [artifact handling](references/artifacts.md). The helpers extract evidence and
 validate artifacts; they do not implement a taint engine or certify model semantics.
+Inspect analyzer startup before discovery, version checks, builds, or analysis:
+autoloaders, plugins, compiler extensions, and configuration hooks can execute
+target code. Use trusted tooling and backend-supported isolation; record explicit
+hooks and any remaining execution assumptions. Static analysis is not a sandbox.
 Pass the baseline validation gate before modifying source or models. Rebuild
 context after edits while retaining the original snapshot; findings produced with
 added contracts remain conditional on those documented assumptions.
@@ -93,6 +102,10 @@ Store context, model provenance, native configuration, native outputs, and a rea
 report in the target's `.trailmark/taint-trace/`. Preserve source snapshots and native
 traces/SARIF where available. Record exact tool versions, commands, effective target
 coverage, exclusions, model changes, and finding changes.
+Native warning counts are not unique flows or coverage. Inspect native traces for
+duplicate wrapper locations and shared-helper context merging before claiming a
+recovered flow or precision improvement. Model review establishes neither utility
+nor coverage; leave benefit unmeasured without native comparison evidence.
 
 Distinguish analyzed, limited, skipped, and failed components. Single-function
 engines are useful but must be labeled limited. Skipped languages,
@@ -122,4 +135,7 @@ clean results. A fully skipped run has performed no taint analysis.
 | "The tool parsed the language, so taint works" | A frontend can parse while omitting dataflow; require the expected positive and negative fixture outcomes. |
 | "No findings means the project is clean" | Missing models, ignored files, tool errors, and limited analysis all produce silence; retain measured coverage and gaps. |
 | "Annotate every argument to connect the graph" | Wrong source/sink positions manufacture findings and hide actual contracts; bind the affected value. |
+| "The annotation is correct, so it improves analysis" | The analyzer may already understand the body; require a modeling-gap hypothesis and native evidence of benefit. |
+| "More warnings means more coverage" | New locations can repeat existing flows or reflect context merging; compare native traces and preserve positive/literal-negative behavior. |
+| "It only asks for the version" | Startup can load project hooks before handling the flag; apply the backend's startup controls first. |
 | "Suppress it so the new configuration passes" | Suppressions conceal unresolved modeling or application defects; report them instead. |

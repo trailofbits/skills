@@ -101,10 +101,17 @@ def component_table(components: list[JsonObject]) -> list[str]:
 
 def native_links(run: JsonObject, run_path: Path) -> list[str]:
     lines = []
-    for key in ("native_output", "stdout", "stderr"):
+    for key in ("native_output", "stdout", "stderr", "execution"):
         if run.get(key, {}).get("path"):
             raw = record_path(run[key]["path"], run_path.parent)
             lines.append(f"- Native {key}: {report_link(raw)}")
+    execution = run.get("execution", {})
+    if execution.get("policy"):
+        lines.append(f"- Execution policy: {report_text(execution['policy'])}")
+    lines.extend(
+        f"- Execution assumption: {report_text(assumption)}"
+        for assumption in execution.get("assumptions", [])
+    )
     return lines
 
 
@@ -113,7 +120,7 @@ def native_run_lines(run: JsonObject, run_path: Path, phase: str, target: Path) 
     measured = f"{len(coverage)} files" if coverage is not None else "unknown (limited)"
     return [
         "",
-        f"**{phase}**: {len(run.get('findings', []))} findings; "
+        f"**{phase}**: {len(run.get('findings', []))} native warning records; "
         f"native coverage {measured}; scope {report_text(run.get('scope', '?'))}.",
         f"Version: {report_text(run.get('version', {}).get('output', 'unknown'))}",
         f"Record: {report_link(run_path)}.",
@@ -137,7 +144,10 @@ def finding_changes(records: dict[str, JsonObject], target: Path) -> list[str]:
         "",
         f"Finding changes: {sum((after - before).values())} newly reported; "
         f"{sum((before - after).values())} no longer reported. "
-        "These changes describe analyzer output, not confirmed fixes.",
+        "Counts describe native warning records, not unique flows or confirmed fixes. "
+        "An added warning at a wrapper can duplicate a baseline warning inside its implementation. "
+        "Changed counts alone do not establish recovered flows, improved coverage, or precision; "
+        "unchanged counts do not establish redundancy. Compare native traces and source evidence.",
     ]
 
 
@@ -180,6 +190,24 @@ def model_report(
             for assumption in model.get("assumptions", [])
         ],
     ]
+    gap = model.get("modeling_gap")
+    if gap:
+        lines.extend(
+            [
+                f"  - Modeling-gap hypothesis (analyst supplied): "
+                f"{report_text(gap['description'])}",
+                *[
+                    f"    - Baseline evidence: {report_text(evidence)}"
+                    for evidence in gap["baseline_evidence"]
+                ],
+                f"    - Expected effect (hypothesis): {report_text(gap['expected_effect'])}",
+            ]
+        )
+    lines.append(
+        "  - Benefit: unmeasured. Implementation evidence and reviewer approval do not "
+        "establish native flow, resolution, or precision improvement; warning counts alone "
+        "cannot confirm the expected effect."
+    )
     if rebound and model.get("anchor", {}).get("node_id") in original.get("graph", {}).get(
         "nodes", {}
     ):
@@ -201,6 +229,9 @@ def coverage_report(manifest: JsonObject, result: ValidationResult) -> list[str]
         "Source roots, exclusions, parse diagnostics, unresolved calls, candidate bindings,",
         "and reference/deferred edges remain in those snapshots. Native command arguments",
         "and model snapshots remain in run records. Language boundaries are separate.",
+        "File inventories measure processed files, not path or flow coverage. Model correctness",
+        "or an LLM review does not establish an analyzer benefit; "
+        "unmeasured benefit remains unknown.",
         "",
         *[f"- {report_text(limitation)}" for limitation in result["limitations"]],
         "",

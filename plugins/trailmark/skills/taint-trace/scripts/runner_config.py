@@ -105,9 +105,14 @@ def xml_paths(element: ET.Element, base: Path) -> list[tuple[Path, bool]]:
     return entries
 
 
+def psalm_config_relative(tree: ET.Element) -> bool:
+    value = tree.get("resolveFromConfigFile")
+    return value is None or value in {"true", "1"}
+
+
 def psalm_inputs(config: Path, original: Path, cwd: Path) -> dict[str, list[tuple[Path, bool]]]:
     tree = ET.parse(config).getroot()
-    base = cwd if tree.get("resolveFromConfigFile") == "false" else original.parent
+    base = original.parent if psalm_config_relative(tree) else cwd
     inputs: dict[str, list[tuple[Path, bool]]] = {"included": [], "excluded": [], "stubbed": []}
     for section in tree:
         tag = section.tag.rsplit("}", 1)[-1]
@@ -142,6 +147,11 @@ def psalm_model_errors(
             or matches_path(Path(item["original_path"]), inputs["excluded"])
         )
     ]
+
+
+def psalm_working_root(argv: list[str], cwd: Path) -> Path:
+    roots = option_values(argv, {"--root", "-r"})
+    return (cwd / roots[0]).resolve() if roots else cwd
 
 
 def argument_binds(path: Path, argv: list[str], cwd: Path, backend: str) -> bool:
@@ -180,7 +190,9 @@ def capture_configuration(
     if backend == "psalm":
         config = psalm_config(argv, cwd)
         configs = snapshot_files(output, [config], "config")
-        errors = psalm_model_errors(Path(configs[0]["path"]), config, cwd, models)
+        errors = psalm_model_errors(
+            Path(configs[0]["path"]), config, psalm_working_root(argv, cwd), models
+        )
         return configs, [], errors, []
     return [], [], *model_binding(backend, argv, cwd, models)
 
@@ -245,7 +257,10 @@ def check_psalm_configuration(record: JsonObject, cwd: Path) -> list[str]:
         errors.append("Psalm configuration snapshot is not bound to the native command")
     errors.extend(
         psalm_model_errors(
-            Path(config["path"]), Path(config["original_path"]), cwd, record["model_files"]
+            Path(config["path"]),
+            Path(config["original_path"]),
+            psalm_working_root(record["argv"], cwd),
+            record["model_files"],
         )
     )
     return errors

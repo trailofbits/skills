@@ -58,6 +58,24 @@ them. A receiver-dependent method must retain propagation from its receiver; a
 stateless wrapper may support per-call specialization. Neither annotation is a
 sanitizer, and neither should be added merely to remove a finding.
 
+For example, a helper may log a constant while returning only its argument:
+
+```php
+/** @psalm-taint-specialize */
+function traceValue(string $value): string {
+    error_log('adapter called');
+    return $value;
+}
+echo traceValue($_GET['input']); // must retain the HTML finding
+echo traceValue('literal');     // must stay negative
+```
+
+First reproduce the call-context merging without the annotation, then compare
+both calls with it. Specialization separates invocations; it does not escape HTML
+or any other threat. Inspect receiver, global, and stored-state dependencies before
+applying this contract. A native fixture proves only its tested mechanism; rerun
+the project before claiming a precision improvement there.
+
 ## Include-driven PHP Applications
 
 Check whether declarations from included source files are visible to the analyzer.
@@ -86,16 +104,30 @@ Preserve diagnostics and resolve framework declarations without suppressing erro
 or narrowing the original source roots. Keep setup identical between baseline and
 enriched runs.
 
+Psalm can discover and execute a target Composer autoloader before processing
+`--version`. Use the `run` helper for version capture and taint analysis. Without
+an explicit `--root`, it supplies an empty temporary discovery root and an absolute
+target configuration, retaining config-relative source paths. It rejects
+`resolveFromConfigFile="false"` (or `"0"`) in that mode because rebasing those paths would
+change analysis. An explicit `--root` is preserved as a caller-managed choice;
+version and analysis commands must use the same root.
+
+For ordinary analysis outside the helper, first create and inspect a trusted empty
+root whose parent directories contain no Composer autoloader, then use it for both
+commands with absolute tool/configuration paths:
+
 ```bash
-vendor/bin/psalm --version
-vendor/bin/psalm --no-cache --output-format=json
-vendor/bin/psalm --taint-analysis --debug --no-cache --output-format=json
+<trusted-psalm> --root=<empty-root> --version
+<trusted-psalm> --root=<empty-root> --config=<target>/psalm.xml \
+  --no-cache --output-format=json
 ```
 
-Capture stdout as native JSON and stderr as diagnostics through the `run` helper.
-An analysis process must not execute the target application: inspect autoloader and
-plugin configuration before invoking the analyzer. Load declarations through native
-stubs or statically parsed source when runtime initialization would be required.
+Inspect configuration autoloaders, plugins, interpreter hooks, and tool installation
+before either command. The discovery root does not disable explicit hooks or
+sandbox the process. Load target declarations through native stubs or statically
+parsed source when runtime initialization would be required. The helper captures
+requested/effective commands and startup assumptions in its execution artifact;
+stdout remains native JSON and stderr retains diagnostics.
 
 Psalm can exit nonzero for findings. Distinguish taint issues from invalid
 configuration, syntax, and analysis failures. Retain effective source roots,

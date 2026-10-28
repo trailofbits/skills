@@ -15,6 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent))
 
 import taint_trace as tt  # noqa: E402
+from manifest_validation import validate_model_fields  # noqa: E402
 from runner import run_native  # noqa: E402
 from trace_artifacts import JsonObject  # noqa: E402
 
@@ -272,6 +273,55 @@ def model() -> JsonObject:
         "assumptions": [],
         "artifact": "model.txt",
     }
+
+
+def test_modeling_gap_is_optional_and_preserves_analyst_evidence():
+    item = model()
+    errors = []
+    validate_model_fields(item, errors)
+    assert errors == []  # Existing manifests remain readable.
+    gap = {
+        "description": "The adapter return has no source binding.",
+        "baseline_evidence": ["baseline.json: no trace across adapter return"],
+        "expected_effect": "Native positive gains a trace; literal remains negative.",
+    }
+    item["modeling_gap"] = gap.copy()
+    validate_model_fields(item, errors)
+    assert errors == []
+    assert item["modeling_gap"] == gap
+    assert "benefit" not in item  # Structure validation cannot establish utility.
+
+
+@pytest.mark.parametrize(
+    "gap, field",
+    [
+        (None, "object"),
+        ([], "object"),
+        ({}, "description"),
+        (
+            {"description": " ", "expected_effect": "effect", "baseline_evidence": ["trace"]},
+            "description",
+        ),
+        (
+            {"description": "gap", "expected_effect": 1, "baseline_evidence": ["trace"]},
+            "expected_effect",
+        ),
+        (
+            {"description": "gap", "expected_effect": "effect", "baseline_evidence": []},
+            "baseline_evidence",
+        ),
+        (
+            {"description": "gap", "expected_effect": "effect", "baseline_evidence": [""]},
+            "baseline_evidence",
+        ),
+    ],
+)
+def test_malformed_modeling_gap_is_rejected(gap, field):
+    item = model()
+    item["modeling_gap"] = gap
+    errors = []
+    validate_model_fields(item, errors)
+    assert any(f"modeling_gap{'.' + field if field != 'object' else ''}" in e for e in errors)
 
 
 def test_complete_provenance_and_immutable_baseline(artifacts, monkeypatch):

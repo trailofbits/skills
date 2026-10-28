@@ -65,9 +65,13 @@ def native_run(tmp_path, data, *, backend="joern", language="java", returncode=0
     native_stderr = kwargs.pop("native_stderr", None)
 
     def execute(command, cwd, timeout):
-        if command == version_argv:
+        if command == version_argv or backend == "psalm" and "--version" in command:
             return 0, f"{backend} test-version", "", []
-        assert command == argv
+        if backend == "psalm":
+            assert "--taint-analysis" in command
+            assert any(item.startswith("--root=") for item in command)
+        else:
+            assert command == argv
         stderr = f"Analyzing {source}\n" if backend == "psalm" else ""
         if native_stderr is not None:
             stderr = native_stderr
@@ -253,7 +257,7 @@ def test_supported_native_wrappers_and_processor_lists(tmp_path, backend, langua
     record = native_run(tmp_path, data, backend=backend, language=language, argv=argv)
     assert record["status"] == ("analyzed" if backend == "psalm" else "limited"), record["errors"]
     assert check_run(record, tmp_path / "run.json") == []
-    assert record["version"]["argv"] == version_command(backend, argv)
+    assert record["version"]["argv"] == version_command(backend, record["argv"])
 
 
 def test_version_capture_must_use_the_same_native_environment(tmp_path):
@@ -789,6 +793,37 @@ def test_real_psalm_annotation_acceptance_and_context_sanitization(tmp_path):
 
 
 @pytest.mark.skipif(not PSALM, reason="Psalm is not installed")
+def test_real_psalm_does_not_bootstrap_target_composer_autoloader(tmp_path):
+    assert PSALM is not None
+    vendor = tmp_path / "vendor"
+    vendor.mkdir()
+    marker = tmp_path / "bootstrap-executed"
+    (vendor / "autoload.php").write_text(
+        "<?php file_put_contents(__DIR__ . '/../bootstrap-executed', 'executed');\n"
+    )
+    (tmp_path / "composer.json").write_text('{"name":"fixture/application","autoload":{}}')
+    (tmp_path / "probe.php").write_text("<?php echo $_GET['input'];\n")
+    (tmp_path / "psalm.xml").write_text(
+        '<psalm xmlns="https://getpsalm.org/schema/config" findUnusedCode="false">'
+        '<projectFiles><file name="probe.php"/></projectFiles></psalm>\n'
+    )
+    record = run_native(
+        backend="psalm",
+        language="php",
+        phase="baseline",
+        scope="interprocedural",
+        cwd=tmp_path,
+        output=tmp_path / "run.json",
+        argv=[PSALM, "--taint-analysis", "--debug", "--no-cache", "--output-format=json"],
+    )
+    assert record["status"] in {"analyzed", "limited"}, record["errors"]
+    assert any(f["rule_id"] == "TaintedHtml" for f in record["findings"])
+    assert record["scanned_files"] == [str(tmp_path / "probe.php")]
+    assert not marker.exists()
+    assert check_run(record, tmp_path / "run.json") == []
+
+
+@pytest.mark.skipif(not PSALM, reason="Psalm is not installed")
 @pytest.mark.parametrize("selection", ["empty", "ignored", "clean"])
 def test_real_psalm_empty_scan_is_not_a_clean_result(tmp_path, selection):
     assert PSALM is not None
@@ -990,3 +1025,211 @@ def test_native_integration_requires_explicit_environment_opt_in(monkeypatch, va
         monkeypatch.setenv("TAINT_TRACE_SEMGREP", value)
     with patch("shutil.which", return_value="/installed/semgrep"):
         assert integration_executable("SEMGREP", "semgrep") == expected
+
+
+FAKE_STARTUP_PSALM = r"""
+import json
+import os
+import runpy
+import sys
+from pathlib import Path
+import xml.etree.ElementTree as ET
+
+args = sys.argv[1:]
+root = Path(next((arg.split("=", 1)[1] for arg in args if arg.startswith("--root=")), os.getcwd()))
+for bootstrap in (root / "vendor" / "autoload.php", root.parent.parent / "autoload.php"):
+    if bootstrap.is_file():
+        runpy.run_path(str(bootstrap))
+log = Path(__file__).with_suffix(".jsonl")
+with log.open("a") as stream:
+    stream.write(json.dumps({"argv": args, "cwd": os.getcwd()}) + "\n")
+if "--version" in args:
+    print("Psalm startup-test-version")
+else:
+    config = Path(next(arg.split("=", 1)[1] for arg in args if arg.startswith("--config=")))
+    assert config.is_absolute()
+    tree = ET.parse(config).getroot()
+    mode = tree.attrib.get("resolveFromConfigFile", "true")
+    base = config.parent if mode in {"true", "1"} else root
+    for item in tree.iter():
+        if item.tag.rsplit("}", 1)[-1] == "file":
+            source = (base / item.attrib["name"]).resolve()
+            print("Analyzing " + str(source), file=sys.stderr)
+    print("[]")
+"""
+
+
+def startup_fixture(tmp_path):
+    target, tools = tmp_path / "target", tmp_path / "tools"
+    target.mkdir()
+    tools.mkdir()
+    (target / "vendor").mkdir()
+    source = target / "source.php"
+    source.write_text("<?php echo 'literal';\n")
+    config = target / "psalm.xml"
+    config.write_text(
+        '<psalm xmlns="https://getpsalm.org/schema/config">'
+        '<projectFiles><file name="source.php"/></projectFiles></psalm>'
+    )
+    marker = target / "bootstrap-executed"
+    (target / "vendor" / "autoload.php").write_text(
+        f"from pathlib import Path\nPath({str(marker)!r}).write_text('bootstrapped')\n"
+    )
+    executable = tools / "psalm"
+    executable.write_text(f"#!{sys.executable}\n" + FAKE_STARTUP_PSALM)
+    executable.chmod(0o700)
+    argv = [str(executable), "--taint-analysis", "--debug", "--output-format=json"]
+    return target, tools, marker, argv
+
+
+def startup_run(target, argv, **kwargs):
+    return run_native(
+        backend="psalm",
+        language="php",
+        phase="baseline",
+        scope="interprocedural",
+        output=target / "run.json",
+        cwd=target,
+        argv=argv,
+        **kwargs,
+    )
+
+
+def test_startup_fixture_exercises_composer_bootstrap_before_version(tmp_path):
+    target, _, marker, argv = startup_fixture(tmp_path)
+    result = subprocess.run(
+        [argv[0], f"--root={target}", "--version"],
+        cwd=target,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "Psalm startup-test-version" in result.stdout
+    assert marker.read_text() == "bootstrapped"
+
+
+def test_psalm_isolates_native_and_version_composer_discovery_and_snapshots_commands(tmp_path):
+    target, tools, marker, argv = startup_fixture(tmp_path)
+    requested = list(argv)
+    record = startup_run(target, argv)
+    assert record["status"] == "analyzed", record["errors"]
+    assert not marker.exists()
+    calls = [json.loads(line) for line in (tools / "psalm.jsonl").read_text().splitlines()]
+    assert len(calls) == 2 and "--version" in calls[0]["argv"]
+    roots = [next(arg for arg in call["argv"] if arg.startswith("--root=")) for call in calls]
+    assert roots[0] == roots[1]
+    root = Path(roots[0].split("=", 1)[1])
+    assert not root.is_relative_to(target) and not root.parent.parent.is_relative_to(target)
+    assert not root.exists(), "The private startup directory is ephemeral"
+    execution = json.loads(Path(record["execution"]["path"]).read_text())
+    assert execution["requested"]["argv"] == requested == argv
+    assert execution["requested"]["version_argv"] is None
+    assert execution["effective"]["argv"] == record["argv"]
+    assert execution["effective"]["version_argv"] == record["version"]["argv"]
+    assert execution["effective"]["config_files"] == record["config_files"]
+    assert record["execution"]["policy"] == "psalm-private-composer-root"
+    assert f"--config={target / 'psalm.xml'}" in record["argv"]
+    argv.append("--different-later")
+    (target / "psalm.xml").write_text("<changed-later/>")
+    assert check_run(record, target / "run.json") == []
+
+
+def test_psalm_preserves_explicit_root_and_binds_relative_config_before_version(tmp_path):
+    target, tools, marker, argv = startup_fixture(tmp_path)
+    argv += ["--root", "../tools", "--config", "psalm.xml"]
+    record = startup_run(target, argv, version_argv=[argv[0], "--version"])
+    assert record["status"] == "analyzed", record["errors"]
+    assert not marker.exists()
+    assert f"--root={tools}" in record["argv"]
+    assert f"--root={tools}" in record["version"]["argv"]
+    assert f"--config={target / 'psalm.xml'}" in record["argv"]
+    assert record["execution"]["policy"] == "caller-managed"
+    assert check_run(record, target / "run.json") == []
+
+
+def test_psalm_explicit_root_retains_native_configuration_discovery(tmp_path):
+    target, tools, marker, argv = startup_fixture(tmp_path)
+    config = tools / "psalm.xml"
+    config.write_text(
+        '<psalm xmlns="https://getpsalm.org/schema/config"><projectFiles>'
+        f'<file name="{target / "source.php"}"/></projectFiles></psalm>'
+    )
+    record = startup_run(target, argv + [f"--root={tools}"])
+    assert record["status"] == "analyzed", record["errors"]
+    assert not marker.exists()
+    assert record["config_files"][0]["original_path"] == str(config)
+    assert check_run(record, target / "run.json") == []
+
+
+@pytest.mark.parametrize("mode", ["false", "0"])
+def test_psalm_explicit_root_preserves_root_relative_model_bindings(tmp_path, mode):
+    target, tools, marker, argv = startup_fixture(tmp_path)
+    root = tools / "environment"
+    root.mkdir()
+    (target / "psalm.xml").write_text(
+        f'<psalm xmlns="https://getpsalm.org/schema/config" resolveFromConfigFile="{mode}">'
+        '<projectFiles><file name="../../target/source.php"/></projectFiles></psalm>'
+    )
+    record = startup_run(
+        target, argv + [f"--root={root}", "--config=psalm.xml"], models=[target / "source.php"]
+    )
+    assert record["status"] == "analyzed", record["errors"]
+    assert not marker.exists()
+    assert check_run(record, target / "run.json") == []
+
+
+@pytest.mark.parametrize(
+    "form", [["--root", "tool-root"], ["--root=tool-root"], ["-r", "tool-root"], ["-rtool-root"]]
+)
+def test_psalm_automatic_version_keeps_all_supported_root_option_forms(form):
+    argv = ["php", "-d", "memory_limit=-1", "psalm.phar", *form, "--taint-analysis"]
+    assert version_command("psalm", argv) == [
+        "php",
+        "-d",
+        "memory_limit=-1",
+        "psalm.phar",
+        "--root=tool-root",
+        "--version",
+    ]
+
+
+def test_psalm_mismatched_version_root_prevents_every_process(tmp_path):
+    target, tools, marker, argv = startup_fixture(tmp_path)
+    record = startup_run(
+        target,
+        argv + [f"--root={tools}"],
+        version_argv=[argv[0], f"--root={target}", "--version"],
+    )
+    assert record["status"] == "failed" and record["returncode"] is None
+    assert any("same startup --root" in item for item in record["errors"])
+    assert not marker.exists() and not (tools / "psalm.jsonl").exists()
+
+
+@pytest.mark.parametrize(
+    "kind", ["activation", "xml", "root-relative", "root-relative-zero", "duplicate-root"]
+)
+def test_psalm_preflight_errors_prevent_even_version_startup(tmp_path, kind):
+    target, tools, marker, argv = startup_fixture(tmp_path)
+    if kind == "activation":
+        argv.remove("--taint-analysis")
+    elif kind == "xml":
+        (target / "psalm.xml").write_text("<invalid")
+    elif kind.startswith("root-relative"):
+        config = target / "psalm.xml"
+        mode = "0" if kind.endswith("zero") else "false"
+        config.write_text(
+            config.read_text().replace("<psalm ", f'<psalm resolveFromConfigFile="{mode}" ')
+        )
+    else:
+        argv += [f"--root={tools}", f"--root={target}"]
+    record = startup_run(target, argv)
+    assert record["status"] == "failed" and record["returncode"] is None
+    assert not marker.exists() and not (tools / "psalm.jsonl").exists()
+
+
+def test_execution_identity_snapshot_rejects_saved_command_and_version_rebinding(tmp_path):
+    target, _, _, argv = startup_fixture(tmp_path)
+    record = startup_run(target, argv)
+    record["version"]["argv"].append("--different-environment")
+    errors = check_run(record, target / "run.json")
+    assert any("immutable execution snapshot" in item for item in errors)

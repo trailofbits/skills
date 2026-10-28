@@ -375,6 +375,19 @@ def validate_model_fields(model: JsonObject, errors: list[str]) -> None:
         errors.append(f"{ident}: assumptions must be a string array")
     if not isinstance(model["value"], str) or not model["value"].strip():
         errors.append(f"{ident}: affected value binding is missing")
+    if "modeling_gap" in model:
+        validate_modeling_gap(ident, model["modeling_gap"], errors)
+
+
+def validate_modeling_gap(ident: str, gap: object, errors: list[str]) -> None:
+    if not isinstance(gap, dict):
+        errors.append(f"{ident}: modeling_gap must be an object")
+        return
+    for key in ("description", "expected_effect"):
+        if not isinstance(gap.get(key), str) or not gap[key].strip():
+            errors.append(f"{ident}: modeling_gap.{key} must be a nonempty string")
+    if not string_array(gap.get("baseline_evidence"), nonempty=True):
+        errors.append(f"{ident}: modeling_gap.baseline_evidence must contain nonempty strings")
 
 
 def model_anchor_errors(model: JsonObject, context: JsonObject, target: Path) -> list[str]:
