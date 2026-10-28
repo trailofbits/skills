@@ -122,9 +122,12 @@ shell-suites:
 # design. The glob covers 'evals-extra' as well, and it has to: drop the wildcard and
 # pytest collects that fixture and fails the build. The zero-discovery guard below
 # stays armed, so this cannot silently empty the run.
+# Dependency environments are not plugin suites, even when they contain test_*.py.
+# Suites may declare additional isolated dependencies in requirements-test.txt.
 python-tests:
 	@echo "→ python tests"
-	@dirs=$$(find plugins -type f \( -name 'test_*.py' -o -name '*_test.py' \) \
+	@dirs=$$(find plugins -type d \( -name .venv -o -name venv -o -name node_modules -o -name .git \) -prune -o \
+		-type f \( -name 'test_*.py' -o -name '*_test.py' \) \
 		-not -path '*/evals*/fixture/*' \
 		-exec dirname {} \; | sort -u); \
 	if [ -z "$$dirs" ]; then \
@@ -134,7 +137,11 @@ python-tests:
 	failed=0; ran=0; \
 	for d in $$dirs; do \
 		echo "  → $$d"; \
-		( cd "$$d" && uv run --no-project --with pytest --with pyyaml python3 -m pytest -q \
+		set --; \
+		if [ -f "$$d/requirements-test.txt" ]; then \
+			set -- --with-requirements requirements-test.txt; \
+		fi; \
+		( cd "$$d" && uv run --no-project "$$@" --with pytest --with pyyaml python3 -m pytest -q \
 			--import-mode=importlib . ) || failed=1; \
 		ran=$$((ran + 1)); \
 	done; \

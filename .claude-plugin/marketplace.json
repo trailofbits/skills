@@ -159,7 +159,7 @@
     {
       "name": "property-based-testing",
       "description": "Write, review, and triage property-based tests — Hypothesis, fast-check, proptest, and Echidna or Medusa for Solidity invariants",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "author": {
         "name": "Henrik Brodin",
         "email": "opensource@trailofbits.com"
@@ -235,8 +235,8 @@
     },
     {
       "name": "trailmark",
-      "version": "0.12.2",
-      "description": "Builds source and binary code graphs for security analysis, context slicing, mutation testing, cryptographic protocol modeling, finding triage, and variant analysis.",
+      "version": "0.13.0",
+      "description": "Builds source and binary code graphs for security analysis, taint modeling with native analyzers, context slicing, mutation testing, cryptographic protocol modeling, finding triage, and variant analysis.",
       "author": {
         "name": "Scott Arciszewski",
         "url": "https://github.com/tob-scott-a"
@@ -447,7 +447,7 @@
     },
     {
       "name": "writing-lean-proofs",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "description": "Structured Lean 4 proof writing and library design following Mathlib conventions",
       "author": {
         "name": "Fredrik Dahlgren",
