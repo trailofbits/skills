@@ -57,6 +57,10 @@ Report the evidence and leave benefit unmeasured when it does not settle the cla
 
 Resolve dependency declarations before the baseline, then preserve the same setup
 for enriched analysis. Record exact stub/alias versions and loaded configuration.
+Compare native input inventories as well as findings: generated evidence copies
+must not become source or rule inputs. Duplicate declarations can hide a vulnerable
+positive while the analyzer still exits successfully. Keep capture artifacts out
+of native discovery and retain the positive/literal-negative controls.
 When a native mechanism substitutes a declaration for a bundled implementation,
 identify the shadowed body as a coverage gap. A processed file list does not prove
 that every body or path in those files was analyzed.

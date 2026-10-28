@@ -56,7 +56,8 @@ def snapshot_sources(context: JsonObject, output: Path) -> None:
     records = []
     for file in sorted(set(context["source_hashes"]) | set(context["configuration_files"])):
         source = local_file(file, target)
-        destination = directory / source.relative_to(target)
+        relative_source = source.relative_to(target)
+        destination = directory / relative_source.with_name(relative_source.name + ".snapshot")
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, destination)
         sha = digest(destination)

@@ -102,6 +102,8 @@ Store context, model provenance, native configuration, native outputs, and a rea
 report in the target's `.trailmark/taint-trace/`. Preserve source snapshots and native
 traces/SARIF where available. Record exact tool versions, commands, effective target
 coverage, exclusions, model changes, and finding changes.
+Keep captured evidence out of native source/rule discovery, including tools that
+scan unknown extensions; duplicate declarations can silently hide findings.
 Native warning counts are not unique flows or coverage. Inspect native traces for
 duplicate wrapper locations and shared-helper context merging before claiming a
 recovered flow or precision improvement. Model review establishes neither utility
