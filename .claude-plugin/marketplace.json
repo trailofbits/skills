@@ -137,7 +137,7 @@
     },
     {
       "name": "patching-bugs",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "description": "Agent-orchestrated workflow to reproduce, patch, prove and regression-check one known bug.",
       "author": {
         "name": "Trail of Bits",
