@@ -159,7 +159,7 @@
     {
       "name": "property-based-testing",
       "description": "Write, review, and triage property-based tests — Hypothesis, fast-check, proptest, and Echidna or Medusa for Solidity invariants",
-      "version": "1.2.2",
+      "version": "1.3.0",
       "author": {
         "name": "Henrik Brodin",
         "email": "opensource@trailofbits.com"
