@@ -354,7 +354,7 @@
     },
     {
       "name": "zeroize-audit",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "description": "Detects missing or compiler-optimized zeroization of sensitive data with assembly and control-flow analysis",
       "author": {
         "name": "Trail of Bits",
