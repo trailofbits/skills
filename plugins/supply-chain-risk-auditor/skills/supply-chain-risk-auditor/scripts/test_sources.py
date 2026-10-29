@@ -289,3 +289,161 @@ def test_policy_absent_only_when_every_probe_is_a_404():
 def test_policy_unknown_when_any_probe_fails_for_other_reasons():
     http = PolicyHttp([NotFound("404"), Unavailable("rate limited")] + [NotFound("404")] * 3)
     assert _security_policy(http, "acme/repo", {}) is None
+
+
+# ------------------------------------------------------- npm metadata selection
+
+
+class _PackumentHttp:
+    """Serves one npm packument, so selection is tested without a network."""
+
+    def __init__(self, doc: dict) -> None:
+        self.doc = doc
+        self.requested: list[str] = []
+
+    def get_json(self, url: str) -> dict:
+        self.requested.append(url)
+        return self.doc
+
+
+def _packument(versions: dict, latest: str | None = "2.0.0", **extra) -> dict:
+    doc = {"dist-tags": {} if latest is None else {"latest": latest}, "versions": versions}
+    doc.update(extra)
+    return doc
+
+
+def test_npm_metadata_reads_deprecation_from_the_resolved_release():
+    """The pinned release is deprecated; the latest one is not. The pin's warning is real."""
+    http = _PackumentHttp(
+        _packument(
+            {
+                "1.0.0": {"deprecated": "use 2.0.0"},
+                "2.0.0": {},
+            },
+            latest="2.0.0",
+        )
+    )
+    meta = sources.npm_metadata(http, "uuid", "1.0.0")
+    assert meta["selection"] == "resolved"
+    assert meta["selected_version"] == "1.0.0"
+    assert meta["deprecated"] == "use 2.0.0"
+
+
+def test_npm_metadata_does_not_attribute_a_newer_release_to_a_pin():
+    """A property introduced in the latest release is not read as the pinned one's."""
+    http = _PackumentHttp(
+        _packument(
+            {
+                "1.0.0": {"dist": {}},
+                "2.0.0": {"dist": {"attestations": {"url": "https://example.test"}}},
+            },
+            latest="2.0.0",
+        )
+    )
+    meta = sources.npm_metadata(http, "pkg", "1.0.0")
+    assert meta["deprecated"] is None
+    # Provenance describes the current publisher, not the historical release.
+    assert meta["provenance"] is True
+
+
+def test_npm_metadata_reads_install_scripts_from_the_full_metadata():
+    """`hasInstallScript` is absent from full metadata; `scripts` is what it carries."""
+    http = _PackumentHttp(
+        _packument({"1.0.0": {"scripts": {"postinstall": "node-gyp rebuild"}}}, latest="1.0.0")
+    )
+    meta = sources.npm_metadata(http, "esbuild", "1.0.0")
+    assert meta["has_install_script"] is True
+    assert meta["install_scripts"] == ["postinstall"]
+
+
+def test_npm_metadata_ignores_scripts_that_do_not_run_on_install():
+    http = _PackumentHttp(
+        _packument(
+            {"1.0.0": {"scripts": {"test": "jest", "build": "tsc", "prepare": "tsc"}}},
+            latest="1.0.0",
+        )
+    )
+    meta = sources.npm_metadata(http, "core-js", "1.0.0")
+    assert meta["has_install_script"] is False
+    assert meta["install_scripts"] == []
+
+
+def test_npm_metadata_reads_abbreviated_has_install_script():
+    http = _PackumentHttp(_packument({"1.0.0": {"hasInstallScript": True}}, latest="1.0.0"))
+    assert sources.npm_metadata(http, "pkg", "1.0.0")["has_install_script"] is True
+
+    http = _PackumentHttp(_packument({"1.0.0": {"hasInstallScript": False}}, latest="1.0.0"))
+    assert sources.npm_metadata(http, "pkg", "1.0.0")["has_install_script"] is False
+
+
+def test_npm_metadata_reports_unknown_when_neither_format_field_is_present():
+    http = _PackumentHttp(_packument({"1.0.0": {"version": "1.0.0"}}, latest="1.0.0"))
+    assert sources.npm_metadata(http, "pkg", "1.0.0")["has_install_script"] is None
+
+
+def test_npm_metadata_falls_back_to_latest_only_without_an_exact_version():
+    http = _PackumentHttp(_packument({"1.0.0": {}, "2.0.0": {}}, latest="2.0.0"))
+    meta = sources.npm_metadata(http, "pkg")
+    assert meta["selection"] == "latest-fallback"
+    assert meta["selected_version"] == "2.0.0"
+
+
+def test_npm_metadata_marks_an_unpublished_pin_unassessable_rather_than_substituting():
+    http = _PackumentHttp(_packument({"2.0.0": {"deprecated": "old"}}, latest="2.0.0"))
+    meta = sources.npm_metadata(http, "pkg", "1.0.0")
+    assert meta["selection"] == "unassessable"
+    assert "not in the packument" in (meta["selection_reason"] or "")
+    assert meta["deprecated"] is None
+    assert meta["has_install_script"] is None
+
+
+@pytest.mark.parametrize(
+    ("selector", "resolved"),
+    [
+        ("v1.0.0", "1.0.0"),
+        ("=1.0.0", "1.0.0"),
+        ("1.0.0+build.7", "1.0.0"),
+        ("01.02.03", "1.2.3"),
+        ("1.0.0-01", "1.0.0-1"),
+        ("1.0.0-rc.1", "1.0.0-rc.1"),
+    ],
+)
+def test_npm_metadata_normalizes_exact_selectors(selector, resolved):
+    http = _PackumentHttp(_packument({resolved: {"deprecated": "pinned"}}, latest=resolved))
+    meta = sources.npm_metadata(http, "pkg", selector)
+    assert meta["selection"] == "resolved"
+    assert meta["selected_version"] == resolved
+    assert meta["deprecated"] == "pinned"
+
+
+def test_npm_metadata_keeps_prereleases_distinct():
+    """Normalizing the selector must not collapse a prerelease onto its release."""
+    http = _PackumentHttp(_packument({"1.0.0": {"deprecated": "stable"}}, latest="1.0.0"))
+    meta = sources.npm_metadata(http, "pkg", "1.0.0-rc.1")
+    assert meta["selection"] == "unassessable"
+
+
+def test_npm_metadata_preserves_measurements_when_latest_is_missing():
+    """No latest release: maintainers and repository are still readable."""
+    http = _PackumentHttp(
+        {
+            "dist-tags": {},
+            "versions": {"1.0.0": {"scripts": {}}},
+            "maintainers": [{"name": "alice"}, {"name": "dependabot[bot]"}],
+            "repository": {"url": "git+https://github.com/acme/pkg.git"},
+        }
+    )
+    meta = sources.npm_metadata(http, "pkg")
+    assert meta["selection"] == "unassessable"
+    assert meta["maintainers"] == ["alice", "dependabot[bot]"]
+    assert meta["human_maintainers"] == ["alice"]
+    assert meta["repository"] == "github.com/acme/pkg"
+    # No latest document means provenance is unknown, not a negative finding.
+    assert meta["provenance"] is None
+
+
+def test_npm_metadata_treats_a_dangling_latest_tag_as_unassessable():
+    http = _PackumentHttp(_packument({"1.0.0": {}}, latest="9.9.9"))
+    meta = sources.npm_metadata(http, "pkg")
+    assert meta["selection"] == "unassessable"
+    assert meta["provenance"] is None

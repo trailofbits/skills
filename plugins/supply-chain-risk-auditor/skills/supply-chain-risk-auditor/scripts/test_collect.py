@@ -28,6 +28,9 @@ from collect import (
     _exact_npm_pin,
     _go_indirect,
     _npm_all_locked,
+    _npm_dependency,
+    _npm_exact_version,
+    enrich_npm,
     _npm_spec_kind,
     _pypi_version,
     _staleness_signal,
@@ -911,3 +914,124 @@ def test_no_text_io_relies_on_the_platform_default_encoding():
     )
     assert result.returncode == 0, result.stderr
     assert "ok" in result.stdout
+
+
+# ------------------------------------------- npm release selection at collect level
+
+
+@pytest.mark.parametrize(
+    ("spec", "expected"),
+    [
+        ("v1.2.3", "1.2.3"),
+        ("=1.2.3", "1.2.3"),
+        ("1.2.3+build.7", "1.2.3"),
+        ("1.2.3", "1.2.3"),
+    ],
+)
+def test_exact_npm_pin_normalises_accepted_prefixes(spec, expected):
+    assert _exact_npm_pin(spec) == expected
+
+
+def test_npm_alias_keeps_its_exact_selector():
+    """`npm:pkg@1.0.0` pins 1.0.0; testing the whole spec never matched the pattern."""
+    dep, note = _npm_dependency("aliased", "npm:@acme/pkg@1.0.0", False, {})
+    assert dep is not None
+    assert dep.name == "@acme/pkg"
+    assert dep.version == "1.0.0"
+    assert dep.version_source == "manifest-pin"
+    assert "alias" in (note or "")
+
+
+def test_npm_alias_range_stays_unresolved():
+    dep, _ = _npm_dependency("aliased", "npm:@acme/pkg@^1.0.0", False, {})
+    assert dep is not None
+    assert dep.version is None
+    assert dep.version_source == "unresolved"
+
+
+@pytest.mark.parametrize(
+    ("version", "source", "expected"),
+    [
+        ("1.2.3", "lockfile", "1.2.3"),
+        ("1.2.3", "manifest-pin", "1.2.3"),
+        (None, "latest-release", None),
+        (None, "unresolved", None),
+        ("1.2.3", "latest-release", None),
+    ],
+)
+def test_npm_exact_version_only_reports_exactly_resolved_versions(version, source, expected):
+    dep = Dependency(ecosystem="npm", name="pkg", version=version, version_source=source)
+    assert _npm_exact_version(dep) == expected
+
+
+class _RouteHttp:
+    """Serves canned payloads per URL prefix; anything else is unavailable."""
+
+    def __init__(self, routes: dict[str, dict]) -> None:
+        self.routes = routes
+
+    def get_json(self, url: str) -> dict:
+        for prefix, payload in self.routes.items():
+            if url.startswith(prefix):
+                return payload
+        raise sources.Unavailable(f"no fixture for {url}")
+
+
+def _npm_signals(routes: dict[str, dict], dep: Dependency) -> Dependency:
+    enrich_npm(_RouteHttp(routes), dep, None)
+    return dep
+
+
+def test_enrich_npm_labels_a_latest_release_fallback():
+    """The report must say when release properties describe latest, not the pin."""
+    doc = {"dist-tags": {"latest": "2.0.0"}, "versions": {"2.0.0": {"scripts": {}}}}
+    dep = _npm_signals(
+        {"https://registry.npmjs.org/": doc},
+        Dependency(ecosystem="npm", name="pkg", version=None, version_source="unresolved"),
+    )
+    assert "from the latest release" in dep.signals["deprecated"].detail
+    assert "from the latest release" in dep.signals["install_script"].detail
+
+
+def test_enrich_npm_scopes_the_no_script_claim_to_what_metadata_shows():
+    """A clean install-script verdict must not claim more than the registry document knows."""
+    doc = {"dist-tags": {"latest": "2.0.0"}, "versions": {"2.0.0": {"scripts": {"test": "jest"}}}}
+    dep = _npm_signals(
+        {"https://registry.npmjs.org/": doc},
+        Dependency(ecosystem="npm", name="pkg", version="2.0.0", version_source="lockfile"),
+    )
+    detail = dep.signals["install_script"].detail
+    assert dep.signals["install_script"].state is State.CLEAN
+    assert "registry metadata" in detail
+    assert "node-gyp" in detail
+
+
+def test_enrich_npm_reads_the_pinned_release_and_does_not_label_a_fallback():
+    doc = {
+        "dist-tags": {"latest": "2.0.0"},
+        "versions": {
+            "1.0.0": {"deprecated": "use 2.0.0", "scripts": {"postinstall": "node-gyp rebuild"}},
+            "2.0.0": {"scripts": {}},
+        },
+    }
+    dep = _npm_signals(
+        {"https://registry.npmjs.org/": doc},
+        Dependency(ecosystem="npm", name="pkg", version="1.0.0", version_source="lockfile"),
+    )
+    assert "deprecated" in dep.signals["deprecated"].detail
+    assert "use 2.0.0" in dep.signals["deprecated"].detail
+    assert dep.signals["install_script"].value is True
+    assert "postinstall" in dep.signals["install_script"].detail
+    assert "from the latest release" not in dep.signals["install_script"].detail
+
+
+def test_enrich_npm_marks_an_unpublished_pin_unassessable():
+    """When the pinned release is not published, do not describe another release."""
+    doc = {"dist-tags": {"latest": "2.0.0"}, "versions": {"2.0.0": {"scripts": {}}}}
+    dep = _npm_signals(
+        {"https://registry.npmjs.org/": doc},
+        Dependency(ecosystem="npm", name="pkg", version="1.0.0", version_source="manifest-pin"),
+    )
+    for criterion in ("deprecated", "install_script"):
+        assert dep.signals[criterion].state is State.UNASSESSABLE, criterion
+        assert "not in the packument" in dep.signals[criterion].detail
