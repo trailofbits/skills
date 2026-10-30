@@ -178,8 +178,8 @@ def _extract_function_signature(src_file: str, line: int) -> str | None:
 
 def _is_cpp_file(src_file: str) -> bool:
     """Return True if the source file appears to be C++."""
-    ext = Path(src_file).suffix.lower()
-    return ext in (".cpp", ".cxx", ".cc", ".C", ".hpp", ".hxx")
+    suffix = Path(src_file).suffix
+    return suffix == ".C" or suffix.lower() in (".cpp", ".cxx", ".cc", ".hpp", ".hxx")
 
 
 def _is_rust_file(src_file: str) -> bool:
