@@ -36,6 +36,17 @@ def _has_marker(text: str, marker: str) -> bool:
     return marker in text.lower()
 
 
+def _append_note(evidence: Any, note: str) -> Any:
+    """Preserve producer evidence lists and the legacy string form."""
+    if isinstance(evidence, list):
+        # The assembler consumes evidence objects; retain legacy lists of
+        # strings without flattening structured producer metadata.
+        if evidence and all(isinstance(item, str) for item in evidence):
+            return [*evidence, note]
+        return [*evidence, {"source": "confidence_gate", "detail": note}]
+    return f"{evidence or ''} {note}".strip()
+
+
 def apply_gates(
     report: dict[str, Any],
     mcp_available: bool,
@@ -45,27 +56,24 @@ def apply_gates(
 
     for finding in findings:
         category = finding.get("category")
-        evidence = (finding.get("evidence") or "").lower()
+        raw_evidence = finding.get("evidence")
+        evidence = str(raw_evidence or "").lower()
 
         if category in {"OPTIMIZED_AWAY_ZEROIZE"} and not _has_compiler_evidence(finding):
             finding["needs_review"] = True
-            finding["evidence"] = (
-                finding.get("evidence", "")
-                + " [gated: missing IR/ASM evidence for optimized-away claim]"
-            ).strip()
+            finding["evidence"] = _append_note(
+                raw_evidence, "[gated: missing IR/ASM evidence for optimized-away claim]"
+            )
 
         if category in ASM_REQUIRED_CATEGORIES and not _has_marker(evidence, "asm"):
             finding["needs_review"] = True
-            finding["evidence"] = (
-                finding.get("evidence", "") + " [gated: missing assembly evidence]"
-            ).strip()
+            finding["evidence"] = _append_note(raw_evidence, "[gated: missing assembly evidence]")
 
         if require_mcp_for_advanced and not mcp_available and category in ADVANCED_MCP_CATEGORIES:
             finding["needs_review"] = True
-            finding["evidence"] = (
-                finding.get("evidence", "")
-                + " [gated: MCP unavailable for advanced semantic finding]"
-            ).strip()
+            finding["evidence"] = _append_note(
+                raw_evidence, "[gated: MCP unavailable for advanced semantic finding]"
+            )
 
     summary = report.get("summary", {})
     if isinstance(summary, dict):
