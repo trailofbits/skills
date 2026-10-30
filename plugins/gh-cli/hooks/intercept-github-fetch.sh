@@ -81,9 +81,8 @@ suggest_github_com() {
 suggest_for_url() {
   local url="$1" stripped host path
 
-  # Strip protocol to get host/path
-  stripped="${url#http://}"
-  stripped="${stripped#https://}"
+  # Scheme and host are case-insensitive; resource paths are not.
+  stripped="${url#*://}"
 
   # Strip query string and fragment before parsing
   stripped="${stripped%%\?*}"
@@ -95,6 +94,8 @@ suggest_for_url() {
   # ${var#*/} returns the original string when there's no slash,
   # so path == host means the URL had no path component (e.g. "https://github.com")
   [[ "$path" == "$host" ]] && path=""
+  host="${host%%:*}"
+  host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
 
   [[ -z "$host" ]] && return 0
 
