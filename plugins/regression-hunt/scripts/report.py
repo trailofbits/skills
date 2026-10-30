@@ -222,6 +222,14 @@ def decided(root: Path, item: dict, change: dict, row: dict) -> dict:
     return result
 
 
+def _reconcile_coverage(coverage: list[dict], rows: list[dict]) -> None:
+    """Apply final unresolved outcomes without promoting incomplete stages."""
+    unresolved_changes = {row["change"] for row in rows if row["outcome"] == "UNRESOLVED"}
+    for change in coverage:
+        if change["id"] in unresolved_changes:
+            change["status"] = "INCOMPLETE"
+
+
 def collect(root: Path) -> dict:
     """Reconcile indexed candidates with sealed discovery and decisions."""
     campaign = read(root, "campaign.json")
@@ -270,6 +278,7 @@ def collect(root: Path) -> dict:
                     verification=None,
                 )
             require(target["outcome"] == row["outcome"], f"{row['id']}: invalid duplicate mapping")
+    _reconcile_coverage(coverage, rows)
     counts = Counter(r["outcome"] for r in rows if not r.get("duplicate_of"))
     return {
         "title": campaign["title"],

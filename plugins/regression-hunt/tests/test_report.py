@@ -17,26 +17,42 @@ SCRIPT = Path(__file__).parents[1] / "scripts" / "report.py"
 class Campaign:
     """Build accepted packages through the same registration path as stage callers."""
 
-    def __init__(self, root, shared=(), unaccepted=()):
+    def __init__(
+        self,
+        root,
+        shared=(),
+        unaccepted=(),
+        *,
+        change="P1",
+        scope_changes=None,
+    ):
         self.root = root
         self.paths = {}
         self.cid = None
+        self.change = change
+        self.agent_prefix = "" if change == "P1" else f"{change}-"
         self.shared = set(shared)
         self.unaccepted = set(unaccepted)
-        save(root, "scope.json", {"changes": [{"id": "P1", "input": "SHA"}]})
-        initialize(root)
+        if not (root / "registry.json").exists():
+            save(
+                root,
+                "scope.json",
+                {"changes": [{"id": cid, "input": "SHA"} for cid in (scope_changes or [change])]},
+            )
+            initialize(root)
 
     def start(self, role, inputs):
         attempt = reserve(
             self.root,
             {
                 "stage": role,
-                "change": "P1",
+                "change": self.change,
                 "inputs": inputs,
                 "candidate": self.cid if role in ("reproduce", "replay", "adjudicate") else None,
             },
         )
         aid = attempt["id"]
+        agent = f"{self.agent_prefix}{role}"
         raw = f"runtime/{aid}.txt"
         receipt = f"runtime/{aid}.json"
         save(self.root, raw, {"response": "Synthetic host response"})
@@ -48,13 +64,13 @@ class Campaign:
                     "event": "launch",
                     "attempt": aid,
                     "tool": "codex.spawn_agent",
-                    "call": {"task_name": role, "fork_turns": "none"},
-                    "response": {"task_name": role},
+                    "call": {"task_name": agent, "fork_turns": "none"},
+                    "response": {"task_name": agent},
                     "observed_at": "2026-09-30T12:00:00+00:00",
                     "evidence": [raw],
                 },
             )
-            return bind(self.root, aid, role, agent_record=receipt)
+            return bind(self.root, aid, agent, agent_record=receipt)
         save(
             self.root,
             receipt,
@@ -63,7 +79,7 @@ class Campaign:
                 "attempt": aid,
                 "host": "fixture",
                 "session": "session-1",
-                "agent": role,
+                "agent": agent,
                 "context": aid,
                 "environment": aid,
                 "directory": attempt["directory"],
@@ -73,7 +89,7 @@ class Campaign:
                 "evidence": [raw],
             },
         )
-        return bind(self.root, aid, role, receipt)
+        return bind(self.root, aid, agent, receipt)
 
     def artifact(self, attempt, name, value):
         path = f"{attempt['directory']}/{name}"
@@ -88,7 +104,7 @@ class Campaign:
             {
                 "attempt": attempt["id"],
                 "stage": attempt["stage"],
-                "change": "P1",
+                "change": self.change,
                 "agent": attempt["agent"],
                 "candidate": attempt["candidate"],
                 "status": "complete",
@@ -103,25 +119,28 @@ class Campaign:
             accept(self.root, attempt["id"], name)
         self.paths[attempt["stage"]] = name
 
-    def prepare(self):
+    def prepare(self, candidate_keys=("fixture-lead",)):
         attempt = self.start("prepare", [])
         source = self.artifact(attempt, "source.json", {"s0": "a" * 40, "s1": "b" * 40})
         self.paths["source"] = source
         self.finish(attempt, artifacts=[source], source=source)
         attempt = self.start("hunt", [self.paths["prepare"]])
-        self.cid = candidate(self.root, attempt["id"], "fixture-lead", attempt["agent"])
-        name = self.artifact(
-            attempt,
-            "candidate.json",
-            {
-                "id": self.cid,
-                "key": "fixture-lead",
-                "title": "<script>escaped</script>",
-            },
-        )
-        self.paths["candidate"] = name
+        self.discovered = []
+        for key in candidate_keys:
+            cid = candidate(self.root, attempt["id"], key, attempt["agent"])
+            name = self.artifact(
+                attempt,
+                "candidate.json" if len(candidate_keys) == 1 else f"{key}.json",
+                {"id": cid, "key": key, "title": "<script>escaped</script>"},
+            )
+            self.discovered.append({"id": cid, "candidate": name})
+        self.cid = self.discovered[0]["id"]
+        self.paths["candidate"] = self.discovered[0]["candidate"]
         self.finish(
-            attempt, artifacts=[name], candidates=[self.cid], candidate_files={self.cid: name}
+            attempt,
+            artifacts=[item["candidate"] for item in self.discovered],
+            candidates=[item["id"] for item in self.discovered],
+            candidate_files={item["id"]: item["candidate"] for item in self.discovered},
         )
 
     def experiment(self, role, mutation=None):
@@ -159,7 +178,7 @@ class Campaign:
             mutation(self.root, value)
         self.finish(attempt, **value)
 
-    def decide(self, unknown_check, outcome):
+    def decide(self, unknown_check, outcome, *, duplicate_of=None):
         inputs = [
             self.paths[key] for key in ("prepare", "hunt", "candidate", "reproduce", "replay")
         ]
@@ -191,6 +210,7 @@ class Campaign:
             severity_reason="Narrow impact",
             likelihood_reason="Rare supported input",
             checks=checks,
+            **({"duplicate_of": duplicate_of} if duplicate_of else {}),
         )
         save(
             self.root,
@@ -199,7 +219,7 @@ class Campaign:
                 "title": "Example",
                 "changes": [
                     {
-                        "id": "P1",
+                        "id": self.change,
                         "input": "SHA",
                         "prepare": self.paths["prepare"],
                         "hunt": self.paths["hunt"],
@@ -290,6 +310,101 @@ def test_report_counts_evidence_links_and_html_escaping(campaign):
     assert "<script>" not in page
     assert f'href="../{campaign.paths["analysis"]}"' in page
     assert json.loads((campaign.root / "report/report.json").read_text()) == data
+
+
+def duplicate_campaign(root, *, same_change=False, unknown_check=None):
+    """Register both findings before sealing a genuine duplicate adjudication."""
+    duplicate = Campaign(root, scope_changes=["P1"] if same_change else ["P1", "P2"])
+    duplicate.prepare(("duplicate", "canonical") if same_change else ("duplicate",))
+    if same_change:
+        canonical = duplicate
+        canonical_item = duplicate.discovered[1]
+    else:
+        canonical = Campaign(root, change="P2")
+        canonical.prepare(("canonical",))
+        canonical_item = canonical.discovered[0]
+    duplicate_id = duplicate.cid
+    duplicate.experiment("reproduce")
+    duplicate.experiment("replay")
+    duplicate.decide(None, "REPRODUCED_REGRESSION", duplicate_of=canonical_item["id"])
+    duplicate_change = read(root, "campaign.json")["changes"][0]
+    if same_change:
+        canonical.agent_prefix = "canonical-"
+    canonical.cid = canonical_item["id"]
+    canonical.paths["candidate"] = canonical_item["candidate"]
+    canonical.experiment("reproduce")
+    canonical.experiment("replay")
+    canonical.decide(unknown_check, "REPRODUCED_REGRESSION")
+    canonical_change = read(root, "campaign.json")["changes"][0]
+    if same_change:
+        duplicate_change["candidates"].extend(canonical_change["candidates"])
+        changes = [duplicate_change]
+    else:
+        changes = [duplicate_change, canonical_change]
+    save(root, "campaign.json", {"title": "Synthetic duplicate coverage", "changes": changes})
+    return duplicate_id, canonical_item["id"]
+
+
+@pytest.mark.parametrize("reader", ["collect", "cli"])
+@pytest.mark.parametrize("reverse_changes", [False, True])
+def test_cross_change_duplicate_downgrade_updates_final_coverage(tmp_path, reader, reverse_changes):
+    duplicate_id, canonical_id = duplicate_campaign(tmp_path, unknown_check=CHECKS[0])
+    if reverse_changes:
+        index = read(tmp_path, "campaign.json")
+        index["changes"].reverse()
+        save(tmp_path, "campaign.json", index)
+    if reader == "cli":
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), str(tmp_path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        data = read(tmp_path, "report/report.json")
+    else:
+        data = collect(tmp_path)
+    rows = {row["id"]: row for row in data["findings"]}
+    assert rows[canonical_id]["outcome"] == "UNRESOLVED"
+    assert CHECKS[0] in rows[canonical_id]["unresolved_reason"]
+    assert rows[duplicate_id]["duplicate_of"] == canonical_id
+    assert rows[duplicate_id]["outcome"] == "UNRESOLVED"
+    assert rows[duplicate_id]["verification"] is None
+    assert rows[duplicate_id]["unresolved_reason"] == (
+        f"canonical finding {canonical_id} is unresolved"
+    )
+    assert data["counts"]["REPRODUCED_REGRESSION"] == 0
+    assert data["counts"]["UNRESOLVED"] == 1
+    assert {change["id"]: change["status"] for change in data["changes"]} == {
+        "P1": "INCOMPLETE",
+        "P2": "INCOMPLETE",
+    }
+    if reader == "cli":
+        for name in ("report.md", "index.html"):
+            text = (tmp_path / "report" / name).read_text()
+            assert "P1: INCOMPLETE" in text
+            assert "P2: INCOMPLETE" in text
+
+
+@pytest.mark.parametrize(
+    ("same_change", "unknown_check", "outcome", "status"),
+    [
+        (False, None, "REPRODUCED_REGRESSION", "COMPLETE"),
+        (True, None, "REPRODUCED_REGRESSION", "COMPLETE"),
+        (True, CHECKS[0], "UNRESOLVED", "INCOMPLETE"),
+    ],
+)
+def test_duplicate_coverage_controls(tmp_path, same_change, unknown_check, outcome, status):
+    duplicate_id, canonical_id = duplicate_campaign(
+        tmp_path, same_change=same_change, unknown_check=unknown_check
+    )
+    data = collect(tmp_path)
+    rows = {row["id"]: row for row in data["findings"]}
+    assert rows[duplicate_id]["duplicate_of"] == canonical_id
+    assert {row["outcome"] for row in rows.values()} == {outcome}
+    assert data["counts"][outcome] == 1
+    assert sum(data["counts"].values()) == 1
+    assert {change["status"] for change in data["changes"]} == {status}
 
 
 @pytest.mark.parametrize(

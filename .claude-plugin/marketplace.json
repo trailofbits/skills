@@ -168,7 +168,7 @@
     },
     {
       "name": "regression-hunt",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "description": "Agent-orchestrated skills for finding, reproducing and adjudicating regressions in PRs or commits.",
       "author": {
         "name": "Trail of Bits",
