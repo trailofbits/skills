@@ -68,6 +68,12 @@ evals-extra/                          # run by hand, never by `make check`
 
 ## Evals
 
+The shell harnesses require `uv` and GNU coreutils' `timeout` (or Homebrew's
+`gtimeout` on macOS). Install coreutils separately before running them; when
+neither name is available, the harness exits 2 before starting a session.
+The scripts use coreutils directly rather than a shell watchdog so timeout
+signaling retains the existing GNU process-group behavior.
+
 Two things are worth measuring and they are not the same thing.
 
 ### Why `evals-extra` and not `evals`

@@ -48,6 +48,9 @@ command -v uv >/dev/null || {
   exit 2
 }
 
+# GNU coreutils is the timeout implementation on both Linux and macOS.
+# Homebrew exposes it as gtimeout; do not emulate its process-group semantics.
+timeout_bin="$(command -v timeout || command -v gtimeout || true)"
 # Sorted list of failing test ids, one per line. Prints COLLECT_ERROR if the
 # suite never ran — that is an import problem, not a skill result, and scoring
 # it as "found no bugs" would quietly flatter a broken run.
@@ -262,6 +265,11 @@ if [ "${1:-}" = "--self-test" ]; then
   exit 0
 fi
 
+if [ -z "$timeout_bin" ]; then
+  echo "GNU timeout not found (timeout or gtimeout); install coreutils before running this harness" >&2
+  exit 2
+fi
+
 command -v claude >/dev/null || {
   echo "claude CLI not found" >&2
   exit 2
@@ -291,7 +299,7 @@ for effort in $efforts; do
   plugin_args=(--plugin-dir "$plugin_root")
   [ -n "$noplugin" ] && plugin_args=()
 
-  (cd "$workdir" && timeout 600 claude -p "$prompt" \
+  (cd "$workdir" && "$timeout_bin" 600 claude -p "$prompt" \
     "${plugin_args[@]}" \
     --model "$model" \
     --effort "$effort" \
