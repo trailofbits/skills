@@ -1766,6 +1766,12 @@ class PythonAnalyzer(ScriptAnalyzer):
         last_line_num = None
         filter_pattern = re.compile(function_filter) if function_filter else None
 
+        # Offset-bearing dis formats print both source line and byte offset on
+        # the first instruction. In 3.13+ offsets are absent throughout the dump.
+        has_offsets = any(
+            re.match(r"\s*\d+\s+(?:>>\s*)?\d+\s+[A-Z][A-Z0-9_]*\b", row)
+            for row in output.splitlines()
+        )
         for line in output.split("\n"):
             line_stripped = line.strip()
 
@@ -1809,10 +1815,14 @@ class PythonAnalyzer(ScriptAnalyzer):
             # dis prints the source line only on the first instruction of that
             # line, so carry it forward: otherwise every violation after the first
             # reports no line and the reviewer cannot navigate to it.
-            if bytecode_match.group(1):
-                last_line_num = int(bytecode_match.group(1))
-            line_num = last_line_num
+            source_line = bytecode_match.group(1)
             offset = bytecode_match.group(2)
+            if has_offsets and source_line and offset is None:
+                # A lone number is the byte offset, not a new source line.
+                offset = source_line
+            elif source_line:
+                last_line_num = int(source_line)
+            line_num = last_line_num
             instruction = bytecode_match.group(3).strip()
             operands = bytecode_match.group(4).strip() if bytecode_match.group(4) else ""
 
