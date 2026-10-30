@@ -62,6 +62,23 @@ def _case_observation(stdout: bytes) -> dict:
     return observation
 
 
+def _json_equal(left: object, right: object) -> bool:
+    """Compare JSON values without treating booleans as numbers."""
+    if type(left) is not type(right) and not (
+        type(left) in (int, float) and type(right) in (int, float)
+    ):
+        return False
+    if isinstance(left, dict) and isinstance(right, dict):
+        return left.keys() == right.keys() and all(
+            _json_equal(value, right[key]) for key, value in left.items()
+        )
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(
+            _json_equal(a, b) for a, b in zip(left, right, strict=True)
+        )
+    return left == right
+
+
 def _observe_case_side(
     directory: Path, check: dict, side: str, expected_input: object, manifest: dict[str, str]
 ) -> tuple[tuple[int, object] | None, list[Path], str | None]:
@@ -71,7 +88,7 @@ def _observe_case_side(
         if run["exit_code"] is None:
             raise ValueError("execution did not complete")
         observation = _case_observation(stdout)
-        if observation["input"] != expected_input:
+        if not _json_equal(observation["input"], expected_input):
             raise ValueError("observed input differs from the repair plan")
     except (OSError, ValueError) as exc:
         return None, [], f"{check['check_id']} {side}: {exc}"
@@ -86,18 +103,18 @@ def _case_outcome(
     patched_code, patched_actual = patched
     expected = case["expected"]
     if case["role"] == "representative":
-        if baseline_code == 0 or baseline_actual == expected:
+        if baseline_code == 0 or _json_equal(baseline_actual, expected):
             return "gap", f"{name}: baseline did not establish the reported failure"
-        if patched_code != 0 and patched_actual != expected:
+        if patched_code != 0 and not _json_equal(patched_actual, expected):
             return "finding", f"{name}: scoped failure remains after the patch"
-        if patched_code != 0 or patched_actual != expected:
+        if patched_code != 0 or not _json_equal(patched_actual, expected):
             return "gap", f"{name}: patched exit and observation disagree"
     else:
-        if baseline_code != 0 or baseline_actual != expected:
+        if baseline_code != 0 or not _json_equal(baseline_actual, expected):
             return "gap", f"{name}: baseline control did not pass"
-        if patched_code != 0 and patched_actual != expected:
+        if patched_code != 0 and not _json_equal(patched_actual, expected):
             return "finding", f"{name}: valid control fails after the patch"
-        if patched_code != 0 or patched_actual != expected:
+        if patched_code != 0 or not _json_equal(patched_actual, expected):
             return "gap", f"{name}: patched control exit and observation disagree"
     return "pass", ""
 
