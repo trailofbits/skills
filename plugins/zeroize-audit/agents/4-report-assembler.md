@@ -74,10 +74,16 @@ Apply the confidence gating rules from the SKILL.md. Optionally use the mechanic
 
 ```bash
 uv run --no-project {baseDir}/tools/mcp/apply_confidence_gates.py \
-  --findings <raw_findings_json> \
-  --mcp-available <mcp_available> \
-  --mcp-required-for-advanced <mcp_required_for_advanced>
+  --input <raw_report_json> \
+  --out <gated_report_json> \
+  --mcp-available \
+  --require-mcp-for-advanced
 ```
+
+The input is a report object with a `findings` array, not a bare findings list.
+Omit `--mcp-available` when MCP was unavailable, and omit
+`--require-mcp-for-advanced` when `mcp_required_for_advanced=false`.
+These are Boolean switches; do not pass values after them.
 
 **Key rules (authoritative version in SKILL.md):**
 

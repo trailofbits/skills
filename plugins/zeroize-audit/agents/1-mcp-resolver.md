@@ -65,7 +65,7 @@ Pipe all raw MCP output through the normalizer:
 ```bash
 uv run --no-project {baseDir}/tools/mcp/normalize_mcp_evidence.py \
   --input <raw_results> \
-  --output <workdir>/mcp-evidence/symbols.json
+  --out <workdir>/mcp-evidence/symbols.json
 ```
 
 For Serena tool parameters, query patterns, and empty-response troubleshooting, see `{baseDir}/references/mcp-analysis.md`.
@@ -77,7 +77,7 @@ Write all output files to `{workdir}/mcp-evidence/`:
 | File | Content |
 |---|---|
 | `status.json` | `{"status": "success|partial|failed", "symbols_resolved": N, "references_found": N, "errors": [...]}` |
-| `symbols.json` | Normalized symbol definitions keyed by name: `{name, file, line, kind, type, body, array_size, struct_fields}` |
+| `symbols.json` | Normalized envelope `{mcp_available, evidence_count, evidence, coverage}`. Each `evidence` entry has `{file, line, symbol, kind, detail, source, confidence, metadata}`; original symbol fields (e.g., `type`, `body`) are retained in `metadata.raw_item`. |
 | `references.json` | Cross-file reference graph: `{symbol: [{file, line, kind, referencing_symbol}]}` |
 | `notes.md` | Human-readable observations, unresolved symbols, and relative paths to JSON files |
 
