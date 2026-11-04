@@ -53,7 +53,7 @@ jobs:
     name: Analyze review
     needs: prepare
     if: needs.prepare.outputs.ready == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: ${{ needs.prepare.outputs.mode == 'deep' && 30 || 20 }}
     permissions:
       contents: read
