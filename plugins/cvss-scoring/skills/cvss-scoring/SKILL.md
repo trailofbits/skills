@@ -49,7 +49,8 @@ These are common scoring errors. Reject this reasoning when you encounter it:
 
 - **"Network accessible means AV:N"** -- AV measures the furthest distance from which the *attack* can launch, not whether the component is on a network. A privilege escalation on a network service is still AV:L if the attacker needs local shell access.
 - **"It's serious so all impacts are High"** -- Each impact metric (VC/VI/VA/SC/SI/SA) must be independently justified. An RCE that gives code execution has VI:H (attacker can modify arbitrary data/code) but not necessarily VC:H (unless data is actually exposed) or VA:H (unless the attacker can crash or deny the service).
-- **"No mention of subsequent systems means SC/SI/SA are all None"** -- Absence of mention is not evidence of absence. Consider whether the vulnerable component could plausibly affect other components (e.g., a web server vulnerability might affect the database it connects to).
+- **"A dependency is a subsequent system"** -- Component relationships do not define the system boundary. A dedicated database or an application using a vulnerable library can be part of the same vulnerable system; counting that impact again in SC/SI/SA inflates severity.
+- **"No mention of subsequent systems means SC/SI/SA are all None"** -- Identify the vulnerable system boundary and consider supported impacts outside it. If that boundary or an external impact is unclear, explain the uncertainty and flag the chosen value with `[ASSUMED]`.
 - **"Default to worst case when uncertain"** -- CVSS v4.0 requires *reasonable worst case*, not *absolute worst case*. When uncertain, choose the most defensible value and flag it with `[ASSUMED]`.
 - **"AC:H because there are prerequisites"** -- In v4.0, AC measures evasion of security-enhancing mechanisms (ASLR, DEP). Prerequisites like specific configurations or race conditions belong in AT, not AC. This is the most common v3.1-to-v4.0 migration error.
 - **"UI:R maps to UI:P or UI:A"** -- v4.0 split v3.1's Required into Passive and Active. Passive means involuntary interaction (browsing a page). Active means the user must consciously perform a specific action (installing software, changing a setting, clicking through a warning). Don't default to Active.
@@ -64,7 +65,7 @@ The input is plain text describing a vulnerability. It may contain severity, dif
 2. How is it accessed? (network service, local binary, physical device, adjacent network)
 3. What privileges does the attacker need? (unauthenticated, user-level, admin)
 4. What does the attacker achieve? (read data, modify data, execute code, crash service, escalate privileges)
-5. Are other systems/components affected beyond the vulnerable one?
+5. What is the vulnerable system boundary, including components serving its function? Are systems outside that boundary affected?
 6. Are there prerequisites or conditions for exploitation? (specific config, race condition, on-path position)
 7. Is user interaction required? If so, what kind?
 8. Is there information about exploit maturity? (PoC available, actively exploited, unreported)
@@ -113,7 +114,11 @@ Evaluate these 5 metrics based on the extracted facts:
 
 ### Phase 2: Vulnerable System Impact
 
-These measure impact to the vulnerable component itself:
+These measure impact within the vulnerable system. Establish its boundary using
+FIRST's system-of-interest model: computing logic with a coherent function and set of
+security policies. Components designed exclusively to serve that system belong inside
+it, such as a dedicated database or an embedded library and its consuming application.
+Score impacts to those components in VC/VI/VA.
 
 **6. Confidentiality (VC):** H / L / N
 - High: total loss -- all data in the vulnerable system exposed
@@ -132,9 +137,13 @@ These measure impact to the vulnerable component itself:
 
 ### Phase 3: Subsequent System Impact
 
-These measure impact to systems *beyond* the vulnerable component. This replaces v3.1's Scope metric.
+These measure impact to systems *outside* the vulnerable system boundary. This replaces v3.1's Scope metric.
 
-A "subsequent system" is any component that receives data from, depends on, or trusts the vulnerable component. Examples: a database backend, downstream services, other VMs on the same hypervisor, the user's browser in XSS.
+A dependency, data flow, or trust relationship alone does not make a component a
+subsequent system. Identify a separate system outside the boundary and the impact
+exploitation causes there; do not count the same within-system impact again in
+SC/SI/SA. A user's browser affected by web-application XSS or other guests compromised
+through a hypervisor vulnerability can be subsequent systems.
 
 **9. Subsequent Confidentiality (SC):** H / L / N
 
@@ -146,7 +155,7 @@ If the description gives no indication of subsequent system impact, default to N
 - XSS: SC:L, SI:L (browser is a subsequent system). UI depends on whether normal browsing triggers the payload (P) or the user must navigate to an attacker-crafted resource (A) -- not on stored vs. reflected.
 - VM escape: SC:H, SI:H, SA:H (host/other VMs are subsequent systems)
 - DNS poisoning: SI:H, SA:H (downstream resolvers are subsequent systems)
-- Compromised auth server: SC:H, SI:H (all relying services are subsequent systems)
+- Compromised auth server: consider SC:H, SI:H for affected relying services outside the vulnerable system boundary
 
 ### Phase 4: Optional Metrics
 

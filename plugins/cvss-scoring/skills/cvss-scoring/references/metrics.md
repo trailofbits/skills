@@ -94,7 +94,12 @@ Whether a human user (other than the attacker) must participate.
 
 ## Base Metrics -- Vulnerable System Impact (Required)
 
-These measure impact to the component where the vulnerability exists.
+These measure impact within the vulnerable system. Under FIRST's system-of-interest
+model, the boundary contains computing logic with a coherent function and set of
+security policies. A component designed exclusively to serve another system belongs
+to that same system for scoring. A web application and its dedicated database, or
+an embedded library and the application using it, can therefore be one vulnerable
+system. Score impacts within that boundary in VC/VI/VA.
 
 ### Confidentiality (VC)
 
@@ -122,14 +127,17 @@ These measure impact to the component where the vulnerability exists.
 
 ## Base Metrics -- Subsequent System Impact (Required)
 
-These measure impact to systems BEYOND the vulnerable component. This replaces v3.1's Scope metric.
+These measure impact to systems OUTSIDE the vulnerable system boundary. This replaces v3.1's Scope metric.
 
-A "subsequent system" is any component that:
-- Receives a data flow from the vulnerable component
-- Depends on the vulnerable component for security decisions
-- Shares a trust boundary that the vulnerability can cross
+A subsequent system is a separate system outside the established boundary that is
+affected by exploitation. Receiving data from, depending on, or trusting a vulnerable
+component is not sufficient: that component may be inside the same system. Do not
+duplicate within-system impacts in SC/SI/SA.
 
-### Examples of Subsequent Systems
+### System Boundary Examples
+
+The subsequent systems below are separate systems outside the established boundary;
+only impacts supported by the exploit scenario belong in SC/SI/SA.
 
 | Vulnerable Component | Subsequent System | Why |
 |---------------------|-------------------|-----|
@@ -137,7 +145,8 @@ A "subsequent system" is any component that:
 | VM guest | Host OS / other guests | VM escape crosses trust boundary |
 | DNS resolver | Downstream clients | Poisoned cache affects all clients |
 | Auth service | All relying services | Compromised tokens affect downstream |
-| Library | Applications using it | Vulnerability propagates to consumers |
+| Embedded library in an application | None, when impact stays within that application | Library and consumer are part of the same vulnerable system |
+| Web application with a dedicated database | None, when only that application's data is affected | Database serves only the application and belongs inside its boundary |
 | Network gateway | Devices behind it | Misdirected traffic affects internal hosts |
 
 ### Subsequent Confidentiality (SC)
@@ -165,7 +174,8 @@ A "subsequent system" is any component that:
 | None | N | No availability impact beyond the vulnerable system. |
 
 **Decision guidance for subsequent system metrics:**
-- If the description mentions only the vulnerable component with no downstream effects -> N for all three
+- Establish the vulnerable system boundary before selecting SC/SI/SA; dependencies within it are scored in VC/VI/VA
+- If exploitation has no impact outside that boundary -> N for all three
 - XSS vulnerabilities almost always have SC:L, SI:L (browser is subsequent)
 - VM/container/sandbox escape -> consider H for all three
 - Compromised auth/trust anchor -> consider H for SC and SI

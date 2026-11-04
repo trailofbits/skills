@@ -29,7 +29,9 @@ execution:
     The application's database user owns every table, so an attacker reads and rewrites
     all application data at will. The database is a managed instance dedicated to this
     application and reachable only from it; nothing downstream consumes its data. The
-    injection does not crash the service and there is no public exploit code.
+    injection does not crash the service. Exploit maturity has not been assessed:
+    no reliable threat intelligence is available about public proof-of-concept code,
+    reported attacks, or exploit solutions.
 
     This run is headless — do not stop to ask clarifying questions. Score it from the
     facts above, and flag anything you had to assume.
@@ -57,12 +59,13 @@ graders:
     match: not_contains
     flags: i
 
-  # The bare vector still has to be present — it is what goes in the report, and the only
-  # part a reader can check by eye.
+  # Require the report vector on its own line (plain or inline code), including inside
+  # a fenced block. A vector embedded in a URL or Markdown link cannot satisfy this.
   - name: bare-vector-present
     type: regex
-    pattern: 'CVSS:4\.0/AV:[NALP]/AC:[LH]/AT:[NP]/PR:[NLH]/UI:[NPA]/VC:[HLN]/VI:[HLN]/VA:[HLN]/SC:[HLN]/SI:[HLN]/SA:[HLN]'
+    pattern: '^[ \t]*`?CVSS:4\.0/AV:[NALP]/AC:[LH]/AT:[NP]/PR:[NLH]/UI:[NPA]/VC:[HLN]/VI:[HLN]/VA:[HLN]/SC:[HLN]/SI:[HLN]/SA:[HLN]`?[ \t]*\r?$'
     match: contains
+    flags: m
 
   # The prompt states each of these outright, so they are verifiable rather than matters
   # of judgement, and a regex grades them more cheaply and reliably than a judge:
@@ -78,11 +81,12 @@ graders:
     pattern: 'CVSS:4\.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:[NL]/SC:N/SI:N/SA:N'
     match: contains
 
-  # E is scored only on positive evidence of maturity. The prompt's "no public exploit
-  # code" is E:U, which is exactly the case for omitting it.
+  # No reliable threat intelligence means E:X, which the skill omits. X defaults to A
+  # for scoring; U needs evidence about PoCs, attacks, and exploit solutions and is
+  # not equivalent to omission.
   - name: exploit-maturity-omitted
     type: regex
-    pattern: '/E:[APU]'
+    pattern: '/E:[XAPU]'
     match: not_contains
 
   # Two single-clause criteria rather than one rubric with carve-outs. The combined form
