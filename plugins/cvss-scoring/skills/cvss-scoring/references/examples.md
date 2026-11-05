@@ -306,7 +306,7 @@ CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:H/VI:L/VA:L/SC:N/SI:N/SA:N/CR:H/IR:L/AR:L/M
 | AT | P | Requires FIPS mode configuration |
 | VC | H | Weakened crypto affects confidentiality of protected data |
 | VI/VA | L | Encryption still present but weaker guarantees |
-| MAC | H | Modified AC: FIPS-validated deployments enforce additional cryptographic security mechanisms (certificate pinning, module-integrity checks) that the attacker must evade beyond the weakened underlying crypto |
+| MAC | H | Exploitation still requires spoofing a cryptographically secure certificate, even though the algorithm is not always FIPS-approved. |
 | CR | H | FIPS systems have high confidentiality requirements |
 
 ### Bosch Firmware Clear-Text Transmission (CVE-2021-23846) -- CVSS-B 8.2
