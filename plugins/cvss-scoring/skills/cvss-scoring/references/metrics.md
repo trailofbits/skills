@@ -78,10 +78,10 @@ Whether a human user (other than the attacker) must participate.
 | Value | Abbr | Definition |
 |-------|------|------------|
 | None | N | Exploitable without any user interaction. |
-| Passive | P | Limited interaction that is involuntary or does not require actively subverting protections. Examples: visiting a webpage, receiving an email that loads a resource, normal browsing that triggers stored XSS. |
-| Active | A | User must perform specific, conscious actions that actively subvert protection mechanisms. Examples: installing untrusted software, clicking "Allow" on a security warning, manually changing a security setting, pasting code into a console. |
+| Passive | P | Limited interaction that is involuntary and does not require actively subverting protections. Examples: normal browsing that renders malicious content, receiving an email that loads a resource, running an application that calls a planted malicious binary. |
+| Active | A | The user must perform specific, conscious interactions with the vulnerable system and attacker payload, or actively subvert protection mechanisms. Examples: importing a file in a specific manner, placing files in a specific directory before execution, submitting an attacker-supplied string, or accepting a security warning. |
 
-**v3.1 migration warning:** v3.1 had only None (N) and Required (R). v4.0 splits Required into Passive and Active. Most cases that were UI:R in v3.1 map to UI:P in v4.0. UI:A is reserved for cases where the user must consciously bypass a protection.
+**v3.1 migration warning:** v3.1 had only None (N) and Required (R). v4.0 splits Required into Passive and Active. Determine the actions needed for exploitation; UI:A does not require a protection bypass when specific, conscious interaction with the payload is required.
 
 **Decision guidance:**
 - Server-side vulnerability with no user involvement -> N
