@@ -153,24 +153,24 @@ only impacts supported by the exploit scenario belong in SC/SI/SA.
 
 | Value | Abbr | Definition |
 |-------|------|------------|
-| High | H | Total loss of confidentiality in subsequent systems. |
-| Low | L | Some information in subsequent systems exposed. |
+| High | H | Total loss of confidentiality, or disclosure of restricted information with a direct, serious impact on the subsequent system, such as an administrator password or private encryption key. |
+| Low | L | Some information is exposed, but the loss is limited or uncontrolled and has no direct, serious impact on the subsequent system. |
 | None | N | No confidentiality impact beyond the vulnerable system. |
 
 ### Subsequent Integrity (SI)
 
 | Value | Abbr | Definition |
 |-------|------|------------|
-| High | H | Total loss of integrity in subsequent systems. |
-| Low | L | Limited modification possible in subsequent systems. |
+| High | H | Total loss of integrity or protection, or modification of a limited set of data with a direct, serious consequence to the subsequent system. |
+| Low | L | Modification is limited or its consequences are uncontrolled, with no direct, serious impact on the subsequent system. |
 | None | N | No integrity impact beyond the vulnerable system. |
 
 ### Subsequent Availability (SA)
 
 | Value | Abbr | Definition |
 |-------|------|------------|
-| High | H | Total loss of availability in subsequent systems. |
-| Low | L | Degraded performance or partial disruption in subsequent systems. |
+| High | H | Sustained or persistent total loss of availability, or partial loss with a direct, serious consequence to the subsequent system, such as preventing new connections while existing connections remain available. |
+| Low | L | Reduced performance or interrupted availability without a direct, serious consequence; repeated exploitation cannot completely deny service to legitimate users. |
 | None | N | No availability impact beyond the vulnerable system. |
 
 **Decision guidance for subsequent system metrics:**
