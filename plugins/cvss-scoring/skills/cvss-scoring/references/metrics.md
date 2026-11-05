@@ -66,8 +66,8 @@ Level of privileges the attacker must possess before exploitation.
 | High | H | Significant (administrative) control over the vulnerable system. Full access to settings and files. Examples: root, admin, domain admin. |
 
 **Decision guidance:**
-- API key required -> L (even if the key is easy to obtain)
-- "Any authenticated user" -> L
+- Self-service account or API key that the attacker can provision as part of the attack -> generally N
+- API key or authenticated account requiring pre-existing low-level privileges that the attacker cannot grant themselves -> L
 - "Admin account required" -> H
 - "Kernel-level / ring-0 access" -> H
 
