@@ -244,14 +244,14 @@ _CALCIFIER_SKILL = {
 _CALCIFIER_RESOURCES = [
     {
         "path": "references/examples.md",
-        "sha256": ("d7b8189b4f8cc0f0a01184b8a01a73e1f11c9da0243d2a8c023d57a2936e84af"),
-        "size": 13999,
+        "sha256": ("45738f285bdc86b0380a06924f30813a00185ec55cf747b835fd9cb6cad5ac53"),
+        "size": 13924,
         "source": None,
     },
     {
         "path": "references/metrics.md",
-        "sha256": ("fa3b8c37d0b5f9918148fea6846f33c10162623f7466caa33b1d3582c5a1460d"),
-        "size": 13876,
+        "sha256": ("969c6f4143135491c17a1b04f1367adeff04861a9628dc0dd7be1e31ca6b031a"),
+        "size": 14799,
         "source": None,
     },
 ]
