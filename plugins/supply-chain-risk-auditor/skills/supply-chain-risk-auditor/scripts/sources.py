@@ -314,6 +314,46 @@ def osv_advisories(http: Http, queries: list[tuple[str, str, str | None]]) -> li
 
 # --------------------------------------------------------------------------- npm
 
+# JavaScript trim/\s includes a BOM, but excludes Python's U+0085 and U+001C.
+_NPM_WHITESPACE = (
+    "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006"
+    "\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
+_NPM_EXACT_VERSION = re.compile(
+    rf"^[v={re.escape(_NPM_WHITESPACE)}]*(?P<major>[0-9]+)\.(?P<minor>[0-9]+)\.(?P<patch>[0-9]+)"
+    r"(?:-?(?P<prerelease>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
+
+
+def npm_exact_version(spec: str) -> str | None:
+    """Canonicalize npm's loose exact-version forms, without resolving ranges.
+
+    npm-pick-manifest uses semver.clean(..., loose=True) for exact selectors. It
+    accepts v/= prefixes and leading zeroes, preserves prerelease identifiers, and
+    drops build metadata. Numeric limits follow node-semver's safe-integer bound.
+    """
+    spec = spec.strip(_NPM_WHITESPACE)
+    if len(spec) > 256:
+        return None
+    match = _NPM_EXACT_VERSION.fullmatch(spec)
+    if match is None:
+        return None
+    core = [int(match[name]) for name in ("major", "minor", "patch")]
+    safe_integer = 2**53 - 1
+    if any(part > safe_integer for part in core):
+        return None
+    canonical = ".".join(str(part) for part in core)
+    prerelease = match["prerelease"]
+    if prerelease is not None:
+        identifiers = [
+            str(int(part)) if part.isdecimal() and int(part) < safe_integer else part
+            for part in prerelease.split(".")
+        ]
+        canonical += "-" + ".".join(identifiers)
+    return canonical
+
+
 # Substring hints. Conservative on purpose: a false negative overstates the human
 # publisher count, which is the safer direction, since a count of 1 is what creates a
 # flag. `dependabot` and `renovate` are named explicitly because neither contains a
@@ -340,33 +380,90 @@ def _maintainer_names(raw: object) -> list[str]:
     return names
 
 
-def npm_metadata(http: Http, name: str) -> dict:
-    """Current publish ACL, provenance, install-script flag, deprecation, repository.
+def _npm_provenance(version_doc: dict) -> bool | None:
+    """Read attestation presence without treating malformed metadata as absence."""
+    dist = version_doc.get("dist")
+    if not isinstance(dist, dict):
+        return None
+    attestations = dist.get("attestations")
+    if attestations is None:
+        return False
+    return bool(attestations) if isinstance(attestations, dict) else None
+
+
+def _npm_install_hooks(version_doc: dict) -> list[str] | None:
+    """Full metadata exposes scripts; hasInstallScript belongs to install-v1 JSON.
+
+    Only these hooks run for registry dependencies. In particular, prepare belongs
+    to publication/local installs, not installation of a published dependency.
+    """
+    scripts = version_doc.get("scripts", {})
+    hooks = ("preinstall", "install", "postinstall")
+    if not isinstance(scripts, dict):
+        return None
+    declared = [hook for hook in hooks if isinstance(scripts.get(hook), str) and scripts[hook]]
+    if declared:
+        return declared
+    if any(hook in scripts and not isinstance(scripts[hook], str) for hook in hooks):
+        return None
+    return []
+
+
+def _npm_release_doc(versions: dict, name: str, version: str | None) -> dict | None:
+    """Require a matching manifest identity before interpreting optional fields."""
+    if not isinstance(version, str):
+        return None
+    doc = versions.get(version)
+    if not isinstance(doc, dict) or doc.get("name") != name or doc.get("version") != version:
+        return None
+    return doc
+
+
+def npm_metadata(http: Http, name: str, version: str | None = None) -> dict:
+    """Current package metadata and independent selected/latest release measurements.
+
+    A missing or malformed release is None, preserving the current package ACL and
+    repository. Each manifest must identify the requested package and version. An
+    unusable latest release cannot invalidate an explicit selection. No explicit
+    selection uses latest only when its version document is usable.
 
     Raises:
         NotFound: If the package is not published.
-        Unavailable: If `dist-tags.latest` names a version the packument does not carry,
-            in which case install-script and provenance would otherwise read as
-            determined negatives derived from an absent document.
+        Unavailable: If the registry cannot supply the package document.
     """
     quoted = urllib.parse.quote(name, safe="@").replace("/", "%2F")
     doc = http.get_json(f"https://registry.npmjs.org/{quoted}")
-    latest = (doc.get("dist-tags") or {}).get("latest")
-    versions = doc.get("versions") or {}
-    if not latest or latest not in versions:
-        raise Unavailable("npm's latest tag points at a version absent from the packument")
-    version_doc = versions[latest]
+    if not isinstance(doc, dict):
+        raise Unavailable("npm returned a malformed package document")
+    tags = doc.get("dist-tags")
+    latest = tags.get("latest") if isinstance(tags, dict) else None
+    versions = doc.get("versions")
+    versions = versions if isinstance(versions, dict) else {}
+    latest_doc = _npm_release_doc(versions, name, latest)
+    if latest_doc is None:
+        latest = None
+    selected = npm_exact_version(version) if version is not None else latest
+    version_doc = _npm_release_doc(versions, name, selected)
+    release = None
+    if version_doc is not None:
+        deprecated = version_doc.get("deprecated", "")
+        release = {
+            "version": selected,
+            "deprecated": deprecated if isinstance(deprecated, str) else None,
+            "install_hooks": _npm_install_hooks(version_doc),
+            "native_build": version_doc.get("gypfile") is True,
+            "provenance": _npm_provenance(version_doc),
+        }
     maintainers = _maintainer_names(doc.get("maintainers"))
     repository = doc.get("repository")
     repo_url = repository.get("url") if isinstance(repository, dict) else repository
     return {
         "latest": latest,
+        "release": release,
+        "publisher_provenance": _npm_provenance(latest_doc) if latest_doc is not None else None,
         "maintainers": maintainers,
         "human_maintainers": [m for m in maintainers if not looks_automated(m)],
         "automated_maintainers": [m for m in maintainers if looks_automated(m)],
-        "has_install_script": bool(version_doc.get("hasInstallScript")),
-        "provenance": bool((version_doc.get("dist") or {}).get("attestations")),
-        "deprecated": version_doc.get("deprecated") or doc.get("deprecated"),
         "repository": normalize_repo(repo_url) if isinstance(repo_url, str) else None,
     }
 
