@@ -10,6 +10,7 @@
 /plugins/chrome-mcp-troubleshooting/ @dguido @kz-tob
 /plugins/constant-time-analysis/ @tob-scott-a @dguido @kz-tob
 /plugins/culture-index/ @dguido @kz-tob
+/plugins/cvss-scoring/ @evandowning @dguido
 /plugins/devcontainer-setup/ @DarkaMaul @dguido @kz-tob
 /plugins/differential-review/ @omarinuwa @dguido @kz-tob
 /plugins/dimensional-analysis/ @bsamuels453 @dguido @kz-tob
