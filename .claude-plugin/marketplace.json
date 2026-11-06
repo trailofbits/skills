@@ -65,6 +65,16 @@
       "source": "./plugins/culture-index"
     },
     {
+      "name": "cvss-scoring",
+      "version": "1.2.0",
+      "description": "Produces CVSS v4.0 vector strings from plain-text vulnerability descriptions by systematically evaluating base metrics. Use when scoring a vulnerability, generating a CVSS vector, or estimating severity.",
+      "author": {
+        "name": "Evan Downing",
+        "url": "https://github.com/trailofbits"
+      },
+      "source": "./plugins/cvss-scoring"
+    },
+    {
       "name": "devcontainer-setup",
       "version": "0.2.5",
       "description": "Create pre-configured devcontainers with Claude Code and language-specific tooling",
