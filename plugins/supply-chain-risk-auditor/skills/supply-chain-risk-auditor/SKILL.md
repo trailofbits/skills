@@ -52,6 +52,16 @@ The scripts enforce two rules worth knowing before you read their output:
    retrying or working around it.
 4. Read `report.md` and `findings.json`. The report is the deliverable; the JSON carries
    the datum behind every verdict when you need to cite one.
+Release properties — deprecation, install-time scripts, published attestations — are read
+from the version the project actually installs, which is the lockfile entry or an exact
+manifest pin. When the project resolves no exact version, the collector falls back to the
+latest release and the signal text says so; when a pinned release is not in the packument,
+its properties are unassessable rather than borrowed from another release. Install-time
+scripts are read from the metadata format present (`scripts` in the full packument,
+`hasInstallScript` in the abbreviated one), and a document carrying neither yields
+unassessable, not "no install script". Metadata cannot reveal an implicit `node-gyp` build,
+so say that rather than claiming none runs.
+
 5. Add what the collector cannot, clearly separated from what it measured:
    - A short narrative for this reader: what to act on first, and why.
    - Upgrade paths for advisory findings — check whether the fix is a patch or a major
