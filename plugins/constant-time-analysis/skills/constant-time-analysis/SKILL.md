@@ -43,7 +43,7 @@ Read the guide for the target language before interpreting any findings; each on
 The analyzer takes one file and detects the language from its extension. **Always pass `--warnings`:**
 
 ```bash
-uv run {baseDir}/ct_analyzer/analyzer.py --warnings <source_file>
+uv run {baseDir}/../../ct_analyzer/analyzer.py --warnings <source_file>
 ```
 
 Without it the analyzer reports only error-severity findings, which means division, modulo and weak RNG. Four detector families are warning severity and stay silent: secret-dependent branches, early-exit comparison (`memcmp`, `strcmp`, `.equals`, `==`), table lookups indexed by a secret, and variable-time encoding. Early-exit comparison of an authentication tag is the most common timing bug in real code — Lucky Thirteen was exactly that — so a default run is quiet about the finding you are most likely to have.
@@ -61,6 +61,16 @@ Without it the analyzer reports only error-severity findings, which means divisi
 Narrow a large file to the routines that handle secrets with a regex, for example `--func 'sign|verify'`.
 
 **Run natively compiled code (C, C++, Go, Rust, Swift) at more than one `--arch` and `--opt-level`.** Division timing and branch lowering are architecture- and optimization-dependent: x86_64 `IDIV` and arm64 `SDIV` differ, and a `cmov` at `-O2` can become a branch at `-O0`. A single clean run proves one configuration safe, not the code.
+
+`sweep.py` covers that matrix in one call — every `--arch` × `--opt-level` pair (default `x86_64,arm64` × `O0,O1,O2,O3,Os,Oz`), with equivalent Go/Swift levels sharing an execution. Every requested configuration has a full JSON payload under `--out` (default `ct-sweep/`). It prints one status line per configuration, including any that could not run, and a merged worklist of every flagged instruction by function with the configurations that emitted it:
+
+```bash
+uv run {baseDir}/../../ct_analyzer/sweep.py --warnings [--archs x86_64,arm64] [--levels O0,O2,Os,Oz] [--func <regex>] [--compiler <name>] <source_file>
+```
+
+It accepts `--compiler`, `--func` and repeated `--extra-flags=-DNAME=value` (use `=` for values beginning with `-`). Go's adapter does not support extra flags, so the sweep rejects them explicitly. Bytecode languages run once. Go optimization labels represent two effective builds; Swift labels represent three. The sweep executes each distinct build once, keeps every requested configuration in the report, and names the configuration it reused.
+
+Use a fresh, empty `--out` directory for each attempt; existing output is never overwritten. Full analyzer stdout, stderr, exit status, function count, and instruction count are retained in the sweep report. Diagnostics are also shown on the console. Exit 0 means every requested configuration completed with no error-level findings, not proof of constant-time behavior. Exit 1 means findings; exit 2 means an error or incomplete analysis, including zero matched functions/instructions or source-only degradation. Investigate those cases rather than calling them clean.
 
 **How `--arch` crosses depends on the toolchain.** clang crosses with `--target` and needs no second compiler, but any source that includes libc headers also needs that target's C library headers — `libc6-dev-riscv64-cross` and friends — or it fails with `bits/libc-header-start.h file not found`. Go cross-builds through `GOARCH`, though `go tool objdump` has no riscv64 disassembler. A GNU cross toolchain is a *separate binary*, so gcc needs it named explicitly — `--compiler x86_64-linux-gnu-gcc`, `--compiler riscv64-linux-gnu-gcc` — and nothing is substituted for you, so the report always names the binary that ran. rustc needs the target's standard library (`rustup target add`), and Swift on Linux targets only the host. Compare against the toolchain that builds your product, not whichever cross build a distribution packages.
 
@@ -90,10 +100,10 @@ Coverage is not uniform, and the gaps change what a clean report means:
 
 Since findings and silence both depend on the configuration, say which compiler, architecture, and optimization level produced a result when reporting it.
 
-To sweep a directory, loop in the shell — the analyzer is a deterministic script, one invocation per file:
+To sweep a directory, loop in the shell, one sweep (or analyzer run) per file:
 
 ```bash
-for f in src/crypto/*.c; do uv run {baseDir}/ct_analyzer/analyzer.py --warnings --json "$f"; done
+for f in src/crypto/*.c; do uv run {baseDir}/../../ct_analyzer/sweep.py --warnings --out "ct-sweep/$(basename "$f")" "$f"; done
 ```
 
 ### Prerequisites
@@ -146,7 +156,7 @@ int32_t q = secret_coef / GAMMA2;
 
 State the verdict and the data flow that justifies it for every flagged item. A finding you cannot trace to a secret is not a finding; say so explicitly rather than dropping it silently.
 
-`{baseDir}/ct_analyzer/tests/triage_samples/` holds a known-answer case per language: each fixture pairs a true positive with a false positive that the analyzer reports identically, and `expectations.json` records which is which and why. `triage_c.c` is the shortest example — the analyzer flags the division in both `ct_high_bits` and `ct_block_count`, and correct triage confirms the first and clears the second.
+`{baseDir}/../../ct_analyzer/tests/triage_samples/` holds a known-answer case per language: each fixture pairs a true positive with a false positive that the analyzer reports identically, and `expectations.json` records which is which and why. `triage_c.c` is the shortest example — the analyzer flags the division in both `ct_high_bits` and `ct_block_count`, and correct triage confirms the first and clears the second.
 
 **Weak-RNG and encoding findings ask a different question.** For `Math.random`, `mt_rand`, `random.randint`, `System.Random` and `base64_encode`, no operand is secret, so "does an operand depend on a secret?" does not resolve them. Ask instead what the result is used for: seeding a nonce or key is a true positive, jittering a retry delay is not. These are reported by a regex scan over the source rather than from bytecode, so they are attributed to `<source>` with a line number instead of to the enclosing function — except in PHP, where they carry the function.
 

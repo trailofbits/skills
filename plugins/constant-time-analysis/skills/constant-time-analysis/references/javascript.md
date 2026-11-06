@@ -11,19 +11,19 @@ Analysis guidance for JavaScript and TypeScript. Uses V8 bytecode output from No
 
 ```bash
 # Analyze JavaScript
-uv run {baseDir}/ct_analyzer/analyzer.py crypto.js
+uv run {baseDir}/../../ct_analyzer/analyzer.py crypto.js
 
 # Analyze TypeScript (transpiles first)
-uv run {baseDir}/ct_analyzer/analyzer.py crypto.ts
+uv run {baseDir}/../../ct_analyzer/analyzer.py crypto.ts
 
 # Include warning-level violations
-uv run {baseDir}/ct_analyzer/analyzer.py --warnings crypto.js
+uv run {baseDir}/../../ct_analyzer/analyzer.py --warnings crypto.js
 
 # Filter to specific functions
-uv run {baseDir}/ct_analyzer/analyzer.py --func 'encrypt|sign' crypto.js
+uv run {baseDir}/../../ct_analyzer/analyzer.py --func 'encrypt|sign' crypto.js
 
 # JSON output for CI
-uv run {baseDir}/ct_analyzer/analyzer.py --json crypto.js
+uv run {baseDir}/../../ct_analyzer/analyzer.py --json crypto.js
 ```
 
 ## Dangerous Operations
