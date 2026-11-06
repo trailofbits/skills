@@ -239,7 +239,7 @@ if __name__ == "__main__":
 _CALCIFIER_COMPILATION = "compiled"
 _CALCIFIER_SKILL = {
     "path": "../SKILL.md",
-    "sha256": ("f78020bff70e456902718a59827103c69f3821cba6dc7fb6a5f6c037c076db25"),
+    "sha256": ("404f6b4fe6c9a55fa6b0ba590d0f637b61688e3ed671c7fb3f719fab3a0ff5e0"),
 }
 _CALCIFIER_RESOURCES = [
     {
@@ -250,8 +250,8 @@ _CALCIFIER_RESOURCES = [
     },
     {
         "path": "references/metrics.md",
-        "sha256": ("969c6f4143135491c17a1b04f1367adeff04861a9628dc0dd7be1e31ca6b031a"),
-        "size": 14799,
+        "sha256": ("6c0ac5d5edb97810b819044b7d9e7c1c5f5a8a8791784e458d8463c0e4167c21"),
+        "size": 14819,
         "source": None,
     },
 ]

@@ -121,8 +121,8 @@ system. Score impacts within that boundary in VC/VI/VA.
 
 | Value | Abbr | Definition |
 |-------|------|------------|
-| High | H | Total loss. Attacker can completely deny access to the vulnerable system. Can be sustained (persistent crash) or temporary if the attacker can repeat at will. Examples: crash loop, resource exhaustion causing full outage. |
-| Low | L | Degraded performance or partial disruption. Examples: slowdown under attack, intermittent failures, partial functionality loss. |
+| High | H | Sustained or persistent total loss of availability, or partial loss with a direct, serious consequence to the vulnerable system, such as preventing new connections while existing connections remain available. |
+| Low | L | Reduced performance or interrupted availability without a direct, serious consequence; repeated exploitation cannot completely deny service to legitimate users. |
 | None | N | No availability impact to the vulnerable system. |
 
 ## Base Metrics -- Subsequent System Impact (Required)

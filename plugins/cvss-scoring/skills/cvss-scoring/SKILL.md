@@ -131,8 +131,8 @@ Score impacts to those components in VC/VI/VA.
 - None: no integrity impact
 
 **8. Availability (VA):** H / L / N
-- High: total loss -- complete denial of service
-- Low: degraded performance or partial disruption
+- High: sustained or persistent total loss, or partial loss with a direct, serious consequence (e.g., preventing new connections while existing connections remain available)
+- Low: reduced performance or interrupted availability without a direct, serious consequence; repeated exploitation cannot completely deny service
 - None: no availability impact
 
 ### Phase 3: Subsequent System Impact
