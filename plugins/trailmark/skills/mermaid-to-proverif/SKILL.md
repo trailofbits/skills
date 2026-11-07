@@ -15,6 +15,12 @@ The typical input is the output of the `crypto-protocol-diagram` skill — a
 Mermaid `sequenceDiagram` annotated with cryptographic operations (`Sign`,
 `Verify`, `DH`, `HKDF`, `Enc`, `Dec`, etc.) and message arrows.
 
+For diagrams derived from Trailmark 0.7 code graphs, retain the source's
+uncertainties: new language support and possible deferred callback paths do not
+establish protocol ordering or reachability in the ProVerif process model.
+Resolve those assumptions from the protocol diagram and cited source/spec before
+translating them into messages, events, or security claims.
+
 ## When to Use
 
 - User asks to formally verify a cryptographic protocol described as a Mermaid sequenceDiagram
