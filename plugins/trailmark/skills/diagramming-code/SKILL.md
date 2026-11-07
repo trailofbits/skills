@@ -57,6 +57,16 @@ If this succeeds, you may use `trailmark diagram`. If it fails, use
 `uv run {baseDir}/scripts/diagram.py`, which keeps the older skill workflow
 intact. Do not assume the native CLI exists on Trailmark 0.2.x.
 
+On **Trailmark 0.7+**, prefer the native diagram command for its corrected depth,
+direction, threshold, and edge-confidence handling. `--depth` counts edges:
+call graphs default to 2 and data-flow diagrams to 20. Choose an exact current
+node ID for overloaded or nested callables. Retain uncertain/deferred callback
+edges as possible paths, and do not interpret a graph path as runtime data flow.
+The new language frontends can produce call graphs, but module-dependency
+diagrams require emitted `imports` edges; a dependency name alone creates none.
+Missing roots or zero matching files now fail instead of producing an empty
+diagram. Inspect parse diagnostics when syntax is unsupported.
+
 ---
 
 ## Quick Start
