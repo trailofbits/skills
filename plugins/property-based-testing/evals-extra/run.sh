@@ -100,6 +100,14 @@ command -v uv >/dev/null || {
   exit 2
 }
 
+# GNU coreutils is the timeout implementation on both Linux and macOS.
+# Homebrew exposes it as gtimeout; do not emulate its process-group semantics.
+timeout_bin="$(command -v timeout || command -v gtimeout || true)"
+if [ -z "$timeout_bin" ]; then
+  echo "GNU timeout not found (timeout or gtimeout); install coreutils before running this harness" >&2
+  exit 2
+fi
+
 workdir="$(mktemp -d)"
 resdir="$(mktemp -d)"
 # DELIBERATELY NOT IN THE TRAP. Every session's raw stdout and stderr lands here and
@@ -213,7 +221,7 @@ check_triggered() {
   # arrives ("no stdin data received in 3s"). That warning was real; removing it did
   # not reduce the crash count, so it was never the cause — but the redirect is
   # right regardless and the 3s per session is worth not paying.
-  timeout "$timeout_s" "$claude_bin" -p "$query" \
+  "$timeout_bin" "$timeout_s" "$claude_bin" -p "$query" \
     --plugin-dir "$plugin_root" \
     --model "$model" \
     --output-format stream-json --verbose \
