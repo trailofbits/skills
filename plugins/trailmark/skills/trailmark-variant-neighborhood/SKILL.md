@@ -14,6 +14,14 @@ allowed-tools:
 Expand one seed issue into graph-derived variant candidates. This skill
 generates review targets, not confirmed findings.
 
+On **Trailmark 0.7+**, select from the installed 39-language registry and keep
+source-file coverage, parse diagnostics, and unresolved-call gaps with the seed.
+Rebuild ID-based seeds after upgrades; nested/anonymous callables and overloads
+can acquire positioned IDs. Direct entrypoints remain reachable with empty
+self-paths; uncertain deferred edges identify possible callback neighbors.
+For Solidity state seeds, expand through `readers_of()`/`writers_of()` rather
+than expecting calls-only traversal to follow storage edges.
+
 ## When to Use
 
 - A finding is confirmed or plausible and variants may exist
