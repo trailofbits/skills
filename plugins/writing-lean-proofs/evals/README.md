@@ -88,9 +88,11 @@ EVAL_MODEL=<model-id-or-alias> ./run.sh # pin a model accepted by your CLI
 
 ```sh
 ./run.sh --self-test
+./run.sh --self-test-live
 ```
 
-Two-sided, both against case 01's rubric:
+`--self-test` runs the deterministic fixtures without Claude or authentication.
+`--self-test-live` also makes two paid grader calls against case 01's rubric:
 
 - Before calling the judge, deterministic malformed-output fixtures prove
   that the validator rejects duplicate, reordered, and unknown criterion ids,
@@ -98,7 +100,7 @@ Two-sided, both against case 01's rubric:
   colliding copy of the skill. This half makes no model call and runs before
   the CLI preflight, so it works on a machine with no `claude` on `PATH` and
   no authentication — which is where you would want to run it, e.g. from a
-  CI shell-test suite.
+  CI shell-test suite. The ordinary repository checks run only this offline half.
 
 - `selftest/bad-review.md` — misses every planted flaw and commits every
   forbidden move (turns one tactic per line into an exceptionless rule,
