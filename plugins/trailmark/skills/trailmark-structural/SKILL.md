@@ -10,8 +10,10 @@ Builds a Trailmark graph and runs `engine.preanalysis()` to compute all
 four pre-analysis passes. The core workflow is v0.2-safe; v0.4-only details
 are included only after checking method availability, and newer builds
 enrich the same output (0.5.0+ adds an `attributes` key to attack-surface
-entries and `proxy.external:*` nodes from `.trailmark/links.toml`) without
-any workflow change.
+entries and `proxy.external:*` nodes from `.trailmark/links.toml`).
+Trailmark 0.7 adds nine frontends (39 total), coverage and parse diagnostics,
+call-resolution reports, and Solidity state-access queries; gate those methods
+and keyword arguments rather than assuming an older environment has them.
 
 ## When to Use
 
@@ -147,7 +149,17 @@ print(json.dumps(payload, indent=2))
 PY
 ```
 
-**Step 4: Verify the output.**
+On 0.7+, also preserve `trailmark_version` and `schema_version` from the graph,
+the summary's `source_files`/`source_file_counts` and `parse_diagnostics`, and
+`engine.call_resolution()`/`engine.unresolved_calls()` when available. These
+separate inspected files from parser and target-resolution gaps. Missing roots
+and zero matching files fail; an inspected file with no declarations is valid.
+For Solidity assets, query direct `state_read_by()`/`state_written_by()` and
+`readers_of()`/`writers_of()` where appropriate. Do not treat empty self-paths as
+unreachable entrypoints or uncertain deferred callback edges as confirmed calls.
+Rebuild graph IDs after upgrading before comparing or reusing saved anchors.
+
+**Step 4: Deliver the structural evidence.**
 
 The output should include:
 - `languages`
