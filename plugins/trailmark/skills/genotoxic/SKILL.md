@@ -9,6 +9,14 @@ Combines mutation testing and necessist (test statement removal) with
 code graph analysis to triage findings into actionable categories:
 false positives, missing unit tests, and fuzzing targets.
 
+With **Trailmark 0.7+**, retain inspected source-file counts, parse diagnostics,
+and call-resolution gaps with the mutation evidence. Its nine new frontends
+expand graph coverage, not mutation-framework support. Rebuild graph IDs after
+upgrading, and treat uncertain deferred callback edges as possible execution.
+A function with no graph callers may itself be a public entrypoint or have
+unresolved callers; an empty self-path never establishes dead code. For Solidity
+storage mutants, inspect state readers/writers alongside call paths.
+
 ## When to Use
 
 - After mutation testing reveals survived mutants that need triage
@@ -61,7 +69,7 @@ false positives, missing unit tests, and fuzzing targets.
 | "All survived mutants need tests" | Many are harmless or equivalent | Triage before writing tests |
 | "Mutation testing is too noisy" | Noise means you're not triaging | Use graph data to filter |
 | "Unit tests cover everything" | Complex data flows need fuzzing | Check entrypoint reachability |
-| "Dead code mutants don't matter" | Dead code should be removed | Flag for cleanup |
+| "No graph callers means dead code" | Public entrypoints, callbacks, and unresolved calls can have no observed callers | Check entrypoint membership and analysis gaps before classifying reachability |
 | "Low complexity = low risk" | Boundary bugs hide in simple code | Check mutant location |
 | "Tool isn't installed, I'll do it manually" | Manual analysis misses what tooling catches | Install the tool first |
 | "Necessist isn't mutation testing, skip it" | Necessist finds what mutation testing misses: weak tests | Run both when the language supports it |

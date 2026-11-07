@@ -61,7 +61,8 @@ Determine whether a mutated function is reachable from untrusted input.
 ```python
 def is_entrypoint_reachable(engine, node_id: str) -> bool:
     """Check if any entrypoint can reach this node."""
-    return bool(engine.entrypoint_paths_to(node_id))
+    direct_entrypoint = any(ep["node_id"] == node_id for ep in engine.attack_surface())
+    return direct_entrypoint or bool(engine.entrypoint_paths_to(node_id))
 ```
 
 ### Entrypoint Path Details
@@ -74,15 +75,18 @@ def entrypoint_paths(engine, node_id: str) -> list[dict]:
     surface_by_id = {
         ep["node_id"]: ep for ep in engine.attack_surface()
     }
+    paths = engine.entrypoint_paths_to(node_id)
+    if node_id in surface_by_id:
+        paths = [[node_id], *paths]  # Explicitly include direct entrypoint membership.
     results = []
-    for path in engine.entrypoint_paths_to(node_id):
+    for path in paths:
         ep = surface_by_id.get(path[0], {})
         results.append({
             "entrypoint": path[0],
             "trust_level": ep.get("trust_level"),
             "kind": ep.get("kind"),
             "path": path,
-            "hops": len(path),
+            "hops": len(path) - 1,
         })
     return results
 ```
@@ -137,7 +141,7 @@ def transitive_context(engine, node_id: str) -> dict:
     return {
         "transitive_callers": len(ancestors),
         "entrypoint_paths": len(paths),
-        "entrypoint_reachable": bool(paths),
+        "entrypoint_reachable": is_entrypoint_reachable(engine, node_id),
     }
 ```
 
@@ -145,7 +149,7 @@ def transitive_context(engine, node_id: str) -> dict:
 
 | Direct Callers | Transitive Callers | Classification |
 |----------------|-------------------|----------------|
-| 0 | 0 | Dead code (false positive) |
+| 0 | 0 | No observed callers; inspect direct entrypoints, callbacks, and analysis gaps before judging reachability |
 | 1-5 | 1-10 | LOW |
 | 6-20 | 11-50 | MEDIUM |
 | 21-50 | 51-100 | HIGH |
@@ -245,6 +249,7 @@ def batch_triage(engine, survived_mutants: list[dict]) -> dict:
         "false_positives": [],
         "missing_tests": [],
         "fuzzing_targets": [],
+        "needs_manual_review": [],
     }
 
     for mutant in survived_mutants:
@@ -252,9 +257,9 @@ def batch_triage(engine, survived_mutants: list[dict]) -> dict:
             nodes, mutant["file_path"], mutant["line"]
         )
         if not node:
-            results["false_positives"].append({
+            results["needs_manual_review"].append({
                 **mutant,
-                "reason": "no containing function in graph",
+                "reason": "no containing function in graph; binding or coverage is incomplete",
             })
             continue
 
@@ -262,16 +267,14 @@ def batch_triage(engine, survived_mutants: list[dict]) -> dict:
         callers = engine.callers_of(node_id)
         cc = node.get("cyclomatic_complexity", 0) or 0
 
-        # Dead code
-        if not callers:
-            results["false_positives"].append({
+        reachable = is_entrypoint_reachable(engine, node_id)
+        if not callers and not reachable:
+            results["needs_manual_review"].append({
                 **mutant,
-                "reason": "no callers (dead code)",
+                "reason": "no observed callers; inspect entrypoint, callback, and resolution gaps",
                 "node_id": node_id,
             })
             continue
-
-        reachable = is_entrypoint_reachable(engine, node_id)
 
         # Fuzzing criteria
         if (cc > 10 and reachable) or (len(callers) > 10 and cc > 5):
@@ -403,6 +406,10 @@ def merge_results(
     """
     merged = {
         "corroborated": [],
+        "needs_manual_review": (
+            mutation_results.get("needs_manual_review", [])
+            + necessist_results.get("needs_manual_review", [])
+        ),
         "false_positives": (
             mutation_results["false_positives"]
             + necessist_results["false_positives"]
