@@ -49,3 +49,42 @@ authorized; this plugin does not provision it automatically.
 
 Run `uv sync --frozen` and `uv run --frozen pytest` from this plugin directory for behavioral
 tests. The repository's `make check` also runs these tests and checks formatting and lint.
+
+## Calcifier recipe for `replay-regression`
+
+The [`replay-regression` Python recipe](skills/replay-regression/.calcifier/recipe.py) was generated with Calcifier 0.2.0. It pins the source skill and its packaged resources so source changes are checked before execution.
+
+Install the matching release with Python 3.13 or later:
+
+```sh
+uv tool install 'calcifier==0.2.0'
+```
+
+The recipe's PEP 723 inline metadata also declares Python >=3.13 and pins `calcifier==0.2.0`. `uv run` can resolve those script dependencies; use `calcifier exec` for reviewed execution with Calcifier's trust checks.
+
+Configure `worker` in a version-1 agent-config file following [the Calcifier 0.2.0 provider setup](https://github.com/trailofbits/calcifier/blob/v0.2.0/docs/providers.md). Worker tools depend on the configured agent provider; host tool providers do not add tools to an agent.
+
+From this plugin directory, check the recipe before execution:
+
+```sh
+calcifier lint skills/replay-regression/.calcifier/recipe.py --portable
+```
+
+Review the complete generated Python before granting trust. Run `calcifier exec skills/replay-regression/.calcifier/recipe.py` with `--agent-config agents.json` and one `--input NAME=VALUE` for each required input below. Add `--trust` after review to record consent for those exact bytes.
+
+Choose a fresh, dedicated report directory with `--output-dir PATH`. The override protects existing output files; it does not isolate host commands or grant workers additional tools.
+
+| Input | Type | Default |
+| --- | --- | --- |
+| `campaign` | `str` | Required |
+| `attempt` | `str` | Required |
+| `bound_agent` | `str` | Required |
+| `plan` | `dict[str, Any]` | Required |
+
+Invoke replay(campaign, attempt, bound_agent, plan) for an already genuinely bound replay assignment. bound_agent must exactly match the retained original launch owner. Assigned inputs must include accepted complete prepare/hunt/reproduce records, their complete seal-bound files, the selected candidate and genuine launch evidence; replay uses a fresh context for that candidate. All record selectors are campaign-relative and come from the assignment. Output is attempts/<attempt>/replay.json plus seal, evidence/, immutable/ and fresh build-S0/build-S1 trees.
+
+plan is a required caller-supplied mapping with actions:[{kind:"metadata"|"build"|"deploy"|"run"|"cleanup",state:"S0"|"S1",argv:[string,...],timeout:positive seconds<=3600}], setup:nonempty setup description/data, access:nonempty supported-access description/data, interfaces:[S0 interface,S1 interface], and output_files:[attempt-relative additional paths]. Include exactly two run actions ordered S0 then S1, a preceding build for each state, and a cleanup action for each state.
+
+Run argv must include {poc} and {workload} as separate tokens. All argv may also use {attempt}, {S0} and {S1}; the host substitutes only its owned immutable-data, attempt and private-build paths. Commands run in their state build directory, with copy/cleanup at the attempt root. The unchanged complete prerequisite dependency tree is copied and hashed; supply commands compatible with that tree. Return value contains status, record, result and blocker; complete is an experimental outcome, not confirmation.
+
+The recipe declares `Bash`. Configure `--tool-config` for capabilities called through `tool()`, following the provider setup. Host `run_command()` needs no Bash provider unless the recipe also calls `tool("Bash", ...)`.
