@@ -49,3 +49,46 @@ uv run --no-project --with pytest python3 -m pytest -q --import-mode=importlib .
 ```
 /plugin install trailofbits/skills/plugins/dwarf-expert
 ```
+
+## Calcifier recipe for `dwarf-expert`
+
+The [`dwarf-expert` Python recipe](skills/dwarf-expert/.calcifier/recipe.py) was generated with Calcifier 0.2.0. It pins the source skill and its packaged resources so source changes are checked before execution.
+
+Install the matching release with Python 3.13 or later:
+
+```sh
+uv tool install 'calcifier==0.2.0'
+```
+
+The recipe's PEP 723 inline metadata also declares Python >=3.13 and pins `calcifier==0.2.0`. `uv run` can resolve those script dependencies; use `calcifier exec` for reviewed execution with Calcifier's trust checks.
+
+Configure `worker` in a version-1 agent-config file following [the Calcifier 0.2.0 provider setup](https://github.com/trailofbits/calcifier/blob/v0.2.0/docs/providers.md). Worker tools depend on the configured agent provider; host tool providers do not add tools to an agent.
+
+From this plugin directory, check the recipe before execution:
+
+```sh
+calcifier lint skills/dwarf-expert/.calcifier/recipe.py --portable
+```
+
+Review the complete generated Python before granting trust. Run `calcifier exec skills/dwarf-expert/.calcifier/recipe.py` with `--agent-config agents.json` and one `--input NAME=VALUE` for each required input below. Add `--trust` after review to record consent for those exact bytes.
+
+Choose a fresh, dedicated report directory with `--output-dir PATH`. The override protects existing output files; it does not isolate host commands or grant workers additional tools.
+
+| Input | Type | Default |
+| --- | --- | --- |
+| `request` | `str` | Required |
+| `mode` | `Literal['inspect', 'verify', 'standard', 'code', 'review']` | `'inspect'` |
+| `directory` | `str` | `'.'` |
+| `binary_inputs` | `tuple[str, ...]` | `()` |
+| `source_inputs` | `tuple[str, ...]` | `()` |
+| `reference_inputs` | `tuple[str, ...]` | `()` |
+| `section` | `Literal['all', 'info', 'line']` | `'info'` |
+| `symbol` | `str` | `''` |
+| `program_address` | `str` | `''` |
+| `verify_binaries` | `bool` | `False` |
+| `statistics` | `bool` | `False` |
+| `standard_query` | `str` | `''` |
+| `source_urls` | `tuple[str, ...]` | `()` |
+| `edit_project` | `bool` | `False` |
+
+The recipe declares `Bash`, `WebSearch`, `WebFetch`. Configure `--tool-config` for capabilities called through `tool()`, following the provider setup. Host `run_command()` needs no Bash provider unless the recipe also calls `tool("Bash", ...)`.
