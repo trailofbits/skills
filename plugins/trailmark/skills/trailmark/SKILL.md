@@ -38,7 +38,7 @@ semantic metadata for security analysis.
 | "Uncertain edges don't matter" | Dynamic dispatch is where type confusion bugs hide | Account for `uncertain` edges in security claims |
 | "Single-language analysis is enough" | Polyglot repos have FFI boundaries where bugs cluster | Use the correct `--language` flag per component |
 | "Complexity hotspots are the only thing worth checking" | Low-complexity functions on tainted paths are high-value targets | Combine complexity with taint and blast radius data |
-| "The docs mention a version-gated method, so I can call it anywhere" | Many environments still have Trailmark 0.2.x installed | Check the installed version or probe feature availability before using v0.4+/v0.5+ features |
+| "The docs mention a version-gated method, so I can call it anywhere" | Many environments still have Trailmark 0.2.x installed | Check the installed version or probe additive methods; gate new parser behavior and keyword arguments by version |
 
 ---
 
@@ -63,8 +63,9 @@ to the user instead of silently switching to manual code reading.
 
 Trailmark 0.4.0 expands the graph model and query surface, and 0.5.0 adds a
 SQL parser, repository-link configuration, and richer entrypoint metadata.
-Before using a feature listed as **v0.4+** or **v0.5+**, check the installed
-version:
+Trailmark 0.6 adds Rust/Verus scope handling; 0.7 expands to 39 languages
+and adds state-access queries, diagnostics, coverage, and export provenance.
+Before using a version-gated feature, check the installed version:
 
 ```bash
 trailmark --version 2>/dev/null || uv run trailmark --version 2>/dev/null
@@ -128,6 +129,36 @@ from trailmark.models.nodes import NodeKind
 
 has_v05 = "SCHEMA" in NodeKind.__members__  # sql kinds are 0.5+
 ```
+
+**v0.6+ features:** Rust local and inline-module declarations retain lexical
+owners, and brace-delimited `verus!` blocks expose body-bearing ordinary,
+`spec`, and `proof` functions. Arbitrary macro expansion and calls inside
+Verus contract clauses remain outside the extracted graph.
+
+**v0.7+ features:** nine new frontends (listed under Language Selection);
+`state_variable` nodes and `reads`/`writes` edges for Solidity;
+`state_read_by()`, `state_written_by()`, `readers_of()`, and `writers_of()`;
+`call_resolution()`, `unresolved_calls()`, and `parse_diagnostics()`; source-file
+counts in summaries/diffs; `trailmark_version` and `schema_version` in exports;
+`analyze --summary --json`, `--resolution`, `--strict`, and `--allow-empty`.
+Finding importers accept `replace_existing=False` to append same-format files.
+Native diffs include signature types/defaults, declaration attributes, edge
+confidence, and `source_coverage.before`/`.after`.
+
+On 0.7, missing/non-directory roots and zero matching files fail. An inspected
+empty or comment-only file is valid: measure `summary()["source_files"]`, not
+declaration count. Inspect `parse_diagnostics()` and call-resolution gaps;
+`strict=True` rejects recorded parse diagnostics but does not establish complete
+language coverage. Rebuild both comparison snapshots with the same version and
+language selection, and preserve export provenance and unfamiliar additive fields.
+Node IDs can change across upgrades or when positioned declarations move.
+
+On 0.7, path depths count edges and must be positive; `paths_between()` accepts
+keyword-only `max_depth=20`. An entrypoint's path to itself is `[]`, so include
+direct `attack_surface()` membership when deciding reachability. Nested callable
+bodies may have uncertain `deferred` call edges: these preserve possible callback
+paths, not proof of invocation. Query paths have no confidence filter; inspect
+raw edge attributes when that distinction matters.
 
 ## Quick Start
 
@@ -265,11 +296,12 @@ uv run trailmark analyze --language auto {targetDir}
 uv run trailmark analyze --language python,rust {targetDir}
 ```
 
-As of Trailmark 0.5.0, parser names include: `python`, `javascript`,
+As of Trailmark 0.7.0, the 39 parser names are: `python`, `javascript`,
 `typescript`, `php`, `ruby`, `c`, `cpp`, `c_sharp`, `java`, `go`, `rust`,
 `solidity`, `cairo`, `circom`, `haskell`, `erlang`, `masm`, `swift`, `objc`,
 `kotlin`, `dart`, `move`, `tact`, `func`, `sway`, `rego`, `proto`, `thrift`,
-`graphql`, and `sql` (added in 0.5.0; PostgreSQL-oriented, `.sql` files).
+`graphql`, `sql`, `aiken`, `bash`, `julia`, `lua`, `perl`, `powershell`,
+`r`, `vb`, and `zig`. The last nine were added in 0.7.0; SQL is PostgreSQL-oriented.
 Treat this list as documentation, not a source of truth; call
 `supported_languages()` on the installed build before relying on a parser.
 
@@ -312,17 +344,22 @@ cross them like any other call edge.
 `interface`, `trait`, `enum`, `namespace`, `contract`, `library`,
 `template`; **v0.4+** also materializes unresolved references as `proxy`
 nodes; **v0.5+** adds `schema`, `table`, `view`, and `procedure` for SQL
-graphs.
+graphs; **v0.7+** adds Solidity `state_variable` nodes.
 
 **Node origins:** **v0.4+** nodes may carry origin `source`, `proxy`,
 `binary`, or `synthetic`. v0.2 exports may omit origin.
 
 **Edge kinds:** `calls`, `inherits`, `implements`, `contains`, `imports`;
 **v0.4+** adds `resolves_to`, `type_uses`, `specializes`, and
-`corresponds_to`.
+`corresponds_to`; **v0.7+** adds Solidity `reads` and `writes`. State
+access is direct and limited to storage declared in the same contract; call-only
+traversals do not follow storage edges.
 
-**Edge confidence:** `certain` (direct call, `self.method()`), `inferred`
-(attribute access on non-self object), `uncertain` (dynamic dispatch)
+**Edge confidence:** `certain` (read directly from syntax), `inferred`
+(heuristic binding, including unique cross-file calls), `uncertain` (ambiguous
+target, dynamic dispatch, or possible deferred callback). Confidence does not
+establish resolution: even a `certain` call can target an unresolved proxy.
+Use `unresolved_calls()` on v0.7+ or inspect proxy targets.
 
 ### Per Code Unit
 - Parameters with types, return types, exception types
