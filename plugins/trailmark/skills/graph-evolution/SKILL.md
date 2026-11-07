@@ -76,6 +76,19 @@ programmatically. If installation fails, report the error.
 
 ---
 
+## Trailmark 0.7 Compatibility
+
+Build both snapshots with the same Trailmark version and language selection.
+0.7 supports 39 languages and changes IDs for overloads, nested/anonymous
+callables, namespaces, and colliding modules. Rebuild saved graphs and overrides;
+a parser upgrade is not a source-code regression. Keep export provenance and
+parse diagnostics with each snapshot. Native 0.7 diffs compare signature
+types/defaults, declaration attributes, and edge confidence, and always include
+`source_coverage.before`/`.after`. Use `graph_diff.py` only for the supplemental
+subgraph membership comparison: its older node/edge projection omits some of
+these fields. Deferred callback edges express possible paths, and direct
+entrypoints remain reachable even when their self-path lists are empty.
+
 ## Decision Tree
 
 ```
@@ -166,9 +179,10 @@ Run **both**:
 2. The plugin's `graph_diff.py` helper for subgraph membership changes
 
 Use the same `work_dir` from Phase 2, and pass the same `--language` value Phase 2
-built with. `trailmark diff` defaults that flag to `python`, so on any other
-target the default exits 0 and writes empty arrays rather than reporting a
-mismatch.
+built with. `trailmark diff` defaults that flag to `python`. Before 0.7, a
+wrong-language parse could exit 0 with empty arrays; 0.7 rejects zero matching
+files by default. Keep explicit language selection on every command and do not
+use `--allow-empty` to conceal a mismatch.
 
 ```bash
 trailmark diff --json --language auto "{before_dir}" "{after_dir}" > "{work_dir}/trailmark_diff.json" || \
@@ -185,24 +199,26 @@ If Phase 2 needed an explicit language or a comma-separated list instead of
 If either diff command fails or writes an empty JSON file, stop and report the
 error instead of continuing to Phase 4.
 
-A `trailmark_diff.json` whose `nodes`, `edges`, and `entrypoints` arrays are all
-empty means either nothing changed structurally or both snapshots parsed to
-(near-)empty graphs. Decide which using Phase 2's graph summaries: if either
-snapshot's node count is zero or implausibly small for the target, the parse
-missed the code — name the language set explicitly (`rust`, `solidity`,
-`python,rust`) and re-run. Healthy node counts on both snapshots plus an empty
-diff is genuine structural stability.
+If the native diff's change lists are empty, inspect both snapshots' source
+coverage and diagnostics before interpreting stability. On 0.7, positive
+`source_files`/per-language counts establish that selected files were inspected;
+zero declarations can be legitimate for empty, comment-only, or declaration-free
+sources. On older builds, report unavailable coverage rather than treating node
+count as proof. Matching versions, languages, adequate source coverage, and no
+relevant parse diagnostics support stability of extracted structure, not semantic
+equivalence.
 
 The native Trailmark diff contains:
 
 | Key | Contents |
 |-----|----------|
+| `source_coverage` | v0.7+ inspected file counts per language, before and after |
 | `summary_delta` | Changes in node/edge/entrypoint counts |
 | `nodes.added` | New functions, classes, methods |
 | `nodes.removed` | Deleted functions, classes, methods |
-| `nodes.modified` | Functions with changed CC, params, line span |
-| `edges.added` | New call/inheritance/import relationships |
-| `edges.removed` | Deleted relationships |
+| `nodes.modified` | Changed CC, params and line span; v0.7+ also types/defaults, generics, attributes, name, kind, and origin |
+| `edges.added` | New relationships; v0.7+ includes confidence |
+| `edges.removed` | Deleted relationships; confidence changes appear as removal plus addition on v0.7+ |
 | `entrypoints` | Added, removed, and modified entrypoints |
 
 The subgraph diff contains:
@@ -298,21 +314,16 @@ Use `graph_diff.py` for:
 
 ---
 
-## Quality Checklist
+## Report Evidence
 
-Before delivering the report:
-
-- [ ] Both graphs built successfully (check summaries)
-- [ ] Pre-analysis ran on both snapshots
-- [ ] Native Trailmark diff computed (`trailmark_diff.json`); if it is empty,
-      both snapshots' Phase 2 node counts were non-zero, so empty means stable
-- [ ] Subgraph diff computed and non-empty (`subgraph_diff.json`)
-- [ ] All subgraph changes interpreted (tainted, blast radius, etc.)
-- [ ] Critical findings include evidence (node IDs, edge diffs)
-- [ ] Severity levels assigned to all findings
-- [ ] Source-level context added via git diff cross-reference
-- [ ] Worktrees cleaned up (or temp dirs removed)
-- [ ] Report written to `GRAPH_EVOLUTION_*.md`
+Include Trailmark version and language selection for both snapshots, source
+coverage and diagnostic limitations, the native diff, and supplemental subgraph
+membership changes. Explain changed taint, blast radius, entrypoints, signatures,
+and edge confidence with exact nodes/paths and source-level diff context. Assign
+severity to each finding. An empty change list reports extracted structural
+stability only when the underlying evidence is adequate; it does not establish
+semantic equivalence. Record the report path and remove temporary worktrees
+after the report is written.
 
 ---
 
