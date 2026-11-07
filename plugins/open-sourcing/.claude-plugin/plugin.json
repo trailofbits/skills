@@ -1,6 +1,6 @@
 {
   "name": "open-sourcing",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Prepares a repository for public open-source release: secrets-history hygiene, license selection, documentation and CI readiness checks, and language-specific packaging and release guidance.",
   "author": {
     "name": "Evan Sultanik",
