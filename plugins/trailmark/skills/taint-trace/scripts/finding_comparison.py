@@ -10,7 +10,14 @@ from pathlib import Path
 from trace_artifacts import JsonObject, relative
 
 type ContextPair = tuple[JsonObject, JsonObject]
-type Declaration = tuple[str, int, int]
+type StructuralIdentity = tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True)
+class Declaration:
+    identity: StructuralIdentity | None
+    start: int
+    end: int
 
 
 @dataclass(frozen=True)
@@ -55,16 +62,66 @@ def source_mapping(
     return SourceMapping(lines, before, after, *declarations)
 
 
+def declaration_header(node: JsonObject, lines: list[str]) -> tuple[str, str] | None:
+    location = node.get("location") or {}
+    start, end = location.get("start_line", 0), location.get("end_line", 0)
+    if not 1 <= start <= end or start > len(lines):
+        return None
+    kind = node.get("kind", "")
+    if node.get("origin") == "synthetic":
+        return kind, node.get("name", "")
+    # Frontend columns count UTF-8 bytes, including for inline anonymous declarations.
+    text = lines[start - 1].encode("utf-8")
+    stop = location.get("end_col") if start == end else None
+    header = text[location.get("start_col") or 0 : stop].decode("utf-8", errors="replace").strip()
+    return (kind, header) if header else None
+
+
+def declaration_identity(
+    ident: str,
+    graph: JsonObject,
+    parents: dict[str, set[str]],
+    sources: dict[str, list[str]],
+    target: Path,
+    *,
+    visited: frozenset[str] = frozenset(),
+) -> StructuralIdentity | None:
+    node = graph.get("nodes", {}).get(ident, {})
+    if ident in visited or len(parents.get(ident, set())) > 1:
+        return None
+    if node.get("kind") == "module":
+        return ()
+    file = relative((node.get("location") or {}).get("file_path", ""), target)
+    header = declaration_header(node, sources.get(file, []))
+    if header is None:
+        return None
+    owner: StructuralIdentity | None = ()
+    for parent in parents.get(ident, set()):
+        owner = declaration_identity(
+            parent, graph, parents, sources, target, visited=visited | {ident}
+        )
+    return (*owner, header) if owner is not None else None
+
+
 def file_declarations(
-    context: JsonObject, target: Path, files: set[str]
+    context: JsonObject, target: Path, sources: dict[str, list[str]]
 ) -> dict[str, list[Declaration]]:
+    graph = context.get("graph", {})
+    parents: dict[str, set[str]] = {}
+    for edge in graph.get("edges", []):
+        if edge.get("kind") == "contains":
+            parents.setdefault(edge["target"], set()).add(edge["source"])
     declarations: dict[str, list[Declaration]] = {}
-    for ident, node in context.get("graph", {}).get("nodes", {}).items():
+    for ident, node in graph.get("nodes", {}).items():
         location = node.get("location") or {}
         file = relative(location.get("file_path", ""), target)
-        if file in files:
+        if file in sources and node.get("kind") not in {"module", "proxy"}:
             declarations.setdefault(file, []).append(
-                (ident, location.get("start_line", 0), location.get("end_line", 0))
+                Declaration(
+                    declaration_identity(ident, graph, parents, sources, target),
+                    location.get("start_line", 0),
+                    location.get("end_line", 0),
+                )
             )
     return declarations
 
@@ -73,7 +130,10 @@ def source_mappings(
     contexts: ContextPair, target: Path, files: set[str]
 ) -> dict[str, SourceMapping]:
     before, after = (captured_sources(context, target, files) for context in contexts)
-    original, rebound = (file_declarations(context, target, files) for context in contexts)
+    original, rebound = (
+        file_declarations(context, target, sources)
+        for context, sources in zip(contexts, (before, after), strict=True)
+    )
     return {
         file: source_mapping(
             before.get(file, []),
@@ -84,28 +144,45 @@ def source_mappings(
     }
 
 
-def declaration_at(declarations: list[Declaration], line: int) -> tuple:
-    candidates = [
-        (end - start, ident) for ident, start, end in declarations if start <= line <= end
+def declaration_at(declarations: list[Declaration], line: int) -> list[Declaration]:
+    candidates = [item for item in declarations if item.start <= line <= item.end]
+    smallest = min((item.end - item.start for item in candidates), default=None)
+    return [item for item in candidates if item.end - item.start == smallest]
+
+
+def matching_owners(
+    before: list[Declaration], after: list[Declaration], mapping: SourceMapping
+) -> bool:
+    if len(before) != len(after) or len(before) > 1:
+        return False
+    if not before:
+        return True
+    old, new = before[0], after[0]
+    if old.identity is None or old.identity != new.identity:
+        return False
+    if (mapping.lines.get(new.start), mapping.lines.get(new.end)) != (old.start, old.end):
+        return False
+    # Equal anonymous declarations remain separate occurrences; adding another is ambiguous.
+    counts = [
+        sum(item.identity == old.identity for item in declarations)
+        for declarations in (mapping.original_declarations, mapping.rebound_declarations)
     ]
-    smallest = min((size for size, _ in candidates), default=None)
-    return tuple(sorted(ident for size, ident in candidates if size == smallest))
+    return counts[0] == counts[1]
 
 
-def line_occurrences(
-    lines: list[str], declarations: list[Declaration], owner: tuple, text: str
-) -> int:
+def line_occurrences(lines: list[str], owner: list[Declaration], text: str) -> int:
     if owner:
-        _, start, end = next(item for item in declarations if item[0] == owner[0])
-        return lines[start - 1 : end].count(text)
+        return lines[owner[0].start - 1 : owner[0].end].count(text)
     return lines.count(text)
 
 
-def stable_occurrences(mapping: SourceMapping, owner: tuple, text: str) -> bool:
-    before = line_occurrences(mapping.original_lines, mapping.original_declarations, owner, text)
-    after = line_occurrences(mapping.rebound_lines, mapping.rebound_declarations, owner, text)
+def stable_occurrences(
+    mapping: SourceMapping, owners: tuple[list[Declaration], list[Declaration]], text: str
+) -> bool:
+    before = line_occurrences(mapping.original_lines, owners[0], text)
+    after = line_occurrences(mapping.rebound_lines, owners[1], text)
     return before == after and (
-        bool(owner) or before < 2 or mapping.original_lines == mapping.rebound_lines
+        bool(owners[0]) or before < 2 or mapping.original_lines == mapping.rebound_lines
     )
 
 
@@ -115,9 +192,9 @@ def rebound_line(line: int, mapping: SourceMapping) -> int | None:
         return None
     before = declaration_at(mapping.original_declarations, original_line)
     after = declaration_at(mapping.rebound_declarations, line)
-    if before != after or len(before) > 1:
+    if not matching_owners(before, after, mapping):
         return None
-    if not stable_occurrences(mapping, before, mapping.rebound_lines[line - 1]):
+    if not stable_occurrences(mapping, (before, after), mapping.rebound_lines[line - 1]):
         return None
     return original_line
 

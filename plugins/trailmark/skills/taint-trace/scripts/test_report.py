@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 import pytest
+from trailmark.query.api import QueryEngine
 
 import trace_report as reports
 from manifest_validation import ValidationResult
@@ -294,6 +295,103 @@ def test_source_line_survives_annotation_line_shifts_without_a_warning_delta(
     assert "0 newly reported; 0 no longer reported" in text
     assert "unchanged counts do not establish redundancy" in text
     assert "Compare native traces and source evidence" in text
+
+
+def php_comparison_context(root: Path, name: str, source: str) -> JsonObject:
+    (root / "boundary.php").write_text(source, encoding="utf-8")
+    snapshot = root / f"{name}.snapshot"
+    snapshot.write_text(source, encoding="utf-8")
+    engine = QueryEngine.from_directory(str(root), language="php", detect_entrypoints_=False)
+    return {
+        "source_snapshots": [{"file": "boundary.php", "path": str(snapshot)}],
+        "graph": json.loads(engine.to_json()),
+    }
+
+
+@pytest.mark.parametrize("declared_sink", [False, True])
+def test_real_php_lambda_ids_can_shift_without_a_warning_delta(tmp_path, declared_sink) -> None:
+    sink = "function sink($value): void { echo $value; }\n" if declared_sink else ""
+    source = (
+        "<?php\n" + sink + "function execute($input) {\n"
+        "    $sink = fn($value) => sink($value);\n    $sink($input);\n}\n"
+    )
+    annotation = "/** @psalm-taint-source input */\n"
+    original = php_comparison_context(tmp_path, "original", source)
+    rebound = php_comparison_context(
+        tmp_path, "rebound", source.replace("function execute", annotation + "function execute")
+    )
+    old, new = (
+        {ident: node for ident, node in context["graph"]["nodes"].items() if "$lambda@" in ident}
+        for context in (original, rebound)
+    )
+    assert len(old) == len(new) == 1
+    assert old.keys().isdisjoint(new)
+    line = 4 if declared_sink else 3
+    assert next(iter(old.values()))["location"]["start_line"] == line
+    assert next(iter(new.values()))["location"]["start_line"] == line + 1
+    before = {
+        **boundary_warning(tmp_path, line, source.splitlines()[line - 1]),
+        "file": "boundary.php",
+    }
+    records = {
+        "baseline": {"findings": [before]},
+        "enriched": {"findings": [{**before, "line": line + 1}]},
+    }
+    text = "\n".join(reports.finding_changes(records, tmp_path, contexts=(original, rebound)))
+    assert "0 newly reported; 0 no longer reported" in text
+
+
+def test_real_php_identical_lambdas_keep_distinct_locations_after_annotations(tmp_path):
+    statement = "    $sink = fn($value) => sink($value);\n"
+    source = (
+        "<?php\nfunction sink($value): void { echo $value; }\n"
+        "function execute($input) {\n" + statement * 2 + "}\n"
+    )
+    original = php_comparison_context(tmp_path, "original", source)
+    rebound = php_comparison_context(
+        tmp_path, "rebound", source.replace("function execute", "/** model */\nfunction execute")
+    )
+    before = {**boundary_warning(tmp_path, 4, statement.strip()), "file": "boundary.php"}
+    records = {
+        "baseline": {"findings": [before]},
+        "enriched": {"findings": [{**before, "line": 6}]},
+    }
+    text = "\n".join(reports.finding_changes(records, tmp_path, contexts=(original, rebound)))
+    assert "1 newly reported; 1 no longer reported" in text
+    records["enriched"]["findings"] = [{**before, "line": 5}] * 2
+    text = "\n".join(reports.finding_changes(records, tmp_path, contexts=(original, rebound)))
+    assert "1 newly reported; 0 no longer reported" in text
+
+
+@pytest.mark.parametrize("same_line", [False, True])
+def test_real_php_added_or_same_line_lambda_owners_remain_ambiguous(tmp_path, same_line):
+    statement = "$sink = fn($value) => sink($value);"
+    first_line = f"    {statement} {statement}" if same_line else f"    {statement}"
+    source = (
+        "<?php\nfunction sink($value): void { echo $value; }\n"
+        f"function execute($input) {{\n{first_line}\n}}\n"
+    )
+    after = source if same_line else source.replace("\n}\n", f"\n    {statement}\n}}\n")
+    original = php_comparison_context(tmp_path, "original", source)
+    rebound = php_comparison_context(tmp_path, "rebound", after)
+    warning = {**boundary_warning(tmp_path, 4, first_line), "file": "boundary.php"}
+    records = {"baseline": {"findings": [warning]}, "enriched": {"findings": [warning]}}
+    text = "\n".join(reports.finding_changes(records, tmp_path, contexts=(original, rebound)))
+    assert "1 newly reported; 1 no longer reported" in text
+
+
+def test_enclosing_declaration_changes_do_not_rebind_an_unchanged_inner_sink(tmp_path):
+    source = "class First:\n    def execute(self):\n        sink(input)\n"
+    original = comparison_context(tmp_path, "original", source, [("owner", 1, 3), ("method", 2, 3)])
+    rebound = comparison_context(
+        tmp_path, "rebound", source.replace("First", "Second"), [("owner", 1, 3), ("method", 2, 3)]
+    )
+    for context in (original, rebound):
+        context["graph"]["edges"] = [{"source": "owner", "target": "method", "kind": "contains"}]
+    warning = boundary_warning(tmp_path, 3, "sink(input)")
+    records = {"baseline": {"findings": [warning]}, "enriched": {"findings": [warning]}}
+    text = "\n".join(reports.finding_changes(records, tmp_path, contexts=(original, rebound)))
+    assert "1 newly reported; 1 no longer reported" in text
 
 
 @pytest.mark.parametrize("with_contexts", [False, True])
