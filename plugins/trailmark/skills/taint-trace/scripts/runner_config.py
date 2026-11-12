@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -154,6 +155,29 @@ def psalm_working_root(argv: list[str], cwd: Path) -> Path:
     return (cwd / roots[0]).resolve() if roots else cwd
 
 
+def psalm_dependency_paths(
+    config: Path, original: Path, cwd: Path, composer: Path | None = None
+) -> list[Path]:
+    """Locate declarative inputs used by Psalm's automatic library models/plugins."""
+    tree = ET.parse(config).getroot()
+    base = original.parent if psalm_config_relative(tree) else cwd
+    metadata = json.loads(composer.read_text(encoding="utf-8")) if composer else {}
+    vendor = metadata.get("config", {}).get("vendor-dir", "vendor")
+    return [
+        (base / "composer.json").resolve(),
+        (base / "composer.lock").resolve(),
+        (base / vendor / "composer" / "installed.json").resolve(),
+        (base / vendor / "composer" / "installed.php").resolve(),
+    ]
+
+
+def capture_psalm_dependencies(config: Path, cwd: Path, output: Path) -> list[JsonObject]:
+    paths = psalm_dependency_paths(config, config, cwd)
+    composer = paths[0] if paths[0].is_file() else None
+    paths = psalm_dependency_paths(config, config, cwd, composer)
+    return snapshot_files(output, [path for path in paths if path.is_file()], "dependency")
+
+
 def argument_binds(path: Path, argv: list[str], cwd: Path, backend: str) -> bool:
     values = option_values(argv, {"--pulse-taint-config"}) if backend == "infer" else []
     if backend == "clang":
@@ -194,6 +218,7 @@ def capture_configuration(
         errors = psalm_model_errors(
             Path(configs[0]["path"]), config, psalm_working_root(argv, cwd), models
         )
+        configs.extend(capture_psalm_dependencies(config, psalm_working_root(argv, cwd), output))
         return configs, [], errors, []
     return [], [], *model_binding(backend, argv, cwd, models)
 
@@ -250,12 +275,23 @@ def check_rule_bindings(record: JsonObject, cwd: Path, captured: set[Path]) -> l
 
 def check_psalm_configuration(record: JsonObject, cwd: Path) -> list[str]:
     configs = record.get("config_files", [])
-    if len(configs) != 1:
+    if not configs:
         return ["Psalm run has no captured native XML configuration"]
     errors = []
     config = configs[0]
     if Path(config["original_path"]) != psalm_config(record["argv"], cwd):
         errors.append("Psalm configuration snapshot is not bound to the native command")
+    original = Path(config["original_path"])
+    root = psalm_working_root(record["argv"], cwd)
+    paths = psalm_dependency_paths(Path(config["path"]), original, root)
+    composer = next(
+        (Path(item["path"]) for item in configs[1:] if Path(item["original_path"]) == paths[0]),
+        None,
+    )
+    allowed = set(psalm_dependency_paths(Path(config["path"]), original, root, composer))
+    captured = [Path(item["original_path"]) for item in configs[1:]]
+    if len(set(captured)) != len(captured) or any(path not in allowed for path in captured):
+        errors.append("Psalm dependency metadata is not bound to its configuration base")
     errors.extend(
         psalm_model_errors(
             Path(config["path"]),

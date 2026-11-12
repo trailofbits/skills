@@ -8,7 +8,7 @@ The original graph skills support Trailmark 0.2.x through the 0.5.0 release line
 in v0.4.0 or v0.5.0, check the installed Trailmark version or probe for the
 method/CLI command first.
 
-`taint-trace` uses `trailmark>=0.7.1,<0.8` from the package index and checks the
+`taint-trace` uses `trailmark>=0.8.0,<0.9` from the package index and checks the
 required graph APIs directly. Its launcher needs `uv`; native taint analyzers are
 separate dependencies. See the [backend catalog](skills/taint-trace/references/catalog.md)
 for language routes and capability requirements.
@@ -113,6 +113,10 @@ for Semgrep or OpenGrep. Run standalone capability contracts with the commands i
 [artifact handling](skills/taint-trace/references/artifacts.md). The built-in Joern
 probe covers 12 graphable languages and checks native cross-function traces and
 context-specific escaping.
+Psalm 5/6 retain explicit taint mode; Psalm 7 also supports its default combined
+analysis and independently probed precise modeling features. The native CI matrix
+runs Psalm 5.26.1, 6.20.10, 7.0.0, and 7.1.0 on PHP 8.3. Trailmark 0.8.0 supplies
+PHP pipe invocation and partial-application reference support.
 
 ## Directory Structure
 

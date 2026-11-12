@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#   "trailmark>=0.7.1,<0.8",
+#   "trailmark>=0.8.0,<0.9",
 #   "pyyaml>=6,<7",
 # ]
 # ///

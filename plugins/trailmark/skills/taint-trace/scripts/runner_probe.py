@@ -11,6 +11,7 @@ from typing import Any
 from catalog import BACKENDS, SCOPES, allowed_backend, canonical_language
 from contracts import psalm_fixture, semgrep_fixture
 from joern_fixture import joern_fixture
+from psalm_feature_probes import run_features
 from runner_artifacts import artifact, reserve, write_json
 from runner_config import SEMGREP
 from runner_contracts import (
@@ -253,6 +254,8 @@ def probe_target(plan: ProbePlan, proof: JsonObject, contract: Path | None) -> N
     proof["errors"].extend(runner.check_run(run, path))
     proof["errors"].extend(expected_sites(proof, run))
     proof["errors"].extend(check_probe_baseline(proof, run))
+    if proof["backend"] == "psalm" and contract is None and not proof["errors"]:
+        run_features(proof, run, plan.argv)
     capabilities = optional_capabilities(proof, run)
     limitations = capability_limitations(capabilities)
     proof["optional_capabilities"] = capabilities

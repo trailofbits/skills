@@ -6,7 +6,7 @@ Use `/trailmark:taint-trace-run` for staged orchestration, or use these interfac
 when a host executes the skill directly. Paths below use `<target>` for the target
 checkout. Keep run artifacts in its `.trailmark/taint-trace/` directory.
 Invoke the shell launcher with `uv` available; it resolves the published
-`trailmark>=0.7.1,<0.8` dependency declared by the helper.
+`trailmark>=0.8.0,<0.9` dependency declared by the helper.
 
 ## Graph Context and Backend Selection
 
@@ -69,6 +69,14 @@ precision are optional checks whose failures become limitations. Preserve those
 results with the passing core proof. The profile retains a separate unmodeled
 baseline with no findings, using the same native engine, and validates both native
 records when checking the saved proof.
+
+Psalm 7 adds the `psalm-taint-contracts-v4` profile. Its `feature_runs` map retains
+independent native fixtures and their supporting run artifacts. Feature results
+join `optional_capabilities`; fixture bytes, expectations, configurations, and tool
+versions are revalidated when reading the proof. Use only passed mechanisms from
+that version's proof. Missing or failed feature support limits modeling choices
+without invalidating a passing core probe. Historical profiles cannot establish
+these additional capabilities. See the selected Psalm reference for feature IDs.
 
 A custom Clang fixture directory can contain this `probe.c`:
 

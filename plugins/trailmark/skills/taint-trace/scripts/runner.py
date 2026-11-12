@@ -17,6 +17,7 @@ import yaml
 from activation import command_contract, invocation, reported_engine_errors
 from catalog import BACKENDS, SCOPES, allowed_backend, canonical_language
 from native import COVERAGE_UNKNOWN, Finding, NormalizedResult, normalize
+from psalm_version import psalm_major
 from runner_artifacts import artifact as artifact
 from runner_artifacts import check_artifact as check_artifact
 from runner_artifacts import digest, execute, reserve, write_json
@@ -170,7 +171,11 @@ def initialize_run(request: RunRequest, state: RunState) -> str:
         state.errors.append("Invalid analysis scope or phase")
     if not request.cwd.is_dir():
         state.errors.append(f"Working directory does not exist: {request.cwd}")
-    engine, errors = command_contract(backend, request.argv, request.scope)
+    # Psalm 7's implicit activation can only be established after the audited
+    # version capture and XML snapshot. All other preflight checks still run now.
+    engine, errors = command_contract(
+        backend, request.argv, request.scope, psalm_combined=backend == "psalm"
+    )
     state.errors.extend(errors)
     return engine
 
@@ -209,6 +214,22 @@ def capture_version(request: RunRequest, state: RunState) -> JsonObject:
             "The recorded javac version identifies the compiler, not the Checker JAR."
         )
     return {"argv": argv, "output": stdout + stderr, "returncode": rc}
+
+
+def psalm_combined(version: JsonObject, configs: list[JsonObject]) -> bool:
+    if version.get("returncode") != 0 or psalm_major(version.get("output", "")) != 7:
+        return False
+    if not configs:
+        return False
+    root = ET.parse(configs[0]["path"]).getroot()
+    return root.get("runTaintAnalysis", "true") in {"true", "1"}
+
+
+def activation_errors(
+    backend: str, argv: list[str], scope: str, version: JsonObject, configs: list[JsonObject]
+) -> tuple[str, list[str]]:
+    combined = backend == "psalm" and psalm_combined(version, configs)
+    return command_contract(backend, argv, scope, psalm_combined=combined)
 
 
 def output_fingerprint(path: Path | None) -> tuple[int, str] | None:
@@ -354,6 +375,14 @@ def execute_request(request: RunRequest) -> JsonObject:
         capture_inputs(request, state)
         if request.version_argv is None and request.backend in BACKENDS:
             request.version_argv = version_command(request.backend, request.argv)
+        version = capture_version(request, state)
+        try:
+            engine, errors = activation_errors(
+                request.backend, request.argv, request.scope, version, state.configs
+            )
+            state.errors.extend(errors)
+        except ARTIFACT_ERRORS as exc:
+            state.errors.append(f"Invalid native activation configuration: {exc}")
         request.execution = capture_execution(
             request.output,
             startup,
@@ -363,9 +392,9 @@ def execute_request(request: RunRequest) -> JsonObject:
                 "version_argv": request.version_argv,
                 "cwd": str(request.cwd),
                 "config_files": state.configs,
+                "version": version,
             },
         )
-        version = capture_version(request, state)
         streams = execute_target(request, state)
         record = run_record(request, state, engine, version, streams)
         write_json(request.output, record)
@@ -426,7 +455,9 @@ def check_run_artifacts(record: JsonObject) -> list[str]:
 
 def check_activation(record: JsonObject) -> list[str]:
     backend, argv = record["backend"], record["argv"]
-    engine, errors = command_contract(backend, argv, record["scope"])
+    engine, errors = activation_errors(
+        backend, argv, record["scope"], record["version"], record["config_files"]
+    )
     if record.get("engine") != engine:
         errors.append("Recorded engine disagrees with the native command activation")
     errors.extend(version_binding_errors(backend, argv, record["version"]["argv"]))

@@ -49,6 +49,7 @@ CONFIG_NAMES = {
     "build.gradle",
     "build.gradle.kts",
     "composer.json",
+    "composer.lock",
     "Cargo.toml",
     "go.mod",
     "Gemfile",
@@ -164,7 +165,7 @@ def checked_engine(target: Path, selection: str) -> tuple[QueryEngine, str]:
         raise ValueError(
             "Trailmark lacks required evidence APIs: "
             + ", ".join(missing)
-            + ". Install trailmark>=0.7.1,<0.8; the version string alone is insufficient."
+            + ". Install trailmark>=0.8.0,<0.9; the version string alone is insufficient."
         )
     diagnostics = io.StringIO()
     with contextlib.redirect_stdout(diagnostics), contextlib.redirect_stderr(diagnostics):

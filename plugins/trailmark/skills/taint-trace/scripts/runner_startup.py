@@ -140,6 +140,20 @@ def capture_execution(
     return {**artifact(path), "policy": plan.policy, "assumptions": list(plan.assumptions)}
 
 
+def version_snapshot_errors(record: dict[str, Any], effective: dict[str, Any]) -> list[str]:
+    if "version" in effective:
+        return (
+            ["Recorded version disagrees with the immutable execution snapshot"]
+            if effective["version"] != record["version"]
+            else []
+        )
+    if record.get("backend") == "psalm":
+        _, args = invocation("psalm", record["argv"])
+        if "--taint-analysis" not in args:
+            return ["Psalm combined analysis requires an immutable version capture"]
+    return []
+
+
 def check_execution(record: dict[str, Any]) -> list[str]:
     if "execution" not in record:
         return ["Run lacks its immutable requested/effective execution snapshot"]
@@ -153,6 +167,7 @@ def check_execution(record: dict[str, Any]) -> list[str]:
             errors.append(f"Recorded {key} disagrees with the immutable execution snapshot")
     if effective["version_argv"] != record["version"]["argv"]:
         errors.append("Recorded version command disagrees with the immutable execution snapshot")
+    errors.extend(version_snapshot_errors(record, effective))
     for key in ("policy", "assumptions"):
         if saved[key] != record["execution"].get(key):
             errors.append(f"Recorded startup {key} disagrees with the execution snapshot")

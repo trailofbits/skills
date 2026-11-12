@@ -1222,12 +1222,12 @@ def test_psalm_mismatched_version_root_prevents_every_process(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "kind", ["activation", "xml", "root-relative", "root-relative-zero", "duplicate-root"]
+    "kind", ["help", "xml", "root-relative", "root-relative-zero", "duplicate-root"]
 )
 def test_psalm_preflight_errors_prevent_even_version_startup(tmp_path, kind):
     target, tools, marker, argv = startup_fixture(tmp_path)
-    if kind == "activation":
-        argv.remove("--taint-analysis")
+    if kind == "help":
+        argv.append("--help")
     elif kind == "xml":
         (target / "psalm.xml").write_text("<invalid")
     elif kind.startswith("root-relative"):

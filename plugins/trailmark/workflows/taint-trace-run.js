@@ -418,6 +418,10 @@ Before editing, identify a specific native modeling/resolution/precision gap and
 observable effect using baseline diagnostics, traces, configuration, or a native fixture.
 Semantic correctness alone does not establish utility. Leave wrappers already understood by
 the analyzer unchanged; do not add annotations to satisfy a quota.
+For Psalm 7, read the component's probe optional_capabilities and feature_runs. Use a new
+mechanism only when its version-bound feature result passes; record that capability ID and
+supporting native run in model evidence. Legacy profiles cannot establish Psalm 7 mechanisms.
+Account for built-in library models and automatic purity specialization before adding contracts.
 Apply supported native inline markup/docblocks/attributes and/or external model files only where
 implementation or dependency contracts justify specific parameters, return values, fields, or
 receivers. Entrypoint existence does not taint its return. Keep ambiguous/unresolved bindings,

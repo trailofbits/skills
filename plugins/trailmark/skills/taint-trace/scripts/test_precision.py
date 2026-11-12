@@ -62,7 +62,7 @@ def directory_fixture(root: Path) -> Path:
     source.write_text(
         "<?php\n"
         "namespace SnapshotFixture;\n"
-        "class Lookup {\n"
+        "final class Lookup {\n"
         "/**\n"
         " * @param array $values\n"
         " * @param array $keys\n"
@@ -70,7 +70,6 @@ def directory_fixture(root: Path) -> Path:
         " * @psalm-taint-specialize\n"
         " */\n"
         "public static function value($values, $keys) {\n"
-        "    $keys = (array) $keys;\n"
         "    foreach ($keys as $key) {\n"
         "        if (!isset($values[$key])) { return null; }\n"
         "        $values = $values[$key];\n"
@@ -116,7 +115,7 @@ def test_directory_scan_retains_positive_with_snapshots(tmp_path: Path, capture:
     )
     assert run["status"] == "analyzed", run["errors"]
     assert {(f["rule_id"], f["line"]) for f in run["findings"]} == {
-        ("TaintedHtml", 19),
-        ("TaintedTextWithQuotes", 19),
+        ("TaintedHtml", 18),
+        ("TaintedTextWithQuotes", 18),
     }
     assert run["scanned_files"] == [str(source)]

@@ -131,10 +131,10 @@ def checker_errors(args: list[str], flags: set[str]) -> list[str]:
     return errors
 
 
-def direct_errors(backend: str, args: list[str]) -> list[str]:
+def direct_errors(backend: str, args: list[str], *, psalm_combined: bool = False) -> list[str]:
     requirements = {
         "psalm": (
-            "--taint-analysis" in args,
+            "--taint-analysis" in args or psalm_combined,
             "Psalm target invocation must enable --taint-analysis",
         ),
         "pysa": ("analyze" in args, "Pysa target invocation must run pyre analyze"),
@@ -212,7 +212,9 @@ CHECKERS: dict[str, Callable[[list[str], set[str]], list[str]]] = {
 }
 
 
-def command_contract(backend: str, argv: list[str], scope: str) -> tuple[str, list[str]]:
+def command_contract(
+    backend: str, argv: list[str], scope: str, *, psalm_combined: bool = False
+) -> tuple[str, list[str]]:
     """Require target runs, as well as fixtures, to activate selected analysis."""
     try:
         _, args = invocation(backend, argv)
@@ -229,7 +231,11 @@ def command_contract(backend: str, argv: list[str], scope: str) -> tuple[str, li
         engine, scan = semgrep_contract(backend, args, flags, scope)
         return engine, errors + scan
     checker = CHECKERS.get(backend)
-    errors += checker(args, flags) if checker else direct_errors(backend, args)
+    errors += (
+        checker(args, flags)
+        if checker
+        else direct_errors(backend, args, psalm_combined=psalm_combined)
+    )
     return backend, errors
 
 

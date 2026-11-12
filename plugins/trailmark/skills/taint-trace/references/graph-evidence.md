@@ -1,6 +1,6 @@
 # Graph Evidence
 
-The helper declares `trailmark>=0.7.1,<0.8` as a PEP 723 dependency and runs with
+The helper declares `trailmark>=0.8.0,<0.9` as a PEP 723 dependency and runs with
 `uv`. It checks required entrypoint-evidence, source-policy, attack-surface,
 diagnostics, and traversal APIs directly rather than relying on a version string.
 

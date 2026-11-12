@@ -31,7 +31,9 @@ selected backend's reference. Prefer a working taint configuration already in th
 project. Otherwise use the catalog's ordered candidates and any requested backend
 overrides. A passing capability probe establishes the selected analysis mode;
 parser support and exit status alone do not.
-The launcher runs the helper through `uv`, using `trailmark>=0.7.1,<0.8` from the
+For version-specific mechanisms such as Psalm 7's precise flow contracts, inspect
+the probe's per-feature capability results and use only demonstrated mechanisms.
+The launcher runs the helper through `uv`, using `trailmark>=0.8.0,<0.9` from the
 package index. Native analyzers are separate dependencies.
 
 ## Required Graph Evidence

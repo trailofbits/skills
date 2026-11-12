@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from contracts import psalm_core_expectations, psalm_optional_expectations
+from psalm_feature_probes import PROFILE, check_feature_runs, feature_capabilities
 from runner_artifacts import check_artifact
 
 JsonObject = dict[str, Any]
@@ -17,6 +18,7 @@ PSALM_PROFILES = {
     "psalm-conditional-nodes-v1",
     "psalm-taint-contracts-v2",
     "psalm-taint-contracts-v3",
+    PROFILE,
 }
 
 
@@ -170,7 +172,7 @@ def optional_capabilities(proof: JsonObject, run: JsonObject) -> dict[str, JsonO
             "status": "limited" if checks else "passed",
             "limitations": limitations,
         }
-    return capabilities
+    return {**capabilities, **feature_capabilities(proof)}
 
 
 def capability_limitations(capabilities: dict[str, JsonObject]) -> list[str]:
@@ -228,7 +230,7 @@ def check_probe_baseline(proof: JsonObject, run: JsonObject) -> list[str]:
 
 
 def check_profile(proof: JsonObject) -> list[str]:
-    if proof.get("profile") != "psalm-taint-contracts-v3":
+    if proof.get("profile") not in {"psalm-taint-contracts-v3", PROFILE}:
         return []
     errors = []
     if proof.get("expect") != psalm_core_expectations():
@@ -306,6 +308,7 @@ def check_probe(proof: JsonObject, proof_path: Path) -> list[str]:
         errors.extend(expected_sites(proof, run))
         errors.extend(check_probe_baseline(proof, run))
         errors.extend(check_profile(proof))
+        errors.extend(check_feature_runs(proof, run))
         errors.extend(check_fixture_binding(proof, run))
         errors.extend(check_optional_capabilities(proof, run))
         errors.extend(check_probe_artifacts(proof))

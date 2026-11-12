@@ -53,6 +53,53 @@ are optional precision checks. Record failed optional checks as limitations and
 avoid relying on those constructs in generated models until they pass. An optional
 failure does not invalidate an otherwise passing core contract.
 
+With Psalm 7, the built-in probe adds independent native feature runs under the
+`psalm-taint-contracts-v4` profile. Each `feature_runs` entry preserves its fixture,
+configuration, expected findings/negatives, and native run. Its result appears in
+`optional_capabilities`; use a mechanism only when that result passes for the
+selected analyzer version. Older profiles establish their original contracts only.
+An optional failure remains a limitation, including when a newer patch changes
+behavior. A version number or an accepted annotation alone is insufficient.
+
+## Psalm 7 Modeling
+
+Psalm 7 already tracks more built-in sources, libraries, closures, references,
+properties, and exceptions. Inspect the baseline first: a visible wrapper or a
+bundled library model often needs no additional contract. These precise mechanisms
+are available when their named feature probe passes:
+
+| Capability | Contract and useful boundary |
+| --- | --- |
+| `keyed_return_sources` | `@psalm-taint-source input return['raw']` marks one returned key; retain clean sibling keys. |
+| `conditional_sinks` | `@psalm-taint-sink ($raw is true ? 'html' : null) $value` describes a mode-dependent sink; unknown modes retain the unsafe possibility. |
+| `array_value_sinks` | `@psalm-taint-sink sql $params[*]` targets array values, leaving keys distinct. |
+| `taint_complements` | `~(html\|has_quotes)` means all taints except those listed, including custom taints. Use only when that complete contract is justified. |
+| `callable_flows`, `receiver_flows` | `@psalm-flow ($compute()) -> return` and `@psalm-flow ($this) -> return` retain callback-return or receiver dependencies. |
+| `property_flows`, `named_property_flows` | Describe array property elements or properties accessed by name; preserve the actual property/key binding. |
+| `keyed_store_flows`, `property_bags` | Model an opaque keyed store or class property bag without merging unrelated keys. |
+| `custom_taints` | Declare application-specific taints under `<taintAnalysis><taints>` in `psalm.xml`; preserve names and aliases in configuration evidence. |
+| `cli_output` | `@psalm-cli-only` identifies output that is not an HTML response. Establish the CLI-only context and retain other applicable threats. |
+| `capabilities`, `purity_templates`, `automatic_specialization` | Express verified effects or callback-dependent purity and demonstrate per-call precision without removing vulnerable positives. |
+
+Purity and specialization do not sanitize data. Psalm 7 can specialize inferred
+pure/read-only functions automatically; do not add redundant annotations. Where an
+overridable implementation needs a checked purity contract, use `@psalm-capabilities`
+or an appropriate purity template backed by implementation and override evidence.
+Legacy `@psalm-mutation-free` and `@psalm-external-mutation-free` remain accepted.
+Do not run bulk `--alter` suggestions merely to reduce taint warnings.
+
+Trailmark 0.8.0 retains calls through PHP 8.5 pipes and references created by PHP
+8.6 partial applications. Creating `f(?, fixed())` evaluates `fixed()` while
+deferring `f`; a pipe or direct invocation can execute the partial. General
+variable-held callable propagation remains unresolved. Use source evidence and the
+native analyzer to resolve data bindings rather than treating every reference as
+execution. New Psalm docblocks remain source/docstring evidence, not a second
+taint engine inside Trailmark.
+
+Source: [Psalm 7 announcement and upgrade guidance](https://psalm.dev/articles/psalm-7).
+
+## Precision Contracts
+
 Use purity or specialization annotations only when implementation evidence supports
 them. A receiver-dependent method must retain propagation from its receiver; a
 stateless wrapper may support per-call specialization. Neither annotation is a
@@ -98,7 +145,13 @@ sink, sanitizer, or propagation contracts. Inspect those contracts separately.
 
 ## Native Runs and Comparison
 
-Run ordinary analysis before accepting a taint baseline. Missing symbols, invalid
+Psalm 7 runs type checking and taint analysis together by default. The helper
+accepts combined analysis after capturing its version and a configuration that
+does not disable `runTaintAnalysis`. Psalm 5/6 and unrecognized versions require
+explicit `--taint-analysis`; that flag also overrides an explicit false setting
+on Psalm 7. Keep ordinary type diagnostics from combined runs as limitations;
+they are not additional taint findings. For Psalm 5/6, inspect ordinary analysis
+before accepting a taint baseline. Missing symbols, invalid
 annotations, or missing includes can hide flows even when taint mode is quiet.
 Preserve diagnostics and resolve framework declarations without suppressing errors
 or narrowing the original source roots. Keep setup identical between baseline and
@@ -122,12 +175,21 @@ commands with absolute tool/configuration paths:
   --no-cache --output-format=json
 ```
 
-Inspect configuration autoloaders, plugins, interpreter hooks, and tool installation
+Inspect configuration autoloaders, automatic library plugins, explicit plugins,
+interpreter hooks, and tool installation
 before either command. The discovery root does not disable explicit hooks or
 sandbox the process. Load target declarations through native stubs or statically
 parsed source when runtime initialization would be required. The helper captures
 requested/effective commands and startup assumptions in its execution artifact;
-stdout remains native JSON and stderr retains diagnostics.
+stdout remains native JSON and stderr retains diagnostics. Its snapshot also binds
+the captured version. Configuration evidence includes `composer.json`,
+`composer.lock`, and installed Composer package metadata when present, alongside
+XML settings such as `loadLibraryStubs` and `loadLibraryPlugins`. Psalm 7 can enable
+framework plugins based on Composer dependencies; the empty discovery root does
+not disable configuration-driven plugin loading. Preserve the reviewed setup
+between baseline and enriched runs. Prefer annotations/stubs over writing a plugin;
+an unavoidable custom Psalm 7 plugin must require the compatible
+`psalm/psalm-plugin-api` range separately from the Psalm version.
 
 Psalm can exit nonzero for findings. Distinguish taint issues from invalid
 configuration, syntax, and analysis failures. Retain effective source roots,
