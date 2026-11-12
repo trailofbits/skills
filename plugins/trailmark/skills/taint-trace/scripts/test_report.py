@@ -341,6 +341,27 @@ def test_real_php_lambda_ids_can_shift_without_a_warning_delta(tmp_path, declare
     assert "0 newly reported; 0 no longer reported" in text
 
 
+@pytest.mark.parametrize("trailing_newline", [False, True])
+@pytest.mark.parametrize("annotated", [False, True])
+def test_real_php_script_end_boundaries_preserve_matched_warnings(
+    tmp_path, trailing_newline, annotated
+) -> None:
+    source = "<?php\necho $input;" + ("\n" if trailing_newline else "")
+    edited = source.replace("echo", "/** model */\necho") if annotated else source
+    original = php_comparison_context(tmp_path, "original", source)
+    rebound = php_comparison_context(tmp_path, "rebound", edited)
+    scripts = [node for node in original["graph"]["nodes"].values() if node["name"] == "<script>"]
+    assert len(scripts) == 1
+    assert scripts[0]["location"]["end_line"] == len(source.splitlines()) + trailing_newline
+    warning = {**boundary_warning(tmp_path, 2, "echo $input;"), "file": "boundary.php"}
+    records = {
+        "baseline": {"findings": [warning]},
+        "enriched": {"findings": [{**warning, "line": 2 + annotated}]},
+    }
+    text = "\n".join(reports.finding_changes(records, tmp_path, contexts=(original, rebound)))
+    assert "0 newly reported; 0 no longer reported" in text
+
+
 def test_real_php_identical_lambdas_keep_distinct_locations_after_annotations(tmp_path):
     statement = "    $sink = fn($value) => sink($value);\n"
     source = (

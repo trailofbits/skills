@@ -150,6 +150,14 @@ def declaration_at(declarations: list[Declaration], line: int) -> list[Declarati
     return [item for item in candidates if item.end - item.start == smallest]
 
 
+def mapped_boundary(line: int, mapping: SourceMapping) -> int | None:
+    # A synthetic PHP script can end at column zero after its final newline.
+    # That terminal boundary is absent from splitlines(), but corresponds to EOF.
+    if line == len(mapping.rebound_lines) + 1:
+        return len(mapping.original_lines) + 1
+    return mapping.lines.get(line)
+
+
 def matching_owners(
     before: list[Declaration], after: list[Declaration], mapping: SourceMapping
 ) -> bool:
@@ -160,7 +168,7 @@ def matching_owners(
     old, new = before[0], after[0]
     if old.identity is None or old.identity != new.identity:
         return False
-    if (mapping.lines.get(new.start), mapping.lines.get(new.end)) != (old.start, old.end):
+    if (mapping.lines.get(new.start), mapped_boundary(new.end, mapping)) != (old.start, old.end):
         return False
     # Equal anonymous declarations remain separate occurrences; adding another is ambiguous.
     counts = [
