@@ -234,6 +234,28 @@ def boundary_warning(root: Path, line: int, source_line: str) -> JsonObject:
     }
 
 
+def comparison_context(
+    root: Path, name: str, source: str, declarations: list[tuple[str, int, int]]
+) -> JsonObject:
+    snapshot = root / f"{name}.snapshot"
+    snapshot.write_text(source, encoding="utf-8")
+    return {
+        "source_snapshots": [{"file": "boundary.py", "path": str(snapshot)}],
+        "graph": {
+            "nodes": {
+                ident: {
+                    "location": {
+                        "file_path": str(root / "boundary.py"),
+                        "start_line": start,
+                        "end_line": end,
+                    }
+                }
+                for ident, start, end in declarations
+            },
+        },
+    }
+
+
 def test_second_warning_location_keeps_native_counts_without_claiming_another_flow(
     tmp_path: Path,
 ) -> None:
@@ -258,13 +280,75 @@ def test_second_warning_location_keeps_native_counts_without_claiming_another_fl
 def test_source_line_survives_annotation_line_shifts_without_a_warning_delta(
     tmp_path: Path,
 ) -> None:
-    before = boundary_warning(tmp_path, 10, "return driver.execute(query)")
-    after = {**before, "line": 15}
+    source = "def execute(query):\n    return driver.execute(query)\n"
+    original = comparison_context(tmp_path, "original", source, [("execute", 1, 2)])
+    rebound = comparison_context(
+        tmp_path, "rebound", "# annotation\n" + source, [("execute", 2, 3)]
+    )
+    # Historical matching must not depend on the current worktree.
+    (tmp_path / "boundary.py").write_text("different source\n")
+    before = boundary_warning(tmp_path, 2, "return driver.execute(query)")
+    after = {**before, "line": 3}
     records = {"baseline": {"findings": [before]}, "enriched": {"findings": [after]}}
-    text = "\n".join(reports.finding_changes(records, tmp_path))
+    text = "\n".join(reports.finding_changes(records, tmp_path, contexts=(original, rebound)))
     assert "0 newly reported; 0 no longer reported" in text
     assert "unchanged counts do not establish redundancy" in text
     assert "Compare native traces and source evidence" in text
+
+
+@pytest.mark.parametrize("with_contexts", [False, True])
+def test_identical_sink_text_in_distinct_functions_keeps_location_changes(tmp_path, with_contexts):
+    source = "def first():\n    sink(input)\n\ndef second():\n    sink(input)\n"
+    context = comparison_context(tmp_path, "source", source, [("first", 1, 2), ("second", 4, 5)])
+    before = boundary_warning(tmp_path, 2, "sink(input)")
+    after = {**before, "line": 5}
+    records = {"baseline": {"findings": [before]}, "enriched": {"findings": [after]}}
+    contexts = (context, context) if with_contexts else None
+    text = "\n".join(reports.finding_changes(records, tmp_path, contexts=contexts))
+    assert "1 newly reported; 1 no longer reported" in text
+
+
+def test_identical_sinks_in_one_function_keep_distinct_locations_after_annotations(tmp_path):
+    source = "def execute():\n    sink(input)\n    sink(input)\n"
+    original = comparison_context(tmp_path, "original", source, [("execute", 1, 3)])
+    rebound = comparison_context(
+        tmp_path, "rebound", "# annotation\n" + source, [("execute", 2, 4)]
+    )
+    before = boundary_warning(tmp_path, 2, "sink(input)")
+    records = {
+        "baseline": {"findings": [before]},
+        "enriched": {"findings": [{**before, "line": 4}]},
+    }
+    text = "\n".join(reports.finding_changes(records, tmp_path, contexts=(original, rebound)))
+    assert "1 newly reported; 1 no longer reported" in text
+    records["enriched"]["findings"] = [{**before, "line": 3}] * 2
+    text = "\n".join(reports.finding_changes(records, tmp_path, contexts=(original, rebound)))
+    assert "1 newly reported; 0 no longer reported" in text
+
+
+def test_new_identical_sink_does_not_acquire_an_existing_location_identity(tmp_path):
+    source = "def execute():\n    sink(input)\n"
+    original = comparison_context(tmp_path, "original", source, [("execute", 1, 2)])
+    rebound = comparison_context(
+        tmp_path, "rebound", source + "    sink(input)\n", [("execute", 1, 3)]
+    )
+    before = boundary_warning(tmp_path, 2, "sink(input)")
+    records = {"baseline": {"findings": [before]}, "enriched": {"findings": [before]}}
+    text = "\n".join(reports.finding_changes(records, tmp_path, contexts=(original, rebound)))
+    assert "1 newly reported; 1 no longer reported" in text
+    assert "unmatched or ambiguous locations" in text
+
+
+def test_identical_statement_in_a_different_declaration_does_not_match(tmp_path):
+    source = "def first():\n    sink(input)\n"
+    original = comparison_context(tmp_path, "original", source, [("first", 1, 2)])
+    rebound = comparison_context(
+        tmp_path, "rebound", source.replace("first", "second"), [("second", 1, 2)]
+    )
+    warning = boundary_warning(tmp_path, 2, "sink(input)")
+    records = {"baseline": {"findings": [warning]}, "enriched": {"findings": [warning]}}
+    text = "\n".join(reports.finding_changes(records, tmp_path, contexts=(original, rebound)))
+    assert "1 newly reported; 1 no longer reported" in text
 
 
 @pytest.mark.parametrize("coverage", [None, []])

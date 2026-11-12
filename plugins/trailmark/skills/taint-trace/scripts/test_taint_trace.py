@@ -509,15 +509,15 @@ def test_launcher_preserves_arguments_without_generator_bootstrap(tmp_path):
     assert "requires uv on PATH" in result.stderr
 
 
-def test_finding_delta_ignores_line_shifts_but_keeps_duplicate_counts():
+def test_finding_identity_keeps_exact_locations_and_duplicate_counts():
     first = {"rule_id": "r", "file": "/target/app.py", "line": 2, "source_line": "sink(x)"}
     shifted = {**first, "line": 12}
-    assert tt.finding_key(first, Path("/target")) == tt.finding_key(shifted, Path("/target"))
+    assert tt.finding_key(first, Path("/target")) != tt.finding_key(shifted, Path("/target"))
     assert (
         sum(
             (
                 Counter([tt.finding_key(first, Path("/target"))] * 2)
-                - Counter([tt.finding_key(shifted, Path("/target"))])
+                - Counter([tt.finding_key(first, Path("/target"))])
             ).values()
         )
         == 1

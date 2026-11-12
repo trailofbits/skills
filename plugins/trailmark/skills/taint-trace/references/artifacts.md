@@ -248,6 +248,11 @@ Report analyzer findings separately from modeling assumptions and unresolved
 graph gaps. Compare baseline/enriched findings by native rule and rebound source
 location, preserving traces and model snapshot attribution. A new finding is an
 analyzer result under the added contracts, not automatic proof of exploitability.
+The report maps unchanged lines between preserved source copies and checks their
+enclosing declarations. Identical statements at separate locations remain
+distinct; inserted annotations can shift a matched location. Ambiguous or
+unmatched locations remain separate in the counts. Without source copies,
+comparison uses exact native locations rather than matching source text alone.
 Counts describe native warning records, not unique flows or coverage. Compare
 traces to distinguish extra wrapper locations and shared-call context merging
 from recovered flows; unchanged counts alone cannot establish redundancy either.

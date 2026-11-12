@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import re
-from collections import Counter
 from html import escape
 from pathlib import Path
 from urllib.parse import quote
 
+from finding_comparison import ContextPair, finding_counters
+from finding_comparison import finding_key as finding_key
 from graph_context import rebind_anchor
 from manifest_validation import ACTIVE, ValidationResult, validate_manifest
 from trace_artifacts import JsonObject, read_json, record_path, relative
@@ -31,15 +32,6 @@ def report_code(value: object) -> str:
 def report_link(path: Path) -> str:
     # Encode destination syntax independently from the visible Markdown label.
     return f"[{report_text(path.name)}]({quote(path.as_posix(), safe='/')})"
-
-
-def finding_key(item: JsonObject, target: Path) -> tuple:
-    # Captured source text survives inserted docblocks; Counter preserves duplicates.
-    return (
-        item["rule_id"],
-        relative(item["file"], target),
-        item.get("source_line") or f"line:{item['line']}",
-    )
 
 
 def recorded_components(manifest: JsonObject, base: Path) -> list[str]:
@@ -133,13 +125,12 @@ def native_run_lines(run: JsonObject, run_path: Path, phase: str, target: Path) 
     ]
 
 
-def finding_changes(records: dict[str, JsonObject], target: Path) -> list[str]:
+def finding_changes(
+    records: dict[str, JsonObject], target: Path, *, contexts: ContextPair | None = None
+) -> list[str]:
     if set(records) != {"baseline", "enriched"}:
         return []
-    before, after = (
-        Counter(finding_key(item, target) for item in records[phase].get("findings", []))
-        for phase in ("baseline", "enriched")
-    )
+    before, after = finding_counters(records, target, contexts or ({}, {}))
     return [
         "",
         f"Finding changes: {sum((after - before).values())} newly reported; "
@@ -148,10 +139,15 @@ def finding_changes(records: dict[str, JsonObject], target: Path) -> list[str]:
         "An added warning at a wrapper can duplicate a baseline warning inside its implementation. "
         "Changed counts alone do not establish recovered flows, improved coverage, or precision; "
         "unchanged counts do not establish redundancy. Compare native traces and source evidence.",
+        "Warning locations are matched through preserved sources and enclosing declarations; "
+        "unmatched or ambiguous locations are counted separately. Without source copies, "
+        "comparison uses exact native locations.",
     ]
 
 
-def component_report(component: JsonObject, base: Path, target: Path) -> list[str]:
+def component_report(
+    component: JsonObject, base: Path, target: Path, *, contexts: ContextPair | None = None
+) -> list[str]:
     lines = [
         "",
         f"### {report_text(component.get('id', '?'))}",
@@ -168,7 +164,7 @@ def component_report(component: JsonObject, base: Path, target: Path) -> list[st
             lines.extend(native_run_lines(run, run_path, phase, target))
         except (OSError, ValueError, KeyError, TypeError) as exc:
             lines.extend(["", f"Cannot read {phase} artifact: {report_text(exc)}"])
-    lines.extend(finding_changes(records, target))
+    lines.extend(finding_changes(records, target, contexts=contexts))
     if component.get("gaps"):
         lines.extend(
             ["", "Unresolved gaps:", "", *[f"- {report_text(gap)}" for gap in component["gaps"]]]
@@ -257,7 +253,9 @@ def validated_report(path: Path, manifest: JsonObject, result: ValidationResult)
         *component_table(manifest["components"]),
     ]
     for component in manifest["components"]:
-        lines.extend(component_report(component, base, target))
+        lines.extend(
+            component_report(component, base, target, contexts=(original, rebound or original))
+        )
     lines.extend(["", "## Models and assumptions", ""])
     if not manifest["models"]:
         lines.append("No generated models.")
