@@ -1,0 +1,12 @@
+{
+  "id": "08-superseded",
+  "description": "feature/api is superseded because feature/api-v2 contains every one of its commits and is still live; the evidence lives in another branch, not in main. Correct answer deletes feature/api and keeps feature/api-v2.",
+  "fixture": ["--superseded"],
+  "allowed_tools": "Bash Read AskUserQuestion Workflow",
+  "expect": "analysis",
+  "ask": {
+    "with": "Now run `/git-cleanup {{DIR}}/repo`.",
+    "without": "Now clean up the accumulated local branches in `{{DIR}}/repo`. Show me what you propose to delete, with your reasoning for each branch, before deleting anything."
+  },
+  "notes": "The SUPERSEDED category's evidence is the hardest to verify: nothing in main proves it, only a second branch does. It is also the only category where the correct answer is to keep the branch that carries the proof, so the case fails loudly if the model treats a shared name prefix as sufficient — which is the error this category exists to prevent."
+}
