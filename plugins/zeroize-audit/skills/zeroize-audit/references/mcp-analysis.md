@@ -215,7 +215,7 @@ uv run --no-project {baseDir}/tools/mcp/apply_confidence_gates.py \
   --input /tmp/raw-report.json \
   --out /tmp/final-report.json \
   --mcp-available \
-  --mcp-required-for-advanced
+  --require-mcp-for-advanced
 ```
 
-Omit `--mcp-available` if MCP was unreachable. Omit `--mcp-required-for-advanced` if `mcp_required_for_advanced=false` in the run config. The script applies all downgrade rules from SKILL.md and outputs gated findings ready for the report assembly phase.
+Omit `--mcp-available` if MCP was unreachable. Omit `--require-mcp-for-advanced` if `mcp_required_for_advanced=false` in the run config. The script applies all downgrade rules from SKILL.md and outputs gated findings ready for the report assembly phase.
