@@ -68,16 +68,16 @@ sudo cp modules/vld.so "$PHP_EXT_DIR/"
 
 ```bash
 # Analyze PHP file
-uv run {baseDir}/ct_analyzer/analyzer.py crypto.php
+uv run {baseDir}/../../ct_analyzer/analyzer.py crypto.php
 
 # Include warning-level violations
-uv run {baseDir}/ct_analyzer/analyzer.py --warnings crypto.php
+uv run {baseDir}/../../ct_analyzer/analyzer.py --warnings crypto.php
 
 # Filter to specific functions
-uv run {baseDir}/ct_analyzer/analyzer.py --func 'encrypt|decrypt' crypto.php
+uv run {baseDir}/../../ct_analyzer/analyzer.py --func 'encrypt|decrypt' crypto.php
 
 # JSON output for CI
-uv run {baseDir}/ct_analyzer/analyzer.py --json crypto.php
+uv run {baseDir}/../../ct_analyzer/analyzer.py --json crypto.php
 ```
 
 ## Dangerous Operations
