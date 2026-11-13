@@ -7,7 +7,7 @@ down. One document per requirement.
 
 Sections in this order, separated by `---`:
 
-```markdown
+````markdown
 ## REQ-04 — <the requirement in a few words>
 
 > "<the requirement quoted verbatim>"
@@ -20,10 +20,10 @@ for. Name the quantities and where they come from.
 
 **Where enforcement lives:**
 
-​```solidity
+```solidity
 // Vault.sol:L80-L85
 <the code>
-​```
+```
 - What it checks, and against what.
 - Which paths reach it, and which do not.
 
@@ -42,7 +42,7 @@ for. Name the quantities and where they come from.
 
 **Open questions:**
 - unclear; need to inspect X
-```
+````
 
 ## Conventions
 

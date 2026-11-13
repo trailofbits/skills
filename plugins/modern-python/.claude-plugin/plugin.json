@@ -1,7 +1,7 @@
 {
   "name": "modern-python",
-  "version": "1.6.2",
-  "description": "Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools.",
+  "version": "1.6.3",
+  "description": "Modern Python best practices. Use when creating new Python projects, and writing Python scripts, or migrating existing projects from legacy tools. Enabling it adds session-wide PATH shims that block bare pip and pipx, python <script>, python -m pip and uv pip in every project, printing the uv command to use instead.",
   "author": {
     "name": "William Tan",
     "email": "opensource@trailofbits.com",

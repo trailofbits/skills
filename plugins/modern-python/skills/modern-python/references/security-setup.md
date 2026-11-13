@@ -34,7 +34,7 @@ uv tool install zizmor
 
 Alternative installation methods:
 
-- **actionlint**: `go install github.com/rhysd/actionlint/cmd/actionlint@latest`
+- **actionlint**: `go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12`
 - **zizmor**: `cargo install zizmor`
 - **detect-secrets**: `pipx install detect-secrets`
 

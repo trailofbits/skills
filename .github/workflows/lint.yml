@@ -33,12 +33,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - name: Install bats and uv
+      - name: Install bats
         run: |
           sudo apt-get update
           sudo apt-get install -y bats
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          version: "0.12.24"
       - name: Run bats tests
         # --no-run-if-empty would turn "discovery broke" into a silent pass. This repo
         # ships bats suites, so finding none is a failure, not a clean run.
@@ -114,9 +116,9 @@ jobs:
         # c-review's scripts are PEP 723 and run under `uv run`; its parser tests
         # fail rather than skip when uv is missing, on purpose — a skipped parser
         # test leaves half of enumerate_units.py unexercised while the suite is green.
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
+        with:
+          version: "0.12.24"
       - name: Install toolchain dependencies
         # constant-time-analysis tests cross-compile C to aarch64 via
         # `clang --target=aarch64-unknown-linux-gnu`. Without the cross

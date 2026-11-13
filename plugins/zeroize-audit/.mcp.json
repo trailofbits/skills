@@ -5,14 +5,14 @@
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/oraios/serena",
+        "git+https://github.com/oraios/serena@949a27ef1e5fda1a6e7b561e777bcece345c6ffd",
         "serena",
         "start-mcp-server",
         "--context",
         "claude-code",
         "--project-from-cwd"
       ],
-      "_docs": "Serena wraps language servers (clangd for C/C++) and exposes semantic analysis as MCP tools. It auto-discovers compile_commands.json from the project root. See skills/zeroize-audit/references/mcp-analysis.md.",
+      "_docs": "Pinned to oraios/serena v1.7.0 (commit 949a27ef). Bump deliberately: review the upstream diff, then update the SHA here and in references/mcp-analysis.md. Serena wraps language servers (clangd for C/C++) and exposes semantic analysis as MCP tools. It auto-discovers compile_commands.json from the project root. See skills/zeroize-audit/references/mcp-analysis.md.",
       "env": {}
     }
   }

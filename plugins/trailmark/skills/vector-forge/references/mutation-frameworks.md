@@ -209,7 +209,7 @@ small-to-medium Go modules (microservices, libraries).
 brew tap go-gremlins/tap && brew install gremlins
 
 # Any platform with Go
-go install github.com/go-gremlins/gremlins/cmd/gremlins@latest
+go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
 ```
 
 **Run:**
@@ -226,7 +226,8 @@ file path, line number, and mutation type.
 **Install:**
 
 ```bash
-go install github.com/zimmski/go-mutesting/cmd/go-mutesting@latest
+# v1.2 is not a semver tag the Go toolchain accepts, so pin its commit
+go install github.com/zimmski/go-mutesting/cmd/go-mutesting@6d9217011a005762bbcf4ac7a60237dc6a99887f
 ```
 
 **Run:**

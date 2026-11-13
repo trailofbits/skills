@@ -1,5 +1,5 @@
 {
-  "description": "Intercept legacy Python/pip commands via PATH shims and suggest uv alternatives",
+  "description": "At session start, put PATH shims ahead of the real binaries that block bare pip and pipx, python <script>, python -m pip and uv pip in every project for the rest of the session, printing the uv command to use instead",
   "hooks": {
     "SessionStart": [
       {
@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT:-.}/hooks/setup-shims.sh\""
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT:?plugin root is unset, refusing to run hooks from the working directory}/hooks/setup-shims.sh\""
           }
         ]
       }

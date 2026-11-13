@@ -25,7 +25,7 @@ The `plugin.json` registers Serena as the `serena` MCP server, launched via `uvx
 
 **Prerequisites:**
 - `uvx` must be on PATH (installed with `uv` — see https://docs.astral.sh/uv/)
-- Serena is fetched and run automatically via `uvx --from git+https://github.com/oraios/serena`
+- Serena is fetched and run automatically via `uvx --from git+https://github.com/oraios/serena@949a27ef1e5fda1a6e7b561e777bcece345c6ffd` (v1.7.0). The commit is pinned on purpose: an unpinned `git+` source runs whatever upstream `main` holds at session start. To upgrade, review the upstream diff and change the SHA in `.mcp.json` and here together.
 - No separate `clangd` installation is required — Serena manages language server dependencies internally
 
 **Verify before querying:**
