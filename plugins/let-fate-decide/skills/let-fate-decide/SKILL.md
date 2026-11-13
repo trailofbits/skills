@@ -10,26 +10,31 @@ When the path forward is unclear, let the cards speak.
 
 ## Quick Start
 
+Resolve [the drawing script](scripts/draw_cards.py) from this `SKILL.md`'s installed
+location, not the shell's working directory. In the commands below, replace
+`<resolved-script-path>` with that absolute path, keeping the quotes. Relative
+links and JSON `file` paths resolve from the directory containing this `SKILL.md`.
+
 1. Run the drawing script:
    ```bash
-   uv run --no-config {baseDir}/scripts/draw_cards.py
+   uv run --no-config "<resolved-script-path>"
    ```
 
 2. The script outputs JSON for the default 12 Houses of the Zodiac spread:
    12 houses, each with 1 Major Arcana card and 2 Minor Arcana cards. Each
-   house and card includes a `file` path relative to `{baseDir}/`
+   house and card includes a `file` path relative to this `SKILL.md`'s directory.
 
 3. Read each house file and each card's meaning file to understand the draw.
    For faster reads, use `--content` to include house and card text directly
    in the JSON:
    ```bash
-   uv run --no-config {baseDir}/scripts/draw_cards.py --content
+   uv run --no-config "<resolved-script-path>" --content
    ```
 
-4. Interpret the spread using the guide at [{baseDir}/references/INTERPRETATION_GUIDE.md]({baseDir}/references/INTERPRETATION_GUIDE.md)
+4. Interpret the spread using [the interpretation guide](references/INTERPRETATION_GUIDE.md)
 
 5. When the task belongs to a specialized technical workflow, use
-   [{baseDir}/references/TECHNICAL_CONTEXT_LENSES.md]({baseDir}/references/TECHNICAL_CONTEXT_LENSES.md)
+   [technical context lenses](references/TECHNICAL_CONTEXT_LENSES.md)
    to translate the reading into an audit, verification, domain, failure-class,
    or stakeholder lens
 
@@ -114,25 +119,25 @@ the new default spread has a fixed shape.
 
 ### Reference Files
 
-Each house's meaning is in its own markdown file under `{baseDir}/houses/`.
+Each house's meaning is in its own markdown file under [houses/](houses/).
 House files describe how the house applies across technical contexts including
 building new projects, vulnerability discovery, correctness verification, and
 common audit, verification, domain, failure-class, and stakeholder workflows.
 
-Each card's meaning is in its own markdown file under `{baseDir}/cards/`:
+Each card's meaning is in its own markdown file under [cards/](cards/):
 
-- `cards/major/` - 22 Major Arcana (archetypal forces)
-- `cards/wands/` - 14 Wands (creativity, action, will)
-- `cards/cups/` - 14 Cups (emotion, intuition, relationships)
-- `cards/swords/` - 14 Swords (intellect, conflict, truth)
-- `cards/pentacles/` - 14 Pentacles (material, practical, craft)
+- [cards/major/](cards/major/) - 22 Major Arcana (archetypal forces)
+- [cards/wands/](cards/wands/) - 14 Wands (creativity, action, will)
+- [cards/cups/](cards/cups/) - 14 Cups (emotion, intuition, relationships)
+- [cards/swords/](cards/swords/) - 14 Swords (intellect, conflict, truth)
+- [cards/pentacles/](cards/pentacles/) - 14 Pentacles (material, practical, craft)
 
 ### Interpretation
 
 After drawing, read each house file and each card file, then synthesize
-meaning. See [{baseDir}/references/INTERPRETATION_GUIDE.md]({baseDir}/references/INTERPRETATION_GUIDE.md) for the full interpretation workflow.
+meaning. See [the interpretation guide](references/INTERPRETATION_GUIDE.md) for the full interpretation workflow.
 For cross-domain translation, see
-[{baseDir}/references/TECHNICAL_CONTEXT_LENSES.md]({baseDir}/references/TECHNICAL_CONTEXT_LENSES.md).
+[technical context lenses](references/TECHNICAL_CONTEXT_LENSES.md).
 
 Key rules:
 - Reversed cards invert or complicate the upright meaning

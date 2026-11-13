@@ -26,7 +26,14 @@ if [[ ! -x "${shims_dir}/gh" ]]; then
   exit 1
 fi
 
-echo "export PATH=\"${shims_dir}:\${PATH}\"" >>"$CLAUDE_ENV_FILE" || {
-  echo "gh-cli: failed to write to CLAUDE_ENV_FILE ($CLAUDE_ENV_FILE)" >&2
-  exit 1
-}
+# SessionStart fires on startup, resume and compact, so this hook can run many
+# times in one session. Appending unconditionally piles up duplicate exports
+# until the runtime's ~8 KB concatenated env is cut mid-line and every Bash call
+# in the session fails. Write the line only if this session does not have it yet.
+env_line="export PATH=\"${shims_dir}:\${PATH}\""
+if ! grep -qxF -- "$env_line" "$(dirname "$CLAUDE_ENV_FILE")"/*.sh 2>/dev/null; then
+  echo "$env_line" >>"$CLAUDE_ENV_FILE" || {
+    echo "gh-cli: failed to write to CLAUDE_ENV_FILE ($CLAUDE_ENV_FILE)" >&2
+    exit 1
+  }
+fi

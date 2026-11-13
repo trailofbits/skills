@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "outcome": "reproduced",
+  "baseline_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "build_argv": [
+    "python",
+    "build.py"
+  ],
+  "poc_argv": [
+    "python",
+    "poc.py"
+  ],
+  "target_artifact": "dist/app.py",
+  "observed": "File escaped",
+  "blocker": null,
+  "agent": "reproducer"
+}

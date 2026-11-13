@@ -20,7 +20,7 @@ Write agent inputs to `{workdir}/agent-inputs/mcp-resolver.json`:
 }
 ```
 
-Spawn agent `zeroize-audit:1-mcp-resolver` via `Task` (`subagent_type: "zeroize-audit:1-mcp-resolver"`) with:
+Launch the [1-mcp-resolver role](../../../agents/1-mcp-resolver.md) using the [Execution Contract](../SKILL.md#execution-contract) with:
 
 | Parameter | Value |
 |---|---|
@@ -49,7 +49,7 @@ Write agent inputs to `{workdir}/agent-inputs/source-analyzer.json`:
 }
 ```
 
-Spawn agent `zeroize-audit:2-source-analyzer` via `Task` (`subagent_type: "zeroize-audit:2-source-analyzer"`) **in the same message as Wave 2b** (parallel launch):
+Launch the [2-source-analyzer role](../../../agents/2-source-analyzer.md) using the [Execution Contract](../SKILL.md#execution-contract), concurrently with Wave 2b when capacity permits:
 
 | Parameter | Value |
 |---|---|
@@ -66,7 +66,7 @@ Spawn agent `zeroize-audit:2-source-analyzer` via `Task` (`subagent_type: "zeroi
 
 Skip if `language_mode=c`.
 
-Spawn agent `zeroize-audit:2b-rust-source-analyzer` via `Task` (`subagent_type: "zeroize-audit:2b-rust-source-analyzer"`) **in the same message as Wave 2a** (parallel launch):
+Launch the [2b-rust-source-analyzer role](../../../agents/2b-rust-source-analyzer.md) using the [Execution Contract](../SKILL.md#execution-contract), concurrently with Wave 2a when capacity permits:
 
 | Parameter | Value |
 |---|---|

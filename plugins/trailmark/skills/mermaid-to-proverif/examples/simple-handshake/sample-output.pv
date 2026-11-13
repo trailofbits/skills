@@ -9,11 +9,13 @@
  * Security queries verified:
  *   Q1 Reachability:         both end events are reachable
  *   Q2 Session key secrecy:  attacker cannot learn the session key
- *   Q3 Injective auth (R):   each R-accept maps to a unique I-run
+ *   Q3 Injective auth (R):   REPORTED FALSE — a replayed msg1 completes another
+ *                            R-run (no responder challenge in the diagram);
+ *                            the weak form (non-injective) holds
  *   Q4 Injective auth (I):   each I-accept maps to a unique R-run
  *
- * Note on forward secrecy: model a Compromise process that outputs sk_I
- * and sk_R on c, add it to the main process, and re-run Q2.  If Q2 still
+ * Note on forward secrecy: add `(phase 1; out(c, sk_I); out(c, sk_R))` to
+ * the main process (compromise after the sessions) and re-run Q2.  If Q2 still
  * holds, the session key depends only on ephemeral DH material.
  *)
 
@@ -106,7 +108,8 @@ free private_R: bitstring [private].
 (* ── Queries ────────────────────────────────────────────────────────────── *)
 
 (* Q1: Reachability — both end events must be reachable.
- *     If either returns FALSE, the model has a structural bug. *)
+ *     ProVerif prints "RESULT not event(...) is false" when the event IS
+ *     reachable (expected). "is true" means a structural bug. *)
 query pk_i: pkey, pk_r: pkey, k: key; event(endI(pk_i, pk_r, k)).
 query pk_i: pkey, pk_r: pkey, k: key; event(endR(pk_i, pk_r, k)).
 
@@ -117,7 +120,10 @@ query attacker(private_R).
 
 (* Q3: Injective authentication (R's view) — replay prevention.
  *     Each time R accepts with (pk_I, pk_R, k), a unique I-run with those
- *     same parameters preceded it. *)
+ *     same parameters preceded it. ProVerif reports this FALSE for the
+ *     protocol as drawn: msg1 carries no responder challenge, so replaying
+ *     it completes another R-run. The weak correspondence holds. This is a
+ *     genuine finding to report, not a modelling error. *)
 query pk_i: pkey, pk_r: pkey, k: key;
     inj-event(endR(pk_i, pk_r, k)) ==> inj-event(beginI(pk_i, pk_r)).
 

@@ -12,6 +12,12 @@ description: >
 
 Write detection rules that catch malware without drowning in false positives.
 
+Resolve the [linter](scripts/yara_lint.py), [atom analyzer](scripts/atom_analyzer.py),
+and [review helper](scripts/review.sh) from this installed `SKILL.md`'s directory.
+In commands below, replace each `<resolved-...-path>` with that script's absolute
+path and keep the quotes. The rule file or directory is still relative to your
+working directory unless you pass an absolute input path.
+
 **This skill targets YARA-X**, the Rust-based successor to legacy YARA — 5-10x faster regex, better errors, built-in formatter, stricter validation, new modules (crx, dex), 99% rule compatibility. It powers VirusTotal's production systems. Install with `brew install yara-x` or `cargo install yara-x`; the CLI is `yr`. See [Migrating from Legacy YARA](#migrating-from-legacy-yara) for existing rules.
 
 ## Core Principles
@@ -360,9 +366,17 @@ Quality signals along the way: a rule matching under 50% of known variants is to
 **Reviewing a rule someone else wrote** — run both scripts before reading the rule by eye, and quote the codes they emit:
 
 ```bash
-uv run {baseDir}/scripts/yara_lint.py suspect.yar      # style, metadata, YARA-X compatibility
-uv run {baseDir}/scripts/atom_analyzer.py suspect.yar  # atom quality per string
+uv run "<resolved-yara-lint-path>" suspect.yar      # style, metadata, YARA-X compatibility
+uv run "<resolved-atom-analyzer-path>" suspect.yar  # atom quality per string
 ```
+
+Shortcut: `"<resolved-review-path>" suspect.yar` (a rule file or a directory)
+runs `yr check`, `yr fmt --check`, the linter and the atom analyzer in one call
+and prints one JSON object, `{"target": ..., "checks": {"yr_check", "yr_format",
+"lint", "atoms"}}`, each with `status` (the tool's exit code) and its `output`.
+It exits 0 when every check passes, 1 when any check fails, and 2 for a missing,
+empty or unreadable input (nothing was inspected). Quote the codes from
+`checks.lint.output` exactly as with the separate scripts.
 
 They catch the mechanical faults — short strings, FP-prone substrings, unbounded quantifiers, expensive terms ahead of cheap ones — so your attention goes to the judgement calls they cannot make: whether the strings identify *this* family, and whether the condition can fire on generic strings alone. Report findings by code (`E002`, `W009`) so the author can look each one up in [style-guide.md](references/style-guide.md).
 
@@ -401,8 +415,9 @@ Before deploying any rule:
 ## Scripts
 
 ```bash
-uv run {baseDir}/scripts/yara_lint.py rule.yar      # validate style/metadata
-uv run {baseDir}/scripts/atom_analyzer.py rule.yar  # check string quality
+uv run "<resolved-yara-lint-path>" rule.yar      # validate style/metadata
+uv run "<resolved-atom-analyzer-path>" rule.yar  # check string quality
+"<resolved-review-path>" rule.yar                # all four checks, one JSON result
 ```
 
 See [README.md](../../README.md#scripts) for detailed script documentation.

@@ -64,6 +64,26 @@ Two Python scripts under `skills/yara-rule-authoring/scripts/`, run with `uv`. B
 accept a file or a directory, and both exit non-zero if the path yields no rules to
 inspect rather than reporting a clean run over nothing.
 
+Resolve the [review helper](skills/yara-rule-authoring/scripts/review.sh),
+[linter](skills/yara-rule-authoring/scripts/yara_lint.py), and
+[atom analyzer](skills/yara-rule-authoring/scripts/atom_analyzer.py) from this
+README's installed location. Replace each `<resolved-...-path>` below with the
+script's absolute path and keep the quotes. Rule inputs remain relative to your
+working directory unless given as absolute paths.
+
+### review.sh
+
+Runs `yr check`, `yr fmt --check`, the linter and the atom analyzer in one call and
+prints one JSON object with each check's exit status and complete output:
+
+```bash
+bash "<resolved-review-path>" rules/
+```
+
+It needs Bash, `jq` 1.6+, `uv` and the `yr` CLI, exits 1 when any check fails and 2
+when the input is missing, empty or unreadable (nothing inspected), and never modifies
+the rules.
+
 ### yara_lint.py
 
 Compiles each rule with YARA-X, then checks style, metadata, and anti-patterns.
@@ -71,9 +91,9 @@ See [style-guide.md](skills/yara-rule-authoring/references/style-guide.md#linter
 for the full code table.
 
 ```bash
-uv run skills/yara-rule-authoring/scripts/yara_lint.py rule.yar
-uv run skills/yara-rule-authoring/scripts/yara_lint.py --json rules/
-uv run skills/yara-rule-authoring/scripts/yara_lint.py --strict rule.yar   # warnings fail too
+uv run "<resolved-yara-lint-path>" rule.yar
+uv run "<resolved-yara-lint-path>" --json rules/
+uv run "<resolved-yara-lint-path>" --strict rule.yar   # warnings fail too
 ```
 
 ### atom_analyzer.py
@@ -81,9 +101,12 @@ uv run skills/yara-rule-authoring/scripts/yara_lint.py --strict rule.yar   # war
 Evaluates string quality for efficient atom extraction:
 
 ```bash
-uv run skills/yara-rule-authoring/scripts/atom_analyzer.py rule.yar
-uv run skills/yara-rule-authoring/scripts/atom_analyzer.py --verbose rule.yar
+uv run "<resolved-atom-analyzer-path>" rule.yar
+uv run "<resolved-atom-analyzer-path>" --verbose rule.yar
+uv run "<resolved-atom-analyzer-path>" --no-color rule.yar
 ```
+
+Colour is used only on a terminal; piped output and `NO_COLOR` turn it off.
 
 Both import `yara_rules.py`, a dependency-free module holding the parsing and
 analysis logic. `test_yara_rules.py` covers it; `make python-tests` picks it up.

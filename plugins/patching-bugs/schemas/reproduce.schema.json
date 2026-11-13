@@ -1,0 +1,73 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "outcome": {
+      "enum": [
+        "reproduced",
+        "not_reproduced",
+        "blocked"
+      ]
+    },
+    "baseline_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "build_argv": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 400
+      }
+    },
+    "poc_argv": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 400
+      }
+    },
+    "target_artifact": {
+      "type": ["string", "null"],
+      "maxLength": 400
+    },
+    "failure_type": {
+      "enum": ["runtime", "compile"]
+    },
+    "expected_diagnostic": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "observed": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "blocker": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "agent": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    }
+  },
+  "required": [
+    "schema_version",
+    "outcome",
+    "baseline_commit",
+    "build_argv",
+    "poc_argv",
+    "target_artifact",
+    "observed",
+    "blocker",
+    "agent"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>$report_title · Patch review</title>
+<style>$styles</style>
+</head>
+<body>
+<header class="site-header"><div class="wrap"><p>Private local report · Technical auditor</p>
+<nav aria-label="Report sections"><a href="#outcome">Outcome</a><a href="#change">Patch</a><a href="#verification">Verification</a><a href="#limits">Limits</a><a href="#evidence">Evidence</a><a href="#attempts">Attempts</a></nav></div></header>
+<main class="wrap">
+<section id="outcome" aria-labelledby="outcome-title">
+<p class="eyebrow">Patch review</p><h1 id="outcome-title">$report_title</h1>
+<div class="summary state-$status_state"><p class="status">$status</p><h2>What happened</h2><p>$status_explanation</p>
+<p><strong>Automated patch verdict:</strong> $raw_verdict. <strong>Auditor review needed:</strong> $auditor_action</p>
+$commit_line
+<h3>Decisive verification</h3><ul class="decision-list">$decisive_checks</ul>
+<p><strong>Material limits:</strong> $limit_teaser <a href="#limits">Review all limits</a>.</p></div>
+</section>
+<section id="change" aria-labelledby="change-title"><h2 id="change-title">What changed</h2>
+<p><strong>Reported bug:</strong> $bug <span class="source">($bug_source)</span></p><p><strong>Proposed contract:</strong> $invariant <span class="source">($finding_source)</span></p>
+<p><strong>Fix rationale:</strong> $fix_why <span class="source">($rationale_source)</span></p>$patch_summary$variant_summary$patch_source
+<details><summary>Full patch diff</summary>$diff</details></section>
+<section id="verification" aria-labelledby="verification-title"><h2 id="verification-title">Verification</h2>
+<p class="lede">Results below come from validated run records. Receipt links identify the retained output or record for each check.</p>
+$verification_table$baseline_links</section>
+<section id="limits" aria-labelledby="limits-title"><h2 id="limits-title">Scope and limits</h2>
+<p><strong>Observed scope:</strong> $scope_label. $scope_detail <span class="source">($scope_source)</span></p>$authorized_scope
+<h3>What remains unproven</h3>$limits_html
+<p class="small">The automated verdict does not replace the auditor's review of case selection, patch scope, and disclosure.</p></section>
+<section id="evidence" aria-labelledby="evidence-title"><h2 id="evidence-title">Supporting evidence</h2>
+<p class="lede">Receipts are grouped by check and attempt. Content and SHA-256 hashes cover the complete retained file; disclosure choices may omit source text.</p>
+$metadata$evidence_groups</section>
+<section id="attempts" aria-labelledby="attempts-title"><h2 id="attempts-title">Earlier attempts</h2>$earlier_attempts</section>
+</main><footer class="wrap">Local patch evidence · Review before sharing.</footer>
+</body></html>

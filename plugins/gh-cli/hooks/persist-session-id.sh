@@ -21,7 +21,12 @@ if [[ -z "${CLAUDE_ENV_FILE:-}" ]]; then
   exit 0
 fi
 
-echo "export CLAUDE_SESSION_ID=\"$session_id\"" >>"$CLAUDE_ENV_FILE" || {
-  echo "gh-cli: failed to write CLAUDE_SESSION_ID to CLAUDE_ENV_FILE ($CLAUDE_ENV_FILE)" >&2
-  exit 1
-}
+# As in setup-shims.sh: SessionStart re-fires on resume and compact, so append
+# only when this session does not already carry the line.
+env_line="export CLAUDE_SESSION_ID=\"$session_id\""
+if ! grep -qxF -- "$env_line" "$(dirname "$CLAUDE_ENV_FILE")"/*.sh 2>/dev/null; then
+  echo "$env_line" >>"$CLAUDE_ENV_FILE" || {
+    echo "gh-cli: failed to write CLAUDE_SESSION_ID to CLAUDE_ENV_FILE ($CLAUDE_ENV_FILE)" >&2
+    exit 1
+  }
+fi

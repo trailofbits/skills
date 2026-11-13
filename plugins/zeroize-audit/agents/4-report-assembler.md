@@ -19,7 +19,7 @@ You receive these values from the orchestrator:
 | `config_path` | Path to merged config file (`{workdir}/merged-config.yaml`) |
 | `mcp_available` | Boolean — whether MCP was successfully used |
 | `mcp_required_for_advanced` | Boolean — gates advanced findings on MCP availability |
-| `baseDir` | Plugin base directory (for tool and schema paths) |
+| `baseDir` | Resolved skill directory containing SKILL.md (for tool and schema paths) |
 | `mode` | `interim` or `final` — controls which steps execute and which outputs are produced |
 | `poc_results` | Path to `poc_final_results.json` (final mode only) |
 

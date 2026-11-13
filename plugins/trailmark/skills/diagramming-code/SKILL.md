@@ -64,12 +64,12 @@ intact. Do not assume the native CLI exists on Trailmark 0.2.x.
 ```bash
 uv run {baseDir}/scripts/diagram.py \
     --target {targetDir} --language auto --type call-graph \
-    --focus main --depth 2
+    --focus <function> --depth 2
 
 # Trailmark 0.4.0+ equivalent after the Version Gate succeeds
 uv run trailmark diagram \
     --target {targetDir} --language auto --type call-graph \
-    --focus main --depth 2
+    --focus <function> --depth 2
 ```
 
 Output is raw Mermaid text. Wrap in a fenced code block:
@@ -112,17 +112,10 @@ Diagram Progress:
 ```
 
 **Step 1:** Run `uv run trailmark analyze --language auto --summary {targetDir}`. Install
-if it fails. Then run pre-analysis via the programmatic API:
-
-```python
-from trailmark.query.api import QueryEngine
-
-engine = QueryEngine.from_directory("{targetDir}", language="auto")
-engine.preanalysis()
-```
-
-Pre-analysis enriches the graph with blast radius, taint propagation,
-and privilege boundary data used by `data-flow` diagrams.
+if it fails. Do not run `engine.preanalysis()` for a diagram: the diagram
+command builds its own graph and does not use pre-analysis data, so every
+diagram type is identical with or without it. `data-flow` uses the
+entrypoints Trailmark records while parsing.
 
 If auto-detection is wrong for the target, rerun with an explicit language or
 comma-separated list such as `python,rust`.
@@ -167,22 +160,22 @@ uv run trailmark diagram [OPTIONS]
 
 ```bash
 # Call graph centered on a function
-uv run {baseDir}/scripts/diagram.py -t src/ -T call-graph -f parse_file
+uv run {baseDir}/scripts/diagram.py -t src/ -l auto -T call-graph -f parse_file
 
 # Class hierarchy for a Rust project
 uv run {baseDir}/scripts/diagram.py -t src/ -l rust -T class-hierarchy
 
 # Module dependency map, left-to-right
-uv run {baseDir}/scripts/diagram.py -t src/ -T module-deps --direction LR
+uv run {baseDir}/scripts/diagram.py -t src/ -l auto -T module-deps --direction LR
 
 # Class members
-uv run {baseDir}/scripts/diagram.py -t src/ -T containment
+uv run {baseDir}/scripts/diagram.py -t src/ -l auto -T containment
 
 # Complexity heatmap (threshold 5)
-uv run {baseDir}/scripts/diagram.py -t src/ -T complexity --threshold 5
+uv run {baseDir}/scripts/diagram.py -t src/ -l auto -T complexity --threshold 5
 
 # Data flow from entrypoints to a specific function
-uv run {baseDir}/scripts/diagram.py -t src/ -T data-flow -f execute_query
+uv run {baseDir}/scripts/diagram.py -t src/ -l auto -T data-flow -f execute_query
 ```
 
 ---

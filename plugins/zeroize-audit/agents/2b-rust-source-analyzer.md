@@ -21,7 +21,7 @@ You receive these values from the orchestrator:
 | `rust_crate_root` | Directory containing `Cargo.toml` (i.e. `dirname(cargo_manifest)`) |
 | `rust_tu_hash` | Short hash identifying this crate (e.g. `a1b2c3d4`) |
 | `config` | Merged config object (sensitive patterns, approved wipes) |
-| `baseDir` | Plugin base directory (for tool paths) |
+| `baseDir` | Resolved skill directory containing SKILL.md (for tool paths) |
 
 ## Process
 

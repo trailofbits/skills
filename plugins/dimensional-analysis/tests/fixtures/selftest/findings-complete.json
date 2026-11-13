@@ -1,0 +1,49 @@
+{
+  "findings": [
+    {
+      "id": "DIM-001",
+      "severity": "CRITICAL",
+      "type": "scale_mismatch",
+      "location": {"file": "MarginVault.sol", "line": 66, "function": "debtOf"},
+      "description": "interestIndex.currentIndex() is RAY (1e27) but mulWadDown divides by WAD (1e18), so the product stays RAY-scaled and the following division by a RAY entryIndex collapses the result to a bare integer.",
+      "impact": "Debt is understated by roughly 1e18; positions never appear undercollateralized.",
+      "recommendation": "Use principal.mulDiv(index, entryIndex[account])."
+    },
+    {
+      "id": "DIM-002",
+      "severity": "CRITICAL",
+      "type": "wrong_asset_decimals",
+      "location": {"file": "MarginVault.sol", "line": 118, "function": "repaymentAmount"},
+      "description": "The debt is owed in debtToken but the WAD amount is converted with collateralTokens[0]'s decimals, so the scale factor is wrong whenever the two assets differ.",
+      "impact": "An 18-decimal collateral against a 6-decimal debt asset under-converts by 1e12.",
+      "recommendation": "Convert with registry.fromWad(debtToken, owedWad)."
+    },
+    {
+      "id": "DIM-003",
+      "severity": "CRITICAL",
+      "type": "fixed_point_encoding",
+      "location": {"file": "UniV3Oracle.sol", "line": 45, "function": "priceOf"},
+      "description": "Squaring sqrtPriceX96 produces a Q128.192 value, but only one 96-bit shift is removed, leaving the price larger than the true value by 2^96.",
+      "impact": "Every collateral valuation is wrong by 2^96.",
+      "recommendation": "Divide by 1 << 192 rather than 1 << 96."
+    },
+    {
+      "id": "DIM-004",
+      "severity": "HIGH",
+      "type": "unit_confusion",
+      "location": {"file": "MarginVault.sol", "line": 109, "function": "protocolFee"},
+      "description": "borrowFee is an 18-decimal fraction (0.003e18) but is divided by BPS_DENOMINATOR (10_000) instead of WAD.",
+      "impact": "The fee is overstated by 1e14.",
+      "recommendation": "Divide by FixedPointMath.WAD."
+    },
+    {
+      "id": "DIM-005",
+      "severity": "HIGH",
+      "type": "invalid_arithmetic",
+      "location": {"file": "MarginVault.sol", "line": 74, "function": "totalCollateralRaw"},
+      "description": "Raw balances of different collateral assets are summed directly, adding quantities in different units and different decimals.",
+      "impact": "The total is dimensionless nonsense; 8-decimal WBTC is added to 18-decimal WETH.",
+      "recommendation": "Normalize each balance with registry.toWad and price it before summing."
+    }
+  ]
+}

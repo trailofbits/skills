@@ -1,0 +1,2 @@
+PATCH_CASE {"input": ["id:id:a", "id:"], "actual": "id:a"}
+PATCH_REACHED

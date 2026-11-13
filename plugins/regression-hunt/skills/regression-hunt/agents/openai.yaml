@@ -1,0 +1,4 @@
+interface:
+  display_name: "Regression Hunt"
+  short_description: "Find and validate regressions across PRs and commits"
+  default_prompt: "Use $regression-hunt to analyze the supplied PRs or commits and report reproduced regressions with evidence and coverage."

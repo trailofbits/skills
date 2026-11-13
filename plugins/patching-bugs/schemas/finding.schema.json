@@ -1,0 +1,130 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "claim": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "affected_code": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "start_line": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end_line": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "path",
+          "start_line",
+          "end_line"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "invariant": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "reported": {
+      "type": "object",
+      "properties": {
+        "impact": {"type": "string", "minLength": 1},
+        "reproduction_steps": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "expected_behavior": {"type": "string", "minLength": 1},
+        "observed_behavior": {"type": "string", "minLength": 1},
+        "severity": {"type": "string", "minLength": 1},
+        "priority": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "repair_scope": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": ["bounded_class", "exact_example"]
+        },
+        "boundary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "check_id": {"type": "string", "minLength": 1},
+              "role": {"enum": ["representative", "control"]},
+              "input": {},
+              "expected": {},
+              "why": {"type": "string", "minLength": 1, "maxLength": 300}
+            },
+            "required": ["check_id", "role", "input", "expected", "why"],
+            "additionalProperties": false
+          }
+        },
+        "exclusions": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1, "maxLength": 300}
+        }
+      },
+      "required": ["mode", "boundary", "cases", "exclusions"],
+      "additionalProperties": false
+    },
+    "poc": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "status": {
+      "enum": [
+        "hypothesis",
+        "reproduced",
+        "not_reproduced",
+        "confirmed",
+        "not_confirmed"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "title",
+    "claim",
+    "affected_code",
+    "invariant",
+    "poc",
+    "source",
+    "status"
+  ],
+  "additionalProperties": false
+}

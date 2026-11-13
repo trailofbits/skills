@@ -92,3 +92,40 @@ CLEANUP_HOOK="${BATS_TEST_DIRNAME}/cleanup-clones.sh"
   [[ $status -eq 0 ]]
   rm -rf "$tmpdir"
 }
+
+@test "persist: does not duplicate CLAUDE_SESSION_ID across repeated fires" {
+  local session_env env_file
+  session_env="$(mktemp -d)"
+  env_file="${session_env}/sessionstart-hook-1.sh"
+  : >"$env_file"
+
+  for _ in 1 2 3; do
+    run bash -c 'CLAUDE_ENV_FILE="$1" && export CLAUDE_ENV_FILE && echo "{\"session_id\":\"abc123\"}" | "$2"' _ "$env_file" "$PERSIST_HOOK"
+    [[ $status -eq 0 ]]
+  done
+
+  [[ "$(grep -c 'CLAUDE_SESSION_ID' "$env_file")" -eq 1 ]]
+  rm -rf "$session_env"
+}
+
+@test "persist: dedupes across two session env files in one session dir" {
+  local session_env
+  session_env="$(mktemp -d)"
+  : >"${session_env}/sessionstart-hook-1.sh"
+  : >"${session_env}/sessionstart-hook-2.sh"
+
+  # The runtime concatenates every env file in the session directory, so the
+  # export has to appear once across the set rather than once per file:
+  # duplicates are what push the concatenation past the ~8 KB cut and break
+  # every Bash call. Firing at both files, then at the first again, covers
+  # startup plus the resume/compact re-fires that mint a second file.
+  for f in "${session_env}/sessionstart-hook-1.sh" \
+    "${session_env}/sessionstart-hook-2.sh" \
+    "${session_env}/sessionstart-hook-1.sh"; do
+    run bash -c 'CLAUDE_ENV_FILE="$1" && export CLAUDE_ENV_FILE && echo "{\"session_id\":\"abc123\"}" | "$2"' _ "$f" "$PERSIST_HOOK"
+    [[ $status -eq 0 ]]
+  done
+
+  [[ "$(cat "${session_env}"/*.sh | grep -c 'CLAUDE_SESSION_ID')" -eq 1 ]]
+  rm -rf "$session_env"
+}

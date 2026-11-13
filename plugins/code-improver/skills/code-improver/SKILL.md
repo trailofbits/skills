@@ -33,20 +33,9 @@ The user provided: `$ARGUMENTS` (if empty, take the details from the conversatio
 
 ### 2. Resolve the loop script
 
-The loop is the dynamic workflow `workflows/improve.js` in this plugin. Launch it by
-path: `scriptPath` takes a resolved absolute path, and the Workflow tool's `name` resolves
-built-in and project workflows, so a marketplace-installed one may not answer to
-`code-improver:improve`. Try in order, first hit wins — the home directories come before
-`.` so an installed copy beats a checkout of this marketplace:
-
-1. `Bash: ls -d -- "${CLAUDE_PLUGIN_ROOT}/workflows/improve.js"`
-2. `Bash: ls -d -- "${CODEX_PLUGIN_ROOT}/workflows/improve.js"` (if that variable is set instead)
-3. `Bash: find ~/.claude ~/.codex . -maxdepth 7 -path '*/code-improver/workflows/improve.js' -print -quit 2>/dev/null`
-
-Use the path exactly as printed. Its plugin directory — the path with
-`/workflows/improve.js` removed — is `pluginRoot`. If all three come back empty, try
-`{name: "code-improver:improve"}` once; if that is unavailable too, stop and say the loop
-could not be located. Do not assemble a path by hand and do not improvise the loop.
+Resolve [`improve.js`](../../workflows/improve.js) from this SKILL.md's installed location
+to an absolute path and confirm the file exists. Its plugin directory is `pluginRoot`.
+Use this exact plugin copy; if the file is missing, stop.
 
 ### 3. Invoke the workflow
 
@@ -63,8 +52,7 @@ Run it with the Workflow tool, `{scriptPath: "<the path from step 2>", args: {..
 ```
 
 - `maxRounds` only if the user asked for a different cap.
-- `pluginRoot` lets the run find its metrics collector; omit the key only if step 2 fell
-  through to the workflow name — the workflow then searches for itself.
+- `pluginRoot` is the resolved plugin directory from step 2, for the metrics collector.
 - `finalize` (`{"version_bump": bool, "narration_strip": bool, "docs_pass": bool}`) only
   to override the defaults: version bump when the target sits inside a plugin, narration
   strip and docs pass always.

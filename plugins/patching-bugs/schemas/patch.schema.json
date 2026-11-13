@@ -1,0 +1,143 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "baseline_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "patch_commit": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "files_changed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "lines_added": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "lines_removed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "variants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "status": {
+            "enum": [
+              "fixed",
+              "not_fixed"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "location",
+          "status",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "suite_before": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "command",
+        "passed",
+        "failed",
+        "skipped"
+      ],
+      "additionalProperties": false
+    },
+    "agent": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "suite_after": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "command",
+        "passed",
+        "failed",
+        "skipped"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "attempt",
+    "baseline_commit",
+    "patch_commit",
+    "files_changed",
+    "lines_added",
+    "lines_removed",
+    "variants",
+    "suite_before",
+    "suite_after",
+    "agent"
+  ],
+  "additionalProperties": false
+}

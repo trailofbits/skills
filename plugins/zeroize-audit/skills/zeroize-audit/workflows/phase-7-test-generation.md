@@ -8,7 +8,7 @@
 
 ## Instructions
 
-Spawn agent `zeroize-audit:6-test-generator` via `Task` (`subagent_type: "zeroize-audit:6-test-generator"`) with:
+Launch the [6-test-generator role](../../../agents/6-test-generator.md) using the [Execution Contract](../SKILL.md#execution-contract) with:
 
 | Parameter | Value |
 |---|---|

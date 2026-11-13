@@ -219,8 +219,9 @@ vacuously true results from trivially blocked processes):
 query x: pkey, y: pkey, k: key; event(endR(x, y, k)).
 ```
 
-If this query returns `false` (unreachable), the protocol model is broken —
-the endpoint never executes. Note: ProVerif does not support `_` wildcards in
+ProVerif reports a reachable event as `RESULT not event(...) is false`, which is
+the expected result. If it reports `is true` (unreachable), the protocol model
+is broken — the endpoint never executes. Note: ProVerif does not support `_` wildcards in
 `query` declarations; all parameters must be bound to typed variables.
 
 ---
@@ -450,8 +451,8 @@ Always use `!Initiator(...)` and `!Responder(...)` to allow multiple sessions.
 
 ### Pitfall 3: Attacker Cannot Reach End Event
 
-If the reachability query `query event(endR(...))` returns false, the protocol
-process is stuck — usually due to a type error in `in(c, ...)` destructuring
+If the reachability query `query event(endR(...))` reports `is true` (the event
+never fires), the protocol process is stuck — usually due to a type error in `in(c, ...)` destructuring
 or an `if` condition that never holds. Debug by simplifying the process to just
 the `out`/`in` steps without guards, confirm reachability, then add guards
 back one at a time.

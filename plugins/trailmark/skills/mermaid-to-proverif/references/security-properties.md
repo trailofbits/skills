@@ -162,15 +162,21 @@ Add when:
 
 ### Modeling Pattern
 
-Leak long-term keys to the attacker and check that session key secrecy
-still holds. If it does, forward secrecy is achieved because the session
-key depends only on ephemeral material.
+Leak long-term keys to the attacker after the sessions have run (in
+`phase 1`) and check that session key secrecy still holds. If it does,
+forward secrecy is achieved because the session key depends only on
+ephemeral material. Leaking the keys at the start does not test forward
+secrecy: the attacker can then impersonate either party, so secrecy fails
+for any authenticated protocol.
 
 ```proverif
-(* In main process — leak long-term keys immediately *)
-new sk_I: skey; out(c, pk(sk_I)); out(c, sk_I);  (* attacker knows sk_I *)
-new sk_R: skey; out(c, pk(sk_R)); out(c, sk_R);  (* attacker knows sk_R *)
-(!Initiator(sk_I, pk(sk_R)) | !Responder(sk_R, pk(sk_I)))
+(* In main process — leak long-term keys only after the sessions *)
+new sk_I: skey; out(c, pk(sk_I));
+new sk_R: skey; out(c, pk(sk_R));
+(
+    !Initiator(sk_I, pk(sk_R)) | !Responder(sk_R, pk(sk_I))
+  | (phase 1; out(c, sk_I); out(c, sk_R))  (* compromise after the sessions *)
+)
 ```
 
 The existing session key secrecy query (`query attacker(private_I).`) now
@@ -198,8 +204,9 @@ query pk_i: pkey, pk_r: pkey, k: key; event(endR(pk_i, pk_r, k)).
 Note: ProVerif does not support `_` wildcards in `query` declarations; every
 parameter must be bound to a typed variable.
 
-If ProVerif reports these as `false` (unreachable), the model has a structural
-bug. Fix it before trusting any other query result.
+ProVerif reports a reachable event as `RESULT not event(...) is false`; that
+is the expected result. If it reports `is true`, the event is unreachable and
+the model has a structural bug. Fix it before trusting any other query result.
 
 ---
 
@@ -328,6 +335,10 @@ query id: pkey, ch: bitstring;
 | `RESULT ... is true.` | Property holds for all executions (proof found) |
 | `RESULT ... is false.` | Attack found — ProVerif prints a trace |
 | `RESULT ... cannot be proved.` | Proof search timed out or approximation too coarse; does not mean the property is false |
+
+Reachability queries (`query event(e)`) read the other way round: ProVerif
+checks `not event(e)`, so `is false` means the event is reachable (expected)
+and `is true` means it never fires (a broken model).
 
 When a result is `false`, read the attack trace carefully:
 1. Identify the event sequence ProVerif found

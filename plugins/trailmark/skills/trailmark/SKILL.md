@@ -225,8 +225,9 @@ if hasattr(engine, "augment_binary"):
 
 ## Pre-Analysis Passes
 
-**Always run `engine.preanalysis()` before handing off to genotoxic or
-`diagramming-code` skills.** Pre-analysis enriches the graph with four passes:
+**Always run `engine.preanalysis()` before handing off to the genotoxic
+skill.** (`diagramming-code` builds its own graph and does not use it.)
+Pre-analysis enriches the graph with four passes:
 
 1. **Blast radius estimation** — counts downstream and upstream nodes per
    function, identifies critical high-complexity descendants

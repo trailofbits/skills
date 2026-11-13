@@ -6,7 +6,7 @@
 
 ## Instructions
 
-Spawn agent `zeroize-audit:4-report-assembler` via `Task` (`subagent_type: "zeroize-audit:4-report-assembler"`) with:
+Launch the [4-report-assembler role](../../../agents/4-report-assembler.md) using the [Execution Contract](../SKILL.md#execution-contract) with:
 
 | Parameter | Value |
 |---|---|

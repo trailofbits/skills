@@ -1,0 +1,319 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "failure_type": {
+      "enum": [
+        "runtime",
+        "compile"
+      ]
+    },
+    "baseline_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "patch_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "reverted": {
+      "enum": [
+        "pass",
+        "fail",
+        "inconclusive"
+      ]
+    },
+    "build_identity": {
+      "enum": [
+        "pass",
+        "fail",
+        "not_applicable"
+      ]
+    },
+    "hashes": {
+      "type": "object",
+      "properties": {
+        "baseline": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "patched": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "reverted": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "baseline",
+        "patched",
+        "reverted"
+      ],
+      "additionalProperties": false
+    },
+    "reverted_hash_note": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "check_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            }
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "runs": {
+            "type": "object",
+            "properties": {
+              "baseline": {
+                "type": "object",
+                "properties": {
+                  "exit_code": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "elapsed_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "stdout": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  },
+                  "stderr": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  }
+                },
+                "required": [
+                  "exit_code",
+                  "elapsed_ms",
+                  "stdout",
+                  "stderr"
+                ],
+                "additionalProperties": false
+              },
+              "patched": {
+                "type": "object",
+                "properties": {
+                  "exit_code": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "elapsed_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "stdout": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  },
+                  "stderr": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  }
+                },
+                "required": [
+                  "exit_code",
+                  "elapsed_ms",
+                  "stdout",
+                  "stderr"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "baseline",
+              "patched"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "check_id",
+          "argv",
+          "source",
+          "runs"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "project_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "check_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "kind": {
+            "enum": [
+              "suite",
+              "behavior",
+              "regression",
+              "security"
+            ]
+          },
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400
+            }
+          },
+          "baseline": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "exit_code": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "elapsed_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "stdout": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400
+              },
+              "stderr": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400
+              }
+            },
+            "required": [
+              "exit_code",
+              "elapsed_ms",
+              "stdout",
+              "stderr"
+            ],
+            "additionalProperties": false
+          },
+          "patched": {
+            "type": "object",
+            "properties": {
+              "exit_code": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "elapsed_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "stdout": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400
+              },
+              "stderr": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400
+              }
+            },
+            "required": [
+              "exit_code",
+              "elapsed_ms",
+              "stdout",
+              "stderr"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "check_id",
+          "kind",
+          "argv",
+          "baseline",
+          "patched"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "unproven": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 400
+      }
+    },
+    "agent": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    }
+  },
+  "required": [
+    "schema_version",
+    "attempt",
+    "failure_type",
+    "baseline_commit",
+    "patch_commit",
+    "reverted",
+    "build_identity",
+    "hashes",
+    "reverted_hash_note",
+    "cases",
+    "project_checks",
+    "unproven",
+    "agent"
+  ],
+  "additionalProperties": false
+}

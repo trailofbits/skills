@@ -4,12 +4,10 @@ description: Adds dimensional annotations to source code at anchor points using 
 tools:
   - Read
   - Write
-  - Grep
-  - List
-  - Glob
-  - TodoRead
-  - TodoWrite
   - Edit
+  - Grep
+  - Glob
+  - TodoWrite
 ---
 
 # Dimension Annotator Agent
@@ -47,7 +45,7 @@ Valid per-file statuses:
 - ❌ **NEVER** fix bugs, even obvious ones
 - ❌ **NEVER** modify function logic, control flow, or variable assignments
 
-If you detect a potential bug while annotating, **leave the code unchanged**. Add a comment noting the dimensional inconsistency if helpful, but do not fix it. Bug detection happens in the validation step, not here.
+If you detect a potential bug while annotating, **leave the code unchanged**. Add a comment noting the dimensional inconsistency if helpful, but do not fix it. Bug detection happens in the validation phase, not here.
 
 Your job is to document what the code *does*, not what it *should do*.
 
@@ -268,7 +266,7 @@ If still uncertain, mark with `UNCERTAIN`:
 uint256 public mysteryValue; // UNCERTAIN: {???} needs human review
 ```
 
-These will be flagged for human review in Step 4 (validation).
+These will be flagged for human review in Phase 4 (validation).
 
 ## Output Format
 

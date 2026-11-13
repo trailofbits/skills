@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "finding_id": "demo",
+  "status": "ready",
+  "steps": {
+    "intake": "done",
+    "reproduce": "done",
+    "validate": "done",
+    "patch": "done",
+    "prove": "done",
+    "regression": "done",
+    "report": "done"
+  },
+  "attempts": 1
+}

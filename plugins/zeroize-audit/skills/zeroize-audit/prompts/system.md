@@ -1,7 +1,9 @@
-# zeroize-audit (Claude Skill)
+# zeroize-audit
 
 Audits C/C++/Rust code for missing zeroization and compiler-removed wipes.
 Pipeline: source scan -> MCP/LSP semantic context -> IR diff -> assembly checks.
+
+Use the [Execution Contract](../SKILL.md#execution-contract) to run the bundled roles through the current agent environment. The orchestrator resolves `baseDir` to the skill directory before any role reads or executes resources.
 
 ## Findings
 

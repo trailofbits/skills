@@ -1,0 +1,9 @@
+{
+  "name": "regression-hunt",
+  "version": "1.2.0",
+  "description": "Agent-orchestrated skills for finding, reproducing and adjudicating regressions in PRs or commits.",
+  "author": {
+    "name": "Trail of Bits",
+    "url": "https://github.com/trailofbits"
+  }
+}

@@ -95,3 +95,37 @@ teardown() {
   grep -q 'export FOO=bar' "$CLAUDE_ENV_FILE"
   grep -q 'export PATH=' "$CLAUDE_ENV_FILE"
 }
+
+@test "does not duplicate the PATH export across repeated SessionStart fires" {
+  # SessionStart fires on startup, resume and compact. Appending unconditionally
+  # piles up duplicate exports until the runtime's concatenated env is cut
+  # mid-line and every Bash call fails. See #341.
+  local session_env
+  session_env="$(mktemp -d)"
+  local env_file="${session_env}/sessionstart-hook-1.sh"
+  : >"$env_file"
+
+  for _ in 1 2 3; do
+    run env PATH="${FAKE_BIN}:${ORIG_PATH}" CLAUDE_ENV_FILE="$env_file" \
+      bash "$SETUP_SCRIPT" 2>&1
+    [[ $status -eq 0 ]]
+  done
+
+  local count
+  count="$(grep -c 'export PATH=' "$env_file")"
+  [[ "$count" -eq 1 ]]
+  rm -rf "$session_env"
+}
+
+@test "writes the PATH export when the session env does not have it yet" {
+  local session_env
+  session_env="$(mktemp -d)"
+  local env_file="${session_env}/sessionstart-hook-1.sh"
+  : >"$env_file"
+
+  run env PATH="${FAKE_BIN}:${ORIG_PATH}" CLAUDE_ENV_FILE="$env_file" \
+    bash "$SETUP_SCRIPT" 2>&1
+  [[ $status -eq 0 ]]
+  [[ "$(grep -c 'export PATH=' "$env_file")" -eq 1 ]]
+  rm -rf "$session_env"
+}

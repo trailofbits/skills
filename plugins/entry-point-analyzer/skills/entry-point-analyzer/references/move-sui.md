@@ -56,7 +56,7 @@ public fun capability_gate(_cap: &AdminCap, pool: &mut Pool) {}
 ### Package-protected Functions
 ```move
 // Only callable by other modules in the same Move package
-public(protected) fun internal_fun() { }
+public(package) fun internal_fun() { }
 ```
 
 ## Extraction Strategy
@@ -76,7 +76,7 @@ public(protected) fun internal_fun() { }
 1. **Object Model**: Access control typically through object ownership (rather than runtime assertions)
 2. **Capabilities**: `Cap` suffix typically indicates capability pattern
 4. **Generic Types**: Type parameters may carry capability constraints
-5. **Package Visibility**: `public(pacakge)` limits callers to modules in the same package
+5. **Package Visibility**: `public(package)` limits callers to modules in the same package
 
 ## Common Gotchas
 

@@ -203,9 +203,11 @@ Write one query per security property. Choose from:
 
 **Reachability (always add first — structural sanity check):**
 
-Verify that the success events are actually reachable. If ProVerif reports any
-of these as `false`, the model has a structural bug (dead receive, type mismatch,
-impossible guard) and no other query result should be trusted. Once the model
+Verify that the success events are actually reachable. ProVerif prints
+`RESULT not event(endR(...)) is false` when the event IS reachable, which is
+what you want. If it prints `is true`, the event never fires: the model has a
+structural bug (dead receive, type mismatch, impossible guard) and no other
+query result should be trusted. Once the model
 is validated, comment them out if they slow down the main property checks:
 
 ```proverif
@@ -249,12 +251,11 @@ query pk_i: pkey, pk_r: pkey, k: key;
 ```
 
 **Forward secrecy**: add a `ForwardSecrecyTest` process to the main process
-that leaks both long-term secret keys to the attacker, then check that a past
-session key remains secret. Pair it with a `free fs_witness: key [private]`
+that leaks both long-term secret keys to the attacker *after* the sessions (in
+`phase 1`), then check that a past session key remains secret. Pair it with a `free fs_witness: key [private]`
 declaration and `query attacker(fs_witness)`. See
 [references/security-properties.md](references/security-properties.md) →
-Forward Secrecy, and the worked example in
-`examples/simple-handshake/sample-output.pv`.
+Forward Secrecy.
 
 Choose the strongest applicable query for each property. See
 [references/security-properties.md](references/security-properties.md) for
@@ -442,7 +443,10 @@ Assumptions: <list modeling decisions and simplifications>
 - **`diagram.md`** — Mermaid sequenceDiagram for a two-party authenticated key
   exchange (X25519 DH + Ed25519 signing + HKDF)
 - **`sample-output.pv`** — exact ProVerif model the skill should produce,
-  with secrecy and injective authentication queries
+  with secrecy and injective authentication queries. Its Q3 (injective
+  authentication from R's view) reports `false`: the drawn protocol has no
+  responder challenge, so a replayed msg1 completes another R-run. That is a
+  real finding about the protocol, not a modelling error.
 
 Study this before working on an unfamiliar protocol.
 
@@ -458,4 +462,4 @@ Study this before working on an unfamiliar protocol.
   queries, and common pitfalls
 - **[references/security-properties.md](references/security-properties.md)** —
   Decision guide for choosing the right queries: secrecy, authentication
-  (weak vs injective), forward secrecy, unlinkability, and how to model them
+  (weak vs injective), forward secrecy, and how to model them

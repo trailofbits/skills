@@ -1,6 +1,6 @@
 # Entry Point Analyzer
 
-A Claude skill for systematically identifying **state-changing** entry points in smart contract codebases to guide security audits.
+A Claude Code plugin and Codex skill for systematically identifying **state-changing** entry points in smart contract codebases to guide security audits.
 
 ## Purpose
 
@@ -24,7 +24,7 @@ The skill categorizes entry points into four levels:
 1. **Public (Unrestricted)** — Callable by anyone; highest audit priority
 2. **Role-Restricted** — Limited to specific roles (admin, governance, guardian, etc.)
 3. **Review Required** — Ambiguous access patterns needing manual verification
-4. **Contract-Only** — Internal integration points (callbacks, hooks)
+4. **Contract-Only** — Functions with enforced caller checks tied to integration contracts
 
 ## Output
 
@@ -43,9 +43,18 @@ Trigger the skill with requests like:
 - "List audit flows for src/core/"
 - "What privileged operations exist in this project?"
 
-Or invoke either entry point directly:
-- Skill — `/entry-point-analyzer:entry-point-analyzer`
-- Command — `/entry-point-analyzer:entry-points [directory-path]`
+In Claude Code, invoke the skill or pass a directory to the slash command:
+
+```text
+/entry-point-analyzer:entry-point-analyzer
+/entry-point-analyzer:entry-points src/core/
+```
+
+In Codex, invoke the skill directly:
+
+```text
+Use $entry-point-analyzer to analyze src/core/.
+```
 
 ## Directory Filtering
 
@@ -69,9 +78,23 @@ The skill infers roles from common patterns:
 
 ## Installation
 
+### Claude Code
+
+```text
+/plugin marketplace add trailofbits/skills
+/plugin install entry-point-analyzer@trailofbits
 ```
-/plugin install trailofbits/skills/plugins/entry-point-analyzer
+
+### Codex
+
+```sh
+codex plugin marketplace add trailofbits/skills
+codex plugin add entry-point-analyzer@trailofbits
 ```
+
+Start a new session after installation. The skill includes its language
+references and can run without Slither; if Slither is installed, it uses the
+entry-points printer before manual access-control classification.
 
 ## License
 
