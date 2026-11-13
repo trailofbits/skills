@@ -340,33 +340,135 @@ def _maintainer_names(raw: object) -> list[str]:
     return names
 
 
-def npm_metadata(http: Http, name: str) -> dict:
+# Registry installs run these dependency lifecycle scripts. `prepare` and `prepublish`
+# are not here: npm runs them for git dependencies and local development, not when a
+# package is installed from the registry, so counting them would report an install
+# script for packages that run nothing on install.
+NPM_INSTALL_LIFECYCLE = ("preinstall", "install", "postinstall")
+
+
+def normalize_npm_version(version: str) -> str:
+    """Canonicalise an exact version the way npm's own version selection does.
+
+    `npm-pick-manifest` resolves an exact selector with semver, which accepts a `v` or
+    `=` prefix and ignores build metadata (`1.0.0+build.7` is the release `1.0.0`).
+    Publication also canonicalises numeric components and numeric prerelease
+    identifiers by stripping leading zeroes (`01.2.3` is published as `1.2.3`,
+    `1.0.0-01` as `1.0.0-1`). A literal string lookup of the registry key does not,
+    so `v1.0.0` or `1.0.0+build.7` would miss a release that is present.
+    """
+    cleaned = version.strip()
+    while cleaned[:1] in ("v", "="):
+        cleaned = cleaned[1:]
+    # Build metadata is not part of version precedence or of the registry key.
+    cleaned = cleaned.split("+", 1)[0]
+    core, _, prerelease = cleaned.partition("-")
+    parts = core.split(".")
+    if all(part.isdigit() for part in parts):
+        parts = [str(int(part)) for part in parts]
+    core = ".".join(parts)
+    if not prerelease:
+        return core
+    identifiers = []
+    for identifier in prerelease.split("."):
+        # Numeric identifiers are canonicalised; alphanumeric ones are not.
+        identifiers.append(str(int(identifier)) if identifier.isdigit() else identifier)
+    return f"{core}-{'.'.join(identifiers)}"
+
+
+def _install_lifecycle(version_doc: dict) -> tuple[bool | None, list[str]]:
+    """Whether installing this release runs a script, from the format actually present.
+
+    npm's full packument exposes `scripts` on each version; the abbreviated
+    installation document exposes `hasInstallScript` instead. Reading the absent field
+    of the other format yields `False` and a "no install script" claim that the document
+    never made - which is what reported esbuild and core-js as script-free. When
+    neither field is present the answer is unknown, not negative.
+
+    Returns:
+        The verdict (None when the document cannot establish it) and the lifecycle
+        hooks found.
+    """
+    if "hasInstallScript" in version_doc:
+        return bool(version_doc.get("hasInstallScript")), []
+    if "scripts" not in version_doc:
+        return None, []
+    scripts = version_doc.get("scripts") or {}
+    hooks = [name for name in NPM_INSTALL_LIFECYCLE if scripts.get(name)]
+    return bool(hooks), hooks
+
+
+def npm_metadata(http: Http, name: str, version: str | None = None) -> dict:
     """Current publish ACL, provenance, install-script flag, deprecation, repository.
+
+    Release properties (deprecation, install scripts, published attestations) are read
+    from the version the project actually installs. Reporting the latest release's
+    values beside a pinned version states something false about the pinned version in
+    both directions: a deprecated pin looks maintained, and a property introduced
+    later is attributed to an older release.
+
+    Args:
+        http: Caching client.
+        name: Package name.
+        version: The resolved version, when the project's resolution produced one
+            (a lockfile entry or an exact manifest pin). `None` means the project
+            expressed no exact version, and the latest release is the documented
+            fallback - the returned `selection` says which case applied, so the report
+            can label it.
 
     Raises:
         NotFound: If the package is not published.
-        Unavailable: If `dist-tags.latest` names a version the packument does not carry,
-            in which case install-script and provenance would otherwise read as
-            determined negatives derived from an absent document.
     """
     quoted = urllib.parse.quote(name, safe="@").replace("/", "%2F")
     doc = http.get_json(f"https://registry.npmjs.org/{quoted}")
-    latest = (doc.get("dist-tags") or {}).get("latest")
     versions = doc.get("versions") or {}
-    if not latest or latest not in versions:
-        raise Unavailable("npm's latest tag points at a version absent from the packument")
-    version_doc = versions[latest]
+    latest = (doc.get("dist-tags") or {}).get("latest")
+    latest_doc = versions.get(latest) if latest else None
+
+    selected_version: str | None = None
+    selection = "unassessable"
+    reason: str | None = None
+    if version:
+        candidate = normalize_npm_version(version)
+        if candidate in versions:
+            selected_version, selection = candidate, "resolved"
+        else:
+            reason = (
+                f"the resolved version {version!r} is not in the packument, so this "
+                "release's properties are not published and are not substituted from "
+                "another release"
+            )
+    elif latest_doc is not None:
+        selected_version, selection = latest, "latest-fallback"
+
+    selected = versions.get(selected_version) if selected_version else None
+    if selected is None and selection != "unassessable":
+        selection = "unassessable"
+        reason = "the selected release is missing from the packument"
+
+    install_script: bool | None = None
+    install_scripts: list[str] = []
+    if selected is not None:
+        install_script, install_scripts = _install_lifecycle(selected)
+
     maintainers = _maintainer_names(doc.get("maintainers"))
     repository = doc.get("repository")
     repo_url = repository.get("url") if isinstance(repository, dict) else repository
+    latest_provenance = (
+        bool((latest_doc.get("dist") or {}).get("attestations")) if latest_doc else None
+    )
     return {
         "latest": latest,
+        "selected_version": selected_version,
+        "selection": selection,
+        "selection_reason": reason,
         "maintainers": maintainers,
         "human_maintainers": [m for m in maintainers if not looks_automated(m)],
         "automated_maintainers": [m for m in maintainers if looks_automated(m)],
-        "has_install_script": bool(version_doc.get("hasInstallScript")),
-        "provenance": bool((version_doc.get("dist") or {}).get("attestations")),
-        "deprecated": version_doc.get("deprecated") or doc.get("deprecated"),
+        "has_install_script": install_script,
+        "install_scripts": install_scripts,
+        "provenance": latest_provenance,
+        "deprecated": selected.get("deprecated") if selected is not None else None,
         "repository": normalize_repo(repo_url) if isinstance(repo_url, str) else None,
     }
 

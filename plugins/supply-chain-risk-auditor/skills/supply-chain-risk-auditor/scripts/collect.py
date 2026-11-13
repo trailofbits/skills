@@ -147,7 +147,10 @@ def _npm_all_locked(
     return [], [], None, None
 
 
-_EXACT_SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-+]+)?$")
+# npm accepts a `v` or `=` prefix on an exact selector, and publication canonicalises
+# build metadata and leading zeroes, so the pin is recognised with the prefix and
+# normalised to the registry key before anything is looked up or queried.
+_EXACT_SEMVER = re.compile(r"^[v=]?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-+]+)?$")
 _ALIAS = re.compile(r"^npm:(?P<name>@?[^@]+(?:/[^@]+)?)@")
 # Specs that are not a registry version range. The dependency key is then a local or
 # remote artifact rather than a package name that can be looked up.
@@ -169,13 +172,18 @@ def _npm_spec_kind(spec: str) -> str:
 
 
 def _exact_npm_pin(spec: str) -> str | None:
-    """Return an exact version only for a genuine pin.
+    """Return an exact version only for a genuine pin, normalised to the registry key.
 
     `1.x`, `1.2.x` and `2` are ranges. Accepting them as pins fed the range string to OSV
-    as if it were a version and suppressed resolution of the real release.
+    as if it were a version and suppressed resolution of the real release. A genuine pin
+    may carry npm's `v` or `=` prefix or build metadata (`v1.2.3`, `1.2.3+build.7`),
+    which name the same release; returning the raw string would miss the registry entry
+    that is actually published.
     """
     spec = (spec or "").strip()
-    return spec if _EXACT_SEMVER.match(spec) else None
+    if not _EXACT_SEMVER.match(spec):
+        return None
+    return sources.normalize_npm_version(spec)
 
 
 def parse_npm(project: Path) -> tuple[list[Dependency], list[str]]:
@@ -219,6 +227,7 @@ def _npm_dependency(
 ) -> tuple[Dependency | None, str | None]:
     kind = _npm_spec_kind(spec)
     declared = name
+    pin_spec = spec
     if kind == "alias":
         match = _ALIAS.match(spec)
         target = match.group("name") if match else None
@@ -227,6 +236,10 @@ def _npm_dependency(
         note = f"`{name}` is an alias for `{target}`; the audit follows the target."
         name = target
         kind = "registry"
+        # The version selector lives after the aliased name: `npm:pkg@1.0.0`. Testing
+        # the whole spec against the semver pin pattern never matched, so an alias with
+        # an exact version was treated as unresolved and fell back to latest.
+        pin_spec = spec[match.end() :]
     else:
         note = None
     if kind == "non-registry":
@@ -239,7 +252,7 @@ def _npm_dependency(
     # be looked up under it, not under the rewritten target.
     version, source = locked.get(declared), "lockfile"
     if not version:
-        version, source = _exact_npm_pin(spec), "manifest-pin"
+        version, source = _exact_npm_pin(pin_spec), "manifest-pin"
     if not version:
         source = "unresolved"
     return Dependency(
@@ -885,10 +898,85 @@ def enrich_scorecard(http: sources.Http, dep: Dependency) -> None:
             dep.signals[criterion] = Signal.clean(f"{check} scores {score}/10", score)
 
 
+def _npm_exact_version(dep: Dependency) -> str | None:
+    """The version whose release properties should be read, or None for the fallback.
+
+    Only a lockfile entry or an exact manifest pin identifies the release the project
+    installs. `latest-release` is the fallback itself, and `unresolved` has no version
+    at all, so both ask for latest explicitly rather than pretending to know.
+    """
+    if dep.version and dep.version_source in ("lockfile", "manifest-pin"):
+        return dep.version
+    return None
+
+
+def _npm_release_signals(dep: Dependency, meta: dict) -> None:
+    """Deprecation and install scripts, read from the release the project installs.
+
+    The two are kept in one helper because they share the selection verdict: when the
+    project's release is not published, neither can be stated, and substituting another
+    release's values would describe a version the project does not install.
+    """
+    if meta["selection"] == "unassessable":
+        reason = meta["selection_reason"] or "the selected release is not published"
+        for criterion in ("deprecated", "install_script"):
+            dep.signals[criterion] = Signal.unassessable(reason)
+        return
+
+    # Say which release these properties describe: a latest-release fallback is a
+    # different claim from "this is the pinned release's status".
+    fallback = (
+        " (from the latest release: the project resolution gave no exact version)"
+        if meta["selection"] == "latest-fallback"
+        else ""
+    )
+    dep.signals["deprecated"] = (
+        Signal.flagged(
+            f"deprecated by its maintainers: {meta['deprecated']}{fallback}",
+            meta["deprecated"],
+        )
+        if meta["deprecated"]
+        else Signal.clean(f"not deprecated{fallback}", False)
+    )
+
+    if meta["has_install_script"] is None:
+        # Neither format field is present, so the document does not answer the question.
+        dep.signals["install_script"] = Signal.unassessable(
+            "the registry document for this release carries neither `scripts` nor "
+            "`hasInstallScript`, so whether installing it runs a script is unknown"
+        )
+    elif meta["has_install_script"]:
+        hooks = ", ".join(meta["install_scripts"]) or "a lifecycle hook"
+        dep.signals["install_script"] = Signal.flagged(
+            f"runs {hooks} on install; `npm ci --ignore-scripts` prevents execution{fallback}",
+            True,
+        )
+    else:
+        # Metadata-only: an implicit `node-gyp` rebuild is not visible without the
+        # tarball, so the negative claim is scoped to what the registry document shows.
+        dep.signals["install_script"] = Signal.clean(
+            "no install-time lifecycle script in the registry metadata; an implicit "
+            f"node-gyp build is not visible without the package's source{fallback}",
+            False,
+        )
+
+
+def _npm_provenance_signal(meta: dict) -> Signal:
+    """Publish provenance describes the current release, which may be unreadable."""
+    if meta["provenance"] is None:
+        return Signal.unassessable(
+            "the registry carries no latest release, so publish provenance cannot be read"
+        )
+    return Signal.clean(
+        "publishes with provenance" if meta["provenance"] else "no publish provenance",
+        meta["provenance"],
+    )
+
+
 def enrich_npm(http: sources.Http, dep: Dependency, token: str | None) -> None:
     """npm publishes the richest metadata of the three ecosystems."""
     try:
-        meta = sources.npm_metadata(http, dep.name)
+        meta = sources.npm_metadata(http, dep.name, _npm_exact_version(dep))
     except sources.Unavailable as exc:
         reason = _reason(exc, "the npm registry")
         _fill(
@@ -898,25 +986,9 @@ def enrich_npm(http: sources.Http, dep: Dependency, token: str | None) -> None:
         )
         dep.signals["provenance"] = Signal.unassessable(reason)
     else:
-        dep.signals["deprecated"] = (
-            Signal.flagged(
-                f"deprecated by its maintainers: {meta['deprecated']}", meta["deprecated"]
-            )
-            if meta["deprecated"]
-            else Signal.clean("not deprecated", False)
-        )
+        _npm_release_signals(dep, meta)
         dep.signals["publisher_concentration"] = _concentration_signal(meta)
-        dep.signals["install_script"] = (
-            Signal.flagged(
-                "runs an install script; `npm ci --ignore-scripts` prevents execution", True
-            )
-            if meta["has_install_script"]
-            else Signal.clean("no install script", False)
-        )
-        dep.signals["provenance"] = Signal.clean(
-            "publishes with provenance" if meta["provenance"] else "no publish provenance",
-            meta["provenance"],
-        )
+        dep.signals["provenance"] = _npm_provenance_signal(meta)
     try:
         dep.signals["downloads"] = _download_signal(sources.npm_downloads(http, dep.name))
     except sources.Unavailable as exc:
@@ -1029,7 +1101,7 @@ def resolve_from_registry(http: sources.Http, deps: list[Dependency]) -> None:
 def _registry_metadata(http: sources.Http, dep: Dependency) -> dict | None:
     try:
         if dep.ecosystem == "npm":
-            return sources.npm_metadata(http, dep.name)
+            return sources.npm_metadata(http, dep.name, _npm_exact_version(dep))
         if dep.ecosystem == "PyPI":
             return sources.pypi_metadata(http, dep.name, dep.version)
         if dep.ecosystem == "Go":
