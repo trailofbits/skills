@@ -2,10 +2,10 @@
 name = "trailmark-context-slicer"
 version = "0.0.0"
 requires-python = ">=3.12"
-dependencies = ["trailmark>=0.6.0,<0.7"]
+dependencies = ["trailmark>=0.7.1,<0.8"]
 
 [dependency-groups]
-dev = ["pytest>=9", "ruff>=0.17.1,<1"]
+dev = ["pytest>=9.2.0", "ruff>=0.17.3,<1"]
 
 [tool.ruff]
 line-length = 100
