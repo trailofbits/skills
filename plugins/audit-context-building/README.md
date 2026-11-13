@@ -145,3 +145,37 @@ prompt, because `SKILL.md` points at three reference files that get read before 
 - `entry-point-analyzer` — lists the functions that change state; a good input to step 1
 - `spec-to-code-compliance` — checks what the code does against what the spec says it should
 - `trailmark` — call graphs and data-flow tracing, for the structural picture this builds on
+
+## Calcifier recipe for `audit-context-building`
+
+The [`audit-context-building` Python recipe](skills/audit-context-building/.calcifier/recipe.py) was generated with Calcifier 0.2.0. It pins the source skill and its packaged resources so source changes are checked before execution.
+
+Install the matching release with Python 3.13 or later:
+
+```sh
+uv tool install 'calcifier==0.2.0'
+```
+
+The recipe's PEP 723 inline metadata also declares Python >=3.13 and pins `calcifier==0.2.0`. `uv run` can resolve those script dependencies; use `calcifier exec` for reviewed execution with Calcifier's trust checks.
+
+Configure `worker` in a version-1 agent-config file following [the Calcifier 0.2.0 provider setup](https://github.com/trailofbits/calcifier/blob/v0.2.0/docs/providers.md). Worker tools depend on the configured agent provider; host tool providers do not add tools to an agent.
+
+From this plugin directory, check the recipe before execution:
+
+```sh
+calcifier lint skills/audit-context-building/.calcifier/recipe.py --portable
+```
+
+Review the complete generated Python before granting trust. Run `calcifier exec skills/audit-context-building/.calcifier/recipe.py` with `--agent-config agents.json` and one `--input NAME=VALUE` for each required input below. Add `--trust` after review to record consent for those exact bytes.
+
+Choose a fresh, dedicated report directory with `--output-dir PATH`. The override protects existing output files; it does not isolate host commands or grant workers additional tools.
+
+| Input | Type | Default |
+| --- | --- | --- |
+| `project` | `str` | `'.'` |
+| `target` | `str` | `'.'` |
+| `mode` | `Literal['codebase', 'function']` | `'codebase'` |
+| `function` | `str` | `''` |
+| `focus` | `str` | `''` |
+| `limit` | `int \| None` | `None` |
+| `budget_seconds` | `int \| None` | `None` |
