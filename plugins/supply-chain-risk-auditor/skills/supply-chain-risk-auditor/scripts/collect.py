@@ -147,7 +147,6 @@ def _npm_all_locked(
     return [], [], None, None
 
 
-_EXACT_SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-+]+)?$")
 _ALIAS = re.compile(r"^npm:(?P<name>@?[^@]+(?:/[^@]+)?)@")
 # Specs that are not a registry version range. The dependency key is then a local or
 # remote artifact rather than a package name that can be looked up.
@@ -174,8 +173,7 @@ def _exact_npm_pin(spec: str) -> str | None:
     `1.x`, `1.2.x` and `2` are ranges. Accepting them as pins fed the range string to OSV
     as if it were a version and suppressed resolution of the real release.
     """
-    spec = (spec or "").strip()
-    return spec if _EXACT_SEMVER.match(spec) else None
+    return sources.npm_exact_version(spec or "")
 
 
 def parse_npm(project: Path) -> tuple[list[Dependency], list[str]]:
@@ -226,6 +224,7 @@ def _npm_dependency(
             return None, f"`{name}` uses an npm alias this parser could not read ({spec})."
         note = f"`{name}` is an alias for `{target}`; the audit follows the target."
         name = target
+        spec = spec[match.end() :]
         kind = "registry"
     else:
         note = None
@@ -783,7 +782,13 @@ def _concentration_signal(meta: dict) -> Signal:
     (`/collaborators` returns 403). "1 maintainer, low risk" for a CI-published package
     would be confidently wrong.
     """
-    if meta["provenance"]:
+    if meta["publisher_provenance"] is None:
+        return Signal.unassessable(
+            "latest release provenance is unavailable, so registry ACLs alone cannot "
+            "establish the effective publisher set",
+            meta["maintainers"],
+        )
+    if meta["publisher_provenance"]:
         return Signal.unassessable(
             "publishes from CI with provenance, so the effective publisher set is whoever "
             "can merge to the release branch — not externally observable",
@@ -888,7 +893,7 @@ def enrich_scorecard(http: sources.Http, dep: Dependency) -> None:
 def enrich_npm(http: sources.Http, dep: Dependency, token: str | None) -> None:
     """npm publishes the richest metadata of the three ecosystems."""
     try:
-        meta = sources.npm_metadata(http, dep.name)
+        meta = sources.npm_metadata(http, dep.name, dep.version)
     except sources.Unavailable as exc:
         reason = _reason(exc, "the npm registry")
         _fill(
@@ -898,25 +903,37 @@ def enrich_npm(http: sources.Http, dep: Dependency, token: str | None) -> None:
         )
         dep.signals["provenance"] = Signal.unassessable(reason)
     else:
-        dep.signals["deprecated"] = (
-            Signal.flagged(
-                f"deprecated by its maintainers: {meta['deprecated']}", meta["deprecated"]
-            )
-            if meta["deprecated"]
-            else Signal.clean("not deprecated", False)
-        )
         dep.signals["publisher_concentration"] = _concentration_signal(meta)
-        dep.signals["install_script"] = (
-            Signal.flagged(
-                "runs an install script; `npm ci --ignore-scripts` prevents execution", True
+        release = meta["release"]
+        if release is None:
+            target = dep.version or "latest"
+            _fill(
+                dep,
+                ("deprecated", "install_script", "provenance"),
+                Signal.unassessable(f"npm provides no usable release metadata for {target}"),
             )
-            if meta["has_install_script"]
-            else Signal.clean("no install script", False)
-        )
-        dep.signals["provenance"] = Signal.clean(
-            "publishes with provenance" if meta["provenance"] else "no publish provenance",
-            meta["provenance"],
-        )
+        else:
+            deprecated = release["deprecated"]
+            if deprecated is None:
+                dep.signals["deprecated"] = Signal.unassessable(
+                    "npm release deprecation metadata is malformed"
+                )
+            elif deprecated:
+                dep.signals["deprecated"] = Signal.flagged(
+                    f"deprecated by its maintainers: {deprecated}", deprecated
+                )
+            else:
+                dep.signals["deprecated"] = Signal.clean("not deprecated", False)
+            dep.signals["install_script"] = _npm_install_signal(release)
+            provenance = release["provenance"]
+            dep.signals["provenance"] = (
+                Signal.unassessable("npm release provenance metadata is malformed")
+                if provenance is None
+                else Signal.clean(
+                    "publishes with provenance" if provenance else "no publish provenance",
+                    provenance,
+                )
+            )
     try:
         dep.signals["downloads"] = _download_signal(sources.npm_downloads(http, dep.name))
     except sources.Unavailable as exc:
@@ -924,6 +941,24 @@ def enrich_npm(http: sources.Http, dep: Dependency, token: str | None) -> None:
             _reason(exc, "the npm download API"), str(exc)
         )
     enrich_repo(http, dep, token)
+
+
+def _npm_install_signal(release: dict) -> Signal:
+    hooks = release["install_hooks"]
+    if hooks is None:
+        return Signal.unassessable("npm release install-hook metadata is malformed")
+    if hooks:
+        return Signal.flagged(
+            f"runs declared install hooks ({', '.join(hooks)}); "
+            "`npm ci --ignore-scripts` prevents execution",
+            True,
+        )
+    if release["native_build"]:
+        return Signal.unassessable(
+            "registry marks a native build without declaring an install hook; implicit "
+            "node-gyp execution depends on package contents, which are not inspected"
+        )
+    return Signal.clean("no declared install hooks in registry metadata", False)
 
 
 def _download_signal(count: int) -> Signal:
@@ -1029,7 +1064,7 @@ def resolve_from_registry(http: sources.Http, deps: list[Dependency]) -> None:
 def _registry_metadata(http: sources.Http, dep: Dependency) -> dict | None:
     try:
         if dep.ecosystem == "npm":
-            return sources.npm_metadata(http, dep.name)
+            return sources.npm_metadata(http, dep.name, dep.version)
         if dep.ecosystem == "PyPI":
             return sources.pypi_metadata(http, dep.name, dep.version)
         if dep.ecosystem == "Go":
@@ -1389,7 +1424,7 @@ def _repo_sharing_note(deps: list[Dependency]) -> str | None:
     )
 
 
-def _version_notes(deps: list[Dependency]) -> list[str]:
+def _measurement_notes(deps: list[Dependency]) -> list[str]:
     notes = []
     for source, wording in (
         (
@@ -1415,6 +1450,11 @@ def _version_notes(deps: list[Dependency]) -> list[str]:
                 f"{len(named)} dependencies {wording}: {', '.join(named[:8])}"
                 + (" ..." if len(named) > 8 else "")
             )
+    if any(dep.ecosystem == "npm" for dep in deps):
+        notes.append(
+            "npm install-hook checks inspect registry metadata; they do not inspect "
+            "package tarballs or rule out implicit native builds absent from that metadata."
+        )
     return notes
 
 
@@ -1470,7 +1510,7 @@ def collect(project: Path, cache: Path, offline: bool) -> dict:
         ENRICHERS[dep.ecosystem](http, dep, token)
         sources.polite_pause()
 
-    notes.extend(_version_notes(registry_deps))
+    notes.extend(_measurement_notes(registry_deps))
     sharing = _repo_sharing_note(deps)
     if sharing:
         notes.append(sharing)
