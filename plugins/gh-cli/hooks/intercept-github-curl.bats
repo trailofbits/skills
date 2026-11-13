@@ -259,3 +259,120 @@ load test_helper
   assert_suggestion_contains "Do NOT use"
   assert_suggestion_contains "base64-decode file contents"
 }
+
+# =============================================================================
+# Heredoc bodies are file content, not commands (#333)
+# =============================================================================
+#
+# The hook matched its two regexes against the whole tool_input.command, so
+# writing a workflow file whose *content* mentions curl and a GitHub URL was
+# denied even though the command never fetches anything.
+
+@test "curl: allows a quoted heredoc whose body mentions curl and a GitHub URL" {
+  run_curl_hook "cat > .github/workflows/scan.yml <<'EOF'
+      - run: curl -sSfL https://github.com/aquasecurity/trivy/releases/download/v0.50.0/trivy.tar.gz | tar xz
+EOF"
+  assert_allow
+}
+
+@test "curl: allows an unquoted heredoc whose body mentions curl and a GitHub URL" {
+  run_curl_hook "cat > /tmp/notes.md <<EOF
+see curl https://github.com/owner/repo/archive/main.tar.gz for the tarball
+EOF"
+  assert_allow
+}
+
+@test "curl: allows a tab-stripped heredoc whose body mentions curl and a GitHub URL" {
+  run_curl_hook "cat > /tmp/f <<-EOF
+	curl https://github.com/owner/repo/archive/main.tar.gz
+	EOF"
+  assert_allow
+}
+
+@test "curl: allows a heredoc body mentioning wget to api.github.com" {
+  run_curl_hook "cat > /tmp/f.sh <<'EOF'
+wget https://api.github.com/repos/owner/repo/pulls
+EOF"
+  assert_allow
+}
+
+# The fix must not become an escape hatch: a real fetch after the body ends is
+# still a real fetch.
+
+@test "curl: still denies a real curl after a heredoc body ends" {
+  run_curl_hook "cat > /tmp/f <<'EOF'
+curl https://github.com/owner/repo/archive/main.tar.gz
+EOF
+curl -sSfL https://api.github.com/repos/owner/repo/pulls"
+  assert_deny
+}
+
+@test "curl: still denies a real wget after a heredoc body ends" {
+  run_curl_hook "cat <<EOF > /tmp/x
+nothing to see https://github.com/owner/repo
+EOF
+wget https://github.com/owner/repo/archive/t.zip"
+  assert_deny
+}
+
+@test "curl: still denies curl on the same line as the heredoc opener" {
+  run_curl_hook "curl -sSfL https://github.com/owner/repo/archive/main.tar.gz | tee /tmp/f"
+  assert_deny
+}
+
+# -----------------------------------------------------------------------------
+# Two heredoc shapes are not inert and must keep being matched
+# -----------------------------------------------------------------------------
+
+@test "curl: denies a curl inside a quoted heredoc handed to bash" {
+  run_curl_hook "bash <<'EOF'
+curl -sSfL https://github.com/owner/repo/archive/main.tar.gz | tar xz
+EOF"
+  assert_deny
+}
+
+@test "curl: denies a curl inside an unquoted heredoc handed to sh" {
+  run_curl_hook "sh <<EOF
+curl https://api.github.com/repos/owner/repo/pulls
+EOF"
+  assert_deny
+}
+
+@test "curl: denies a curl inside a heredoc handed to dash with -s" {
+  run_curl_hook "dash -s <<'EOF'
+curl https://github.com/owner/repo/archive/main.tar.gz
+EOF"
+  assert_deny
+}
+
+@test "curl: denies an interpreter heredoc behind sudo" {
+  run_curl_hook "sudo bash <<'EOF'
+curl https://github.com/owner/repo/archive/main.tar.gz
+EOF"
+  assert_deny
+}
+
+@test "curl: denies a command substitution in an unquoted heredoc" {
+  run_curl_hook "cat > /tmp/f <<EOF
+\$(curl -sSfL https://github.com/owner/repo/archive/main.tar.gz)
+EOF"
+  assert_deny
+}
+
+@test "curl: denies a backtick substitution in an unquoted heredoc" {
+  run_curl_hook "cat > /tmp/f <<EOF
+version=\`curl -s https://api.github.com/repos/owner/repo/releases\`
+EOF
+cat /tmp/f"
+  assert_deny
+}
+
+# A quoted delimiter disables expansion, so the same text really is literal file
+# content and the hook must stay out of the way. Denying here would be the
+# original false positive wearing a different hat.
+@test "curl: allows a command substitution written as literal text in a quoted heredoc" {
+  run_curl_hook "cat > /tmp/f <<'EOF'
+\$(curl -sSfL https://github.com/owner/repo/archive/main.tar.gz)
+EOF"
+  assert_allow
+}
