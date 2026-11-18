@@ -401,12 +401,19 @@ def _uv_lock_versions(project: Path) -> dict[str, str]:
     }
 
 
+def _is_pypi_registry(url: str | None) -> bool:
+    """Whether a registry URL is the public PyPI simple index."""
+    if not url:
+        return False
+    return url.rstrip("/") in ("https://pypi.org/simple", "https://pypi.python.org/simple")
+
+
 def _uv_non_registry_sources(project: Path) -> dict[str, str]:
     """Canonical name -> source kind for uv.lock entries that do not resolve from PyPI.
 
     A direct dependency in this map must not be looked up on PyPI by name: the lock
-    says the project installs it from git, a directory, or a local path, so a
-    same-named public package's advisories and metadata do not apply to it.
+    says the project installs it from git, a directory, a local path, or a custom
+    registry, so a same-named public package's advisories and metadata do not apply to it.
     """
     lock = project / "uv.lock"
     if not lock.exists():
@@ -414,9 +421,14 @@ def _uv_non_registry_sources(project: Path) -> dict[str, str]:
     out: dict[str, str] = {}
     for pkg in _read_toml(lock).get("package") or []:
         source = pkg.get("source") or {}
-        if not pkg.get("name") or source.get("registry"):
+        if not pkg.get("name"):
             continue
         if source.get("editable") or source.get("virtual"):
+            continue
+        registry = source.get("registry")
+        if registry:
+            if not _is_pypi_registry(registry):
+                out[normalize_pypi_name(pkg["name"])] = f"custom registry ({registry})"
             continue
         out[normalize_pypi_name(pkg["name"])] = next(iter(source), "unknown")
     return out
@@ -428,11 +440,12 @@ def _uv_all_locked(
     """Every package uv.lock resolves, split by registry attestation.
 
     The lock includes the audited project itself as an editable or virtual source; that
-    entry is the subject, not a dependency. Git, directory, and path sources are
-    unverifiable against PyPI — a vendored fork at `../vendor/flask` must not inherit
-    PyPI flask's advisories, since vendoring a patched fork is a common way to fix
-    exactly those. uv.lock does not mark which packages are development-only per entry,
-    so the dev marker is None throughout.
+    entry is the subject, not a dependency. Git, directory, path, and custom registry
+    sources are unverifiable against PyPI — a vendored fork at `../vendor/flask` or an
+    internal package must not inherit PyPI flask's advisories, since vendoring a patched
+    fork or using a private namespace is a common way to manage internal dependencies.
+    uv.lock does not mark which packages are development-only per entry, so the dev marker
+    is None throughout.
     """
     lock = project / "uv.lock"
     if not lock.exists():
@@ -446,10 +459,11 @@ def _uv_all_locked(
         if source.get("editable") or source.get("virtual"):
             continue
         name = normalize_pypi_name(pkg["name"])
-        if source.get("registry"):
+        registry = source.get("registry")
+        if registry and _is_pypi_registry(registry):
             out.append(("PyPI", name, pkg["version"], None))
         else:
-            kind = next(iter(source), "unknown")
+            kind = f"custom registry ({registry})" if registry else next(iter(source), "unknown")
             unverifiable.append(
                 {
                     "ecosystem": "PyPI",
