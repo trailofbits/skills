@@ -257,6 +257,40 @@ def test_uv_lock_non_registry_sources_are_unverifiable(tmp_path: Path):
     assert by_name["real"].non_registry_reason is None
 
 
+def test_uv_lock_custom_registries_not_attributed_to_pypi(tmp_path: Path):
+    """Custom uv registries must not be attributed to public PyPI (issue #517)."""
+    (tmp_path / "uv.lock").write_text(
+        "\n".join(
+            [
+                "[[package]]",
+                'name = "custom-pkg"',
+                'version = "1.5.0"',
+                'source = { registry = "https://packages.example.org/simple" }',
+                "",
+                "[[package]]",
+                'name = "real-pypi"',
+                'version = "2.0.0"',
+                'source = { registry = "https://pypi.org/simple/" }',
+            ]
+        )
+    )
+    packages, unverifiable, _, _ = _uv_all_locked(tmp_path)
+    assert [n for _, n, _, _ in packages] == ["real-pypi"]
+    assert len(unverifiable) == 1
+    assert unverifiable[0]["name"] == "custom-pkg"
+    assert "custom registry (https://packages.example.org/simple)" in unverifiable[0]["reason"]
+
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "demo"\nversion = "0"\ndependencies = ["custom-pkg", "real-pypi"]\n'
+    )
+    deps, _ = parse_pypi(tmp_path)
+    by_name = {d.name: d for d in deps}
+    assert by_name["custom-pkg"].non_registry_reason
+    assert "custom registry" in by_name["custom-pkg"].non_registry_reason
+    assert "https://packages.example.org/simple" in by_name["custom-pkg"].non_registry_reason
+    assert by_name["real-pypi"].non_registry_reason is None
+
+
 # ----------------------------------------------------------------------- Go parsing
 
 GOMOD = """\
