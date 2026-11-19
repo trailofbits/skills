@@ -1,7 +1,18 @@
 # Regression Hunt
 
-An agent coordinates focused skills to investigate selected PRs or commits. The host supplies
-agent dispatch, authentication and tools. No custom model adapter or Python service is required.
+Regression Hunt is an agent-orchestrated workflow for identifying, reproducing, and verifying
+regressions introduced by software changes.
+
+It investigates pull requests, commits, and commit ranges by coordinating specialized agents
+across source preparation, candidate discovery, reproduction, independent replay, adjudication,
+and reporting.
+
+The workflow requires reproducible evidence before confirming a regression. It distinguishes
+confirmed regressions from incomplete fixes, latent bugs, pre-existing bugs, and unresolved
+findings.
+
+The host supplies agent dispatch, authentication and tools. No custom model adapter or Python
+service is required.
 
 Start with [regression-hunt](skills/regression-hunt/SKILL.md). Supply a change list, a campaign
 directory outside the plugin, and execution/resource limits. PRs may be open, closed or merged;
