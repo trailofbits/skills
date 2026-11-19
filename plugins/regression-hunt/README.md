@@ -11,6 +11,32 @@ The coordinator and standalone skills use any root `AGENTS.md`,
 `PATCHING_GUIDELINES.md` and `THREAT_MODEL.md` as described in the
 [project guidance](references/evidence.md#project-guidance).
 
+## Quick Start
+
+1. **Make the plugin's skills available to your agent host.** The host must support agent
+   dispatch and provide the authentication and tools needed to inspect the repository and run
+   authorized build, deployment and test commands.
+2. **Prepare a change list.** Include pull request URLs, or repository paths with commit SHAs.
+   For a commit range, identify the baseline and target revisions explicitly. See the
+   [example request](examples/request.md) for supported inputs.
+3. **Choose a campaign directory outside this plugin.** This directory stores the scope,
+   evidence, stage results and decisions. Keep it if you want to resume the investigation.
+4. **Set execution and resource limits.** Specify the permitted environment, time, CPU and
+   memory constraints, plus any restrictions on network access or infrastructure.
+5. **Ask your coordinating agent to run the workflow.** For example:
+
+   ```text
+   Use regression-hunt to investigate the changes in my change list.
+   Save the campaign in ./regression-campaign.
+   Use local execution within the available CPU and memory limits.
+   Delegate through the host's agent tools. Report confirmed regressions
+   and unresolved candidates separately.
+   ```
+
+To continue an existing investigation, invoke the skill again and provide the same campaign
+directory. The coordinator can inspect saved state and resume eligible work. See the
+[full example request](examples/request.md) for resume and report-only prompts.
+
 ## Skills
 
 | Skill | Responsibility |
