@@ -72,6 +72,22 @@ meet the confirmation requirements remain unresolved; they are not reported as c
 regressions. See the [regression definition](docs/regression-definition.md) and
 [system flow](docs/system-flow.md) for the full criteria and stage handoffs.
 
+## Terminology
+
+| Term | Meaning |
+| --- | --- |
+| **Campaign** | A persistent investigation workspace containing the frozen scope, evidence, stage results, and decisions. |
+| **Change** | A selected pull request, commit, or commit range being investigated. |
+| **Candidate** | A suspected regression identified during analysis but not yet confirmed. |
+| **S0 (baseline)** | The source state before the selected change; used to establish previously correct behavior. |
+| **S1 (target)** | The source state containing the selected change; compared with S0 to test whether behavior regressed. |
+| **PoC (proof of concept)** | An executable test or demonstration used to reproduce the suspected behavior. |
+| **Coordinator** | The agent running the `regression-hunt` skill; it manages scope, delegates stages, tracks evidence, and resumes work. |
+| **Host** | The agent platform that provides dispatch, authentication, and execution tools to the coordinator and specialist agents. |
+
+A candidate is not a confirmed regression until it meets the evidence and independent-replay
+requirements described in the [regression definition](docs/regression-definition.md).
+
 ## Skills
 
 | Skill | Responsibility |
