@@ -105,24 +105,40 @@ See the [system flow](docs/system-flow.md), [definition](docs/regression-definit
 [example request](examples/request.md). Every packaged helper and reference is inside this
 plugin.
 
-## Deterministic helpers
+## Runtime requirements
 
-The standard-library scripts require Python 3.13+; invoke them with uv. They do not start
-agents, schedule stages or decide whether reasoning is correct.
+Regression Hunt runs inside an agent host; it does not provide its own agent runtime. The host
+must provide:
 
-- [snapshot.py](scripts/snapshot.py): export explicitly selected Git revisions and their diff.
-  Requires Git supporting `check-attr --source`. Unsupported LFS/submodule/export-attribute
-  cases need explicit source preparation by the agent; failures explain what is missing.
+- **Agent orchestration:** the ability to dispatch specialist agents and manage their execution.
+- **Repository access:** authentication and tools to inspect the selected PRs, commits, and
+  source revisions.
+- **Authorized execution:** tools and an environment to build, deploy, and test the software
+  under investigation. These are needed to reproduce and independently replay a candidate.
+- **Persistent campaign storage:** a writable directory outside the plugin for scope, evidence,
+  stage results, and decisions.
+
+The packaged helper scripts have additional, conditional requirements:
+
+- **Python and uv:** Python 3.13+ and [uv](https://docs.astral.sh/uv/) are required to run the
+  standard-library helper scripts. These scripts support the workflow; they do not start agents,
+  schedule stages, or decide whether reasoning is correct.
+- **Git:** [snapshot.py](scripts/snapshot.py) requires a Git version that supports
+  `check-attr --source`. Unsupported LFS, submodule, or export-attribute cases require explicit
+  source preparation by the agent; the script reports what is missing.
+- **POSIX file locks:** [registry.py](scripts/registry.py) uses POSIX file locks.
+
+The other helpers provide the following functions:
+
 - [evidence.py](scripts/evidence.py): seal and verify complete evidence packages and dependencies.
-- [registry.py](scripts/registry.py): freeze scope, reserve IDs and validate assignments/results.
-  Binding and retries require coordinator-captured host evidence. Uses POSIX file locks.
-- [report.py](scripts/report.py): validate structural proof requirements and render HTML/Markdown/JSON.
+- [report.py](scripts/report.py): validate structural proof requirements and render HTML, Markdown,
+  and JSON reports.
 
-Fresh independent agents and authorized execution tools are needed to confirm a finding.
-Missing capabilities leave candidates unresolved. Cloud infrastructure is optional and must be
-authorized; this plugin does not provision it automatically.
+Fresh independent agents and authorized execution tools are required to confirm a finding.
+If those capabilities are unavailable, candidates remain unresolved. Cloud infrastructure is
+optional, must be authorized, and is not provisioned by this plugin.
 
-## Development
+## Development requirements
 
-Run `uv sync --frozen` and `uv run --frozen pytest` from this plugin directory for behavioral
-tests. The repository's `make check` also runs these tests and checks formatting and lint.
+For behavioral tests, run `uv sync --frozen` and `uv run --frozen pytest` from this plugin
+directory. The repository's `make check` also runs these tests and checks formatting and lint.
