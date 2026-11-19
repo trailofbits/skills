@@ -48,6 +48,30 @@ To continue an existing investigation, invoke the skill again and provide the sa
 directory. The coordinator can inspect saved state and resume eligible work. See the
 [full example request](examples/request.md) for resume and report-only prompts.
 
+## Lifecycle
+
+The coordinator manages the campaign and delegates each stage to focused skills and agents.
+The workflow moves from change selection to evidence-backed decisions:
+
+```mermaid
+flowchart TD
+    A["Selected PRs, commits, or commit ranges"] --> B["Prepare sources<br/>Pin S0 baseline and S1 target"]
+    B --> C["Hunt for reachable,<br/>patch-introduced candidates"]
+    C --> D["Reproduce candidate<br/>Run PoC against S0 and S1"]
+    D --> E["Independent replay<br/>Fresh agent repeats unchanged PoC"]
+    E --> F["Adjudicate<br/>Apply regression definition and exclusions"]
+    F --> G["Validate and report<br/>Save decisions and render results"]
+    F --> H["Unresolved<br/>Evidence or capabilities insufficient"]
+    G --> I["Campaign evidence and report"]
+    H --> I
+```
+
+A candidate is confirmed only when the evidence supports the affected behavior, reachability,
+and causality, and an independent agent successfully replays the proof. Candidates that do not
+meet the confirmation requirements remain unresolved; they are not reported as confirmed
+regressions. See the [regression definition](docs/regression-definition.md) and
+[system flow](docs/system-flow.md) for the full criteria and stage handoffs.
+
 ## Skills
 
 | Skill | Responsibility |
