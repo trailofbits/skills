@@ -9,9 +9,17 @@ allowed-tools: Bash Read Glob Grep AskUserQuestion
 Run an external CLI review of the user's selected changes. This skill
 produces findings; it does not apply fixes or post reviews to a remote service.
 
+## Preflight
+
+Before asking any questions, follow [preflight.md](references/preflight.md):
+check whether a newer version of this plugin is published, offering to
+update first, and read the current model list from each candidate CLI.
+A failed check is noted and does not stop the review.
+
 ## Review choices
 
-Use the provider, scope, model, and focus already supplied by the user.
+Use the provider, scope, model, effort, and focus already supplied by
+the user.
 Ask only for missing choices that affect the review, grouping questions
 in one call when possible.
 
@@ -25,6 +33,10 @@ in one call when possible.
   content in the review prompt.
 - Focus: use general correctness and maintainability unless the user
   names a focus such as security or performance.
+- Model and effort: once the provider is known, use that CLI's model
+  catalog from preflight and ask which model and reasoning effort to use,
+  with a recommendation for each. Follow
+  [model-selection.md](references/model-selection.md).
 
 For an unspecified Google CLI, prefer Antigravity (`agy`). An explicit
 Gemini CLI request uses the Gemini reference below. If that account returns
@@ -76,7 +88,7 @@ automatic approval of writes to make a review run.
 
 ## Results and failures
 
-Present findings with the provider and actual model used, severity,
+Present findings with the provider, actual model and effort used, severity,
 file and line, impact, and suggested correction. Keep low-severity
 defects visible. For Codex, the existing schema uses 0 for informational,
 1 for low, 2 for medium, and 3 for high; sort descending.

@@ -1,17 +1,19 @@
 # Antigravity Invocation
 
 Use `agy` print mode with the prepared prompt as one quoted argument.
-The default remains `gemini-3.1-pro-high`; preserve a model explicitly
-requested by the user. Use `agy models` when the default is unavailable
-to identify models the account can access.
+Use the slug chosen through the shared model-selection step, which reads
+`agy models`; effort is part of that slug. When the listing is
+unavailable, the fallback is `gemini-3.1-pro-high`. Preserve a model
+explicitly requested by the user.
 
 ## Command
 
-With `prompt_file`, `output_file`, and `stderr_log` already created:
+With `prompt_file`, `output_file`, and `stderr_log` already created,
+and `model` set to the chosen slug:
 
 ```bash
 PATH="$HOME/.local/bin:$PATH" agy \
-  --model gemini-3.1-pro-high \
+  --model "$model" \
   --output-format text \
   --disable-slash-commands \
   -p="$(cat "$prompt_file")" \
@@ -48,4 +50,6 @@ A plan artifact or request to proceed is not a completed review.
 | Executable missing | Check `~/.local/bin`, then report the [installation instructions](https://antigravity.google/docs/cli/getting-started) |
 | Empty prompt | Use the attached `-p=` argument form |
 | Unknown model | List available models and request a replacement |
+| Listed model needs a newer CLI | Offer `agy update` and ask before running it |
+| `--effort` conflicts with the model | Drop `--effort`; the suffixed slug already sets it |
 | Auth, quota, or timeout error | Report the failure and preserve any partial output |
