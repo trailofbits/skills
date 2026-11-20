@@ -389,16 +389,52 @@ def _pypi_version(raw: str, locked: dict[str, str], canonical: str) -> tuple[str
     return None, "unresolved"
 
 
-def _uv_lock_versions(project: Path) -> dict[str, str]:
+def _uv_lock_versions(project: Path) -> dict[str, list[tuple[str, str | None]]]:
+    """Canonical name -> every locked (version, marker), sorted, for uv.lock.
+
+    A universal lock can resolve one name to several versions, each under its own
+    environment marker. All of them are returned, so the result does not depend on the
+    order of `[[package]]` rows. A name with a single version carries no marker. For a
+    forked name, the marker is the one the project's own entry declares for that version
+    (exactly when the project installs it), falling back to the row's
+    `resolution-markers` when the project entry does not list it.
+    """
     lock = project / "uv.lock"
     if not lock.exists():
         return {}
-    data = _read_toml(lock)
-    return {
-        normalize_pypi_name(pkg["name"]): pkg["version"]
-        for pkg in data.get("package") or []
-        if pkg.get("name") and pkg.get("version")
-    }
+    packages = [p for p in _read_toml(lock).get("package") or [] if p.get("name")]
+    rows: dict[str, dict[str, str | None]] = {}
+    for pkg in packages:
+        if pkg.get("version"):
+            fork = " or ".join(pkg.get("resolution-markers") or []) or None
+            rows.setdefault(normalize_pypi_name(pkg["name"]), {})[pkg["version"]] = fork
+    declared = _uv_project_markers(packages)
+    out: dict[str, list[tuple[str, str | None]]] = {}
+    for name, versions in rows.items():
+        if len(versions) == 1:
+            out[name] = [(next(iter(versions)), None)]
+            continue
+        own = declared.get(name, {})
+        chosen = {v: own[v] for v in versions if v in own} or versions
+        out[name] = sorted((v, m or "") for v, m in chosen.items())
+    return out
+
+
+def _uv_project_markers(packages: list[dict]) -> dict[str, dict[str, str | None]]:
+    """name -> {version: marker} from the audited project's own uv.lock entries."""
+    out: dict[str, dict[str, str | None]] = {}
+    for pkg in packages:
+        source = pkg.get("source") or {}
+        if not (source.get("editable") or source.get("virtual")):
+            continue
+        groups = [pkg.get("dependencies") or []]
+        for key in ("optional-dependencies", "dev-dependencies"):
+            groups.extend((pkg.get(key) or {}).values())
+        for entry in (e for group in groups for e in group):
+            if entry.get("name") and entry.get("version"):
+                name = normalize_pypi_name(entry["name"])
+                out.setdefault(name, {})[entry["version"]] = entry.get("marker")
+    return out
 
 
 def _uv_non_registry_sources(project: Path) -> dict[str, str]:
@@ -473,7 +509,6 @@ def parse_pypi(project: Path) -> tuple[list[Dependency], list[str]]:
     non_registry = _uv_non_registry_sources(project)
     deps = []
     for canonical, (raw, is_dev) in specs.items():
-        version, source = _pypi_version(raw, locked, canonical)
         reason = None
         url = _direct_reference_url(raw)
         if url:
@@ -482,16 +517,26 @@ def parse_pypi(project: Path) -> tuple[list[Dependency], list[str]]:
             reason = f"resolves from a {non_registry[canonical]} source, not PyPI"
         if reason:
             notes.append(f"`{canonical}` {reason}, so no registry or advisory data applies to it.")
-        deps.append(
-            Dependency(
-                ecosystem="PyPI",
-                name=canonical,
-                version=version,
-                version_source=source,
-                dev=is_dev,
-                non_registry_reason=reason,
+        forks = locked.get(canonical) or [(None, None)]
+        if len(forks) > 1:
+            notes.append(
+                f"`{canonical}` is locked at {len(forks)} versions under different "
+                f"environment markers; each is reported as a direct dependency."
             )
-        )
+        for locked_version, marker in forks:
+            single = {canonical: locked_version} if locked_version else {}
+            version, source = _pypi_version(raw, single, canonical)
+            deps.append(
+                Dependency(
+                    ecosystem="PyPI",
+                    name=canonical,
+                    version=version,
+                    version_source=source,
+                    dev=is_dev,
+                    non_registry_reason=reason,
+                    marker=marker,
+                )
+            )
     return deps, notes
 
 

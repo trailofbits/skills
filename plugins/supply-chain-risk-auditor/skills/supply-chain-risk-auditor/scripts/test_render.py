@@ -118,6 +118,18 @@ def test_flagged_production_dependency_reaches_the_findings_table():
     assert "`risky`" in text
 
 
+def test_forked_lockfile_versions_render_as_separate_rows_with_markers():
+    deps = []
+    for version, marker in (("2.4.6", "python_full_version < '3.12'"), ("2.5.4", "x")):
+        dep = make_dep("numpy", eco="PyPI")
+        dep.version, dep.marker = version, marker
+        dep.signals["archived"] = Signal.flagged("repository is archived", True)
+        deps.append(dep)
+    text = render(artifact(deps))
+    assert "2.4.6 (where python_full_version" in text
+    assert "2.5.4 (where x)" in text
+
+
 def test_dev_none_never_renders_as_production():
     dep = make_dep("gomod", eco="Go", dev=None)
     dep.signals["staleness"] = Signal.flagged("no push in 3 years", "2023-01-01")
