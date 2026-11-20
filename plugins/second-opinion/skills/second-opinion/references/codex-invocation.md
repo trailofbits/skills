@@ -5,19 +5,23 @@ custom focus and project context alongside a manually captured diff.
 The built-in `codex exec review` scope flags cannot be combined with
 its positional prompt, so they do not replace this invocation.
 
-The default remains `gpt-5.6-sol` with `xhigh` reasoning. Preserve an
-explicit model or effort supplied by the user. The flags below were
-checked with Codex CLI 0.154.0 `--help` on 2026-09-14.
+Use the model and effort chosen through the shared model-selection step,
+which reads the account's catalog. When that catalog is unavailable, the
+fallback is `gpt-5.6-sol` with `xhigh` reasoning. Preserve an explicit
+model or effort supplied by the user. The flags below were checked with
+Codex CLI 0.154.0 `--help` on 2026-09-14; `codex debug models` was
+checked with 0.169.0 on 2026-11-20.
 
 ## Command
 
 With `prompt_file`, `output_file`, and `stderr_log` already created
-outside the checkout, run from the repository root:
+outside the checkout, and `model` and `effort` set to the chosen values,
+run from the repository root:
 
 ```bash
 codex exec \
-  -c model='"gpt-5.6-sol"' \
-  -c model_reasoning_effort='"xhigh"' \
+  -c model="\"$model\"" \
+  -c model_reasoning_effort="\"$effort\"" \
   --sandbox read-only \
   --ephemeral \
   --output-schema "{baseDir}/references/codex-review-schema.json" \
@@ -54,8 +58,9 @@ presenting findings.
 |---------|----------|
 | Executable missing | Report that Codex must be installed and authenticated; installation command: `npm i -g @openai/codex` |
 | Authentication or quota error | Report the error and stop this provider; changing models does not repair missing credentials or exhausted quota |
-| Default model unavailable | If the user did not pin a model, retry once with `gpt-5.6` and disclose the substitution |
+| Recommended or fallback model unavailable | If the user did not pin a model, retry once with the next catalog entry (or `gpt-5.6` without a catalog) and disclose the substitution |
 | Explicit model unavailable | Report the failure and ask for a replacement |
+| Model "requires a newer version of Codex" | Offer `codex update` and ask before running it; retry once after updating |
 | Nonzero exit, empty file, or invalid JSON | Read diagnostics and report an incomplete review |
 | Sandbox denied a needed read or command | Report the coverage gap; do not ignore it or remove the sandbox |
 | Timeout | Preserve partial output and report the timeout; suggest a narrower scope |

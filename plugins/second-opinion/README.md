@@ -32,11 +32,21 @@ Invoke the `second-opinion` skill with the provider and scope:
 ```text
 /second-opinion:second-opinion use Codex to review uncommitted changes for bugs
 /second-opinion:second-opinion compare Codex and Antigravity against origin/main
+/second-opinion:second-opinion use Codex with gpt-6.2-astra at high effort on this branch
 /second-opinion:second-opinion use Gemini CLI to review commit abc1234 for security issues
 ```
 
+Each run starts with two quick checks. If a newer version of this plugin
+is published in its marketplace, the skill offers to update first (the
+update applies after a restart). It also reads each CLI's current model
+list, so new models appear without a plugin update. Neither check blocks
+the review when it fails or you are offline.
+
 The skill uses choices already given and asks for missing provider or
-scope details. General review is the default focus. Applicable project
+scope details. It then reads each selected CLI's model list (`codex debug
+models`, `agy models`) and asks which model and reasoning effort to use,
+with a recommendation for each. Name a model or effort in the request to
+skip that question. General review is the default focus. Applicable project
 instructions are included unless you exclude them.
 
 Uncommitted reviews include staged, unstaged, and untracked changes.
