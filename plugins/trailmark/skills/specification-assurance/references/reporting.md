@@ -55,9 +55,16 @@ assumptions, findings, and all native checks, including failures. Reporting cann
 replace a failed check with another passing one or change the applicability decision.
 If evidence needs reassessment, retain the gap and start a new assessment.
 
-After graph/inventory setup and before assessments, run `requirements.py freeze
---root <target> --run <run>` once. It writes `source-snapshot.json` without overwriting
-an existing snapshot. The file list and hashes cover the target tree, including
+Prime Duvet's generated requirement files with an isolated `baseline` first. Run
+`requirements.py begin --root <target> --run <run>` before collecting the assessed
+baseline or building a fresh graph; reuse no earlier engine or graph. Repeat the
+isolated baseline, retain its inventory, build/export the graph, then run
+`requirements.py freeze --root <target> --run <run>`. Freeze rejects changes since
+begin and binds the original inputs to the analysis artifacts. Start a new run when
+inputs change during analysis. Both capture files refuse overwrites.
+
+`source-snapshot.json` binds file names, SHA-256 hashes, and permission modes across
+the target tree, including
 ignored/untracked inputs, and the retained graph/inventory artifacts. It excludes
 the run, `.trailmark/`, Duvet reports/citation sidecars, Git metadata, Python bytecode
 caches, and pytest caches. Keep production/build inputs out of these artifact roots;
@@ -73,8 +80,9 @@ uv run --no-project "{baseDir}/scripts/requirements.py" seal \
   --root <target> --run <run> --record <run>/requirements/<id>.json
 ```
 
-The helper binds the shared source snapshot with `snapshot_sha256` and adds
-`files_sha256` for that requirement's enforcement/check locations, executed logs,
+The helper reads `source-snapshot.sha256`, a small digest file written by freeze,
+and binds it as `snapshot_sha256`; each worker avoids reading the full manifest.
+It adds a `files` map of SHA-256 hashes and permission modes for enforcement/check locations, executed logs,
 and additional dependency inputs listed in `inputs`. Shared project hashes stay
 in one manifest instead of being copied into every record and ledger entry. Retain
 distinct logs for each execution; overwriting a passing log invalidates its record.

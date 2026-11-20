@@ -136,12 +136,15 @@ uv run --no-project "{baseDir}/scripts/requirements.py" finalize \
   --request <run>/validation-request.json --output <run>/gate.json
 ```
 
-After graph/inventory setup, run `requirements.py freeze --root <target> --run <run>`
-once. It records the full file list and contents in `source-snapshot.json`, including
-untracked and ignored files. Keep generated build outputs outside the frozen tree;
+Prime Duvet extraction with an isolated baseline, then run `requirements.py begin
+--root <target> --run <run>` before collecting the assessed baseline or building a
+fresh graph. After graph/inventory setup, run `requirements.py freeze --root <target>
+--run <run>` once. It rejects input changes during analysis and binds names, bytes,
+and permissions in `source-snapshot.json`, including untracked and ignored files.
+Keep generated build outputs outside the frozen tree;
 put new assurance tests/logs inside the run. After native checks, seal each record with
 `requirements.py seal --root <target> --run <run> --record <run>/requirements/<id>.json`.
-Workers bind the shared snapshot digest and their own source/check/log contents.
+Workers read only the shared digest and bind their own source/check/log contents and modes.
 Include additional dependency inputs in `inputs`. Use distinct logs and keep sealed
 files unchanged; new citations go in the configured sidecars.
 

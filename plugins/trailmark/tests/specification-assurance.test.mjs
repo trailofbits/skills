@@ -86,7 +86,11 @@ test('setup uses the isolated baseline runner and freezes the tree before worker
   const { error } = await run({ handlers: {
     setup: (_, { prompt, defaults }) => {
       assert.ok(prompt.includes(' baseline --root '))
+      assert.ok(prompt.includes(' begin --root '))
       assert.ok(prompt.includes(' freeze --root '))
+      assert.ok(prompt.indexOf(' begin --root ') < prompt.indexOf('Capture the assessed baseline'))
+      assert.ok(prompt.indexOf('Capture the assessed baseline') < prompt.indexOf('Build a fresh implementation graph'))
+      assert.ok(prompt.indexOf('Build a fresh implementation graph') < prompt.indexOf(' freeze --root '))
       assert.ok(!prompt.includes('Capture unannotated baseline using duvet report'))
       return defaults.setup()
     },

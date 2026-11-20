@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -34,6 +35,14 @@ VERDICTS = {
 }
 SEVERITIES = {"critical", "high", "medium", "low", "info"}
 DIVERGENCES = {"partial", "violated", "missing"}
+ANALYSIS_ARTIFACTS = (
+    "graph.json",
+    "source-policy.json",
+    "diagnostics.json",
+    "graph-scope.json",
+    "duvet-before.json",
+    "inventory.json",
+)
 
 
 def read_json(path: Path) -> Any:
@@ -43,6 +52,10 @@ def read_json(path: Path) -> Any:
 def file_sha256(path: Path) -> str:
     with path.open("rb") as source:
         return hashlib.file_digest(source, "sha256").hexdigest()
+
+
+def file_state(path: Path) -> dict[str, Any]:
+    return {"sha256": file_sha256(path), "mode": path.stat().st_mode & 0o7777}
 
 
 def nonempty(value: Any) -> bool:
@@ -214,13 +227,13 @@ def evidence_files(record: dict[str, Any]) -> set[str]:
 
 
 def verify_files(root: Path, record: dict[str, Any], required: set[str], cache: dict) -> None:
-    hashes = record.get("files_sha256")
+    hashes = record.get("files")
     if not isinstance(hashes, dict) or not required <= set(hashes):
         raise ValueError("Missing SHA-256 bindings for referenced evidence files")
     for name, expected in hashes.items():
         path = local_file(root, name)
         if path not in cache:
-            cache[path] = file_sha256(path)
+            cache[path] = file_state(path)
         if cache[path] != expected:
             raise ValueError(f"Evidence file changed since assessment: {name}")
 
@@ -460,7 +473,15 @@ def graph_evidence(
     )
 
 
-def snapshot_files(root: Path, run: Path) -> dict[str, str]:
+def configured_specifications(root: Path) -> set[Path]:
+    config = tomllib.loads((root / ".duvet/config.toml").read_text())
+    sources = [item["source"] for item in config.get("specification", [])]
+    if not sources or any("://" in value for value in sources):
+        raise ValueError("Configure every specification as a pinned local file")
+    return {local_file(root, value) for value in sources}
+
+
+def snapshot_files(root: Path, run: Path, artifacts: bool = True) -> dict[str, Any]:
     """Capture names and contents, including untracked and ignored build inputs."""
 
     def traversal_error(error: OSError) -> None:
@@ -486,51 +507,60 @@ def snapshot_files(root: Path, run: Path) -> dict[str, str]:
                 "Directory symlinks cannot be frozen; use a self-contained target tree"
             )
         paths.update(parent / name for name in files)
-    paths.update(
-        run / name
-        for name in (
-            "graph.json",
-            "source-policy.json",
-            "diagnostics.json",
-            "graph-scope.json",
-            "duvet-before.json",
-            "inventory.json",
-        )
-    )
-    paths.update(
-        local_file(root, item["specification"])
-        for item in read_json(run / "inventory.json")["requirements"]
-    )
+    if artifacts:
+        paths.update(run / name for name in ANALYSIS_ARTIFACTS)
+    paths.update(configured_specifications(root))
     if not paths:
         raise ValueError("Source snapshot inspected zero files")
     return {
-        str(path.relative_to(root)): file_sha256(local_file(root, str(path)))
+        str(path.relative_to(root)): file_state(local_file(root, str(path)))
         for path in sorted(paths)
     }
 
 
+def begin_snapshot(root: Path, run: Path) -> dict[str, str]:
+    path = run / "source-inputs.json"
+    with path.open("x") as output:
+        json.dump(snapshot_files(root, run, artifacts=False), output, indent=2)
+        output.write("\n")
+    return {"source_inputs": str(path)}
+
+
 def freeze_snapshot(root: Path, run: Path) -> dict[str, str]:
+    original = read_json(run / "source-inputs.json")
+    if original != snapshot_files(root, run, artifacts=False):
+        raise ValueError("Inputs changed during baseline/graph analysis; start a new run")
     scope = read_json(run / "graph-scope.json")["production_files"]
     graph_evidence(run, root, len(scope))
+    if not {
+        local_file(root, item["specification"])
+        for item in read_json(run / "inventory.json")["requirements"]
+    } <= configured_specifications(root):
+        raise ValueError("Configure all inventoried specifications before beginning analysis")
+    # Keep the original input states, rather than accepting later edits into the
+    # snapshot while attaching native artifacts from the guarded analysis window.
+    combined = {
+        **original,
+        **{
+            str((run / name).relative_to(root)): file_state(local_file(root, str(run / name)))
+            for name in ANALYSIS_ARTIFACTS
+        },
+    }
     path = run / "source-snapshot.json"
     with path.open("x") as output:
-        json.dump(snapshot_files(root, run), output, indent=2)
+        json.dump(combined, output, indent=2)
         output.write("\n")
-    return {"snapshot_sha256": file_sha256(path)}
+    digest = file_sha256(path)
+    (run / "source-snapshot.sha256").write_text(digest + "\n")
+    return {"snapshot_sha256": digest}
 
 
 def seal_record(root: Path, run: Path, path: Path) -> dict[str, str]:
     record = read_json(path)
-    snapshot = run / "source-snapshot.json"
-    frozen = read_json(snapshot)
-    record["snapshot_sha256"] = file_sha256(snapshot)
-    record["files_sha256"] = {
-        name: file_sha256(local_file(root, name)) for name in sorted(evidence_files(record))
+    record["snapshot_sha256"] = (run / "source-snapshot.sha256").read_text().strip()
+    record["files"] = {
+        name: file_state(local_file(root, name)) for name in sorted(evidence_files(record))
     }
-    for name, digest in record["files_sha256"].items():
-        key = str(local_file(root, name).relative_to(root))
-        if key in frozen and frozen[key] != digest:
-            raise ValueError(f"Evidence file changed since assessment snapshot: {name}")
     path.write_text(json.dumps(record, indent=2) + "\n")
     return {
         "id": record["id"],
@@ -764,6 +794,11 @@ def main() -> int:
     freeze = subparsers.add_parser("freeze", help="Retain one source snapshot before assessment")
     freeze.add_argument("--root", type=Path, required=True)
     freeze.add_argument("--run", type=Path, required=True)
+    begin = subparsers.add_parser(
+        "begin", help="Capture inputs before native baseline and graph analysis"
+    )
+    begin.add_argument("--root", type=Path, required=True)
+    begin.add_argument("--run", type=Path, required=True)
     baseline = subparsers.add_parser(
         "baseline", help="Generate baseline without changing project reports"
     )
@@ -788,19 +823,25 @@ def main() -> int:
         root = request.root.resolve(strict=True)
         if not root.is_dir():
             raise ValueError("Target root must be a directory")
-        if args.command in {"seal", "freeze", "baseline"}:
+        if args.command in {"seal", "freeze", "baseline", "begin"}:
             run = args.run.resolve(strict=True)
             if not run.is_dir() or not run.is_relative_to(root) or run == root:
                 raise ValueError("Run directory must exist inside the target root")
-        if args.command == "freeze":
+        if args.command == "begin":
+            result = begin_snapshot(root, run)
+            code = 0
+        elif args.command == "freeze":
             result = freeze_snapshot(root, run)
             code = 0
         elif args.command == "baseline":
-            native = run / "baseline-native"
-            native.mkdir()
+            native = Path(tempfile.mkdtemp(prefix="baseline-native-", dir=run))
             result = native_report(
-                root, native, run / "duvet-before.json", run / "duvet-before.html", args.duvet
+                root, native, native / "duvet-before.json", native / "duvet-before.html", args.duvet
             )
+            for name in ("duvet-before.json", "duvet-before.html"):
+                (run / name).unlink(missing_ok=True)
+                if result["valid"]:
+                    shutil.copyfile(native / name, run / name)
             code = 0 if result["valid"] else 2
         elif args.command == "seal":
             result = seal_record(
@@ -824,7 +865,7 @@ def main() -> int:
             "errors": [str(error)],
         }
         code = 2
-    if args.command not in {"seal", "freeze"}:
+    if args.command not in {"seal", "freeze", "begin"}:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result))

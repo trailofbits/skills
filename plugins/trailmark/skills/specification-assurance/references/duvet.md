@@ -157,6 +157,11 @@ Save command output and exit status even on failure. The helper consumes the
 legacy JSON produced by `--json`, including on builds that also offer `--json-v2`.
 Do not feed v2 data to it or convert an unfamiliar format by guessing.
 
+The first isolated baseline primes Duvet's generated requirement files. Capture
+inputs with `begin`, then repeat `baseline` for the assessed revision before building
+the fresh graph. Each attempt uses a new directory; failed attempts cannot reuse old
+reports. `freeze` rejects input changes across this analysis window.
+
 `baseline` uses a copied configuration to write reports and a candidate snapshot
 inside the run, preserving accepted project outputs even on failure. After adding
 defensible sidecar annotations, the calling session's `finalize` command uses the

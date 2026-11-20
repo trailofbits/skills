@@ -22,9 +22,8 @@ def write_json(path, value):
 
 
 def bind_record(root, record):
-    record["files_sha256"] = {
-        name: hashlib.sha256((root / name).read_bytes()).hexdigest()
-        for name in requirements.evidence_files(record)
+    record["files"] = {
+        name: requirements.file_state(root / name) for name in requirements.evidence_files(record)
     }
 
 
@@ -422,6 +421,7 @@ def finalizer(artifacts):
     (root / ".duvet").mkdir()
     (root / ".duvet/config.toml").write_text(
         "'$schema' = \"https://awslabs.github.io/duvet/config/v0.4.0.json\"\n"
+        '[[specification]]\nsource = "spec.md"\n'
         '[report.snapshot]\nenabled = true\npath = ".duvet/snapshot.txt"\n'
     )
     (root / ".duvet/snapshot.txt").write_text("accepted snapshot\n")
@@ -470,6 +470,7 @@ def finalizer(artifacts):
         },
     )
     fixture = root, run, duvet, argv, ledger
+    requirements.begin_snapshot(root, run)
     requirements.freeze_snapshot(root, run)
     for record in ledger["requirements"]:
         save_fixture_assessment(fixture, record)
@@ -499,6 +500,8 @@ def run_finalizer(finalizer, extra=()):
 def refresh_fixture_snapshot(finalizer):
     root, run, _, _, ledger = finalizer
     (run / "source-snapshot.json").unlink()
+    (run / "source-inputs.json").unlink()
+    requirements.begin_snapshot(root, run)
     requirements.freeze_snapshot(root, run)
     for record in ledger["requirements"]:
         save_fixture_assessment(finalizer, record)
@@ -525,9 +528,7 @@ def test_workers_share_one_snapshot_without_duplicating_project_hashes(finalizer
     assert ".duvet/config.toml" in snapshot
     digests = {record["snapshot_sha256"] for record in ledger["requirements"]}
     assert len(digests) == 1
-    assert all(
-        ".duvet/config.toml" not in record["files_sha256"] for record in ledger["requirements"]
-    )
+    assert all(".duvet/config.toml" not in record["files"] for record in ledger["requirements"])
     with pytest.raises(FileExistsError):
         requirements.freeze_snapshot(root, run)
 
@@ -538,13 +539,67 @@ def test_pinned_specifications_inside_run_still_bind_full_text(finalizer):
     pinned.write_text(
         "Definition: packets include the header.\nA packet MUST contain at most 16 bytes.\n"
     )
-    inventory = requirements.read_json(run / "inventory.json")
-    inventory["requirements"][0]["specification"] = str(pinned.relative_to(root))
-    write_json(run / "inventory.json", inventory)
+    config = root / ".duvet/config.toml"
+    config.write_text(
+        config.read_text()
+        + "\n[[specification]]\nsource = "
+        + json.dumps(str(pinned.relative_to(root)))
+        + "\n"
+    )
     frozen = requirements.snapshot_files(root, run)
     assert str(pinned.relative_to(root)) in frozen
     pinned.write_text(pinned.read_text().replace("include", "exclude"))
     assert requirements.snapshot_files(root, run) != frozen
+
+
+@pytest.mark.parametrize("change", ["add_entrypoint", "edit_source", "chmod"])
+def test_freeze_rejects_changes_between_begin_and_native_analysis(finalizer, change):
+    root, run, _, _, _ = finalizer
+    (run / "source-inputs.json").unlink()
+    (run / "source-snapshot.json").unlink()
+    requirements.begin_snapshot(root, run)
+    if change == "add_entrypoint":
+        (root / "alternate.py").write_text("def alternate(packet): return True\n")
+    elif change == "edit_source":
+        (root / "packet.py").write_text("def accepted(packet): return True\n")
+    else:
+        path = root / "packet.py"
+        path.chmod(path.stat().st_mode ^ 0o100)
+    # The retained graph still describes the earlier inputs.
+    with pytest.raises(ValueError, match="Inputs changed during baseline/graph analysis"):
+        requirements.freeze_snapshot(root, run)
+    assert not (run / "source-snapshot.json").exists()
+
+
+def test_freeze_requires_the_preanalysis_capture(finalizer):
+    _, run, _, _, _ = finalizer
+    (run / "source-inputs.json").unlink()
+    with pytest.raises(FileNotFoundError):
+        requirements.freeze_snapshot(finalizer[0], run)
+
+
+def test_changed_executable_permissions_invalidate_the_gate(finalizer):
+    root, run, _, _, _ = finalizer
+    path = root / "packet.py"
+    path.chmod(path.stat().st_mode ^ 0o100)
+    code, result = run_finalizer(finalizer)
+    assert code == 2
+    assert any("changed since assessment" in error for error in result["errors"])
+    assert not list(run.glob("gate-native-*"))
+
+
+def test_sealing_does_not_read_the_whole_shared_manifest(finalizer, monkeypatch):
+    root, run, _, _, ledger = finalizer
+    read_json = requirements.read_json
+
+    def reject_manifest(path):
+        assert path != run / "source-snapshot.json"
+        return read_json(path)
+
+    monkeypatch.setattr(requirements, "read_json", reject_manifest)
+    path = run / "requirements" / f"{ledger['requirements'][0]['id']}.json"
+    sealed = requirements.seal_record(root, run, path)
+    assert sealed["record_sha256"] == requirements.file_sha256(path)
 
 
 def test_added_directory_symlink_cannot_bypass_file_list_seal(finalizer):
@@ -665,7 +720,7 @@ def test_changed_evidence_is_rejected_before_native_reporting(finalizer, name):
 def test_worker_cannot_omit_evidence_content_bindings(finalizer):
     _, run, _, _, ledger = finalizer
     record = ledger["requirements"][0]
-    record["files_sha256"].pop("native.log")
+    record["files"].pop("native.log")
     path = write_json(run / "requirements" / f"{record['id']}.json", record)
     request = requirements.read_json(run / "validation-request.json")
     request["assessments"][record["id"]] = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -723,6 +778,8 @@ def test_retained_parse_diagnostics_force_a_gap(finalizer):
     write_json(run / "graph.json", graph)
     write_json(run / "diagnostics.json", diagnostics)
     (run / "source-snapshot.json").unlink()
+    (run / "source-inputs.json").unlink()
+    requirements.begin_snapshot(finalizer[0], run)
     requirements.freeze_snapshot(finalizer[0], run)
     ledger["requirements"][1]["verdict"] = "not_applicable"
     for record in ledger["requirements"]:
@@ -958,6 +1015,8 @@ def test_graph_evidence_accepts_native_merged_source_policy(finalizer):
     write_json(run / "graph.json", graph)
     write_json(run / "source-policy.json", graph["source_policy"])
     (run / "source-snapshot.json").unlink()
+    (run / "source-inputs.json").unlink()
+    requirements.begin_snapshot(finalizer[0], run)
     requirements.freeze_snapshot(finalizer[0], run)
     for record in ledger["requirements"]:
         save_fixture_assessment(finalizer, record)

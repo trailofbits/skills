@@ -154,8 +154,10 @@ artifacts. It does not certify correctness or repair implementation defects.
 The workflow returns `pending_validation`. The calling session saves its
 `validation_request` verbatim to `validation_request_path`, then executes
 `validation_command`. The finalizer checks immutable worker records, evidence file
-hashes, a shared snapshot of file names/contents, graph scope, the full inventory,
+hashes, a shared snapshot of file names/contents/permissions, graph scope, the full inventory,
 and setup limitations before running Duvet. Specifications use pinned local copies.
+Input capture starts before the assessed baseline and fresh graph; changes during
+analysis invalidate the run. Workers read only the shared snapshot's digest.
 Parse diagnostics force a gap. New citations use sidecar files to keep sealed source
 unchanged. Baseline and final attempts retain reports and candidate snapshots inside the
 run; the project's accepted snapshot stays unchanged. Gate output links these

@@ -84,16 +84,20 @@ Inventory formal extensions independently; never silently omit unsupported sourc
 Initialize/merge .duvet/config.toml with production, tests, formal sources, the documented
 .duvet/assurance-citations/**/*.txt sidecar pattern and comment markers,
 all requested specifications, and HTML/snapshot reporting. Preserve accepted project reports/snapshot.
-Capture baseline using ${helper} baseline --root ${sh(ROOT)} --run ${sh(RUN)} --output ${sh(`${RUN}/baseline.json`)}.
+Initialize Duvet's generated requirement files using ${helper} baseline --root ${sh(ROOT)} --run ${sh(RUN)} --output ${sh(`${RUN}/prepare.json`)}.
+Then run ${helper} begin --root ${sh(ROOT)} --run ${sh(RUN)} before collecting assessed artifacts.
+Capture the assessed baseline using ${helper} baseline --root ${sh(ROOT)} --run ${sh(RUN)} --output ${sh(`${RUN}/baseline.json`)}.
 Preserve the log/exit status. Run ${helper} inventory --root ${sh(ROOT)} ${specFlags} --report ${sh(`${RUN}/duvet-before.json`)} --output ${sh(`${RUN}/inventory.json`)}.
-Build the implementation graph, run preanalysis, and save the native export as graph.json,
+Build a fresh implementation graph after begin; never reuse an earlier engine or graph.
+Run preanalysis and save the native export as graph.json,
 engine.source_policy() as source-policy.json, and engine.parse_diagnostics() as diagnostics.json.
 Write graph-scope.json with a production_files array listing the exact inspected production paths.
 Retain unresolved edges and focused queries. Reconcile all implementation/formal roots with effective
 scope. source_files is the production_files length, not the total including tests/models; the native
 finalizer checks both counts, actual files, and parsed nodes or matching parse diagnostics.
 After inventory and graph setup, run ${helper} freeze --root ${sh(ROOT)} --run ${sh(RUN)} once to
-create source-snapshot.json. It freezes file names and contents, including untracked and ignored inputs.
+create source-snapshot.json. It rejects input changes since begin and binds file names, contents,
+and permissions, including untracked and ignored inputs. Start a new run if inputs changed.
 Keep build outputs outside the frozen tree, and put new assurance tests/logs inside the run directory.
 Do not add implementation/test citations yet. Return requirements copied from inventory.json,
 actual production source_files count, limitations, and status ready or failed with reason.
