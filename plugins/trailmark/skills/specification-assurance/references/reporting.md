@@ -19,6 +19,10 @@ The inventory's IDs hash the specification identifier, section, normative level,
 and whitespace-normalized quotation, so adding citations does not change identity.
 Changing or dropping an obligation between baseline and final reports invalidates
 the run. Start a new explicitly scoped assessment when the specification changes.
+Supply every requested document with repeated `--specification` arguments to the
+inventory and gate commands. Each configured document must extract at least one
+obligation. If extraction misses a document's obligations, register them explicitly
+before proceeding; another document's successful extraction cannot cover the gap.
 
 ## Ledger contract
 
@@ -75,7 +79,7 @@ Record compiler, solver, attacker-model, extraction, and external-code assumptio
 
 | Verdict | Meaning |
 | --- | --- |
-| `supported` | Source inspection supports every sub-obligation, with production enforcement and at least one executed passing implementation check. State the limits of the evidence. |
+| `supported` | Source inspection supports every sub-obligation, with complete Duvet implementation traceability, production enforcement, and at least one executed passing implementation check. State the limits of the evidence. |
 | `partial` | Some conditions, paths, or sub-obligations hold; others do not or lack adequate evidence. |
 | `violated` | Observed behavior or source logic contradicts the requirement. Preserve a counterexample when available. |
 | `missing` | No enforcement was found; record searched roots, symbols/patterns, and plausible alternate enforcement sites in the rationale or linked evidence. |
@@ -83,8 +87,18 @@ Record compiler, solver, attacker-model, extraction, and external-code assumptio
 | `not_applicable` | A specific profile/condition makes this obligation inapplicable; cite that condition or an existing authorized waiver. It stays in the denominator. |
 | `not_checked` | The obligation was inventoried but not assessed, including worker failures or a resource limit. |
 
-Add `severity` and the concrete consequence for every divergence; use the project's
-severity rubric, or critical/high/medium/low/info if none exists. Report all severities.
+Every `partial`, `violated`, or `missing` record must include `severity` as
+`critical`, `high`, `medium`, `low`, or `info`, and a nonempty `consequence` describing
+the concrete effect. Map a project's rubric to these levels and retain its original
+label in an optional `project_severity` field. Report all severities. For example:
+
+```json
+{"verdict": "violated", "severity": "medium", "consequence": "Rejected packets increment the counter, allowing invalid input to consume the receiver's sequence space."}
+```
+
+These fields extend a complete requirement record; they do not replace its rationale,
+locations, checks, or assumptions. `unknown` and `not_checked` retain their reason
+without inventing a confirmed divergence or severity.
 Preserve unapproved deviations as findings, not `not_applicable` records. A recommended
 behavior without a justified deviation remains a gap. Optional features still carry
 their conditional requirements when enabled.
@@ -105,7 +119,18 @@ and the paths to artifacts and proposed fixes. Separate:
 - native formal results, their assumptions, and implementation bindings;
 - global limitations and obligations not assessed.
 
-Run the helper's `check` command and retain `gate.json` even on a nonzero exit.
+The workflow returns `pending_validation`, never an assurance verdict. The calling
+session executes its `validation_command` and observes the process exit and JSON
+output. The `finalize` command reads the actual baseline, inventory, report, ledger,
+and successful workers' records. It compares the original requirement IDs, enforces
+each failed worker's own `not_checked` verdict, and preserves setup limitations.
+It runs Duvet itself, retaining a fresh `gate-native-*` directory with JSON, HTML,
+log, and `execution.json`. A failed or no-op command cannot reuse an older report.
+The gate names the final native report/log and records the observed Duvet exit code.
+Update the report's artifact links and retain any snapshot diff after this command.
+
+For direct assessments, the helper's `check` command gates existing baseline/final
+reports; capture the Duvet process exit separately. Retain `gate.json` even on a nonzero exit.
 Exit 1 (`gaps`) is a useful completed assessment with unresolved obligations; exit
 2 (`invalid`) means the artifacts cannot support even that accounting. Do not
 describe either as compliant. An entirely inapplicable inventory cannot establish

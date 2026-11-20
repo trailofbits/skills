@@ -151,6 +151,13 @@ requirements. An unchanged Duvet snapshot can still contain gaps. The ledger gat
 returns 0 for supported scoped obligations, 1 for recorded gaps, and 2 for invalid
 artifacts. It does not certify correctness or repair implementation defects.
 
+The workflow returns `pending_validation` with a `validation_command`. The calling
+session must execute it before reporting an assurance verdict. This finalizer reads
+the actual artifacts, runs Duvet in a fresh directory, and gates the ledger using
+the original requirement IDs, exact failed-worker IDs, documents, and limitations.
+Agent-reported counts cannot substitute for its process result. Keep the final
+native-report links and any errors or gaps in the assessment report.
+
 ## Directory Structure
 
 ```text

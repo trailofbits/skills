@@ -1,34 +1,32 @@
-// Workflow accounting tests; real Duvet evidence is exercised separately.
+// Workflow orchestration tests. The Python CLI tests exercise the native artifact gate.
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 const source = readFileSync(new URL('../workflows/specification-assurance.js', import.meta.url), 'utf8')
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
 const workflow = new AsyncFunction('args', 'agent', 'phase', 'log', 'Date', 'Math', source.replace('export const meta', 'const meta'))
-class FixedDate extends Date {
-  constructor() { super('2026-11-17T22:00:00.000Z') }
-}
-const fixedMath = Object.create(Math)
-fixedMath.random = () => 0.25
+const forbiddenDate = class { constructor() { throw new Error('Workflow timestamps are unavailable') } }
+const forbiddenMath = { random: () => { throw new Error('Workflow randomness is unavailable') } }
 const ROOT = '/workspace/project'
-const RUN = `${ROOT}/.trailmark/specification-assurance/runs/20261117T220000000Z-9`
+const RUN = `${ROOT}/.trailmark/specification-assurance/runs/run-12345678`
 const SKILL = '/plugins/trailmark/skills/specification-assurance'
 const requirements = ['a'.repeat(20), 'b'.repeat(20)].map((id) => ({
   id, specification: 'spec.md', section: 'packets', level: 'MUST', quote: 'Packets MUST be bounded.',
 }))
 
-async function run({ input = { specifications: ['spec.md'] }, handlers = {} } = {}) {
+async function run({ input = { specifications: ['spec.md'] }, handlers = {}, root = ROOT, skill = SKILL } = {}) {
+  const runDir = `${root}/.trailmark/specification-assurance/runs/run-12345678`
   const calls = []
   const phases = []
   const defaults = {
-    resolve: () => ({ target: ROOT, skill_dir: SKILL, reason: '' }),
+    resolve: () => ({ target: root, skill_dir: skill, run: runDir, reason: '' }),
     setup: () => ({ status: 'ready', reason: '', source_files: 3, requirements, limitations: [] }),
-    assess: (id) => ({ id, record_path: `${RUN}/requirements/${id}.json` }),
-    report: () => ({
-      duvet_ok: true, report_path: `${RUN}/report.md`, ledger_path: `${RUN}/ledger.json`, gate_path: `${RUN}/gate.json`,
-      gate: { valid: true, status: 'supported', total: 2, verdicts: { supported: 2 }, limitations: [], errors: [] },
-    }),
+    assess: (id) => ({ id, record_path: `${runDir}/requirements/${id}.json` }),
+    report: () => ({ report_path: `${runDir}/report.md`, ledger_path: `${runDir}/ledger.json` }),
   }
   const all = { ...defaults, ...handlers }
   const agent = async (prompt, options) => {
@@ -37,21 +35,36 @@ async function run({ input = { specifications: ['spec.md'] }, handlers = {} } = 
     return all[stage](id, { prompt, defaults })
   }
   try {
-    const result = await workflow(input, agent, (value) => phases.push(value), () => {}, FixedDate, fixedMath)
+    const result = await workflow(input, agent, (value) => phases.push(value), () => {}, forbiddenDate, forbiddenMath)
     return { result, calls, phases }
   } catch (error) {
     return { error, calls, phases }
   }
 }
 
-test('every original requirement is assessed and the exact report paths are returned', async () => {
+test('every original requirement is assessed and the native gate remains pending', async () => {
   const { error, result, calls, phases } = await run()
   assert.equal(error, undefined)
   assert.deepEqual(calls, ['resolve', 'setup', ...requirements.map((r) => `assess:${r.id}`), 'report'])
   assert.deepEqual(phases, ['Setup', 'Assess', 'Report'])
   assert.equal(result.total, 2)
   assert.equal(result.report, `${RUN}/report.md`)
-  assert.equal(result.status, 'supported')
+  assert.equal(result.status, 'pending_validation')
+  assert.match(result.validation_command, / finalize /)
+  assert.match(result.validation_command, /--specification='spec.md'/)
+  for (const { id } of requirements) assert.ok(result.validation_command.includes(`--requirement='${id}'`))
+})
+
+test('agent claims of a supported gate never substitute for native execution', async () => {
+  // No report, ledger, logs, or gate file exists. Plausible agent JSON can only
+  // prepare a pending handoff, never an assurance verdict or a validated link.
+  const { error, result } = await run({ handlers: {
+    report: (_, { defaults }) => ({ ...defaults.report(), duvet_ok: true,
+      gate: { valid: true, status: 'supported', total: 2, verdicts: { supported: 2 }, limitations: [], errors: [] } }),
+  } })
+  assert.equal(error, undefined)
+  assert.equal(result.status, 'pending_validation')
+  assert.equal(result.duvet_ok, undefined)
 })
 
 test('malformed inputs fail before tools or target mutations', async () => {
@@ -76,82 +89,83 @@ test('empty native setup or an invalid inventory never reaches assessment', asyn
   }
 })
 
-test('a failed assessment does not discard later requirements and can finish as gaps', async () => {
-  const { error, result, calls } = await run({ handlers: {
-    assess: (id, { defaults }) => {
-      if (id === requirements[0].id) throw new Error('Native verifier unavailable')
-      return defaults.assess(id)
-    },
-    report: (_, { defaults }) => {
-      const result = defaults.report()
-      result.gate.status = 'gaps'
-      result.gate.verdicts = { not_checked: 1, supported: 1 }
-      return result
-    },
-  } })
-  assert.equal(error, undefined)
-  assert.equal(result.status, 'gaps')
-  assert.ok(calls.includes(`assess:${requirements[1].id}`))
-})
-
-test('failed workers cannot be converted into an overall supported result', async () => {
-  const { error, calls } = await run({ handlers: { assess: () => { throw new Error('No tool') } } })
-  assert.match(error.message, /Unassessed/)
-  assert.equal(calls.at(-1), 'report')
-})
-
-test('non-Error worker failures retain their reason and do not stop later assessments', async () => {
-  const { error, result } = await run({ handlers: {
-    assess: (id, { defaults }) => {
-      if (id === requirements[0].id) throw null
-      return defaults.assess(id)
-    },
-    report: (_, { prompt, defaults }) => {
-      assert.ok(prompt.includes('"error": "null"'))
-      const result = defaults.report()
-      result.gate.status = 'gaps'
-      result.gate.verdicts = { not_checked: 1, supported: 1 }
-      return result
-    },
-  } })
-  assert.equal(error, undefined)
-  assert.equal(result.status, 'gaps')
-})
-
-test('unknown verdicts, gate errors, empty limitations, and wholly inapplicable scopes are invalid', async () => {
-  for (const update of [{ verdicts: { skipped: 2 } }, { errors: ['Missing source'] },
-    { limitations: [''] }, { verdicts: { not_applicable: 2 } }]) {
-    const { error } = await run({ handlers: {
-      report: (_, { defaults }) => {
-        const result = defaults.report()
-        Object.assign(result.gate, update)
-        return result
-      },
+test('run paths must belong to the target and be allocated without runtime randomness', async () => {
+  for (const path of ['/tmp/run-12345678', `${RUN}/../other`, `${RUN}/nested`, `${RUN}/nested/run-87654321`]) {
+    const { error, calls } = await run({ handlers: {
+      resolve: (_, { defaults }) => ({ ...defaults.resolve(), run: path }),
     } })
-    assert.ok(error, JSON.stringify(update))
+    assert.ok(error)
+    assert.deepEqual(calls, ['resolve'])
   }
 })
 
-test('final native failure, invalid accounting, and a shrunk denominator cannot pass', async () => {
-  for (const update of [{ duvet_ok: false }, { gate_path: '/old/gate.json' },
-    { gate: { valid: false, status: 'invalid', total: 2 } },
-    { gate: { valid: true, status: 'supported', total: 1, verdicts: { supported: 1 } } },
-    { gate: { valid: true, status: 'supported', total: 2, verdicts: { supported: 1 } } }]) {
-    const { error } = await run({ handlers: {
-      report: (_, { defaults }) => ({ ...defaults.report(), ...update }),
+test('worker failures retain their exact identities and do not discard later requirements', async () => {
+  for (const failure of [new Error('Native verifier unavailable'), new Error(''), null]) {
+    const { error, result, calls } = await run({ handlers: {
+      assess: (id, { defaults }) => {
+        if (id === requirements[0].id) throw failure
+        return defaults.assess(id)
+      },
+      report: (_, { prompt, defaults }) => {
+        assert.ok(prompt.includes('"status": "failed"'))
+        assert.ok(!prompt.includes('"record_path": "",\n    "error": ""'))
+        return defaults.report()
+      },
     } })
-    assert.ok(error)
+    assert.equal(error, undefined)
+    assert.equal(result.status, 'pending_validation')
+    assert.ok(calls.includes(`assess:${requirements[1].id}`))
+    assert.deepEqual(result.failed_requirements, [requirements[0].id])
+    assert.ok(result.validation_command.includes(`--failed-requirement='${requirements[0].id}'`))
+    assert.ok(!result.validation_command.includes(`--failed-requirement='${requirements[1].id}'`))
+  }
+})
+
+test('setup limitations are passed to the deterministic checker', async () => {
+  const { error, result } = await run({ handlers: {
+    setup: (_, { defaults }) => ({ ...defaults.setup(), limitations: ['Unsupported formal source'] }),
+  } })
+  assert.equal(error, undefined)
+  assert.ok(result.validation_command.includes("--limitation='Unsupported formal source'"))
+})
+
+test('unexpected report paths are rejected before the handoff', async () => {
+  const { error } = await run({ handlers: {
+    report: (_, { defaults }) => ({ ...defaults.report(), report_path: '/old/report.md' }),
+  } })
+  assert.match(error.message, /Unexpected assurance artifact paths/)
+})
+
+test('shell tokens preserve apostrophes, spaces, and injection-shaped text', async () => {
+  const suffix = "team's $(printf INJECTED); `printf INJECTED` & files"
+  const target = `./${suffix}`
+  const root = `/workspace/${suffix}`
+  const skill = `/plugins/${suffix}/specification-assurance`
+  const specification = `spec/${suffix}.md`
+  const { error, result } = await run({ root, skill, input: { target, specifications: [specification], skill_dir: skill }, handlers: {
+    resolve: (_, { prompt, defaults }) => {
+      const token = prompt.match(/Target shell token: (.*)\. Explicit skill directory:/)[1]
+      assert.equal(execFileSync('/bin/sh', ['-c', `printf '%s' ${token}`], { encoding: 'utf8' }), target)
+      return defaults.resolve()
+    },
+  } })
+  assert.equal(error, undefined)
+  const directory = mkdtempSync(join(tmpdir(), 'assurance-shell-'))
+  try {
+    writeFileSync(join(directory, 'uv'), '#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify(process.argv.slice(2)))\n', { mode: 0o755 })
+    const argv = JSON.parse(execFileSync('/bin/sh', ['-c', result.validation_command], {
+      encoding: 'utf8', env: { ...process.env, PATH: `${directory}:${process.env.PATH}` },
+    }))
+    assert.deepEqual(argv.slice(0, 3), ['run', '--no-project', `${skill}/scripts/requirements.py`])
+    assert.equal(argv[argv.indexOf('--root') + 1], root)
+    assert.ok(argv.includes(`--specification=${specification}`))
+    assert.equal(argv[argv.indexOf('--output') + 1], `${root}/.trailmark/specification-assurance/runs/run-12345678/gate.json`)
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
   }
 })
 
 test('JSON argument strings are accepted', async () => {
   const { error } = await run({ input: '{"target":".","specifications":["spec.md"]}' })
   assert.equal(error, undefined)
-})
-
-test('setup limitations survive into the final gate', async () => {
-  const { error } = await run({ handlers: {
-    setup: (_, { defaults }) => ({ ...defaults.setup(), limitations: ['Unsupported formal source'] }),
-  } })
-  assert.match(error.message, /limitations were lost/)
 })

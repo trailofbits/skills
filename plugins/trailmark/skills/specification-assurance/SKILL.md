@@ -29,10 +29,15 @@ Use `/trailmark:specification-assurance-run` with a JSON object:
 }
 ```
 
-The workflow owns setup, requirement assessment, annotation, and reporting. Pass
+The workflow prepares setup, assessments, annotations, and reporting. Pass
 `skill_dir` from this loaded skill; direct invocations can resolve installed plugin
-caches. On hosts without dynamic workflows, execute the same work directly using
-the contracts here and the three references below.
+caches. It returns `pending_validation` and a `validation_command`: execute that
+command in the calling session and retain its actual exit status and JSON output.
+The finalizer reads the artifacts and runs Duvet itself. A workflow agent's claimed
+gate cannot establish an assurance result. Add the resulting gate and native-report
+links to `report.md`, preserving any errors or gaps. Continue through this handoff
+before reporting completion. On hosts without dynamic workflows, execute the same
+work directly using the contracts here and the three references below.
 
 Read [Duvet setup and annotation](references/duvet.md) before configuring the target.
 Read [graph and formal evidence](references/formal-evidence.md) when building the
@@ -110,17 +115,28 @@ Show the full denominator and separate annotation coverage, executed checks, for
 results, model-to-code gaps, and exclusions. `supported` means supported by the
 recorded evidence under stated assumptions, not certified correct.
 
-The helper's `inventory` command extracts Duvet's requirements. Its `check` command
-rejects inventory loss, omitted/duplicate records, and unsupported success claims:
+The helper's `inventory` command extracts Duvet's requirements. Repeat
+`--specification` for every requested document; omitted documents and documents
+extracting zero obligations fail. Its `check` command validates existing reports:
 
 ```bash
 uv run --no-project "{baseDir}/scripts/requirements.py" inventory \
+  --specification spec/protocol.md \
   --report <run>/duvet-before.json --output <run>/inventory.json
 
 uv run --no-project "{baseDir}/scripts/requirements.py" check \
+  --specification spec/protocol.md \
   --baseline <run>/duvet-before.json --report <run>/duvet-after.json \
   --ledger <run>/ledger.json --root <target> --output <run>/gate.json
 ```
+
+For workflow runs, execute the returned `finalize` command instead. It checks the
+actual report, inventory, ledger, worker records, and native evidence files, then
+runs Duvet in a fresh output directory and gates that report. Its arguments retain
+all original requirement IDs, exact failed-worker IDs, requested documents, and
+setup limitations. Every failed worker must keep its own `not_checked` record.
+It writes `gate.json` even on failure. Use `--duvet /path/to/duvet` when the installed
+executable is outside the caller's PATH. Preserve snapshot diffs from the final run.
 
 Exit 0 means complete records supporting the scoped obligations, exit 1 means
 recorded gaps, and exit 2 means invalid/missing artifacts or setup failure. The

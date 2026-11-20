@@ -135,6 +135,12 @@ applicability decision; it cannot erase a mandatory defect. Use `todo` to retain
 an unimplemented obligation with its reason. Merge citations idempotently and keep
 preexisting exceptions visible.
 
+For a `supported` record, the gate requires a citation or implication over every
+byte of the original obligation. It uses the union of Duvet's annotated text spans:
+overlapping annotations cannot compensate for an uncited clause. Tests, exceptions,
+and TODOs do not supply implementation traceability. Complete traceability still
+needs the separate semantic and native evidence required by the ledger contract.
+
 ## Native reports and CI
 
 Capture help/tool identity first. Retain a baseline before adding citations:
@@ -151,7 +157,9 @@ Do not feed v2 data to it or convert an unfamiliar format by guessing.
 With snapshots enabled, `--ci false` writes the snapshot. Preserve any existing
 snapshot before the baseline, and retain its diff. After adding only defensible
 annotations, run again with `duvet-after.json` and `duvet-after.html` paths. Review
-the snapshot as an intentional coverage change. In subsequent CI runs:
+the snapshot as an intentional coverage change. For workflow assessments, the calling
+session's `finalize` command performs this final native run in a fresh `gate-native-*`
+directory; its `gate.json` names the resulting report and log. In subsequent CI runs:
 
 ```bash
 duvet report --ci --require-citations true --require-tests true
