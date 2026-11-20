@@ -152,10 +152,18 @@ class Dependency:
     # publishers, and deprecation would be attributed to code the project never
     # installs. Every criterion becomes unassessable with this reason.
     non_registry_reason: str | None = None
+    # The PEP 508 environment marker under which this version is installed, set only
+    # when a universal lockfile resolves one direct dependency to several versions
+    # (uv.lock forks on `python_full_version`, `sys_platform`, ...). Each version is then
+    # its own direct dependency: choosing one would depend on lockfile row order and
+    # leave the others reported as transitive.
+    marker: str | None = None
     signals: dict[str, Signal] = field(default_factory=dict)
 
     @property
     def key(self) -> str:
+        if self.marker is not None:
+            return f"{self.ecosystem}:{self.name}@{self.version}"
         return f"{self.ecosystem}:{self.name}"
 
     def flagged(self) -> list[str]:

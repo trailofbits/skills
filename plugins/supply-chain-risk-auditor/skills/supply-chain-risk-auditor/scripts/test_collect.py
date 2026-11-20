@@ -257,6 +257,83 @@ def test_uv_lock_non_registry_sources_are_unverifiable(tmp_path: Path):
     assert by_name["real"].non_registry_reason is None
 
 
+def _forked_uv_lock(rows: list[tuple[str, str]], project_entry: bool = False) -> str:
+    lines = ["version = 1", 'requires-python = ">=3.11"']
+    if project_entry:
+        lines += ["", "[[package]]", 'name = "demo"', 'version = "0.1.0"']
+        lines += ['source = { virtual = "." }', "dependencies = ["]
+        for version, marker in rows:
+            lines.append(
+                f'  {{ name = "numpy", version = "{version}", '
+                f'source = {{ registry = "https://pypi.org/simple" }}, marker = "{marker}" }},'
+            )
+        lines.append("]")
+    for version, marker in rows:
+        lines += ["", "[[package]]", 'name = "numpy"', f'version = "{version}"']
+        lines += ['source = { registry = "https://pypi.org/simple" }']
+        lines += [f'resolution-markers = ["{marker}"]']
+    return "\n".join(lines) + "\n"
+
+
+FORKED_NUMPY = [
+    ("2.4.6", "python_full_version < '3.12'"),
+    ("2.5.4", "python_full_version >= '3.12'"),
+]
+
+
+@pytest.mark.parametrize("project_entry", [False, True])
+def test_uv_lock_forked_direct_versions_do_not_depend_on_row_order(
+    tmp_path: Path, project_entry: bool
+):
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "demo"\nversion = "0.1.0"\ndependencies = ["numpy>=2.4.6"]\n'
+    )
+    seen = []
+    for rows in (FORKED_NUMPY, list(reversed(FORKED_NUMPY))):
+        (tmp_path / "uv.lock").write_text(_forked_uv_lock(rows, project_entry))
+        deps, notes = parse_pypi(tmp_path)
+        seen.append([(d.name, d.version, d.version_source, d.marker) for d in deps])
+        assert any("2 versions" in n for n in notes)
+    assert (
+        seen[0]
+        == seen[1]
+        == [
+            ("numpy", "2.4.6", "lockfile", "python_full_version < '3.12'"),
+            ("numpy", "2.5.4", "lockfile", "python_full_version >= '3.12'"),
+        ]
+    )
+    # distinct keys, so coverage() does not refuse them as duplicates and OSV answers
+    # are not collapsed onto one version
+    assert len({d.key for d in deps}) == 2
+
+
+def test_uv_lock_forked_direct_versions_are_not_swept_as_transitive(tmp_path: Path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "demo"\nversion = "0.1.0"\ndependencies = ["numpy>=2.4.6"]\n'
+    )
+    (tmp_path / "uv.lock").write_text(_forked_uv_lock(FORKED_NUMPY, project_entry=True))
+    deps, _ = parse_pypi(tmp_path)
+    http = seeded_http(tmp_path / "cache", {})
+    transitive, _ = sweep_transitive(http, tmp_path, deps)
+    assert transitive["lockfile_entries"] == transitive["excluded_direct"] == 2
+    assert transitive["total"] == 0 and transitive["flagged"] == []
+
+
+def test_uv_lock_project_entry_marker_wins_over_resolution_markers(tmp_path: Path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "demo"\nversion = "0.1.0"\ndependencies = ["numpy"]\n'
+    )
+    lock = _forked_uv_lock(FORKED_NUMPY, project_entry=True).replace(
+        "marker = \"python_full_version < '3.12'\"", "marker = \"sys_platform == 'win32'\""
+    )
+    (tmp_path / "uv.lock").write_text(lock)
+    deps, _ = parse_pypi(tmp_path)
+    assert [d.marker for d in deps] == [
+        "sys_platform == 'win32'",
+        "python_full_version >= '3.12'",
+    ]
+
+
 # ----------------------------------------------------------------------- Go parsing
 
 GOMOD = """\

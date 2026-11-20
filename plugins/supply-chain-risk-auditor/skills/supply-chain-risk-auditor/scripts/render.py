@@ -228,6 +228,10 @@ def _version_label(dep: dict) -> str:
         "manifest-pin": "",
         "lockfile": "",
     }.get(dep.get("version_source", ""), "")
+    marker = dep.get("marker")
+    if marker is not None:
+        # One of several versions a universal lockfile installs, each under a marker.
+        suffix += f" (where {marker})" if marker else " (one of several locked versions)"
     return f"{version}{suffix}"
 
 
