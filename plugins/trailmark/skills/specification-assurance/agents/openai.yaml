@@ -1,0 +1,3 @@
+interface:
+  display_name: "Specification Assurance"
+  short_description: "Connect spec requirements to code, tests, and proofs"

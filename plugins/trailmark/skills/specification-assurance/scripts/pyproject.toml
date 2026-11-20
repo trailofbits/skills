@@ -1,0 +1,8 @@
+[project]
+name = "specification-assurance-scripts"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff==0.14.13"]
