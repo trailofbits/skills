@@ -51,10 +51,12 @@ test('every original requirement is assessed and the native gate remains pending
   assert.equal(result.report, `${RUN}/report.md`)
   assert.equal(result.status, 'pending_validation')
   assert.match(result.validation_command, / finalize /)
-  assert.match(result.validation_command, /--specification='spec.md'/)
-  assert.match(result.validation_command, /--production-source-files=3/)
-  for (const { id } of requirements) assert.ok(result.validation_command.includes(`--requirement='${id}'`))
-  for (const { id } of requirements) assert.ok(result.validation_command.includes(`--assessment-sha256='${id}:${'c'.repeat(64)}'`))
+  assert.equal(result.validation_request_path, `${RUN}/validation-request.json`)
+  assert.deepEqual(result.validation_request.specifications, ['spec.md'])
+  assert.equal(result.validation_request.production_source_files, 3)
+  assert.deepEqual(result.validation_request.requirements, requirements.map((r) => r.id))
+  assert.deepEqual(result.validation_request.assessments,
+    Object.fromEntries(requirements.map(({ id }) => [id, 'c'.repeat(64)])))
 })
 
 test('agent claims of a supported gate never substitute for native execution', async () => {
@@ -118,8 +120,8 @@ test('worker failures retain their exact identities and do not discard later req
     assert.equal(result.status, 'pending_validation')
     assert.ok(calls.includes(`assess:${requirements[1].id}`))
     assert.deepEqual(result.failed_requirements, [requirements[0].id])
-    assert.ok(result.validation_command.includes(`--failed-requirement='${requirements[0].id}'`))
-    assert.ok(!result.validation_command.includes(`--failed-requirement='${requirements[1].id}'`))
+    assert.deepEqual(result.validation_request.failed_requirements, [requirements[0].id])
+    assert.deepEqual(Object.keys(result.validation_request.assessments), [requirements[1].id])
   }
 })
 
@@ -128,7 +130,7 @@ test('setup limitations are passed to the deterministic checker', async () => {
     setup: (_, { defaults }) => ({ ...defaults.setup(), limitations: ['Unsupported formal source'] }),
   } })
   assert.equal(error, undefined)
-  assert.ok(result.validation_command.includes("--limitation='Unsupported formal source'"))
+  assert.deepEqual(result.validation_request.limitations, ['Unsupported formal source'])
 })
 
 test('missing or malformed worker digests remain failed assessments', async () => {
@@ -138,7 +140,7 @@ test('missing or malformed worker digests remain failed assessments', async () =
     } })
     assert.equal(error, undefined)
     assert.deepEqual(result.failed_requirements, requirements.map((item) => item.id))
-    assert.ok(!result.validation_command.includes('--assessment-sha256='))
+    assert.deepEqual(result.validation_request.assessments, {})
   }
 })
 
@@ -170,12 +172,25 @@ test('shell tokens preserve apostrophes, spaces, and injection-shaped text', asy
       encoding: 'utf8', env: { ...process.env, PATH: `${directory}:${process.env.PATH}` },
     }))
     assert.deepEqual(argv.slice(0, 3), ['run', '--no-project', `${skill}/scripts/requirements.py`])
-    assert.equal(argv[argv.indexOf('--root') + 1], root)
-    assert.ok(argv.includes(`--specification=${specification}`))
+    assert.equal(argv[argv.indexOf('--request') + 1], result.validation_request_path)
+    assert.equal(result.validation_request.root, root)
+    assert.deepEqual(result.validation_request.specifications, [specification])
     assert.equal(argv[argv.indexOf('--output') + 1], `${root}/.trailmark/specification-assurance/runs/run-12345678/gate.json`)
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
+})
+
+test('large inventories travel in file data without growing the native command', async () => {
+  const many = Array.from({ length: 5000 }, (_, i) => ({ ...requirements[0], id: i.toString(16).padStart(20, '0') }))
+  const small = await run()
+  const { error, result } = await run({ handlers: {
+    setup: (_, { defaults }) => ({ ...defaults.setup(), requirements: many }),
+  } })
+  assert.equal(error, undefined)
+  assert.equal(result.validation_request.requirements.length, many.length)
+  assert.equal(Object.keys(result.validation_request.assessments).length, many.length)
+  assert.equal(result.validation_command, small.result.validation_command)
 })
 
 test('JSON argument strings are accepted', async () => {

@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = []
+# dependencies = ["tomli-w>=1.2"]
 # ///
 """Extract Duvet legacy-JSON requirements and gate an assurance evidence ledger.
 
@@ -15,10 +15,12 @@ import json
 import subprocess
 import sys
 import tempfile
+import tomllib
 from collections import Counter
-from copy import deepcopy
 from pathlib import Path
 from typing import Any
+
+import tomli_w
 
 VERDICTS = {
     "supported",
@@ -194,7 +196,34 @@ def location(root: Path, value: Any) -> None:
         raise ValueError(f"Invalid source line in {value.get('file')}")
 
 
-def record_errors(root: Path, record: dict[str, Any], requirement: dict[str, Any]) -> list[str]:
+def evidence_files(record: dict[str, Any]) -> set[str]:
+    return (
+        {anchor["file"] for anchor in record["implementation"]}
+        | {check["location"]["file"] for check in record["checks"]}
+        | {check["log"] for check in record["checks"] if check["result"] != "not_run"}
+        | set(record.get("inputs", []))
+    )
+
+
+def verify_files(root: Path, record: dict[str, Any], required: set[str], cache: dict) -> None:
+    hashes = record.get("files_sha256")
+    if not isinstance(hashes, dict) or not required <= set(hashes):
+        raise ValueError("Missing SHA-256 bindings for referenced evidence files")
+    for name, expected in hashes.items():
+        path = local_file(root, name)
+        if path not in cache:
+            cache[path] = hashlib.sha256(path.read_bytes()).hexdigest()
+        if cache[path] != expected:
+            raise ValueError(f"Evidence file changed since assessment: {name}")
+
+
+def record_errors(
+    root: Path,
+    record: dict[str, Any],
+    requirement: dict[str, Any],
+    traceability: bool = True,
+    cache: dict | None = None,
+) -> list[str]:
     errors = []
     try:
         verdict = record.get("verdict")
@@ -213,6 +242,10 @@ def record_errors(root: Path, record: dict[str, Any], requirement: dict[str, Any
         implementations, checks = record.get("implementation"), record.get("checks")
         if not isinstance(implementations, list) or not isinstance(checks, list):
             raise ValueError("implementation and checks must be arrays")
+        if not isinstance(record.get("inputs", []), list) or not all(
+            nonempty(item) for item in record.get("inputs", [])
+        ):
+            raise ValueError("inputs must be an array of file paths")
         for anchor in implementations:
             location(root, anchor)
             if anchor.get("role") not in {"production", "model"}:
@@ -248,10 +281,11 @@ def record_errors(root: Path, record: dict[str, Any], requirement: dict[str, Any
                 raise ValueError("Supported requirement has no passing implementation check")
             if any(check["result"] == "fail" for check in checks):
                 raise ValueError("Supported requirement has contradictory native failures")
-            if not requirement["implementation_complete"]:
+            if traceability and not requirement["implementation_complete"]:
                 raise ValueError(
                     "Supported requirement lacks complete Duvet implementation traceability"
                 )
+        verify_files(root, record, evidence_files(record), {} if cache is None else cache)
     except (ValueError, TypeError, KeyError) as error:
         errors.append(f"{requirement['id']}: {error}")
     return errors
@@ -266,6 +300,7 @@ def check_ledger(
     expected_ids: list[str] | None = None,
     failed_ids: list[str] | None = None,
     limitations: list[str] | None = None,
+    traceability: bool = True,
 ) -> dict[str, Any]:
     before = {item["id"] for item in inventory(baseline, specifications, root)}
     current = {item["id"]: item for item in inventory(report, specifications, root)}
@@ -300,9 +335,10 @@ def check_ledger(
     for failed_id in failed_ids or []:
         if failed_id not in before or by_id.get(failed_id, {}).get("verdict") != "not_checked":
             errors.append(f"Failed worker {failed_id} must retain its own not_checked record")
+    cache = {}
     for record in records:
         if record["id"] in current:
-            errors.extend(record_errors(root, record, current[record["id"]]))
+            errors.extend(record_errors(root, record, current[record["id"]], traceability, cache))
     counts = Counter(record.get("verdict", "invalid") for record in records)
     if records and counts.get("not_applicable", 0) == len(records):
         errors.append("No applicable requirements were assessed")
@@ -319,24 +355,9 @@ def check_ledger(
     }
 
 
-def original_assessment(record: dict[str, Any]) -> dict[str, Any]:
-    """Undo only explicit line relocations caused by annotation comments."""
-    original = deepcopy(record)
-    anchors = original.get("implementation", []) + [
-        check["location"] for check in original.get("checks", [])
-    ]
-    for anchor in anchors:
-        if "original_line" in anchor:
-            line = anchor.pop("original_line")
-            if type(line) is not int or line < 1:
-                raise ValueError("Rebound evidence needs a positive original_line")
-            anchor["line"] = line
-    return original
-
-
 def graph_evidence(
     run: Path, root: Path, expected_production_files: int
-) -> tuple[dict[str, Any], set[Path]]:
+) -> tuple[dict[str, Any], set[Path], set[Path]]:
     """Reconcile native graph counts, inspected paths, and production scope."""
     paths = {
         name: local_file(root, str(run / f"{name}.json"))
@@ -410,14 +431,59 @@ def graph_evidence(
             parsed.add(local_file(root, anchor.get("file_path")))
     if not set(production) <= parsed:
         raise ValueError("Production scope has no parsed source nodes in the retained graph")
+    return (
+        {
+            "graph": str(paths["graph"]),
+            "source_policy": str(paths["source-policy"]),
+            "graph_diagnostics": str(paths["diagnostics"]),
+            "graph_scope": str(paths["graph-scope"]),
+            "graph_source_files": count,
+            "production_source_files": len(production),
+        },
+        set(production),
+        set(selected),
+    )
+
+
+def assessment_inputs(root: Path, run: Path, selected: set[Path]) -> set[str]:
+    """Bind the inspected snapshot and configuration, as well as cited evidence."""
+    paths = (
+        selected
+        | {root / ".duvet/config.toml"}
+        | {
+            run / name
+            for name in (
+                "graph.json",
+                "source-policy.json",
+                "diagnostics.json",
+                "graph-scope.json",
+                "duvet-before.json",
+                "inventory.json",
+            )
+        }
+    )
+    paths.update(
+        local_file(root, item["specification"])
+        for item in read_json(run / "inventory.json")["requirements"]
+        if "://" not in item["specification"]
+    )
+    return {str(path.relative_to(root)) for path in paths}
+
+
+def seal_record(root: Path, run: Path, path: Path) -> dict[str, str]:
+    scope = read_json(run / "graph-scope.json")["production_files"]
+    _, _, selected = graph_evidence(run, root, len(scope))
+    record = read_json(path)
+    record["files_sha256"] = {
+        name: hashlib.sha256(local_file(root, name).read_bytes()).hexdigest()
+        for name in sorted(evidence_files(record) | assessment_inputs(root, run, selected))
+    }
+    path.write_text(json.dumps(record, indent=2) + "\n")
     return {
-        "graph": str(paths["graph"]),
-        "source_policy": str(paths["source-policy"]),
-        "graph_diagnostics": str(paths["diagnostics"]),
-        "graph_scope": str(paths["graph-scope"]),
-        "graph_source_files": count,
-        "production_source_files": len(production),
-    }, set(production)
+        "id": record["id"],
+        "record_path": str(path),
+        "record_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    }
 
 
 def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
@@ -425,7 +491,7 @@ def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     run = args.run.resolve(strict=True)
     if not run.is_dir() or not run.is_relative_to(root):
         raise ValueError("Run directory must exist inside the target root")
-    graph, production = graph_evidence(run, root, args.production_source_files)
+    graph, production, selected = graph_evidence(run, root, args.production_source_files)
     for name in ("report.md", "inventory.json", "duvet-before.json", "ledger.json"):
         path = local_file(root, str(run / name))
         if not path.stat().st_size:
@@ -435,17 +501,7 @@ def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     retained = read_json(run / "inventory.json")
     if not isinstance(retained, dict) or retained.get("requirements") != before:
         raise ValueError("Retained inventory differs from the native baseline")
-    seals = {}
-    for value in args.assessment_sha256:
-        parts = value.split(":")
-        if (
-            len(parts) != 2
-            or parts[0] in seals
-            or len(parts[1]) != 64
-            or any(character not in "0123456789abcdef" for character in parts[1])
-        ):
-            raise ValueError("Invalid or duplicate assessment SHA-256 binding")
-        seals[parts[0]] = parts[1]
+    seals = args.assessments
     if set(seals) != ids - set(args.failed_requirement):
         raise ValueError("Assessment SHA-256 bindings must cover exactly the completed workers")
     workers = {}
@@ -463,14 +519,74 @@ def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
         raise ValueError("Workflow requirement IDs differ from the retained baseline inventory")
     if not set(args.failed_requirement) <= ids:
         raise ValueError("Failed worker IDs are absent from the baseline inventory")
+
+    def preflight(report: Path, traceability: bool) -> dict[str, Any]:
+        result = check_ledger(
+            run / "duvet-before.json",
+            report,
+            run / "ledger.json",
+            root,
+            args.specification,
+            args.requirement,
+            args.failed_requirement,
+            args.limitation,
+            traceability=traceability,
+        )
+        cache = {}
+        required = assessment_inputs(root, run, selected)
+        for record in read_json(run / "ledger.json")["requirements"]:
+            if record["id"] in workers:
+                worker = workers[record["id"]]
+                path = run / "requirements" / f"{record['id']}.json"
+                if hashlib.sha256(path.read_bytes()).hexdigest() != seals[record["id"]]:
+                    raise ValueError(f"Retained worker assessment changed: {record['id']}")
+                verify_files(root, worker, required, cache)
+                if record != worker:
+                    result["errors"].append(
+                        f"Ledger changed retained worker assessment {record['id']}; "
+                        "preserve the complete record"
+                    )
+            if record.get("verdict") == "supported" and any(
+                local_file(root, anchor.get("file")) not in production
+                for anchor in record.get("implementation", [])
+                if anchor.get("role") == "production"
+            ):
+                result["errors"].append(
+                    f"Supported requirement {record['id']} has enforcement "
+                    "outside the inspected production graph scope"
+                )
+        diagnostics = read_json(run / "diagnostics.json")
+        if diagnostics:
+            limitation = (
+                f"Trailmark reported {len(diagnostics)} parse diagnostics; "
+                f"see {run / 'diagnostics.json'}"
+            )
+            result["limitations"] = [*result["limitations"], limitation]
+            result["status"] = "gaps"
+        if result["errors"]:
+            result.update(valid=False, status="invalid")
+        result.update(graph)
+        return result
+
+    result = preflight(run / "duvet-before.json", traceability=False)
+    if not result["valid"]:
+        return result
     # A fresh directory prevents either a failed command or a no-op from reusing
-    # an old native report. Keep each attempt's logs and output for review.
+    # an old native report. Redirect snapshots too, including on a rejected gate.
     native = Path(tempfile.mkdtemp(prefix="gate-native-", dir=run))
     report = native / "duvet-after.json"
     html = native / "duvet-after.html"
+    snapshot = native / "snapshot.txt"
+    config = tomllib.loads((root / ".duvet/config.toml").read_text())
+    for name, path in (("json", report), ("html", html), ("snapshot", snapshot)):
+        config.setdefault("report", {}).setdefault(name, {}).update(enabled=True, path=str(path))
+    config_path = native / "config.toml"
+    config_path.write_text(tomli_w.dumps(config))
     command = [
         args.duvet,
         "report",
+        "--config-path",
+        str(config_path),
         "--json",
         str(report),
         "--html",
@@ -492,45 +608,59 @@ def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     )
     if completed.returncode:
         raise ValueError(f"Native Duvet exited {completed.returncode}; see {native / 'duvet.log'}")
-    for artifact in (report, html):
+    for artifact in (report, html, snapshot):
         if not local_file(root, str(artifact)).stat().st_size:
             raise ValueError(f"Native Duvet artifact is empty: {artifact}")
-    result = check_ledger(
-        run / "duvet-before.json",
-        report,
-        run / "ledger.json",
-        root,
-        args.specification,
-        args.requirement,
-        args.failed_requirement,
-        args.limitation,
-    )
-    records = read_json(run / "ledger.json")["requirements"]
-    for record in records:
-        if record["id"] in workers and original_assessment(record) != workers[record["id"]]:
-            result["errors"].append(
-                f"Ledger changed retained worker assessment {record['id']}; "
-                "preserve verdict, rationale, assumptions, findings, and every native check"
-            )
-        if record.get("verdict") == "supported" and any(
-            local_file(root, anchor.get("file")) not in production
-            for anchor in record.get("implementation", [])
-            if anchor.get("role") == "production"
-        ):
-            result["errors"].append(
-                f"Supported requirement {record['id']} has enforcement "
-                "outside the inspected production graph scope"
-            )
-    if result["errors"]:
-        result.update(valid=False, status="invalid")
+    result = preflight(report, traceability=True)
     result.update(
         duvet_report=str(report),
         duvet_html=str(html),
         duvet_log=str(native / "duvet.log"),
+        duvet_snapshot=str(snapshot),
         duvet_exit_code=completed.returncode,
         **graph,
     )
     return result
+
+
+def load_request(path: Path) -> argparse.Namespace:
+    request = read_json(path)
+    fields = {
+        "schema_version",
+        "root",
+        "run",
+        "specifications",
+        "requirements",
+        "failed_requirements",
+        "assessments",
+        "limitations",
+        "production_source_files",
+    }
+    if not isinstance(request, dict) or set(request) != fields or request["schema_version"] != 1:
+        raise ValueError("Invalid validation request schema")
+    for name in ("specifications", "requirements", "failed_requirements", "limitations"):
+        if not isinstance(request[name], list) or not all(nonempty(item) for item in request[name]):
+            raise ValueError(f"Invalid validation request {name}")
+    if not request["specifications"] or not request["requirements"]:
+        raise ValueError("Validation request needs specifications and requirements")
+    seals = request["assessments"]
+    if not isinstance(seals, dict) or any(
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+        for value in seals.values()
+    ):
+        raise ValueError("Invalid assessment SHA-256 bindings")
+    return argparse.Namespace(
+        root=Path(request["root"]),
+        run=Path(request["run"]),
+        specification=request["specifications"],
+        requirement=request["requirements"],
+        failed_requirement=request["failed_requirements"],
+        limitation=request["limitations"],
+        assessments=seals,
+        production_source_files=request["production_source_files"],
+    )
 
 
 def main() -> int:
@@ -549,27 +679,15 @@ def main() -> int:
     validate.add_argument("--report", type=Path, required=True)
     validate.add_argument("--ledger", type=Path, required=True)
     validate.add_argument("--root", type=Path, required=True)
+    seal = subparsers.add_parser("seal", help="Bind a worker record to its evidence file contents")
+    seal.add_argument("--root", type=Path, required=True)
+    seal.add_argument("--run", type=Path, required=True)
+    seal.add_argument("--record", type=Path, required=True)
     finish = subparsers.add_parser("finalize")
-    finish.add_argument("--run", type=Path, required=True)
-    finish.add_argument("--root", type=Path, required=True)
+    finish.add_argument("--request", type=Path, required=True)
+    finish.add_argument("--output", type=Path, required=True)
     finish.add_argument("--duvet", default="duvet", help="Duvet executable (no shell arguments)")
-    finish.add_argument("--requirement", action="append", required=True)
-    finish.add_argument("--failed-requirement", action="append", default=[])
-    finish.add_argument("--limitation", action="append", default=[])
-    finish.add_argument(
-        "--assessment-sha256",
-        action="append",
-        default=[],
-        metavar="ID:SHA256",
-        help="Completed worker's original record digest from the workflow",
-    )
-    finish.add_argument(
-        "--production-source-files",
-        type=int,
-        required=True,
-        help="Setup's production file count; reconciled with retained graph evidence",
-    )
-    for command in (extract, validate, finish):
+    for command in (extract, validate):
         command.add_argument(
             "--specification",
             action="append",
@@ -579,15 +697,22 @@ def main() -> int:
         command.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
-        root = args.root.resolve(strict=True)
+        request = load_request(args.request) if args.command == "finalize" else args
+        root = request.root.resolve(strict=True)
         if not root.is_dir():
             raise ValueError("Target root must be a directory")
-        if args.command == "inventory":
+        if args.command == "seal":
+            result = seal_record(
+                root, args.run.resolve(strict=True), args.record.resolve(strict=True)
+            )
+            code = 0
+        elif args.command == "inventory":
             result = {"requirements": inventory(args.report, args.specification, root)}
             code = 0
         else:
+            request.duvet = getattr(args, "duvet", "duvet")
             result = (
-                finalize(args, root)
+                finalize(request, root)
                 if args.command == "finalize"
                 else check_ledger(args.baseline, args.report, args.ledger, root, args.specification)
             )
@@ -602,8 +727,9 @@ def main() -> int:
             "errors": [str(error)],
         }
         code = 2
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, indent=2) + "\n")
+    if args.command != "seal":
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result))
     return code
 

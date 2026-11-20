@@ -53,7 +53,7 @@ Path("<run>/graph-scope.json").write_text(json.dumps({"production_files": ["src/
 
 Replace the example production list with the target's inspected production paths.
 The native summary includes tests and models; the workflow's `source_files` count
-and finalizer's `--production-source-files` argument count only this production list.
+and the validation request's `production_source_files` count only this production list.
 The finalizer reconciles the native graph, source policy, diagnostics, inspected
 paths, and parsed production nodes. A positive count in an agent response cannot
 replace these artifacts.

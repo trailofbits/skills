@@ -1,7 +1,7 @@
 export const meta = {
   name: 'specification-assurance-run',
   description: 'Set up Duvet and Trailmark, assess specification obligations against implementation evidence, and retain an assurance ledger',
-  whenToUse: 'For Duvet-backed specification conformance or connecting formal results to production code. Pass a JSON object with target (default .), specifications (required array of paths or URLs), and optional skill_dir from the loaded specification-assurance skill. Execute the returned validation_command in the calling session to obtain the native gate.',
+  whenToUse: 'For Duvet-backed specification conformance or connecting formal results to production code. Pass a JSON object with target (default .), specifications (required array of paths or URLs), and optional skill_dir. Save the returned validation_request to validation_request_path, then execute validation_command in the calling session.',
   phases: [
     { title: 'Setup', detail: 'Install/reuse tools, configure Duvet, retain baseline and graph inventory' },
     { title: 'Assess', detail: 'Assess each requirement with source, executable checks, and applicable formal evidence' },
@@ -79,7 +79,8 @@ revision/dirty state, selected profile, and tool versions/origins. Include oblig
 RFC keywords through explicit requirement entries. Install missing Duvet and Trailmark as documented.
 Inspect installed help/capabilities; new formal parsers target 0.9.0 and may be unpublished.
 Inventory formal extensions independently; never silently omit unsupported sources or fetch unmerged PRs.
-Initialize/merge .duvet/config.toml with production, tests, formal sources, correct comment markers,
+Initialize/merge .duvet/config.toml with production, tests, formal sources, the documented
+.duvet/assurance-citations/**/*.txt sidecar pattern and comment markers,
 all requested specifications, and HTML/snapshot reporting. Preserve existing snapshot before any write.
 Capture unannotated baseline using duvet report --json ${sh(`${RUN}/duvet-before.json`)} --html ${sh(`${RUN}/duvet-before.html`)} --require-citations true --require-tests true --ci false.
 Preserve the log/exit status. Run ${helper} inventory --root ${sh(ROOT)} ${specFlags} --report ${sh(`${RUN}/duvet-before.json`)} --output ${sh(`${RUN}/inventory.json`)}.
@@ -124,15 +125,18 @@ Assess this complete original requirement, including every conditional clause an
 ${data(requirement)}
 Use the existing graph and focused queries to locate production enforcement, alternate callers,
 state updates, tests, and proof/model dependencies; then read that source. Preserve graph gaps.
-Run relevant existing checks and add focused assurance tests when needed within scope. Reuse logs
+Run relevant existing checks and add focused assurance tests in new files when needed within scope.
+Do not edit earlier sealed sources or overwrite earlier logs; use per-requirement log paths. Reuse logs
 only for the same source/build snapshot and exact property. Record boundary, rejection, side-effect,
 and independent known-answer evidence where relevant. Missing assertions are gaps even if tests pass.
 Native formal results need per-property outcomes, assumptions/vacuity limits, and an explicit binding
 before they can support implementation scope. An abstract design proof stays model scope.
 Create the requirement record at ${sh(recordPath)} following the ledger contract. Report every
 divergence with severity/consequence, and retain unknown/unavailable/skipped checks. Do not add Duvet
-citations or change production behavior in this stage. Compute SHA-256 over the exact saved file bytes.
-Return the original id, exact record_path, and lowercase hexadecimal record_sha256.`, {
+citations or change production behavior in this stage. List additional build/config/dependency files
+governing the check in inputs. Immediately after the native checks, run ${helper} seal --root ${sh(ROOT)}
+--run ${sh(RUN)} --record ${sh(recordPath)} to bind evidence contents and the inspected snapshot.
+Return its original id, exact record_path, and record_sha256.`, {
       type: 'object', required: ['id', 'record_path', 'record_sha256'],
       properties: { id: string, record_path: string, record_sha256: string },
     })
@@ -154,20 +158,19 @@ Assemble ledger.json with every original requirement, preserving each completed 
 Keep worker files immutable. Preserve verdicts, rationale, assumptions, severity/consequence, and every
 native check and result. Failed workers become not_checked records with their reason, never invented
 passing checks. Preserve all setup limitations and add uncovered global gaps.
-Add only justified Duvet implementation/test citations next to actual enforcement/assertions, using
-original quotations. A proved model alone cannot annotate production as proved. Merge idempotently;
-preserve waivers and show their justifications. Rebind only implementation/check location line numbers
-after inserting annotation comments: set original_line to the worker's line and line to its new line.
-Retain executed source snapshots and citation-only diffs. Do not change assessment content, file paths,
-behavior, assertions, or proof obligations in reporting. If evidence needs reassessment, retain the
+Add only justified Duvet citations to the configured .duvet/assurance-citations/ sidecars, with original
+quotations and pointers to the actual enforcement/assertions in the ledger. Keep sealed source files,
+logs, configuration, and graph artifacts unchanged. A proved model alone cannot annotate production
+as proved. Merge idempotently; preserve waivers and show their justifications.
+If evidence needs reassessment, retain the
 gap and start a new assessment; a report-stage passing check cannot erase an earlier native failure.
 Do not repair implementation defects or change the requirement inventory or graph evidence.
 Write report.md with the full
 denominator, verdict matrix, all divergences/severities, native outcomes, model bindings/limits, and
 artifact links. Distinguish annotation coverage from semantic evidence. Mark the gate pending:
 the calling session must run the native finalizer outside this workflow. It will produce a fresh
-Duvet report and gate.json, retaining each attempt in gate-native-* and updating the snapshot.
-Preserve snapshot diffs for review. Do not claim supported based on an agent response.
+Duvet report and gate.json, retaining each attempt and candidate snapshot in gate-native-*.
+The project snapshot stays unchanged. Do not claim supported based on an agent response.
 Return the fixed report and ledger paths.`, {
   type: 'object', required: ['report_path', 'ledger_path'],
   properties: { report_path: string, ledger_path: string },
@@ -175,18 +178,19 @@ Return the fixed report and ledger paths.`, {
 if (finished.report_path !== `${RUN}/report.md` || finished.ledger_path !== `${RUN}/ledger.json`)
   fail(`Unexpected assurance artifact paths. Run: ${RUN}`)
 const failed = outcomes.filter((outcome) => outcome.status === 'failed').map((outcome) => outcome.id)
-const flags = [
-  `--production-source-files=${setup.source_files}`,
-  ...ids.map((id) => `--requirement=${sh(id)}`),
-  ...failed.map((id) => `--failed-requirement=${sh(id)}`),
-  ...outcomes.filter((outcome) => outcome.status === 'completed')
-    .map((outcome) => `--assessment-sha256=${sh(`${outcome.id}:${outcome.record_sha256}`)}`),
-  ...setup.limitations.map((item) => `--limitation=${sh(item)}`),
-].join(' ')
-const command = `${helper} finalize --root ${sh(ROOT)} --run ${sh(RUN)} ${specFlags} ${flags} --output ${sh(`${RUN}/gate.json`)}`
+const request = {
+  schema_version: 1, root: ROOT, run: RUN, specifications: input.specifications,
+  requirements: ids, failed_requirements: failed, limitations: setup.limitations,
+  production_source_files: setup.source_files,
+  assessments: Object.fromEntries(outcomes.filter((outcome) => outcome.status === 'completed')
+    .map((outcome) => [outcome.id, outcome.record_sha256])),
+}
+const requestPath = `${RUN}/validation-request.json`
+const command = `${helper} finalize --request ${sh(requestPath)} --output ${sh(`${RUN}/gate.json`)}`
 // Workflow VMs cannot inspect files or execute processes. Only the caller can
 // observe the native finalizer's output and exit status; agent JSON is no gate.
-log(`Artifacts prepared; native validation is pending. Run: ${RUN}`)
+log(`Save validation_request verbatim to ${requestPath} with the caller's file-writing tool, then execute validation_command. Native validation is pending.`)
 return { status: 'pending_validation', target: ROOT, run: RUN, report: finished.report_path,
   ledger: finished.ledger_path, gate: `${RUN}/gate.json`, total: ids.length,
-  failed_requirements: failed, validation_command: command }
+  failed_requirements: failed, validation_request: request, validation_request_path: requestPath,
+  validation_command: command }

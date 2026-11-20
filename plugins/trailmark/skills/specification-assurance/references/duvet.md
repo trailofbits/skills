@@ -31,6 +31,10 @@ pattern = "tests/**/*.py"
 type = "test"
 comment-style = { meta = "##=", content = "##%" }
 
+[[source]]
+pattern = ".duvet/assurance-citations/**/*.txt"
+comment-style = { meta = "//=", content = "//#" }
+
 [[specification]]
 source = "spec/protocol.md"
 format = "markdown"
@@ -103,26 +107,23 @@ appears in the native report before relying on any custom style.
 
 ## Honest annotations
 
-Place an implementation citation beside the actual enforcement, and a test
-citation beside the assertion that checks it. Use the complete original quotation:
+Keep existing inline annotations. For new citations, use the configured
+`.duvet/assurance-citations/` text sidecars so reporting cannot alter sealed code.
+Point each citation to the actual enforcement or assertion in the ledger and use
+the complete original quotation. For example, `length.txt` can contain:
 
-```python
-##= spec/protocol.md#length
-##% A packet MUST contain at most 16 bytes.
-def accepted(packet):
-    return len(packet) <= 16
+```text
+Enforcement: src/packet.py:3; ledger requirement 106a9a86e59d9600eb8f
+//= spec/protocol.md#length
+//# A packet MUST contain at most 16 bytes.
+
+Assertion: tests/test_packet.py:6; test_length_boundary accepts 16 and rejects 17
+//= spec/protocol.md#length
+//= type=test
+//# A packet MUST contain at most 16 bytes.
 ```
 
-```python
-##= spec/protocol.md#length
-##= type=test
-##% A packet MUST contain at most 16 bytes.
-def test_length_boundary():
-    assert accepted(b"x" * 16)
-    assert not accepted(b"x" * 17)
-```
-
-The test's import/setup is project-specific. A formal declaration may be cited as
+A formal declaration may be cited as
 an implementation of a **model** obligation; label that scope in the ledger. Use
 `type=test` for a checked formal obligation only when the native verifier actually
 checks that property, preserving the run and model-to-code binding. Do not add a
@@ -158,8 +159,9 @@ With snapshots enabled, `--ci false` writes the snapshot. Preserve any existing
 snapshot before the baseline, and retain its diff. After adding only defensible
 annotations, run again with `duvet-after.json` and `duvet-after.html` paths. Review
 the snapshot as an intentional coverage change. For workflow assessments, the calling
-session's `finalize` command performs this final native run in a fresh `gate-native-*`
-directory; its `gate.json` names the resulting report and log. In subsequent CI runs:
+session's `finalize` command uses a copied configuration to put every report and the
+candidate snapshot in a fresh `gate-native-*` directory. Its `gate.json` links them;
+review the candidate before adopting it as the project snapshot. In subsequent CI runs:
 
 ```bash
 duvet report --ci --require-citations true --require-tests true
@@ -167,8 +169,8 @@ duvet report --ci --require-citations true --require-tests true
 
 A snapshot CI pass means the traceability snapshot matches, even if it already
 contains gaps. Pair it with the ledger checker for the assessed revision. Bind
-execution logs to their source snapshot. Preserve citation-only diffs and location
-mappings; rerun affected commands when behavior, assertions, or proof obligations
+execution logs to their source snapshot. Keep sealed code and logs unchanged;
+rerun affected commands when behavior, assertions, or proof obligations
 change, or mark the evidence stale.
 Where supported, `duvet query` can correlate coverage artifacts; feature-probe it
 and keep line execution separate from the truth of assertions.

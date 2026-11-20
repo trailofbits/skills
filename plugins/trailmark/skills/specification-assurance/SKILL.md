@@ -31,8 +31,10 @@ Use `/trailmark:specification-assurance-run` with a JSON object:
 
 The workflow prepares setup, assessments, annotations, and reporting. Pass
 `skill_dir` from this loaded skill; direct invocations can resolve installed plugin
-caches. It returns `pending_validation` and a `validation_command`: execute that
-command in the calling session and retain its actual exit status and JSON output.
+caches. It returns `pending_validation`, `validation_request`, its destination
+`validation_request_path`, and `validation_command`. Use the calling session's file
+writer to save that request verbatim, then execute the command and retain its exit
+status and JSON output. Keep the request independent of the reporting worker.
 The finalizer reads the artifacts and runs Duvet itself. A workflow agent's claimed
 gate cannot establish an assurance result. Add the resulting gate and native-report
 links to `report.md`, preserving any errors or gaps. Continue through this handoff
@@ -107,7 +109,7 @@ Keep a unique run under `.trailmark/specification-assurance/runs/` with specific
 revisions/hashes, target revision and dirty state, tool identities, graph evidence,
 baseline/final Duvet JSON and logs, native test/proof logs, requirement records,
 `ledger.json`, `gate.json`, and `report.md`. Keep durable Duvet configuration and
-intentional source annotations in their normal project locations.
+citations in `.duvet/assurance-citations/`. Existing source annotations stay in place.
 
 The report lists requirements as `supported`, `partial`, `violated`, `missing`,
 `unknown`, `not_applicable`, or `not_checked`, with severity for every divergence.
@@ -130,21 +132,20 @@ uv run --no-project "{baseDir}/scripts/requirements.py" check \
   --ledger <run>/ledger.json --root <target> --output <run>/gate.json
 ```
 
-For workflow runs, execute the returned `finalize` command instead. It checks the
-actual report, inventory, ledger, worker records, and native evidence files, then
-runs Duvet in a fresh output directory and gates that report. Its arguments retain
-all original requirement IDs, exact failed-worker IDs, requested documents, and
-setup limitations. It validates `graph.json`, `source-policy.json`, `diagnostics.json`,
-and the `production_files` list in `graph-scope.json` against the setup count passed
-as `--production-source-files`. Every failed worker must keep its own `not_checked`
-record. Completed worker assessments remain immutable: ledger records must match
-them except for explicit `original_line` mappings after inserting annotation comments.
-The workflow retains each worker's original file digest in `--assessment-sha256`
-arguments, preventing reporting from rewriting the assessment along with the ledger.
-Return to assessment when a verdict or native result needs to change.
-It writes `gate.json` even on failure. Use `--duvet /path/to/duvet` when the installed
-executable is outside the caller's PATH. Preserve snapshot diffs from the final run.
-Link the final JSON, HTML (`duvet_html`), and log paths returned by the gate.
+After native checks, seal each worker record with `requirements.py seal --root
+<target> --run <run> --record <run>/requirements/<id>.json`. This binds source,
+check, log, inspected-file, specification, and configuration contents. Include
+additional build/dependency inputs in the record's `inputs` array. Use distinct logs
+and keep sealed files unchanged; new citations go in the configured sidecars.
+
+For workflow runs, save the returned request and execute `finalize` instead of
+`check`. The request retains the original inventory, failures, setup limits, source
+count, and worker digests without growing the shell command. The finalizer checks
+the ledger against immutable workers and graph evidence before running Duvet. Parse
+diagnostics force a gap. It checks evidence again afterward and retains each native
+attempt, including a candidate snapshot, under `gate-native-*`; the project snapshot
+stays unchanged. It writes `gate.json` even on failure. Link its JSON, HTML, log,
+and snapshot artifacts. Use `--duvet /path/to/duvet` if needed.
 
 Exit 0 means complete records supporting the scoped obligations, exit 1 means
 recorded gaps, and exit 2 means invalid/missing artifacts or setup failure. The
