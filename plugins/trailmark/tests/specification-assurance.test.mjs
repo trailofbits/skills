@@ -25,7 +25,7 @@ async function run({ input = { specifications: ['spec.md'] }, handlers = {}, roo
   const defaults = {
     resolve: () => ({ target: root, skill_dir: skill, run: runDir, reason: '' }),
     setup: () => ({ status: 'ready', reason: '', source_files: 3, requirements, limitations: [] }),
-    assess: (id) => ({ id, record_path: `${runDir}/requirements/${id}.json` }),
+    assess: (id) => ({ id, record_path: `${runDir}/requirements/${id}.json`, record_sha256: 'c'.repeat(64) }),
     report: () => ({ report_path: `${runDir}/report.md`, ledger_path: `${runDir}/ledger.json` }),
   }
   const all = { ...defaults, ...handlers }
@@ -52,7 +52,9 @@ test('every original requirement is assessed and the native gate remains pending
   assert.equal(result.status, 'pending_validation')
   assert.match(result.validation_command, / finalize /)
   assert.match(result.validation_command, /--specification='spec.md'/)
+  assert.match(result.validation_command, /--production-source-files=3/)
   for (const { id } of requirements) assert.ok(result.validation_command.includes(`--requirement='${id}'`))
+  for (const { id } of requirements) assert.ok(result.validation_command.includes(`--assessment-sha256='${id}:${'c'.repeat(64)}'`))
 })
 
 test('agent claims of a supported gate never substitute for native execution', async () => {
@@ -127,6 +129,17 @@ test('setup limitations are passed to the deterministic checker', async () => {
   } })
   assert.equal(error, undefined)
   assert.ok(result.validation_command.includes("--limitation='Unsupported formal source'"))
+})
+
+test('missing or malformed worker digests remain failed assessments', async () => {
+  for (const record_sha256 of [undefined, '', 'c'.repeat(63), 'g'.repeat(64)]) {
+    const { error, result } = await run({ handlers: {
+      assess: (id, { defaults }) => ({ ...defaults.assess(id), record_sha256 }),
+    } })
+    assert.equal(error, undefined)
+    assert.deepEqual(result.failed_requirements, requirements.map((item) => item.id))
+    assert.ok(!result.validation_command.includes('--assessment-sha256='))
+  }
 })
 
 test('unexpected report paths are rejected before the handoff', async () => {

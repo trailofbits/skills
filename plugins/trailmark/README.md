@@ -157,6 +157,9 @@ the actual artifacts, runs Duvet in a fresh directory, and gates the ledger usin
 the original requirement IDs, exact failed-worker IDs, documents, and limitations.
 Agent-reported counts cannot substitute for its process result. Keep the final
 native-report links and any errors or gaps in the assessment report.
+The finalizer also reconciles immutable worker assessments with the ledger and
+validates retained graph/source-policy evidence and production-file counts. Gate
+output links the final JSON, HTML, log, and graph artifacts directly.
 
 ## Directory Structure
 

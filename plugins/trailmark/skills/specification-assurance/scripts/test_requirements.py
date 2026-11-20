@@ -1,6 +1,7 @@
 """Accounting regressions using the structure emitted by Duvet's --json report."""
 
 import copy
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -392,6 +393,30 @@ def finalizer(artifacts):
     (run / "report.md").write_text("Assessment: one supported obligation, one unknown.\n")
     (run / "duvet-before.json").write_bytes(before.read_bytes())
     write_json(run / "inventory.json", {"requirements": requirements.inventory(before)})
+    policy = {
+        "schema_version": 1,
+        "roots": [{"path": str(root), "name": "root", "category": "authored"}],
+        "files": [
+            {"path": str(root / name), "status": "inspected", "unit": "file", "root": "root"}
+            for name in ("packet.py", "test_packet.py")
+        ],
+    }
+    graph = {
+        "schema_version": 1,
+        "trailmark_version": "0.8.0",
+        "root_path": str(root),
+        "summary": {"source_files": 2, "parse_diagnostics": []},
+        "source_policy": policy,
+        "nodes": {
+            name: {"kind": "module", "location": {"file_path": str(root / name), "start_line": 1}}
+            for name in ("packet.py", "test_packet.py")
+        },
+        "edges": [],
+    }
+    write_json(run / "graph.json", graph)
+    write_json(run / "source-policy.json", policy)
+    write_json(run / "diagnostics.json", [])
+    write_json(run / "graph-scope.json", {"production_files": ["packet.py"]})
     write_json(run / "ledger.json", ledger)
     for record in ledger["requirements"]:
         write_json(run / "requirements" / f"{record['id']}.json", record)
@@ -419,11 +444,27 @@ def finalizer(artifacts):
         "--duvet",
         str(duvet),
         "--specification=spec.md",
+        "--production-source-files=1",
         "--output",
         str(run / "gate.json"),
     ]
     argv.extend(f"--requirement={record['id']}" for record in ledger["requirements"])
+    argv.extend(assessment_flag(run, record) for record in ledger["requirements"])
     return root, run, duvet, argv, ledger
+
+
+def assessment_flag(run, record):
+    path = run / "requirements" / f"{record['id']}.json"
+    return f"--assessment-sha256={record['id']}:{hashlib.sha256(path.read_bytes()).hexdigest()}"
+
+
+def save_fixture_assessment(finalizer, record):
+    """Set an assessment and its coordinator binding before exercising reporting."""
+    _, run, _, argv, _ = finalizer
+    write_json(run / "requirements" / f"{record['id']}.json", record)
+    prefix = f"--assessment-sha256={record['id']}:"
+    argv[:] = [value for value in argv if not value.startswith(prefix)]
+    argv.append(assessment_flag(run, record))
 
 
 def run_finalizer(finalizer, extra=()):
@@ -440,8 +481,11 @@ def test_finalizer_executes_native_process_and_checks_actual_files(finalizer):
     assert code == 1 and result["valid"] and result["status"] == "gaps"
     assert result["duvet_exit_code"] == 0
     assert Path(result["duvet_report"]).is_file()
+    assert Path(result["duvet_html"]).read_text() == "<html>Native fixture</html>"
     assert Path(result["duvet_log"]).read_text() == "native fixture report generated\n"
     assert len(list(run.glob("gate-native-*/execution.json"))) == 1
+    assert result["graph_source_files"] == 2
+    assert result["production_source_files"] == 1
 
 
 def test_finalizer_can_issue_supported_only_after_native_artifacts_pass(finalizer):
@@ -449,13 +493,26 @@ def test_finalizer_can_issue_supported_only_after_native_artifacts_pass(finalize
     ledger["requirements"][1].update(
         verdict="not_applicable", rationale="The selected profile has no mutable counter."
     )
+    record = ledger["requirements"][1]
+    save_fixture_assessment(finalizer, record)
     write_json(run / "ledger.json", ledger)
     code, result = run_finalizer(finalizer)
     assert code == 0 and result["status"] == "supported" and result["valid"]
 
 
 @pytest.mark.parametrize(
-    "artifact", ["report.md", "ledger.json", "inventory.json", "duvet-before.json", "worker"]
+    "artifact",
+    [
+        "report.md",
+        "ledger.json",
+        "inventory.json",
+        "duvet-before.json",
+        "worker",
+        "graph.json",
+        "source-policy.json",
+        "diagnostics.json",
+        "graph-scope.json",
+    ],
 )
 def test_finalizer_rejects_missing_artifacts_despite_a_plausible_old_gate(finalizer, artifact):
     _, run, _, _, ledger = finalizer
@@ -482,12 +539,13 @@ def test_finalizer_cannot_reuse_stale_duvet_output_after_failure_or_noop(finaliz
 
 @pytest.mark.parametrize("correct_id", [False, True])
 def test_failed_worker_must_be_not_checked_under_its_own_id(finalizer, correct_id):
-    _, run, _, _, ledger = finalizer
+    _, run, _, argv, ledger = finalizer
     records = ledger["requirements"]
     failed = records[0]["id"]
     # The failed worker wrote nothing. A different not_checked record cannot
     # compensate for falsely calling the failed requirement supported.
     (run / "requirements" / f"{failed}.json").unlink()
+    argv[:] = [value for value in argv if not value.startswith(f"--assessment-sha256={failed}:")]
     records[0 if correct_id else 1]["verdict"] = "not_checked"
     write_json(run / "ledger.json", ledger)
     code, result = run_finalizer(finalizer, [f"--failed-requirement={failed}"])
@@ -505,3 +563,193 @@ def test_finalizer_preserves_exact_ids_requested_documents_and_setup_limitations
         code, result = run_finalizer(finalizer, flags)
         assert code == 2
         assert any(expected in error for error in result["errors"])
+
+
+@pytest.mark.parametrize(
+    "mutation", ["verdict", "failed_check", "assumptions", "severity", "consequence", "rationale"]
+)
+def test_report_cannot_rewrite_a_retained_failed_assessment(finalizer, mutation):
+    root, run, _, _, ledger = finalizer
+    record = ledger["requirements"][0]
+    record.update(verdict="violated", severity="high", consequence="Oversized input mutates state.")
+    record["checks"][0].update(result="fail", exit_code=1, log="failed.log")
+    (root / "failed.log").write_text("state preservation assertion FAILED\n")
+    save_fixture_assessment(finalizer, record)
+    other = ledger["requirements"][1]
+    other.update(
+        verdict="not_applicable",
+        rationale="The selected profile has no separate counter obligation.",
+    )
+    save_fixture_assessment(finalizer, other)
+    if mutation == "verdict":
+        record["verdict"] = "supported"
+        record["checks"][0].update(result="pass", exit_code=0, log="native.log")
+    elif mutation == "failed_check":
+        record["checks"].pop()
+    elif mutation == "assumptions":
+        record["assumptions"] = ["Assume all callers reject oversized input."]
+    else:
+        record[mutation] = {
+            "severity": "info",
+            "consequence": "None observed.",
+            "rationale": "Tests passed.",
+        }[mutation]
+    write_json(run / "ledger.json", ledger)
+    code, result = run_finalizer(finalizer)
+    assert code == 2 and result["status"] == "invalid"
+    assert any("Ledger changed retained worker assessment" in error for error in result["errors"])
+
+
+def test_retained_native_failures_remain_a_valid_gap(finalizer):
+    root, run, _, _, ledger = finalizer
+    record = ledger["requirements"][0]
+    record.update(verdict="violated", severity="high", consequence="Oversized input mutates state.")
+    record["checks"][0].update(result="fail", exit_code=1, log="failed.log")
+    (root / "failed.log").write_text("state preservation assertion FAILED\n")
+    save_fixture_assessment(finalizer, record)
+    write_json(run / "ledger.json", ledger)
+    code, result = run_finalizer(finalizer)
+    assert code == 1 and result["verdicts"]["violated"] == 1
+
+
+def test_reporting_cannot_rewrite_both_worker_record_and_ledger(finalizer):
+    _, run, _, _, ledger = finalizer
+    record = ledger["requirements"][0]
+    record.update(verdict="unknown", rationale="Rewritten after assessment.")
+    write_json(run / "requirements" / f"{record['id']}.json", record)
+    write_json(run / "ledger.json", ledger)
+    code, result = run_finalizer(finalizer)
+    assert code == 2
+    assert any("Retained worker assessment changed" in error for error in result["errors"])
+
+
+def test_completed_workers_need_exact_sha256_bindings(finalizer):
+    _, _, _, argv, _ = finalizer
+    argv[:] = [value for value in argv if not value.startswith("--assessment-sha256=")]
+    code, result = run_finalizer(finalizer)
+    assert code == 2
+    assert any("cover exactly the completed workers" in error for error in result["errors"])
+
+
+@pytest.mark.parametrize("original_line", [2, None, 1, True])
+def test_only_explicit_line_relocations_can_differ_from_worker_records(finalizer, original_line):
+    root, run, _, _, ledger = finalizer
+    for name in ("packet.py", "test_packet.py"):
+        path = root / name
+        path.write_text("# annotation\n# quotation\n" + path.read_text())
+    record = ledger["requirements"][0]
+    for anchor in [record["implementation"][0], record["checks"][0]["location"]]:
+        anchor["line"] = 4
+        if original_line is not None:
+            anchor["original_line"] = original_line
+    write_json(run / "ledger.json", ledger)
+    code, _ = run_finalizer(finalizer)
+    assert code == (1 if type(original_line) is int and original_line == 2 else 2)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "empty",
+        "zero",
+        "wrong_total",
+        "no_inspection",
+        "no_production_node",
+        "proxy_only",
+        "wrong_scope",
+        "claimed_count",
+        "policy_mismatch",
+        "diagnostics_mismatch",
+    ],
+)
+def test_native_graph_evidence_cannot_be_replaced_by_setup_claims(finalizer, mutation):
+    _, run, _, argv, _ = finalizer
+    graph = requirements.read_json(run / "graph.json")
+    if mutation == "empty":
+        graph = {}
+    elif mutation in {"zero", "wrong_total"}:
+        graph["summary"]["source_files"] = 0 if mutation == "zero" else 3
+    elif mutation == "no_inspection":
+        graph["source_policy"]["files"] = []
+        write_json(run / "source-policy.json", graph["source_policy"])
+    elif mutation == "no_production_node":
+        graph["nodes"].pop("packet.py")
+    elif mutation == "proxy_only":
+        graph["nodes"]["packet.py"]["origin"] = "proxy"
+    elif mutation == "wrong_scope":
+        write_json(run / "graph-scope.json", {"production_files": ["native.log"]})
+    elif mutation == "claimed_count":
+        argv[argv.index("--production-source-files=1")] = "--production-source-files=2"
+    elif mutation == "policy_mismatch":
+        write_json(run / "source-policy.json", {"files": []})
+    else:
+        write_json(run / "diagnostics.json", [{"message": "parse failed"}])
+    write_json(run / "graph.json", graph)
+    code, result = run_finalizer(finalizer)
+    assert code == 2 and result["status"] == "invalid"
+
+
+def test_graph_evidence_accepts_native_merged_source_policy(finalizer):
+    _, run, _, _, _ = finalizer
+    graph = requirements.read_json(run / "graph.json")
+    files = graph["source_policy"]["files"]
+    graph["source_policy"] = {
+        "schema_version": 1,
+        "components": [{"files": [item]} for item in files],
+    }
+    write_json(run / "graph.json", graph)
+    write_json(run / "source-policy.json", graph["source_policy"])
+    assert run_finalizer(finalizer)[0] == 1
+
+
+def test_supported_enforcement_must_belong_to_the_inspected_production_graph(finalizer):
+    _, run, _, _, ledger = finalizer
+    record = ledger["requirements"][0]
+    record["implementation"][0]["file"] = "test_packet.py"
+    save_fixture_assessment(finalizer, record)
+    write_json(run / "ledger.json", ledger)
+    code, result = run_finalizer(finalizer)
+    assert code == 2
+    assert any(
+        "outside the inspected production graph scope" in error for error in result["errors"]
+    )
+
+
+def test_inventory_and_check_resolve_specifications_against_target_root(artifacts):
+    root, report, before, after, ledger, ledger_path = artifacts
+    target = str(root / "spec.md")
+    report["specifications"][target] = report["specifications"].pop("spec.md")
+    for annotation in report["annotations"]:
+        annotation["target_path"] = target
+    write_json(before, report)
+    write_json(after, report)
+    for record, item in zip(ledger["requirements"], requirements.inventory(before), strict=True):
+        record["id"] = item["id"]
+    write_json(ledger_path, ledger)
+    for command, flags, expected in [
+        ("inventory", ["--report", str(before)], 0),
+        (
+            "check",
+            ["--baseline", str(before), "--report", str(after), "--ledger", str(ledger_path)],
+            1,
+        ),
+    ]:
+        output = root / f"{command}-root.json"
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                command,
+                "--root",
+                str(root),
+                "--specification=spec.md",
+                "--output",
+                str(output),
+                *flags,
+            ],
+            cwd=root.parent,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode == expected, completed.stdout + completed.stderr

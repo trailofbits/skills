@@ -47,7 +47,16 @@ if summary["source_files"] == 0:
 Path("<run>/graph.json").write_text(engine.to_json())
 Path("<run>/source-policy.json").write_text(json.dumps(engine.source_policy(), indent=2))
 Path("<run>/diagnostics.json").write_text(json.dumps(engine.parse_diagnostics(), indent=2))
+# List the actual production files selected in source_policy(), excluding tests/models.
+Path("<run>/graph-scope.json").write_text(json.dumps({"production_files": ["src/packet.py"]}, indent=2))
 ```
+
+Replace the example production list with the target's inspected production paths.
+The native summary includes tests and models; the workflow's `source_files` count
+and finalizer's `--production-source-files` argument count only this production list.
+The finalizer reconciles the native graph, source policy, diagnostics, inspected
+paths, and parsed production nodes. A positive count in an agent response cannot
+replace these artifacts.
 
 Inventory formal extensions independently of `detect_languages()` and reconcile
 them with selected/inspected files. Parse separate roots explicitly when repository

@@ -121,7 +121,7 @@ extracting zero obligations fail. Its `check` command validates existing reports
 
 ```bash
 uv run --no-project "{baseDir}/scripts/requirements.py" inventory \
-  --specification spec/protocol.md \
+  --root <target> --specification spec/protocol.md \
   --report <run>/duvet-before.json --output <run>/inventory.json
 
 uv run --no-project "{baseDir}/scripts/requirements.py" check \
@@ -134,9 +134,17 @@ For workflow runs, execute the returned `finalize` command instead. It checks th
 actual report, inventory, ledger, worker records, and native evidence files, then
 runs Duvet in a fresh output directory and gates that report. Its arguments retain
 all original requirement IDs, exact failed-worker IDs, requested documents, and
-setup limitations. Every failed worker must keep its own `not_checked` record.
+setup limitations. It validates `graph.json`, `source-policy.json`, `diagnostics.json`,
+and the `production_files` list in `graph-scope.json` against the setup count passed
+as `--production-source-files`. Every failed worker must keep its own `not_checked`
+record. Completed worker assessments remain immutable: ledger records must match
+them except for explicit `original_line` mappings after inserting annotation comments.
+The workflow retains each worker's original file digest in `--assessment-sha256`
+arguments, preventing reporting from rewriting the assessment along with the ledger.
+Return to assessment when a verdict or native result needs to change.
 It writes `gate.json` even on failure. Use `--duvet /path/to/duvet` when the installed
 executable is outside the caller's PATH. Preserve snapshot diffs from the final run.
+Link the final JSON, HTML (`duvet_html`), and log paths returned by the gate.
 
 Exit 0 means complete records supporting the scoped obligations, exit 1 means
 recorded gaps, and exit 2 means invalid/missing artifacts or setup failure. The

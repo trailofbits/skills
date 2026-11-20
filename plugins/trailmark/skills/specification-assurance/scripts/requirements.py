@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 from collections import Counter
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -318,11 +319,113 @@ def check_ledger(
     }
 
 
+def original_assessment(record: dict[str, Any]) -> dict[str, Any]:
+    """Undo only explicit line relocations caused by annotation comments."""
+    original = deepcopy(record)
+    anchors = original.get("implementation", []) + [
+        check["location"] for check in original.get("checks", [])
+    ]
+    for anchor in anchors:
+        if "original_line" in anchor:
+            line = anchor.pop("original_line")
+            if type(line) is not int or line < 1:
+                raise ValueError("Rebound evidence needs a positive original_line")
+            anchor["line"] = line
+    return original
+
+
+def graph_evidence(
+    run: Path, root: Path, expected_production_files: int
+) -> tuple[dict[str, Any], set[Path]]:
+    """Reconcile native graph counts, inspected paths, and production scope."""
+    paths = {
+        name: local_file(root, str(run / f"{name}.json"))
+        for name in (
+            "graph",
+            "source-policy",
+            "diagnostics",
+            "graph-scope",
+        )
+    }
+    graph, policy, diagnostics, scope = (read_json(path) for path in paths.values())
+    if (
+        not isinstance(graph, dict)
+        or graph.get("schema_version") != 1
+        or not isinstance(graph.get("nodes"), dict)
+        or not graph["nodes"]
+        or not isinstance(graph.get("summary"), dict)
+    ):
+        raise ValueError("Missing or empty native Trailmark graph")
+    summary = graph["summary"]
+    if not isinstance(policy, dict) or not policy or graph.get("source_policy") != policy:
+        raise ValueError("Retained source policy differs from the native graph")
+    if not isinstance(diagnostics, list) or summary.get("parse_diagnostics") != diagnostics:
+        raise ValueError("Retained diagnostics differ from the native graph")
+    selected = []
+    pending = [policy]
+    while pending:
+        manifest = pending.pop()
+        if not isinstance(manifest, dict):
+            raise ValueError("Invalid Trailmark source-policy manifest")
+        if "components" in manifest:
+            components = manifest["components"]
+            if not isinstance(components, list) or not components:
+                raise ValueError("Empty or invalid merged source policy")
+            pending.extend(components)
+            continue
+        if not isinstance(manifest.get("files"), list):
+            raise ValueError("Missing inspected-file evidence in source policy")
+        for item in manifest["files"]:
+            if not isinstance(item, dict):
+                raise ValueError("Invalid source-policy file record")
+            if item.get("status") == "inspected" and item.get("unit") == "file":
+                selected.append(local_file(root, item.get("path")))
+    count = summary.get("source_files")
+    if (
+        not selected
+        or len(selected) != len(set(selected))
+        or type(count) is not int
+        or count != len(selected)
+    ):
+        raise ValueError("Native graph source count disagrees with inspected files or is zero")
+    production = scope.get("production_files") if isinstance(scope, dict) else None
+    if not isinstance(production, list) or not production:
+        raise ValueError("Graph scope needs a nonempty production_files array")
+    production = [local_file(root, path) for path in production]
+    if (
+        len(set(production)) != len(production)
+        or not set(production) <= set(selected)
+        or type(expected_production_files) is not int
+        or expected_production_files != len(production)
+    ):
+        raise ValueError("Production source count or scope disagrees with inspected files")
+    parsed = set()
+    for node in graph["nodes"].values():
+        if not isinstance(node, dict):
+            raise ValueError("Invalid graph node")
+        if node.get("origin", "source") == "source" and node.get("kind") != "proxy":
+            anchor = node.get("location")
+            if not isinstance(anchor, dict):
+                raise ValueError("Graph source node has no source location")
+            parsed.add(local_file(root, anchor.get("file_path")))
+    if not set(production) <= parsed:
+        raise ValueError("Production scope has no parsed source nodes in the retained graph")
+    return {
+        "graph": str(paths["graph"]),
+        "source_policy": str(paths["source-policy"]),
+        "graph_diagnostics": str(paths["diagnostics"]),
+        "graph_scope": str(paths["graph-scope"]),
+        "graph_source_files": count,
+        "production_source_files": len(production),
+    }, set(production)
+
+
 def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     """Run the native artifact gate in the caller's process, outside the workflow VM."""
     run = args.run.resolve(strict=True)
     if not run.is_dir() or not run.is_relative_to(root):
         raise ValueError("Run directory must exist inside the target root")
+    graph, production = graph_evidence(run, root, args.production_source_files)
     for name in ("report.md", "inventory.json", "duvet-before.json", "ledger.json"):
         path = local_file(root, str(run / name))
         if not path.stat().st_size:
@@ -332,11 +435,30 @@ def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     retained = read_json(run / "inventory.json")
     if not isinstance(retained, dict) or retained.get("requirements") != before:
         raise ValueError("Retained inventory differs from the native baseline")
+    seals = {}
+    for value in args.assessment_sha256:
+        parts = value.split(":")
+        if (
+            len(parts) != 2
+            or parts[0] in seals
+            or len(parts[1]) != 64
+            or any(character not in "0123456789abcdef" for character in parts[1])
+        ):
+            raise ValueError("Invalid or duplicate assessment SHA-256 binding")
+        seals[parts[0]] = parts[1]
+    if set(seals) != ids - set(args.failed_requirement):
+        raise ValueError("Assessment SHA-256 bindings must cover exactly the completed workers")
+    workers = {}
     for item in before:
         if item["id"] not in args.failed_requirement:
-            record = read_json(local_file(root, str(run / "requirements" / f"{item['id']}.json")))
+            path = local_file(root, str(run / "requirements" / f"{item['id']}.json"))
+            content = path.read_bytes()
+            if hashlib.sha256(content).hexdigest() != seals[item["id"]]:
+                raise ValueError(f"Retained worker assessment changed: {item['id']}")
+            record = json.loads(content)
             if not isinstance(record, dict) or record.get("id") != item["id"]:
                 raise ValueError(f"Missing or mismatched worker record: {item['id']}")
+            workers[item["id"]] = record
     if len(args.requirement) != len(ids) or set(args.requirement) != ids:
         raise ValueError("Workflow requirement IDs differ from the retained baseline inventory")
     if not set(args.failed_requirement) <= ids:
@@ -383,10 +505,30 @@ def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
         args.failed_requirement,
         args.limitation,
     )
+    records = read_json(run / "ledger.json")["requirements"]
+    for record in records:
+        if record["id"] in workers and original_assessment(record) != workers[record["id"]]:
+            result["errors"].append(
+                f"Ledger changed retained worker assessment {record['id']}; "
+                "preserve verdict, rationale, assumptions, findings, and every native check"
+            )
+        if record.get("verdict") == "supported" and any(
+            local_file(root, anchor.get("file")) not in production
+            for anchor in record.get("implementation", [])
+            if anchor.get("role") == "production"
+        ):
+            result["errors"].append(
+                f"Supported requirement {record['id']} has enforcement "
+                "outside the inspected production graph scope"
+            )
+    if result["errors"]:
+        result.update(valid=False, status="invalid")
     result.update(
         duvet_report=str(report),
+        duvet_html=str(html),
         duvet_log=str(native / "duvet.log"),
         duvet_exit_code=completed.returncode,
+        **graph,
     )
     return result
 
@@ -396,6 +538,12 @@ def main() -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     extract = subparsers.add_parser("inventory")
     extract.add_argument("--report", type=Path, required=True)
+    extract.add_argument(
+        "--root",
+        type=Path,
+        default=Path.cwd(),
+        help="Target root for specification paths (default: current directory)",
+    )
     validate = subparsers.add_parser("check")
     validate.add_argument("--baseline", type=Path, required=True)
     validate.add_argument("--report", type=Path, required=True)
@@ -408,6 +556,19 @@ def main() -> int:
     finish.add_argument("--requirement", action="append", required=True)
     finish.add_argument("--failed-requirement", action="append", default=[])
     finish.add_argument("--limitation", action="append", default=[])
+    finish.add_argument(
+        "--assessment-sha256",
+        action="append",
+        default=[],
+        metavar="ID:SHA256",
+        help="Completed worker's original record digest from the workflow",
+    )
+    finish.add_argument(
+        "--production-source-files",
+        type=int,
+        required=True,
+        help="Setup's production file count; reconciled with retained graph evidence",
+    )
     for command in (extract, validate, finish):
         command.add_argument(
             "--specification",
@@ -418,13 +579,13 @@ def main() -> int:
         command.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
+        root = args.root.resolve(strict=True)
+        if not root.is_dir():
+            raise ValueError("Target root must be a directory")
         if args.command == "inventory":
-            result = {"requirements": inventory(args.report, args.specification)}
+            result = {"requirements": inventory(args.report, args.specification, root)}
             code = 0
         else:
-            root = args.root.resolve(strict=True)
-            if not root.is_dir():
-                raise ValueError("Target root must be a directory")
             result = (
                 finalize(args, root)
                 if args.command == "finalize"

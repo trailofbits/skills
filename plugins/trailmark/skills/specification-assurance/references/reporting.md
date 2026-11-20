@@ -23,6 +23,21 @@ Supply every requested document with repeated `--specification` arguments to the
 inventory and gate commands. Each configured document must extract at least one
 obligation. If extraction misses a document's obligations, register them explicitly
 before proceeding; another document's successful extraction cannot cover the gap.
+All three commands accept `--root` so specification paths resolve against the target
+even when the calling session runs from another directory. For `inventory`, omitting
+`--root` preserves the current-directory default.
+
+Retain the native Trailmark export as `graph.json`, its `source_policy()` result as
+`source-policy.json`, and its `parse_diagnostics()` result as `diagnostics.json`.
+Write `graph-scope.json` with a `production_files` array of target-relative or absolute
+production paths, for example `{"production_files": ["src/packet.py"]}`. Tests and
+models stay in the native graph's total inspected-file count; keep them out of this
+production list. Pass its length as `finalize --production-source-files <count>`.
+The finalizer checks both counts against the inspected paths in the native source
+policy and requires parsed source nodes for every listed production file. It rejects
+missing artifacts, zero inspected files, duplicate paths, and inconsistent scope.
+Production enforcement locations for `supported` requirements must belong to this
+validated scope; a graph of unrelated files cannot support the assessment.
 
 ## Ledger contract
 
@@ -30,6 +45,24 @@ before proceeding; another document's successful extraction cannot cover the gap
 contains `id`, `verdict`, a nonempty `rationale`, `implementation` locations, `checks`,
 and an `assumptions` array (empty when none). Copy IDs from the inventory. Preserve
 all obligations, including optional, waived, unimplemented, and unchecked ones.
+
+In workflow runs, `requirements/<id>.json` is the immutable assessment from that
+worker. Copy the complete record into the ledger: preserve its verdict, rationale,
+assumptions, findings, and all native checks, including failures. Reporting cannot
+replace a failed check with another passing one or change the applicability decision.
+If evidence needs reassessment, retain the gap and start a new assessment.
+Each completed worker returns the SHA-256 digest of its saved record's exact bytes.
+The workflow passes these original bindings as `--assessment-sha256 ID:SHA256`
+arguments to the finalizer. Every completed worker needs exactly one binding;
+failed workers have none. Rewriting both a worker file and its ledger entry fails
+the original checksum check.
+
+Annotation comments can move a source location. Only `implementation` anchors and
+check `location` objects may change their `line`; record the worker's line as
+`original_line` in that same object. For example, an anchor at line 3 that moves to
+line 5 becomes `{"file": "src/packet.py", "line": 5, "original_line": 3, "role": "production"}`.
+The finalizer restores these explicit line mappings before comparing the whole
+ledger record with the retained worker record. Other assessment fields must match.
 
 Example record for `spec.md#length`, quoting
 "A packet MUST contain at most 16 bytes.":
@@ -123,10 +156,12 @@ The workflow returns `pending_validation`, never an assurance verdict. The calli
 session executes its `validation_command` and observes the process exit and JSON
 output. The `finalize` command reads the actual baseline, inventory, report, ledger,
 and successful workers' records. It compares the original requirement IDs, enforces
-each failed worker's own `not_checked` verdict, and preserves setup limitations.
+each failed worker's own `not_checked` verdict, reconciles completed workers with
+the ledger, validates graph artifacts and counts, and preserves setup limitations.
 It runs Duvet itself, retaining a fresh `gate-native-*` directory with JSON, HTML,
 log, and `execution.json`. A failed or no-op command cannot reuse an older report.
-The gate names the final native report/log and records the observed Duvet exit code.
+The gate names the final JSON, HTML (`duvet_html`), and log artifacts, links the graph
+evidence, and records the observed Duvet exit code and verified source counts.
 Update the report's artifact links and retain any snapshot diff after this command.
 
 For direct assessments, the helper's `check` command gates existing baseline/final

@@ -82,10 +82,14 @@ Inventory formal extensions independently; never silently omit unsupported sourc
 Initialize/merge .duvet/config.toml with production, tests, formal sources, correct comment markers,
 all requested specifications, and HTML/snapshot reporting. Preserve existing snapshot before any write.
 Capture unannotated baseline using duvet report --json ${sh(`${RUN}/duvet-before.json`)} --html ${sh(`${RUN}/duvet-before.html`)} --require-citations true --require-tests true --ci false.
-Preserve the log/exit status. Run ${helper} inventory ${specFlags} --report ${sh(`${RUN}/duvet-before.json`)} --output ${sh(`${RUN}/inventory.json`)}.
-Build the implementation graph, run preanalysis, retain source policy, inspected-file counts,
-diagnostics, unresolved edges, and graph JSON. Reconcile all implementation/formal roots with effective
-scope. Do not add implementation/test citations yet. Return requirements copied from inventory.json,
+Preserve the log/exit status. Run ${helper} inventory --root ${sh(ROOT)} ${specFlags} --report ${sh(`${RUN}/duvet-before.json`)} --output ${sh(`${RUN}/inventory.json`)}.
+Build the implementation graph, run preanalysis, and save the native export as graph.json,
+engine.source_policy() as source-policy.json, and engine.parse_diagnostics() as diagnostics.json.
+Write graph-scope.json with a production_files array listing the exact inspected production paths.
+Retain unresolved edges and focused queries. Reconcile all implementation/formal roots with effective
+scope. source_files is the production_files length, not the total including tests/models; the native
+finalizer checks both counts, actual files, and parsed production nodes from retained graph evidence.
+Do not add implementation/test citations yet. Return requirements copied from inventory.json,
 actual production source_files count, limitations, and status ready or failed with reason.
 Zero requirements, zero inspected production files, failed native Duvet, or failed helper inventory
 are setup failures. Write report.md with errors on a failed setup and retain all artifacts.`, {
@@ -127,12 +131,15 @@ Native formal results need per-property outcomes, assumptions/vacuity limits, an
 before they can support implementation scope. An abstract design proof stays model scope.
 Create the requirement record at ${sh(recordPath)} following the ledger contract. Report every
 divergence with severity/consequence, and retain unknown/unavailable/skipped checks. Do not add Duvet
-citations or change production behavior in this stage. Return the original id and exact record_path.`, {
-      type: 'object', required: ['id', 'record_path'], properties: { id: string, record_path: string },
+citations or change production behavior in this stage. Compute SHA-256 over the exact saved file bytes.
+Return the original id, exact record_path, and lowercase hexadecimal record_sha256.`, {
+      type: 'object', required: ['id', 'record_path', 'record_sha256'],
+      properties: { id: string, record_path: string, record_sha256: string },
     })
-    if (result.id !== requirement.id || result.record_path !== recordPath)
-      fail('Worker returned a different requirement or record path.')
-    outcomes.push({ id: requirement.id, status: 'completed', record_path: recordPath, error: '' })
+    if (result.id !== requirement.id || result.record_path !== recordPath ||
+        typeof result.record_sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(result.record_sha256))
+      fail('Worker returned a different requirement, record path, or invalid SHA-256 digest.')
+    outcomes.push({ id: requirement.id, status: 'completed', record_path: recordPath, record_sha256: result.record_sha256, error: '' })
   } catch (error) {
     const reason = String(error?.message ?? error)
     outcomes.push({ id: requirement.id, status: 'failed', record_path: '', error: reason.trim() || 'Worker failed without an error message.' })
@@ -143,15 +150,18 @@ phase('Report')
 const finished = await invoke('report', `${policy}
 Read references/duvet.md and references/reporting.md. Inventory: ${sh(`${RUN}/inventory.json`)}.
 Setup limitations: ${data(setup.limitations)}. Assessment outcomes (retain failures): ${data(outcomes)}.
-Assemble ledger.json with every original requirement. Failed workers become not_checked records with
-their reason, never invented passing checks. Preserve all setup limitations and add uncovered global gaps.
+Assemble ledger.json with every original requirement, preserving each completed worker's record exactly.
+Keep worker files immutable. Preserve verdicts, rationale, assumptions, severity/consequence, and every
+native check and result. Failed workers become not_checked records with their reason, never invented
+passing checks. Preserve all setup limitations and add uncovered global gaps.
 Add only justified Duvet implementation/test citations next to actual enforcement/assertions, using
 original quotations. A proved model alone cannot annotate production as proved. Merge idempotently;
-preserve waivers and show their justifications. Rebind record locations after inserting comments and
-retain original anchors, executed source snapshots, and citation-only diffs. If behavior, assertions,
-or proof obligations changed after a recorded run, rerun the affected distinct native commands and
-retain both runs, or mark that evidence stale and its requirement unknown. Do not repair implementation
-defects or change the requirement inventory.
+preserve waivers and show their justifications. Rebind only implementation/check location line numbers
+after inserting annotation comments: set original_line to the worker's line and line to its new line.
+Retain executed source snapshots and citation-only diffs. Do not change assessment content, file paths,
+behavior, assertions, or proof obligations in reporting. If evidence needs reassessment, retain the
+gap and start a new assessment; a report-stage passing check cannot erase an earlier native failure.
+Do not repair implementation defects or change the requirement inventory or graph evidence.
 Write report.md with the full
 denominator, verdict matrix, all divergences/severities, native outcomes, model bindings/limits, and
 artifact links. Distinguish annotation coverage from semantic evidence. Mark the gate pending:
@@ -166,8 +176,11 @@ if (finished.report_path !== `${RUN}/report.md` || finished.ledger_path !== `${R
   fail(`Unexpected assurance artifact paths. Run: ${RUN}`)
 const failed = outcomes.filter((outcome) => outcome.status === 'failed').map((outcome) => outcome.id)
 const flags = [
+  `--production-source-files=${setup.source_files}`,
   ...ids.map((id) => `--requirement=${sh(id)}`),
   ...failed.map((id) => `--failed-requirement=${sh(id)}`),
+  ...outcomes.filter((outcome) => outcome.status === 'completed')
+    .map((outcome) => `--assessment-sha256=${sh(`${outcome.id}:${outcome.record_sha256}`)}`),
   ...setup.limitations.map((item) => `--limitation=${sh(item)}`),
 ].join(' ')
 const command = `${helper} finalize --root ${sh(ROOT)} --run ${sh(RUN)} ${specFlags} ${flags} --output ${sh(`${RUN}/gate.json`)}`
