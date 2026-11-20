@@ -48,8 +48,10 @@ enabled = true
 path = ".duvet/snapshot.txt"
 ```
 
-Duvet supports Markdown and IETF specifications. Retain immutable local copies or
-revision-pinned URLs and hashes, including errata and the chosen protocol profile.
+Duvet supports Markdown and IETF specifications. This skill requires local copies:
+download remote documents before assessment and retain their original URLs, revisions,
+hashes, errata, and chosen protocol profile. Configure Duvet with the local paths so
+the source snapshot binds the full specification text, including definitions.
 For PDF/HTML-only specifications, preserve the original and a faithful text
 transcription with section/page provenance. Do not silently rewrite its normative
 meaning to suit extraction. Register obligations without RFC keywords explicitly
@@ -147,21 +149,20 @@ needs the separate semantic and native evidence required by the ledger contract.
 Capture help/tool identity first. Retain a baseline before adding citations:
 
 ```bash
-duvet report --json <run>/duvet-before.json --html <run>/duvet-before.html \
-  --require-citations true --require-tests true --ci false
+uv run --no-project "{baseDir}/scripts/requirements.py" baseline \
+  --root <target> --run <run> --output <run>/baseline.json
 ```
 
 Save command output and exit status even on failure. The helper consumes the
 legacy JSON produced by `--json`, including on builds that also offer `--json-v2`.
 Do not feed v2 data to it or convert an unfamiliar format by guessing.
 
-With snapshots enabled, `--ci false` writes the snapshot. Preserve any existing
-snapshot before the baseline, and retain its diff. After adding only defensible
-annotations, run again with `duvet-after.json` and `duvet-after.html` paths. Review
-the snapshot as an intentional coverage change. For workflow assessments, the calling
-session's `finalize` command uses a copied configuration to put every report and the
-candidate snapshot in a fresh `gate-native-*` directory. Its `gate.json` links them;
-review the candidate before adopting it as the project snapshot. In subsequent CI runs:
+`baseline` uses a copied configuration to write reports and a candidate snapshot
+inside the run, preserving accepted project outputs even on failure. After adding
+defensible sidecar annotations, the calling session's `finalize` command uses the
+same isolated runner in a fresh `gate-native-*` directory. Its `gate.json` links
+the artifacts even on native failure. Review the candidate before adopting it as
+the project snapshot. In subsequent CI runs:
 
 ```bash
 duvet report --ci --require-citations true --require-tests true

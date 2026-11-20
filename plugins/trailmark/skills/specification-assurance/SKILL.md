@@ -41,6 +41,10 @@ links to `report.md`, preserving any errors or gaps. Continue through this hando
 before reporting completion. On hosts without dynamic workflows, execute the same
 work directly using the contracts here and the three references below.
 
+Pass local specification paths. Download remote specifications first, retain their
+original URLs/revisions and full text, and configure Duvet against those local copies.
+The source snapshot then binds definitions and conditions outside extracted quotations.
+
 Read [Duvet setup and annotation](references/duvet.md) before configuring the target.
 Read [graph and formal evidence](references/formal-evidence.md) when building the
 graph or using a proof/model. Read [records and reporting](references/reporting.md)
@@ -60,7 +64,9 @@ when writing the ledger.
   entries. Configure both production and test roots, plus formal sources when
   present. Exclude generated reports, copied source evidence, and fixture strings
   that would create false citations.
-- Run Duvet before adding citations, retain its JSON/logs, and create the complete
+- Use `requirements.py baseline --root <target> --run <run> --output <run>/baseline.json`
+  before adding citations. It isolates all report/snapshot writes inside the run.
+  Retain its JSON/logs and create the complete
   requirement inventory with the bundled helper. Run Duvet again after annotation.
   Use its HTML and snapshot artifacts for review. Do not claim that a successful
   `report` invocation or unchanged snapshot establishes complete coverage.
@@ -119,27 +125,28 @@ recorded evidence under stated assumptions, not certified correct.
 
 The helper's `inventory` command extracts Duvet's requirements. Repeat
 `--specification` for every requested document; omitted documents and documents
-extracting zero obligations fail. Its `check` command validates existing reports:
+extracting zero obligations fail. Every assessment ends with the native finalizer:
 
 ```bash
 uv run --no-project "{baseDir}/scripts/requirements.py" inventory \
   --root <target> --specification spec/protocol.md \
   --report <run>/duvet-before.json --output <run>/inventory.json
 
-uv run --no-project "{baseDir}/scripts/requirements.py" check \
-  --specification spec/protocol.md \
-  --baseline <run>/duvet-before.json --report <run>/duvet-after.json \
-  --ledger <run>/ledger.json --root <target> --output <run>/gate.json
+uv run --no-project "{baseDir}/scripts/requirements.py" finalize \
+  --request <run>/validation-request.json --output <run>/gate.json
 ```
 
-After native checks, seal each worker record with `requirements.py seal --root
-<target> --run <run> --record <run>/requirements/<id>.json`. This binds source,
-check, log, inspected-file, specification, and configuration contents. Include
-additional build/dependency inputs in the record's `inputs` array. Use distinct logs
-and keep sealed files unchanged; new citations go in the configured sidecars.
+After graph/inventory setup, run `requirements.py freeze --root <target> --run <run>`
+once. It records the full file list and contents in `source-snapshot.json`, including
+untracked and ignored files. Keep generated build outputs outside the frozen tree;
+put new assurance tests/logs inside the run. After native checks, seal each record with
+`requirements.py seal --root <target> --run <run> --record <run>/requirements/<id>.json`.
+Workers bind the shared snapshot digest and their own source/check/log contents.
+Include additional dependency inputs in `inputs`. Use distinct logs and keep sealed
+files unchanged; new citations go in the configured sidecars.
 
-For workflow runs, save the returned request and execute `finalize` instead of
-`check`. The request retains the original inventory, failures, setup limits, source
+For workflow runs, save the returned request and execute `finalize`.
+The request retains the original inventory, failures, setup limits, source
 count, and worker digests without growing the shell command. The finalizer checks
 the ledger against immutable workers and graph evidence before running Duvet. Parse
 diagnostics force a gap. It checks evidence again afterward and retains each native

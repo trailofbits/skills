@@ -73,12 +73,25 @@ test('agent claims of a supported gate never substitute for native execution', a
 
 test('malformed inputs fail before tools or target mutations', async () => {
   for (const input of [{}, 'scan everything', [], { specifications: [] }, { specifications: [42] },
+    { specifications: ['https://example.com/spec.md'] },
     { specifications: ['spec.md'], target: 'a\nb' }, { specifications: ['spec.md'], skill_dir: 'relative' },
     { specifications: ['spec.md'], ignore_errors: true }]) {
     const { error, calls } = await run({ input })
     assert.ok(error, JSON.stringify(input))
     assert.deepEqual(calls, [])
   }
+})
+
+test('setup uses the isolated baseline runner and freezes the tree before workers', async () => {
+  const { error } = await run({ handlers: {
+    setup: (_, { prompt, defaults }) => {
+      assert.ok(prompt.includes(' baseline --root '))
+      assert.ok(prompt.includes(' freeze --root '))
+      assert.ok(!prompt.includes('Capture unannotated baseline using duvet report'))
+      return defaults.setup()
+    },
+  } })
+  assert.equal(error, undefined)
 })
 
 test('empty native setup or an invalid inventory never reaches assessment', async () => {

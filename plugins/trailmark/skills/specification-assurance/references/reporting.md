@@ -19,11 +19,11 @@ The inventory's IDs hash the specification identifier, section, normative level,
 and whitespace-normalized quotation, so adding citations does not change identity.
 Changing or dropping an obligation between baseline and final reports invalidates
 the run. Start a new explicitly scoped assessment when the specification changes.
-Supply every requested document with repeated `--specification` arguments to the
-inventory and direct `check` commands. Each configured document must extract at least one
-obligation. If extraction misses a document's obligations, register them explicitly
+Supply every requested document with repeated `--specification` arguments to
+`inventory`, and retain the same list in the validation request. Each document must
+extract at least one obligation. If extraction misses obligations, register them explicitly
 before proceeding; another document's successful extraction cannot cover the gap.
-These commands accept `--root` so specification paths resolve against the target
+`inventory` accepts `--root` so specification paths resolve against the target
 even when the calling session runs from another directory. For `inventory`, omitting
 `--root` preserves the current-directory default.
 
@@ -34,8 +34,9 @@ production paths, for example `{"production_files": ["src/packet.py"]}`. Tests a
 models stay in the native graph's total inspected-file count; keep them out of this
 production list. The workflow retains its length in the validation request.
 The finalizer checks both counts against the inspected paths in the native source
-policy and requires parsed source nodes for every listed production file. It rejects
-missing artifacts, zero inspected files, duplicate paths, and inconsistent scope.
+policy and requires parsed source nodes or matching parse diagnostics for each
+production file. It rejects missing artifacts, zero inspected files, duplicate paths,
+and inconsistent scope.
 Production enforcement locations for `supported` requirements must belong to this
 validated scope; a graph of unrelated files cannot support the assessment.
 Any retained parse diagnostics force a global gap, even when the listed production
@@ -53,6 +54,18 @@ worker. Copy the complete record into the ledger: preserve its verdict, rational
 assumptions, findings, and all native checks, including failures. Reporting cannot
 replace a failed check with another passing one or change the applicability decision.
 If evidence needs reassessment, retain the gap and start a new assessment.
+
+After graph/inventory setup and before assessments, run `requirements.py freeze
+--root <target> --run <run>` once. It writes `source-snapshot.json` without overwriting
+an existing snapshot. The file list and hashes cover the target tree, including
+ignored/untracked inputs, and the retained graph/inventory artifacts. It excludes
+the run, `.trailmark/`, Duvet reports/citation sidecars, Git metadata, Python bytecode
+caches, and pytest caches. Keep production/build inputs out of these artifact roots;
+put generated build outputs elsewhere and new assurance tests/logs inside the run.
+Unreadable directories and directory symlinks invalidate capture; use a self-contained
+target tree instead of silently omitting those inputs.
+The finalizer rejects added, removed, or modified files before and after Duvet.
+
 Immediately after executing checks, run:
 
 ```bash
@@ -60,9 +73,10 @@ uv run --no-project "{baseDir}/scripts/requirements.py" seal \
   --root <target> --run <run> --record <run>/requirements/<id>.json
 ```
 
-The helper adds `files_sha256` for enforcement/check locations, executed logs, all
-inspected files, local specifications, graph artifacts, and Duvet configuration.
-List additional build configurations and dependency inputs in `inputs`. Retain
+The helper binds the shared source snapshot with `snapshot_sha256` and adds
+`files_sha256` for that requirement's enforcement/check locations, executed logs,
+and additional dependency inputs listed in `inputs`. Shared project hashes stay
+in one manifest instead of being copied into every record and ledger entry. Retain
 distinct logs for each execution; overwriting a passing log invalidates its record.
 Keep sealed source unchanged and add new citations only in configured sidecars.
 If sources change, reassess affected requirements rather than updating their hashes.
@@ -168,16 +182,24 @@ the inventory in a shell argument. The `finalize` command reads the baseline, in
 and successful workers' records. It compares the original requirement IDs, enforces
 each failed worker's own `not_checked` verdict, reconciles completed workers with
 the ledger, validates graph artifacts and counts, and preserves setup limitations.
-Invalid ledgers are rejected before Duvet runs. The helper copies Duvet configuration
-with report paths redirected into a fresh `gate-native-*` directory, including the
-candidate snapshot. It runs Duvet and checks the ledger and sealed contents again.
+Both `baseline` and `finalize` copy Duvet configuration to isolate report writes.
+Finalization rejects invalid ledgers before running Duvet. Report paths, including
+the candidate snapshot, point into a fresh `gate-native-*` directory. After Duvet,
+the helper checks the ledger and sealed contents again.
 A failure cannot reuse an old report or alter the project's accepted snapshot.
 The gate links JSON, HTML, log, snapshot, and graph artifacts and records the native
 exit code and source counts. Add these links to the report. Review a candidate
 snapshot before intentionally adopting it.
+Failed native attempts also retain artifact paths, logs, and `execution.json`;
+`duvet_exit_code` is null when the process could not start.
 
-For direct assessments, the helper's `check` command gates existing baseline/final
-reports; capture the Duvet process exit separately. Retain `gate.json` even on a nonzero exit.
+Without a workflow runtime, prepare the same validation request from the retained
+setup and worker outputs: `schema_version` 1, absolute `root` and `run`, original
+`specifications` and requirement IDs in `requirements`, `failed_requirements`,
+`assessments` mapping completed IDs to their original record digests, setup
+`limitations`, and `production_source_files`. Run `finalize` for every assessment;
+existing reports alone cannot validate the current source tree.
+Retain `gate.json` even on a nonzero exit.
 Exit 1 (`gaps`) is a useful completed assessment with unresolved obligations; exit
 2 (`invalid`) means the artifacts cannot support even that accounting. Do not
 describe either as compliant. An entirely inapplicable inventory cannot establish

@@ -1,7 +1,7 @@
 export const meta = {
   name: 'specification-assurance-run',
   description: 'Set up Duvet and Trailmark, assess specification obligations against implementation evidence, and retain an assurance ledger',
-  whenToUse: 'For Duvet-backed specification conformance or connecting formal results to production code. Pass a JSON object with target (default .), specifications (required array of paths or URLs), and optional skill_dir. Save the returned validation_request to validation_request_path, then execute validation_command in the calling session.',
+  whenToUse: 'For Duvet-backed specification conformance or connecting formal results to production code. Pass a JSON object with target (default .), specifications (required array of pinned local paths), and optional skill_dir. Save the returned validation_request to validation_request_path, then execute validation_command in the calling session.',
   phases: [
     { title: 'Setup', detail: 'Install/reuse tools, configure Duvet, retain baseline and graph inventory' },
     { title: 'Assess', detail: 'Assess each requirement with source, executable checks, and applicable formal evidence' },
@@ -20,7 +20,9 @@ if (!object(input) || Object.keys(input).some((key) => !['target', 'specificatio
   fail('Expected target, specifications, and optional skill_dir.')
 const target = input.target ?? '.'
 if (!text(target) || !Array.isArray(input.specifications) || !input.specifications.length || input.specifications.some((s) => !text(s)))
-  fail('target must be a nonempty path and specifications a nonempty array of paths or URLs.')
+  fail('target must be a nonempty path and specifications a nonempty array of local paths.')
+if (input.specifications.some((s) => s.includes('://')))
+  fail('Save remote specifications as pinned local files before invoking the workflow.')
 if (input.skill_dir !== undefined && (!text(input.skill_dir) || !input.skill_dir.startsWith('/')))
   fail('skill_dir must be an absolute path.')
 
@@ -73,7 +75,7 @@ const requirementSchema = {
 }
 const setup = await invoke('setup', `${policy}
 Read references/duvet.md, references/formal-evidence.md, and references/reporting.md in that skill.
-Specifications requested (paths relative to target, or URLs): ${data(input.specifications)}.
+Specifications requested (pinned local paths relative to target): ${data(input.specifications)}.
 Create the run directory. Identify and retain immutable specification revisions/hashes, target
 revision/dirty state, selected profile, and tool versions/origins. Include obligations without
 RFC keywords through explicit requirement entries. Install missing Duvet and Trailmark as documented.
@@ -81,15 +83,18 @@ Inspect installed help/capabilities; new formal parsers target 0.9.0 and may be 
 Inventory formal extensions independently; never silently omit unsupported sources or fetch unmerged PRs.
 Initialize/merge .duvet/config.toml with production, tests, formal sources, the documented
 .duvet/assurance-citations/**/*.txt sidecar pattern and comment markers,
-all requested specifications, and HTML/snapshot reporting. Preserve existing snapshot before any write.
-Capture unannotated baseline using duvet report --json ${sh(`${RUN}/duvet-before.json`)} --html ${sh(`${RUN}/duvet-before.html`)} --require-citations true --require-tests true --ci false.
+all requested specifications, and HTML/snapshot reporting. Preserve accepted project reports/snapshot.
+Capture baseline using ${helper} baseline --root ${sh(ROOT)} --run ${sh(RUN)} --output ${sh(`${RUN}/baseline.json`)}.
 Preserve the log/exit status. Run ${helper} inventory --root ${sh(ROOT)} ${specFlags} --report ${sh(`${RUN}/duvet-before.json`)} --output ${sh(`${RUN}/inventory.json`)}.
 Build the implementation graph, run preanalysis, and save the native export as graph.json,
 engine.source_policy() as source-policy.json, and engine.parse_diagnostics() as diagnostics.json.
 Write graph-scope.json with a production_files array listing the exact inspected production paths.
 Retain unresolved edges and focused queries. Reconcile all implementation/formal roots with effective
 scope. source_files is the production_files length, not the total including tests/models; the native
-finalizer checks both counts, actual files, and parsed production nodes from retained graph evidence.
+finalizer checks both counts, actual files, and parsed nodes or matching parse diagnostics.
+After inventory and graph setup, run ${helper} freeze --root ${sh(ROOT)} --run ${sh(RUN)} once to
+create source-snapshot.json. It freezes file names and contents, including untracked and ignored inputs.
+Keep build outputs outside the frozen tree, and put new assurance tests/logs inside the run directory.
 Do not add implementation/test citations yet. Return requirements copied from inventory.json,
 actual production source_files count, limitations, and status ready or failed with reason.
 Zero requirements, zero inspected production files, failed native Duvet, or failed helper inventory
@@ -125,7 +130,7 @@ Assess this complete original requirement, including every conditional clause an
 ${data(requirement)}
 Use the existing graph and focused queries to locate production enforcement, alternate callers,
 state updates, tests, and proof/model dependencies; then read that source. Preserve graph gaps.
-Run relevant existing checks and add focused assurance tests in new files when needed within scope.
+Run relevant existing checks and add focused assurance tests under the run directory when needed.
 Do not edit earlier sealed sources or overwrite earlier logs; use per-requirement log paths. Reuse logs
 only for the same source/build snapshot and exact property. Record boundary, rejection, side-effect,
 and independent known-answer evidence where relevant. Missing assertions are gaps even if tests pass.

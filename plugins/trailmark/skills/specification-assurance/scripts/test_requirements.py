@@ -170,6 +170,17 @@ def test_requested_documents_must_be_present_even_when_other_documents_extract(a
         requirements.inventory(before, ["spec.md", "missing.md"], root)
 
 
+def test_remote_specifications_require_a_local_snapshot(artifacts):
+    root, report, before, after, _, _ = artifacts
+    with pytest.raises(ValueError, match="Pin remote specifications"):
+        requirements.inventory(before, ["https://example.com/spec.md"], root)
+    report["specifications"]["https://example.com/spec.md"] = report["specifications"].pop(
+        "spec.md"
+    )
+    with pytest.raises(ValueError, match="Pin remote specifications"):
+        requirements.inventory(write_json(after, report))
+
+
 @pytest.mark.parametrize("count", ["39", -1, True, [], None])
 def test_malformed_status_cannot_become_truthy_citation_evidence(artifacts, count):
     _, report, _, after, _, _ = artifacts
@@ -366,32 +377,13 @@ def test_model_only_enforcement_is_not_production(artifacts):
     assert not gate(artifacts)["valid"]
 
 
-def test_cli_preserves_gap_and_invalid_results(artifacts):
-    root, _, before, after, _, ledger_path = artifacts
-    output = root / "gate.json"
-    argv = [
-        sys.executable,
-        str(SCRIPT),
-        "check",
-        "--specification=spec.md",
-        "--baseline",
-        str(before),
-        "--report",
-        str(after),
-        "--ledger",
-        str(ledger_path),
-        "--root",
-        str(root),
-        "--output",
-        str(output),
-    ]
-    completed = subprocess.run(argv, capture_output=True, text=True, check=False)
-    assert completed.returncode == 1
-    assert json.loads(output.read_text())["status"] == "gaps"
-    ledger_path.unlink()
-    completed = subprocess.run(argv, capture_output=True, text=True, check=False)
-    assert completed.returncode == 2
-    assert json.loads(output.read_text())["status"] == "invalid"
+def test_cli_preserves_gap_and_invalid_results(finalizer):
+    _, run, _, _, _ = finalizer
+    code, result = run_finalizer(finalizer)
+    assert code == 1 and result["status"] == "gaps"
+    (run / "ledger.json").unlink()
+    code, result = run_finalizer(finalizer)
+    assert code == 2 and result["status"] == "invalid"
 
 
 @pytest.fixture
@@ -438,7 +430,8 @@ def finalizer(artifacts):
         write_json(run / "requirements" / f"{record['id']}.json", record)
     # A deterministic native-tool fixture lets these tests observe real process
     # exits, missing writes, and stale artifacts without downloading Duvet in CI.
-    duvet = root / "duvet fixture"
+    after = after.rename(run / "final-source.json")
+    duvet = root.parent / f"duvet fixture-{root.name}"
     duvet.write_text(
         f"#!{sys.executable}\n"
         "import pathlib, sys, tomllib\n"
@@ -477,6 +470,7 @@ def finalizer(artifacts):
         },
     )
     fixture = root, run, duvet, argv, ledger
+    requirements.freeze_snapshot(root, run)
     for record in ledger["requirements"]:
         save_fixture_assessment(fixture, record)
     write_json(run / "ledger.json", ledger)
@@ -500,6 +494,146 @@ def run_finalizer(finalizer, extra=()):
     result = json.loads((run / "gate.json").read_text())
     assert json.loads(completed.stdout) == result
     return completed.returncode, result
+
+
+def refresh_fixture_snapshot(finalizer):
+    root, run, _, _, ledger = finalizer
+    (run / "source-snapshot.json").unlink()
+    requirements.freeze_snapshot(root, run)
+    for record in ledger["requirements"]:
+        save_fixture_assessment(finalizer, record)
+    write_json(run / "ledger.json", ledger)
+
+
+@pytest.mark.parametrize("name", ["alternate.py", "ignored/alternate.py", "build.toml"])
+def test_added_production_or_build_inputs_invalidate_sealed_scope(finalizer, name):
+    root, run, _, _, _ = finalizer
+    (root / ".gitignore").write_text("ignored/\n")
+    refresh_fixture_snapshot(finalizer)
+    path = root / name
+    path.parent.mkdir(exist_ok=True)
+    path.write_text("# new alternate entry point or build input\n")
+    code, result = run_finalizer(finalizer)
+    assert code == 2
+    assert any("Target snapshot changed" in error for error in result["errors"])
+    assert not list(run.glob("gate-native-*"))
+
+
+def test_workers_share_one_snapshot_without_duplicating_project_hashes(finalizer):
+    root, run, _, _, ledger = finalizer
+    snapshot = requirements.read_json(run / "source-snapshot.json")
+    assert ".duvet/config.toml" in snapshot
+    digests = {record["snapshot_sha256"] for record in ledger["requirements"]}
+    assert len(digests) == 1
+    assert all(
+        ".duvet/config.toml" not in record["files_sha256"] for record in ledger["requirements"]
+    )
+    with pytest.raises(FileExistsError):
+        requirements.freeze_snapshot(root, run)
+
+
+def test_pinned_specifications_inside_run_still_bind_full_text(finalizer):
+    root, run, _, _, _ = finalizer
+    pinned = run / "pinned-spec.md"
+    pinned.write_text(
+        "Definition: packets include the header.\nA packet MUST contain at most 16 bytes.\n"
+    )
+    inventory = requirements.read_json(run / "inventory.json")
+    inventory["requirements"][0]["specification"] = str(pinned.relative_to(root))
+    write_json(run / "inventory.json", inventory)
+    frozen = requirements.snapshot_files(root, run)
+    assert str(pinned.relative_to(root)) in frozen
+    pinned.write_text(pinned.read_text().replace("include", "exclude"))
+    assert requirements.snapshot_files(root, run) != frozen
+
+
+def test_added_directory_symlink_cannot_bypass_file_list_seal(finalizer):
+    root, run, _, _, _ = finalizer
+    (root / "alternate").symlink_to(root, target_is_directory=True)
+    code, result = run_finalizer(finalizer)
+    assert code == 2
+    assert any("Directory symlinks cannot be frozen" in error for error in result["errors"])
+    assert not list(run.glob("gate-native-*"))
+
+
+def test_source_walk_errors_cannot_silently_omit_a_subtree(finalizer, monkeypatch):
+    def failed_walk(root, *, followlinks, onerror):
+        onerror(PermissionError("unreadable production directory"))
+        return []
+
+    monkeypatch.setattr(requirements.os, "walk", failed_walk)
+    with pytest.raises(PermissionError, match="unreadable production"):
+        requirements.snapshot_files(finalizer[0], finalizer[1])
+
+
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_baseline_never_changes_accepted_snapshot_even_on_failure(finalizer, exit_code):
+    root, run, duvet, _, _ = finalizer
+    duvet.write_text(duvet.read_text() + f"raise SystemExit({exit_code})\n")
+    output = run / "baseline.json"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "baseline",
+            "--root",
+            str(root),
+            "--run",
+            str(run),
+            "--duvet",
+            str(duvet),
+            "--output",
+            str(output),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    result = requirements.read_json(output)
+    assert completed.returncode == (0 if exit_code == 0 else 2)
+    assert result["duvet_exit_code"] == exit_code
+    assert Path(result["duvet_snapshot"]).is_relative_to(run)
+    assert (root / ".duvet/snapshot.txt").read_text() == "accepted snapshot\n"
+
+
+@pytest.mark.parametrize("launch_failure", [False, True])
+def test_native_failures_retain_exit_status_and_artifact_paths(finalizer, launch_failure):
+    _, run, duvet, argv, _ = finalizer
+    if launch_failure:
+        argv[argv.index("--duvet") + 1] = str(duvet) + "-absent"
+    else:
+        duvet.write_text(duvet.read_text() + "raise SystemExit(7)\n")
+    code, result = run_finalizer(finalizer)
+    assert code == 2
+    assert result["duvet_exit_code"] == (None if launch_failure else 7)
+    execution = requirements.read_json(Path(result["duvet_execution"]))
+    assert execution["exit_code"] == result["duvet_exit_code"]
+    assert execution["error"]
+    assert Path(result["duvet_log"]).stat().st_size
+    for field in ("duvet_report", "duvet_html", "duvet_snapshot"):
+        assert Path(result[field]).is_relative_to(run)
+        assert Path(result[field]).is_file() == (not launch_failure)
+
+
+@pytest.mark.parametrize("no_nodes", [False, True])
+def test_diagnosed_production_parse_failures_remain_completed_gaps(finalizer, no_nodes):
+    root, run, _, _, _ = finalizer
+    graph = requirements.read_json(run / "graph.json")
+    diagnostics = [
+        {
+            "location": {"file_path": str(root / "packet.py")},
+            "kind": "parse_error",
+            "message": "unsupported production syntax",
+        }
+    ]
+    graph["nodes"] = {} if no_nodes else {"tests": graph["nodes"]["test_packet.py"]}
+    graph["summary"]["parse_diagnostics"] = diagnostics
+    write_json(run / "graph.json", graph)
+    write_json(run / "diagnostics.json", diagnostics)
+    refresh_fixture_snapshot(finalizer)
+    code, result = run_finalizer(finalizer)
+    assert code == 1 and result["valid"] and result["status"] == "gaps"
+    assert any("parse diagnostics" in item for item in result["limitations"])
 
 
 def test_finalizer_executes_native_process_and_checks_actual_files(finalizer):
@@ -559,10 +693,10 @@ def test_invalid_ledger_cannot_run_duvet_or_write_a_snapshot(finalizer, mutation
 
 def test_final_traceability_rejection_keeps_candidate_snapshot_inside_run(finalizer):
     root, run, _, _, _ = finalizer
-    report = requirements.read_json(root / "after.json")
+    report = requirements.read_json(run / "final-source.json")
     report["specifications"]["spec.md"]["sections"][0]["lines"][0][0][0] = [0]
     report["statuses"]["0"] = {"spec": 39, "incomplete": 39}
-    write_json(root / "after.json", report)
+    write_json(run / "final-source.json", report)
     code, result = run_finalizer(finalizer)
     assert code == 2
     assert any("complete Duvet implementation traceability" in error for error in result["errors"])
@@ -588,6 +722,8 @@ def test_retained_parse_diagnostics_force_a_gap(finalizer):
     graph["summary"]["parse_diagnostics"] = diagnostics
     write_json(run / "graph.json", graph)
     write_json(run / "diagnostics.json", diagnostics)
+    (run / "source-snapshot.json").unlink()
+    requirements.freeze_snapshot(finalizer[0], run)
     ledger["requirements"][1]["verdict"] = "not_applicable"
     for record in ledger["requirements"]:
         save_fixture_assessment(finalizer, record)
@@ -621,6 +757,7 @@ def test_finalizer_can_issue_supported_only_after_native_artifacts_pass(finalize
         "source-policy.json",
         "diagnostics.json",
         "graph-scope.json",
+        "source-snapshot.json",
     ],
 )
 def test_finalizer_rejects_missing_artifacts_despite_a_plausible_old_gate(finalizer, artifact):
@@ -688,7 +825,8 @@ def test_report_cannot_rewrite_a_retained_failed_assessment(finalizer, mutation)
     record = ledger["requirements"][0]
     record.update(verdict="violated", severity="high", consequence="Oversized input mutates state.")
     record["checks"][0].update(result="fail", exit_code=1, log="failed.log")
-    (root / "failed.log").write_text("state preservation assertion FAILED\n")
+    record["checks"][0]["log"] = str((run / "failed.log").relative_to(root))
+    (run / "failed.log").write_text("state preservation assertion FAILED\n")
     save_fixture_assessment(finalizer, record)
     other = ledger["requirements"][1]
     other.update(
@@ -720,7 +858,8 @@ def test_retained_native_failures_remain_a_valid_gap(finalizer):
     record = ledger["requirements"][0]
     record.update(verdict="violated", severity="high", consequence="Oversized input mutates state.")
     record["checks"][0].update(result="fail", exit_code=1, log="failed.log")
-    (root / "failed.log").write_text("state preservation assertion FAILED\n")
+    record["checks"][0]["log"] = str((run / "failed.log").relative_to(root))
+    (run / "failed.log").write_text("state preservation assertion FAILED\n")
     save_fixture_assessment(finalizer, record)
     write_json(run / "ledger.json", ledger)
     code, result = run_finalizer(finalizer)
@@ -818,6 +957,8 @@ def test_graph_evidence_accepts_native_merged_source_policy(finalizer):
     }
     write_json(run / "graph.json", graph)
     write_json(run / "source-policy.json", graph["source_policy"])
+    (run / "source-snapshot.json").unlink()
+    requirements.freeze_snapshot(finalizer[0], run)
     for record in ledger["requirements"]:
         save_fixture_assessment(finalizer, record)
     write_json(run / "ledger.json", ledger)
@@ -848,30 +989,26 @@ def test_inventory_and_check_resolve_specifications_against_target_root(artifact
     for record, item in zip(ledger["requirements"], requirements.inventory(before), strict=True):
         record["id"] = item["id"]
     write_json(ledger_path, ledger)
-    for command, flags, expected in [
-        ("inventory", ["--report", str(before)], 0),
-        (
-            "check",
-            ["--baseline", str(before), "--report", str(after), "--ledger", str(ledger_path)],
-            1,
-        ),
-    ]:
-        output = root / f"{command}-root.json"
-        completed = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                command,
-                "--root",
-                str(root),
-                "--specification=spec.md",
-                "--output",
-                str(output),
-                *flags,
-            ],
-            cwd=root.parent,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        assert completed.returncode == expected, completed.stdout + completed.stderr
+    assert (
+        requirements.check_ledger(before, after, ledger_path, root, ["spec.md"])["status"] == "gaps"
+    )
+    output = root / "inventory-root.json"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "inventory",
+            "--root",
+            str(root),
+            "--specification=spec.md",
+            "--report",
+            str(before),
+            "--output",
+            str(output),
+        ],
+        cwd=root.parent,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr

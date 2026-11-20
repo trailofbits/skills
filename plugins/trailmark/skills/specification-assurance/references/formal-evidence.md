@@ -55,7 +55,7 @@ Replace the example production list with the target's inspected production paths
 The native summary includes tests and models; the workflow's `source_files` count
 and the validation request's `production_source_files` count only this production list.
 The finalizer reconciles the native graph, source policy, diagnostics, inspected
-paths, and parsed production nodes. A positive count in an agent response cannot
+paths, and parsed production nodes or matching parse diagnostics. A positive count cannot
 replace these artifacts.
 
 Inventory formal extensions independently of `detect_languages()` and reconcile

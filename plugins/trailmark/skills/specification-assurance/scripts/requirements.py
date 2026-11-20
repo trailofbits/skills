@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -37,6 +38,11 @@ DIVERGENCES = {"partial", "violated", "missing"}
 
 def read_json(path: Path) -> Any:
     return json.loads(path.read_text())
+
+
+def file_sha256(path: Path) -> str:
+    with path.open("rb") as source:
+        return hashlib.file_digest(source, "sha256").hexdigest()
 
 
 def nonempty(value: Any) -> bool:
@@ -90,6 +96,8 @@ def inventory(
     report = read_json(path)
     if not isinstance(report, dict) or not isinstance(report.get("specifications"), dict):
         raise ValueError("Expected Duvet legacy JSON from --json, not --json-v2")
+    if any("://" in value for value in [*(specifications or []), *report["specifications"]]):
+        raise ValueError("Pin remote specifications to local files before assessment")
     annotations = report.get("annotations")
     if not isinstance(annotations, list) or not isinstance(report.get("statuses"), dict):
         raise ValueError("Missing Duvet annotations or statuses")
@@ -212,7 +220,7 @@ def verify_files(root: Path, record: dict[str, Any], required: set[str], cache: 
     for name, expected in hashes.items():
         path = local_file(root, name)
         if path not in cache:
-            cache[path] = hashlib.sha256(path.read_bytes()).hexdigest()
+            cache[path] = file_sha256(path)
         if cache[path] != expected:
             raise ValueError(f"Evidence file changed since assessment: {name}")
 
@@ -373,7 +381,7 @@ def graph_evidence(
         not isinstance(graph, dict)
         or graph.get("schema_version") != 1
         or not isinstance(graph.get("nodes"), dict)
-        or not graph["nodes"]
+        or (not graph["nodes"] and not diagnostics)
         or not isinstance(graph.get("summary"), dict)
     ):
         raise ValueError("Missing or empty native Trailmark graph")
@@ -429,7 +437,14 @@ def graph_evidence(
             if not isinstance(anchor, dict):
                 raise ValueError("Graph source node has no source location")
             parsed.add(local_file(root, anchor.get("file_path")))
-    if not set(production) <= parsed:
+    diagnosed = {
+        local_file(root, item["location"]["file_path"])
+        for item in diagnostics
+        if isinstance(item, dict)
+        and isinstance(item.get("location"), dict)
+        and nonempty(item["location"].get("file_path"))
+    }
+    if not set(production) <= parsed | diagnosed:
         raise ValueError("Production scope has no parsed source nodes in the retained graph")
     return (
         {
@@ -445,53 +460,91 @@ def graph_evidence(
     )
 
 
-def assessment_inputs(root: Path, run: Path, selected: set[Path]) -> set[str]:
-    """Bind the inspected snapshot and configuration, as well as cited evidence."""
-    paths = (
-        selected
-        | {root / ".duvet/config.toml"}
-        | {
-            run / name
-            for name in (
-                "graph.json",
-                "source-policy.json",
-                "diagnostics.json",
-                "graph-scope.json",
-                "duvet-before.json",
-                "inventory.json",
+def snapshot_files(root: Path, run: Path) -> dict[str, str]:
+    """Capture names and contents, including untracked and ignored build inputs."""
+
+    def traversal_error(error: OSError) -> None:
+        raise error
+
+    excluded = {
+        root / ".trailmark",
+        root / ".duvet/reports",
+        root / ".duvet/assurance-citations",
+        run,
+    }
+    paths = set()
+    for directory, directories, files in os.walk(root, followlinks=False, onerror=traversal_error):
+        parent = Path(directory)
+        directories[:] = [
+            name
+            for name in directories
+            if name not in {".git", "__pycache__", ".pytest_cache"}
+            and parent / name not in excluded
+        ]
+        if any((parent / name).is_symlink() for name in directories):
+            raise ValueError(
+                "Directory symlinks cannot be frozen; use a self-contained target tree"
             )
-        }
+        paths.update(parent / name for name in files)
+    paths.update(
+        run / name
+        for name in (
+            "graph.json",
+            "source-policy.json",
+            "diagnostics.json",
+            "graph-scope.json",
+            "duvet-before.json",
+            "inventory.json",
+        )
     )
     paths.update(
         local_file(root, item["specification"])
         for item in read_json(run / "inventory.json")["requirements"]
-        if "://" not in item["specification"]
     )
-    return {str(path.relative_to(root)) for path in paths}
+    if not paths:
+        raise ValueError("Source snapshot inspected zero files")
+    return {
+        str(path.relative_to(root)): file_sha256(local_file(root, str(path)))
+        for path in sorted(paths)
+    }
+
+
+def freeze_snapshot(root: Path, run: Path) -> dict[str, str]:
+    scope = read_json(run / "graph-scope.json")["production_files"]
+    graph_evidence(run, root, len(scope))
+    path = run / "source-snapshot.json"
+    with path.open("x") as output:
+        json.dump(snapshot_files(root, run), output, indent=2)
+        output.write("\n")
+    return {"snapshot_sha256": file_sha256(path)}
 
 
 def seal_record(root: Path, run: Path, path: Path) -> dict[str, str]:
-    scope = read_json(run / "graph-scope.json")["production_files"]
-    _, _, selected = graph_evidence(run, root, len(scope))
     record = read_json(path)
+    snapshot = run / "source-snapshot.json"
+    frozen = read_json(snapshot)
+    record["snapshot_sha256"] = file_sha256(snapshot)
     record["files_sha256"] = {
-        name: hashlib.sha256(local_file(root, name).read_bytes()).hexdigest()
-        for name in sorted(evidence_files(record) | assessment_inputs(root, run, selected))
+        name: file_sha256(local_file(root, name)) for name in sorted(evidence_files(record))
     }
+    for name, digest in record["files_sha256"].items():
+        key = str(local_file(root, name).relative_to(root))
+        if key in frozen and frozen[key] != digest:
+            raise ValueError(f"Evidence file changed since assessment snapshot: {name}")
     path.write_text(json.dumps(record, indent=2) + "\n")
     return {
         "id": record["id"],
         "record_path": str(path),
-        "record_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "record_sha256": file_sha256(path),
     }
 
 
 def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     """Run the native artifact gate in the caller's process, outside the workflow VM."""
     run = args.run.resolve(strict=True)
-    if not run.is_dir() or not run.is_relative_to(root):
+    if not run.is_dir() or not run.is_relative_to(root) or run == root:
         raise ValueError("Run directory must exist inside the target root")
-    graph, production, selected = graph_evidence(run, root, args.production_source_files)
+    graph, production, _ = graph_evidence(run, root, args.production_source_files)
     for name in ("report.md", "inventory.json", "duvet-before.json", "ledger.json"):
         path = local_file(root, str(run / name))
         if not path.stat().st_size:
@@ -532,15 +585,20 @@ def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
             args.limitation,
             traceability=traceability,
         )
-        cache = {}
-        required = assessment_inputs(root, run, selected)
+        snapshot = local_file(root, str(run / "source-snapshot.json"))
+        snapshot_digest = file_sha256(snapshot)
+        if read_json(snapshot) != snapshot_files(root, run):
+            raise ValueError(
+                "Target snapshot changed since assessment: added, removed, or modified files"
+            )
         for record in read_json(run / "ledger.json")["requirements"]:
             if record["id"] in workers:
                 worker = workers[record["id"]]
                 path = run / "requirements" / f"{record['id']}.json"
-                if hashlib.sha256(path.read_bytes()).hexdigest() != seals[record["id"]]:
+                if file_sha256(path) != seals[record["id"]]:
                     raise ValueError(f"Retained worker assessment changed: {record['id']}")
-                verify_files(root, worker, required, cache)
+                if worker.get("snapshot_sha256") != snapshot_digest:
+                    raise ValueError("Worker source snapshot binding is missing or changed")
                 if record != worker:
                     result["errors"].append(
                         f"Ledger changed retained worker assessment {record['id']}; "
@@ -571,19 +629,31 @@ def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     result = preflight(run / "duvet-before.json", traceability=False)
     if not result["valid"]:
         return result
-    # A fresh directory prevents either a failed command or a no-op from reusing
-    # an old native report. Redirect snapshots too, including on a rejected gate.
     native = Path(tempfile.mkdtemp(prefix="gate-native-", dir=run))
-    report = native / "duvet-after.json"
-    html = native / "duvet-after.html"
+    attempt = native_report(
+        root, native, native / "duvet-after.json", native / "duvet-after.html", args.duvet
+    )
+    if attempt["valid"]:
+        try:
+            result = preflight(Path(attempt["duvet_report"]), traceability=True)
+        except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+            result.update(valid=False, status="invalid")
+            result["errors"].append(str(error))
+    else:
+        result.update(valid=False, status="invalid")
+        result["errors"].extend(attempt["errors"])
+    result.update({key: value for key, value in attempt.items() if key.startswith("duvet_")})
+    return result
+
+
+def native_report(root: Path, native: Path, report: Path, html: Path, duvet: str) -> dict[str, Any]:
+    """Isolate every report write and preserve metadata even when launch fails."""
     snapshot = native / "snapshot.txt"
-    config = tomllib.loads((root / ".duvet/config.toml").read_text())
-    for name, path in (("json", report), ("html", html), ("snapshot", snapshot)):
-        config.setdefault("report", {}).setdefault(name, {}).update(enabled=True, path=str(path))
     config_path = native / "config.toml"
-    config_path.write_text(tomli_w.dumps(config))
+    log_path = native / "duvet.log"
+    execution_path = native / "execution.json"
     command = [
-        args.duvet,
+        duvet,
         "report",
         "--config-path",
         str(config_path),
@@ -598,28 +668,41 @@ def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
         "--ci",
         "false",
     ]
-    with (native / "duvet.log").open("w") as log:
-        completed = subprocess.run(
-            command, cwd=root, stdout=log, stderr=subprocess.STDOUT, check=False
-        )
-    write_path = native / "execution.json"
-    write_path.write_text(
-        json.dumps({"command": command, "exit_code": completed.returncode}) + "\n"
-    )
-    if completed.returncode:
-        raise ValueError(f"Native Duvet exited {completed.returncode}; see {native / 'duvet.log'}")
-    for artifact in (report, html, snapshot):
-        if not local_file(root, str(artifact)).stat().st_size:
-            raise ValueError(f"Native Duvet artifact is empty: {artifact}")
-    result = preflight(report, traceability=True)
-    result.update(
-        duvet_report=str(report),
-        duvet_html=str(html),
-        duvet_log=str(native / "duvet.log"),
-        duvet_snapshot=str(snapshot),
-        duvet_exit_code=completed.returncode,
-        **graph,
-    )
+    execution = {"command": command, "exit_code": None}
+    result = {
+        "valid": True,
+        "status": "reported",
+        "errors": [],
+        "duvet_report": str(report),
+        "duvet_html": str(html),
+        "duvet_log": str(log_path),
+        "duvet_snapshot": str(snapshot),
+        "duvet_execution": str(execution_path),
+    }
+    try:
+        config = tomllib.loads((root / ".duvet/config.toml").read_text())
+        for name, path in (("json", report), ("html", html), ("snapshot", snapshot)):
+            config.setdefault("report", {}).setdefault(name, {}).update(
+                enabled=True, path=str(path)
+            )
+        config_path.write_text(tomli_w.dumps(config))
+        with log_path.open("w") as log:
+            completed = subprocess.run(
+                command, cwd=root, stdout=log, stderr=subprocess.STDOUT, check=False
+            )
+        execution["exit_code"] = completed.returncode
+        if completed.returncode:
+            raise ValueError(f"Native Duvet exited {completed.returncode}; see {log_path}")
+        for artifact in (report, html, snapshot):
+            if not local_file(root, str(artifact)).stat().st_size:
+                raise ValueError(f"Native Duvet artifact is empty: {artifact}")
+    except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+        execution["error"] = str(error)
+        result.update(valid=False, status="invalid", errors=[str(error)])
+        with log_path.open("a") as log:
+            log.write(f"{error}\n")
+    execution_path.write_text(json.dumps(execution, indent=2) + "\n")
+    result["duvet_exit_code"] = execution["exit_code"]
     return result
 
 
@@ -674,34 +757,52 @@ def main() -> int:
         default=Path.cwd(),
         help="Target root for specification paths (default: current directory)",
     )
-    validate = subparsers.add_parser("check")
-    validate.add_argument("--baseline", type=Path, required=True)
-    validate.add_argument("--report", type=Path, required=True)
-    validate.add_argument("--ledger", type=Path, required=True)
-    validate.add_argument("--root", type=Path, required=True)
     seal = subparsers.add_parser("seal", help="Bind a worker record to its evidence file contents")
     seal.add_argument("--root", type=Path, required=True)
     seal.add_argument("--run", type=Path, required=True)
     seal.add_argument("--record", type=Path, required=True)
+    freeze = subparsers.add_parser("freeze", help="Retain one source snapshot before assessment")
+    freeze.add_argument("--root", type=Path, required=True)
+    freeze.add_argument("--run", type=Path, required=True)
+    baseline = subparsers.add_parser(
+        "baseline", help="Generate baseline without changing project reports"
+    )
+    baseline.add_argument("--root", type=Path, required=True)
+    baseline.add_argument("--run", type=Path, required=True)
+    baseline.add_argument("--duvet", default="duvet")
+    baseline.add_argument("--output", type=Path, required=True)
     finish = subparsers.add_parser("finalize")
     finish.add_argument("--request", type=Path, required=True)
     finish.add_argument("--output", type=Path, required=True)
     finish.add_argument("--duvet", default="duvet", help="Duvet executable (no shell arguments)")
-    for command in (extract, validate):
-        command.add_argument(
-            "--specification",
-            action="append",
-            required=True,
-            help="Requested document path or URL; repeat for every document",
-        )
-        command.add_argument("--output", type=Path, required=True)
+    extract.add_argument(
+        "--specification",
+        action="append",
+        required=True,
+        help="Pinned local specification path; repeat for every document",
+    )
+    extract.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
         request = load_request(args.request) if args.command == "finalize" else args
         root = request.root.resolve(strict=True)
         if not root.is_dir():
             raise ValueError("Target root must be a directory")
-        if args.command == "seal":
+        if args.command in {"seal", "freeze", "baseline"}:
+            run = args.run.resolve(strict=True)
+            if not run.is_dir() or not run.is_relative_to(root) or run == root:
+                raise ValueError("Run directory must exist inside the target root")
+        if args.command == "freeze":
+            result = freeze_snapshot(root, run)
+            code = 0
+        elif args.command == "baseline":
+            native = run / "baseline-native"
+            native.mkdir()
+            result = native_report(
+                root, native, run / "duvet-before.json", run / "duvet-before.html", args.duvet
+            )
+            code = 0 if result["valid"] else 2
+        elif args.command == "seal":
             result = seal_record(
                 root, args.run.resolve(strict=True), args.record.resolve(strict=True)
             )
@@ -710,12 +811,8 @@ def main() -> int:
             result = {"requirements": inventory(args.report, args.specification, root)}
             code = 0
         else:
-            request.duvet = getattr(args, "duvet", "duvet")
-            result = (
-                finalize(request, root)
-                if args.command == "finalize"
-                else check_ledger(args.baseline, args.report, args.ledger, root, args.specification)
-            )
+            request.duvet = args.duvet
+            result = finalize(request, root)
             code = 2 if not result["valid"] else 1 if result["status"] == "gaps" else 0
     except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
         result = {
@@ -727,7 +824,7 @@ def main() -> int:
             "errors": [str(error)],
         }
         code = 2
-    if args.command != "seal":
+    if args.command not in {"seal", "freeze"}:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(result))
