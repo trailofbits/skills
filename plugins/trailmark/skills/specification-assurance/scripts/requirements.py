@@ -598,6 +598,9 @@ def freeze_snapshot(root: Path, run: Path) -> dict[str, str]:
 
 
 def seal_record(root: Path, run: Path, path: Path) -> dict[str, str]:
+    path = path.resolve(strict=True)
+    if not path.is_relative_to(run.resolve(strict=True)):
+        raise ValueError("Assessment record must remain inside the run")
     record = read_json(path)
     record["snapshot_sha256"] = (run / "source-snapshot.sha256").read_text().strip()
     record["files"] = {

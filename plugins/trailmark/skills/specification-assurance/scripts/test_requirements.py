@@ -731,6 +731,36 @@ def test_symlink_loops_replace_a_previous_successful_gate(finalizer, during_duve
         assert result["duvet_exit_code"] == 0
 
 
+@pytest.mark.parametrize("outside_target", [False, True])
+def test_sealing_cannot_rewrite_a_record_outside_the_run(finalizer, outside_target):
+    root, run, _, _, ledger = finalizer
+    parent = root.parent if outside_target else root
+    outside = parent / f"outside-record-{root.name}.json"
+    original = json.dumps(ledger["requirements"][0]).encode()
+    outside.write_bytes(original)
+    link = run / "redirected-record.json"
+    link.symlink_to(outside)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "seal",
+            "--root",
+            str(root),
+            "--run",
+            str(run),
+            "--record",
+            str(link),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 2
+    assert any("inside the run" in error for error in json.loads(completed.stdout)["errors"])
+    assert outside.read_bytes() == original
+
+
 def test_sealing_does_not_read_the_whole_shared_manifest(finalizer, monkeypatch):
     root, run, _, _, ledger = finalizer
     read_json = requirements.read_json

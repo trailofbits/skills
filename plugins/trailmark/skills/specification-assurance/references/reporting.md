@@ -88,8 +88,9 @@ uv run --no-project "{baseDir}/scripts/requirements.py" seal \
   --root <target> --run <run> --record <run>/requirements/<id>.json
 ```
 
-The helper reads `source-snapshot.sha256`, a small digest file written by freeze,
-and binds it as `snapshot_sha256`; each worker avoids reading the full manifest.
+The helper rejects record paths resolving outside the run before reading or rewriting
+them. It reads `source-snapshot.sha256`, a small digest file written by freeze, and
+binds it as `snapshot_sha256`; each worker avoids reading the full manifest.
 It adds a `files` map of SHA-256 hashes, permission modes, owner/group IDs, and link
 destinations for enforcement/check locations, executed logs, and additional dependency inputs
 listed in `inputs`. Shared project hashes stay
