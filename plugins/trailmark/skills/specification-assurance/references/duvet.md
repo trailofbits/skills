@@ -1,0 +1,187 @@
+# Duvet setup and annotation
+
+Use the installed CLI's help and the [official guide](https://awslabs.github.io/duvet/)
+for supported options. Install with `cargo install duvet --locked` when missing.
+If Cargo is unavailable, install a Rust toolchain using the project's normal
+bootstrap method and retry. Record the resolved Duvet package version and origin
+from `cargo install --list` or the project's lockfile; some builds have no
+`duvet --version`. Do not replace a working installation unnecessarily.
+
+## Configuration
+
+Run from the implementation root. For a new Python project, for example:
+
+```bash
+duvet init --lang-python --specification spec/protocol.md
+```
+
+For existing projects, edit the configuration instead of expecting `init` to merge
+new specifications into an existing file. Its default language patterns are only
+a starting point; Python's default `src/**/*.py` does not include `tests/`.
+
+```toml
+'$schema' = "https://awslabs.github.io/duvet/config/v0.4.0.json"
+
+[[source]]
+pattern = "src/**/*.py"
+comment-style = { meta = "##=", content = "##%" }
+
+[[source]]
+pattern = "tests/**/*.py"
+type = "test"
+comment-style = { meta = "##=", content = "##%" }
+
+[[source]]
+pattern = ".duvet/assurance-citations/**/*.txt"
+comment-style = { meta = "//=", content = "//#" }
+
+[[specification]]
+source = "spec/protocol.md"
+format = "markdown"
+
+[report.html]
+enabled = true
+path = ".duvet/reports/report.html"
+
+[report.snapshot]
+enabled = true
+path = ".duvet/snapshot.txt"
+```
+
+Duvet supports Markdown and IETF specifications. This skill requires local copies:
+download remote documents before assessment and retain their original URLs, revisions,
+hashes, errata, and chosen protocol profile. Configure Duvet with the local paths so
+the source snapshot binds the full specification text, including definitions.
+For PDF/HTML-only specifications, preserve the original and a faithful text
+transcription with section/page provenance. Do not silently rewrite its normative
+meaning to suit extraction. Register obligations without RFC keywords explicitly
+using a requirement TOML file:
+
+```toml
+[[spec]]
+target = "spec/protocol.md#rejection"
+level = "MUST"
+quote = "Rejection leaves the state unchanged."
+```
+
+The default requirement roots include `.duvet/requirements/**/*.toml`,
+`.duvet/todos/**/*.toml`, and `.duvet/exceptions/**/*.toml`. Add a `[[requirement]]`
+pattern for files elsewhere. Read Duvet's extracted requirement files against the
+scoped document: lowercase obligations, tables, formulas, and conditional clauses
+can need explicit registration. Keep the original quote and record any subordinate
+obligations in the ledger rationale.
+
+## Comment styles
+
+Use explicit source patterns and markers for formal sources. The configuration
+below handles a ProVerif directory even on Duvet versions without
+`init --lang-proverif`. Add a separate `**/*.pvl` pattern if libraries are in scope.
+
+```toml
+[[source]]
+pattern = "formal/**/*.pv"
+comment-style = { meta = "*=", content = "*#" }
+```
+
+```text
+(*
+ *= spec/protocol.md#authentication
+ *# A receiver MUST authenticate a message before accepting it.
+*)
+```
+
+Keep delimiters on their own lines so closing comment syntax cannot contaminate
+the quoted requirement. The same block interior works for Rocq (`.v`), F* (`.fst`,
+`.fsti`), and WhyML (`.mlw`, `.why`) inside their `(* ... *)` comments. Useful line
+markers for other languages:
+
+| Source | `meta` | `content` | Native comment form |
+| --- | --- | --- | --- |
+| Lean `.lean` | `--=` | `--#` | `--= spec/protocol.md#section` |
+| Dafny `.dfy`, Rust/Verus `.rs`, Tamarin `.spthy` | `//=` | `//#` | `//= spec/protocol.md#section` |
+| TLA+ `.tla` | `\\*=` | `\\*#` | `\*= spec/protocol.md#section` |
+
+The TLA+ cells show TOML basic-string escaping: use
+`comment-style = { meta = '\*=', content = '\*#' }` with TOML literal strings,
+or double the backslash inside basic strings. A custom marker configures Duvet's
+text scanner, not a Trailmark parser or verifier. Demonstrate that the annotation
+appears in the native report before relying on any custom style.
+
+## Honest annotations
+
+Keep existing inline annotations. For new citations, use the configured
+`.duvet/assurance-citations/` text sidecars so reporting cannot alter sealed code.
+Point each citation to the actual enforcement or assertion in the ledger and use
+the complete original quotation. For example, `length.txt` can contain:
+
+```text
+Enforcement: src/packet.py:3; ledger requirement 106a9a86e59d9600eb8f
+//= spec/protocol.md#length
+//# A packet MUST contain at most 16 bytes.
+
+Assertion: tests/test_packet.py:6; test_length_boundary accepts 16 and rejects 17
+//= spec/protocol.md#length
+//= type=test
+//# A packet MUST contain at most 16 bytes.
+```
+
+A formal declaration may be cited as
+an implementation of a **model** obligation; label that scope in the ledger. Use
+`type=test` for a checked formal obligation only when the native verifier actually
+checks that property, preserving the run and model-to-code binding. Do not add a
+fictional `type=proof`; Duvet has no such annotation type.
+
+`implication` counts as both implementation and test. Use it only for a property
+guaranteed by the relevant construction (including its actual compiler/checker),
+not for plausible logic. `exception` needs an existing justified waiver or an
+applicability decision; it cannot erase a mandatory defect. Use `todo` to retain
+an unimplemented obligation with its reason. Merge citations idempotently and keep
+preexisting exceptions visible.
+
+For a `supported` record, the gate requires a citation or implication over every
+byte of the original obligation. It uses the union of Duvet's annotated text spans:
+overlapping annotations cannot compensate for an uncited clause. Tests, exceptions,
+and TODOs do not supply implementation traceability. Complete traceability still
+needs the separate semantic and native evidence required by the ledger contract.
+
+## Native reports and CI
+
+Capture help/tool identity first. Retain a baseline before adding citations:
+
+```bash
+uv run --no-project "{baseDir}/scripts/requirements.py" baseline \
+  --root <target> --run <run> --output <run>/baseline.json
+```
+
+Save command output and exit status even on failure. The helper consumes the
+legacy JSON produced by `--json`, including on builds that also offer `--json-v2`.
+Do not feed v2 data to it or convert an unfamiliar format by guessing.
+
+The first isolated baseline primes Duvet's generated requirement files. Capture
+inputs with `begin`, then repeat `baseline` for the assessed revision before building
+the fresh graph. Each attempt uses a new directory; failed attempts cannot reuse old
+reports. `freeze` rejects input changes across this analysis window.
+
+`baseline` uses a copied configuration to write reports and a candidate snapshot
+inside the run, preserving accepted project outputs even on failure. After adding
+defensible sidecar annotations, the calling session's `finalize` command uses the
+same isolated runner in a fresh `gate-native-*` directory. Its `gate.json` links
+the artifacts even on native failure. Review the candidate before adopting it as
+the project snapshot. In subsequent CI runs:
+
+```bash
+duvet report --ci --require-citations true --require-tests true
+```
+
+A snapshot CI pass means the traceability snapshot matches, even if it already
+contains gaps. Pair it with the ledger checker for the assessed revision. Bind
+execution logs to their source snapshot. Keep sealed code and logs unchanged;
+rerun affected commands when behavior, assertions, or proof obligations
+change, or mark the evidence stale.
+Where supported, `duvet query` can correlate coverage artifacts; feature-probe it
+and keep line execution separate from the truth of assertions.
+
+Primary references: [annotations](https://awslabs.github.io/duvet/annotations.html),
+[configuration](https://awslabs.github.io/duvet/config.html),
+[reports](https://awslabs.github.io/duvet/reports.html), and
+[source](https://github.com/awslabs/duvet).

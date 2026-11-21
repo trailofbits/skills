@@ -1,6 +1,6 @@
 # trailmark
 
-**Source code graph analysis for security auditing.** Parses code into queryable graphs of functions, classes, and calls, then uses that structure for native taint analyzer modeling, diagram generation, mutation testing triage, protocol verification, and differential review.
+**Source code graph analysis for security auditing.** Parses code into queryable graphs of functions, classes, and calls, then uses that structure for native taint analyzer modeling, specification assurance, diagram generation, mutation testing triage, protocol verification, and differential review.
 
 The original graph skills support Trailmark 0.2.x through the 0.5.0 release line. Prefer
 `--language auto`, `trailmark.parse.detect_languages()` (0.3+), and
@@ -71,6 +71,7 @@ uv tool install trailmark
 | `trailmark-finding-triage` | Triage one finding, SARIF result, weAudit annotation, suspicious function, or report excerpt with reachability, taint, privilege-boundary, and blast-radius evidence; `scripts/evidence_packet.py` builds the evidence for several file/line findings from one graph |
 | `trailmark-variant-neighborhood` | Expand one seed issue into graph-derived variant candidates for variant-analysis, Semgrep, CodeQL, or manual review |
 | `taint-trace` | Repair native modeling and precision gaps using graph and source evidence, then run an existing taint analyzer |
+| `specification-assurance` | Set up Duvet and connect specification requirements to production enforcement, executed tests, and formal evidence using Trailmark graphs |
 | `trailmark-summary` | Quick structural overview (auto-detected languages, entry points, dependencies) for vivisect/galvanize |
 | `trailmark-structural` | Full structural analysis with all pre-analysis passes (blast radius, taint, privilege boundaries, complexity) |
 
@@ -118,6 +119,54 @@ analysis and independently probed precise modeling features. The native CI matri
 runs Psalm 5.26.1, 6.20.10, 7.0.0, and 7.1.0 on PHP 8.3. Trailmark 0.8.0 supplies
 PHP pipe invocation and partial-application reference support.
 
+## Specification Assurance
+
+Invoke `/trailmark:specification-assurance` for guidance or
+`/trailmark:specification-assurance-run` with a JSON object:
+
+```json
+{"target": ".", "specifications": ["spec/protocol.md"], "skill_dir": "/path/to/trusted/specification-assurance"}
+```
+
+`skill_dir` is required and must name the trusted skill installation. Invoking the
+skill supplies its own directory; the workflow does not discover helpers in the
+target checkout.
+
+The skill installs or reuses [Duvet](https://github.com/awslabs/duvet) and Trailmark,
+configures specification/source/test roots and comment styles, and preserves a
+baseline before adding citations. It uses code graphs to locate enforcement and
+tests, runs relevant native checks, and keeps every requirement in an evidence
+ledger. Its deterministic checker rejects empty or reduced inventories, omitted
+records, missing evidence files, and model-only proofs presented as implementation
+evidence. The checker validates accounting; semantic judgments still require source
+and assertion/proof analysis.
+
+Formal parser support targets Trailmark **0.9.0**: Lean, Dafny, F*, Rocq/Coq,
+WhyML, TLA+, Tamarin, and ProVerif are merged on upstream main. The skill probes
+installed capabilities and retains unsupported files as gaps. Rust/Verus uses the
+existing Rust frontend. These are library versions; this plugin has its own version.
+Trailmark parsing does not run a verifier, and a proof about an abstract protocol
+needs an explicit binding before it can support production conformance.
+
+Artifacts live under `.trailmark/specification-assurance/runs/`, with durable Duvet
+configuration/annotations in the project. Reports separate citation coverage,
+implementation judgments, executed checks, formal assumptions, and unassessed
+requirements. An unchanged Duvet snapshot can still contain gaps. The ledger gate
+returns 0 for supported scoped obligations, 1 for recorded gaps, and 2 for invalid
+artifacts. It does not certify correctness or repair implementation defects.
+
+The workflow returns `pending_validation`. The calling session saves its
+`validation_request` verbatim to `validation_request_path`, then executes
+`validation_command`. The finalizer checks immutable worker records, evidence file
+hashes, a shared snapshot of file names/contents/permissions, graph scope, the full inventory,
+and setup limitations before running Duvet. Specifications use pinned local copies.
+Input capture starts before the assessed baseline and fresh graph; changes during
+analysis invalidate the run. Workers read only the shared snapshot's digest.
+Parse diagnostics force a gap. New citations use sidecar files to keep sealed source
+unchanged. Baseline and final attempts retain reports and candidate snapshots inside the
+run; the project's accepted snapshot stays unchanged. Gate output links these
+artifacts. Keep its errors or gaps in the assessment report.
+
 ## Directory Structure
 
 ```text
@@ -129,9 +178,11 @@ trailmark/
 │                                     # Dispatch as `trailmark:code-slice-worker`
 ├── README.md
 ├── workflows/
-│   └── taint-trace-run.js            # /trailmark:taint-trace-run
+│   ├── taint-trace-run.js            # /trailmark:taint-trace-run
+│   └── specification-assurance.js    # /trailmark:specification-assurance-run
 ├── tests/
-│   └── taint-trace-run.test.mjs       # Staged lifecycle contracts
+│   ├── taint-trace-run.test.mjs       # Staged lifecycle contracts
+│   └── specification-assurance.test.mjs # Requirement accounting contracts
 └── skills/
     ├── trailmark/                    # Core graph querying
     ├── slicing-code-context/         # Bounded source slicing and worker delegation
@@ -153,6 +204,9 @@ trailmark/
     ├── taint-trace/                  # Graph-backed native taint models and runner
     │   ├── references/              # Load only the selected backend
     │   └── scripts/                 # Context, capability, native evidence, validation
+    ├── specification-assurance/      # Duvet setup, conformance evidence, formal bindings
+    │   ├── references/              # Duvet, graph/formal evidence, ledger contract
+    │   └── scripts/                 # Requirement inventory and deterministic evidence gate
     ├── trailmark-summary/            # Quick overview for vivisect/galvanize
     └── trailmark-structural/         # Full structural analysis
 ```
