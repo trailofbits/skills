@@ -71,10 +71,12 @@ caches, and pytest caches. Keep production/build inputs out of these artifact ro
 put generated build outputs elsewhere and new assurance tests/logs inside the run.
 Every inspected graph file must have a source snapshot binding; freeze and finalization
 reject graphs that rely on files omitted from the snapshot.
-File links bind their destinations and contents, including external interpreter files
-in virtual environments. Internal directory links bind their destinations without
-repeating traversal. Unreadable directories and external directory links invalidate
-capture. Graph and worker evidence still require files inside the target.
+Internal file links bind their destinations and contents. Internal directory links
+bind their destinations without repeating traversal. External links retain only the
+link text already present in the checkout: their targets are not read or traversed.
+They produce an explicit coverage gap; retain local copies of dependencies that need
+assessment. Unreadable directories invalidate capture. Graph and worker evidence
+still require files inside the target.
 The finalizer rejects added, removed, or modified files before and after Duvet.
 
 Immediately after executing checks, run:

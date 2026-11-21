@@ -531,12 +531,14 @@ def snapshot_files(root: Path, run: Path, artifacts: bool = True) -> dict[str, A
             if link.is_symlink():
                 resolved = link.resolve()
                 if not resolved.is_relative_to(root):
-                    raise ValueError(f"Directory symlink points outside target: {link}")
-                states[str(link.relative_to(root))] = {
-                    **access_state(link),
-                    "resolved": str(resolved),
-                    "symlink": os.readlink(link),
-                }
+                    state = {"external": True, "symlink": os.readlink(link)}
+                else:
+                    state = {
+                        **access_state(link),
+                        "resolved": str(resolved),
+                        "symlink": os.readlink(link),
+                    }
+                states[str(link.relative_to(root))] = state
         paths.update(parent / name for name in files)
     if artifacts:
         paths.update(run / name for name in ANALYSIS_ARTIFACTS)
@@ -545,8 +547,10 @@ def snapshot_files(root: Path, run: Path, artifacts: bool = True) -> dict[str, A
         raise ValueError("Source snapshot inspected zero files")
     states.update(
         {
-            (str(path.relative_to(root)) if path.is_relative_to(root) else str(path)): file_state(
-                path
+            (str(path.relative_to(root)) if path.is_relative_to(root) else str(path)): (
+                file_state(path)
+                if path.resolve().is_relative_to(root)
+                else {"external": True, "symlink": os.readlink(path)}
             )
             for path in sorted(paths)
         }
@@ -658,7 +662,8 @@ def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
         )
         snapshot = local_file(root, str(run / "source-snapshot.json"))
         snapshot_digest = file_sha256(snapshot)
-        if read_json(snapshot) != snapshot_files(root, run):
+        captured = read_json(snapshot)
+        if captured != snapshot_files(root, run):
             raise ValueError(
                 "Target snapshot changed since assessment: added, removed, or modified files"
             )
@@ -684,6 +689,14 @@ def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
                     f"Supported requirement {record['id']} has enforcement "
                     "outside the inspected production graph scope"
                 )
+        external = sum(state.get("external") is True for state in captured.values())
+        if external:
+            result["limitations"] = [
+                *result["limitations"],
+                f"Source snapshot omits contents behind {external} external links; "
+                "retain local copies to assess those dependencies.",
+            ]
+            result["status"] = "gaps"
         diagnostics = read_json(run / "diagnostics.json")
         if diagnostics:
             limitation = (

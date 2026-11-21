@@ -759,7 +759,9 @@ def test_virtual_environment_interpreter_links_can_be_captured(finalizer):
     subprocess.run([sys.executable, "-m", "venv", "--without-pip", str(root / ".venv")], check=True)
     ledger["requirements"][1]["verdict"] = "not_applicable"
     refresh_fixture_snapshot(finalizer)
-    assert run_finalizer(finalizer)[0] == 0
+    code, result = run_finalizer(finalizer)
+    assert code == 1 and result["valid"]
+    assert any("external links" in limitation for limitation in result["limitations"])
 
 
 def test_internal_directory_link_destinations_remain_bound(finalizer):
@@ -779,17 +781,42 @@ def test_internal_directory_link_destinations_remain_bound(finalizer):
     assert any("Target snapshot changed" in error for error in result["errors"])
 
 
-def test_external_file_link_contents_remain_bound(finalizer):
-    root, _, _, _, ledger = finalizer
-    external = root.parent / "external-interpreter"
-    external.write_text("original interpreter\n")
-    (root / "interpreter").symlink_to(external)
+@pytest.mark.parametrize("directory", [False, True])
+def test_external_links_are_not_read_and_remain_explicit_gaps(finalizer, monkeypatch, directory):
+    root, run, _, argv, ledger = finalizer
+    external = root.parent / f"private-{root.name}"
+    if directory:
+        external.mkdir()
+        (external / "secret").write_text("private contents\n")
+    else:
+        external.write_text("private contents\n")
+    link = root / "cache"
+    link.symlink_to(external, target_is_directory=directory)
+    original_open, original_scandir = Path.open, requirements.os.scandir
+
+    def guarded_open(path, *args, **kwargs):
+        assert not path.resolve().is_relative_to(external), "Read private file"
+        return original_open(path, *args, **kwargs)
+
+    def guarded_scandir(path):
+        assert not Path(path).resolve().is_relative_to(external), "Traversed private directory"
+        return original_scandir(path)
+
+    monkeypatch.setattr(Path, "open", guarded_open)
+    monkeypatch.setattr(requirements.os, "scandir", guarded_scandir)
     ledger["requirements"][1]["verdict"] = "not_applicable"
     refresh_fixture_snapshot(finalizer)
-    assert run_finalizer(finalizer)[0] == 0
-    external.write_text("changed interpreter\n")
-    code, result = run_finalizer(finalizer)
-    assert code == 2
+    snapshot = requirements.read_json(run / "source-snapshot.json")
+    assert snapshot["cache"] == {"external": True, "symlink": str(external)}
+    monkeypatch.setattr(sys, "argv", argv[1:])
+    assert requirements.main() == 1
+    result = requirements.read_json(run / "gate.json")
+    assert result["valid"]
+    assert any("external links" in limitation for limitation in result["limitations"])
+    link.unlink()
+    link.symlink_to(root.parent / "different-private-path")
+    assert requirements.main() == 2
+    result = requirements.read_json(run / "gate.json")
     assert any("Target snapshot changed" in error for error in result["errors"])
 
 
