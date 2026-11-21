@@ -389,7 +389,7 @@ def check_ledger(
 
 
 def graph_evidence(
-    run: Path, root: Path, expected_production_files: int
+    run: Path, root: Path, expected_production_files: int, snapshot: dict[str, Any]
 ) -> tuple[dict[str, Any], set[Path], set[Path]]:
     """Reconcile native graph counts, inspected paths, and production scope."""
     paths = {
@@ -442,6 +442,9 @@ def graph_evidence(
         or count != len(selected)
     ):
         raise ValueError("Native graph source count disagrees with inspected files or is zero")
+    captured = {local_file(root, name) for name, state in snapshot.items() if "sha256" in state}
+    if not set(selected) <= captured:
+        raise ValueError("Inspected graph files lack source snapshot bindings")
     production = scope.get("production_files") if isinstance(scope, dict) else None
     if not isinstance(production, list) or not production:
         raise ValueError("Graph scope needs a nonempty production_files array")
@@ -550,7 +553,7 @@ def freeze_snapshot(root: Path, run: Path) -> dict[str, str]:
     if original != snapshot_files(root, run, artifacts=False):
         raise ValueError("Inputs changed during baseline/graph analysis; start a new run")
     scope = read_json(run / "graph-scope.json")["production_files"]
-    graph_evidence(run, root, len(scope))
+    graph_evidence(run, root, len(scope), original)
     if not {
         local_file(root, item["specification"])
         for item in read_json(run / "inventory.json")["requirements"]
@@ -596,7 +599,9 @@ def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     run = args.run.resolve(strict=True)
     if not run.is_dir() or not run.is_relative_to(root) or run == root:
         raise ValueError("Run directory must exist inside the target root")
-    graph, production, _ = graph_evidence(run, root, args.production_source_files)
+    graph, production, _ = graph_evidence(
+        run, root, args.production_source_files, read_json(run / "source-snapshot.json")
+    )
     for name in ("report.md", "inventory.json", "duvet-before.json", "ledger.json"):
         path = local_file(root, str(run / name))
         if not path.stat().st_size:

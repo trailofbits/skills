@@ -69,6 +69,8 @@ tree, including ignored/untracked inputs, and the retained graph/inventory artif
 the run, `.trailmark/`, Duvet reports/citation sidecars, Git metadata, Python bytecode
 caches, and pytest caches. Keep production/build inputs out of these artifact roots;
 put generated build outputs elsewhere and new assurance tests/logs inside the run.
+Every inspected graph file must have a source snapshot binding; freeze and finalization
+reject graphs that rely on files omitted from the snapshot.
 Unreadable directories and directory symlinks invalidate capture; use a self-contained
 target tree instead of silently omitting those inputs.
 The finalizer rejects added, removed, or modified files before and after Duvet.

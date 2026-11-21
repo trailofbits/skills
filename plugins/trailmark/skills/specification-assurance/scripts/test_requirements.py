@@ -1147,6 +1147,52 @@ def test_native_graph_evidence_cannot_be_replaced_by_setup_claims(finalizer, mut
     assert code == 2 and result["status"] == "invalid"
 
 
+@pytest.mark.parametrize("directory", [".trailmark", ".duvet/reports", "run"])
+@pytest.mark.parametrize("stage", ["freeze", "finalize"])
+def test_inspected_graph_files_need_snapshot_bindings(finalizer, directory, stage):
+    root, run, _, _, ledger = finalizer
+    path = (run if directory == "run" else root / directory) / "generated.py"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("def generated(): return True\n")
+    graph = requirements.read_json(run / "graph.json")
+    graph["summary"]["source_files"] += 1
+    graph["source_policy"]["files"].append(
+        {"path": str(path), "status": "inspected", "unit": "file", "root": "root"}
+    )
+    graph["nodes"]["generated"] = {
+        "kind": "module",
+        "location": {"file_path": str(path), "start_line": 1},
+    }
+    write_json(run / "graph.json", graph)
+    write_json(run / "source-policy.json", graph["source_policy"])
+    write_json(run / "graph-scope.json", {"production_files": ["packet.py", str(path)]})
+    request = requirements.read_json(run / "validation-request.json")
+    request["production_source_files"] = 2
+    write_json(run / "validation-request.json", request)
+    ledger["requirements"][1]["verdict"] = "not_applicable"
+    (run / "source-inputs.json").unlink()
+    (run / "source-snapshot.json").unlink()
+    requirements.begin_snapshot(root, run)
+    if stage == "freeze":
+        with pytest.raises(ValueError, match="Inspected graph files lack source snapshot bindings"):
+            requirements.freeze_snapshot(root, run)
+    else:
+        # Reproduce a run sealed by an earlier helper that omitted graph inputs.
+        snapshot = write_json(run / "source-snapshot.json", requirements.snapshot_files(root, run))
+        (run / "source-snapshot.sha256").write_text(requirements.file_sha256(snapshot))
+        for record in ledger["requirements"]:
+            save_fixture_assessment(finalizer, record)
+        write_json(run / "ledger.json", ledger)
+        path.write_text("def generated(): return False\n")
+        code, result = run_finalizer(finalizer)
+        assert code == 2 and not result["valid"]
+        assert any(
+            "Inspected graph files lack source snapshot bindings" in error
+            for error in result["errors"]
+        )
+        assert not list(run.glob("gate-native-*"))
+
+
 def test_graph_evidence_accepts_native_merged_source_policy(finalizer):
     _, run, _, _, ledger = finalizer
     graph = requirements.read_json(run / "graph.json")
