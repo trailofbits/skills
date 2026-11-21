@@ -680,6 +680,57 @@ def test_directory_traversal_permission_changes_invalidate_the_gate(finalizer, n
     assert len(list(run.glob("gate-native-*"))) == 1
 
 
+@pytest.mark.parametrize("name", [".", "packet.py"])
+@pytest.mark.parametrize("field", ["uid", "gid"])
+def test_ownership_changes_invalidate_the_gate(finalizer, monkeypatch, name, field):
+    root, run, _, argv, ledger = finalizer
+    ledger["requirements"][1]["verdict"] = "not_applicable"
+    refresh_fixture_snapshot(finalizer)
+    assert run_finalizer(finalizer)[0] == 0
+    original_stat = Path.stat
+
+    def changed_owner(path, *, follow_symlinks=True):
+        state = original_stat(path, follow_symlinks=follow_symlinks)
+        if path == root / name:
+            values = list(state)
+            values[4 if field == "uid" else 5] += 1
+            return requirements.os.stat_result(values)
+        return state
+
+    # Simulate chown without requiring a privileged test runner.
+    monkeypatch.setattr(Path, "stat", changed_owner)
+    monkeypatch.setattr(sys, "argv", argv[1:])
+    assert requirements.main() == 2
+    result = json.loads((run / "gate.json").read_text())
+    assert not result["valid"]
+    assert any("changed" in error for error in result["errors"])
+    assert len(list(run.glob("gate-native-*"))) == 1
+
+
+@pytest.mark.parametrize("during_duvet", [False, True])
+def test_symlink_loops_replace_a_previous_successful_gate(finalizer, during_duvet):
+    root, run, duvet, _, ledger = finalizer
+    link = root / "launcher.py"
+    link.symlink_to("packet.py")
+    ledger["requirements"][1]["verdict"] = "not_applicable"
+    refresh_fixture_snapshot(finalizer)
+    assert run_finalizer(finalizer)[0] == 0
+    if during_duvet:
+        duvet.write_text(
+            duvet.read_text()
+            + f"link = pathlib.Path({str(link)!r})\nlink.unlink()\nlink.symlink_to(link.name)\n"
+        )
+    else:
+        link.unlink()
+        link.symlink_to(link.name)
+    code, result = run_finalizer(finalizer)
+    assert code == 2 and not result["valid"]
+    assert any("launcher.py" in error for error in result["errors"])
+    assert len(list(run.glob("gate-native-*"))) == (2 if during_duvet else 1)
+    if during_duvet:
+        assert result["duvet_exit_code"] == 0
+
+
 def test_sealing_does_not_read_the_whole_shared_manifest(finalizer, monkeypatch):
     root, run, _, _, ledger = finalizer
     read_json = requirements.read_json

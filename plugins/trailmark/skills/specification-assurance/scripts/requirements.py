@@ -54,8 +54,13 @@ def file_sha256(path: Path) -> str:
         return hashlib.file_digest(source, "sha256").hexdigest()
 
 
+def access_state(path: Path) -> dict[str, int]:
+    state = path.stat()
+    return {"mode": state.st_mode & 0o7777, "uid": state.st_uid, "gid": state.st_gid}
+
+
 def file_state(path: Path) -> dict[str, Any]:
-    state = {"sha256": file_sha256(path), "mode": path.stat().st_mode & 0o7777}
+    state = {"sha256": file_sha256(path), **access_state(path)}
     resolved = path.resolve()
     if resolved != path.absolute():
         state["resolved"] = str(resolved)
@@ -504,7 +509,7 @@ def snapshot_files(root: Path, run: Path, artifacts: bool = True) -> dict[str, A
     states = {}
     for directory, directories, files in os.walk(root, followlinks=False, onerror=traversal_error):
         parent = Path(directory)
-        states[str(parent.relative_to(root))] = {"mode": parent.stat().st_mode & 0o7777}
+        states[str(parent.relative_to(root))] = access_state(parent)
         directories[:] = [
             name
             for name in directories
@@ -683,7 +688,7 @@ def finalize(args: argparse.Namespace, root: Path) -> dict[str, Any]:
     if attempt["valid"]:
         try:
             result = preflight(Path(attempt["duvet_report"]), traceability=True)
-        except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+        except (OSError, RuntimeError, ValueError, TypeError, KeyError, AttributeError) as error:
             result.update(valid=False, status="invalid")
             result["errors"].append(str(error))
     else:
@@ -743,7 +748,7 @@ def native_report(root: Path, native: Path, report: Path, html: Path, duvet: str
         for artifact in (report, html, snapshot):
             if not local_file(root, str(artifact)).stat().st_size:
                 raise ValueError(f"Native Duvet artifact is empty: {artifact}")
-    except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+    except (OSError, RuntimeError, ValueError, TypeError, KeyError, AttributeError) as error:
         execution["error"] = str(error)
         result.update(valid=False, status="invalid", errors=[str(error)])
         with log_path.open("a") as log:
@@ -872,7 +877,7 @@ def main() -> int:
             request.duvet = args.duvet
             result = finalize(request, root)
             code = 2 if not result["valid"] else 1 if result["status"] == "gaps" else 0
-    except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+    except (OSError, RuntimeError, ValueError, TypeError, KeyError, AttributeError) as error:
         result = {
             "valid": False,
             "status": "invalid",
