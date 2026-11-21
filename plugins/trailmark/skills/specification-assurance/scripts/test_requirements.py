@@ -588,6 +588,98 @@ def test_changed_executable_permissions_invalidate_the_gate(finalizer):
     assert not list(run.glob("gate-native-*"))
 
 
+@pytest.mark.parametrize("relative", [False, True])
+def test_retargeting_identical_launcher_symlinks_invalidates_the_gate(finalizer, relative):
+    root, run, _, _, ledger = finalizer
+    for name in ("first", "second"):
+        directory = root / name
+        directory.mkdir()
+        (directory / "launcher.py").write_text(
+            "from pathlib import Path\n"
+            "print(Path(__file__).resolve().with_name('config').read_text())\n"
+        )
+        (directory / "config").write_text(name)
+    link = root / "launcher.py"
+    link.symlink_to(Path("first/launcher.py") if relative else root / "first/launcher.py")
+    ledger["requirements"][1]["verdict"] = "not_applicable"
+    refresh_fixture_snapshot(finalizer)
+    assert run_finalizer(finalizer)[0] == 0
+    assert subprocess.check_output([sys.executable, str(link)], text=True).strip() == "first"
+    before = requirements.file_state(link)
+    link.unlink()
+    link.symlink_to(Path("second/launcher.py") if relative else root / "second/launcher.py")
+    after = requirements.file_state(link)
+    assert before["sha256"] == after["sha256"] and before["mode"] == after["mode"]
+    assert subprocess.check_output([sys.executable, str(link)], text=True).strip() == "second"
+    code, result = run_finalizer(finalizer)
+    assert code == 2
+    assert any("Target snapshot changed" in error for error in result["errors"])
+    assert len(list(run.glob("gate-native-*"))) == 1
+
+
+@pytest.mark.parametrize("directory_alias", [False, True])
+def test_run_evidence_preserves_distinct_symlink_bindings(finalizer, directory_alias):
+    root, run, _, _, ledger = finalizer
+    alternate = root / "other"
+    alternate.mkdir()
+    (alternate / "test_packet.py").write_bytes((root / "test_packet.py").read_bytes())
+    first, second = run / "first.py", run / "second.py"
+    first.symlink_to(root / "test_packet.py")
+    if directory_alias:
+        alias = run / "alias"
+        alias.symlink_to(root, target_is_directory=True)
+        second = alias / "test_packet.py"
+    else:
+        second.symlink_to(Path("..") / "test_packet.py")
+    check = ledger["requirements"][0]["checks"][0]
+    check["location"]["file"] = str(first.relative_to(root))
+    other = copy.deepcopy(check)
+    other["location"]["file"] = str(second.relative_to(root))
+    ledger["requirements"][0]["checks"].append(other)
+    refresh_fixture_snapshot(finalizer)
+    assert run_finalizer(finalizer)[0] == 1
+    if directory_alias:
+        alias.unlink()
+        alias.symlink_to(alternate, target_is_directory=True)
+    else:
+        second.unlink()
+        second.symlink_to(alternate / "test_packet.py")
+    code, result = run_finalizer(finalizer)
+    assert code == 2
+    assert any("Evidence file changed" in error for error in result["errors"])
+
+
+def test_absolute_specification_aliases_still_resolve_inside_the_target(finalizer):
+    root, _, _, _, _ = finalizer
+    alias = root.parent / f"{root.name}-alias"
+    alias.symlink_to(root, target_is_directory=True)
+    config = root / ".duvet/config.toml"
+    config.write_text(
+        config.read_text().replace(
+            'source = "spec.md"', f"source = {json.dumps(str(alias / 'spec.md'))}"
+        )
+    )
+    refresh_fixture_snapshot(finalizer)
+    code, result = run_finalizer(finalizer)
+    assert code == 1 and result["valid"]
+
+
+@pytest.mark.parametrize("name", [".", ".duvet", "deploy"])
+def test_directory_traversal_permission_changes_invalidate_the_gate(finalizer, name):
+    root, run, _, _, ledger = finalizer
+    directory = root / name
+    directory.mkdir(exist_ok=True)
+    directory.chmod(0o755)
+    ledger["requirements"][1]["verdict"] = "not_applicable"
+    refresh_fixture_snapshot(finalizer)
+    assert run_finalizer(finalizer)[0] == 0
+    directory.chmod(0o754)  # The assessor retains access; another account loses traversal.
+    code, result = run_finalizer(finalizer)
+    assert code == 2
+    assert any("Target snapshot changed" in error for error in result["errors"])
+    assert len(list(run.glob("gate-native-*"))) == 1
+
+
 def test_sealing_does_not_read_the_whole_shared_manifest(finalizer, monkeypatch):
     root, run, _, _, ledger = finalizer
     read_json = requirements.read_json

@@ -55,7 +55,13 @@ def file_sha256(path: Path) -> str:
 
 
 def file_state(path: Path) -> dict[str, Any]:
-    return {"sha256": file_sha256(path), "mode": path.stat().st_mode & 0o7777}
+    state = {"sha256": file_sha256(path), "mode": path.stat().st_mode & 0o7777}
+    resolved = path.resolve()
+    if resolved != path.absolute():
+        state["resolved"] = str(resolved)
+    if path.is_symlink():
+        state["symlink"] = os.readlink(path)
+    return state
 
 
 def nonempty(value: Any) -> bool:
@@ -199,13 +205,14 @@ def inventory(
     return requirements
 
 
-def local_file(root: Path, value: Any) -> Path:
+def local_file(root: Path, value: Any, *, canonical: bool = True) -> Path:
     if not nonempty(value):
         raise ValueError("Evidence file path is empty")
-    path = (root / value).resolve()
-    if not path.is_relative_to(root) or not path.is_file():
+    path = root / value
+    resolved = path.resolve()
+    if not resolved.is_relative_to(root) or not resolved.is_file():
         raise ValueError(f"Evidence file is missing or outside target: {value}")
-    return path
+    return resolved if canonical else path
 
 
 def location(root: Path, value: Any) -> None:
@@ -231,7 +238,7 @@ def verify_files(root: Path, record: dict[str, Any], required: set[str], cache: 
     if not isinstance(hashes, dict) or not required <= set(hashes):
         raise ValueError("Missing SHA-256 bindings for referenced evidence files")
     for name, expected in hashes.items():
-        path = local_file(root, name)
+        path = local_file(root, name, canonical=False)
         if path not in cache:
             cache[path] = file_state(path)
         if cache[path] != expected:
@@ -478,7 +485,7 @@ def configured_specifications(root: Path) -> set[Path]:
     sources = [item["source"] for item in config.get("specification", [])]
     if not sources or any("://" in value for value in sources):
         raise ValueError("Configure every specification as a pinned local file")
-    return {local_file(root, value) for value in sources}
+    return {local_file(root, value, canonical=False) for value in sources}
 
 
 def snapshot_files(root: Path, run: Path, artifacts: bool = True) -> dict[str, Any]:
@@ -494,8 +501,10 @@ def snapshot_files(root: Path, run: Path, artifacts: bool = True) -> dict[str, A
         run,
     }
     paths = set()
+    states = {}
     for directory, directories, files in os.walk(root, followlinks=False, onerror=traversal_error):
         parent = Path(directory)
+        states[str(parent.relative_to(root))] = {"mode": parent.stat().st_mode & 0o7777}
         directories[:] = [
             name
             for name in directories
@@ -512,10 +521,15 @@ def snapshot_files(root: Path, run: Path, artifacts: bool = True) -> dict[str, A
     paths.update(configured_specifications(root))
     if not paths:
         raise ValueError("Source snapshot inspected zero files")
-    return {
-        str(path.relative_to(root)): file_state(local_file(root, str(path)))
-        for path in sorted(paths)
-    }
+    states.update(
+        {
+            (str(path.relative_to(root)) if path.is_relative_to(root) else str(path)): file_state(
+                local_file(root, str(path), canonical=False)
+            )
+            for path in sorted(paths)
+        }
+    )
+    return states
 
 
 def begin_snapshot(root: Path, run: Path) -> dict[str, str]:
@@ -535,14 +549,16 @@ def freeze_snapshot(root: Path, run: Path) -> dict[str, str]:
     if not {
         local_file(root, item["specification"])
         for item in read_json(run / "inventory.json")["requirements"]
-    } <= configured_specifications(root):
+    } <= {path.resolve() for path in configured_specifications(root)}:
         raise ValueError("Configure all inventoried specifications before beginning analysis")
     # Keep the original input states, rather than accepting later edits into the
     # snapshot while attaching native artifacts from the guarded analysis window.
     combined = {
         **original,
         **{
-            str((run / name).relative_to(root)): file_state(local_file(root, str(run / name)))
+            str((run / name).relative_to(root)): file_state(
+                local_file(root, str(run / name), canonical=False)
+            )
             for name in ANALYSIS_ARTIFACTS
         },
     }
@@ -559,7 +575,8 @@ def seal_record(root: Path, run: Path, path: Path) -> dict[str, str]:
     record = read_json(path)
     record["snapshot_sha256"] = (run / "source-snapshot.sha256").read_text().strip()
     record["files"] = {
-        name: file_state(local_file(root, name)) for name in sorted(evidence_files(record))
+        name: file_state(local_file(root, name, canonical=False))
+        for name in sorted(evidence_files(record))
     }
     path.write_text(json.dumps(record, indent=2) + "\n")
     return {

@@ -63,9 +63,9 @@ isolated baseline, retain its inventory, build/export the graph, then run
 begin and binds the original inputs to the analysis artifacts. Start a new run when
 inputs change during analysis. Both capture files refuse overwrites.
 
-`source-snapshot.json` binds file names, SHA-256 hashes, and permission modes across
-the target tree, including
-ignored/untracked inputs, and the retained graph/inventory artifacts. It excludes
+`source-snapshot.json` binds file names, SHA-256 hashes, link destinations, and file
+and directory permission modes across the target tree, including ignored/untracked
+inputs, and the retained graph/inventory artifacts. It excludes
 the run, `.trailmark/`, Duvet reports/citation sidecars, Git metadata, Python bytecode
 caches, and pytest caches. Keep production/build inputs out of these artifact roots;
 put generated build outputs elsewhere and new assurance tests/logs inside the run.
@@ -82,8 +82,9 @@ uv run --no-project "{baseDir}/scripts/requirements.py" seal \
 
 The helper reads `source-snapshot.sha256`, a small digest file written by freeze,
 and binds it as `snapshot_sha256`; each worker avoids reading the full manifest.
-It adds a `files` map of SHA-256 hashes and permission modes for enforcement/check locations, executed logs,
-and additional dependency inputs listed in `inputs`. Shared project hashes stay
+It adds a `files` map of SHA-256 hashes, permission modes, and link destinations
+for enforcement/check locations, executed logs, and additional dependency inputs
+listed in `inputs`. Shared project hashes stay
 in one manifest instead of being copied into every record and ledger entry. Retain
 distinct logs for each execution; overwriting a passing log invalidates its record.
 Keep sealed source unchanged and add new citations only in configured sidecars.
