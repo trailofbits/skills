@@ -30,8 +30,9 @@ Use `/trailmark:specification-assurance-run` with a JSON object:
 ```
 
 The workflow prepares setup, assessments, annotations, and reporting. Pass
-`skill_dir` from this loaded skill; direct invocations can resolve installed plugin
-caches. It returns `pending_validation`, `validation_request`, its destination
+`skill_dir` from this loaded, trusted skill. Direct invocations must supply it too;
+the workflow never discovers helpers in the target checkout. It returns
+`pending_validation`, `validation_request`, its destination
 `validation_request_path`, and `validation_command`. Use the calling session's file
 writer to save that request verbatim, then execute the command and retain its exit
 status and JSON output. Keep the request independent of the reporting worker.

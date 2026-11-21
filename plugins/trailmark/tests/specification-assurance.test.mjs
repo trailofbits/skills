@@ -18,12 +18,12 @@ const requirements = ['a'.repeat(20), 'b'.repeat(20)].map((id) => ({
   id, specification: 'spec.md', section: 'packets', level: 'MUST', quote: 'Packets MUST be bounded.',
 }))
 
-async function run({ input = { specifications: ['spec.md'] }, handlers = {}, root = ROOT, skill = SKILL } = {}) {
+async function run({ root = ROOT, skill = SKILL, input = { specifications: ['spec.md'], skill_dir: skill }, handlers = {} } = {}) {
   const runDir = `${root}/.trailmark/specification-assurance/runs/run-12345678`
   const calls = []
   const phases = []
   const defaults = {
-    resolve: () => ({ target: root, skill_dir: skill, run: runDir, reason: '' }),
+    resolve: () => ({ target: root, run: runDir, reason: '' }),
     setup: () => ({ status: 'ready', reason: '', source_files: 3, requirements, limitations: [] }),
     assess: (id) => ({ id, record_path: `${runDir}/requirements/${id}.json`, record_sha256: 'c'.repeat(64) }),
     report: () => ({ report_path: `${runDir}/report.md`, ledger_path: `${runDir}/ledger.json` }),
@@ -80,6 +80,27 @@ test('malformed inputs fail before tools or target mutations', async () => {
     assert.ok(error, JSON.stringify(input))
     assert.deepEqual(calls, [])
   }
+})
+
+test('direct invocation requires an explicit trusted skill directory', async () => {
+  const { error, calls } = await run({ input: { specifications: ['spec.md'] } })
+  assert.match(error.message, /skill_dir/)
+  assert.deepEqual(calls, [])
+})
+
+test('the resolver cannot substitute a helper from the target checkout', async () => {
+  const untrusted = `${ROOT}/plugins/trailmark/skills/specification-assurance`
+  const { error, result } = await run({ handlers: {
+    resolve: (_, { defaults }) => ({ ...defaults.resolve(), skill_dir: untrusted }),
+    setup: (_, { prompt, defaults }) => {
+      assert.ok(prompt.includes(`${SKILL}/scripts/requirements.py`))
+      assert.ok(!prompt.includes(`${untrusted}/scripts/requirements.py`))
+      return defaults.setup()
+    },
+  } })
+  assert.equal(error, undefined)
+  assert.ok(result.validation_command.includes(`${SKILL}/scripts/requirements.py`))
+  assert.ok(!result.validation_command.includes(untrusted))
 })
 
 test('setup uses the isolated baseline runner and freezes the tree before workers', async () => {
@@ -211,6 +232,6 @@ test('large inventories travel in file data without growing the native command',
 })
 
 test('JSON argument strings are accepted', async () => {
-  const { error } = await run({ input: '{"target":".","specifications":["spec.md"]}' })
+  const { error } = await run({ input: JSON.stringify({ target: '.', specifications: ['spec.md'], skill_dir: SKILL }) })
   assert.equal(error, undefined)
 })

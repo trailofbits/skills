@@ -125,8 +125,12 @@ Invoke `/trailmark:specification-assurance` for guidance or
 `/trailmark:specification-assurance-run` with a JSON object:
 
 ```json
-{"target": ".", "specifications": ["spec/protocol.md"]}
+{"target": ".", "specifications": ["spec/protocol.md"], "skill_dir": "/path/to/trusted/specification-assurance"}
 ```
+
+`skill_dir` is required and must name the trusted skill installation. Invoking the
+skill supplies its own directory; the workflow does not discover helpers in the
+target checkout.
 
 The skill installs or reuses [Duvet](https://github.com/awslabs/duvet) and Trailmark,
 configures specification/source/test roots and comment styles, and preserves a

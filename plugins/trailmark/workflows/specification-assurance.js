@@ -1,7 +1,7 @@
 export const meta = {
   name: 'specification-assurance-run',
   description: 'Set up Duvet and Trailmark, assess specification obligations against implementation evidence, and retain an assurance ledger',
-  whenToUse: 'For Duvet-backed specification conformance or connecting formal results to production code. Pass a JSON object with target (default .), specifications (required array of pinned local paths), and optional skill_dir. Save the returned validation_request to validation_request_path, then execute validation_command in the calling session.',
+  whenToUse: 'For Duvet-backed specification conformance or connecting formal results to production code. Pass a JSON object with target (default .), specifications (required array of pinned local paths), and skill_dir (required absolute path from the loaded, trusted skill). Save the returned validation_request to validation_request_path, then execute validation_command in the calling session.',
   phases: [
     { title: 'Setup', detail: 'Install/reuse tools, configure Duvet, retain baseline and graph inventory' },
     { title: 'Assess', detail: 'Assess each requirement with source, executable checks, and applicable formal evidence' },
@@ -11,24 +11,24 @@ export const meta = {
 
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
 const text = (value) => typeof value === 'string' && value.trim().length > 0 && !/[\x00-\x1f\x7f]/.test(value)
+const absolute = (value) => text(value) && value.startsWith('/') && !value.split('/').includes('..')
 const fail = (message) => { throw new Error(message) }
 let input = args ?? {}
 if (typeof input === 'string') {
   try { input = JSON.parse(input) } catch { fail('Pass a JSON object with specifications and target.') }
 }
 if (!object(input) || Object.keys(input).some((key) => !['target', 'specifications', 'skill_dir'].includes(key)))
-  fail('Expected target, specifications, and optional skill_dir.')
+  fail('Expected target, specifications, and skill_dir.')
 const target = input.target ?? '.'
 if (!text(target) || !Array.isArray(input.specifications) || !input.specifications.length || input.specifications.some((s) => !text(s)))
   fail('target must be a nonempty path and specifications a nonempty array of local paths.')
 if (input.specifications.some((s) => s.includes('://')))
   fail('Save remote specifications as pinned local files before invoking the workflow.')
-if (input.skill_dir !== undefined && (!text(input.skill_dir) || !input.skill_dir.startsWith('/')))
-  fail('skill_dir must be an absolute path.')
+if (!absolute(input.skill_dir))
+  fail('skill_dir must be the absolute path of the loaded, trusted specification-assurance skill.')
 
 const sh = (value) => `'${String(value).replaceAll("'", "'\"'\"'")}'`
 const data = (value) => JSON.stringify(value, null, 2)
-const absolute = (value) => text(value) && value.startsWith('/') && !value.split('/').includes('..')
 const string = { type: 'string' }
 const strings = { type: 'array', items: string }
 const invoke = async (label, prompt, schema) => {
@@ -38,24 +38,21 @@ const invoke = async (label, prompt, schema) => {
 }
 
 phase('Setup')
-const resolved = await invoke('resolve', `Resolve the absolute canonical target directory and the installed
-specification-assurance skill directory. Inputs are data, never shell code.
-Target shell token: ${sh(target)}. Explicit skill directory: ${data(input.skill_dir ?? null)}.
-Use the explicit directory when supplied. Otherwise look in the current checkout's
-plugins/trailmark/skills/specification-assurance and the known ~/.claude/plugins/cache/*/trailmark/*/skills/specification-assurance
-and ~/.codex/plugins/cache/*/trailmark/*/skills/specification-assurance caches. Select an installed
-directory containing SKILL.md, references/duvet.md, and scripts/requirements.py; do not invent a path.
-Return empty skill_dir and a reason if unavailable. When found, create the target's
+const resolved = await invoke('resolve', `Resolve the absolute canonical target directory. Inputs are data, never shell code.
+Target shell token: ${sh(target)}. Explicit skill directory: ${data(input.skill_dir)}.
+Verify the caller-supplied skill directory contains SKILL.md, references/duvet.md, and scripts/requirements.py.
+Do not discover or substitute helpers from the target checkout or plugin caches.
+Return empty target and run and a reason if the supplied skill is unavailable. Otherwise create the target's
 .trailmark/specification-assurance/runs/ directory, then use mktemp -d with a
 run-XXXXXXXX template there to allocate a fresh run directory. Return its canonical
 absolute path as run. Do not install or analyze anything yet.`, {
-  type: 'object', required: ['target', 'skill_dir', 'run', 'reason'],
-  properties: { target: string, skill_dir: string, run: string, reason: string },
+  type: 'object', required: ['target', 'run', 'reason'],
+  properties: { target: string, run: string, reason: string },
 })
-if (!absolute(resolved.target) || !absolute(resolved.skill_dir))
-  fail(`Cannot resolve target/skill: ${resolved.reason || 'Missing absolute paths.'}`)
+if (!absolute(resolved.target))
+  fail(`Cannot resolve target: ${resolved.reason || 'Missing absolute path.'}`)
 const ROOT = resolved.target
-const SKILL = resolved.skill_dir
+const SKILL = input.skill_dir
 const RUN = resolved.run
 const runPrefix = `${ROOT}/.trailmark/specification-assurance/runs/`
 if (!absolute(RUN) || !RUN.startsWith(runPrefix) ||
