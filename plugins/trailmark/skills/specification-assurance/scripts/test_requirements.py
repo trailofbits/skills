@@ -732,14 +732,18 @@ def test_symlink_loops_replace_a_previous_successful_gate(finalizer, during_duve
 
 
 @pytest.mark.parametrize("outside_target", [False, True])
-def test_sealing_cannot_rewrite_a_record_outside_the_run(finalizer, outside_target):
+@pytest.mark.parametrize("link_kind", ["symlink", "hardlink"])
+def test_sealing_cannot_rewrite_a_record_outside_the_run(finalizer, outside_target, link_kind):
     root, run, _, _, ledger = finalizer
     parent = root.parent if outside_target else root
     outside = parent / f"outside-record-{root.name}.json"
     original = json.dumps(ledger["requirements"][0]).encode()
     outside.write_bytes(original)
     link = run / "redirected-record.json"
-    link.symlink_to(outside)
+    if link_kind == "symlink":
+        link.symlink_to(outside)
+    else:
+        link.hardlink_to(outside)
     completed = subprocess.run(
         [
             sys.executable,
@@ -757,7 +761,8 @@ def test_sealing_cannot_rewrite_a_record_outside_the_run(finalizer, outside_targ
         check=False,
     )
     assert completed.returncode == 2
-    assert any("inside the run" in error for error in json.loads(completed.stdout)["errors"])
+    expected = "inside the run" if link_kind == "symlink" else "hard links"
+    assert any(expected in error for error in json.loads(completed.stdout)["errors"])
     assert outside.read_bytes() == original
 
 
