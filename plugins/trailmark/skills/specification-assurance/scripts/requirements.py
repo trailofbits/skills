@@ -496,7 +496,7 @@ def graph_evidence(
 
 
 def configured_specifications(root: Path) -> set[Path]:
-    config = tomllib.loads((root / ".duvet/config.toml").read_text())
+    config = tomllib.loads(local_file(root, ".duvet/config.toml").read_text())
     sources = [item["source"] for item in config.get("specification", [])]
     if not sources or any("://" in value for value in sources):
         raise ValueError("Configure every specification as a pinned local file")
@@ -764,7 +764,8 @@ def native_report(root: Path, native: Path, report: Path, html: Path, duvet: str
         "duvet_execution": str(execution_path),
     }
     try:
-        config = tomllib.loads((root / ".duvet/config.toml").read_text())
+        configured_specifications(root)
+        config = tomllib.loads(local_file(root, ".duvet/config.toml").read_text())
         for name, path in (("json", report), ("html", html), ("snapshot", snapshot)):
             config.setdefault("report", {}).setdefault(name, {}).update(
                 enabled=True, path=str(path)

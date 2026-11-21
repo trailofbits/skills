@@ -77,6 +77,8 @@ link text already present in the checkout: their targets are not read or travers
 They produce an explicit coverage gap; retain local copies of dependencies that need
 assessment. Unreadable directories invalidate capture. Graph and worker evidence
 still require files inside the target.
+Duvet configuration must also resolve inside the target; external configuration
+links are rejected before their contents can be read or copied into the run.
 The finalizer rejects added, removed, or modified files before and after Duvet.
 
 Immediately after executing checks, run:

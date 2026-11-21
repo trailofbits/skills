@@ -820,6 +820,43 @@ def test_external_links_are_not_read_and_remain_explicit_gaps(finalizer, monkeyp
     assert any("Target snapshot changed" in error for error in result["errors"])
 
 
+@pytest.mark.parametrize("stage", ["begin", "baseline"])
+@pytest.mark.parametrize("reference", ["configuration", "specification"])
+def test_external_duvet_configuration_is_rejected_before_reading(
+    finalizer, monkeypatch, stage, reference
+):
+    root, run, duvet, _, _ = finalizer
+    config = root / ".duvet/config.toml"
+    private = root.parent / f"private-config-{root.name}.toml"
+    private.write_text(config.read_text() + '\nprivate_setting = "SECRET"\n')
+    if reference == "configuration":
+        config.unlink()
+        config.symlink_to(private)
+    else:
+        config.write_text(config.read_text().replace('"spec.md"', json.dumps(str(private))))
+    original_open = Path.open
+
+    def guarded_open(path, *args, **kwargs):
+        assert path.resolve() != private, "Read private configuration"
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", guarded_open)
+    if stage == "begin":
+        (run / "source-inputs.json").unlink()
+        with pytest.raises(ValueError, match="outside target"):
+            requirements.begin_snapshot(root, run)
+    else:
+        native = run / "native-config-check"
+        native.mkdir()
+        result = requirements.native_report(
+            root, native, native / "report.json", native / "report.html", str(duvet)
+        )
+        assert not result["valid"] and result["duvet_exit_code"] is None
+        assert any("outside target" in error for error in result["errors"])
+        assert not (native / "config.toml").exists()
+        assert "SECRET" not in (native / "execution.json").read_text()
+
+
 def test_source_walk_errors_cannot_silently_omit_a_subtree(finalizer, monkeypatch):
     def failed_walk(root, *, followlinks, onerror):
         onerror(PermissionError("unreadable production directory"))
