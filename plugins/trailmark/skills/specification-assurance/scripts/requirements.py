@@ -60,6 +60,8 @@ def access_state(path: Path) -> dict[str, int]:
 
 
 def file_state(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        raise ValueError(f"Snapshot input is not a regular file: {path}")
     state = {"sha256": file_sha256(path), **access_state(path)}
     resolved = path.resolve()
     if resolved != path.absolute():
@@ -415,6 +417,14 @@ def graph_evidence(
         raise ValueError("Retained source policy differs from the native graph")
     if not isinstance(diagnostics, list) or summary.get("parse_diagnostics") != diagnostics:
         raise ValueError("Retained diagnostics differ from the native graph")
+    captured = {root / name for name, state in snapshot.items() if "sha256" in state}
+
+    def captured_file(value: Any) -> Path:
+        path = local_file(root, value)
+        if root / value not in captured:
+            raise ValueError("Inspected graph files lack source snapshot bindings")
+        return path
+
     selected = []
     pending = [policy]
     while pending:
@@ -433,7 +443,7 @@ def graph_evidence(
             if not isinstance(item, dict):
                 raise ValueError("Invalid source-policy file record")
             if item.get("status") == "inspected" and item.get("unit") == "file":
-                selected.append(local_file(root, item.get("path")))
+                selected.append(captured_file(item.get("path")))
     count = summary.get("source_files")
     if (
         not selected
@@ -442,13 +452,10 @@ def graph_evidence(
         or count != len(selected)
     ):
         raise ValueError("Native graph source count disagrees with inspected files or is zero")
-    captured = {local_file(root, name) for name, state in snapshot.items() if "sha256" in state}
-    if not set(selected) <= captured:
-        raise ValueError("Inspected graph files lack source snapshot bindings")
     production = scope.get("production_files") if isinstance(scope, dict) else None
     if not isinstance(production, list) or not production:
         raise ValueError("Graph scope needs a nonempty production_files array")
-    production = [local_file(root, path) for path in production]
+    production = [captured_file(path) for path in production]
     if (
         len(set(production)) != len(production)
         or not set(production) <= set(selected)
@@ -464,9 +471,9 @@ def graph_evidence(
             anchor = node.get("location")
             if not isinstance(anchor, dict):
                 raise ValueError("Graph source node has no source location")
-            parsed.add(local_file(root, anchor.get("file_path")))
+            parsed.add(captured_file(anchor.get("file_path")))
     diagnosed = {
-        local_file(root, item["location"]["file_path"])
+        captured_file(item["location"]["file_path"])
         for item in diagnostics
         if isinstance(item, dict)
         and isinstance(item.get("location"), dict)
@@ -519,10 +526,17 @@ def snapshot_files(root: Path, run: Path, artifacts: bool = True) -> dict[str, A
             if name not in {".git", "__pycache__", ".pytest_cache"}
             and parent / name not in excluded
         ]
-        if any((parent / name).is_symlink() for name in directories):
-            raise ValueError(
-                "Directory symlinks cannot be frozen; use a self-contained target tree"
-            )
+        for name in directories:
+            link = parent / name
+            if link.is_symlink():
+                resolved = link.resolve()
+                if not resolved.is_relative_to(root):
+                    raise ValueError(f"Directory symlink points outside target: {link}")
+                states[str(link.relative_to(root))] = {
+                    **access_state(link),
+                    "resolved": str(resolved),
+                    "symlink": os.readlink(link),
+                }
         paths.update(parent / name for name in files)
     if artifacts:
         paths.update(run / name for name in ANALYSIS_ARTIFACTS)
@@ -532,7 +546,7 @@ def snapshot_files(root: Path, run: Path, artifacts: bool = True) -> dict[str, A
     states.update(
         {
             (str(path.relative_to(root)) if path.is_relative_to(root) else str(path)): file_state(
-                local_file(root, str(path), canonical=False)
+                path
             )
             for path in sorted(paths)
         }

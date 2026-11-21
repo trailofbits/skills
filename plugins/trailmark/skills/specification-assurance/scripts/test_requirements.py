@@ -750,8 +750,47 @@ def test_added_directory_symlink_cannot_bypass_file_list_seal(finalizer):
     (root / "alternate").symlink_to(root, target_is_directory=True)
     code, result = run_finalizer(finalizer)
     assert code == 2
-    assert any("Directory symlinks cannot be frozen" in error for error in result["errors"])
+    assert any("Target snapshot changed" in error for error in result["errors"])
     assert not list(run.glob("gate-native-*"))
+
+
+def test_virtual_environment_interpreter_links_can_be_captured(finalizer):
+    root, _, _, _, ledger = finalizer
+    subprocess.run([sys.executable, "-m", "venv", "--without-pip", str(root / ".venv")], check=True)
+    ledger["requirements"][1]["verdict"] = "not_applicable"
+    refresh_fixture_snapshot(finalizer)
+    assert run_finalizer(finalizer)[0] == 0
+
+
+def test_internal_directory_link_destinations_remain_bound(finalizer):
+    root, _, _, _, ledger = finalizer
+    for name in ("lib", "other"):
+        (root / name).mkdir()
+        (root / name / "library.py").write_text(f"value = {name!r}\n")
+    link = root / "lib64"
+    link.symlink_to("lib", target_is_directory=True)
+    ledger["requirements"][1]["verdict"] = "not_applicable"
+    refresh_fixture_snapshot(finalizer)
+    assert run_finalizer(finalizer)[0] == 0
+    link.unlink()
+    link.symlink_to("other", target_is_directory=True)
+    code, result = run_finalizer(finalizer)
+    assert code == 2
+    assert any("Target snapshot changed" in error for error in result["errors"])
+
+
+def test_external_file_link_contents_remain_bound(finalizer):
+    root, _, _, _, ledger = finalizer
+    external = root.parent / "external-interpreter"
+    external.write_text("original interpreter\n")
+    (root / "interpreter").symlink_to(external)
+    ledger["requirements"][1]["verdict"] = "not_applicable"
+    refresh_fixture_snapshot(finalizer)
+    assert run_finalizer(finalizer)[0] == 0
+    external.write_text("changed interpreter\n")
+    code, result = run_finalizer(finalizer)
+    assert code == 2
+    assert any("Target snapshot changed" in error for error in result["errors"])
 
 
 def test_source_walk_errors_cannot_silently_omit_a_subtree(finalizer, monkeypatch):
@@ -1149,11 +1188,18 @@ def test_native_graph_evidence_cannot_be_replaced_by_setup_claims(finalizer, mut
 
 @pytest.mark.parametrize("directory", [".trailmark", ".duvet/reports", "run"])
 @pytest.mark.parametrize("stage", ["freeze", "finalize"])
-def test_inspected_graph_files_need_snapshot_bindings(finalizer, directory, stage):
+@pytest.mark.parametrize("symlink", [False, True])
+def test_inspected_graph_files_need_snapshot_bindings(finalizer, directory, stage, symlink):
     root, run, _, _, ledger = finalizer
     path = (run if directory == "run" else root / directory) / "generated.py"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("def generated(): return True\n")
+    if symlink:
+        original, alternate = root / "original.py", root / "alternate.py"
+        original.write_text("def generated(): return True\n")
+        alternate.write_text("def generated(): return False\n")
+        path.symlink_to(original)
+    else:
+        path.write_text("def generated(): return True\n")
     graph = requirements.read_json(run / "graph.json")
     graph["summary"]["source_files"] += 1
     graph["source_policy"]["files"].append(
@@ -1183,7 +1229,11 @@ def test_inspected_graph_files_need_snapshot_bindings(finalizer, directory, stag
         for record in ledger["requirements"]:
             save_fixture_assessment(finalizer, record)
         write_json(run / "ledger.json", ledger)
-        path.write_text("def generated(): return False\n")
+        if symlink:
+            path.unlink()
+            path.symlink_to(alternate)
+        else:
+            path.write_text("def generated(): return False\n")
         code, result = run_finalizer(finalizer)
         assert code == 2 and not result["valid"]
         assert any(
@@ -1191,6 +1241,22 @@ def test_inspected_graph_files_need_snapshot_bindings(finalizer, directory, stag
             for error in result["errors"]
         )
         assert not list(run.glob("gate-native-*"))
+
+
+@pytest.mark.parametrize("reference", ["scope", "node"])
+def test_graph_scope_and_node_aliases_need_snapshot_bindings(finalizer, reference):
+    root, run, _, _, _ = finalizer
+    alias = run / "alias.py"
+    alias.symlink_to(root / "packet.py")
+    if reference == "scope":
+        write_json(run / "graph-scope.json", {"production_files": [str(alias)]})
+    else:
+        graph = requirements.read_json(run / "graph.json")
+        graph["nodes"]["packet.py"]["location"]["file_path"] = str(alias)
+        write_json(run / "graph.json", graph)
+    (run / "source-snapshot.json").unlink()
+    with pytest.raises(ValueError, match="Inspected graph files lack source snapshot bindings"):
+        requirements.freeze_snapshot(root, run)
 
 
 def test_graph_evidence_accepts_native_merged_source_policy(finalizer):
