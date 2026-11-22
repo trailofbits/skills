@@ -6,18 +6,27 @@
 
 ## Installation
 
+Prefer a package manager. See the [official uv installation guide](https://docs.astral.sh/uv/getting-started/installation/).
+
+```bash
+# macOS/Linux (Homebrew)
+brew install uv
+
+# Any platform with pipx
+pipx install uv
+
+# Windows
+winget install --id=astral-sh.uv -e
+```
+
+**Script fallback:** if no package manager is available, the standalone installer downloads and immediately runs a remote script. Tell the user this and run it only after they confirm. To review the script first, pipe it to `less` instead of `sh`.
+
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Windows
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# Homebrew
-brew install uv
-
-# pipx
-pipx install uv
 ```
 
 ## Project Commands
