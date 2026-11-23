@@ -37,6 +37,7 @@ from collect import (
     parse_go,
     parse_npm,
     parse_pypi,
+    redact_source,
     sweep_transitive,
 )
 from model import Dependency, ReconciliationError, State, _validate_transitive
@@ -668,6 +669,103 @@ def test_non_registry_direct_dep_is_never_queried(tmp_path: Path, monkeypatch: p
         # carried alongside it
         assert "resolves from outside its public registry" in signal["detail"]
         assert "not the npm registry" in signal["value"]
+
+
+def test_redact_source_drops_credentials_only():
+    assert redact_source("git+https://user:hunter2@git.example.com/org/lib.git") == (
+        "git+https://***@git.example.com/org/lib.git"
+    )
+    assert redact_source("https://ghp_abc123@github.com/org/lib.git") == (
+        "https://***@github.com/org/lib.git"
+    )
+    assert redact_source("https://dl.example.com/lib-1.0.tgz?token=s3cret&v=1") == (
+        "https://dl.example.com/lib-1.0.tgz?token=***&v=1"
+    )
+    # Not credentials: an SSH account name, a public URL, and specs that are not URLs.
+    for spec in (
+        "git+ssh://git@github.com/acme/lib.git#abc",
+        "https://registry.npmjs.org/a/-/a-1.0.0.tgz",
+        "file:../local",
+        "workspace:*",
+        "owner/repo",
+    ):
+        assert redact_source(spec) == spec, spec
+
+
+def test_credentials_in_sources_stay_out_of_the_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """A source spec with a credential in it reaches the JSON artifact and the
+    Markdown report as the non-registry reason, so each of the three places that
+    build one has to drop the credential."""
+    from render import render
+
+    monkeypatch.setattr(sources, "gh_token", lambda: None)
+    project = tmp_path / "proj"
+    project.mkdir()
+    secrets = ("hunter2", "npm-query-secret", "lock-secret", "pypi-secret")
+    (project / "package.json").write_text(
+        json.dumps(
+            {
+                "dependencies": {
+                    "tiny-dep": "1.2.3",
+                    "git-dep": "git+https://deploy:hunter2@git.example.com/org/git-dep.git",
+                    "tar-dep": "https://dl.example.com/tar-dep-1.0.tgz?token=npm-query-secret",
+                }
+            }
+        )
+    )
+    (project / "package-lock.json").write_text(
+        json.dumps(
+            {
+                "packages": {
+                    "node_modules/tiny-dep": registry_entry("tiny-dep", "1.2.3"),
+                    "node_modules/locked-dep": {
+                        "version": "2.0.0",
+                        "resolved": "https://lock-secret@git.example.com/org/locked-dep.git",
+                    },
+                }
+            }
+        )
+    )
+    (project / "requirements.txt").write_text(
+        "private-lib @ https://pypi-secret@pkgs.example.com/private_lib-1.0.tar.gz\n"
+    )
+    pushed = (datetime.now(UTC) - timedelta(days=10)).isoformat()
+    gh = "https://api.github.com/repos"
+    seeded_http(
+        tmp_path / "cache",
+        {
+            ("GET", "https://registry.npmjs.org/tiny-dep", ""): {
+                "dist-tags": {"latest": "1.2.3"},
+                "versions": {"1.2.3": {"dist": {}}},
+                "maintainers": [{"name": "alice"}, {"name": "bob"}],
+                "repository": {"url": "git+https://github.com/acme/tiny-dep.git"},
+            },
+            ("GET", "https://api.npmjs.org/downloads/point/last-week/tiny-dep", ""): {
+                "downloads": 5000
+            },
+            ("GET", f"{gh}/acme/tiny-dep", ""): {"pushed_at": pushed, "archived": False},
+            ("GET", f"{gh}/acme/tiny-dep/contents/SECURITY.md", ""): {},
+            ("GET", "https://api.scorecard.dev/projects/github.com/acme/tiny-dep", ""): {
+                "checks": [{"name": "Dangerous-Workflow", "score": 10}]
+            },
+            ("POST", OSV, osv_body([("npm", "tiny-dep", "1.2.3")])): {"results": [{}]},
+        },
+    )
+    artifact = collect(project, tmp_path / "cache", offline=True)
+    by_name = {d["name"]: d for d in artifact["dependencies"]}
+    assert "git.example.com/org/git-dep.git" in by_name["git-dep"]["non_registry_reason"]
+    assert "token=***" in by_name["tar-dep"]["non_registry_reason"]
+    assert "pkgs.example.com" in by_name["private-lib"]["non_registry_reason"]
+    unverifiable = artifact["transitive"]["unverifiable"]
+    assert any("***@git.example.com" in e["reason"] for e in unverifiable)
+
+    dumped = json.dumps(artifact)
+    report = render(artifact)
+    for secret in secrets:
+        assert secret not in dumped, secret
+        assert secret not in report, secret
 
 
 # ---------------------------------------------------------------- text encoding
