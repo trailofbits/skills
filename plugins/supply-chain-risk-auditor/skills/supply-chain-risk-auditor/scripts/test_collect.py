@@ -670,6 +670,23 @@ def test_non_registry_direct_dep_is_never_queried(tmp_path: Path, monkeypatch: p
         assert "not the npm registry" in signal["value"]
 
 
+def test_offline_run_does_not_run_pip_audit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """pip-audit queries its vulnerability service over the network, so an offline run
+    must not call it even when it is installed, and must say it was skipped."""
+    monkeypatch.setattr(sources, "gh_token", lambda: None)
+    monkeypatch.setattr(sources, "detect_tools", lambda: {"pip-audit": True})
+
+    def network_call(_path: Path) -> list[str]:
+        raise AssertionError("pip-audit ran during an offline run")
+
+    monkeypatch.setattr(sources, "pip_audit_vulnerable", network_call)
+    project = seed_full_project(tmp_path)
+    (project / "requirements.txt").write_text("flask==2.0.0\n")
+    artifact = collect(project, tmp_path / "cache", offline=True)
+    assert any(d["name"] == "flask" and d["version"] == "2.0.0" for d in artifact["dependencies"])
+    assert "pip-audit is installed but was not run: this run was offline." in artifact["notes"]
+
+
 # ---------------------------------------------------------------- text encoding
 
 

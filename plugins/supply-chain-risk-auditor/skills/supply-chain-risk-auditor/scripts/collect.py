@@ -1281,7 +1281,7 @@ def _cross_check_pip_audit(deps: list[Dependency], found: dict[str, list[str]]) 
     return "Advisory databases disagree, which is itself worth knowing: " + "; ".join(parts) + "."
 
 
-def _tooling_notes(deps: list[Dependency], found: dict[str, list[str]]) -> list[str]:
+def _tooling_notes(deps: list[Dependency], found: dict[str, list[str]], offline: bool) -> list[str]:
     tools = sources.detect_tools()
     present = sorted(name for name, ok in tools.items() if ok)
     absent = sorted(name for name, ok in tools.items() if not ok)
@@ -1289,7 +1289,11 @@ def _tooling_notes(deps: list[Dependency], found: dict[str, list[str]]) -> list[
         f"Optional tooling detected: {', '.join(present) or 'none'}. "
         f"Not installed, so not used: {', '.join(absent) or 'none'}."
     ]
-    if tools.get("pip-audit"):
+    if tools.get("pip-audit") and offline:
+        # pip-audit asks its vulnerability service over the network, which an offline
+        # run promises not to do, and its answer would then depend on that service.
+        notes.append("pip-audit is installed but was not run: this run was offline.")
+    elif tools.get("pip-audit"):
         cross = _cross_check_pip_audit(deps, found)
         if cross:
             notes.append(cross)
@@ -1474,7 +1478,7 @@ def collect(project: Path, cache: Path, offline: bool) -> dict:
     sharing = _repo_sharing_note(deps)
     if sharing:
         notes.append(sharing)
-    notes.extend(_tooling_notes(registry_deps, found))
+    notes.extend(_tooling_notes(registry_deps, found, offline))
     notes.append(_scope_note(transitive))
     notes.append(_cache_note(http))
     return to_json(deps, scan_metadata(project), notes, transitive)
