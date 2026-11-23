@@ -27,6 +27,7 @@ import re
 import sys
 import tempfile
 import tomllib
+import urllib.parse
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -61,6 +62,37 @@ NON_REGISTRY_REASON = (
     "the dependency resolves from outside its public registry, so registry-keyed data "
     "does not apply to it (the source is named in Method and caveats)"
 )
+
+
+# A source spec is copied into the report, which goes to stdout and gets pasted into
+# issues and chat, so any credential it carries must not come along. Userinfo is
+# dropped except a bare user name on an SSH URL (`git@github.com`), which names an
+# account rather than proving access. Query parameters that look like credentials keep
+# their name, so a reader can still tell a signed URL from a public one.
+_SECRET_QUERY_KEY = re.compile(r"token|auth|key|sig|secret|passw|credential", re.IGNORECASE)
+
+
+def redact_source(spec: str) -> str:
+    """`spec` with any credential in a URL's userinfo or query replaced by `***`."""
+    try:
+        parts = urllib.parse.urlsplit(spec)
+    except ValueError:
+        return spec
+    if not parts.scheme or not parts.netloc:
+        return spec
+    netloc = parts.netloc
+    userinfo, at, host = netloc.rpartition("@")
+    if at:
+        ssh_user = "ssh" in parts.scheme and ":" not in userinfo
+        netloc = netloc if ssh_user else f"***@{host}"
+    query = parts.query
+    if query:
+        query = "&".join(
+            f"{name}=***" if value and _SECRET_QUERY_KEY.search(name) else pair
+            for pair in query.split("&")
+            for name, _, value in [pair.partition("=")]
+        )
+    return urllib.parse.urlunsplit(parts._replace(netloc=netloc, query=query))
 
 
 # ------------------------------------------------------------------ npm manifests
@@ -135,7 +167,7 @@ def _npm_all_locked(
                         "name": name,
                         "version": entry["version"],
                         "reason": (
-                            f"resolves from {resolved or 'an undeclared source'}, not the "
+                            f"resolves from {redact_source(resolved) or 'an undeclared source'}, not the "
                             f"npm registry, so registry-keyed advisory data does not "
                             f"apply to it"
                         )
@@ -230,7 +262,7 @@ def _npm_dependency(
     else:
         note = None
     if kind == "non-registry":
-        reason = f"resolves from {spec}, not the npm registry"
+        reason = f"resolves from {redact_source(spec)}, not the npm registry"
         return (
             Dependency(ecosystem="npm", name=name, dev=is_dev, non_registry_reason=reason),
             f"`{name}` {reason}, so no registry or advisory data applies to it.",
@@ -477,7 +509,7 @@ def parse_pypi(project: Path) -> tuple[list[Dependency], list[str]]:
         reason = None
         url = _direct_reference_url(raw)
         if url:
-            reason = f"resolves from {url}, not PyPI"
+            reason = f"resolves from {redact_source(url)}, not PyPI"
         elif canonical in non_registry:
             reason = f"resolves from a {non_registry[canonical]} source, not PyPI"
         if reason:
