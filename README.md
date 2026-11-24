@@ -30,12 +30,15 @@ codex plugin list
 codex plugin add <plugin-name>@trailofbits
 ```
 
-Plugins that run a dynamic workflow (`code-improver`, `audit-context-building`, `spec-to-code-compliance`, and others) need
-[workflow-runner](plugins/workflow-runner/) on Codex, which lacks Claude Code's native Workflow tool:
+Install [workflow-runner](plugins/workflow-runner/) to run this marketplace's JavaScript workflows on Codex.
 
 ```sh
 codex plugin add workflow-runner@trailofbits
 ```
+
+Invoke `$workflow-runner:run-workflow` directly and give it a workflow and its arguments.
+Automatic handoffs from workflow skills are tracked in [#386](https://github.com/trailofbits/skills/pull/386).
+On Linux, the skill uses an outside-sandbox launch with your approval when the session is sandboxed.
 
 ### ChatGPT Workspace Marketplace
 

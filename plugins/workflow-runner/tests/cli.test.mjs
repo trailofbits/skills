@@ -128,6 +128,43 @@ test('an escalated launch starts outside the sandbox, and defaults its records t
   assert.match(inside.stderr, /NEEDS_ESCALATION.*launched with escalated permissions/);
 });
 
+test('an explicit outside launch keeps the worker sandbox on detach and resume', async t => {
+  const f = await fixture(t, "return { answer: await agent('hang') }");
+  const realHome = path.join(f.base, 'codex-real');
+  const started = path.join(f.base, 'worker-started');
+  await mkdir(realHome);
+  const env = {
+    CODEX_SANDBOX: 'seatbelt',
+    CODEX_SANDBOX_NETWORK_DISABLED: '1',
+    CODEX_HOME: realHome,
+    FAKE_CLI_LOG: f.log,
+    FAKE_HANG_ONCE: started,
+  };
+  const outside = '--outside-session-sandbox';
+  const launch = await cli([f.script, '--cwd', f.cwd, '--backend', 'codex', '--executable', fakeCli,
+    '--sandbox', 'read-only', '--timeout-ms', '15000', outside, '--detach'], env);
+  assert.equal(launch.code, 0, launch.stderr);
+  const runDir = launch.json.runDir;
+  assert.equal(path.dirname(runDir), path.join(realHome, 'workflow-runs'));
+  for (let attempt = 0; attempt < 100 && !existsSync(started); attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.ok(existsSync(started), 'the detached worker reached its first call');
+  const active = await cli(['--status', runDir], env);
+  assert.equal(active.code, 0, active.stderr);
+  assert.equal(active.json.status, 'running');
+  const cancelled = await cli(['--cancel', runDir], env);
+  assert.equal(cancelled.json.status, 'interrupted', JSON.stringify(cancelled.json));
+  assert.ok(cancelled.json.next.endsWith(outside), cancelled.json.next);
+
+  const resumed = await cli(['--resume', runDir, '--executable', fakeCli, outside], env);
+  assert.equal(resumed.code, 0, resumed.stderr);
+  assert.deepEqual(resumed.json.result, { answer: 'hang' });
+  const workers = await readLog(f.log);
+  assert.deepEqual(workers.map(({ argv }) => argv[argv.indexOf('--sandbox') + 1]), ['read-only', 'read-only']);
+  assert.deepEqual(workers.map(({ codexHome }) => codexHome), [realHome, realHome]);
+});
+
 test('a writing run refuses run records where its workers can write', async t => {
   const f = await fixture(t, WORKFLOW);
   for (const out of [path.join(f.cwd, 'run'), f.out]) {

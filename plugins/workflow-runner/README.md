@@ -7,9 +7,8 @@ those scripts with its native `Workflow` tool. Codex has no equivalent, and its
 subagents are spawned by the model, not by a script.
 
 This plugin runs the same scripts on Codex. Each `agent()` call becomes a fresh
-headless `codex exec` worker inside your session's sandbox. The workflow file stays the
-single source of truth: nothing is rewritten per host. Gemini CLI support is
-experimental (see below).
+headless `codex exec` worker under your session's sandbox policy. The same workflow
+file runs on each host. Gemini CLI support is experimental (see below).
 
 **In Claude Code, keep using the native Workflow tool.** The runner exists for hosts
 that lack one, and it is never a way around a denied Workflow call.
@@ -22,22 +21,26 @@ codex plugin add workflow-runner@trailofbits
 
 It needs Node.js 22+ and an installed, logged-in Codex CLI. There are no npm
 dependencies, no daemon and no extra API key: workers use your existing Codex login.
+On Linux, Codex runs also need `flock` from util-linux on your PATH.
 
 ## Use
 
-Plugins whose skills run a workflow hand off to the `workflow-runner:run-workflow`
-skill when no native Workflow tool is available. You can also invoke it directly
-(`$workflow-runner:run-workflow` in Codex) and name a workflow and its arguments.
+Invoke `$workflow-runner:run-workflow` in Codex and name a workflow and its arguments.
+Automatic handoffs from workflow skills are tracked in [#386](https://github.com/trailofbits/skills/pull/386).
 
-The skill drives the CLI below. It is usable by hand as well:
+For a manual Linux run, use an ordinary terminal outside the Codex session sandbox.
+Replace `VERSION` and the workflow and target paths with your own values.
 
 ```sh
-runner=~/.codex/plugins/cache/trailofbits/workflow-runner/<version>/scripts/run.mjs
-node "$runner" <plugin>/workflows/audit-context.js \
+runner="$HOME/.codex/plugins/cache/trailofbits/workflow-runner/VERSION/scripts/run.mjs"
+node "$runner" /path/to/plugin/workflows/audit-context.js \
   --args '{"path": ".", "limit": 1}' --cwd /path/to/target \
-  --sandbox workspace-write --detach            # prints the run directory
-node "$runner" --status <run directory>
+  --backend codex --sandbox workspace-write --outside-session-sandbox --detach
 ```
+
+Set `run_dir` to the path printed by the launch command. Check progress with
+`node "$runner" --status "$run_dir"`. Resume a stopped run from the same terminal
+context with `node "$runner" --resume "$run_dir" --outside-session-sandbox --detach`.
 
 | Command | What it does |
 |---|---|
@@ -50,8 +53,11 @@ node "$runner" --status <run directory>
 
 `--help` lists every option. The most important ones:
 
-- `--sandbox read-only|workspace-write|danger-full-access`: the launching session's own
-  sandbox mode, which workers inherit (default `read-only`).
+- `--sandbox read-only|workspace-write|danger-full-access` sets the worker sandbox
+  mode (default `read-only`). Use your current sandbox mode in a Codex session.
+- `--outside-session-sandbox` selects worker-enforced sandboxing even when the
+  environment contains `CODEX_SANDBOX`. The skill passes it on Linux after requesting
+  approval for launch or resume. Approval comes from the host's command tool.
 - `--out DIR`: the run directory. By default the runner picks
   `workflow-runs/<workflow>-<time>` in the temp directory inside the sandbox, or under
   `~/.codex` after an escalated launch.
@@ -63,9 +69,18 @@ node "$runner" --status <run directory>
 
 ### Inside the sandbox, or with your approval
 
-On Codex the runner normally runs as an ordinary command, inside the session's sandbox,
-and its workers run there too. Before any worker starts, it checks without a model call
-that Codex is logged in and accepts every flag it passes.
+Before any worker starts, the runner checks without a model call that Codex is logged
+in and accepts every flag it passes.
+
+**Linux.** When the Codex session is sandboxed, the skill asks you to approve launch
+outside that sandbox.
+The Linux sandbox can stop the detached runner when the launching command exits.
+After approval, the runner and its workflow script run with your permissions and each
+Codex worker applies its own sandbox. Status checks can run inside the session sandbox.
+They use a file lock because the Linux sandbox cannot see the launcher process.
+
+**macOS.** The skill first starts the runner as an ordinary command. When it runs
+inside the session's sandbox, its workers share that sandbox.
 
 - **Each worker gets its own Codex folder.** A new Codex program (`codex exec`) writes to
   its home folder at startup, and the sandbox does not let it write `~/.codex`. The
@@ -79,18 +94,16 @@ that Codex is logged in and accepts every flag it passes.
   caches inside the sandbox, so the runner points them at a folder in the temp directory,
   kept between runs. CodeQL reads its bundled query packs in place and needs nothing.
 
-The runner exits with `NEEDS_ESCALATION` when this cannot work, and the skill then asks
-you to approve the same command outside the sandbox:
+On macOS, the runner exits with `NEEDS_ESCALATION` in the following cases. The skill
+then asks you to approve the same command outside the sandbox.
 
 - **The sandbox has no network access.** Workers have to reach the model. Codex sandboxes
   have network access off unless `sandbox_workspace_write.network_access` is set.
 - **The session is read-only,** so there is nowhere to write.
 
-After an escalated launch the runner works as it would outside Codex: each worker applies
-the sandbox mode it is given, and the runner itself, with the workflow script, runs with
-your full permissions. `--resume` and `--cancel` must run the way the launch did:
-records written inside the sandbox could have been changed by any command there, so an
-escalated resume refuses them.
+Run `--resume` and `--cancel` in the same launch context as the original run. The skill
+asks for approval again for an outside-sandbox run. Records written inside the sandbox
+are only resumable there because any command in that sandbox could have changed them.
 
 Tested with Codex 0.163 on macOS. Codex's built-in subagents are not an option: only the
 model can start them, and a workflow needs its `agent()` calls dispatched and their
@@ -184,11 +197,14 @@ Tested live with Codex CLI 0.163.0 on macOS, including structured output, the
 Claude-model fallback, sandbox confinement, and the workflow skills in this repository,
 both inside the session's sandbox and after an escalated launch.
 
+On Ubuntu 24.04 with Codex CLI 0.159.3, smoke tests covered outside-sandbox launch,
+sandboxed status polling, cancellation, and resume. A native Codex worker also
+completed a workflow using a local mock model endpoint.
+
 ```sh
 node --test plugins/workflow-runner/tests/*.test.mjs
 ```
 
 The suites start real processes against a fake CLI (`tests/fake-cli.mjs`), so CI
-spends no model tokens. They also compile every workflow in the repository, check that
-every workflow skill carries the hand-off sentence, and reproduce the attacks the
-runner's safeguards exist for.
+spends no model tokens. They also compile every workflow in the repository and
+exercise the runner's safeguards.

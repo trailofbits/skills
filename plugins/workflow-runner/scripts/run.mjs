@@ -6,7 +6,7 @@ import { readFile, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { compile, isInside, isRunActive, processIdentity, runWorkflow, summarize } from './runtime.mjs';
+import { compile, isInside, isRunActive, openRunLock, processIdentity, runWorkflow, summarize } from './runtime.mjs';
 import { loadRegistry } from './definitions.mjs';
 import { detectBackend, findExecutable, prepareCodexHome } from './backends.mjs';
 import { killPending } from './process.mjs';
@@ -20,9 +20,9 @@ const USAGE = `Usage:
   node run.mjs --cancel RUN_DIR                           stop a running run; it can be resumed
   node run.mjs --check WORKFLOW.js                        compile only; starts nothing
 
-Inside Codex's sandbox the runner and its workers run there, if the sandbox allows
-network access; otherwise it exits with NEEDS_ESCALATION, and the same command must be
-run again with escalated permissions. --resume and --cancel run the way the launch did.
+On macOS, Codex's sandbox can also host the runner and its workers if it allows
+network access. On Linux, launch from a terminal or use Codex's approved,
+outside-session launch. --resume and --cancel run the way the launch did.
 
 Options:
   --out NEW_RUN_DIR    run directory (default: workflow-runs/<workflow>-<time> under the
@@ -33,6 +33,9 @@ Options:
   --backend NAME       codex or gemini (default: the host this runs inside)
   --sandbox MODE       the launching session's sandbox: read-only (default), workspace-write,
                        or danger-full-access. Workers run in the same mode
+  --outside-session-sandbox
+                       apply each worker's own sandbox even if CODEX_SANDBOX is set.
+                       The host must separately authorize the launcher if it needs approval
   --add-dir DIR        another directory workers may write; repeatable, workspace-write only
   --network            let Codex workers' commands reach the network; workspace-write only
   --plugin-root DIR    installed plugin whose agents or skills the workflow uses; repeatable
@@ -47,6 +50,7 @@ Options:
 
 const OPTIONS = {
   help: { type: 'boolean' }, check: { type: 'boolean' }, detach: { type: 'boolean' }, network: { type: 'boolean' },
+  'outside-session-sandbox': { type: 'boolean' },
   status: { type: 'string' }, cancel: { type: 'string' }, resume: { type: 'string' }, out: { type: 'string' }, cwd: { type: 'string' },
   'args-file': { type: 'string' }, args: { type: 'string' }, backend: { type: 'string' }, sandbox: { type: 'string' },
   'add-dir': { type: 'string', multiple: true }, 'plugin-root': { type: 'string', multiple: true },
@@ -125,10 +129,18 @@ function assertCanRunInside(settings) {
   if (settings.addDirs?.length) throw escalate('--add-dir grants access beyond this sandbox');
 }
 
+async function isRecordedRunActive(runDir, state, identify) {
+  if (!state.fileLocked) return isRunActive(state, identify);
+  const lock = await openRunLock(runDir);
+  if (!lock) return true;
+  await lock.close();
+  return false;
+}
+
 async function status(runDir) {
   let state = await readState(runDir);
   let stopped = false;
-  if (state.status === 'running' && !isRunActive(state)) {
+  if (state.status === 'running' && !(await isRecordedRunActive(runDir, state))) {
     // Read again: a run that finished between the first read and the check is not stopped.
     state = await readState(runDir);
     stopped = state.status === 'running';
@@ -142,7 +154,10 @@ async function status(runDir) {
   const running = jobs.filter(job => job.status === 'running').map(job => job.label || job.key);
   const report = { ...summarize(state, runDir, result), status: stopped ? 'stopped' : state.status,
     ...(state.status === 'running' && !stopped ? { pid: state.pid } : {}), running, log };
-  if (stopped || state.status === 'interrupted') report.next = `Continue with: node ${self} --resume ${runDir}`;
+  if (stopped || state.status === 'interrupted') {
+    const outside = state.settings?.backend === 'codex' && !state.settings.insideSandbox ? ' --outside-session-sandbox' : '';
+    report.next = `Continue with: node ${self} --resume ${runDir}${outside}`;
+  }
   // One readable line, printed last: Codex shows only the tail of a command's output.
   const minutes = Math.round((Date.parse(state.finishedAt ?? new Date().toISOString()) - Date.parse(state.startedAt)) / 60_000);
   const phase = jobs.at(-1)?.phase;
@@ -160,14 +175,14 @@ async function status(runDir) {
 // reused, and it works inside the sandbox, where the runner's identity cannot be checked.
 export async function cancel(runDir, { timeoutMs = 15_000, pollMs = 200, identify = processIdentity } = {}) {
   const state = await readState(runDir);
-  if (state.status === 'running' && isRunActive(state, identify)) {
+  if (state.status === 'running' && (await isRecordedRunActive(runDir, state, identify))) {
     await writeFile(path.join(runDir, CANCEL_FILE), '', { mode: 0o600 });
     for (let waited = 0; waited < timeoutMs && (await readState(runDir)).status === 'running'; waited += pollMs) {
       await new Promise(resolve => setTimeout(resolve, pollMs));
     }
   }
   const after = await readState(runDir);
-  if (after.status === 'running' && isRunActive(after, identify)) {
+  if (after.status === 'running' && (await isRecordedRunActive(runDir, after, identify))) {
     throw new RunnerError('CANCEL_TIMEOUT', `Runner did not stop within ${timeoutMs} ms; cancellation is incomplete`);
   }
   return status(runDir);
@@ -249,14 +264,17 @@ export async function main(argv = process.argv.slice(2)) {
     await print({ status: 'compiled', script, plugin: registry.owner, agents: [...registry.agents.keys()] });
     return 0;
   }
-  // CODEX_SANDBOX is set only inside the sandbox. Not CODEX_SANDBOX_NETWORK_DISABLED: Codex
-  // sets that on escalated commands too, since it reflects the network policy, not the sandbox.
-  const inside = Boolean(process.env.CODEX_SANDBOX);
+  // An approved Linux launch opts into worker-enforced sandboxes explicitly.
+  // Network policy and inherited environment variables don't establish that the
+  // launcher is confined by Codex.
+  const inside = !values['outside-session-sandbox'] && Boolean(process.env.CODEX_SANDBOX);
   let settings;
   let runDir;
   if (values.resume) {
-    const extra = Object.keys(values).filter(key => !['resume', 'detach', 'executable'].includes(key));
-    if (extra.length || positionals.length) throw new RunnerError('CONFIG', '--resume takes only a run directory (and --detach, --executable); the original settings are reused');
+    const extra = Object.keys(values).filter(key => !['resume', 'detach', 'executable', 'outside-session-sandbox'].includes(key));
+    if (extra.length || positionals.length) {
+      throw new RunnerError('CONFIG', '--resume takes only a run directory (and --detach, --executable, --outside-session-sandbox); the original settings are reused');
+    }
     runDir = path.resolve(values.resume);
     settings = { ...(await readState(runDir)).settings };
     // Never launch a program named by the run records: resolve it again.
@@ -280,6 +298,12 @@ export async function main(argv = process.argv.slice(2)) {
   // The detached runner must use this run directory, not pick its own.
   if (values.detach) return detach(values.out || values.resume ? argv : [...argv, '--out', runDir], runDir, Boolean(values.resume));
 
+  let runLock;
+  if (process.platform === 'linux' && !inside && settings.backend === 'codex') {
+    if (!values.resume) await mkdir(runDir, { recursive: true, mode: 0o700 });
+    runLock = await openRunLock(runDir, true);
+    if (!runLock) throw new RunnerError('CONFIG', 'Run is already active');
+  }
   const controller = new AbortController();
   const stop = () => {
     if (controller.signal.aborted) { killPending(); process.exit(130); }
@@ -289,11 +313,12 @@ export async function main(argv = process.argv.slice(2)) {
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
   const cancelFile = path.join(runDir, CANCEL_FILE);
-  await rm(cancelFile, { force: true });
-  const watch = setInterval(() => { if (!controller.signal.aborted && existsSync(cancelFile)) stop(); }, 500);
-  watch.unref();
+  let watch;
   try {
-    await print(await runWorkflow(settings, { resume: Boolean(values.resume), out: runDir, signal: controller.signal,
+    await rm(cancelFile, { force: true });
+    watch = setInterval(() => { if (!controller.signal.aborted && existsSync(cancelFile)) stop(); }, 500);
+    watch.unref();
+    await print(await runWorkflow(settings, { resume: Boolean(values.resume), out: runDir, runLock, signal: controller.signal,
       log: message => process.stderr.write(`${message}\n`) }));
     return 0;
   } catch (error) {
@@ -301,6 +326,7 @@ export async function main(argv = process.argv.slice(2)) {
     throw error;
   } finally {
     clearInterval(watch);
+    await runLock?.close();
   }
 }
 

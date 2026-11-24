@@ -8,7 +8,7 @@ allowed-tools: Bash Read Write
 
 Some plugins ship their orchestration as a script under `workflows/`. Claude Code runs
 those natively. This skill runs the same script elsewhere: each `agent()` call becomes a
-fresh headless `codex exec` worker inside Codex's own sandbox (Gemini CLI support is
+fresh headless `codex exec` worker with the session's sandbox rules (Gemini CLI support is
 experimental). The script still decides what runs and when it is done. Your job is to
 launch it correctly, wait, and report what it returned.
 
@@ -30,7 +30,7 @@ used to get access the user did not grant.
 Resolve every path to an absolute one before launching. The runner is
 [`scripts/run.mjs`](../../scripts/run.mjs), resolved from this file's installed location.
 It needs Node.js 22 or newer and an installed, logged-in host CLI. It has no npm
-dependencies.
+dependencies. On Linux, Codex runs also need `flock` from util-linux on your PATH.
 
 For a dependency, pass the installed plugin directory: the one that holds
 `.claude-plugin/plugin.json`. Codex keeps installs under
@@ -41,12 +41,20 @@ with nothing to say so. The runner refuses a workflow script inside the target.
 
 ## Launch
 
-Start the run in the background, as an ordinary command, passing the arguments inline
-(single-quoted JSON):
+Start the run in the background, passing the arguments inline (single-quoted JSON):
 
 ```sh
 node <runner> <workflow.js> --args '<json>' --cwd <target> --sandbox <your sandbox mode> --detach
 ```
+
+1. **Codex on Linux.** Add `--outside-session-sandbox`. If ordinary commands run
+   inside the session sandbox, request the shell tool's escalation for launch.
+   Linux Codex can tear down a detached runner at the end of a sandboxed command.
+   Keep the same `--sandbox` mode so each worker applies it.
+2. **Other hosts.** Start with an ordinary command. On macOS, Codex can keep the runner
+   and its workers inside the session sandbox if it allows network access and writes.
+
+If you do not already know the command's platform, check with `node -p process.platform`.
 
 Add `--plugin-root <dir>` once per dependency. Add `--network` when the calling skill
 says its workflow needs network access. Add `--model <name>` only if the user picked a
@@ -59,19 +67,14 @@ within a few seconds. Or it fails with the reason. A setup error (not logged in,
 unsupported Codex version, a missing plugin root) is not a reason to retry with broader
 access.
 
-**If it fails with `NEEDS_ESCALATION`, run the same command again with escalated
-permissions.**
-
-- **Why:** the runner normally runs inside your sandbox, and so do its workers. That
-  needs network access, so workers can reach the model, and a `workspace-write`
-  sandbox. The error says which one is missing.
-- **How:** in the justification, say that it starts Codex workers under the user's
-  login. Each worker still runs under the sandbox mode you pass.
-- **Don't** suggest a reusable approval rule for `node`: every later `node` command
-  would then skip the sandbox.
-- **If escalation is refused,** say so and stop.
+If an ordinary launch fails with `NEEDS_ESCALATION`, retry with the shell tool's
+escalation. For either approved launch, explain in the justification that the workflow
+script runs outside the session sandbox and starts workers under the user's login.
+Each worker applies the passed sandbox mode. Ask for approval for this command only.
+If escalation is refused, say so and stop.
 
 Run `--resume` and `--cancel` the way the launch ran: escalated only if it was.
+Include `--outside-session-sandbox` on resume if you used it to launch.
 `--status` always runs normally.
 
 ## Wait

@@ -3,12 +3,12 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync } from 'node:fs';
-import { readFile, writeFile, mkdir, rename, unlink, readdir, realpath, rm } from 'node:fs/promises';
+import { constants, existsSync } from 'node:fs';
+import { open, readFile, writeFile, mkdir, rename, unlink, readdir, realpath, rm } from 'node:fs/promises';
 import { RunnerError, isWorkerFailure } from './errors.mjs';
 import { digest, loadRegistry, resolveRole } from './definitions.mjs';
 import { checkSchema, validate } from './schema.mjs';
-import { BACKENDS, executeWorker, prepareCodexHome, resolveModel, resolveEffort, roleWrites, roleRunsCommands, toolCacheEnv, toolCaches } from './backends.mjs';
+import { BACKENDS, executeWorker, findExecutable, prepareCodexHome, resolveModel, resolveEffort, roleWrites, roleRunsCommands, toolCacheEnv, toolCaches } from './backends.mjs';
 
 // Codex's sandbox modes. Workers take the mode of the session that launched them,
 // as Codex's own subagents and Claude Code's workflow agents do.
@@ -89,6 +89,26 @@ export const alive = pid => {
   catch (error) { return error.code === 'EPERM'; }
 };
 
+export const RUN_LOCK = 'active.lock';
+
+// Linux's sandbox cannot see the PID of a runner outside it. Both processes
+// can check an advisory lock on the same file. The lock survives the flock
+// subprocess because its fd and ours share the same open file description.
+export async function openRunLock(runDir, forRun = false) {
+  const flock = findExecutable('flock', process.env);
+  if (!flock) throw new RunnerError('LAUNCH', 'Linux workflow runs require flock (from util-linux) on PATH');
+  const access = forRun ? constants.O_CREAT | constants.O_WRONLY : constants.O_RDONLY;
+  const handle = await open(path.join(runDir, RUN_LOCK), access | constants.O_NOFOLLOW | constants.O_NONBLOCK, 0o600);
+  const wait = forRun ? ['--timeout', '0.2'] : ['--shared', '--nonblock'];
+  // Inherit only the lock fd. Pipes can fail under a network-restricted sandbox.
+  const result = spawnSync(flock, [...wait, '--conflict-exit-code', '75', '3'],
+    { stdio: ['ignore', 'ignore', 'ignore', handle.fd], timeout: 5000 });
+  if (result.status === 0 && !result.error) return handle;
+  await handle.close();
+  if (result.status === 75 && !result.error) return null;
+  throw new RunnerError('LAUNCH', `Could not check the workflow lock: ${result.error?.message ?? result.signal ?? result.status}`);
+}
+
 function preamble(registry) {
   return [
     // As Claude Code tells its workflow agents: the reply is data for the script.
@@ -104,7 +124,7 @@ function preamble(registry) {
   ].join('\n');
 }
 
-export async function runWorkflow(input, { resume = false, out, execute = executeWorker, log = () => {}, signal, env = process.env } = {}) {
+export async function runWorkflow(input, { resume = false, out, runLock, execute = executeWorker, log = () => {}, signal, env = process.env } = {}) {
   const settings = normalizeSettings(input);
   if (!out) throw new RunnerError('CONFIG', 'A run directory is required');
   out = path.resolve(out);
@@ -141,24 +161,29 @@ export async function runWorkflow(input, { resume = false, out, execute = execut
     // A run directory is never reused: mixing two runs' records would make
     // either one impossible to audit. A detached launch pre-creates it for its log.
     const existing = await readdir(out).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
-    if (existing && existing.some(name => name !== 'runner.log')) throw new RunnerError('CONFIG', `Run directory ${out} already exists; choose a new one`);
+    if (existing && existing.some(name => name !== 'runner.log' && !(runLock && name === RUN_LOCK))) {
+      throw new RunnerError('CONFIG', `Run directory ${out} already exists; choose a new one`);
+    }
     await mkdir(out, { recursive: true, mode: 0o700 });
     await writeFile(path.join(out, 'workflow.js'), source, { mode: 0o600 });
     state = { version: STATE_VERSION, fingerprint, settings, status: 'running', startedAt: new Date().toISOString(),
       nextJob: 1, jobs: {}, usage: { outputTokens: 0, unknown: 0 }, notes: [] };
   }
-  try { await writeFile(lockPath, String(process.pid), { flag: 'wx', mode: 0o600 }); }
-  catch (error) {
-    if (error.code !== 'EEXIST') throw error;
-    const holder = Number(await readFile(lockPath, 'utf8'));
-    if (alive(holder)) throw new RunnerError('CONFIG', `Run is already active in process ${holder}`);
-    await unlink(lockPath).catch(() => {});
-    // A second resume racing for the same stale lock loses here rather than with a raw EEXIST.
-    await writeFile(lockPath, String(process.pid), { flag: 'wx', mode: 0o600 }).catch(() => {
-      throw new RunnerError('CONFIG', 'Another process is resuming this run');
-    });
+  if (!runLock) {
+    try { await writeFile(lockPath, String(process.pid), { flag: 'wx', mode: 0o600 }); }
+    catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      const holder = Number(await readFile(lockPath, 'utf8'));
+      if (alive(holder)) throw new RunnerError('CONFIG', `Run is already active in process ${holder}`);
+      await unlink(lockPath).catch(() => {});
+      // A second resume racing for the same stale lock loses here rather than with a raw EEXIST.
+      await writeFile(lockPath, String(process.pid), { flag: 'wx', mode: 0o600 }).catch(() => {
+        throw new RunnerError('CONFIG', 'Another process is resuming this run');
+      });
+    }
   }
-  Object.assign(state, { status: 'running', pid: process.pid, processIdentity: processIdentity(process.pid), error: undefined, finishedAt: undefined });
+  Object.assign(state, { status: 'running', pid: process.pid, processIdentity: runLock ? undefined : processIdentity(process.pid),
+    fileLocked: runLock ? true : undefined, error: undefined, finishedAt: undefined });
 
   let saving = Promise.resolve();
   const save = () => {
@@ -422,7 +447,9 @@ export async function runWorkflow(input, { resume = false, out, execute = execut
     state.finishedAt = new Date().toISOString();
     delete state.pid;
     await save();
-    await unlink(lockPath).catch(() => {});
+    // The CLI closes an advisory lock's fd after this save. Keep its inode so a
+    // poller and a concurrent resume always open the same lock.
+    if (!runLock) await unlink(lockPath).catch(() => {});
   }
 }
 
