@@ -30,6 +30,16 @@ codex plugin list
 codex plugin add <plugin-name>@trailofbits
 ```
 
+Install [workflow-runner](plugins/workflow-runner/) to run this marketplace's JavaScript workflows on Codex.
+
+```sh
+codex plugin add workflow-runner@trailofbits
+```
+
+Invoke `$workflow-runner:run-workflow` directly and give it a workflow and its arguments.
+Automatic handoffs from workflow skills are tracked in [#386](https://github.com/trailofbits/skills/pull/386).
+On Linux, the skill uses an outside-sandbox launch with your approval when the session is sandboxed.
+
 ### ChatGPT Workspace Marketplace
 
 Use this repository's `.claude-plugin/marketplace.json` for workspace imports.
@@ -140,6 +150,7 @@ cd /path/to/parent  # e.g., if repo is at ~/projects/skills, be in ~/projects
 | Plugin | Description |
 |--------|-------------|
 | [chrome-mcp-troubleshooting](plugins/chrome-mcp-troubleshooting/) | Diagnose and fix Claude in Chrome MCP extension connectivity issues |
+| [workflow-runner](plugins/workflow-runner/) | Run this marketplace's JavaScript workflows on Codex, which lacks Claude Code's native Workflow tool (Gemini CLI experimental) |
 
 ## Trophy Case
 
