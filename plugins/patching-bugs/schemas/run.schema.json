@@ -1,0 +1,106 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "finding_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "status": {
+      "enum": [
+        "in_progress",
+        "not_reproduced",
+        "not_ready",
+        "ready_with_concerns",
+        "ready"
+      ]
+    },
+    "steps": {
+      "type": "object",
+      "properties": {
+        "intake": {
+          "enum": [
+            "pending",
+            "done",
+            "failed",
+            "skipped"
+          ]
+        },
+        "reproduce": {
+          "enum": [
+            "pending",
+            "done",
+            "failed",
+            "skipped"
+          ]
+        },
+        "validate": {
+          "enum": [
+            "pending",
+            "done",
+            "failed",
+            "skipped"
+          ]
+        },
+        "patch": {
+          "enum": [
+            "pending",
+            "done",
+            "failed",
+            "skipped"
+          ]
+        },
+        "prove": {
+          "enum": [
+            "pending",
+            "done",
+            "failed",
+            "skipped"
+          ]
+        },
+        "regression": {
+          "enum": [
+            "pending",
+            "done",
+            "failed",
+            "skipped"
+          ]
+        },
+        "report": {
+          "enum": [
+            "pending",
+            "done",
+            "failed",
+            "skipped"
+          ]
+        }
+      },
+      "required": [
+        "intake",
+        "reproduce",
+        "validate",
+        "patch",
+        "prove",
+        "regression",
+        "report"
+      ],
+      "additionalProperties": false
+    },
+    "attempts": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    }
+  },
+  "required": [
+    "schema_version",
+    "finding_id",
+    "status",
+    "steps",
+    "attempts"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,9 @@
+{
+  "name": "cvss-scoring",
+  "version": "1.2.0",
+  "description": "Produces CVSS v4.0 vector strings from plain-text vulnerability descriptions by systematically evaluating base metrics. Use when scoring a vulnerability, generating a CVSS vector, or estimating severity.",
+  "author": {
+    "name": "Evan Downing",
+    "url": "https://github.com/trailofbits"
+  }
+}

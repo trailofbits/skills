@@ -15,16 +15,18 @@ PERMISSION_MODE="${EVAL_PERMISSION_MODE:-acceptEdits}"
 
 usage() {
   cat <<'EOF'
-usage: run.sh [--arm skill|baseline|both] [--self-test] [case ...]
+usage: run.sh [--arm skill|baseline|both] [--self-test|--self-test-live] [case ...]
 
 Runs review-flow evals for the writing-lean-proofs skill.
 
   --arm        which arm(s) to run: with the skill installed ("skill"),
                without it ("baseline"), or both (default). Comparing the
                two arms measures the skill's uplift.
-  --self-test  grade a canned bad review against case 01's rubric and
-               assert the grader fails it on every criterion; runs no
-               reviewer. Proves the grader still detects its target.
+  --self-test  check grader schema and plugin isolation using offline fixtures;
+               no Claude CLI, authentication, or model calls are required.
+  --self-test-live
+               also grade canned bad/good reviews against case 01's rubric;
+               requires Claude authentication and makes paid model calls.
   case         case directory names under evals/cases (default: all)
 
 Environment:
@@ -430,6 +432,10 @@ self_test() {
   echo "[self-test] artifacts: $outdir (kept on failure for debugging)"
 
   grader_validation_self_test "$outdir"
+  if [ "${1:-offline}" = "offline" ]; then
+    rm -rf "$outdir"
+    return
+  fi
 
   # The preflight runs here rather than at the top of the script so the
   # offline half above — the schema, isolation-fixture and rubric checks,
@@ -480,7 +486,7 @@ PY
 }
 
 ARM="both"
-SELF_TEST=0
+SELF_TEST=""
 CASES=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -489,7 +495,11 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     --self-test)
-      SELF_TEST=1
+      SELF_TEST="offline"
+      shift
+      ;;
+    --self-test-live)
+      SELF_TEST="live"
       shift
       ;;
     -h | --help)
@@ -508,8 +518,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ "$SELF_TEST" -eq 1 ]; then
-  self_test
+if [ -n "$SELF_TEST" ]; then
+  self_test "$SELF_TEST"
   exit 0
 fi
 

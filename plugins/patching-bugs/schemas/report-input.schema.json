@@ -1,0 +1,79 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "bug": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 600
+    },
+    "fix_why": {
+      "type": "string",
+      "maxLength": 400
+    },
+    "open_risks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "maxItems": 5
+    },
+    "include_poc": {
+      "type": "boolean"
+    },
+    "run_metadata": {
+      "type": "object",
+      "properties": {
+        "run_type": {"type": "string", "maxLength": 80},
+        "date": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+        "model": {"type": "string", "maxLength": 100},
+        "reasoning_effort": {"type": "string", "maxLength": 60},
+        "elapsed_seconds": {"type": "integer", "minimum": 0},
+        "recorded_tokens": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "baseline_checks": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "properties": {
+          "check_id": {"type": "string", "minLength": 1, "maxLength": 100},
+          "reproduce": {
+            "type": "object",
+            "properties": {
+              "stdout": {"type": "string", "maxLength": 400},
+              "exit": {"type": "string", "maxLength": 400}
+            },
+            "required": ["stdout", "exit"],
+            "additionalProperties": false
+          },
+          "validate": {
+            "type": "object",
+            "properties": {
+              "stdout": {"type": "string", "maxLength": 400},
+              "exit": {"type": "string", "maxLength": 400}
+            },
+            "required": ["stdout", "exit"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["check_id", "reproduce", "validate"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "bug",
+    "fix_why",
+    "open_risks",
+    "include_poc"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,60 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "campaign_dir": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "coverage": {
+      "enum": [
+        "COMPLETE",
+        "INCOMPLETE"
+      ]
+    },
+    "outcomes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "outcome": {
+            "enum": [
+              "REPRODUCED_REGRESSION",
+              "INCOMPLETE_FIX",
+              "LATENT_BUG",
+              "PREEXISTING_BUG",
+              "REJECTED",
+              "UNRESOLVED"
+            ]
+          },
+          "decision_receipt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          }
+        },
+        "required": [
+          "candidate_id",
+          "outcome",
+          "decision_receipt"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "campaign_dir",
+    "coverage",
+    "outcomes"
+  ],
+  "additionalProperties": false
+}

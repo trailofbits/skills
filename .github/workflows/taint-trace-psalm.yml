@@ -1,0 +1,74 @@
+name: Psalm compatibility
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - plugins/trailmark/**
+      - .github/workflows/taint-trace-psalm.yml
+  push:
+    branches: [main]
+    paths:
+      - plugins/trailmark/**
+      - .github/workflows/taint-trace-psalm.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: psalm-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: Psalm ${{ matrix.version }} / PHP 8.3
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: "5.26.1"
+            sha256: 7d68a927dd72d30ec90e574cc114dd44851d9c49e3855e3c33c2bdd021259d1a
+          - version: "6.20.10"
+            sha256: 4cebb4d62910800e8ee55153a39c60002e46fe036d13ba897eeea9c848b4e6b3
+          - version: "7.0.0"
+            sha256: fdca509b0e35514d95cc4802c0165c6e499abe36ef5694bf8f254ae961fdae7f
+          - version: "7.1.0"
+            sha256: e802acff9b5d799a9bd54378939e96942e9a2c1712ae7b4edac74eb99d64aead
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.13"
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962  # v2
+        with:
+          php-version: "8.3"
+          extensions: dom, mbstring, simplexml
+          coverage: none
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
+        with:
+          enable-cache: false
+      - name: Download and verify official Psalm PHAR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PSALM_VERSION: ${{ matrix.version }}
+          PSALM_SHA256: ${{ matrix.sha256 }}
+        run: |
+          set -euo pipefail
+          gh release download "$PSALM_VERSION" --repo vimeo/psalm \
+            --pattern psalm.phar --dir "$RUNNER_TEMP/psalm"
+          echo "$PSALM_SHA256  $RUNNER_TEMP/psalm/psalm.phar" | sha256sum --check
+          chmod u+x "$RUNNER_TEMP/psalm/psalm.phar"
+          echo "TAINT_TRACE_PSALM=$RUNNER_TEMP/psalm/psalm.phar" >> "$GITHUB_ENV"
+      - name: Run helper and required native Psalm tests
+        working-directory: plugins/trailmark/skills/taint-trace/scripts
+        run: |
+          set -euo pipefail
+          test -n "$TAINT_TRACE_PSALM"
+          test -x "$TAINT_TRACE_PSALM"
+          uv run --no-project --with pytest --with pyyaml \
+            --with-requirements requirements-test.txt \
+            python -m pytest -q --import-mode=importlib .

@@ -151,12 +151,14 @@ print(best)
 # found". A broken interpreter therefore scored every positive session as a clean
 # negative, and the sweep read as a recall regression.
 skill_invoked() {
-  local out
+  local out detector_stderr detector_rc=0
   [ -s "$1" ] || {
     echo "no"
     return
   }
-  # stderr folded in: it is what names the reason when the interpreter is what failed.
+  # uv may warn on stderr even when the detector succeeds. Preserve diagnostics
+  # separately so only the detector's stdout can supply the yes/no verdict.
+  detector_stderr="$(mktemp "$artdir/detector.stderr.XXXXXX")"
   out="$("${py_run[@]}" -c '
 import json, sys
 for line in sys.stdin:
@@ -173,7 +175,15 @@ for line in sys.stdin:
                 print("yes")
                 sys.exit(0)
 print("no")
-' <"$1" 2>&1)" || true
+' <"$1" 2>"$detector_stderr")" || detector_rc=$?
+
+  if [ "$detector_rc" -ne 0 ]; then
+    out="exit $detector_rc: $(cat "$detector_stderr")"
+    rm -f "$detector_stderr"
+    printf 'error:%s\n' "$(printf '%s' "$out" | tr '\n' ' ' | cut -c1-160)"
+    return
+  fi
+  rm -f "$detector_stderr"
 
   case "$out" in
     yes | no) printf '%s\n' "$out" ;;
@@ -431,6 +441,27 @@ SH
   case "$got" in crash:detector*) got="crash:detector" ;; esac
   check "detector that cannot run -> crash:detector, not no" crash:detector "$got"
 
+  # Detector warnings must not corrupt either verdict; a nonzero detector may
+  # print a plausible token before failing and must still invalidate the result.
+  cat >"$d/detector" <<'SH'
+#!/usr/bin/env bash
+echo 'detector warning' >&2
+echo "${DETECTOR_VERDICT:-yes}"
+exit "${DETECTOR_RC:-0}"
+SH
+  chmod +x "$d/detector"
+  py_run=("$d/detector")
+  got="$(check_triggered q)"
+  check "detector stderr preserves a positive verdict" yes "$got"
+  got="$(DETECTOR_VERDICT=no check_triggered q)"
+  check "detector stderr preserves a negative verdict" no "$got"
+  got="$(DETECTOR_RC=1 check_triggered q)"
+  case "$got" in crash:detector*) got="crash:detector" ;; esac
+  check "detector nonzero exit invalidates a printed yes" crash:detector "$got"
+  got="$(find "$artdir" -name 'detector.stderr.*' -type f | wc -l | tr -d ' ')"
+  check "detector stderr temporary files are removed" 0 "$got"
+  py_run=(uv run --no-project python3)
+
   # End to end: the exit code is what CI reads, so assert on that directly.
   # A crash must invalidate (3) even though it would otherwise look like a miss.
   rc=0
@@ -478,8 +509,8 @@ SH
   rm -rf "$d"
 
   echo
-  if [ "$asserts" -lt 17 ]; then
-    echo "self-test ran $asserts assertions, expected 17 — the self-test is broken" >&2
+  if [ "$asserts" -lt 21 ]; then
+    echo "self-test ran $asserts assertions, expected 21 — the self-test is broken" >&2
     exit 2
   fi
   [ "$fails" -eq 0 ] || {

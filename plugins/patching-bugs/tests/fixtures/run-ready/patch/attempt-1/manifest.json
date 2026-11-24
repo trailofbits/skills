@@ -1,0 +1,8 @@
+{
+  "files": {
+    "fix.patch": "282a2db76b7b6a37366d552d1d46808d923519b79e25291603bb4556d8960e4e",
+    "patch.json": "16e53d34f73b1eff55f9a08068a47366110f7a5b1c0ddb936501647e839ae6b1",
+    "tests.patch": "eaaff4cce6b082acccfbc0aebb600b109c430132b121c7425b708942ac4319d4"
+  },
+  "schema_version": 1
+}

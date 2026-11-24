@@ -35,7 +35,9 @@ nothing to copy:
 
 1. **Claude Code** — `ls -d -- "${CLAUDE_PLUGIN_ROOT}/skills/semgrep-rule-variant-creator/references"`
 2. **Codex** — the same command with `${CODEX_PLUGIN_ROOT}`, if that variable is set instead
-3. **Neither set** — `find ~/.claude ~/.codex . -type d -path '*/semgrep-rule-variant-creator/skills/*/references' -print -quit 2>/dev/null`
+3. **Neither set** — resolve `{baseDir}/references` from the directory containing this loaded
+   SKILL.md and print its absolute path with `ls -d -- "<resolved path>"`. Do not search caches
+   or the target project for another copy.
 
 Then confirm the directory that printed holds both reference files, with `ls -1 -- "<that path>"`.
 

@@ -1,0 +1,119 @@
+schema_version: "1.1"
+name: vector-and-calculator-link
+description: >-
+  An unauthenticated SQL injection described with every exploitability fact stated
+  outright, so the correct vector is pinned and the run has no reason to stop and ask.
+  The case exists for the calculator deep link: the vector must arrive as a loadable
+  URL fragment, not as a string for the user to paste by hand.
+tags: [cvss-scoring]
+
+# One run per arm is a smoke check, not a measurement. Override with `--runs 3` before
+# quoting any number.
+runs: 1
+
+execution:
+  max_turns: 12
+  timeout_seconds: 420
+  allowed_tools: [Read, Glob, Grep, Skill]
+  prompt: |
+    Score this vulnerability with CVSS v4.0.
+
+    The `/api/v1/reports` endpoint of the Acme Analytics web application concatenates
+    the `sort` query parameter directly into a SQL statement. Any client that can reach
+    the service over HTTPS can exploit it — the endpoint is served before the
+    authentication middleware, so no account or session is needed, and no user has to be
+    tricked into anything. Exploitation needs nothing but a normal HTTP request: no
+    memory-protection bypass, no race, no particular deployment configuration, and no
+    on-path position.
+
+    The application's database user owns every table, so an attacker reads and rewrites
+    all application data at will. The database is a managed instance dedicated to this
+    application and reachable only from it; nothing downstream consumes its data. The
+    injection does not crash the service. Exploit maturity has not been assessed:
+    no reliable threat intelligence is available about public proof-of-concept code,
+    reported attacks, or exploit solutions.
+
+    This run is headless — do not stop to ask clarifying questions. Score it from the
+    facts above, and flag anything you had to assume.
+
+expected_outcome: >-
+  A per-metric justification table, the bare vector, and a first.org calculator URL
+  carrying that vector as its fragment in canonical metric order.
+
+graders:
+  # The whole point of the deep link. The calculator's app.js slices off the '#', requires
+  # the literal CVSS:4.0 prefix, and walks a fixed expectedMetricOrder — a vector out of
+  # order leaves every button unset with no error. So ordering is asserted rather than
+  # trusted. This one pattern catches a missing fragment, a reordered vector, and CVSS
+  # v3.1 metric values (UI:R, or a Scope metric) at once.
+  - name: calculator-link-is-loadable
+    type: regex
+    pattern: 'https://www\.first\.org/cvss/calculator/4\.0#CVSS:4\.0/AV:[NALP]/AC:[LH]/AT:[NP]/PR:[NLH]/UI:[NPA]/VC:[HLN]/VI:[HLN]/VA:[HLN]/SC:[HLN]/SI:[HLN]/SA:[HLN]'
+    match: contains
+
+  # ':' and '/' are legal in a fragment. Percent-encoding them yields a link that loads
+  # the calculator and applies nothing.
+  - name: fragment-not-percent-encoded
+    type: regex
+    pattern: '%3A|%2F'
+    match: not_contains
+    flags: i
+
+  # Require the report vector on its own line (plain or inline code), including inside
+  # a fenced block. A vector embedded in a URL or Markdown link cannot satisfy this.
+  - name: bare-vector-present
+    type: regex
+    pattern: '^[ \t]*`?CVSS:4\.0/AV:[NALP]/AC:[LH]/AT:[NP]/PR:[NLH]/UI:[NPA]/VC:[HLN]/VI:[HLN]/VA:[HLN]/SC:[HLN]/SI:[HLN]/SA:[HLN]`?[ \t]*\r?$'
+    match: contains
+    flags: m
+
+  # The prompt states each of these outright, so they are verifiable rather than matters
+  # of judgement, and a regex grades them more cheaply and reliably than a judge:
+  # HTTPS-reachable (AV:N), no protection bypass (AC:L), no race or config or on-path
+  # position (AT:N), no account (PR:N), nobody tricked (UI:N), full read and write on all
+  # application data (VC:H/VI:H), dedicated database with nothing downstream (SC/SI/SA:N).
+  #
+  # VA is deliberately [NL], the one metric left open. "Does not crash the service" makes
+  # VA:N the plain reading, but reasonable-worst-case on table locking is a defensible
+  # VA:L, and failing that would be grading a judgement call as an error.
+  - name: metrics-match-the-stated-facts
+    type: regex
+    pattern: 'CVSS:4\.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:[NL]/SC:N/SI:N/SA:N'
+    match: contains
+
+  # No reliable threat intelligence means E:X, which the skill omits. X defaults to A
+  # for scoring; U needs evidence about PoCs, attacks, and exploit solutions and is
+  # not equivalent to omission.
+  - name: exploit-maturity-omitted
+    type: regex
+    pattern: '/E:[XAPU]'
+    match: not_contains
+
+  # Two single-clause criteria rather than one rubric with carve-outs. The combined form
+  # asks the judge several questions at once and flips: writing-plugin-evals.md records a
+  # pr-review grader going FAIL FAIL FAIL on correct work for exactly that reason. The
+  # metric values are graded deterministically above, so neither of these re-grades them.
+  - name: metrics-justified-one-at-a-time
+    type: llm
+    criteria: |
+      Each CVSS metric is justified against a specific fact from the description, one
+      metric at a time.
+
+      An aggregate justification covering several metrics at once — "this is critical, so
+      the impacts are High" — does not satisfy this. Any layout is fine, table or prose.
+    weight: 1
+
+  # Deliberately carved out rather than graded by regex. The skill tells the run to name
+  # the calibration anchors it compared against, and those carry real scores in
+  # references/examples.md ("Log4Shell ... CVSS-BT 9.3"), so any pattern matching a
+  # digit-dot-digit near "score" would fail a run for following instructions.
+  - name: no-numeric-score-claimed-as-its-own
+    type: llm
+    criteria: |
+      No numeric CVSS score is presented as this finding's own score — not "this scores
+      9.3", not a base score, not a severity number derived by hand. Only the calculator
+      produces that number.
+
+      Quoting the score of a calibration example while comparing against it is correct
+      and does not count against this.
+    weight: 1

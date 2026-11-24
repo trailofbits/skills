@@ -59,8 +59,9 @@ All paths below are relative to `skills/writing-lean-proofs/`:
 real formal-verification project) with known planted flaws and known
 non-flaws, natural review prompts, per-case rubrics, and a runner that
 compares a baseline arm against a skill arm using an LLM judge. See
-[evals/README.md](evals/README.md); `evals/run.sh --self-test` verifies the
-grader still detects a known-bad review.
+[evals/README.md](evals/README.md). `evals/run.sh --self-test` checks offline
+grader-schema and isolation fixtures; `--self-test-live` checks the real grader
+against known-bad and known-good reviews and makes paid model calls.
 
 ## When not to use
 

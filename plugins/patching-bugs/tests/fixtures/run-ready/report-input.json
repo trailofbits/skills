@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "bug": "Upload escapes its root. This permits overwrite.",
+  "fix_why": "Normalize the path component.",
+  "open_risks": [],
+  "include_poc": false
+}

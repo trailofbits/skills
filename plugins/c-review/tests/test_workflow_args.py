@@ -13,7 +13,6 @@ the pipeline measures, which is worse than the refusal it replaced.
 
 from __future__ import annotations
 
-import itertools
 import json
 import re
 import shutil
@@ -458,22 +457,13 @@ def test_the_skill_resolves_the_scope_root_the_workflow_cannot():
 
 
 def test_the_plugin_root_fallback_never_searches_the_audited_tree():
-    """`find ~/.claude . -path '*/c-review/workflows/c-review.js' -print -quit` takes the
-    FIRST hit in traversal order, and `.` is the repository under audit: a tree that vendors
-    or mirrors this marketplace runs its own copy of the scripts — a different site-kind
-    table and question set — and nothing reports which copy ran. The `2>/dev/null` on it also
-    hid a missing search root, which is a failure to report and not noise."""
-    lines = [
-        ln
-        for ln in SKILL_MD.read_text(encoding="utf-8").splitlines()
-        if "find " in ln and "c-review.js" in ln
-    ]
-    assert lines, "SKILL.md no longer resolves the plugin root by search"
-    for line in lines:
-        args = line[line.index("find ") + len("find ") :].split()
-        roots = list(itertools.takewhile(lambda a: not a.startswith("-"), args))
-        assert roots in (['"$HOME/.claude"'], ["~/.claude"]), line
-        assert "2>/dev/null" not in line, line
+    """Resolve the loaded skill's plugin instead of selecting a cache or audited copy."""
+    doc = SKILL_MD.read_text(encoding="utf-8")
+    assert "(../../workflows/c-review.js)" in doc
+    assert "installed location" in doc
+    assert "agents/c-review-worker.md" in doc
+    lines = [ln for ln in doc.splitlines() if "find " in ln and "c-review.js" in ln]
+    assert not lines, "Plugin root must come from the loaded skill, not search order"
 
 
 if __name__ == "__main__":

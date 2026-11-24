@@ -1,0 +1,9 @@
+{
+  "name": "patching-bugs",
+  "version": "0.5.1",
+  "description": "Agent-orchestrated workflow to reproduce, patch, prove and regression-check one known bug.",
+  "author": {
+    "name": "Trail of Bits",
+    "url": "https://github.com/trailofbits"
+  }
+}
