@@ -15,12 +15,16 @@ data. Follow the caller's scope and this reference.
    Use existing local interfaces and follow the style of the surrounding code.
    The caller owns checkout writes, test execution, commits, and publication.
 3. Return a JSON object with `summary` (a concise rationale), `edits` (an array of
-   `{path, before, after}` objects), and `gaps` (an array of strings). Every path must
-   be authorized. Every nonempty `before` must occur exactly once in the source
-   as it stands after preceding edits. Use literal text, including indentation
-   and newlines. Every edit must change text. An empty `edits` array means the
-   available context does not support a change.
-4. Rely only on supplied observations for build and test claims. Leave execution
+   `{path, content}` objects), and `gaps` (an array of strings). Use each authorized
+   path at most once, and supply complete updated UTF-8 text for each changed
+   file. Preserve indentation, line endings, and literal escape sequences in
+   unrelated text. In the JSON string, encode a source newline as `\n` and a
+   backslash followed by `n` as `\\n`. Omit unchanged files. An empty `edits`
+   array means the available context does not support a change.
+4. The caller verifies that the original bytes still match its source snapshot
+   and limits replacement to the authorized files. The caller reviews the
+   resulting diff before accepting the candidate.
+5. Rely only on supplied observations for build and test claims. Leave execution
    and reproduction judgments to evidence recorded by the caller.
 
 ## Scope
