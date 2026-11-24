@@ -11,6 +11,10 @@ The coordinator and standalone skills use any root `AGENTS.md`,
 `PATCHING_GUIDELINES.md` and `THREAT_MODEL.md` as described in the
 [project guidance](references/evidence.md#project-guidance).
 
+A trusted caller can request a
+[managed regression evidence review](skills/regression-hunt/references/managed-validation.md)
+of baseline and candidate observations from existing, approved checks.
+
 ## Skills
 
 | Skill | Responsibility |

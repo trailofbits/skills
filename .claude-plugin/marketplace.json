@@ -147,7 +147,7 @@
     },
     {
       "name": "patching-bugs",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "description": "Agent-orchestrated workflow to reproduce, patch, prove and regression-check one known bug.",
       "author": {
         "name": "Trail of Bits",
@@ -178,7 +178,7 @@
     },
     {
       "name": "regression-hunt",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "description": "Agent-orchestrated skills for finding, reproducing and adjudicating regressions in PRs or commits.",
       "author": {
         "name": "Trail of Bits",

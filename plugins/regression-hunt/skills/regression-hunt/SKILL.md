@@ -5,6 +5,19 @@ description: Use when investigating regressions in PRs or commits, coordinating 
 
 # Coordinate a regression hunt
 
+## Contents
+
+- [When to Use](#when-to-use)
+- [When NOT to Use](#when-not-to-use)
+- [Coordinate](#coordinate)
+- [Resume](#resume)
+- [Report Back](#report-back)
+- [Rationalizations to Reject](#rationalizations-to-reject)
+- [Managed validation reference](references/managed-validation.md)
+
+When a trusted caller explicitly selects managed mode, use the
+[managed regression evidence review](references/managed-validation.md).
+
 ## When to Use
 
 Investigate supplied PRs of any status or commits, including local commits.

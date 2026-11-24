@@ -13,6 +13,10 @@ The coordinator and standalone skills use any root `AGENTS.md`,
 `PATCHING_GUIDELINES.md`, and `THREAT_MODEL.md` as described in the
 [project guidance](references/records.md#project-guidance).
 
+For a managed run, a trusted caller can use the
+[managed patch proposal](skills/patching-bugs/references/managed-validation.md)
+to prepare a bounded correctness patch and record independent post-patch evidence.
+
 ## Skills
 
 | Skill | Responsibility |

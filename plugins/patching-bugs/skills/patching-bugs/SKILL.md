@@ -5,6 +5,17 @@ description: Use when a known bug or falsifiable bug hypothesis in a local codeb
 
 # Patching Bugs
 
+## Contents
+
+- [When to Use](#when-to-use)
+- [When NOT to Use](#when-not-to-use)
+- [Workflow](#workflow)
+- [Rationalizations to Reject](#rationalizations-to-reject)
+- [Managed validation reference](references/managed-validation.md)
+
+When a trusted caller explicitly selects managed mode, use the
+[managed patch proposal](references/managed-validation.md).
+
 ## When to Use
 
 Use for one named bug in the current local codebase when a reviewer needs a local patch
