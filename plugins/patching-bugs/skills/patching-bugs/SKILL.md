@@ -26,6 +26,12 @@ skill for a remote deployment or a batch of bugs.
 
 ## Workflow
 
+Stage ownership is strict. The coordinator may build the baseline and write run records
+outside the target checkout, but must not edit or commit tracked target files. Only the
+fresh `implement-patch` agent may edit target source or tests, after independent
+reproduction and validation. If the checkout changes earlier, stop as INCONCLUSIVE and
+preserve the evidence.
+
 During preflight, before the first build, pin the baseline SHA and read root guidance
 from its Git objects. Save present files and absences under `guidance/<baseline-SHA>/`
 outside the target tree; verify them before each handoff. Confirm `regression-hunt`
@@ -87,11 +93,25 @@ passes root guidance to its agents.
    reach a host-observed terminal outcome before treating its records as complete,
    checking its stage, or dispatching a dependent agent. Apply this to every stage,
    including the `regression-hunt` coordinator. A launch response is not a completed stage.
+   OpenCode's `agent` field names a configured runtime agent, not a skill. Use an
+   available agent such as `general` and direct it to the stage skill; do not pass
+   `implement-patch` or another skill name as the agent ID unless configured. Include
+   the absolute pinned stage `SKILL.md` path and run directory in each child prompt;
+   require the child to load that skill before stage work. A stage child that does not
+   load its skill cannot supply an accepted handoff.
 
-3. Dispatch `reproduce-bug` to a fresh agent with the finding and target checkout. Observe
-   the planned scoped inputs on the unchanged baseline before any edit. Give a
+3. Dispatch `reproduce-bug` to a fresh agent with the finding, target checkout, and
+   absolute run directory. Require its artifacts under `<run-dir>/reproduce/`, never
+   under the checkout. The coordinator may run the preflight build and preserve
+   reporter-supplied material in the finding, but must not author executable PoC or
+   test files or edit `reproduce/` before
+   dispatch. The child designs and writes any missing PoC and observes the planned scoped
+   inputs on the unchanged baseline before any target-tree edit. Give a
    different fresh agent only the finding, the complete `reproduce/` directory,
    and project guidance for `validate-bug`. Do not send the reproducer's transcript.
+   The reproducer's own test run is not independent validation. Do not dispatch
+   `implement-patch` until the fresh validator has finished and its decision passes
+   the record checker.
    Run the [record checker](../../scripts/records.py)
    after each step. Stop at `not_reproduced`, `blocked`, `not_confirmed`, or
    `inconclusive`; prepare the corresponding report. If the scoped behavior is
@@ -187,3 +207,6 @@ never infer a passing check from an agent's summary.
 | Regression-hunt is slow. | Run it; incomplete coverage is a concern, not a pass. |
 | A missing receipt or failing check is close enough. | Treat evidence gaps as INCONCLUSIVE and trustworthy patched failures as failed repair. |
 | The runtime PoC crashed, so the bug reproduced. | Require the exact `PATCH_REACHED` line. |
+| Coordinator writes the PoC first. | Fresh `reproduce-bug` agent owns the PoC. |
+| Coordinator patches early. | Fresh patch agent edits only after independent validation. |
+| Reproducer ran the PoC, so validation is done. | Fresh validator reruns it and records a decision. |

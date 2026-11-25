@@ -23,13 +23,16 @@ Report a blocker when the build or environment cannot exercise the claim.
    retain their observations, including valid controls. Save raw stdout, stderr,
    exit status, and timing. If the behavior is absent with trustworthy evidence,
    report `not_reproduced`; if setup or observations are unreliable, report `blocked`.
-2. Runtime: exercise the built `target_artifact` with a PoC that records `PATCH_LOADED`
+2. Runtime: independently design and write a PoC when the report does not supply one.
+   If it does, verify the supplied PoC against the finding before using it. Exercise
+   the built `target_artifact` with a PoC that records `PATCH_LOADED`
    as defined in the contract, then prints `PATCH_REACHED` immediately before the assertion.
    Exit nonzero for the bug, zero otherwise; a setup crash is inconclusive.
    Compile: record the target `expected_diagnostic` from the failed compiler invocation;
    use empty `poc_argv` and null `target_artifact`.
-3. Save any unchanged PoC source under `reproduce/poc/` and raw receipts
-   under `reproduce/receipts/`. Write `reproduce.json` with the baseline commit,
+3. Save any unchanged PoC source under `<run-dir>/reproduce/poc/` and raw receipts
+   under `<run-dir>/reproduce/receipts/`; do not write these into the target checkout.
+   Write `reproduce.json` in that run directory with the baseline commit,
    command argument arrays, artifact path, observed result, outcome, and your agent
    identity. Set `finding.status` to `reproduced` or `not_reproduced` from the result.
    If reproduction is `blocked`, leave `finding.status` as `hypothesis`.
