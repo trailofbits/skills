@@ -81,7 +81,7 @@ def test_repair_entry_requires_scope_without_blocking_inconclusive_report(tmp_pa
     else:
         assert result.returncode == 1
         assert "repair_scope" in result.stderr
-        check(run)
+        check(run, allow_inconsistent_status=True)
         output = render(run).read_text()
         assert "INCONCLUSIVE" in output
         assert "repair scope is missing" in output
@@ -110,7 +110,7 @@ def test_repair_entry_requires_a_usable_case_plan(tmp_path, problem):
     else:
         cases[1]["input"] = cases[0]["input"]
     path.write_text(json.dumps(finding))
-    check(run)
+    check(run, allow_inconsistent_status=True)
     with pytest.raises(RecordError, match="repair scope"):
         check(run, before_repair=True)
     assert "INCONCLUSIVE" in render(run).read_text()

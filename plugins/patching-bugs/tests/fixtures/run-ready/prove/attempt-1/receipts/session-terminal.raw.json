@@ -1,0 +1,6 @@
+{
+  "id": "prover",
+  "parentID": "coordinator",
+  "agent": "prover",
+  "outcome": "succeeded"
+}

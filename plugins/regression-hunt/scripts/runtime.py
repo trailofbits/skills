@@ -1,12 +1,13 @@
 """Validate coordinator-captured host observations, never substitute for host controls."""
 
+import json
 from datetime import datetime
 from pathlib import Path
 
 from evidence import IntegrityError, files, local, read
 
-AGENT_LAUNCH_TOOLS = ("codex.spawn_agent",)
-AGENT_STATUS_TOOLS = ("codex.list_agents",)
+AGENT_LAUNCH_TOOLS = ("codex.spawn_agent", "subagent", "fulcrum_prepare_subagent")
+AGENT_STATUS_TOOLS = ("codex.list_agents", "opencode.sessions.get")
 FINISHED_STATUSES = ("completed", "errored")
 
 
@@ -63,7 +64,101 @@ def agent_observation(root: Path, name: str, attempt: dict, event: str) -> dict:
     return retained(root, name, value, "retain the raw agent tool response")
 
 
-def agent_launch(root: Path, name: str, attempt: dict) -> dict:
+def attempt_marker(name: str, prompt: object, attempt_id: str) -> None:
+    """Require the reserved assignment in the host-observed child prompt."""
+    marker = f"Regression Hunt attempt: {attempt_id}"
+    require(
+        isinstance(prompt, str) and marker in prompt.splitlines(),
+        f"{name}: child prompt lacks reserved attempt marker {marker}",
+    )
+
+
+def _codex_agent_launch(name: str, call: dict, response: dict, attempt_id: str) -> None:
+    require(
+        call.get("fork_turns") == "none",
+        f"{name}: agent inherited conversation (fork_turns={call.get('fork_turns')!r})",
+    )
+    attempt_marker(name, call.get("message"), attempt_id)
+    handle = response.get("task_name")
+    require(isinstance(handle, str) and handle.strip(), f"{name}: response lacks the agent handle")
+
+
+def _paused_output(name: str, response: dict) -> None:
+    try:
+        output = json.loads(response["output"])
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{name}: paused child output is not JSON") from exc
+    require(
+        isinstance(output, dict)
+        and all(
+            output.get(field) == response[field] for field in ("sessionID", "status", "promptID")
+        ),
+        f"{name}: paused child output identity differs from record",
+    )
+
+
+def _opencode_agent_launch(
+    root: Path, name: str, receipt: dict, attempts: dict, *, paused: bool = False
+) -> None:
+    value = receipt["value"]
+    call, response = value["call"], value["response"]
+    parent = value.get("parent_session")
+    require(isinstance(parent, str) and parent.strip(), f"{name}: missing parent session")
+    require("sessionID" not in call, f"{name}: pass no sessionID to start a new child")
+    for field in ("agent", "description", "prompt"):
+        require(
+            isinstance(call.get(field), str) and call[field].strip(), f"{name}: missing {field}"
+        )
+    attempt_marker(name, call["prompt"], value["attempt"])
+    if paused:
+        require(call.get("attemptID") == value["attempt"], f"{name}: wrong attempt ID")
+    child = response.get("sessionID")
+    require(isinstance(child, str) and child.strip(), f"{name}: response lacks child sessionID")
+    require(child != parent, f"{name}: child session is the parent session")
+    status = "paused" if paused else "running"
+    require(response.get("status") == status, f"{name}: subagent response is not {status}")
+    if paused:
+        require(
+            isinstance(response.get("promptID"), str) and response["promptID"],
+            f"{name}: paused child lacks prompt ID",
+        )
+    require(
+        isinstance(response.get("output"), str) and response["output"].strip(),
+        f"{name}: response lacks subagent output",
+    )
+    if paused:
+        _paused_output(name, response)
+    for other in attempts.values():
+        if other["id"] == value["attempt"]:
+            continue
+        require(child != other.get("agent"), f"{name}: reused child session from {other['id']}")
+    raw = read(root, value["evidence"][0])
+    state = raw.get("state")
+    tool = "fulcrum_prepare_subagent" if paused else "subagent"
+    require(raw.get("type") == "tool" and raw.get("name") == tool, f"{name}: wrong raw tool")
+    if not isinstance(state, dict):
+        raise ValueError(f"{name}: raw tool unfinished")
+    require(state.get("status") == "completed", f"{name}: raw tool unfinished")
+    require(state.get("input") == call, f"{name}: raw subagent call differs from record")
+    metadata = state.get("metadata")
+    require(
+        isinstance(metadata, dict)
+        and metadata.get("sessionID") == child
+        and metadata.get("status") == status
+        and (not paused or metadata.get("promptID") == response["promptID"]),
+        f"{name}: raw {'paused' if paused else 'subagent'} response differs from record",
+    )
+    content = state.get("content")
+    require(
+        isinstance(content, list)
+        and any(
+            isinstance(part, dict) and part.get("text") == response["output"] for part in content
+        ),
+        f"{name}: raw subagent output differs from record",
+    )
+
+
+def agent_launch(root: Path, name: str, attempt: dict, attempts: dict) -> dict:
     """Accept a spawn record only when the new agent started without inherited conversation."""
     receipt = agent_observation(root, name, attempt, "launch")
     value = receipt["value"]
@@ -77,25 +172,63 @@ def agent_launch(root: Path, name: str, attempt: dict) -> dict:
         isinstance(call, dict) and isinstance(response, dict),
         f"{name}: record the tool call and its response",
     )
-    require(
-        call.get("fork_turns") == "none",
-        f"{name}: agent inherited conversation (fork_turns={call.get('fork_turns')!r})",
-    )
-    handle = response.get("task_name")
-    require(isinstance(handle, str) and handle.strip(), f"{name}: response lacks the agent handle")
+    if tool in ("subagent", "fulcrum_prepare_subagent"):
+        _opencode_agent_launch(root, name, receipt, attempts, paused=tool != "subagent")
+    else:
+        _codex_agent_launch(name, call, response, attempt["id"])
     return receipt
 
 
 def agent_handle(receipt: dict) -> str:
-    return receipt["value"]["response"]["task_name"]
+    response = receipt["value"]["response"]
+    if receipt["value"]["tool"] in ("subagent", "fulcrum_prepare_subagent"):
+        return response["sessionID"]
+    return response["task_name"]
+
+
+def _opencode_agent_terminal(root: Path, name: str, receipt: dict, attempt: dict) -> None:
+    value = receipt["value"]
+    call, response = value.get("call"), value.get("response")
+    require(
+        isinstance(call, dict) and isinstance(response, dict),
+        f"{name}: record the session get call and response",
+    )
+    launched = attempt["launch"]["value"]
+    child = launched["response"]["sessionID"]
+    require(call.get("sessionID") == child, f"{name}: wrong child session get call")
+    require(response.get("id") == child, f"{name}: wrong child session")
+    require(
+        response.get("parentID") == launched["parent_session"],
+        f"{name}: wrong parent session",
+    )
+    require(response.get("agent") == launched["call"]["agent"], f"{name}: wrong child agent")
+    require("fork" not in response, f"{name}: child session inherited a fork")
+    require(
+        response.get("outcome") in ("succeeded", "failed"),
+        f"{name}: child session has not finished",
+    )
+    require(
+        read(root, value["evidence"][0]) == response, f"{name}: raw session differs from record"
+    )
 
 
 def agent_terminal(root: Path, name: str, attempt: dict) -> dict:
-    """Accept a status record only when the bound agent is listed once as finished."""
+    """Accept a terminal observation for the same bound agent and tool family."""
     receipt = agent_observation(root, name, attempt, "terminal")
     value = receipt["value"]
     tool = value.get("tool")
     require(tool in AGENT_STATUS_TOOLS, f"{name}: unsupported agent status tool {tool!r}")
+    launched_tool = attempt["launch"]["value"]["tool"]
+    if launched_tool in ("subagent", "fulcrum_prepare_subagent"):
+        require(tool == "opencode.sessions.get", f"{name}: expected OpenCode session get")
+        _opencode_agent_terminal(root, name, receipt, attempt)
+        require(
+            timestamp(name, value)
+            >= timestamp(attempt["launch"]["record"], attempt["launch"]["value"]),
+            f"{name}: terminal record predates launch",
+        )
+        return receipt
+    require(tool == "codex.list_agents", f"{name}: expected Codex agent list")
     response = value.get("response")
     agents = response.get("agents") if isinstance(response, dict) else None
     if not isinstance(agents, list):

@@ -271,7 +271,7 @@ def test_mismatched_proof_type_cannot_claim_repair_in_any_report_section(tmp_pat
         hashes=dict.fromkeys(("baseline", "patched", "reverted")),
     )
     change(run, "validate/validate.json", agent="reproducer")
-    check(run)
+    check(run, allow_inconsistent_status=True)
     output = render(run).read_text()
     assert "Automated patch verdict:</strong> NOT_READY" in output
     assert "INCONCLUSIVE" in output

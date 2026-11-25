@@ -2,6 +2,10 @@
   "files": {
     "fix.patch": "282a2db76b7b6a37366d552d1d46808d923519b79e25291603bb4556d8960e4e",
     "patch.json": "16e53d34f73b1eff55f9a08068a47366110f7a5b1c0ddb936501647e839ae6b1",
+    "receipts/session-launch.json": "52410dc0fda910b49ee05049e946975331a009a518fe54cd3c50f35ac7c3e80d",
+    "receipts/session-launch.raw.json": "5bbb5af7c1650260f178f4a6a4bfc663461ad6e0a95601e847432a319bd43ba6",
+    "receipts/session-terminal.json": "c08b6fbbe1e4ee9e8be7ad74e515b7f213499e935475aca5724e7c1d20890a5e",
+    "receipts/session-terminal.raw.json": "763a27e854a537d0f7d0d4c16d7e33ffe42f961e043e98e9ce921956410896a7",
     "tests.patch": "eaaff4cce6b082acccfbc0aebb600b109c430132b121c7425b708942ac4319d4"
   },
   "schema_version": 1

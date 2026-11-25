@@ -1,0 +1,13 @@
+{
+  "tool": "opencode.sessions.get",
+  "observed_at": "2026-09-30T12:01:00+00:00",
+  "call": {
+    "sessionID": "prover"
+  },
+  "response": {
+    "id": "prover",
+    "parentID": "coordinator",
+    "agent": "prover",
+    "outcome": "succeeded"
+  }
+}

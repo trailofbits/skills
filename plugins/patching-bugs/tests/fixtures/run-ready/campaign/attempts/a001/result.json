@@ -1,0 +1,11 @@
+{
+  "attempt": "a001",
+  "stage": "prepare",
+  "change": "P1",
+  "agent": "prepare",
+  "candidate": null,
+  "status": "complete",
+  "security_review": "SECURITY.md",
+  "inputs": [],
+  "artifacts": []
+}

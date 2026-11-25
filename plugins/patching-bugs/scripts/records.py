@@ -295,8 +295,24 @@ def _check_repair_entry(run_dir: Path) -> None:
         raise RecordError("; ".join(gaps))
 
 
-def check(run_dir: Path, *, before_repair: bool = False) -> None:
-    """Validate records and manifests, optionally requiring a usable repair brief."""
+def _check_ready_status(run_dir: Path) -> None:
+    run = load(run_dir / "run.json", "run")
+    if run["status"] not in {"ready", "ready_with_concerns"}:
+        return
+    from verdict import verdict
+
+    status, reasons = verdict(run_dir)
+    expected = "READY" if run["status"] == "ready" else "READY_WITH_CONCERNS"
+    if status != expected:
+        raise RecordError(
+            f"run.status {run['status']} conflicts with {status}: {'; '.join(reasons)}"
+        )
+
+
+def check(
+    run_dir: Path, *, before_repair: bool = False, allow_inconsistent_status: bool = False
+) -> None:
+    """Validate records and manifests, optionally allowing unfinished report states."""
     records = [
         ("run.json", "run"),
         ("finding.json", "finding"),
@@ -316,6 +332,8 @@ def check(run_dir: Path, *, before_repair: bool = False) -> None:
         verify_manifest(step)
     if before_repair:
         _check_repair_entry(run_dir)
+    if not allow_inconsistent_status:
+        _check_ready_status(run_dir)
 
 
 def main() -> int:

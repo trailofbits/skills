@@ -7,6 +7,7 @@
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import tempfile
 import time
@@ -63,8 +64,13 @@ def _git(repo: Path, *args: str) -> str:
 
 def _run(argv: list[str], cwd: Path, out: Path, timeout_s: int) -> tuple[int | None, str, str]:
     started = time.monotonic()
+    env = os.environ.copy()
+    if "CARGO_TARGET_DIR" in env:
+        env["CARGO_TARGET_DIR"] = str(cwd / "target")
     try:
-        result = subprocess.run(argv, cwd=cwd, capture_output=True, timeout=timeout_s, check=False)
+        result = subprocess.run(
+            argv, cwd=cwd, env=env, capture_output=True, timeout=timeout_s, check=False
+        )
         code, stdout, stderr = result.returncode, result.stdout, result.stderr
     except subprocess.TimeoutExpired as exc:
         code, stdout, stderr = None, exc.stdout or b"", exc.stderr or b""

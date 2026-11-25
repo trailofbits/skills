@@ -1,0 +1,11 @@
+{
+  "tool": "codex.spawn_agent",
+  "call": {
+    "task_name": "prepare",
+    "fork_turns": "none",
+    "message": "Regression Hunt attempt: a001\nInspect the change."
+  },
+  "response": {
+    "task_name": "prepare"
+  }
+}

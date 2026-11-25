@@ -1,6 +1,6 @@
 [project]
 name = "regression-hunt"
-version = "1.2.0"
+version = "1.2.3"
 description = "Agent-orchestrated regression investigation skills and small evidence helpers"
 requires-python = ">=3.13"
 dependencies = []

@@ -124,7 +124,11 @@ def test_cli_names_both_local_outputs(tmp_path):
 
 def test_concerns_do_not_generate_a_maintainer_handoff(tmp_path):
     run = reported_run(tmp_path)
-    change(run, "regression/regression.json", coverage="INCOMPLETE")
+    change(
+        run,
+        "patch/attempt-1/patch.json",
+        variants=[{"location": "other.py", "status": "not_fixed", "reason": "Deferred"}],
+    )
     auditor = render(run).read_text()
     assert "READY_WITH_CONCERNS" in auditor
     assert "INCONCLUSIVE" in auditor

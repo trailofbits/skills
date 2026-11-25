@@ -1,0 +1,10 @@
+{
+  "artifacts": {},
+  "dependencies": {
+    "attempts/a001/result.json": "34bb8ef780a1fb8fb4b61a7b14650f317fe84d8e1f4d0b9074aa4f6d2b85ebd2"
+  },
+  "inputs": {
+    "attempts/a001/result.json": "3c9a88afefbbaa14fa722da5329403212f886400fefb54f976e55296e54a0d13"
+  },
+  "record": "a0e9d0b9c79d466f402be0bd61a8bec42fd7713cbec5d74004a38b8cecc301b8"
+}

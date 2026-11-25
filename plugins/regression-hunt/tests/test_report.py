@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from evidence import IntegrityError, read, seal
 from registry import accept, bind, candidate, initialize, reserve
-from report import CHECKS, collect, render, stage
+from report import CHECKS, collect, render, stage, verified_discovery
 from test_evidence import save
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "report.py"
@@ -48,7 +48,11 @@ class Campaign:
                     "event": "launch",
                     "attempt": aid,
                     "tool": "codex.spawn_agent",
-                    "call": {"task_name": role, "fork_turns": "none"},
+                    "call": {
+                        "task_name": role,
+                        "fork_turns": "none",
+                        "message": f"Regression Hunt attempt: {aid}\nInspect the change.",
+                    },
                     "response": {"task_name": role},
                     "observed_at": "2026-09-30T12:00:00+00:00",
                     "evidence": [raw],
@@ -80,6 +84,46 @@ class Campaign:
         save(self.root, path, value)
         return path
 
+    def terminal(self, attempt):
+        aid = attempt["id"]
+        raw = f"runtime/{aid}-terminal-raw.json"
+        receipt = f"runtime/{aid}-terminal.json"
+        if attempt["verification"] == "shared-host":
+            response = {
+                "agents": [{"agent_name": attempt["agent"], "agent_status": {"completed": "done"}}]
+            }
+            save(self.root, raw, response)
+            save(
+                self.root,
+                receipt,
+                {
+                    "event": "terminal",
+                    "attempt": aid,
+                    "tool": "codex.list_agents",
+                    "response": response,
+                    "observed_at": "2026-09-30T12:00:00+00:00",
+                    "evidence": [raw],
+                },
+            )
+            return {"agent_record": receipt}
+        launch = attempt["launch"]["value"]
+        save(self.root, raw, {"response": "Synthetic terminal host response"})
+        save(
+            self.root,
+            receipt,
+            {
+                **{key: launch[key] for key in ("host", "session", "agent", "context")},
+                "event": "terminal",
+                "attempt": aid,
+                "state": "completed",
+                "active_commands": [],
+                "resources_released": True,
+                "observed_at": "2026-09-30T12:00:00+00:00",
+                "evidence": [raw],
+            },
+        )
+        return {"host_record": receipt}
+
     def finish(self, attempt, **fields):
         name = f"{attempt['directory']}/result.json"
         save(
@@ -100,7 +144,7 @@ class Campaign:
         )
         seal(self.root, name)
         if attempt["stage"] not in self.unaccepted:
-            accept(self.root, attempt["id"], name)
+            accept(self.root, attempt["id"], name, **self.terminal(attempt))
         self.paths[attempt["stage"]] = name
 
     def prepare(self):
@@ -254,6 +298,28 @@ def test_unregistered_campaign_is_rejected_even_without_stage_records(tmp_path):
     )
     with pytest.raises(ValueError, match="registry"):
         collect(tmp_path)
+
+
+def test_discovery_verifier_requires_accepted_prepare_and_hunt(campaign_factory):
+    campaign = campaign_factory()
+    assert verified_discovery(campaign.root)["changes"][0]["status"] == "COMPLETE"
+    index = read(campaign.root, "campaign.json")
+    index["changes"][0]["hunt"] = None
+    save(campaign.root, "campaign.json", index)
+    with pytest.raises(ValueError, match="missing hunt stage"):
+        verified_discovery(campaign.root)
+
+
+def test_discovery_cli_returns_json_without_writing_report(campaign):
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(campaign.root), "--verify-discovery"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == verified_discovery(campaign.root)
+    assert not (campaign.root / "report").exists()
 
 
 def test_unregistered_sealed_record_is_rejected(tmp_path):

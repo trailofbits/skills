@@ -166,7 +166,7 @@ def render(run_dir: Path) -> Path:
     handoff.unlink(missing_ok=True)
     path = run_dir / "report.html"
     path.unlink(missing_ok=True)
-    check(run_dir)
+    check(run_dir, allow_inconsistent_status=True)
     prose = load(run_dir / "report-input.json", "report-input")
     if _sentences(prose["bug"]) > 3:
         raise RecordError("report-input.bug: exceeds 3 sentences")

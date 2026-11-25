@@ -73,6 +73,17 @@ class RegistryTests(unittest.TestCase):
             self.root, attempt_id, inputs, host_record=self.host_record(attempt_id, "terminal")
         )
 
+    def accept_attempt(self, attempt_id, record):
+        attempt = show(self.root)["attempts"][attempt_id]
+        if attempt["verification"] == "isolated":
+            terminal = self.host_record(attempt_id, "terminal", state="completed")
+            return accept(self.root, attempt_id, record, host_record=terminal)
+        if attempt["launch"]["value"]["tool"] == "subagent":
+            terminal = self.opencode_record(attempt_id, "terminal")
+        else:
+            terminal = self.agent_record(attempt_id, "terminal")
+        return accept(self.root, attempt_id, record, agent_record=terminal)
+
     def reserve_candidate(self, attempt_id, key, agent="agent-1"):
         return candidate(self.root, attempt_id, key, f"{agent}-{attempt_id}")
 
@@ -115,7 +126,7 @@ class RegistryTests(unittest.TestCase):
             artifacts=[name],
             security_review="No security documents supplied",
         )
-        accept(self.root, attempt["id"], record)
+        self.accept_attempt(attempt["id"], record)
         return attempt, cid, name
 
     def test_parallel_reservations_have_distinct_ids_and_prefixes(self):
@@ -192,29 +203,29 @@ class RegistryTests(unittest.TestCase):
                 self.bind_agent(current["id"], "agent-1")
                 record = self.record(current, **fields)
                 with self.assertRaises(ValueError):
-                    accept(self.root, current["id"], record)
+                    self.accept_attempt(current["id"], record)
                 attempt = current
 
     def test_blocked_results_are_accepted_without_becoming_findings(self):
         attempt = self.start("prepare")
         record = self.record(attempt, status="blocked", summary="Missing source")
-        accept(self.root, attempt["id"], record)
+        self.accept_attempt(attempt["id"], record)
         self.assertEqual(check(self.root, attempt["id"], record)["status"], "blocked")
-        accept(self.root, attempt["id"], record)
+        self.accept_attempt(attempt["id"], record)
 
     def test_superseded_results_cannot_be_accepted(self):
         attempt = self.start("prepare")
         record = self.record(attempt)
         self.retry_attempt(attempt["id"])
         with self.assertRaisesRegex(ValueError, "superseded"):
-            accept(self.root, attempt["id"], record)
+            self.accept_attempt(attempt["id"], record)
 
     def test_report_requires_registry_acceptance_and_rejects_superseded_results(self):
         attempt = self.start("prepare")
         record = self.record(attempt, security_review="No security documents supplied")
         with self.assertRaisesRegex(ValueError, "not accepted"):
             stage(self.root, record, "prepare")
-        accept(self.root, attempt["id"], record)
+        self.accept_attempt(attempt["id"], record)
         self.assertEqual(stage(self.root, record, "prepare")["attempt"], attempt["id"])
         self.retry_attempt(attempt["id"])
         with self.assertRaisesRegex(ValueError, "superseded"):
@@ -256,7 +267,7 @@ class RegistryTests(unittest.TestCase):
         output = f"{attempt['directory']}/reports"
         render(self.root, {"title": "Empty", "counts": {}, "changes": [], "findings": []}, output)
         record = self.record(attempt, artifacts=[output])
-        accept(self.root, attempt["id"], record)
+        self.accept_attempt(attempt["id"], record)
         self.assertEqual(check(self.root, attempt["id"], record)["stage"], "report")
 
     def test_forged_and_duplicate_hunt_ids_are_rejected(self):
@@ -269,7 +280,7 @@ class RegistryTests(unittest.TestCase):
                 self.bind_agent(attempt["id"], "agent-1")
                 record = self.record(attempt, candidates=ids, candidate_files={})
                 with self.assertRaisesRegex(ValueError, "candidate IDs"):
-                    accept(self.root, attempt["id"], record)
+                    self.accept_attempt(attempt["id"], record)
                 other = attempt
 
     def test_failed_retry_keeps_previous_attempt_active(self):
@@ -290,7 +301,7 @@ class RegistryTests(unittest.TestCase):
         (self.root / "input.txt").write_text("changed")
         record = self.record(attempt)
         with self.assertRaisesRegex(IntegrityError, "inputs changed"):
-            accept(self.root, attempt["id"], record)
+            self.accept_attempt(attempt["id"], record)
 
     def test_resealed_input_changes_are_rejected(self):
         first = self.start("prepare")
@@ -304,23 +315,23 @@ class RegistryTests(unittest.TestCase):
         seal(self.root, record)
         result = self.record(attempt, candidates=[], candidate_files={})
         with self.assertRaisesRegex(IntegrityError, "inputs changed"):
-            accept(self.root, attempt["id"], result)
+            self.accept_attempt(attempt["id"], result)
 
     def test_record_and_artifacts_must_stay_in_assigned_directory(self):
         attempt = self.start("prepare")
         (self.root / "outside.txt").write_text("outside")
         record = self.record(attempt, artifacts=["outside.txt"])
         with self.assertRaisesRegex(ValueError, "directory"):
-            accept(self.root, attempt["id"], record)
+            self.accept_attempt(attempt["id"], record)
         with self.assertRaisesRegex(ValueError, "directory"):
-            accept(self.root, attempt["id"], "elsewhere.json")
+            self.accept_attempt(attempt["id"], "elsewhere.json")
 
     def test_hunt_cannot_omit_reserved_candidates(self):
         attempt = self.start()
         self.reserve_candidate(attempt["id"], "lead", "agent-1")
         record = self.record(attempt, candidates=[], candidate_files={})
         with self.assertRaisesRegex(ValueError, "candidate"):
-            accept(self.root, attempt["id"], record)
+            self.accept_attempt(attempt["id"], record)
 
     def test_hunt_cannot_reassign_a_candidate_key(self):
         attempt, cid, _ = self.discover()
@@ -334,7 +345,7 @@ class RegistryTests(unittest.TestCase):
             attempt, candidates=[cid], candidate_files={cid: name}, artifacts=[name]
         )
         with self.assertRaisesRegex(ValueError, "key"):
-            accept(self.root, attempt["id"], record)
+            self.accept_attempt(attempt["id"], record)
 
     def test_failed_atomic_save_keeps_previous_registry(self):
         self.start()
@@ -467,7 +478,7 @@ class RegistryTests(unittest.TestCase):
     def test_report_rejects_another_changes_accepted_package(self):
         attempt = self.start("prepare")
         name = self.record(attempt, security_review="No security documents supplied")
-        accept(self.root, attempt["id"], name)
+        self.accept_attempt(attempt["id"], name)
         index = self.index()
         index["changes"][1]["prepare"] = name
         (self.root / "campaign.json").write_text(json.dumps(index))
@@ -477,7 +488,7 @@ class RegistryTests(unittest.TestCase):
     def test_assignment_rejects_prerequisites_from_another_change(self):
         attempt = self.start("prepare")
         name = self.record(attempt)
-        accept(self.root, attempt["id"], name)
+        self.accept_attempt(attempt["id"], name)
         with self.assertRaisesRegex(ValueError, "prerequisite belongs to another change"):
             self.start("hunt", change="change-2", inputs=[name])
 
@@ -513,7 +524,7 @@ class RegistryTests(unittest.TestCase):
         name = self.record(attempt)
         (self.root / f"runtime/{attempt['id']}-launch.txt").write_text("changed host evidence")
         with self.assertRaisesRegex(IntegrityError, "runtime evidence changed"):
-            accept(self.root, attempt["id"], name)
+            self.accept_attempt(attempt["id"], name)
 
     def test_edited_launch_data_raises_integrity_error(self):
         attempt = self.start("prepare")
@@ -523,7 +534,7 @@ class RegistryTests(unittest.TestCase):
         data["attempts"][attempt["id"]]["launch"]["value"]["isolated"] = False
         path.write_text(json.dumps(data))
         with self.assertRaisesRegex(IntegrityError, "stored launch data"):
-            accept(self.root, attempt["id"], name)
+            self.accept_attempt(attempt["id"], name)
 
     def test_changed_frozen_scope_raises_integrity_error(self):
         (self.root / "scope.json").write_text('{"changes": []}')
@@ -533,7 +544,7 @@ class RegistryTests(unittest.TestCase):
     def test_resealed_accepted_record_raises_integrity_error(self):
         attempt = self.start("prepare")
         name = self.record(attempt)
-        accept(self.root, attempt["id"], name)
+        self.accept_attempt(attempt["id"], name)
         path = self.root / name
         value = json.loads(path.read_text())
         value["status"] = "blocked"
@@ -548,7 +559,7 @@ class RegistryTests(unittest.TestCase):
         name = self.record(attempt)
         (self.root / f"runtime/{attempt['id']}-launch.txt").unlink()
         with self.assertRaisesRegex(IntegrityError, "runtime evidence"):
-            accept(self.root, attempt["id"], name)
+            self.accept_attempt(attempt["id"], name)
 
     def test_retry_requires_matching_terminal_identity_and_quiescence(self):
         attempt = self.start("prepare")
@@ -601,7 +612,7 @@ class RegistryTests(unittest.TestCase):
             attempt = self.start("reproduce", candidate=cid, inputs=[candidate_file])
             name = self.record(attempt, **fields)
             with self.subTest(fields=fields), self.assertRaisesRegex(ValueError, message):
-                accept(self.root, attempt["id"], name)
+                self.accept_attempt(attempt["id"], name)
 
     def test_build_dir_symlink_escape_is_rejected(self):
         hunt, cid, candidate_file = self.discover()
@@ -611,16 +622,16 @@ class RegistryTests(unittest.TestCase):
         (own / "build").symlink_to(self.root / hunt["directory"])
         name = self.record(attempt, build_dirs=[f"{attempt['directory']}/build"])
         with self.assertRaisesRegex(ValueError, "outside attempt directory"):
-            accept(self.root, attempt["id"], name)
+            self.accept_attempt(attempt["id"], name)
 
     def test_build_dirs_inside_attempt_pass_and_blocked_records_skip_them(self):
         _, cid, candidate_file = self.discover()
         attempt = self.start("reproduce", candidate=cid, inputs=[candidate_file])
         name = self.record(attempt, build_dirs=[f"{attempt['directory']}/build/s0"])
-        self.assertEqual(accept(self.root, attempt["id"], name)["state"], "accepted")
+        self.assertEqual(self.accept_attempt(attempt["id"], name)["state"], "accepted")
         blocked = self.start("replay", candidate=cid, inputs=[candidate_file])
         blocked_name = self.record(blocked, status="blocked")
-        self.assertEqual(accept(self.root, blocked["id"], blocked_name)["state"], "accepted")
+        self.assertEqual(self.accept_attempt(blocked["id"], blocked_name)["state"], "accepted")
 
     def experiment_record(self, role, cid, inputs, source, reproduction=None):
         attempt = self.start(role, candidate=cid, inputs=inputs)
@@ -657,7 +668,7 @@ class RegistryTests(unittest.TestCase):
                 )
             ],
         )
-        accept(self.root, attempt["id"], record)
+        self.accept_attempt(attempt["id"], record)
         return record, json.loads((self.root / record).read_text())
 
     def test_registered_confirmation_retains_scope_and_independent_host_records(self):
@@ -666,7 +677,7 @@ class RegistryTests(unittest.TestCase):
         (self.root / source).parent.mkdir(parents=True)
         (self.root / source).write_text(json.dumps({"s0": "before", "s1": "after"}))
         prepared = self.record(prep, artifacts=[source], source=source, security_review="None")
-        accept(self.root, prep["id"], prepared)
+        self.accept_attempt(prep["id"], prepared)
         hunt, cid, candidate_file = self.discover(inputs=[prepared])
         hunted = show(self.root)["attempts"][hunt["id"]]["record"]
         inputs = [prepared, hunted, candidate_file, source]
@@ -703,7 +714,7 @@ class RegistryTests(unittest.TestCase):
             likelihood_reason="Fixture",
             checks=checks,
         )
-        accept(self.root, attempt["id"], decision)
+        self.accept_attempt(attempt["id"], decision)
         index = self.index()
         index["changes"][0].update(
             prepare=prepared,
@@ -725,7 +736,11 @@ class RegistryTests(unittest.TestCase):
         if event == "launch":
             payload = {
                 "tool": "codex.spawn_agent",
-                "call": {"task_name": f"task-{attempt_id}", "fork_turns": "none"},
+                "call": {
+                    "task_name": f"task-{attempt_id}",
+                    "fork_turns": "none",
+                    "message": f"Regression Hunt attempt: {attempt_id}\nInspect the change.",
+                },
                 "response": {"task_name": f"/root/task-{attempt_id}"},
             }
         else:
@@ -754,6 +769,398 @@ class RegistryTests(unittest.TestCase):
     def bind_shared(self, attempt_id):
         handle = f"/root/task-{attempt_id}"
         return bind(self.root, attempt_id, handle, agent_record=self.agent_record(attempt_id))
+
+    def opencode_record(self, attempt_id, event="launch", **fields):
+        name = f"runtime/{attempt_id}-opencode-{event}.json"
+        raw = f"runtime/{attempt_id}-opencode-{event}-raw.json"
+        (self.root / "runtime").mkdir(exist_ok=True)
+        child = f"ses-child-{attempt_id}"
+        if event == "launch":
+            call = {
+                "agent": "explore",
+                "description": "Investigate assigned change",
+                "prompt": f"Regression Hunt attempt: {attempt_id}\nInspect the assigned change.",
+            }
+            response = {"sessionID": child, "status": "running", "output": "Working in background"}
+            value = {
+                "tool": "subagent",
+                "parent_session": "ses-parent",
+                "call": call,
+                "response": response,
+            }
+        else:
+            session = {
+                "id": child,
+                "parentID": "ses-parent",
+                "agent": "explore",
+                "outcome": "succeeded",
+                "time": {"created": 1790770000000, "updated": 1790770200000},
+            }
+            value = {
+                "tool": "opencode.sessions.get",
+                "call": {"sessionID": child},
+                "response": session,
+            }
+        value = {
+            "event": event,
+            "attempt": attempt_id,
+            "observed_at": "2026-09-30T12:00:00+00:00",
+            "evidence": [raw],
+            **value,
+            **fields,
+        }
+        if event == "launch":
+            response = value["response"]
+            assert isinstance(response, dict)
+            source = {
+                "type": "tool",
+                "name": value["tool"],
+                "state": {
+                    "status": "completed",
+                    "input": value["call"],
+                    "content": [{"type": "text", "text": response.get("output")}],
+                    "metadata": {
+                        key: response[key]
+                        for key in ("sessionID", "status", "promptID")
+                        if key in response
+                    },
+                },
+            }
+        else:
+            source = value["response"]
+        (self.root / raw).write_text(json.dumps(source))
+        (self.root / name).write_text(json.dumps(value))
+        return name
+
+    def paused_record(self, attempt_id, **fields):
+        identity = {
+            "sessionID": f"ses-child-{attempt_id}",
+            "status": "paused",
+            "promptID": f"msg-{attempt_id}",
+        }
+        value = {
+            "tool": "fulcrum_prepare_subagent",
+            "call": {
+                "attemptID": attempt_id,
+                "agent": "explore",
+                "description": "Investigate assigned change",
+                "prompt": f"Regression Hunt attempt: {attempt_id}\nInspect the assigned change.",
+            },
+            "response": {**identity, "output": json.dumps(identity)},
+            **fields,
+        }
+        return self.opencode_record(attempt_id, **value)
+
+    def test_opencode_launch_binds_child_session_and_retry_accepts_terminal_outcome(self):
+        for outcome in ("succeeded", "failed"):
+            with self.subTest(outcome=outcome):
+                attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+                child = f"ses-child-{attempt['id']}"
+                bound = bind(
+                    self.root,
+                    attempt["id"],
+                    child,
+                    agent_record=self.opencode_record(attempt["id"]),
+                )
+                self.assertEqual(bound["verification"], "shared-host")
+                result = self.record(
+                    attempt, status="complete" if outcome == "succeeded" else "blocked"
+                )
+                terminal = self.opencode_record(
+                    attempt["id"],
+                    "terminal",
+                    response={
+                        "id": child,
+                        "parentID": "ses-parent",
+                        "agent": "explore",
+                        "outcome": outcome,
+                        "time": {"created": 1790770000000, "updated": 1790770200000},
+                    },
+                )
+                self.assertEqual(
+                    accept(self.root, attempt["id"], result, agent_record=terminal)["state"],
+                    "accepted",
+                )
+                replacement = retry(self.root, attempt["id"], agent_record=terminal)
+                self.assertIsNone(replacement["verification"])
+
+    def test_accept_requires_matching_terminal_child_receipt(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        child = f"ses-child-{attempt['id']}"
+        bind(self.root, attempt["id"], child, agent_record=self.opencode_record(attempt["id"]))
+        result = self.record(attempt)
+
+        with self.assertRaisesRegex(ValueError, "terminal"):
+            accept(self.root, attempt["id"], result)
+        self.assertEqual(show(self.root)["attempts"][attempt["id"]]["state"], "running")
+
+        terminal = self.opencode_record(attempt["id"], "terminal")
+        accepted = accept(self.root, attempt["id"], result, agent_record=terminal)
+        self.assertEqual(accepted["state"], "accepted")
+        self.assertEqual(accepted["terminal"]["value"]["response"]["id"], child)
+
+    def test_accept_requires_matching_terminal_codex_receipt(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        self.bind_shared(attempt["id"])
+        result = self.record(attempt)
+
+        with self.assertRaisesRegex(ValueError, "terminal"):
+            accept(self.root, attempt["id"], result)
+
+        terminal = self.agent_record(attempt["id"], "terminal")
+        accepted = accept(self.root, attempt["id"], result, agent_record=terminal)
+        self.assertEqual(accepted["state"], "accepted")
+        self.assertEqual(accepted["terminal"]["value"]["tool"], "codex.list_agents")
+
+    def test_accept_requires_matching_terminal_isolated_host_receipt(self):
+        attempt = self.start("prepare")
+        result = self.record(attempt)
+
+        with self.assertRaisesRegex(ValueError, "terminal"):
+            accept(self.root, attempt["id"], result)
+
+        terminal = self.host_record(attempt["id"], "terminal", state="completed")
+        accepted = accept(self.root, attempt["id"], result, host_record=terminal)
+        self.assertEqual(accepted["state"], "accepted")
+        self.assertEqual(accepted["terminal"]["value"]["state"], "completed")
+
+    def test_accepted_record_requires_retained_terminal_evidence(self):
+        attempt = self.start("prepare")
+        result = self.record(attempt)
+        accepted = self.accept_attempt(attempt["id"], result)
+        raw = accepted["terminal"]["value"]["evidence"][0]
+        (self.root / raw).unlink()
+
+        with self.assertRaises(IntegrityError):
+            check(self.root, attempt["id"], result)
+
+    def test_cli_accept_requires_terminal_then_rechecks_it_on_repeat(self):
+        attempt = self.start("prepare")
+        result = self.record(attempt)
+        script = Path(__file__).parents[1] / "scripts" / "registry.py"
+        command = [sys.executable, str(script), "accept", str(self.root), attempt["id"], result]
+
+        missing = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn("terminal receipt required", missing.stderr)
+
+        terminal = self.host_record(attempt["id"], "terminal", state="completed")
+        accepted = subprocess.run(
+            [*command, "--host-record", terminal], capture_output=True, text=True, check=True
+        )
+        self.assertEqual(json.loads(accepted.stdout)["state"], "accepted")
+        repeated = subprocess.run(command, capture_output=True, text=True, check=True)
+        self.assertEqual(json.loads(repeated.stdout)["state"], "accepted")
+
+    def test_complete_result_requires_successful_child_but_blocked_may_fail(self):
+        complete = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        child = f"ses-child-{complete['id']}"
+        bind(self.root, complete["id"], child, agent_record=self.opencode_record(complete["id"]))
+        result = self.record(complete)
+        failed = self.opencode_record(
+            complete["id"],
+            "terminal",
+            response={
+                "id": child,
+                "parentID": "ses-parent",
+                "agent": "explore",
+                "outcome": "failed",
+                "time": {"created": 1790770000000, "updated": 1790770200000},
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "complete.*terminal"):
+            accept(self.root, complete["id"], result, agent_record=failed)
+
+        blocked = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        other = f"ses-child-{blocked['id']}"
+        bind(self.root, blocked["id"], other, agent_record=self.opencode_record(blocked["id"]))
+        blocked_result = self.record(blocked, status="blocked")
+        blocked_terminal = self.opencode_record(
+            blocked["id"],
+            "terminal",
+            response={
+                "id": other,
+                "parentID": "ses-parent",
+                "agent": "explore",
+                "outcome": "failed",
+                "time": {"created": 1790770000000, "updated": 1790770200000},
+            },
+        )
+        accepted = accept(self.root, blocked["id"], blocked_result, agent_record=blocked_terminal)
+        self.assertEqual(accepted["state"], "accepted")
+
+    def test_opencode_launch_rejects_forged_or_followup_call(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        child = f"ses-child-{attempt['id']}"
+        cases = (
+            (
+                {
+                    "call": {
+                        "agent": "explore",
+                        "description": "x",
+                        "prompt": "x",
+                        "sessionID": child,
+                    }
+                },
+                "new child",
+            ),
+            (
+                {"response": {"sessionID": child, "status": "completed", "output": "done"}},
+                "running",
+            ),
+            (
+                {"response": {"sessionID": "ses-parent", "status": "running", "output": "x"}},
+                "parent session",
+            ),
+            ({"call": {"agent": "", "description": "x", "prompt": "x"}}, "agent"),
+            ({"parent_session": ""}, "parent session"),
+        )
+        for fields, message in cases:
+            name = self.opencode_record(attempt["id"], **fields)
+            with self.subTest(fields=fields), self.assertRaisesRegex(ValueError, message):
+                bind(self.root, attempt["id"], child, agent_record=name)
+
+    def test_opencode_launch_rejects_reused_child_session(self):
+        first = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        child = f"ses-child-{first['id']}"
+        bind(self.root, first["id"], child, agent_record=self.opencode_record(first["id"]))
+        second = reserve(self.root, {"stage": "hunt", "change": "change-1"})
+        second_record = self.opencode_record(
+            second["id"], response={"sessionID": child, "status": "running", "output": "x"}
+        )
+        with self.assertRaisesRegex(ValueError, "reused child session"):
+            bind(self.root, second["id"], child, agent_record=second_record)
+
+    def test_opencode_launch_rejects_raw_tool_mismatch(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        name = self.opencode_record(attempt["id"])
+        raw = self.root / f"runtime/{attempt['id']}-opencode-launch-raw.json"
+        part = json.loads(raw.read_text())
+        part["state"]["metadata"]["sessionID"] = "ses-forged"
+        raw.write_text(json.dumps(part))
+        with self.assertRaisesRegex(ValueError, "raw subagent response differs"):
+            bind(self.root, attempt["id"], f"ses-child-{attempt['id']}", agent_record=name)
+
+    def test_stage_launch_rejects_outer_coordinator_receipt(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        outer = self.opencode_record(
+            attempt["id"],
+            call={
+                "agent": "explore",
+                "description": "Run Regression Hunt coordinator",
+                "prompt": "Run the Regression Hunt campaign.",
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "attempt marker"):
+            bind(self.root, attempt["id"], f"ses-child-{attempt['id']}", agent_record=outer)
+
+    def test_stage_launch_requires_same_opencode_coordinator_parent(self):
+        first = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        bind(
+            self.root,
+            first["id"],
+            f"ses-child-{first['id']}",
+            agent_record=self.opencode_record(first["id"]),
+        )
+        second = reserve(self.root, {"stage": "hunt", "change": "change-1"})
+        other = self.opencode_record(second["id"], parent_session="ses-other")
+        with self.assertRaisesRegex(ValueError, "coordinator parent"):
+            bind(self.root, second["id"], f"ses-child-{second['id']}", agent_record=other)
+
+    def test_codex_stage_launch_rejects_reused_agent_handle(self):
+        first = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        bound = self.bind_shared(first["id"])
+        second = reserve(self.root, {"stage": "hunt", "change": "change-1"})
+        repeated = self.agent_record(second["id"], response={"task_name": bound["agent"]})
+        with self.assertRaisesRegex(ValueError, "reused agent"):
+            bind(self.root, second["id"], bound["agent"], agent_record=repeated)
+
+    def test_paused_opencode_stage_launch_binds_and_accepts_terminal(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        child = f"ses-child-{attempt['id']}"
+        bound = bind(
+            self.root, attempt["id"], child, agent_record=self.paused_record(attempt["id"])
+        )
+        self.assertEqual(bound["launch"]["value"]["response"]["status"], "paused")
+        result = self.record(attempt)
+        terminal = self.opencode_record(attempt["id"], "terminal")
+        self.assertEqual(
+            accept(self.root, attempt["id"], result, agent_record=terminal)["state"], "accepted"
+        )
+
+    def test_paused_opencode_stage_launch_rejects_wrong_attempt_and_raw_part(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        aid = attempt["id"]
+        call = {
+            "attemptID": "a999",
+            "agent": "explore",
+            "description": "Investigate assigned change",
+            "prompt": f"Regression Hunt attempt: {aid}\nInspect the change.",
+        }
+        wrong = self.paused_record(aid, call=call)
+        with self.assertRaisesRegex(ValueError, "attempt ID"):
+            bind(self.root, aid, f"ses-child-{aid}", agent_record=wrong)
+
+        name = self.paused_record(aid)
+        raw = self.root / f"runtime/{aid}-opencode-launch-raw.json"
+        part = json.loads(raw.read_text())
+        part["state"]["metadata"]["promptID"] = "msg-other"
+        raw.write_text(json.dumps(part))
+        with self.assertRaisesRegex(ValueError, "raw paused response"):
+            bind(self.root, aid, f"ses-child-{aid}", agent_record=name)
+
+    def test_paused_opencode_stage_launch_rejects_false_output_identity(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        aid = attempt["id"]
+        response = {
+            "sessionID": f"ses-child-{aid}",
+            "status": "paused",
+            "promptID": f"msg-{aid}",
+            "output": json.dumps({"sessionID": "ses-other", "status": "paused"}),
+        }
+        record = self.paused_record(aid, response=response)
+        with self.assertRaisesRegex(ValueError, "paused child output identity"):
+            bind(self.root, aid, f"ses-child-{aid}", agent_record=record)
+
+    def test_opencode_terminal_rejects_unfinished_or_unrelated_session(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        child = f"ses-child-{attempt['id']}"
+        bind(self.root, attempt["id"], child, agent_record=self.opencode_record(attempt["id"]))
+        session = {
+            "id": child,
+            "parentID": "ses-parent",
+            "agent": "explore",
+            "outcome": "succeeded",
+            "time": {"created": 1790770000000, "updated": 1790770200000},
+        }
+        cases = (
+            ({"response": {**session, "id": "ses-other"}}, "child session"),
+            ({"response": {**session, "parentID": "ses-other"}}, "parent session"),
+            ({"response": {**session, "agent": "build"}}, "agent"),
+            ({"response": {**session, "outcome": "interrupted"}}, "finished"),
+            ({"response": {**session, "fork": {"sessionID": "ses-other"}}}, "fork"),
+            (
+                {"response": {key: value for key, value in session.items() if key != "outcome"}},
+                "finished",
+            ),
+            ({"call": {"sessionID": "ses-other"}}, "child session"),
+        )
+        for fields, message in cases:
+            name = self.opencode_record(attempt["id"], "terminal", **fields)
+            with self.subTest(fields=fields), self.assertRaisesRegex(ValueError, message):
+                retry(self.root, attempt["id"], agent_record=name)
+
+    def test_opencode_terminal_rejects_raw_session_mismatch(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        child = f"ses-child-{attempt['id']}"
+        bind(self.root, attempt["id"], child, agent_record=self.opencode_record(attempt["id"]))
+        name = self.opencode_record(attempt["id"], "terminal")
+        raw = self.root / f"runtime/{attempt['id']}-opencode-terminal-raw.json"
+        info = json.loads(raw.read_text())
+        info["outcome"] = "interrupted"
+        raw.write_text(json.dumps(info))
+        with self.assertRaisesRegex(ValueError, "raw session differs"):
+            retry(self.root, attempt["id"], agent_record=name)
 
     def test_agent_record_binds_shared_host_level(self):
         attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
@@ -841,12 +1248,12 @@ class RegistryTests(unittest.TestCase):
                 agent_record=self.agent_record(second["id"], response=shared),
             )
 
-    def test_version_2_registry_is_rejected(self):
+    def test_version_3_registry_is_rejected(self):
         path = self.root / "registry.json"
         value = json.loads(path.read_text())
-        value["version"] = 2
+        value["version"] = 3
         path.write_text(json.dumps(value))
-        with self.assertRaisesRegex(ValueError, "version 2.*requires version 3"):
+        with self.assertRaisesRegex(ValueError, "version 3.*requires version 4"):
             show(self.root)
 
     def test_cli_binds_agent_record(self):

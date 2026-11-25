@@ -6,6 +6,7 @@
 
 from pathlib import Path
 
+from completion import completion_gaps
 from native_proof import ProofAssessment, assess_proof
 from records import RecordError, load
 
@@ -21,7 +22,7 @@ def _required(run_dir: Path, relative: str, kind: str) -> dict:
     return load(path, kind)
 
 
-def _proof_failures(proof: dict, assessment: ProofAssessment, outcomes: list[str]) -> list[str]:
+def _proof_failures(proof: dict, assessment: ProofAssessment) -> list[str]:
     failures = [*assessment.findings, *assessment.gaps]
     identity = "not_applicable" if proof.get("failure_type") == "compile" else "pass"
     failures.extend(
@@ -32,8 +33,6 @@ def _proof_failures(proof: dict, assessment: ProofAssessment, outcomes: list[str
         )
         if proof[key] != expected
     )
-    if any(value in {"REPRODUCED_REGRESSION", "INCOMPLETE_FIX"} for value in outcomes):
-        failures.append("regression or incomplete fix")
     return failures
 
 
@@ -68,6 +67,20 @@ def _latest_attempt(
     return patch, proof, None
 
 
+def _regression_verdict(
+    run_dir: Path, attempt: int, patch: dict, proof: dict
+) -> tuple[str, list[str]]:
+    regression = _required(run_dir, "regression/regression.json", "regression")
+    gaps = completion_gaps(run_dir, attempt, patch, proof, regression)
+    if gaps:
+        return "NOT_READY", gaps
+    outcomes = [item["outcome"] for item in regression["outcomes"]]
+    if any(value in {"REPRODUCED_REGRESSION", "INCOMPLETE_FIX"} for value in outcomes):
+        return "NOT_READY", ["regression or incomplete fix"]
+    concerns = _concerns(patch, regression, outcomes)
+    return ("READY_WITH_CONCERNS", concerns) if concerns else ("READY", [])
+
+
 def verdict(run_dir: Path) -> tuple[str, list[str]]:
     """Return a verdict and concise reasons for the latest patch attempt."""
     reproduce = _required(run_dir, "reproduce/reproduce.json", "reproduce")
@@ -89,13 +102,7 @@ def verdict(run_dir: Path) -> tuple[str, list[str]]:
         return "NOT_READY", [problem]
     assert patch is not None and proof is not None
     assessment = assess_proof(run_dir, attempt)
-    failures = _proof_failures(proof, assessment, [])
+    failures = _proof_failures(proof, assessment)
     if failures:
         return "NOT_READY", failures
-    regression = _required(run_dir, "regression/regression.json", "regression")
-    outcomes = [item["outcome"] for item in regression["outcomes"]]
-    failures = _proof_failures(proof, assessment, outcomes)
-    if failures:
-        return "NOT_READY", failures
-    concerns = _concerns(patch, regression, outcomes)
-    return ("READY_WITH_CONCERNS", concerns) if concerns else ("READY", [])
+    return _regression_verdict(run_dir, attempt, patch, proof)

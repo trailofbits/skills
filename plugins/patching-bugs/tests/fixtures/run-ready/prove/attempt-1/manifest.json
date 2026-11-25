@@ -17,6 +17,10 @@
     "receipts/repeated-baseline.stdout": "adad8044a74a3f9c04b5b86799b90382349cec956b3ba6c6a9ed7010d2edbc6f",
     "receipts/repeated-patched.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "receipts/repeated-patched.stdout": "a8ec54e36c4b57a45918c17be0127a63bbacc4cd0e0dae9feb0d39ffb26139aa",
+    "receipts/session-launch.json": "f8afe3d09e3156f2e622b48b7a281b83a14020fd80965aaccec3f24feb4cf289",
+    "receipts/session-launch.raw.json": "0a1f49bd28c5d99f508f40dcea726791a76ca1c0e949da102bf40243a5e8b8f8",
+    "receipts/session-terminal.json": "0a43ed9fe4c715d29952c443e23be631c48680a654aba9de4cecda4e59169b96",
+    "receipts/session-terminal.raw.json": "ac76f83eafa374938a69172346d7a18214c4873c2fdaf7a9de38d48ded418ca2",
     "receipts/source.json": "67fcd4c6a6cb322dd14c3238c2d5d44aa9392c77be5701983b20926134aea857"
   },
   "schema_version": 1

@@ -32,16 +32,17 @@ in their bundled schema (`prove.json` uses version 2). Each is checked by the
     manifest.json
   patch/attempt-N/
     patch.json                     patcher commit, variants and suite results
+    receipts/session-*.json        raw child launch and terminal evidence
     fix.patch                      production diff from baseline
     tests.patch                    test diff from baseline
     manifest.json                  hashes the record and both patch files
   prove/attempt-N/
     prove.json                     independent prover outcomes
-    receipts/                      scoped cases, project checks, three-arm proof
+    receipts/                      child session, scoped cases, project checks, three-arm proof
     manifest.json
   regression/
     regression.json                campaign pointer, coverage and decisions
-    receipts/                      copied decision records
+    receipts/                      verified campaign summary and copied decisions
     manifest.json
   report-input.json                orchestrator prose and disclosure choice
   report.html                      auditor report for every reportable run
@@ -78,7 +79,9 @@ the retained `prove.json`, case observations, and project receipts.
 identify different agents. Reusing the reproducer as validator or patcher as prover makes
 the verdict Not ready. A failed patch attempt may record `patch_commit: null`.
 The orchestrator reads regression-hunt's per-finding decisions and copies their source
-records into regression receipts before writing `regression.json`. It then writes
+records into regression receipts before writing `regression.json`. It retains the
+verified campaign summary and binds the campaign's exact `s0`/`s1` commits to the patch.
+It then writes
 `report-input.json` and calls the [renderer](../scripts/render.py). The renderer derives
 both report claims from validated records, embeds local evidence and the full patch
 diff, and removes an obsolete maintainer handoff if a later render is not ready.
@@ -89,7 +92,51 @@ all prior attempts and receipts. Never infer a result from an agent's account wh
 receipt is available.
 The record checker binds each patch and proof record's `attempt` to its canonical
 `attempt-N` directory. Evidence beyond `run.attempts` is a readiness gap; ordinary
-checking still permits a report of the contradictory state.
+checking with `allow_inconsistent_status=True` still permits a report of the
+contradictory state. The default checker rejects `run.status` values `ready` and
+`ready_with_concerns` when the derived verdict differs. The renderer uses the
+reportable mode so an incomplete run still receives an auditor report.
+
+## Child session receipts
+
+The latest patch and prove attempt each retain `receipts/session-launch.json`,
+`session-launch.raw.json`, `session-terminal.json`, and `session-terminal.raw.json`.
+All four files are hashed in that attempt's manifest. The structured launch receipt
+contains `tool`, `parent_session`, `observed_at`, `call`, and `response`; the terminal
+receipt contains `tool`, `observed_at`, `call` where applicable, and `response`.
+`observed_at` is an ISO 8601 timestamp with a timezone. Both stages name the same
+coordinator parent and different child handles, and their `patch.json.agent` and
+`prove.json.agent` fields equal those handles.
+
+For OpenCode 2.3.2, `tool` is `subagent`; the fresh call has `agent`, `description`,
+and `prompt`, with no `sessionID`. Its response has the new `sessionID`, `status:
+"running"`, and nonempty `output`. The raw launch file is the completed OpenCode
+tool part with matching input, metadata and content. The terminal receipt uses
+`opencode.sessions.get` for that child; the raw terminal file is its Session.Info
+response with matching `id`, `parentID`, and `agent`, no `fork`, and terminal
+`outcome: "succeeded"`. For Codex, the launch call uses
+`codex.spawn_agent` with `fork_turns: "none"`, and the raw file contains its
+`tool`, `call`, and `response`. The terminal call uses `codex.list_agents`; its raw
+file contains the matching `tool` and `response`, which lists the child exactly
+once as `completed`. These are retained coordinator observations;
+they establish structural linkage, not model adherence or host authenticity.
+
+## Regression campaign receipt
+
+`regression.json.campaign_dir` points to a Regression Hunt campaign directory,
+absolute or relative to the run directory. That campaign must have frozen scope
+and registry-accepted, sealed `prepare` and `hunt` stages with `status: complete`
+for one change. Its structured input has `s0` and `s1` equal to the latest patch's
+baseline and patch commits. The Regression Hunt `report.py --verify-discovery`
+command rechecks the accepted packages and prints a collected JSON report without
+writing report files. Copy that JSON to `regression/receipts/campaign-report.json`.
+Each `regression.json` outcome must match a collected finding, and each copied
+decision receipt must match the campaign's decision record (or candidate record
+when unresolved). An empty outcome list is valid when a completed hunt found no
+candidates. An `INCOMPLETE` coverage label requires an actual campaign result
+showing incomplete coverage; a label written directly is not evidence of a hunt.
+If the plugins are installed separately, set `REGRESSION_HUNT_REPORT_SCRIPT` to
+the installed Regression Hunt `scripts/report.py` before running the checker.
 
 Each step directory's `manifest.json` maps every regular file under that directory,
 except its own manifest, to SHA-256 by sorted relative path. This includes step records,
@@ -137,7 +184,8 @@ limits the claim to the proven example.
 
 1. Reproduction other than `reproduced`, or validation other than `confirmed`:
    `NOT_REPRODUCED`.
-2. Missing patch commit or proof, reused agent identity, any native proof finding or
+2. Missing patch commit or proof, reused agent identity, missing or invalid child
+   session or campaign receipts, any native proof finding or
    evidence gap, reverted
    arm other than pass, runtime build identity other than pass, `REPRODUCED_REGRESSION`, or
    `INCOMPLETE_FIX`: `NOT_READY`.
@@ -171,6 +219,10 @@ For runtime identity, the unchanged PoC prints one
 `PATCH_LOADED {"path": "<resolved loaded file>", "sha256": "<loaded file hash>"}`
 line from its actual loader observation. Each arm must match that worktree's
 `target_artifact` path and bytes. Hashing a named file alone does not bind execution.
+When `CARGO_TARGET_DIR` is set in the coordinator environment, the helper sets it to the
+current arm's worktree-local `target/` for both build and PoC commands. For Cargo, use a
+`target_artifact` under `target/` and have `PATCH_LOADED` identify that exact file. This keeps
+baseline, patched and reverted build products tied to their respective source trees.
 
 The helper restores and verifies the entire original baseline tree in its owned
 reverted worktree, then rebuilds. Keep the unchanged PoC outside these temporary

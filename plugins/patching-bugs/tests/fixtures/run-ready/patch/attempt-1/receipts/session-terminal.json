@@ -1,0 +1,13 @@
+{
+  "tool": "opencode.sessions.get",
+  "observed_at": "2026-09-30T12:01:00+00:00",
+  "call": {
+    "sessionID": "patcher"
+  },
+  "response": {
+    "id": "patcher",
+    "parentID": "coordinator",
+    "agent": "patcher",
+    "outcome": "succeeded"
+  }
+}

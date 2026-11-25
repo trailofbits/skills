@@ -63,6 +63,62 @@ def test_build_failure_cannot_reuse_old_artifact(bug_repo, tmp_path):
     assert result["build_identity"] == "fail"
 
 
+def test_cargo_target_dir_is_private_to_each_source_arm(bug_repo, tmp_path, monkeypatch):
+    repo, baseline, patch = bug_repo
+    shared_target = tmp_path / "shared-cargo-target"
+    monkeypatch.setenv("CARGO_TARGET_DIR", str(shared_target))
+    build = tmp_path / "build_from_source.py"
+    build.write_text(
+        """import os
+from pathlib import Path
+
+target = Path(os.environ["CARGO_TARGET_DIR"])
+target.mkdir(parents=True, exist_ok=True)
+artifact = target / "app.py"
+if not artifact.exists():
+    artifact.write_bytes(Path("app.py").read_bytes())
+print(target.resolve())
+"""
+    )
+    poc = tmp_path / "run_built_source.py"
+    poc.write_text(
+        """import hashlib
+import json
+import os
+from pathlib import Path
+
+artifact = Path(os.environ["CARGO_TARGET_DIR"]) / "app.py"
+data = artifact.read_bytes()
+print("PATCH_LOADED " + json.dumps({
+    "path": str(artifact.resolve()), "sha256": hashlib.sha256(data).hexdigest()
+}))
+print("PATCH_REACHED")
+raise SystemExit(0 if b"Path(name).name" in data else 1)
+"""
+    )
+    out = tmp_path / "proof"
+    result = run_arms(
+        repo,
+        baseline,
+        patch,
+        ArmSpec([sys.executable, str(build)], [sys.executable, str(poc)], "target/app.py", 30),
+        out,
+    )
+    assert result["reverted"] == "pass"
+    assert result["build_identity"] == "pass"
+    assert result["hashes"]["baseline"] == result["hashes"]["reverted"]
+    assert result["hashes"]["baseline"] != result["hashes"]["patched"]
+    targets = {
+        name: Path((out / "receipts" / name / "build/stdout.txt").read_text().strip())
+        for name in ("baseline", "patched", "reverted")
+    }
+    assert len(set(targets.values())) == 3
+    assert all(path.name == "target" and path.parent.name == name for name, path in targets.items())
+    assert not shared_target.exists()
+    for name in targets:
+        assert json.loads((out / "receipts" / name / "arm.json").read_text())["loaded_identity"]
+
+
 def test_crash_before_reach_is_inconclusive(bug_repo, tmp_path):
     repo, baseline, patch = bug_repo
     (repo / "crash.py").write_text('raise RuntimeError("setup failed")\n')

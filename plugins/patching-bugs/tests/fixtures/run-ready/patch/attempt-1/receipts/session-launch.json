@@ -1,0 +1,15 @@
+{
+  "tool": "subagent",
+  "parent_session": "coordinator",
+  "observed_at": "2026-09-30T12:00:00+00:00",
+  "call": {
+    "agent": "patcher",
+    "description": "patch fixture",
+    "prompt": "patch the bug"
+  },
+  "response": {
+    "sessionID": "patcher",
+    "status": "running",
+    "output": "Launched patcher"
+  }
+}

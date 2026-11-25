@@ -1,0 +1,156 @@
+{
+  "attempts": {
+    "a001": {
+      "agent": "prepare",
+      "candidate": null,
+      "change": "P1",
+      "directory": "attempts/a001",
+      "id": "a001",
+      "input_hashes": {},
+      "inputs": [],
+      "launch": {
+        "hashes": {
+          "runtime/a001.json": "d5a18fb5e7041405119196f03abba029d861ebe482895ccb9e479fdea393b6ad",
+          "runtime/a001.raw.json": "5a94798f815c7177cc5075b5550d4a323b79b549b7e92461fef5e9fc851ad6fc"
+        },
+        "record": "runtime/a001.json",
+        "value": {
+          "attempt": "a001",
+          "call": {
+            "fork_turns": "none",
+            "message": "Regression Hunt attempt: a001\nInspect the change.",
+            "task_name": "prepare"
+          },
+          "event": "launch",
+          "evidence": [
+            "runtime/a001.raw.json"
+          ],
+          "observed_at": "2026-09-30T12:00:00+00:00",
+          "response": {
+            "task_name": "prepare"
+          },
+          "tool": "codex.spawn_agent"
+        }
+      },
+      "prefix": null,
+      "record": "attempts/a001/result.json",
+      "seal": "34bb8ef780a1fb8fb4b61a7b14650f317fe84d8e1f4d0b9074aa4f6d2b85ebd2",
+      "stage": "prepare",
+      "state": "accepted",
+      "terminal": {
+        "hashes": {
+          "runtime/a001-terminal.json": "520f6f9ad6ec2d763db4fdb29956aff894d422ffb2869a126dc80846918af388",
+          "runtime/a001-terminal.raw.json": "a3d10e77261170512e55dfa904020992a690160c896e8151a29726f52b06160b"
+        },
+        "record": "runtime/a001-terminal.json",
+        "value": {
+          "attempt": "a001",
+          "event": "terminal",
+          "evidence": [
+            "runtime/a001-terminal.raw.json"
+          ],
+          "observed_at": "2026-09-30T12:01:00+00:00",
+          "response": {
+            "agents": [
+              {
+                "agent_name": "prepare",
+                "agent_status": {
+                  "completed": null
+                }
+              }
+            ]
+          },
+          "tool": "codex.list_agents"
+        }
+      },
+      "verification": "shared-host"
+    },
+    "a002": {
+      "agent": "hunt",
+      "candidate": null,
+      "change": "P1",
+      "directory": "attempts/a002",
+      "id": "a002",
+      "input_hashes": {
+        "attempts/a001/result.json": "3c9a88afefbbaa14fa722da5329403212f886400fefb54f976e55296e54a0d13",
+        "attempts/a001/result.json.seal.json": "34bb8ef780a1fb8fb4b61a7b14650f317fe84d8e1f4d0b9074aa4f6d2b85ebd2"
+      },
+      "inputs": [
+        "attempts/a001/result.json"
+      ],
+      "launch": {
+        "hashes": {
+          "runtime/a002.json": "7dbc14d6ce82868fa947181696242175c6d69f158276be18e885181ec86b8761",
+          "runtime/a002.raw.json": "ef02ff5a0606db64ac3fccba74d5a5ba5e4377da72930802eea3fbc8ad1087a0"
+        },
+        "record": "runtime/a002.json",
+        "value": {
+          "attempt": "a002",
+          "call": {
+            "fork_turns": "none",
+            "message": "Regression Hunt attempt: a002\nInspect the change.",
+            "task_name": "hunt"
+          },
+          "event": "launch",
+          "evidence": [
+            "runtime/a002.raw.json"
+          ],
+          "observed_at": "2026-09-30T12:00:00+00:00",
+          "response": {
+            "task_name": "hunt"
+          },
+          "tool": "codex.spawn_agent"
+        }
+      },
+      "prefix": "h001-",
+      "record": "attempts/a002/result.json",
+      "seal": "8b86fb7e2d40d5af43ac6cef38d03d2bbda7ef91fe911cd0cf01f028bf5843d1",
+      "stage": "hunt",
+      "state": "accepted",
+      "terminal": {
+        "hashes": {
+          "runtime/a002-terminal.json": "2901c64dc23d70eb739655fb3a5ee2cc2b3b4b2e626e690f94552a65679ed51d",
+          "runtime/a002-terminal.raw.json": "3a14c11fb88fc49aafbb7419332ab04d10fa161c9acf663259008bbb75a6bb64"
+        },
+        "record": "runtime/a002-terminal.json",
+        "value": {
+          "attempt": "a002",
+          "event": "terminal",
+          "evidence": [
+            "runtime/a002-terminal.raw.json"
+          ],
+          "observed_at": "2026-09-30T12:01:00+00:00",
+          "response": {
+            "agents": [
+              {
+                "agent_name": "hunt",
+                "agent_status": {
+                  "completed": null
+                }
+              }
+            ]
+          },
+          "tool": "codex.list_agents"
+        }
+      },
+      "verification": "shared-host"
+    }
+  },
+  "candidates": {},
+  "coordinator_session": null,
+  "prefixes": {
+    "h001-": "P1"
+  },
+  "scope": {
+    "changes": {
+      "P1": {
+        "repository": "fixture",
+        "s0": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "s1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    "file": "scope.json",
+    "hash": "feef5b5293a2a6a94ab06e3dc13b87cb0e98be3839cd31445081786cf1d79c1d"
+  },
+  "version": 4
+}

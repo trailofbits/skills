@@ -1,0 +1,19 @@
+{
+  "event": "terminal",
+  "attempt": "a001",
+  "tool": "codex.list_agents",
+  "response": {
+    "agents": [
+      {
+        "agent_name": "prepare",
+        "agent_status": {
+          "completed": null
+        }
+      }
+    ]
+  },
+  "observed_at": "2026-09-30T12:01:00+00:00",
+  "evidence": [
+    "runtime/a001-terminal.raw.json"
+  ]
+}

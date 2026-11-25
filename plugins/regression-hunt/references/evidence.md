@@ -56,7 +56,7 @@ Invoke `uv run --no-project SCRIPT COMMAND CAMPAIGN ...`, resolving SCRIPT from 
 | `candidate` | `ATTEMPT --agent HANDLE --key HYPOTHESIS_KEY` | Reserve a candidate ID, or return the existing ID for that key. |
 | `retry` | `ATTEMPT (--host-record PATH \| --agent-record PATH) [--inputs PATH ...]` | Require termination evidence of the same kind as the launch, supersede the attempt and allocate a new ID/directory with its candidate prefix. Omitted inputs reuse old paths; an empty list clears them. |
 | `check` | `ATTEMPT RECORD` | Verify the sealed result against its assignment without accepting it. |
-| `accept` | `ATTEMPT RECORD` | Validate and record acceptance; only then update campaign pointers. |
+| `accept` | `ATTEMPT RECORD (--host-record PATH \| --agent-record PATH)` | Validate the sealed result and matching terminal observation; only then update campaign pointers. A repeated accept can omit the terminal option because the recorded observation is rechecked. |
 | `show` | | Read the registry for coordinator recovery; never pass other hunters' mappings to a worker. |
 
 Repeat `--input` for each prerequisite. The returned assignment supplies the attempt ID,
@@ -65,14 +65,20 @@ exact input paths and output directory; new directories are created by the assig
 - Reserve before dispatch, then bind the actual handle. Hunters reserve IDs before writing
   candidate files. A hypothesis key names the same suspected defect across retries; new
   defects use new keys. The helper cannot detect the same defect described under two keys.
-- `registry.json` version 2 contains frozen `scope`, `prefixes` (prefix → change), `candidates` (ID → prefix,
+- `registry.json` version 4 contains frozen `scope`, `prefixes` (prefix → change), `candidates` (ID → prefix,
   key, change, accepted file), and `attempts` (ID → stage, change, candidate, prefix, inputs,
   input hashes, directory, agent, state, accepted record and seal hash, launch/terminal observations).
+  `coordinator_session` fixes the OpenCode parent for every stage launch in the campaign.
+- Version 3 campaigns cannot establish terminal evidence for previously accepted records.
+  Start a new campaign under version 4; do not relabel old accepted records as verified.
 - Attempt states are `reserved`, `running`, `accepted` and `superseded`. An accepted record
   may be blocked. Continue active attempts with the same ID; retries get new IDs/directories.
   The coordinator must stop the old agent and verify termination before recording terminal evidence.
-- Acceptance checks change, stage, agent, candidate, attempt, launch evidence, exact input paths/hashes, output
-  confinement and seals. Hunt results must account for all reserved candidate IDs and keys.
+- Acceptance checks change, stage, agent, candidate, attempt, launch and terminal evidence,
+  exact input paths/hashes, output confinement and seals. Accepted records recheck both
+  observations. A `complete` result needs a successful terminal outcome; a `blocked` result
+  may follow a recorded failure or stop. Hunt results must account for all reserved candidate
+  IDs and keys.
   Never rename sealed records. The helper verifies recorded identity, not host authentication.
 - Every report requires a registry, the exact frozen scope and registry acceptance for every
   referenced stage record. Each record must belong to its indexed change.
@@ -89,11 +95,12 @@ Each bound attempt records how its agent was separated:
 A finding's level is the weakest among its reproduction, replay and adjudication. Reproduction,
 replay and adjudication of one candidate always need distinct agent handles.
 
-An agent record is a JSON file in `runtime/` with retained raw evidence beside it:
+An agent record is a JSON file in `runtime/` with retained raw evidence beside it. For Codex:
 
 ```json
 {"event": "launch", "attempt": "a003", "tool": "codex.spawn_agent",
- "call": {"task_name": "replay", "fork_turns": "none"},
+ "call": {"task_name": "replay", "fork_turns": "none",
+          "message": "Regression Hunt attempt: a003\nInspect the assigned change."},
  "response": {"task_name": "/root/replay"},
  "observed_at": "2026-09-30T21:10:00+00:00", "evidence": ["runtime/a003-spawn.txt"]}
 ```
@@ -106,15 +113,47 @@ A terminal agent record lists the bound handle in `response.agents`, matched on 
  "observed_at": "2026-09-30T21:20:00+00:00", "evidence": ["runtime/a003-status.txt"]}
 ```
 
-Use a unique `task_name` for every attempt: a handle that worked on a candidate cannot be bound to
-another reproduce, replay or adjudicate attempt for that candidate, even after a retry. An agent
+Use a unique `task_name` for every attempt: a handle cannot be bound to another stage attempt.
+The recorded spawn call message must contain the exact `Regression Hunt attempt: <ID>` line. An agent
 whose status is neither `completed` nor `errored` (for example one stopped by force) cannot be
 retried with an agent record; record a blocker.
 
-Bind with `--agent` equal to `response.task_name`. Retry a `shared-host` attempt with a
+Bind with `--agent` equal to `response.task_name`. Accept or retry a Codex `shared-host` attempt with a
 `terminal` record from `codex.list_agents` whose `response.agents` lists that handle once with
-`agent_status` `{"completed": ...}` or `{"errored": ...}`. Other tools are rejected until a
-recognizer is added.
+`agent_status` `{"completed": ...}` or `{"errored": ...}`.
+
+For OpenCode 2.3.2, save a launch record with `tool: "subagent"`, the parent session ID in
+`parent_session`, the exact tool `call` (`agent`, `description`, `prompt`, optional `model`), and its
+`response` (`sessionID`, `status: "running"`, `output`). Omit `sessionID` from the call: passing it
+continues an existing child. Use the returned child `sessionID` as the registry `--agent` handle.
+The child handle must differ from its parent and every earlier bound handle in the campaign.
+The first path in `evidence` must be the completed OpenCode assistant tool part copied from the
+parent transcript. It has `type: "tool"`, `name: "subagent"`, `state.status: "completed"`,
+`state.input` equal to `call`, `state.metadata.sessionID/status` equal to the response, and a text
+content item equal to `response.output`. Keep further raw transcript files after that first path.
+The raw prompt must contain the exact `Regression Hunt attempt: <ID>` line. Every stage child
+must have the same `parent_session`.
+
+When the OpenCode host exposes `fulcrum_prepare_subagent`, its launch record instead uses
+that tool name. The call includes the reserved `attemptID`, `agent`, `description` and marked
+`prompt`; the response and raw tool-part metadata contain the new child `sessionID`,
+`status: "paused"` and admitted `promptID`. Preserve the raw part with matching input and
+response text. The response text is JSON with the same child identity fields. Bind that record
+before `fulcrum_start_subagent` resumes the admitted prompt.
+The built-in `subagent` starts immediately, so record an unverified ordering gap if binding
+did not precede child work.
+
+For acceptance or retry, save a terminal record with `tool: "opencode.sessions.get"`,
+`call: {"sessionID": "<bound child session ID>"}`, and `response` equal to the complete child
+`Session.Info` returned by the SDK. The first `evidence` path must contain that unmodified JSON
+response. The record passes when `response.id` is the bound child, `response.parentID` is the
+recorded parent, `response.agent` is the launched agent, no `fork` is present, and `outcome` is
+`succeeded` or `failed`. Missing or `interrupted` outcomes do not prove a finished child. Retain
+the raw API response and coordinator observation under `runtime/` with an ISO 8601 timezone in
+`observed_at`. The coordinator still confirms that owned commands and resources have stopped
+before retry; `sessions.get` does not make that host check.
+The [OpenCode agent documentation](https://opencode.ai/docs/agents) describes fresh child contexts;
+the [API reference](https://opencode.ai/docs/api) defines the session and tool-part fields.
 
 ### Host verification
 
@@ -231,6 +270,11 @@ confirmation. Cite files in the sealed package, explaining the relevant lines/ob
 generated reports as artifacts. Render into the assigned attempt directory. A blocked report
 records validation errors; it never repairs source records. Use `campaign` as the change ID
 when reserving a campaign-wide reporting attempt.
+`report.py <campaign-dir> --verify-discovery` prints the collected JSON without
+writing reports. It requires a nonempty frozen scope and registry-accepted,
+sealed, complete `prepare` and `hunt` records for every scoped change. The
+collected coverage may still be `INCOMPLETE` when candidates are unresolved;
+consumers must inspect the returned coverage and decisions.
 
 ## Labels
 
