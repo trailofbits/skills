@@ -26,6 +26,12 @@ skill for a remote deployment or a batch of bugs.
 
 ## Workflow
 
+Stage ownership is strict. The coordinator may build the baseline and write run records
+outside the target checkout, but must not edit or commit tracked target files. Only the
+fresh `implement-patch` agent may edit target source or tests, after independent
+reproduction and validation. If the checkout changes earlier, stop as INCONCLUSIVE and
+preserve the evidence.
+
 During preflight, before the first build, pin the baseline SHA and read root guidance
 from its Git objects. Save present files and absences under `guidance/<baseline-SHA>/`
 outside the target tree; verify them before each handoff. Confirm `regression-hunt`
@@ -191,3 +197,4 @@ never infer a passing check from an agent's summary.
 | A missing receipt or failing check is close enough. | Treat evidence gaps as INCONCLUSIVE and trustworthy patched failures as failed repair. |
 | The runtime PoC crashed, so the bug reproduced. | Require the exact `PATCH_REACHED` line. |
 | Coordinator writes the PoC first. | Fresh `reproduce-bug` agent owns the PoC. |
+| Coordinator patches early. | Fresh patch agent edits only after independent validation. |
