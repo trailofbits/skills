@@ -48,7 +48,11 @@ class Campaign:
                     "event": "launch",
                     "attempt": aid,
                     "tool": "codex.spawn_agent",
-                    "call": {"task_name": role, "fork_turns": "none"},
+                    "call": {
+                        "task_name": role,
+                        "fork_turns": "none",
+                        "message": f"Regression Hunt attempt: {aid}\nInspect the change.",
+                    },
                     "response": {"task_name": role},
                     "observed_at": "2026-09-30T12:00:00+00:00",
                     "evidence": [raw],

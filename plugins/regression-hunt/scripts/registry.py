@@ -32,7 +32,14 @@ def load(root: Path) -> dict:
             not local(root, "attempts").exists(),
             "Missing registry: restore it before reserving IDs",
         )
-        return {"version": VERSION, "scope": None, "attempts": {}, "prefixes": {}, "candidates": {}}
+        return {
+            "version": VERSION,
+            "scope": None,
+            "attempts": {},
+            "prefixes": {},
+            "candidates": {},
+            "coordinator_session": None,
+        }
     data = read(root, "registry.json")
     if data.get("version") != VERSION:
         raise ValueError(
@@ -275,7 +282,21 @@ def bind(
         elif agent_record is not None:
             receipt, level = agent_binding(root, data, attempt, agent, agent_record), "shared-host"
         require(attempt["launch"] in (None, receipt), f"{attempt_id}: launch evidence changed")
+        if receipt["value"].get("tool") in ("subagent", "fulcrum_prepare_subagent"):
+            parent = receipt["value"]["parent_session"]
+            require(
+                data.get("coordinator_session") in (None, parent),
+                f"{attempt_id}: child launch has a different coordinator parent",
+            )
+            data["coordinator_session"] = parent
         distinct_candidate_agent(data, attempt, agent)
+        if level == "shared-host":
+            for other in data["attempts"].values():
+                if other["id"] != attempt_id:
+                    require(
+                        other.get("agent") != agent,
+                        f"{attempt_id}: reused agent handle from {other['id']}",
+                    )
         attempt.update(agent=agent, launch=receipt, state="running", verification=level)
         return attempt
 

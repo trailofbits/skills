@@ -736,7 +736,11 @@ class RegistryTests(unittest.TestCase):
         if event == "launch":
             payload = {
                 "tool": "codex.spawn_agent",
-                "call": {"task_name": f"task-{attempt_id}", "fork_turns": "none"},
+                "call": {
+                    "task_name": f"task-{attempt_id}",
+                    "fork_turns": "none",
+                    "message": f"Regression Hunt attempt: {attempt_id}\nInspect the change.",
+                },
                 "response": {"task_name": f"/root/task-{attempt_id}"},
             }
         else:
@@ -775,7 +779,7 @@ class RegistryTests(unittest.TestCase):
             call = {
                 "agent": "explore",
                 "description": "Investigate assigned change",
-                "prompt": "Inspect the assigned change and report findings.",
+                "prompt": f"Regression Hunt attempt: {attempt_id}\nInspect the assigned change.",
             }
             response = {"sessionID": child, "status": "running", "output": "Working in background"}
             value = {
@@ -810,14 +814,15 @@ class RegistryTests(unittest.TestCase):
             assert isinstance(response, dict)
             source = {
                 "type": "tool",
-                "name": "subagent",
+                "name": value["tool"],
                 "state": {
                     "status": "completed",
                     "input": value["call"],
                     "content": [{"type": "text", "text": response.get("output")}],
                     "metadata": {
-                        "sessionID": response.get("sessionID"),
-                        "status": response.get("status"),
+                        key: response[key]
+                        for key in ("sessionID", "status", "promptID")
+                        if key in response
                     },
                 },
             }
@@ -826,6 +831,25 @@ class RegistryTests(unittest.TestCase):
         (self.root / raw).write_text(json.dumps(source))
         (self.root / name).write_text(json.dumps(value))
         return name
+
+    def paused_record(self, attempt_id, **fields):
+        identity = {
+            "sessionID": f"ses-child-{attempt_id}",
+            "status": "paused",
+            "promptID": f"msg-{attempt_id}",
+        }
+        value = {
+            "tool": "fulcrum_prepare_subagent",
+            "call": {
+                "attemptID": attempt_id,
+                "agent": "explore",
+                "description": "Investigate assigned change",
+                "prompt": f"Regression Hunt attempt: {attempt_id}\nInspect the assigned change.",
+            },
+            "response": {**identity, "output": json.dumps(identity)},
+            **fields,
+        }
+        return self.opencode_record(attempt_id, **value)
 
     def test_opencode_launch_binds_child_session_and_retry_accepts_terminal_outcome(self):
         for outcome in ("succeeded", "failed"):
@@ -1016,6 +1040,87 @@ class RegistryTests(unittest.TestCase):
         raw.write_text(json.dumps(part))
         with self.assertRaisesRegex(ValueError, "raw subagent response differs"):
             bind(self.root, attempt["id"], f"ses-child-{attempt['id']}", agent_record=name)
+
+    def test_stage_launch_rejects_outer_coordinator_receipt(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        outer = self.opencode_record(
+            attempt["id"],
+            call={
+                "agent": "explore",
+                "description": "Run Regression Hunt coordinator",
+                "prompt": "Run the Regression Hunt campaign.",
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "attempt marker"):
+            bind(self.root, attempt["id"], f"ses-child-{attempt['id']}", agent_record=outer)
+
+    def test_stage_launch_requires_same_opencode_coordinator_parent(self):
+        first = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        bind(
+            self.root,
+            first["id"],
+            f"ses-child-{first['id']}",
+            agent_record=self.opencode_record(first["id"]),
+        )
+        second = reserve(self.root, {"stage": "hunt", "change": "change-1"})
+        other = self.opencode_record(second["id"], parent_session="ses-other")
+        with self.assertRaisesRegex(ValueError, "coordinator parent"):
+            bind(self.root, second["id"], f"ses-child-{second['id']}", agent_record=other)
+
+    def test_codex_stage_launch_rejects_reused_agent_handle(self):
+        first = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        bound = self.bind_shared(first["id"])
+        second = reserve(self.root, {"stage": "hunt", "change": "change-1"})
+        repeated = self.agent_record(second["id"], response={"task_name": bound["agent"]})
+        with self.assertRaisesRegex(ValueError, "reused agent"):
+            bind(self.root, second["id"], bound["agent"], agent_record=repeated)
+
+    def test_paused_opencode_stage_launch_binds_and_accepts_terminal(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        child = f"ses-child-{attempt['id']}"
+        bound = bind(
+            self.root, attempt["id"], child, agent_record=self.paused_record(attempt["id"])
+        )
+        self.assertEqual(bound["launch"]["value"]["response"]["status"], "paused")
+        result = self.record(attempt)
+        terminal = self.opencode_record(attempt["id"], "terminal")
+        self.assertEqual(
+            accept(self.root, attempt["id"], result, agent_record=terminal)["state"], "accepted"
+        )
+
+    def test_paused_opencode_stage_launch_rejects_wrong_attempt_and_raw_part(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        aid = attempt["id"]
+        call = {
+            "attemptID": "a999",
+            "agent": "explore",
+            "description": "Investigate assigned change",
+            "prompt": f"Regression Hunt attempt: {aid}\nInspect the change.",
+        }
+        wrong = self.paused_record(aid, call=call)
+        with self.assertRaisesRegex(ValueError, "attempt ID"):
+            bind(self.root, aid, f"ses-child-{aid}", agent_record=wrong)
+
+        name = self.paused_record(aid)
+        raw = self.root / f"runtime/{aid}-opencode-launch-raw.json"
+        part = json.loads(raw.read_text())
+        part["state"]["metadata"]["promptID"] = "msg-other"
+        raw.write_text(json.dumps(part))
+        with self.assertRaisesRegex(ValueError, "raw paused response"):
+            bind(self.root, aid, f"ses-child-{aid}", agent_record=name)
+
+    def test_paused_opencode_stage_launch_rejects_false_output_identity(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        aid = attempt["id"]
+        response = {
+            "sessionID": f"ses-child-{aid}",
+            "status": "paused",
+            "promptID": f"msg-{aid}",
+            "output": json.dumps({"sessionID": "ses-other", "status": "paused"}),
+        }
+        record = self.paused_record(aid, response=response)
+        with self.assertRaisesRegex(ValueError, "paused child output identity"):
+            bind(self.root, aid, f"ses-child-{aid}", agent_record=record)
 
     def test_opencode_terminal_rejects_unfinished_or_unrelated_session(self):
         attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})

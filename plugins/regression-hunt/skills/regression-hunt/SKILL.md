@@ -41,12 +41,17 @@ General audits, patching, or checking only whether an original bug was fixed.
    inputs and permissions to a fresh agent without inherited conversation. Pass each saved
    copy as a registry `--input`. In every fresh-agent prompt, including preparation, retries
    and reporting, label each file by name and target SHA with its full contents (or `absent`),
-   and list the copy paths. Include every change for campaign-wide reporting. Block dispatch
+   and list the copy paths. Include the exact line `Regression Hunt attempt: <ID>` from the
+   reserved assignment. Include every change for campaign-wide reporting. Block dispatch
    if a host limit prevents the complete handoff. Retain launch evidence under the file
    contract and bind before work starts: `--host-record` when the host
    verifies an isolated environment, otherwise `--agent-record` with the agent tool's spawn call
-   and response. In OpenCode, call `subagent` without `sessionID`, bind the returned child
-   `sessionID` as `--agent`, and retain the completed tool part as raw launch evidence.
+   and response. In OpenCode, use `fulcrum_prepare_subagent` when the host supplies it,
+   with the reserved `attemptID`; bind its paused child `sessionID` and raw tool part,
+   then call `fulcrum_start_subagent` for that bound attempt. Otherwise call `subagent`
+   without `sessionID`, bind the returned child `sessionID` and raw tool part immediately,
+   and record when bind-before-work-start could not be verified. All stage children in a
+   campaign must have the same coordinator parent and a fresh handle.
    Expose only its assignment's candidate mapping.
    The OpenCode launch response does not mean the child has finished. Keep the
    coordinator active until that same child has a host-observed terminal outcome;

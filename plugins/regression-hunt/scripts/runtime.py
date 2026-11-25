@@ -1,11 +1,12 @@
 """Validate coordinator-captured host observations, never substitute for host controls."""
 
+import json
 from datetime import datetime
 from pathlib import Path
 
 from evidence import IntegrityError, files, local, read
 
-AGENT_LAUNCH_TOOLS = ("codex.spawn_agent", "subagent")
+AGENT_LAUNCH_TOOLS = ("codex.spawn_agent", "subagent", "fulcrum_prepare_subagent")
 AGENT_STATUS_TOOLS = ("codex.list_agents", "opencode.sessions.get")
 FINISHED_STATUSES = ("completed", "errored")
 
@@ -63,16 +64,42 @@ def agent_observation(root: Path, name: str, attempt: dict, event: str) -> dict:
     return retained(root, name, value, "retain the raw agent tool response")
 
 
-def _codex_agent_launch(name: str, call: dict, response: dict) -> None:
+def attempt_marker(name: str, prompt: object, attempt_id: str) -> None:
+    """Require the reserved assignment in the host-observed child prompt."""
+    marker = f"Regression Hunt attempt: {attempt_id}"
+    require(
+        isinstance(prompt, str) and marker in prompt.splitlines(),
+        f"{name}: child prompt lacks reserved attempt marker {marker}",
+    )
+
+
+def _codex_agent_launch(name: str, call: dict, response: dict, attempt_id: str) -> None:
     require(
         call.get("fork_turns") == "none",
         f"{name}: agent inherited conversation (fork_turns={call.get('fork_turns')!r})",
     )
+    attempt_marker(name, call.get("message"), attempt_id)
     handle = response.get("task_name")
     require(isinstance(handle, str) and handle.strip(), f"{name}: response lacks the agent handle")
 
 
-def _opencode_agent_launch(root: Path, name: str, receipt: dict, attempts: dict) -> None:
+def _paused_output(name: str, response: dict) -> None:
+    try:
+        output = json.loads(response["output"])
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{name}: paused child output is not JSON") from exc
+    require(
+        isinstance(output, dict)
+        and all(
+            output.get(field) == response[field] for field in ("sessionID", "status", "promptID")
+        ),
+        f"{name}: paused child output identity differs from record",
+    )
+
+
+def _opencode_agent_launch(
+    root: Path, name: str, receipt: dict, attempts: dict, *, paused: bool = False
+) -> None:
     value = receipt["value"]
     call, response = value["call"], value["response"]
     parent = value.get("parent_session")
@@ -82,21 +109,33 @@ def _opencode_agent_launch(root: Path, name: str, receipt: dict, attempts: dict)
         require(
             isinstance(call.get(field), str) and call[field].strip(), f"{name}: missing {field}"
         )
+    attempt_marker(name, call["prompt"], value["attempt"])
+    if paused:
+        require(call.get("attemptID") == value["attempt"], f"{name}: wrong attempt ID")
     child = response.get("sessionID")
     require(isinstance(child, str) and child.strip(), f"{name}: response lacks child sessionID")
     require(child != parent, f"{name}: child session is the parent session")
-    require(response.get("status") == "running", f"{name}: subagent response is not running")
+    status = "paused" if paused else "running"
+    require(response.get("status") == status, f"{name}: subagent response is not {status}")
+    if paused:
+        require(
+            isinstance(response.get("promptID"), str) and response["promptID"],
+            f"{name}: paused child lacks prompt ID",
+        )
     require(
         isinstance(response.get("output"), str) and response["output"].strip(),
         f"{name}: response lacks subagent output",
     )
+    if paused:
+        _paused_output(name, response)
     for other in attempts.values():
         if other["id"] == value["attempt"]:
             continue
         require(child != other.get("agent"), f"{name}: reused child session from {other['id']}")
     raw = read(root, value["evidence"][0])
     state = raw.get("state")
-    require(raw.get("type") == "tool" and raw.get("name") == "subagent", f"{name}: wrong raw tool")
+    tool = "fulcrum_prepare_subagent" if paused else "subagent"
+    require(raw.get("type") == "tool" and raw.get("name") == tool, f"{name}: wrong raw tool")
     if not isinstance(state, dict):
         raise ValueError(f"{name}: raw tool unfinished")
     require(state.get("status") == "completed", f"{name}: raw tool unfinished")
@@ -105,8 +144,9 @@ def _opencode_agent_launch(root: Path, name: str, receipt: dict, attempts: dict)
     require(
         isinstance(metadata, dict)
         and metadata.get("sessionID") == child
-        and metadata.get("status") == "running",
-        f"{name}: raw subagent response differs from record",
+        and metadata.get("status") == status
+        and (not paused or metadata.get("promptID") == response["promptID"]),
+        f"{name}: raw {'paused' if paused else 'subagent'} response differs from record",
     )
     content = state.get("content")
     require(
@@ -132,16 +172,16 @@ def agent_launch(root: Path, name: str, attempt: dict, attempts: dict) -> dict:
         isinstance(call, dict) and isinstance(response, dict),
         f"{name}: record the tool call and its response",
     )
-    if tool == "subagent":
-        _opencode_agent_launch(root, name, receipt, attempts)
+    if tool in ("subagent", "fulcrum_prepare_subagent"):
+        _opencode_agent_launch(root, name, receipt, attempts, paused=tool != "subagent")
     else:
-        _codex_agent_launch(name, call, response)
+        _codex_agent_launch(name, call, response, attempt["id"])
     return receipt
 
 
 def agent_handle(receipt: dict) -> str:
     response = receipt["value"]["response"]
-    if receipt["value"]["tool"] == "subagent":
+    if receipt["value"]["tool"] in ("subagent", "fulcrum_prepare_subagent"):
         return response["sessionID"]
     return response["task_name"]
 
@@ -179,7 +219,7 @@ def agent_terminal(root: Path, name: str, attempt: dict) -> dict:
     tool = value.get("tool")
     require(tool in AGENT_STATUS_TOOLS, f"{name}: unsupported agent status tool {tool!r}")
     launched_tool = attempt["launch"]["value"]["tool"]
-    if launched_tool == "subagent":
+    if launched_tool in ("subagent", "fulcrum_prepare_subagent"):
         require(tool == "opencode.sessions.get", f"{name}: expected OpenCode session get")
         _opencode_agent_terminal(root, name, receipt, attempt)
         require(

@@ -68,6 +68,7 @@ exact input paths and output directory; new directories are created by the assig
 - `registry.json` version 4 contains frozen `scope`, `prefixes` (prefix → change), `candidates` (ID → prefix,
   key, change, accepted file), and `attempts` (ID → stage, change, candidate, prefix, inputs,
   input hashes, directory, agent, state, accepted record and seal hash, launch/terminal observations).
+  `coordinator_session` fixes the OpenCode parent for every stage launch in the campaign.
 - Version 3 campaigns cannot establish terminal evidence for previously accepted records.
   Start a new campaign under version 4; do not relabel old accepted records as verified.
 - Attempt states are `reserved`, `running`, `accepted` and `superseded`. An accepted record
@@ -98,7 +99,8 @@ An agent record is a JSON file in `runtime/` with retained raw evidence beside i
 
 ```json
 {"event": "launch", "attempt": "a003", "tool": "codex.spawn_agent",
- "call": {"task_name": "replay", "fork_turns": "none"},
+ "call": {"task_name": "replay", "fork_turns": "none",
+          "message": "Regression Hunt attempt: a003\nInspect the assigned change."},
  "response": {"task_name": "/root/replay"},
  "observed_at": "2026-09-30T21:10:00+00:00", "evidence": ["runtime/a003-spawn.txt"]}
 ```
@@ -111,8 +113,8 @@ A terminal agent record lists the bound handle in `response.agents`, matched on 
  "observed_at": "2026-09-30T21:20:00+00:00", "evidence": ["runtime/a003-status.txt"]}
 ```
 
-Use a unique `task_name` for every attempt: a handle that worked on a candidate cannot be bound to
-another reproduce, replay or adjudicate attempt for that candidate, even after a retry. An agent
+Use a unique `task_name` for every attempt: a handle cannot be bound to another stage attempt.
+The recorded spawn call message must contain the exact `Regression Hunt attempt: <ID>` line. An agent
 whose status is neither `completed` nor `errored` (for example one stopped by force) cannot be
 retried with an agent record; record a blocker.
 
@@ -129,6 +131,17 @@ The first path in `evidence` must be the completed OpenCode assistant tool part 
 parent transcript. It has `type: "tool"`, `name: "subagent"`, `state.status: "completed"`,
 `state.input` equal to `call`, `state.metadata.sessionID/status` equal to the response, and a text
 content item equal to `response.output`. Keep further raw transcript files after that first path.
+The raw prompt must contain the exact `Regression Hunt attempt: <ID>` line. Every stage child
+must have the same `parent_session`.
+
+When the OpenCode host exposes `fulcrum_prepare_subagent`, its launch record instead uses
+that tool name. The call includes the reserved `attemptID`, `agent`, `description` and marked
+`prompt`; the response and raw tool-part metadata contain the new child `sessionID`,
+`status: "paused"` and admitted `promptID`. Preserve the raw part with matching input and
+response text. The response text is JSON with the same child identity fields. Bind that record
+before `fulcrum_start_subagent` resumes the admitted prompt.
+The built-in `subagent` starts immediately, so record an unverified ordering gap if binding
+did not precede child work.
 
 For acceptance or retry, save a terminal record with `tool: "opencode.sessions.get"`,
 `call: {"sessionID": "<bound child session ID>"}`, and `response` equal to the complete child
