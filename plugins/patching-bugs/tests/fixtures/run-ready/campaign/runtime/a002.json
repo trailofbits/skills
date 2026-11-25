@@ -1,0 +1,16 @@
+{
+  "event": "launch",
+  "attempt": "a002",
+  "tool": "codex.spawn_agent",
+  "call": {
+    "task_name": "hunt",
+    "fork_turns": "none"
+  },
+  "response": {
+    "task_name": "hunt"
+  },
+  "observed_at": "2026-09-30T12:00:00+00:00",
+  "evidence": [
+    "runtime/a002.raw.json"
+  ]
+}

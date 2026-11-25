@@ -1,0 +1,21 @@
+{
+  "type": "tool",
+  "name": "subagent",
+  "state": {
+    "status": "completed",
+    "input": {
+      "agent": "prover",
+      "description": "prove fixture",
+      "prompt": "prove the bug"
+    },
+    "metadata": {
+      "sessionID": "prover",
+      "status": "running"
+    },
+    "content": [
+      {
+        "text": "Launched prover"
+      }
+    ]
+  }
+}

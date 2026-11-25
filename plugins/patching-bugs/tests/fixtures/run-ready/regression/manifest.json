@@ -1,7 +1,8 @@
 {
   "files": {
+    "receipts/campaign-report.json": "92374bdc92fe2f5dd959058f23031c4830d6387febdf74a0798d2cb4e2281c59",
     "receipts/decision.txt": "5cffa0294ed42068d3f4859414daa1c9bb0cc763abf07708f712b15976471d65",
-    "regression.json": "15cb7995e3631a9af6321a93ecde923436f0d79fa32bd28fc4fa30ce93728439"
+    "regression.json": "38c3b669c767abd2fb353a422d776f02b2ac06acf194d7d5466743ad078be97b"
   },
   "schema_version": 1
 }

@@ -168,7 +168,7 @@ def test_failed_build_null_hash_renders_not_ready(tmp_path):
         build_identity="fail",
     )
     shutil.rmtree(run / "regression")
-    check(run)
+    check(run, allow_inconsistent_status=True)
     output = render(run).read_text()
     assert "FAILED REPAIR" in output
     assert "Build identity" in output

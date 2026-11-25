@@ -1,0 +1,103 @@
+{
+  "attempts": {
+    "a001": {
+      "agent": "prepare",
+      "candidate": null,
+      "change": "P1",
+      "directory": "attempts/a001",
+      "id": "a001",
+      "input_hashes": {},
+      "inputs": [],
+      "launch": {
+        "hashes": {
+          "runtime/a001.json": "5bc00a644a912d3d35a392ed1abd59d85cf40c2673cec16c76ae554b6f547471",
+          "runtime/a001.raw.json": "b4a59b063d4b9574d2f02a2b0aaeae5097b61e86a7baa47ff3de4bd1768fd8c4"
+        },
+        "record": "runtime/a001.json",
+        "value": {
+          "attempt": "a001",
+          "call": {
+            "fork_turns": "none",
+            "task_name": "prepare"
+          },
+          "event": "launch",
+          "evidence": [
+            "runtime/a001.raw.json"
+          ],
+          "observed_at": "2026-09-30T12:00:00+00:00",
+          "response": {
+            "task_name": "prepare"
+          },
+          "tool": "codex.spawn_agent"
+        }
+      },
+      "prefix": null,
+      "record": "attempts/a001/result.json",
+      "seal": "34bb8ef780a1fb8fb4b61a7b14650f317fe84d8e1f4d0b9074aa4f6d2b85ebd2",
+      "stage": "prepare",
+      "state": "accepted",
+      "terminal": null,
+      "verification": "shared-host"
+    },
+    "a002": {
+      "agent": "hunt",
+      "candidate": null,
+      "change": "P1",
+      "directory": "attempts/a002",
+      "id": "a002",
+      "input_hashes": {
+        "attempts/a001/result.json": "3c9a88afefbbaa14fa722da5329403212f886400fefb54f976e55296e54a0d13",
+        "attempts/a001/result.json.seal.json": "34bb8ef780a1fb8fb4b61a7b14650f317fe84d8e1f4d0b9074aa4f6d2b85ebd2"
+      },
+      "inputs": [
+        "attempts/a001/result.json"
+      ],
+      "launch": {
+        "hashes": {
+          "runtime/a002.json": "2658718f433680b9281a385cf28d13ad765bfc199b92da3c3a704adeb891ac73",
+          "runtime/a002.raw.json": "b4a59b063d4b9574d2f02a2b0aaeae5097b61e86a7baa47ff3de4bd1768fd8c4"
+        },
+        "record": "runtime/a002.json",
+        "value": {
+          "attempt": "a002",
+          "call": {
+            "fork_turns": "none",
+            "task_name": "hunt"
+          },
+          "event": "launch",
+          "evidence": [
+            "runtime/a002.raw.json"
+          ],
+          "observed_at": "2026-09-30T12:00:00+00:00",
+          "response": {
+            "task_name": "hunt"
+          },
+          "tool": "codex.spawn_agent"
+        }
+      },
+      "prefix": "h001-",
+      "record": "attempts/a002/result.json",
+      "seal": "8b86fb7e2d40d5af43ac6cef38d03d2bbda7ef91fe911cd0cf01f028bf5843d1",
+      "stage": "hunt",
+      "state": "accepted",
+      "terminal": null,
+      "verification": "shared-host"
+    }
+  },
+  "candidates": {},
+  "prefixes": {
+    "h001-": "P1"
+  },
+  "scope": {
+    "changes": {
+      "P1": {
+        "repository": "fixture",
+        "s0": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "s1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    "file": "scope.json",
+    "hash": "feef5b5293a2a6a94ab06e3dc13b87cb0e98be3839cd31445081786cf1d79c1d"
+  },
+  "version": 3
+}

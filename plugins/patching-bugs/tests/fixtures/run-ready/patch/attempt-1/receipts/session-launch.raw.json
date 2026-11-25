@@ -1,0 +1,21 @@
+{
+  "type": "tool",
+  "name": "subagent",
+  "state": {
+    "status": "completed",
+    "input": {
+      "agent": "patcher",
+      "description": "patch fixture",
+      "prompt": "patch the bug"
+    },
+    "metadata": {
+      "sessionID": "patcher",
+      "status": "running"
+    },
+    "content": [
+      {
+        "text": "Launched patcher"
+      }
+    ]
+  }
+}

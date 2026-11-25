@@ -1,0 +1,12 @@
+{
+  "changes": [
+    {
+      "id": "P1",
+      "input": {
+        "repository": "fixture",
+        "s0": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "s1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    }
+  ]
+}

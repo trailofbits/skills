@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "campaign_dir": "/tmp/campaign",
+  "campaign_dir": "campaign",
   "coverage": "COMPLETE",
   "outcomes": []
 }

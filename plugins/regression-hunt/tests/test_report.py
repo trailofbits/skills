@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from evidence import IntegrityError, read, seal
 from registry import accept, bind, candidate, initialize, reserve
-from report import CHECKS, collect, render, stage
+from report import CHECKS, collect, render, stage, verified_discovery
 from test_evidence import save
 
 SCRIPT = Path(__file__).parents[1] / "scripts" / "report.py"
@@ -254,6 +254,28 @@ def test_unregistered_campaign_is_rejected_even_without_stage_records(tmp_path):
     )
     with pytest.raises(ValueError, match="registry"):
         collect(tmp_path)
+
+
+def test_discovery_verifier_requires_accepted_prepare_and_hunt(campaign_factory):
+    campaign = campaign_factory()
+    assert verified_discovery(campaign.root)["changes"][0]["status"] == "COMPLETE"
+    index = read(campaign.root, "campaign.json")
+    index["changes"][0]["hunt"] = None
+    save(campaign.root, "campaign.json", index)
+    with pytest.raises(ValueError, match="missing hunt stage"):
+        verified_discovery(campaign.root)
+
+
+def test_discovery_cli_returns_json_without_writing_report(campaign):
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(campaign.root), "--verify-discovery"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == verified_discovery(campaign.root)
+    assert not (campaign.root / "report").exists()
 
 
 def test_unregistered_sealed_record_is_rejected(tmp_path):

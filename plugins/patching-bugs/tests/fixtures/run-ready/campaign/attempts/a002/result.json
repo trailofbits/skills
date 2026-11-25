@@ -1,0 +1,15 @@
+{
+  "attempt": "a002",
+  "stage": "hunt",
+  "change": "P1",
+  "agent": "hunt",
+  "candidate": null,
+  "status": "complete",
+  "security_review": "SECURITY.md",
+  "inputs": [
+    "attempts/a001/result.json"
+  ],
+  "artifacts": [],
+  "candidates": [],
+  "candidate_files": {}
+}

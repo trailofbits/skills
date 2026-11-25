@@ -252,6 +252,11 @@ confirmation. Cite files in the sealed package, explaining the relevant lines/ob
 generated reports as artifacts. Render into the assigned attempt directory. A blocked report
 records validation errors; it never repairs source records. Use `campaign` as the change ID
 when reserving a campaign-wide reporting attempt.
+`report.py <campaign-dir> --verify-discovery` prints the collected JSON without
+writing reports. It requires a nonempty frozen scope and registry-accepted,
+sealed, complete `prepare` and `hunt` records for every scoped change. The
+collected coverage may still be `INCOMPLETE` when candidates are unresolved;
+consumers must inspect the returned coverage and decisions.
 
 ## Labels
 

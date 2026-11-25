@@ -126,7 +126,7 @@ def test_attempt_beyond_run_count_is_a_reportable_evidence_gap(tmp_path, kind):
     record["attempt"] = 2
     (directory / f"{kind}.json").write_text(json.dumps(record))
     write_manifest(directory)
-    check(run)
+    check(run, allow_inconsistent_status=True)
     assert verdict(run)[0] == "NOT_READY"
     output = render(run).read_text()
     assert "INCONCLUSIVE" in output
@@ -139,7 +139,7 @@ def test_attempt_beyond_run_count_is_a_reportable_evidence_gap(tmp_path, kind):
 def test_empty_proof_arrays_remain_reportable_evidence_gaps(tmp_path, field):
     run = native_run(tmp_path)
     change(run, "prove/attempt-1/prove.json", **{field: []})
-    check(run)
+    check(run, allow_inconsistent_status=True)
     assert verdict(run)[0] == "NOT_READY"
     output = render(run).read_text()
     assert "REPAIR SUCCEEDED" not in output

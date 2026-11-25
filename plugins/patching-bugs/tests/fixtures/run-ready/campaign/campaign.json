@@ -1,0 +1,16 @@
+{
+  "title": "Fixture campaign",
+  "changes": [
+    {
+      "id": "P1",
+      "input": {
+        "repository": "fixture",
+        "s0": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "s1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "prepare": "attempts/a001/result.json",
+      "hunt": "attempts/a002/result.json",
+      "candidates": []
+    }
+  ]
+}

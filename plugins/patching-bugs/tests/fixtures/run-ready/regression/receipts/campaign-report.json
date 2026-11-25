@@ -1,0 +1,24 @@
+{
+  "title": "Fixture campaign",
+  "counts": {
+    "REPRODUCED_REGRESSION": 0,
+    "INCOMPLETE_FIX": 0,
+    "LATENT_BUG": 0,
+    "PREEXISTING_BUG": 0,
+    "REJECTED": 0,
+    "UNRESOLVED": 0
+  },
+  "changes": [
+    {
+      "id": "P1",
+      "input": {
+        "repository": "fixture",
+        "s0": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "s1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "status": "COMPLETE",
+      "limitations": ""
+    }
+  ],
+  "findings": []
+}

@@ -279,6 +279,19 @@ def collect(root: Path) -> dict:
     }
 
 
+def verified_discovery(root: Path) -> dict:
+    """Collect a campaign only after every scoped prepare and hunt stage finished."""
+    campaign = read(root, "campaign.json")
+    require(campaign["changes"], "Campaign has no scoped changes")
+    for change in campaign["changes"]:
+        for role in ("prepare", "hunt"):
+            name = change.get(role)
+            require(name, f"{change['id']}: missing {role} stage")
+            record = stage(root, name, role, change["id"])
+            require(record["status"] == "complete", f"{change['id']}: {role} stage is blocked")
+    return collect(root)
+
+
 def input_label(value: str | dict[str, object]) -> str:
     """Display structured commit inputs while retaining the original object in JSON."""
     if isinstance(value, str):
@@ -362,14 +375,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("campaign", type=Path)
     parser.add_argument("--output", default="report", help="Campaign-relative report directory")
+    parser.add_argument(
+        "--verify-discovery", action="store_true", help="print verified discovery as JSON"
+    )
     args = parser.parse_args()
     try:
         root = args.campaign.resolve(strict=True)
-        data = collect(root)
+        data = verified_discovery(root) if args.verify_discovery else collect(root)
     except IntegrityError as error:
         parser.exit(1, f"Report integrity error: {error}; no report written\n")
     except (OSError, ValueError, TypeError, KeyError) as error:
         parser.exit(1, f"Report error: {error}; no report written\n")
+    if args.verify_discovery:
+        print(json.dumps(data))
+        return
     try:
         render(root, data, args.output)
     except (OSError, ValueError) as error:

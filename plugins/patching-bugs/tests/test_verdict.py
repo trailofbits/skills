@@ -35,7 +35,7 @@ def test_ready(tmp_path):
         ("validate/validate.json", "outcome", "inconclusive", "NOT_REPRODUCED"),
         ("prove/attempt-1/prove.json", "reverted", "fail", "NOT_READY"),
         ("prove/attempt-1/prove.json", "build_identity", "fail", "NOT_READY"),
-        ("regression/regression.json", "coverage", "INCOMPLETE", "READY_WITH_CONCERNS"),
+        ("regression/regression.json", "coverage", "INCOMPLETE", "NOT_READY"),
     ],
 )
 def test_rule(tmp_path, record, field, value, expected):
@@ -49,7 +49,7 @@ def test_rule(tmp_path, record, field, value, expected):
     [
         ("REPRODUCED_REGRESSION", "NOT_READY"),
         ("INCOMPLETE_FIX", "NOT_READY"),
-        ("UNRESOLVED", "READY_WITH_CONCERNS"),
+        ("UNRESOLVED", "NOT_READY"),
     ],
 )
 def test_regression_outcome(tmp_path, outcome, expected):

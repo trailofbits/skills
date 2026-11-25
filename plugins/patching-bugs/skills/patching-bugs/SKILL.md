@@ -5,6 +5,14 @@ description: Use when a known bug or falsifiable bug hypothesis in a local codeb
 
 # Patching Bugs
 
+## Contents
+
+- [When to Use](#when-to-use)
+- [When NOT to Use](#when-not-to-use)
+- [Workflow](#workflow)
+- [Rationalizations to Reject](#rationalizations-to-reject)
+- [Record contract](../../references/records.md)
+
 ## When to Use
 
 Use for one named bug in the current local codebase when a reviewer needs a local patch
@@ -93,14 +101,30 @@ passes root guidance to its agents.
    attempt directories and run the record checker after each step. On proof failure,
    send the findings to a new patch attempt. After attempt 3 without a proven patch, mark Not ready.
    Keep each repair inside `finding.repair_scope`; do not investigate unrelated bugs.
+   Save the raw child launch and terminal API responses and their matching session records
+   in each patch and prove attempt's `receipts/` directory. Omit `sessionID` from a new
+   OpenCode `subagent` call; for Codex use `fork_turns: "none"`. Set each stage record's
+   `agent` to its returned child session ID or task handle. The child sessions must be
+   distinct, have the same coordinator parent, and show terminal completion. Manifest
+   these four files per stage with the rest of that attempt. See the
+   [session receipt contract](../../references/records.md#child-session-receipts).
 5. Start a `regression-hunt` campaign scoped to `baseline..patch_commit`. Copy each
-   decision record into `regression/receipts/`. Write `regression.json` with coverage
+   decision record into `regression/receipts/`. Require an initialized, frozen campaign
+   with registry-accepted, sealed, complete `prepare` and `hunt` stages for the patch
+   change. Run `report.py <campaign-dir> --verify-discovery` from the installed
+   `regression-hunt` plugin and save its JSON output as
+   `regression/receipts/campaign-report.json`. The campaign input must name the patch's
+   exact baseline and patch commits as `s0` and `s1`. Reconcile the output's candidate
+   IDs, outcomes and coverage with copied source decision receipts before writing
+   `regression.json` with coverage
    and per-finding outcomes, then manifest the complete regression directory with
    `uv run --no-project <script> manifest <regression-step-dir>` using the linked
    [record checker](../../scripts/records.py). Any
    reproduced regression or incomplete fix
    makes the patch Not ready; unresolved findings or incomplete coverage become concerns.
    Its coordinator loads root guidance at `patch_commit` for its own agents.
+   Set `REGRESSION_HUNT_REPORT_SCRIPT` to the installed plugin's `scripts/report.py`
+   when the two plugins are not siblings on disk.
 
    [Regression record schema](../../schemas/regression.schema.json):
 ```json
@@ -116,7 +140,10 @@ passes root guidance to its agents.
    disclosure context, and run the [renderer](../../scripts/render.py). It always writes
    `report.html` for the auditor, including failed and inconclusive runs. It writes
    `maintainer-report.html` only when the validated records establish a verified patch
-   ready for review. Read each generated report and give the auditor the local commit
+   ready for review. Set `run.status` from the derived verdict and run
+   `records.py check <run-dir>` before reporting a `ready` or `ready_with_concerns`
+   status; the checker rejects status claims without the
+   campaign and child session receipts. Read each generated report and give the auditor the local commit
    SHA when present, generated report paths, automated verdict, and remaining review
    action. Never
    push, open a PR, or file an issue.
