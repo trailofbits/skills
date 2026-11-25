@@ -171,6 +171,10 @@ For runtime identity, the unchanged PoC prints one
 `PATCH_LOADED {"path": "<resolved loaded file>", "sha256": "<loaded file hash>"}`
 line from its actual loader observation. Each arm must match that worktree's
 `target_artifact` path and bytes. Hashing a named file alone does not bind execution.
+When `CARGO_TARGET_DIR` is set in the coordinator environment, the helper sets it to the
+current arm's worktree-local `target/` for both build and PoC commands. For Cargo, use a
+`target_artifact` under `target/` and have `PATCH_LOADED` identify that exact file. This keeps
+baseline, patched and reverted build products tied to their respective source trees.
 
 The helper restores and verifies the entire original baseline tree in its owned
 reverted worktree, then rebuilds. Keep the unchanged PoC outside these temporary
