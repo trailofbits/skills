@@ -84,8 +84,12 @@ General audits, patching, or checking only whether an original bug was fixed.
    Run registry `retry` with that terminal record;
    keep candidate IDs, invalidate dependent results and preserve evidence.
 8. Identify possible duplicates; ask adjudication to establish the common root
-   cause before updating index pointers. Preserve change IDs. Request reports
-   covering confirmed findings, unresolved work and coverage gaps.
+   cause before updating index pointers. Preserve change IDs. For a standalone
+   campaign, dispatch a fresh `report-regressions` agent and accept its sealed
+   report record. When `patching-bugs` composes a campaign, leave accepted discovery
+   and decision records in the campaign. Patching Bugs validates them with
+   `report.py --verify-discovery` and renders its own report. In both paths, surface
+   confirmed findings, unresolved work and coverage gaps.
 
 ## Resume
 

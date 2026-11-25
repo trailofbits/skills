@@ -114,8 +114,12 @@ passes root guidance to its agents.
    distinct, have the same coordinator parent, and show terminal completion. Manifest
    these four files per stage with the rest of that attempt. See the
    [session receipt contract](../../references/records.md#child-session-receipts).
-5. Start a `regression-hunt` campaign scoped to `baseline..patch_commit`. Copy each
-   decision record into `regression/receipts/`. Require an initialized, frozen campaign
+5. Start a `regression-hunt` campaign scoped to `baseline..patch_commit`. Use its
+   composed discovery path: the coordinator dispatches fresh `prepare-regression` and
+   `hunt-regressions` agents, plus candidate stages when needed, and retains accepted
+   records in the campaign. Patching Bugs renders the final reports in step 6;
+   standalone Regression Hunt additionally dispatches `report-regressions`.
+   Copy each decision record into `regression/receipts/`. Require an initialized, frozen campaign
    with registry-accepted, sealed, complete `prepare` and `hunt` stages for the patch
    change. Run `report.py <campaign-dir> --verify-discovery` from the installed
    `regression-hunt` plugin and save its JSON output as
