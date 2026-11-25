@@ -93,14 +93,22 @@ passes root guidance to its agents.
    reach a host-observed terminal outcome before treating its records as complete,
    checking its stage, or dispatching a dependent agent. Apply this to every stage,
    including the `regression-hunt` coordinator. A launch response is not a completed stage.
+   OpenCode's `agent` field names a configured runtime agent, not a skill. Use an
+   available agent such as `general` and direct it to the stage skill; do not pass
+   `implement-patch` or another skill name as the agent ID unless configured.
 
-3. Dispatch `reproduce-bug` to a fresh agent with the finding and target checkout. The
-   coordinator may run the preflight build and preserve reporter-supplied material in the
-   finding, but must not author executable PoC or test files or edit `reproduce/` before
+3. Dispatch `reproduce-bug` to a fresh agent with the finding, target checkout, and
+   absolute run directory. Require its artifacts under `<run-dir>/reproduce/`, never
+   under the checkout. The coordinator may run the preflight build and preserve
+   reporter-supplied material in the finding, but must not author executable PoC or
+   test files or edit `reproduce/` before
    dispatch. The child designs and writes any missing PoC and observes the planned scoped
    inputs on the unchanged baseline before any target-tree edit. Give a
    different fresh agent only the finding, the complete `reproduce/` directory,
    and project guidance for `validate-bug`. Do not send the reproducer's transcript.
+   The reproducer's own test run is not independent validation. Do not dispatch
+   `implement-patch` until the fresh validator has finished and its decision passes
+   the record checker.
    Run the [record checker](../../scripts/records.py)
    after each step. Stop at `not_reproduced`, `blocked`, `not_confirmed`, or
    `inconclusive`; prepare the corresponding report. If the scoped behavior is
@@ -198,3 +206,4 @@ never infer a passing check from an agent's summary.
 | The runtime PoC crashed, so the bug reproduced. | Require the exact `PATCH_REACHED` line. |
 | Coordinator writes the PoC first. | Fresh `reproduce-bug` agent owns the PoC. |
 | Coordinator patches early. | Fresh patch agent edits only after independent validation. |
+| Reproducer ran the PoC, so validation is done. | Fresh validator reruns it and records a decision. |

@@ -30,8 +30,9 @@ Report a blocker when the build or environment cannot exercise the claim.
    Exit nonzero for the bug, zero otherwise; a setup crash is inconclusive.
    Compile: record the target `expected_diagnostic` from the failed compiler invocation;
    use empty `poc_argv` and null `target_artifact`.
-3. Save any unchanged PoC source under `reproduce/poc/` and raw receipts
-   under `reproduce/receipts/`. Write `reproduce.json` with the baseline commit,
+3. Save any unchanged PoC source under `<run-dir>/reproduce/poc/` and raw receipts
+   under `<run-dir>/reproduce/receipts/`; do not write these into the target checkout.
+   Write `reproduce.json` in that run directory with the baseline commit,
    command argument arrays, artifact path, observed result, outcome, and your agent
    identity. Set `finding.status` to `reproduced` or `not_reproduced` from the result.
    If reproduction is `blocked`, leave `finding.status` as `hypothesis`.
