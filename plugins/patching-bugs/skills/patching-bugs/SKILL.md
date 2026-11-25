@@ -95,7 +95,10 @@ passes root guidance to its agents.
    including the `regression-hunt` coordinator. A launch response is not a completed stage.
    OpenCode's `agent` field names a configured runtime agent, not a skill. Use an
    available agent such as `general` and direct it to the stage skill; do not pass
-   `implement-patch` or another skill name as the agent ID unless configured.
+   `implement-patch` or another skill name as the agent ID unless configured. Include
+   the absolute pinned stage `SKILL.md` path and run directory in each child prompt;
+   require the child to load that skill before stage work. A stage child that does not
+   load its skill cannot supply an accepted handoff.
 
 3. Dispatch `reproduce-bug` to a fresh agent with the finding, target checkout, and
    absolute run directory. Require its artifacts under `<run-dir>/reproduce/`, never
