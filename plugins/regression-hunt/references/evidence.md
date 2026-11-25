@@ -65,7 +65,7 @@ exact input paths and output directory; new directories are created by the assig
 - Reserve before dispatch, then bind the actual handle. Hunters reserve IDs before writing
   candidate files. A hypothesis key names the same suspected defect across retries; new
   defects use new keys. The helper cannot detect the same defect described under two keys.
-- `registry.json` version 2 contains frozen `scope`, `prefixes` (prefix → change), `candidates` (ID → prefix,
+- `registry.json` version 3 contains frozen `scope`, `prefixes` (prefix → change), `candidates` (ID → prefix,
   key, change, accepted file), and `attempts` (ID → stage, change, candidate, prefix, inputs,
   input hashes, directory, agent, state, accepted record and seal hash, launch/terminal observations).
 - Attempt states are `reserved`, `running`, `accepted` and `superseded`. An accepted record
@@ -89,7 +89,7 @@ Each bound attempt records how its agent was separated:
 A finding's level is the weakest among its reproduction, replay and adjudication. Reproduction,
 replay and adjudication of one candidate always need distinct agent handles.
 
-An agent record is a JSON file in `runtime/` with retained raw evidence beside it:
+An agent record is a JSON file in `runtime/` with retained raw evidence beside it. For Codex:
 
 ```json
 {"event": "launch", "attempt": "a003", "tool": "codex.spawn_agent",
@@ -111,10 +111,31 @@ another reproduce, replay or adjudicate attempt for that candidate, even after a
 whose status is neither `completed` nor `errored` (for example one stopped by force) cannot be
 retried with an agent record; record a blocker.
 
-Bind with `--agent` equal to `response.task_name`. Retry a `shared-host` attempt with a
+Bind with `--agent` equal to `response.task_name`. Retry a Codex `shared-host` attempt with a
 `terminal` record from `codex.list_agents` whose `response.agents` lists that handle once with
-`agent_status` `{"completed": ...}` or `{"errored": ...}`. Other tools are rejected until a
-recognizer is added.
+`agent_status` `{"completed": ...}` or `{"errored": ...}`.
+
+For OpenCode 2.3.2, save a launch record with `tool: "subagent"`, the parent session ID in
+`parent_session`, the exact tool `call` (`agent`, `description`, `prompt`, optional `model`), and its
+`response` (`sessionID`, `status: "running"`, `output`). Omit `sessionID` from the call: passing it
+continues an existing child. Use the returned child `sessionID` as the registry `--agent` handle.
+The child handle must differ from its parent and every earlier bound handle in the campaign.
+The first path in `evidence` must be the completed OpenCode assistant tool part copied from the
+parent transcript. It has `type: "tool"`, `name: "subagent"`, `state.status: "completed"`,
+`state.input` equal to `call`, `state.metadata.sessionID/status` equal to the response, and a text
+content item equal to `response.output`. Keep further raw transcript files after that first path.
+
+For retry, save a terminal record with `tool: "opencode.sessions.get"`,
+`call: {"sessionID": "<bound child session ID>"}`, and `response` equal to the complete child
+`Session.Info` returned by the SDK. The first `evidence` path must contain that unmodified JSON
+response. The record passes when `response.id` is the bound child, `response.parentID` is the
+recorded parent, `response.agent` is the launched agent, no `fork` is present, and `outcome` is
+`succeeded` or `failed`. Missing or `interrupted` outcomes do not prove a finished child. Retain
+the raw API response and coordinator observation under `runtime/` with an ISO 8601 timezone in
+`observed_at`. The coordinator still confirms that owned commands and resources have stopped
+before retry; `sessions.get` does not make that host check.
+The [OpenCode agent documentation](https://opencode.ai/docs/agents) describes fresh child contexts;
+the [API reference](https://opencode.ai/docs/api) defines the session and tool-part fields.
 
 ### Host verification
 

@@ -755,6 +755,187 @@ class RegistryTests(unittest.TestCase):
         handle = f"/root/task-{attempt_id}"
         return bind(self.root, attempt_id, handle, agent_record=self.agent_record(attempt_id))
 
+    def opencode_record(self, attempt_id, event="launch", **fields):
+        name = f"runtime/{attempt_id}-opencode-{event}.json"
+        raw = f"runtime/{attempt_id}-opencode-{event}-raw.json"
+        (self.root / "runtime").mkdir(exist_ok=True)
+        child = f"ses-child-{attempt_id}"
+        if event == "launch":
+            call = {
+                "agent": "explore",
+                "description": "Investigate assigned change",
+                "prompt": "Inspect the assigned change and report findings.",
+            }
+            response = {"sessionID": child, "status": "running", "output": "Working in background"}
+            value = {
+                "tool": "subagent",
+                "parent_session": "ses-parent",
+                "call": call,
+                "response": response,
+            }
+        else:
+            session = {
+                "id": child,
+                "parentID": "ses-parent",
+                "agent": "explore",
+                "outcome": "succeeded",
+                "time": {"created": 1790770000000, "updated": 1790770200000},
+            }
+            value = {
+                "tool": "opencode.sessions.get",
+                "call": {"sessionID": child},
+                "response": session,
+            }
+        value = {
+            "event": event,
+            "attempt": attempt_id,
+            "observed_at": "2026-09-30T12:00:00+00:00",
+            "evidence": [raw],
+            **value,
+            **fields,
+        }
+        if event == "launch":
+            response = value["response"]
+            assert isinstance(response, dict)
+            source = {
+                "type": "tool",
+                "name": "subagent",
+                "state": {
+                    "status": "completed",
+                    "input": value["call"],
+                    "content": [{"type": "text", "text": response.get("output")}],
+                    "metadata": {
+                        "sessionID": response.get("sessionID"),
+                        "status": response.get("status"),
+                    },
+                },
+            }
+        else:
+            source = value["response"]
+        (self.root / raw).write_text(json.dumps(source))
+        (self.root / name).write_text(json.dumps(value))
+        return name
+
+    def test_opencode_launch_binds_child_session_and_retry_accepts_terminal_outcome(self):
+        for outcome in ("succeeded", "failed"):
+            with self.subTest(outcome=outcome):
+                attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+                child = f"ses-child-{attempt['id']}"
+                bound = bind(
+                    self.root,
+                    attempt["id"],
+                    child,
+                    agent_record=self.opencode_record(attempt["id"]),
+                )
+                self.assertEqual(bound["verification"], "shared-host")
+                result = self.record(attempt)
+                self.assertEqual(accept(self.root, attempt["id"], result)["state"], "accepted")
+                terminal = self.opencode_record(
+                    attempt["id"],
+                    "terminal",
+                    response={
+                        "id": child,
+                        "parentID": "ses-parent",
+                        "agent": "explore",
+                        "outcome": outcome,
+                        "time": {"created": 1790770000000, "updated": 1790770200000},
+                    },
+                )
+                replacement = retry(self.root, attempt["id"], agent_record=terminal)
+                self.assertIsNone(replacement["verification"])
+
+    def test_opencode_launch_rejects_forged_or_followup_call(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        child = f"ses-child-{attempt['id']}"
+        cases = (
+            (
+                {
+                    "call": {
+                        "agent": "explore",
+                        "description": "x",
+                        "prompt": "x",
+                        "sessionID": child,
+                    }
+                },
+                "new child",
+            ),
+            (
+                {"response": {"sessionID": child, "status": "completed", "output": "done"}},
+                "running",
+            ),
+            (
+                {"response": {"sessionID": "ses-parent", "status": "running", "output": "x"}},
+                "parent session",
+            ),
+            ({"call": {"agent": "", "description": "x", "prompt": "x"}}, "agent"),
+            ({"parent_session": ""}, "parent session"),
+        )
+        for fields, message in cases:
+            name = self.opencode_record(attempt["id"], **fields)
+            with self.subTest(fields=fields), self.assertRaisesRegex(ValueError, message):
+                bind(self.root, attempt["id"], child, agent_record=name)
+
+    def test_opencode_launch_rejects_reused_child_session(self):
+        first = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        child = f"ses-child-{first['id']}"
+        bind(self.root, first["id"], child, agent_record=self.opencode_record(first["id"]))
+        second = reserve(self.root, {"stage": "hunt", "change": "change-1"})
+        second_record = self.opencode_record(
+            second["id"], response={"sessionID": child, "status": "running", "output": "x"}
+        )
+        with self.assertRaisesRegex(ValueError, "reused child session"):
+            bind(self.root, second["id"], child, agent_record=second_record)
+
+    def test_opencode_launch_rejects_raw_tool_mismatch(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        name = self.opencode_record(attempt["id"])
+        raw = self.root / f"runtime/{attempt['id']}-opencode-launch-raw.json"
+        part = json.loads(raw.read_text())
+        part["state"]["metadata"]["sessionID"] = "ses-forged"
+        raw.write_text(json.dumps(part))
+        with self.assertRaisesRegex(ValueError, "raw subagent response differs"):
+            bind(self.root, attempt["id"], f"ses-child-{attempt['id']}", agent_record=name)
+
+    def test_opencode_terminal_rejects_unfinished_or_unrelated_session(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        child = f"ses-child-{attempt['id']}"
+        bind(self.root, attempt["id"], child, agent_record=self.opencode_record(attempt["id"]))
+        session = {
+            "id": child,
+            "parentID": "ses-parent",
+            "agent": "explore",
+            "outcome": "succeeded",
+            "time": {"created": 1790770000000, "updated": 1790770200000},
+        }
+        cases = (
+            ({"response": {**session, "id": "ses-other"}}, "child session"),
+            ({"response": {**session, "parentID": "ses-other"}}, "parent session"),
+            ({"response": {**session, "agent": "build"}}, "agent"),
+            ({"response": {**session, "outcome": "interrupted"}}, "finished"),
+            ({"response": {**session, "fork": {"sessionID": "ses-other"}}}, "fork"),
+            (
+                {"response": {key: value for key, value in session.items() if key != "outcome"}},
+                "finished",
+            ),
+            ({"call": {"sessionID": "ses-other"}}, "child session"),
+        )
+        for fields, message in cases:
+            name = self.opencode_record(attempt["id"], "terminal", **fields)
+            with self.subTest(fields=fields), self.assertRaisesRegex(ValueError, message):
+                retry(self.root, attempt["id"], agent_record=name)
+
+    def test_opencode_terminal_rejects_raw_session_mismatch(self):
+        attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
+        child = f"ses-child-{attempt['id']}"
+        bind(self.root, attempt["id"], child, agent_record=self.opencode_record(attempt["id"]))
+        name = self.opencode_record(attempt["id"], "terminal")
+        raw = self.root / f"runtime/{attempt['id']}-opencode-terminal-raw.json"
+        info = json.loads(raw.read_text())
+        info["outcome"] = "interrupted"
+        raw.write_text(json.dumps(info))
+        with self.assertRaisesRegex(ValueError, "raw session differs"):
+            retry(self.root, attempt["id"], agent_record=name)
+
     def test_agent_record_binds_shared_host_level(self):
         attempt = reserve(self.root, {"stage": "prepare", "change": "change-1"})
         bound = self.bind_shared(attempt["id"])

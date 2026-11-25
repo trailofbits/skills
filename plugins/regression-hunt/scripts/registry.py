@@ -5,7 +5,7 @@ import fcntl
 import json
 import os
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -115,7 +115,7 @@ def save(root: Path, data: dict) -> None:
 
 
 @contextmanager
-def transaction(root: Path, *, write: bool = True) -> Iterator[dict]:
+def transaction(root: Path, *, write: bool = True) -> Generator[dict]:
     """Serialize reservations and publish each operation atomically."""
     with local(root, ".registry.lock").open("a+b") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -245,7 +245,7 @@ def host_binding(root: Path, data: dict, attempt: dict, agent: str, record: str)
 
 
 def agent_binding(root: Path, data: dict, attempt: dict, agent: str, record: str) -> dict:
-    receipt = agent_launch(root, record, attempt)
+    receipt = agent_launch(root, record, attempt, data["attempts"])
     require(agent_handle(receipt) == agent, f"{attempt['id']}: wrong agent handle")
     return receipt
 

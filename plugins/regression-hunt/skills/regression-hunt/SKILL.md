@@ -5,6 +5,16 @@ description: Use when investigating regressions in PRs or commits, coordinating 
 
 # Coordinate a regression hunt
 
+## Contents
+
+- [When to Use](#when-to-use)
+- [When NOT to Use](#when-not-to-use)
+- [Coordinate](#coordinate)
+- [Resume](#resume)
+- [Report Back](#report-back)
+- [Rationalizations to Reject](#rationalizations-to-reject)
+- [File contract](../../references/evidence.md)
+
 ## When to Use
 
 Investigate supplied PRs of any status or commits, including local commits.
@@ -35,7 +45,9 @@ General audits, patching, or checking only whether an original bug was fixed.
    if a host limit prevents the complete handoff. Retain launch evidence under the file
    contract and bind before work starts: `--host-record` when the host
    verifies an isolated environment, otherwise `--agent-record` with the agent tool's spawn call
-   and response. Expose only its assignment's candidate mapping.
+   and response. In OpenCode, call `subagent` without `sessionID`, bind the returned child
+   `sessionID` as `--agent`, and retain the completed tool part as raw launch evidence.
+   Expose only its assignment's candidate mapping.
 3. Select the next stage:
 
    | Need | Skill |
@@ -58,7 +70,9 @@ General audits, patching, or checking only whether an original bug was fixed.
 7. Route blockers and invalid records to their stage owner. Retry only after
    inputs or circumstances change. Stop the previous agent and its commands;
    verify termination with the same kind of evidence as its launch and release its runtime
-   resources. Run registry `retry` with that terminal record;
+   resources. For OpenCode, retain the raw child `sessions.get` response with
+   `outcome: succeeded` or `failed` and a matching parent session before retry.
+   Run registry `retry` with that terminal record;
    keep candidate IDs, invalidate dependent results and preserve evidence.
 8. Identify possible duplicates; ask adjudication to establish the common root
    cause before updating index pointers. Preserve change IDs. Request reports
