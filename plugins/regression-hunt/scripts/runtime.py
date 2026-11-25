@@ -63,7 +63,7 @@ def agent_observation(root: Path, name: str, attempt: dict, event: str) -> dict:
     return retained(root, name, value, "retain the raw agent tool response")
 
 
-def codex_agent_launch(name: str, call: dict, response: dict) -> None:
+def _codex_agent_launch(name: str, call: dict, response: dict) -> None:
     require(
         call.get("fork_turns") == "none",
         f"{name}: agent inherited conversation (fork_turns={call.get('fork_turns')!r})",
@@ -72,7 +72,7 @@ def codex_agent_launch(name: str, call: dict, response: dict) -> None:
     require(isinstance(handle, str) and handle.strip(), f"{name}: response lacks the agent handle")
 
 
-def opencode_agent_launch(root: Path, name: str, receipt: dict, attempts: dict) -> None:
+def _opencode_agent_launch(root: Path, name: str, receipt: dict, attempts: dict) -> None:
     value = receipt["value"]
     call, response = value["call"], value["response"]
     parent = value.get("parent_session")
@@ -133,9 +133,9 @@ def agent_launch(root: Path, name: str, attempt: dict, attempts: dict) -> dict:
         f"{name}: record the tool call and its response",
     )
     if tool == "subagent":
-        opencode_agent_launch(root, name, receipt, attempts)
+        _opencode_agent_launch(root, name, receipt, attempts)
     else:
-        codex_agent_launch(name, call, response)
+        _codex_agent_launch(name, call, response)
     return receipt
 
 
@@ -146,7 +146,7 @@ def agent_handle(receipt: dict) -> str:
     return response["task_name"]
 
 
-def opencode_agent_terminal(root: Path, name: str, receipt: dict, attempt: dict) -> None:
+def _opencode_agent_terminal(root: Path, name: str, receipt: dict, attempt: dict) -> None:
     value = receipt["value"]
     call, response = value.get("call"), value.get("response")
     require(
@@ -181,7 +181,7 @@ def agent_terminal(root: Path, name: str, attempt: dict) -> dict:
     launched_tool = attempt["launch"]["value"]["tool"]
     if launched_tool == "subagent":
         require(tool == "opencode.sessions.get", f"{name}: expected OpenCode session get")
-        opencode_agent_terminal(root, name, receipt, attempt)
+        _opencode_agent_terminal(root, name, receipt, attempt)
         require(
             timestamp(name, value)
             >= timestamp(attempt["launch"]["record"], attempt["launch"]["value"]),
