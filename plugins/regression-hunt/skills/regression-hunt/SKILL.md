@@ -48,6 +48,9 @@ General audits, patching, or checking only whether an original bug was fixed.
    and response. In OpenCode, call `subagent` without `sessionID`, bind the returned child
    `sessionID` as `--agent`, and retain the completed tool part as raw launch evidence.
    Expose only its assignment's candidate mapping.
+   The OpenCode launch response does not mean the child has finished. Keep the
+   coordinator active until that same child has a host-observed terminal outcome;
+   use its sealed record and terminal receipt before accepting or retrying the stage.
 3. Select the next stage:
 
    | Need | Skill |

@@ -82,6 +82,12 @@ passes root guidance to its agents.
    `absent`), labeled by name and baseline SHA, plus copy paths. Block dispatch if
    the complete contents cannot fit.
 
+   An OpenCode `subagent` call returns a child session ID at launch, while that child
+   may still be working. Keep the coordinator active and wait for the same child to
+   reach a host-observed terminal outcome before treating its records as complete,
+   checking its stage, or dispatching a dependent agent. Apply this to every stage,
+   including the `regression-hunt` coordinator. A launch response is not a completed stage.
+
 3. Dispatch `reproduce-bug` to a fresh agent with the finding and target checkout. Observe
    the planned scoped inputs on the unchanged baseline before any edit. Give a
    different fresh agent only the finding, the complete `reproduce/` directory,
