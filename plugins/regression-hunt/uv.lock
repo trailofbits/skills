@@ -65,7 +65,7 @@ wheels = [
 
 [[package]]
 name = "regression-hunt"
-version = "1.2.0"
+version = "1.2.3"
 source = { virtual = "." }
 
 [package.dev-dependencies]

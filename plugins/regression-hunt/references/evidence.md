@@ -56,7 +56,7 @@ Invoke `uv run --no-project SCRIPT COMMAND CAMPAIGN ...`, resolving SCRIPT from 
 | `candidate` | `ATTEMPT --agent HANDLE --key HYPOTHESIS_KEY` | Reserve a candidate ID, or return the existing ID for that key. |
 | `retry` | `ATTEMPT (--host-record PATH \| --agent-record PATH) [--inputs PATH ...]` | Require termination evidence of the same kind as the launch, supersede the attempt and allocate a new ID/directory with its candidate prefix. Omitted inputs reuse old paths; an empty list clears them. |
 | `check` | `ATTEMPT RECORD` | Verify the sealed result against its assignment without accepting it. |
-| `accept` | `ATTEMPT RECORD` | Validate and record acceptance; only then update campaign pointers. |
+| `accept` | `ATTEMPT RECORD (--host-record PATH \| --agent-record PATH)` | Validate the sealed result and matching terminal observation; only then update campaign pointers. A repeated accept can omit the terminal option because the recorded observation is rechecked. |
 | `show` | | Read the registry for coordinator recovery; never pass other hunters' mappings to a worker. |
 
 Repeat `--input` for each prerequisite. The returned assignment supplies the attempt ID,
@@ -65,14 +65,19 @@ exact input paths and output directory; new directories are created by the assig
 - Reserve before dispatch, then bind the actual handle. Hunters reserve IDs before writing
   candidate files. A hypothesis key names the same suspected defect across retries; new
   defects use new keys. The helper cannot detect the same defect described under two keys.
-- `registry.json` version 3 contains frozen `scope`, `prefixes` (prefix → change), `candidates` (ID → prefix,
+- `registry.json` version 4 contains frozen `scope`, `prefixes` (prefix → change), `candidates` (ID → prefix,
   key, change, accepted file), and `attempts` (ID → stage, change, candidate, prefix, inputs,
   input hashes, directory, agent, state, accepted record and seal hash, launch/terminal observations).
+- Version 3 campaigns cannot establish terminal evidence for previously accepted records.
+  Start a new campaign under version 4; do not relabel old accepted records as verified.
 - Attempt states are `reserved`, `running`, `accepted` and `superseded`. An accepted record
   may be blocked. Continue active attempts with the same ID; retries get new IDs/directories.
   The coordinator must stop the old agent and verify termination before recording terminal evidence.
-- Acceptance checks change, stage, agent, candidate, attempt, launch evidence, exact input paths/hashes, output
-  confinement and seals. Hunt results must account for all reserved candidate IDs and keys.
+- Acceptance checks change, stage, agent, candidate, attempt, launch and terminal evidence,
+  exact input paths/hashes, output confinement and seals. Accepted records recheck both
+  observations. A `complete` result needs a successful terminal outcome; a `blocked` result
+  may follow a recorded failure or stop. Hunt results must account for all reserved candidate
+  IDs and keys.
   Never rename sealed records. The helper verifies recorded identity, not host authentication.
 - Every report requires a registry, the exact frozen scope and registry acceptance for every
   referenced stage record. Each record must belong to its indexed change.
@@ -111,7 +116,7 @@ another reproduce, replay or adjudicate attempt for that candidate, even after a
 whose status is neither `completed` nor `errored` (for example one stopped by force) cannot be
 retried with an agent record; record a blocker.
 
-Bind with `--agent` equal to `response.task_name`. Retry a Codex `shared-host` attempt with a
+Bind with `--agent` equal to `response.task_name`. Accept or retry a Codex `shared-host` attempt with a
 `terminal` record from `codex.list_agents` whose `response.agents` lists that handle once with
 `agent_status` `{"completed": ...}` or `{"errored": ...}`.
 
@@ -125,7 +130,7 @@ parent transcript. It has `type: "tool"`, `name: "subagent"`, `state.status: "co
 `state.input` equal to `call`, `state.metadata.sessionID/status` equal to the response, and a text
 content item equal to `response.output`. Keep further raw transcript files after that first path.
 
-For retry, save a terminal record with `tool: "opencode.sessions.get"`,
+For acceptance or retry, save a terminal record with `tool: "opencode.sessions.get"`,
 `call: {"sessionID": "<bound child session ID>"}`, and `response` equal to the complete child
 `Session.Info` returned by the SDK. The first `evidence` path must contain that unmodified JSON
 response. The record passes when `response.id` is the bound child, `response.parentID` is the

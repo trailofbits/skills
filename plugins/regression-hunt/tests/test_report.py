@@ -80,6 +80,46 @@ class Campaign:
         save(self.root, path, value)
         return path
 
+    def terminal(self, attempt):
+        aid = attempt["id"]
+        raw = f"runtime/{aid}-terminal-raw.json"
+        receipt = f"runtime/{aid}-terminal.json"
+        if attempt["verification"] == "shared-host":
+            response = {
+                "agents": [{"agent_name": attempt["agent"], "agent_status": {"completed": "done"}}]
+            }
+            save(self.root, raw, response)
+            save(
+                self.root,
+                receipt,
+                {
+                    "event": "terminal",
+                    "attempt": aid,
+                    "tool": "codex.list_agents",
+                    "response": response,
+                    "observed_at": "2026-09-30T12:00:00+00:00",
+                    "evidence": [raw],
+                },
+            )
+            return {"agent_record": receipt}
+        launch = attempt["launch"]["value"]
+        save(self.root, raw, {"response": "Synthetic terminal host response"})
+        save(
+            self.root,
+            receipt,
+            {
+                **{key: launch[key] for key in ("host", "session", "agent", "context")},
+                "event": "terminal",
+                "attempt": aid,
+                "state": "completed",
+                "active_commands": [],
+                "resources_released": True,
+                "observed_at": "2026-09-30T12:00:00+00:00",
+                "evidence": [raw],
+            },
+        )
+        return {"host_record": receipt}
+
     def finish(self, attempt, **fields):
         name = f"{attempt['directory']}/result.json"
         save(
@@ -100,7 +140,7 @@ class Campaign:
         )
         seal(self.root, name)
         if attempt["stage"] not in self.unaccepted:
-            accept(self.root, attempt["id"], name)
+            accept(self.root, attempt["id"], name, **self.terminal(attempt))
         self.paths[attempt["stage"]] = name
 
     def prepare(self):

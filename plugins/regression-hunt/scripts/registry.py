@@ -12,7 +12,7 @@ from pathlib import Path
 from evidence import IntegrityError, digest, files, local, read, verify
 from runtime import agent_handle, agent_launch, agent_terminal, launch, terminal, verify_receipt
 
-VERSION = 3
+VERSION = 4
 LEVELS = {"isolated": 2, "shared-host": 1}
 
 STAGES = ("prepare", "hunt", "reproduce", "replay", "adjudicate", "report")
@@ -317,6 +317,35 @@ def stopped(root: Path, attempt: dict, host_record: str | None, agent_record: st
     )
 
 
+def confirmed_terminal(root: Path, attempt: dict) -> dict:
+    """Recheck stored terminal evidence against the bound agent and raw receipt."""
+    receipt = attempt.get("terminal")
+    if not isinstance(receipt, dict):
+        raise ValueError(f"{attempt['id']}: missing terminal receipt")
+    verify_receipt(root, receipt)
+    record = receipt["record"]
+    if "tool" in attempt["launch"]["value"]:
+        current = agent_terminal(root, record, attempt)
+    else:
+        current = terminal(root, record, attempt)
+    require(current == receipt, f"{attempt['id']}: terminal evidence changed")
+    return receipt
+
+
+def completed_terminal(attempt: dict, receipt: dict) -> bool:
+    """Report whether the bound child completed without a host-recorded failure."""
+    value = receipt["value"]
+    if value.get("tool") == "opencode.sessions.get":
+        return value["response"]["outcome"] == "succeeded"
+    if value.get("tool") == "codex.list_agents":
+        agents = value["response"]["agents"]
+        status = next(
+            entry["agent_status"] for entry in agents if entry["agent_name"] == attempt["agent"]
+        )
+        return "completed" in status
+    return value["state"] == "completed"
+
+
 def retry(
     root: Path,
     attempt_id: str,
@@ -392,6 +421,8 @@ def checked(root: Path, data: dict, attempt_id: str, name: str) -> dict:
     attempt = assigned(data, attempt_id)
     require(attempt["state"] in ("running", "accepted"), f"{attempt_id}: {attempt['state']}")
     verify_receipt(root, attempt["launch"])
+    if attempt["state"] == "accepted":
+        confirmed_terminal(root, attempt)
     inside(root, name, attempt["directory"])
     value = verify(root, name)
     for field, expected in (
@@ -494,14 +525,46 @@ def verification(root: Path, names: list[str]) -> str | None:
     return min(known, key=lambda level: LEVELS[level])
 
 
-def accept(root: Path, attempt_id: str, name: str) -> dict:
+def accept(
+    root: Path,
+    attempt_id: str,
+    name: str,
+    *,
+    host_record: str | None = None,
+    agent_record: str | None = None,
+) -> dict:
     with transaction(root) as data:
         value = checked(root, data, attempt_id, name)
         attempt = assigned(data, attempt_id)
+        previous = attempt["terminal"]
+        if previous is None:
+            require(
+                host_record is not None or agent_record is not None,
+                f"{attempt_id}: terminal receipt required before acceptance",
+            )
+            terminal_record = stopped(root, attempt, host_record, agent_record)
+        else:
+            confirmed_terminal(root, attempt)
+            terminal_record = (
+                stopped(root, attempt, host_record, agent_record)
+                if host_record is not None or agent_record is not None
+                else previous
+            )
+            require(previous == terminal_record, f"{attempt_id}: terminal evidence changed")
+        if value["status"] == "complete":
+            require(
+                completed_terminal(attempt, terminal_record),
+                f"{attempt_id}: complete result requires a successful terminal outcome",
+            )
         if attempt["stage"] == "hunt":
             for cid, path in value["candidate_files"].items():
                 data["candidates"][cid]["file"] = path
-        attempt.update(state="accepted", record=name, seal=digest(local(root, name + ".seal.json")))
+        attempt.update(
+            state="accepted",
+            record=name,
+            seal=digest(local(root, name + ".seal.json")),
+            terminal=terminal_record,
+        )
         return attempt
 
 
@@ -530,8 +593,8 @@ def command_arguments(sub: argparse.ArgumentParser, command: str) -> None:
         sub.add_argument("--input", action="append", default=[])
     if command in ("bind", "candidate"):
         sub.add_argument("--agent", required=True)
-    if command in ("bind", "retry"):
-        records = sub.add_mutually_exclusive_group(required=True)
+    if command in ("bind", "retry", "accept"):
+        records = sub.add_mutually_exclusive_group(required=command != "accept")
         records.add_argument("--host-record")
         records.add_argument("--agent-record")
     if command == "candidate":
@@ -568,7 +631,13 @@ def execute(args: argparse.Namespace) -> object:
             agent_record=args.agent_record,
         ),
         "check": lambda: check(root, args.attempt, args.record),
-        "accept": lambda: accept(root, args.attempt, args.record),
+        "accept": lambda: accept(
+            root,
+            args.attempt,
+            args.record,
+            host_record=args.host_record,
+            agent_record=args.agent_record,
+        ),
         "show": lambda: show(root),
     }
     return operations[args.command]()
