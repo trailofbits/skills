@@ -1,0 +1,10 @@
+{
+  "agents": [
+    {
+      "agent_name": "hunt",
+      "agent_status": {
+        "completed": null
+      }
+    }
+  ]
+}

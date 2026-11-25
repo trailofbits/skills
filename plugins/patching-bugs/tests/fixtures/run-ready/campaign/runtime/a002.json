@@ -4,7 +4,8 @@
   "tool": "codex.spawn_agent",
   "call": {
     "task_name": "hunt",
-    "fork_turns": "none"
+    "fork_turns": "none",
+    "message": "Regression Hunt attempt: a002\nInspect the change."
   },
   "response": {
     "task_name": "hunt"
