@@ -10,6 +10,11 @@ set -euo pipefail
 # Guard: only activate when uv is available
 command -v uv &>/dev/null || exit 0
 
+# Codex uses the command hook instead of changing PATH.
+if [[ -n "${PLUGIN_ROOT:-}" && "$PLUGIN_ROOT" == "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+  exit 0
+fi
+
 # Guard: CLAUDE_ENV_FILE must be set by the runtime
 if [[ -z "${CLAUDE_ENV_FILE:-}" ]]; then
   echo "modern-python: CLAUDE_ENV_FILE not set; shims will not be installed" >&2

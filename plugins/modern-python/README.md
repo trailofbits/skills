@@ -37,9 +37,11 @@ Modern Python tooling and best practices using uv, ruff, ty, and pytest. Based o
 
 ## Hook: Legacy Command Interception
 
-This plugin includes a `SessionStart` hook that prepends PATH shims for `python`, `pip`, `pipx`, and `uv`. When Claude runs a bare `python`, `pip`, or `pipx` command, the shell resolves to the shim, which prints an error with the correct `uv` alternative and exits non-zero. The suggested alternative always uses the exact command name `python` (never `python3`) so it also works outside a project; see the header comment in [`hooks/shims/python`](hooks/shims/python) for the full rationale.
+In Claude Code, the plugin uses a `SessionStart` hook that prepends PATH shims for `python`, `pip`, `pipx`, and `uv`. When Claude runs a bare `python`, `pip`, or `pipx` command, the shell resolves to the shim, which prints an error with the correct `uv` alternative and exits non-zero. The suggested alternative always uses the exact command name `python` (never `python3`) so it also works outside a project; see the header comment in [`hooks/shims/python`](hooks/shims/python) for the full rationale.
 
 The shims sit on PATH, so they see every subprocess a tool spawns, not only what Claude types. That is why the intercepted set is narrow: it covers the invocations `uv run` and `uv add` genuinely replace, and passes the rest through to the real binary. `python -c`, `python -m <module>` and `python -` read a program from the command line, an installed module, or stdin, so none of them resolves a script against a project's dependencies; `uv pip` carrying `--project`, `--directory` or `--target` is a tool building an environment it owns. Redirecting those broke real tooling, including `prek` hook installation and any script piping into `python3 -` ([#207](https://github.com/trailofbits/skills/issues/207)).
+
+In Codex, a `PreToolUse` hook checks direct shell invocations of Python, pip, pipx, and `uv pip` and suggests the corresponding uv command. It uses `jq` and `shfmt` (3.6 or newer) on PATH when uv is installed. Codex asks you to review and trust plugin hooks with `/hooks`. The hook checks shell commands it can parse, including pipelines and `&&` setup chains. It leaves function bodies, `if` and `case` branches, and the right side of `||` to the shell, so an unused fallback does not block an otherwise valid command. Tools that start their own subprocesses and commands hidden inside another interpreter are outside this check. Explicit virtual environment interpreters and Python version or help queries can pass through.
 
 | Intercepted Command | Suggested Alternative |
 |---------------------|----------------------|
@@ -63,6 +65,16 @@ Commands like `grep python`, `which python`, and `cat python.txt` work normally 
 
 ## Installation
 
+Claude Code:
+
+```text
+/plugin marketplace add trailofbits/skills
+/plugin install modern-python@trailofbits
 ```
-/plugin install trailofbits/skills/plugins/modern-python
+
+Codex:
+
+```sh
+codex plugin marketplace add trailofbits/skills
+codex plugin add modern-python@trailofbits
 ```
