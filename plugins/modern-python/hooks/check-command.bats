@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+# shellcheck disable=SC2016 # The hook needs to see the literal shell expansions in the fixtures.
 
 setup() {
   HOOK="$BATS_TEST_DIRNAME/check-command.sh"
@@ -10,7 +11,9 @@ setup() {
 }
 
 check_command() {
-  jq -n --arg command "$1" '{hook_event_name:"PreToolUse",tool_name:"Bash",tool_input:{command:$command}}' | bash "$HOOK"
+  local input
+  input=$(jq -n --arg command "$1" '{hook_event_name:"PreToolUse",tool_name:"Bash",tool_input:{command:$command}}') || return
+  bash "$HOOK" <<<"$input"
 }
 
 @test "Codex denies direct legacy invocations and suggests uv" {
